@@ -22,7 +22,6 @@ namespace HVR.Basis.Comms
         [SerializeField] public byte valueArraySize = 8; // Must not change after first enabled.
         [SerializeField] public byte scopedIndex = 0;
 
-
         private readonly Queue<StreamedAvatarFeaturePayload> _queue = new();
         private float[] current;
         private float[] previous;
@@ -57,6 +56,11 @@ namespace HVR.Basis.Comms
         public bool IsWrittenThisFrame()
         {
             return _writtenThisFrame;
+        }
+
+        public float[] ExposeCurrent()
+        {
+            return current;
         }
 
         /// Exposed for testing purposes.
