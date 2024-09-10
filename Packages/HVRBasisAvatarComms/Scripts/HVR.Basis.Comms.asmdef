@@ -1,0 +1,16 @@
+{
+    "name": "HVR.Basis.Comms",
+    "rootNamespace": "",
+    "references": [
+        "BasisSDK"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
