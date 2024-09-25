@@ -1,26 +1,28 @@
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using Basis.Scripts.BasisSdk;
+using Basis.Scripts.Networking;
+using Basis.Scripts.Networking.NetworkedPlayer;
 using DarkRift;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
-    [AddComponentMenu("HVR.Basis/Comms/StreamedAvatarFeature")]
+    [AddComponentMenu("HVR.Basis/Comms/Streamed Avatar Feature")]
     public class StreamedAvatarFeature : MonoBehaviour
     {
-        private const byte MessageIndex = 0xC0;
-
         private const int HeaderBytes = 2;
-        private const float DeltaLocalIntToSeconds = 1 / 60f; // 1/60 makes for a maximum encoded delta time of 4.25 seconds. 
+        // 1/60 makes for a maximum encoded delta time of 4.25 seconds.
+        private const float DeltaLocalIntToSeconds = 1 / 60f;
+        // We use 254, not 255 (leaving 1 value out), because 254/2 is a round number, 127.
+        // This makes the value of 0 in range [-1:1] encodable as 127.
+        private const float EncodingRange = 254f;
 
         private const DeliveryMethod DeliveryMethod = DarkRift.DeliveryMethod.Sequenced;
         private const float TransmissionDeltaSeconds = 0.1f;
 
-        [SerializeField] private bool isSender;
-        [SerializeField] private BasisAvatar avatar; // Can be null on test builds.
+        [SerializeField] private BasisAvatar avatar;
         [SerializeField] public byte valueArraySize = 8; // Must not change after first enabled.
-        [SerializeField] public byte scopedIndex = 0;
 
         private readonly Queue<StreamedAvatarFeaturePayload> _queue = new();
         private float[] current;
@@ -30,37 +32,27 @@ namespace HVR.Basis.Comms
         private float _timeLeft;
         private bool _isOutOfTape;
         private bool _writtenThisFrame;
+        private bool _isWearer;
+        private byte _scopedIndex;
 
-        private void OnEnable()
+        public event InterpolatedDataChanged OnInterpolatedDataChanged;
+        public delegate void InterpolatedDataChanged(float[] current);
+        
+        private void Awake()
         {
             previous ??= new float[valueArraySize];
             target ??= new float[valueArraySize];
             current ??= new float[valueArraySize];
-            if (avatar != null)
-            {
-                avatar.OnNetworkMessageReceived -= OnNetworkMessageReceived;
-                avatar.OnNetworkMessageReceived += OnNetworkMessageReceived;
-            }
         }
 
         private void OnDisable()
         {
-            if (avatar != null)
-            {
-                avatar.OnNetworkMessageReceived -= OnNetworkMessageReceived;
-            }
-
             _writtenThisFrame = false;
         }
 
-        public bool IsWrittenThisFrame()
+        public void Store(int index, float value)
         {
-            return _writtenThisFrame;
-        }
-
-        public float[] ExposeCurrent()
-        {
-            return current;
+            current[index] = value;
         }
 
         /// Exposed for testing purposes.
@@ -71,7 +63,7 @@ namespace HVR.Basis.Comms
 
         private void Update()
         {
-            if (isSender) OnSender();
+            if (_isWearer) OnSender();
             else OnReceiver();
         }
 
@@ -136,22 +128,31 @@ namespace HVR.Basis.Comms
                 // Debug.Log($"Unrolling tape. Values are: {string.Join("; ", current)}");
                 _isOutOfTape = false;
             }
+
+            if (_writtenThisFrame)
+            {
+                OnInterpolatedDataChanged?.Invoke(current);
+            }
+        }
+
+        public void SetEncodingInfo(bool isWearer, byte scopedIndex)
+        {
+            _isWearer = isWearer;
+            _scopedIndex = scopedIndex;
         }
 
         #region Network Payload
 
-        private void OnNetworkMessageReceived(byte messageindex, byte[] buffer)
+        public void OnPacketReceived(ArraySegment<byte> subBuffer)
         {
-            if (isSender) return;
+            if (!isActiveAndEnabled) return;
             
-            if (messageindex != MessageIndex) return;
-            
-            if (TryDecode(buffer, out var result))
+            if (TryDecode(subBuffer, out var result))
             {
                 _queue.Enqueue(result);
             }
         }
-        
+
         // Header:
         // - Scoped Index (1 byte)
         // - Delta Time (1 byte)
@@ -160,39 +161,55 @@ namespace HVR.Basis.Comms
         private void EncodeAndSubmit(StreamedAvatarFeaturePayload message)
         {
             var buffer = new byte[HeaderBytes + valueArraySize];
-            buffer[0] = scopedIndex;
+            buffer[0] = _scopedIndex;
             buffer[1] = (byte)(message.DeltaTime / DeltaLocalIntToSeconds);
             
             for (var i = 0; i < current.Length; i++)
             {
-                buffer[HeaderBytes + i] = (byte)(message.FloatValues[i] * 255);
+                buffer[HeaderBytes + i] = (byte)(message.FloatValues[i] * EncodingRange);
             }
             
-            avatar.OnNetworkMessageSend(MessageIndex, buffer, DeliveryMethod);
+            avatar.NetworkMessageSend(HVRAvatarComms.OurMessageIndex, buffer, DeliveryMethod);
         }
 
-        private bool TryDecode(byte[] buffer, out StreamedAvatarFeaturePayload result)
+        private bool TryDecode(ArraySegment<byte> subBuffer, out StreamedAvatarFeaturePayload result)
         {
-            if (buffer.Length != HeaderBytes + valueArraySize)
+            if (subBuffer.Count != HeaderBytes + valueArraySize)
             {
                 result = default;
                 return false;
             }
 
-            var decodedScopedIndex = buffer[0];
-            if (decodedScopedIndex != scopedIndex)
+            var decodedScopedIndex = subBuffer[0];
+            if (decodedScopedIndex != _scopedIndex)
             {
                 result = default;
                 return false;
             }
 
+            var floatValues = new float[subBuffer.Count - HeaderBytes];
+            for (var i = HeaderBytes; i < subBuffer.Count; i++)
+            {
+                floatValues[i - HeaderBytes] = subBuffer[i] / EncodingRange;
+            }
+            
             result = new StreamedAvatarFeaturePayload
             {
-                DeltaTime = buffer[1] * DeltaLocalIntToSeconds,
-                FloatValues = buffer.Skip(HeaderBytes).Select(b => b / 255f).ToArray()
+                DeltaTime = subBuffer[1] * DeltaLocalIntToSeconds,
+                FloatValues = floatValues
             };
             
             return true;
+        }
+
+        private static ushort TEMP_HELPER_GetLocalClientId()
+        {
+            return BasisNetworkManagement.Instance.Client.ID;
+        }
+
+        private static Dictionary<ushort, BasisNetworkedPlayer> TEMP_HELPER_GetPlayers()
+        {
+            return BasisNetworkManagement.Instance.Players;
         }
         
         #endregion

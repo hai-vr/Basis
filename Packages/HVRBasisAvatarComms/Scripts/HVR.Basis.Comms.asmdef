@@ -2,7 +2,9 @@
     "name": "HVR.Basis.Comms",
     "rootNamespace": "",
     "references": [
-        "BasisSDK"
+        "BasisSDK",
+        "Basis",
+        "DarkRiftIntergration"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

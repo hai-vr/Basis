@@ -1,0 +1,135 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Basis.Scripts.BasisSdk;
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Networking;
+using Basis.Scripts.Networking.NetworkedPlayer;
+using DarkRift;
+using UnityEngine;
+
+namespace HVR.Basis.Comms
+{
+    [AddComponentMenu("HVR.Basis/Comms/Avatar Comms")]
+    public class HVRAvatarComms : MonoBehaviour
+    {
+        public const byte OurMessageIndex = 0xC0;
+        private const int BytesPerGuid = 16;
+
+        [SerializeField] private BasisAvatar avatar;
+        [SerializeField] private FeatureNetworking featureNetworking;
+        
+        private bool _isWearer;
+        private ushort _wearerNetId;
+        private Guid[] _negotiatedGuids;
+        private Dictionary<int, int> _fromTheirsToOurs;
+
+        private void Awake()
+        {
+            if (avatar == null) avatar = GetComponentInParent<BasisAvatar>(true); // Defensive
+            if (featureNetworking == null) featureNetworking = GetComponentInParent<FeatureNetworking>(true); // Defensive
+            if (avatar == null || featureNetworking == null)
+            {
+                throw new InvalidOperationException("Broke assumption: Avatar and/or FeatureNetworking cannot be found.");
+            }
+            
+            avatar.OnAvatarReady += OnAvatarReady;
+        }
+
+        private void OnDestroy()
+        {
+            avatar.OnAvatarReady -= OnAvatarReady;
+            BasisNetworkManagement.OnRemotePlayerJoined -= OnRemotePlayerJoined;
+        }
+
+        private void OnAvatarReady(bool isowner)
+        {
+            _isWearer = isowner;
+            if (BasisNetworkManagement.AvatarToPlayer(avatar, out _, out var netPly))
+            {
+                _wearerNetId = netPly.NetId;
+            }
+            else
+            {
+                enabled = false;
+                throw new InvalidOperationException("Broke assumption: AvatarToPlayer is always supposed to succeed within OnAvatarReady");
+            }
+
+            featureNetworking.AssignGuids(_isWearer);
+
+            avatar.OnNetworkMessageReceived += OnNetworkMessageReceived;
+            if (_isWearer)
+            {
+                avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), DeliveryMethod.ReliableOrdered);
+                BasisNetworkManagement.OnRemotePlayerJoined += OnRemotePlayerJoined;
+            }
+        }
+
+        private void OnNetworkMessageReceived(ushort playerid, byte messageindex, byte[] unsafeBuffer, ushort[] recipients)
+        {
+            // Ignore all net messages as long as this is disabled.
+            if (!isActiveAndEnabled) return;
+            
+            if (OurMessageIndex != messageindex) return;
+            
+            // The sender cannot receive
+            if (_isWearer) return;
+            
+            // Only the wearer can send us messages
+            if (_wearerNetId != playerid) return;
+
+            if (unsafeBuffer.Length == 0) return; // Protocol error
+            
+            var theirs = unsafeBuffer[0];
+            if (theirs == FeatureNetworking.NegotiationPacket)
+            {
+                DecodeNegotiationPacket(new ArraySegment<byte>(unsafeBuffer, 1, unsafeBuffer.Length - 1));
+            }
+            else if (_fromTheirsToOurs.TryGetValue(theirs, out var ours))
+            {
+                featureNetworking.OnPacketReceived(ours, new ArraySegment<byte>(unsafeBuffer, 1, unsafeBuffer.Length - 1));
+            }
+        }
+
+        private bool DecodeNegotiationPacket(ArraySegment<byte> unsafeGuids)
+        {
+            if (unsafeGuids.Count % BytesPerGuid != 0) return false;
+            
+            // Safe after this point
+            var safeGuids = unsafeGuids;
+            
+            var guidCount = safeGuids.Count / BytesPerGuid;
+            _negotiatedGuids = new Guid[guidCount];
+            _fromTheirsToOurs = new Dictionary<int, int>();
+            if (guidCount == 0)
+            {
+                return true;
+            }
+            
+            for (var guidIndex = 0; guidIndex < guidCount; guidIndex++)
+            {
+                var guid = new Guid(safeGuids.Slice(guidIndex * BytesPerGuid, BytesPerGuid));
+                _negotiatedGuids[guidIndex] = guid;
+            }
+
+            var lookup = featureNetworking.GetOrderedGuids().ToList();
+
+            for (var theirIndex = 0; theirIndex < _negotiatedGuids.Length; theirIndex++)
+            {
+                var theirGuid = _negotiatedGuids[theirIndex];
+                var ourIndexOptional = lookup.IndexOf(theirGuid);
+                if (ourIndexOptional != -1)
+                {
+                    _fromTheirsToOurs[theirIndex] = ourIndexOptional;
+                }
+            }
+
+            return true;
+        }
+
+        private void OnRemotePlayerJoined(BasisNetworkedPlayer net, BasisRemotePlayer remote)
+        {
+            avatar.OnNetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), DeliveryMethod.ReliableOrdered, new[] { net.NetId });
+        }
+    }
+}
