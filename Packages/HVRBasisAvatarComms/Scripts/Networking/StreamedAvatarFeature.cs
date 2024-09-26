@@ -14,14 +14,14 @@ namespace HVR.Basis.Comms
         private const int HeaderBytes = 2;
         // 1/60 makes for a maximum encoded delta time of 4.25 seconds.
         private const float DeltaLocalIntToSeconds = 1 / 60f;
-        // We use 254, not 255 (leaving 1 value out), because 254/2 is a round number, 127.
+        // We use 254, not 255 (leaving 1 value out), because 254 divided by 2 is a round number, 127.
         // This makes the value of 0 in range [-1:1] encodable as 127.
         private const float EncodingRange = 254f;
 
         private const DeliveryMethod DeliveryMethod = DarkRift.DeliveryMethod.Sequenced;
         private const float TransmissionDeltaSeconds = 0.1f;
 
-        [SerializeField] private BasisAvatar avatar;
+        internal BasisAvatar avatar;
         [SerializeField] public byte valueArraySize = 8; // Must not change after first enabled.
 
         private readonly Queue<StreamedAvatarFeaturePayload> _queue = new();
@@ -169,6 +169,7 @@ namespace HVR.Basis.Comms
                 buffer[HeaderBytes + i] = (byte)(message.FloatValues[i] * EncodingRange);
             }
             
+            Debug.Log($"Sending {Convert.ToBase64String(buffer)}");
             avatar.NetworkMessageSend(HVRAvatarComms.OurMessageIndex, buffer, DeliveryMethod);
         }
 

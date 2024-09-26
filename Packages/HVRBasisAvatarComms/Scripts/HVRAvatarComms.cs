@@ -13,6 +13,8 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/Avatar Comms")]
     public class HVRAvatarComms : MonoBehaviour
     {
+        private const bool OffensiveProgramming_OnAvatarReadyImpliesNetworkReady = false;
+        
         public const byte OurMessageIndex = 0xC0;
         private const int BytesPerGuid = 16;
 
@@ -39,7 +41,7 @@ namespace HVR.Basis.Comms
         private void OnDestroy()
         {
             avatar.OnAvatarReady -= OnAvatarReady;
-            BasisNetworkManagement.OnRemotePlayerJoined -= OnRemotePlayerJoined;
+            BasisNetworkManagement.OnRemotePlayerJoined -= WearerOnRemotePlayerJoined;
         }
 
         private void OnAvatarReady(bool isowner)
@@ -51,8 +53,12 @@ namespace HVR.Basis.Comms
             }
             else
             {
-                enabled = false;
-                throw new InvalidOperationException("Broke assumption: AvatarToPlayer is always supposed to succeed within OnAvatarReady");
+                // TODO: This is false for now because this fails on avatar testing, which prevents the avatar from spawning
+                if (OffensiveProgramming_OnAvatarReadyImpliesNetworkReady)
+                {
+                    enabled = false;
+                    throw new InvalidOperationException("Broke assumption: AvatarToPlayer is always supposed to succeed within OnAvatarReady");
+                }
             }
 
             featureNetworking.AssignGuids(_isWearer);
@@ -61,16 +67,17 @@ namespace HVR.Basis.Comms
             if (_isWearer)
             {
                 avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), DeliveryMethod.ReliableOrdered);
-                BasisNetworkManagement.OnRemotePlayerJoined += OnRemotePlayerJoined;
+                BasisNetworkManagement.OnRemotePlayerJoined += WearerOnRemotePlayerJoined;
             }
         }
 
         private void OnNetworkMessageReceived(ushort playerid, byte messageindex, byte[] unsafeBuffer, ushort[] recipients)
         {
-            // Ignore all net messages as long as this is disabled.
-            if (!isActiveAndEnabled) return;
-            
+            // Ignore all other messages first
             if (OurMessageIndex != messageindex) return;
+            
+            // Ignore all net messages as long as this is disabled
+            if (!isActiveAndEnabled) return;
             
             // The sender cannot receive
             if (_isWearer) return;
@@ -127,9 +134,9 @@ namespace HVR.Basis.Comms
             return true;
         }
 
-        private void OnRemotePlayerJoined(BasisNetworkedPlayer net, BasisRemotePlayer remote)
+        private void WearerOnRemotePlayerJoined(BasisNetworkedPlayer net, BasisRemotePlayer remote)
         {
-            avatar.OnNetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), DeliveryMethod.ReliableOrdered, new[] { net.NetId });
+            avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), DeliveryMethod.ReliableOrdered, new[] { net.NetId });
         }
     }
 }

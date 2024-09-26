@@ -19,7 +19,7 @@ namespace HVR.Basis.Comms
         [SerializeField] private FeatureNetworking featureNetworking;
         [SerializeField] private AcquisitionService acquisition;
         
-        private Dictionary<string, int> _addressBase;
+        private Dictionary<string, int> _addressBase = new Dictionary<string, int>();
         private ComputedActuator[] _computedActuators;
         private ComputedActuator[][] _addressBaseIndexToActuators;
         private FeatureInterpolator featureInterpolator;
@@ -137,10 +137,10 @@ namespace HVR.Basis.Comms
                 .Where(actuator => actuator != null)
                 .ToArray();
 
-            _addressBaseIndexToActuators = new ComputedActuator[][] {};
-            foreach (var computedActuatorse in _computedActuators.GroupBy(actuator => actuator.AddressIndex, actuator => actuator))
+            _addressBaseIndexToActuators = new ComputedActuator[_addressBase.Count][];
+            foreach (var computedActuator in _computedActuators.GroupBy(actuator => actuator.AddressIndex, actuator => actuator))
             {
-                _addressBaseIndexToActuators[computedActuatorse.Key] = computedActuatorse.ToArray();
+                _addressBaseIndexToActuators[computedActuator.Key] = computedActuator.ToArray();
             }
 
             acquisition.RegisterAddresses(_addressBase.Keys.ToArray(), OnAddressUpdated);
@@ -153,7 +153,7 @@ namespace HVR.Basis.Comms
             for (var index = 0; index < addressBase.Length; index++)
             {
                 var se = addressBase[index];
-                _addressBase[se] = index;
+                dictionary[se] = index;
             }
 
             return dictionary;

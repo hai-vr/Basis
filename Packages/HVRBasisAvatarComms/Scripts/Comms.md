@@ -63,14 +63,15 @@ There cannot be more than 128 GUIDs.
 The following applies when `bytes[0]` equals 255.
 
 It describes a sequence of GUIDs (can be empty), encoded in groups of 16 bytes.
+<br>*As a reminder, a GUID is not transmitted as a string.*
 
 Assert that:
 - `(1 + (bytes.Length - 1) % 16) == 1` must be true.
 - In `NumberOfGuids = (bytes.Length - 1) / 16`, `NumberOfGuids` must be between 0 (inclusive) and 127 (inclusive).
-- There must not be two identical GUIDs in that sequence.
-- All GUIDs must conform to UUID version 4 (https://datatracker.ietf.org/doc/html/rfc9562#name-uuid-version-4).
-- Using the Nil UUID is prohibited.
-- Using the Max UUID is prohibited.
+- **(TODO)** There must not be two identical GUIDs in that sequence.
+- **(TODO)** All GUIDs must conform to UUID version 4 (https://datatracker.ietf.org/doc/html/rfc9562#name-uuid-version-4). *Other versions, and non-standard versionless GUIDs are prohibited.*
+- **(TODO)** Using the Nil UUID is prohibited.
+- **(TODO)** Using the Max UUID is prohibited.
 
 ### Transmission packet (\[0\] < 255)
 
@@ -85,7 +86,7 @@ The following applies when `bytes[0]` is strictly less than 255.
 The value of `bytes[0]` corresponds to the index of the GUID that represents the component.
 
 The value of `bytes[1]` is the interpolation duration needed for this packet.
-- It is generally defined to be the number of seconds since the last packet was sent, multiplied by 60 (time is quantized in 60 parts).
+- It is generally defined to be the number of seconds since the last packet was sent, multiplied by 60 (a second is quantized in 60 parts).
 - It can be set to a different duration, or 0, in order to change the interpolation duration.
 - As a result of this formula, the maximum encoded interpolation duration would be 4.25 seconds.
 - The packet delivery guarantee is specified by the implementation.
@@ -95,5 +96,5 @@ The value of `bytes[1]` is the interpolation duration needed for this packet.
 
 Assert that:
 - At least one valid Negotiation packet has been previously received.
-- `bytes[0]` must be less or equal to the `NumberOfGuids` received in the last Negotiation packet.
+- `bytes[0]` must be less than the `NumberOfGuids` received in the last Negotiation packet.
 - `bytes.Length` must be greater or equal to 2.

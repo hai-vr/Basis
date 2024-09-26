@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Basis.Scripts.BasisSdk;
 using UnityEngine;
-using Random = System.Random;
 
 namespace HVR.Basis.Comms
 {
@@ -14,6 +14,7 @@ namespace HVR.Basis.Comms
         public delegate void InterpolatedDataChanged(float[] current);
 
         [SerializeField] private FeatureNetPairing[] netPairings; // Unsafe: May contain malformed GUIDs, or null components, or non-networkable components.
+        [SerializeField] private BasisAvatar avatar;
 
         private Dictionary<Guid, ICommsNetworkable> _guidToNetworkable;
         private Guid[] _orderedGuids;
@@ -25,7 +26,7 @@ namespace HVR.Basis.Comms
 
         private void Awake()
         {
-            var rand = new Random();
+            var rand = new System.Random();
             var safeNetPairings = netPairings
                 .Where(pairing => Guid.TryParse(pairing.guid, out _))
                 .Where(pairing => pairing.component != null && pairing.component is ICommsNetworkable)
@@ -65,6 +66,7 @@ namespace HVR.Basis.Comms
             };
             _holder.SetActive(false);
             var streamed = _holder.AddComponent<StreamedAvatarFeature>();
+            streamed.avatar = avatar;
             streamed.valueArraySize = (byte)count; // TODO: Sanitize count to be within bounds
             _holder.SetActive(true);
             
