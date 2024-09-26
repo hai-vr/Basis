@@ -1,4 +1,5 @@
-﻿using HVR.Basis.Comms.OSC;
+﻿using System;
+using HVR.Basis.Comms.OSC;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -15,9 +16,18 @@ namespace HVR.Basis.Comms
 
         private void OnEnable()
         {
-            _client = new HVROsc(OurFakeServerPort);
-            _client.Start();
-            _client.SetReceiverOscPort(ExternalProgramReceiverPort);
+            try
+            {
+                _client = new HVROsc(OurFakeServerPort);
+                _client.Start();
+                _client.SetReceiverOscPort(ExternalProgramReceiverPort);
+            }
+            catch (Exception e)
+            {
+                // Prevent avatar loading failure (i.e. there are two OSC clients opened on this device)
+                Debug.LogWarning($"Failed to start OSC client ({e.Message}");
+                enabled = false;
+            }
         }
 
         private void Update()
@@ -38,13 +48,32 @@ namespace HVR.Basis.Comms
 
         private void OnDisable()
         {
-            _client.Finish();
-            _client = null;
+            if (_client != null)
+            {
+                try
+                {
+                    _client.Finish();
+                }
+                catch (Exception e)
+                {
+                    // Prevent avatar loading failure (i.e. there are two OSC clients opened on this device)
+                    Debug.LogWarning($"Failed to close client ({e.Message}");
+                }
+                _client = null;
+            }
         }
 
         public void SendWakeUpMessage(string wakeUp)
         {
-            _client.SendOsc("/avatar/change", wakeUp);
+            try
+            {
+                _client.SendOsc("/avatar/change", wakeUp);
+            }
+            catch (Exception e)
+            {
+                // Prevent avatar loading failure (i.e. there are two OSC clients opened on this device)
+                Debug.LogWarning($"Failed to send wake up message ({e.Message}");
+            }
         }
     }
 }

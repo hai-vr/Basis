@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedPlayer;
@@ -12,6 +13,7 @@ namespace HVR.Basis.Comms
     public class StreamedAvatarFeature : MonoBehaviour
     {
         private const int HeaderBytes = 2;
+        private const int SubHeaderBytes = HeaderBytes - 1;
         // 1/60 makes for a maximum encoded delta time of 4.25 seconds.
         private const float DeltaLocalIntToSeconds = 1 / 60f;
         // We use 254, not 255 (leaving 1 value out), because 254 divided by 2 is a round number, 127.
@@ -89,11 +91,17 @@ namespace HVR.Basis.Comms
         {
             var timePassed = Time.deltaTime;
             _timeLeft -= timePassed;
+
+            float totalQueueSeconds = 0;
+            foreach (var payload in _queue) totalQueueSeconds += payload.DeltaTime;
+            // Debug.Log($"Queue time is {totalQueueSeconds} seconds, size is {_queue.Count}");
             
             while (_timeLeft <= 0 && _queue.TryDequeue(out var eval))
             {
-                // TODO: Shorten the delta time when we want to keep up the pace
-                var effectiveDeltaTime = eval.DeltaTime;
+                // Debug.Log($"Unpacking delta {eval.DeltaTime} as {string.Join(',', eval.FloatValues.Select(f => $"{f}"))}");
+                var effectiveDeltaTime = _queue.Count <= 5 || totalQueueSeconds < 0.2f
+                    ? eval.DeltaTime
+                    : (eval.DeltaTime * Mathf.Lerp(0.66f, 0.05f, Mathf.InverseLerp(0.1f, totalQueueSeconds, 4f)));
                 
                 _timeLeft += effectiveDeltaTime;
                 previous = target;
@@ -157,7 +165,6 @@ namespace HVR.Basis.Comms
         }
 
         // Header:
-        // - Scoped Index (1 byte)
         // - Delta Time (1 byte)
         // - Float Values (valueArraySize bytes)
 
@@ -172,34 +179,33 @@ namespace HVR.Basis.Comms
                 buffer[HeaderBytes + i] = (byte)(message.FloatValues[i] * EncodingRange);
             }
             
-            Debug.Log($"Sending {Convert.ToBase64String(buffer)}");
             avatar.NetworkMessageSend(HVRAvatarComms.OurMessageIndex, buffer, DeliveryMethod);
         }
 
         private bool TryDecode(ArraySegment<byte> subBuffer, out StreamedAvatarFeaturePayload result)
         {
-            if (subBuffer.Count != HeaderBytes + valueArraySize)
+            if (subBuffer.Count != SubHeaderBytes + valueArraySize)
             {
                 result = default;
                 return false;
             }
 
-            var decodedScopedIndex = subBuffer.get_Item(0);
-            if (decodedScopedIndex != _scopedIndex)
-            {
-                result = default;
-                return false;
-            }
+            // var decodedScopedIndex = subBuffer.get_Item(0);
+            // if (decodedScopedIndex != _scopedIndex)
+            // {
+                // result = default;
+                // return false;
+            // }
 
-            var floatValues = new float[subBuffer.Count - HeaderBytes];
-            for (var i = HeaderBytes; i < subBuffer.Count; i++)
+            var floatValues = new float[subBuffer.Count - SubHeaderBytes];
+            for (var i = SubHeaderBytes; i < subBuffer.Count; i++)
             {
-                floatValues[i - HeaderBytes] = subBuffer.get_Item(i) / EncodingRange;
+                floatValues[i - SubHeaderBytes] = subBuffer.get_Item(i) / EncodingRange;
             }
             
             result = new StreamedAvatarFeaturePayload
             {
-                DeltaTime = subBuffer.get_Item(1) * DeltaLocalIntToSeconds,
+                DeltaTime = subBuffer.get_Item(0) * DeltaLocalIntToSeconds,
                 FloatValues = floatValues
             };
             

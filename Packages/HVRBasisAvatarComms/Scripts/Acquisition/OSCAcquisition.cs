@@ -12,6 +12,7 @@ namespace HVR.Basis.Comms
         [SerializeField] private AcquisitionService acquisitionService;
         
         private OSCAcquisitionServer _acquisitionServer;
+        private bool _alreadyInitialized;
 
         private void Awake()
         {
@@ -22,6 +23,8 @@ namespace HVR.Basis.Comms
         private void OnAvatarNetworkReady()
         {
             if (!avatar.IsOwnedLocally) return;
+            if (_alreadyInitialized) return;
+            _alreadyInitialized = true;
             
             _acquisitionServer = FindFirstObjectByType<OSCAcquisitionServer>();
             if (_acquisitionServer == null)

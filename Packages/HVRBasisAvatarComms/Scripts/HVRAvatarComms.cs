@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
@@ -7,6 +8,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedPlayer;
 using DarkRift;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace HVR.Basis.Comms
 {
@@ -14,6 +16,7 @@ namespace HVR.Basis.Comms
     public class HVRAvatarComms : MonoBehaviour
     {
         private const bool OffensiveProgramming_OnAvatarNetworkReadyImpliesAvatarToPlayerIsFunctional = true;
+        private const DeliveryMethod NegotiationDelivery = DeliveryMethod.Sequenced;
         
         public const byte OurMessageIndex = 0xC0;
         private const int BytesPerGuid = 16;
@@ -25,6 +28,8 @@ namespace HVR.Basis.Comms
         private ushort _wearerNetId;
         private Guid[] _negotiatedGuids;
         private Dictionary<int, int> _fromTheirsToOurs;
+        private Stopwatch _debugRetrySendNegotiation;
+        private bool _alreadyInitialized;
 
         private void Awake()
         {
@@ -46,6 +51,9 @@ namespace HVR.Basis.Comms
 
         private void OnAvatarNetworkReady()
         {
+            if (_alreadyInitialized) return;
+            _alreadyInitialized = true;
+            
             _isWearer = avatar.IsOwnedLocally;
             _wearerNetId = avatar.LinkedPlayerID;
             if (false)
@@ -70,8 +78,22 @@ namespace HVR.Basis.Comms
             avatar.OnNetworkMessageReceived += OnNetworkMessageReceived;
             if (_isWearer)
             {
-                avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), DeliveryMethod.ReliableOrdered);
+                avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), NegotiationDelivery);
                 BasisNetworkManagement.OnRemotePlayerJoined += WearerOnRemotePlayerJoined;
+
+                _debugRetrySendNegotiation = new Stopwatch();
+                _debugRetrySendNegotiation.Restart();
+            }
+        }
+
+        private void Update()
+        {
+            if (!_isWearer) return;
+
+            if (_debugRetrySendNegotiation.ElapsedMilliseconds > 2000)
+            {
+                _debugRetrySendNegotiation.Restart();
+                avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), NegotiationDelivery);
             }
         }
 
@@ -141,7 +163,8 @@ namespace HVR.Basis.Comms
         private void WearerOnRemotePlayerJoined(BasisNetworkedPlayer net, BasisRemotePlayer remote)
         {
             // (dooly says:) IN CASE THIS DOES NOT WORK: Remove the NetId array at the end.
-            avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), DeliveryMethod.ReliableOrdered, new[] { net.NetId });
+            // avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), NegotiationDelivery, new[] { net.NetId });
+            avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), NegotiationDelivery);
         }
     }
 }
