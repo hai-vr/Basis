@@ -92,10 +92,13 @@ namespace HVR.Basis.Comms
             
             while (_timeLeft <= 0 && _queue.TryDequeue(out var eval))
             {
-                _timeLeft += eval.DeltaTime;
+                // TODO: Shorten the delta time when we want to keep up the pace
+                var effectiveDeltaTime = eval.DeltaTime;
+                
+                _timeLeft += effectiveDeltaTime;
                 previous = target;
                 target = eval.FloatValues;
-                _deltaTime = eval.DeltaTime;
+                _deltaTime = effectiveDeltaTime;
             }
 
             if (_timeLeft <= 0)

@@ -13,7 +13,7 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/Avatar Comms")]
     public class HVRAvatarComms : MonoBehaviour
     {
-        private const bool OffensiveProgramming_OnAvatarReadyImpliesNetworkReady = false;
+        private const bool OffensiveProgramming_OnAvatarNetworkReadyImpliesAvatarToPlayerIsFunctional = true;
         
         public const byte OurMessageIndex = 0xC0;
         private const int BytesPerGuid = 16;
@@ -35,18 +35,18 @@ namespace HVR.Basis.Comms
                 throw new InvalidOperationException("Broke assumption: Avatar and/or FeatureNetworking cannot be found.");
             }
             
-            avatar.OnAvatarReady += OnAvatarReady;
-        }
+            avatar.OnAvatarNetworkReady += OnAvatarNetworkReady;
+        }k
 
         private void OnDestroy()
         {
-            avatar.OnAvatarReady -= OnAvatarReady;
+            avatar.OnAvatarNetworkReady -= OnAvatarNetworkReady;
             BasisNetworkManagement.OnRemotePlayerJoined -= WearerOnRemotePlayerJoined;
         }
 
-        private void OnAvatarReady(bool isowner)
+        private void OnAvatarNetworkReady()
         {
-            _isWearer = isowner;
+            _isWearer = avatar.IsOwnedLocally;
             if (BasisNetworkManagement.AvatarToPlayer(avatar, out _, out var netPly))
             {
                 _wearerNetId = netPly.NetId;
@@ -54,10 +54,10 @@ namespace HVR.Basis.Comms
             else
             {
                 // TODO: This is false for now because this fails on avatar testing, which prevents the avatar from spawning
-                if (OffensiveProgramming_OnAvatarReadyImpliesNetworkReady)
+                if (OffensiveProgramming_OnAvatarNetworkReadyImpliesAvatarToPlayerIsFunctional)
                 {
                     enabled = false;
-                    throw new InvalidOperationException("Broke assumption: AvatarToPlayer is always supposed to succeed within OnAvatarReady");
+                    throw new InvalidOperationException("Broke assumption: AvatarToPlayer is always supposed to succeed within OnAvatarNetworkReady");
                 }
             }
 
@@ -136,6 +136,7 @@ namespace HVR.Basis.Comms
 
         private void WearerOnRemotePlayerJoined(BasisNetworkedPlayer net, BasisRemotePlayer remote)
         {
+            // (dooly says:) IN CASE THIS DOES NOT WORK: Remove the NetId array at the end.
             avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), DeliveryMethod.ReliableOrdered, new[] { net.NetId });
         }
     }
