@@ -36,7 +36,7 @@ namespace HVR.Basis.Comms
             }
             
             avatar.OnAvatarNetworkReady += OnAvatarNetworkReady;
-        }k
+        }
 
         private void OnDestroy()
         {
@@ -47,17 +47,21 @@ namespace HVR.Basis.Comms
         private void OnAvatarNetworkReady()
         {
             _isWearer = avatar.IsOwnedLocally;
-            if (BasisNetworkManagement.AvatarToPlayer(avatar, out _, out var netPly))
+            _wearerNetId = avatar.LinkedPlayerID;
+            if (false)
             {
-                _wearerNetId = netPly.NetId;
-            }
-            else
-            {
-                // TODO: This is false for now because this fails on avatar testing, which prevents the avatar from spawning
-                if (OffensiveProgramming_OnAvatarNetworkReadyImpliesAvatarToPlayerIsFunctional)
+                if (BasisNetworkManagement.AvatarToPlayer(avatar, out _, out var netPly))
                 {
-                    enabled = false;
-                    throw new InvalidOperationException("Broke assumption: AvatarToPlayer is always supposed to succeed within OnAvatarNetworkReady");
+                    _wearerNetId = netPly.NetId;
+                }
+                else
+                {
+                    // TODO: This is false for now because this fails on avatar testing, which prevents the avatar from spawning
+                    if (OffensiveProgramming_OnAvatarNetworkReadyImpliesAvatarToPlayerIsFunctional)
+                    {
+                        enabled = false;
+                        throw new InvalidOperationException("Broke assumption: AvatarToPlayer is always supposed to succeed within OnAvatarNetworkReady");
+                    }
                 }
             }
 
