@@ -16,8 +16,8 @@ namespace HVR.Basis.Comms
         private void OnEnable()
         {
             _client = new HVROsc(OurFakeServerPort);
-            _client.SetReceiverOscPort(ExternalProgramReceiverPort);
             _client.Start();
+            _client.SetReceiverOscPort(ExternalProgramReceiverPort);
         }
 
         private void Update()

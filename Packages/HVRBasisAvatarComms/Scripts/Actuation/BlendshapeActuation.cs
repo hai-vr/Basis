@@ -32,6 +32,8 @@ namespace HVR.Basis.Comms
             // TODO: Might need to queue and delay this change so that it executes on the Update loop.
 
             var actuatorsForThisAddress = _addressBaseIndexToActuators[index];
+            if (actuatorsForThisAddress == null) return; // There may be no actuator for an address when it does not exist in the renderers.
+            
             var lower = 0f;
             var upper = 0f;
             foreach (var actuator in actuatorsForThisAddress)

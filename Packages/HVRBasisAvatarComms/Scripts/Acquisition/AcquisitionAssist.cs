@@ -1,5 +1,6 @@
 ﻿#if UNITY_EDITOR
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -28,11 +29,15 @@ namespace HVR.Basis.Comms
             DrawDefaultInspector();
 
             var assist = (AcquisitionAssist)target;
-            foreach (var definition in assist.definitionFile.definitions)
+            var groupings = assist.definitionFile.definitions.GroupBy(definition => definition.address, definition => definition);
+            foreach (var definitions in groupings)
             {
-                var address = definition.address;
+                var address = definitions.First().address;
                 assist.memory.TryGetValue(address, out var value);
-                var newValue = EditorGUILayout.Slider(address, value, -1, 1);
+                var allInEnds = definitions.Select(definition => definition.inStart).Concat(definitions.Select(definition => definition.inEnd)).ToArray();
+                var min = allInEnds.Min();
+                var max = allInEnds.Max();
+                var newValue = EditorGUILayout.Slider(address, value, min, max);
                 if (value != newValue)
                 {
                     assist.memory[address] = newValue;
