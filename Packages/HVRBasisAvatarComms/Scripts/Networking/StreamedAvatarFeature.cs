@@ -181,7 +181,7 @@ namespace HVR.Basis.Comms
                 return false;
             }
 
-            var decodedScopedIndex = subBuffer[0];
+            var decodedScopedIndex = subBuffer.get_Item(0);
             if (decodedScopedIndex != _scopedIndex)
             {
                 result = default;
@@ -191,12 +191,12 @@ namespace HVR.Basis.Comms
             var floatValues = new float[subBuffer.Count - HeaderBytes];
             for (var i = HeaderBytes; i < subBuffer.Count; i++)
             {
-                floatValues[i - HeaderBytes] = subBuffer[i] / EncodingRange;
+                floatValues[i - HeaderBytes] = subBuffer.get_Item(i) / EncodingRange;
             }
             
             result = new StreamedAvatarFeaturePayload
             {
-                DeltaTime = subBuffer[1] * DeltaLocalIntToSeconds,
+                DeltaTime = subBuffer.get_Item(1) * DeltaLocalIntToSeconds,
                 FloatValues = floatValues
             };
             
