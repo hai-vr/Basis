@@ -6,7 +6,7 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/OSC Acquisition")]
     public class OSCAcquisition : MonoBehaviour
     {
-        private const string FakeWakeUpMessage = "avtr_00000000-bc83-4caa-b77f-000000000000";
+        private const string FakeWakeUpMessage = "avtr_00000000-d7dc-4a90-ab09-000000000000";
         
         [SerializeField] private BasisAvatar avatar;
         [SerializeField] private AcquisitionService acquisitionService;
@@ -23,6 +23,7 @@ namespace HVR.Basis.Comms
         private void OnAvatarNetworkReady()
         {
             if (!avatar.IsOwnedLocally) return;
+            
             if (_alreadyInitialized) return;
             _alreadyInitialized = true;
             

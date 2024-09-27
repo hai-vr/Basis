@@ -120,7 +120,6 @@ namespace HVR.Basis.Comms
                     }
 
                     _isOutOfTape = true;
-                    // Debug.Log($"Ran out of tape. End values are: {string.Join("; ", current)}");
                 }
                 else
                 {
@@ -136,7 +135,6 @@ namespace HVR.Basis.Comms
                 {
                     current[i] = Mathf.Lerp(previous[i], target[i], progression01);
                 }
-                // Debug.Log($"Unrolling tape. Values are: {string.Join("; ", current)}");
                 _isOutOfTape = false;
             }
 
@@ -165,8 +163,10 @@ namespace HVR.Basis.Comms
         }
 
         // Header:
-        // - Delta Time (1 byte)
-        // - Float Values (valueArraySize bytes)
+        // - Scoped Index (1 byte)
+        // - Sub-header:
+        //   - Delta Time (1 byte)
+        //   - Float Values (valueArraySize bytes)
 
         private void EncodeAndSubmit(StreamedAvatarFeaturePayload message)
         {
@@ -189,14 +189,6 @@ namespace HVR.Basis.Comms
                 result = default;
                 return false;
             }
-
-            // var decodedScopedIndex = subBuffer.get_Item(0);
-            // if (decodedScopedIndex != _scopedIndex)
-            // {
-                // result = default;
-                // return false;
-            // }
-
             var floatValues = new float[subBuffer.Count - SubHeaderBytes];
             for (var i = SubHeaderBytes; i < subBuffer.Count; i++)
             {
@@ -210,16 +202,6 @@ namespace HVR.Basis.Comms
             };
             
             return true;
-        }
-
-        private static ushort TEMP_HELPER_GetLocalClientId()
-        {
-            return BasisNetworkManagement.Instance.Client.ID;
-        }
-
-        private static Dictionary<ushort, BasisNetworkedPlayer> TEMP_HELPER_GetPlayers()
-        {
-            return BasisNetworkManagement.Instance.Players;
         }
         
         #endregion

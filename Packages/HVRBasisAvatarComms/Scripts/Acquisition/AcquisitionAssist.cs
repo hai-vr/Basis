@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
-    [AddComponentMenu("HVR.Basis/Comms/Acquisition Assist")]
+    [AddComponentMenu("HVR.Basis/Comms/Assist/Acquisition Assist")]
     public class AcquisitionAssist : MonoBehaviour
     {
         public BlendshapeActuationDefinitionFile definitionFile;

@@ -15,8 +15,7 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/Avatar Comms")]
     public class HVRAvatarComms : MonoBehaviour
     {
-        private const bool OffensiveProgramming_OnAvatarNetworkReadyImpliesAvatarToPlayerIsFunctional = true;
-        private const DeliveryMethod NegotiationDelivery = DeliveryMethod.Sequenced;
+        private const DeliveryMethod NegotiationDelivery = DeliveryMethod.ReliableOrdered;
         
         public const byte OurMessageIndex = 0xC0;
         private const int BytesPerGuid = 16;
@@ -56,22 +55,6 @@ namespace HVR.Basis.Comms
             
             _isWearer = avatar.IsOwnedLocally;
             _wearerNetId = avatar.LinkedPlayerID;
-            if (false)
-            {
-                if (BasisNetworkManagement.AvatarToPlayer(avatar, out _, out var netPly))
-                {
-                    _wearerNetId = netPly.NetId;
-                }
-                else
-                {
-                    // TODO: This is false for now because this fails on avatar testing, which prevents the avatar from spawning
-                    if (OffensiveProgramming_OnAvatarNetworkReadyImpliesAvatarToPlayerIsFunctional)
-                    {
-                        enabled = false;
-                        throw new InvalidOperationException("Broke assumption: AvatarToPlayer is always supposed to succeed within OnAvatarNetworkReady");
-                    }
-                }
-            }
 
             featureNetworking.AssignGuids(_isWearer);
 
@@ -90,10 +73,11 @@ namespace HVR.Basis.Comms
         {
             if (!_isWearer) return;
 
-            if (_debugRetrySendNegotiation.ElapsedMilliseconds > 2000)
+            // This is a hack: Send the negotiation packet every so often, because the negotiation packets are currently not going through properly.
+            if (_debugRetrySendNegotiation.ElapsedMilliseconds > 5000)
             {
                 _debugRetrySendNegotiation.Restart();
-                avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), NegotiationDelivery);
+                avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), DeliveryMethod.Sequenced); // Use Sequenced, because we know this delivery type works
             }
         }
 
@@ -111,7 +95,9 @@ namespace HVR.Basis.Comms
             // Only the wearer can send us messages
             if (_wearerNetId != playerid) return;
 
-            if (unsafeBuffer.Length == 0) return; // Protocol error
+            if (unsafeBuffer.Length == 0) return; // Protocol error: Missing sub-packet identifier
+
+            if (_fromTheirsToOurs == null) return; // Protocol error: No valid Networking packet was previously received
             
             var theirs = unsafeBuffer[0];
             if (theirs == FeatureNetworking.NegotiationPacket)
@@ -121,6 +107,12 @@ namespace HVR.Basis.Comms
             else if (_fromTheirsToOurs.TryGetValue(theirs, out var ours))
             {
                 featureNetworking.OnPacketReceived(ours, new ArraySegment<byte>(unsafeBuffer, 1, unsafeBuffer.Length - 1));
+            }
+            else
+            {
+                // Either:
+                // - Mismatching avatar structures, or
+                // - Protocol error: Remote has sent a GUID index greater or equal to the previously negotiated GUIDs. 
             }
         }
 
@@ -162,6 +154,7 @@ namespace HVR.Basis.Comms
 
         private void WearerOnRemotePlayerJoined(BasisNetworkedPlayer net, BasisRemotePlayer remote)
         {
+            // FIXME: Packet is not received
             // (dooly says:) IN CASE THIS DOES NOT WORK: Remove the NetId array at the end.
             // avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), NegotiationDelivery, new[] { net.NetId });
             avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), NegotiationDelivery);
