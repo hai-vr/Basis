@@ -73,7 +73,29 @@ Assert that:
 - **(TODO)** Using the Nil UUID is prohibited.
 - **(TODO)** Using the Max UUID is prohibited.
 
-### Transmission packet (\[0\] < 255)
+### Reserved packet (\[0\] == 254)
+
+This packet is reserved for future use, and will be used to communicate internal events.
+
+Non-wearers can send this packet.
+
+#### Encoding
+
+The following applies when `bytes[0]` equals 254.
+
+The value of `bytes[1]` corresponds to the reserved packet identifier.
+
+Assert that:
+- `bytes.Length` must be greater or equal to 2.
+
+#### Reserved packet identifiers
+
+- (\[1\] == 0) **Remote Requests Initialization**
+  - Signals when the avatar is loaded on a non-wearer, so that the Negotiation packet may be sent.
+  - Who can send: Non-wearers
+  - Who can receive: Wearer
+
+### Transmission packet (\[0\] < 254)
 
 Transmission packets contains the data payload, along with relative timing information that will be used for interpolation.
 

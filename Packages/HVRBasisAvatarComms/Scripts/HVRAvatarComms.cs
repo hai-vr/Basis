@@ -3,12 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using Basis.Scripts.BasisSdk;
-using Basis.Scripts.BasisSdk.Players;
-using Basis.Scripts.Networking;
-using Basis.Scripts.Networking.NetworkedPlayer;
 using DarkRift;
 using UnityEngine;
-using Debug = UnityEngine.Debug;
 
 namespace HVR.Basis.Comms
 {
@@ -45,7 +41,6 @@ namespace HVR.Basis.Comms
         private void OnDestroy()
         {
             avatar.OnAvatarNetworkReady -= OnAvatarNetworkReady;
-            BasisNetworkManagement.OnRemotePlayerJoined -= WearerOnRemotePlayerJoined;
         }
 
         private void OnAvatarNetworkReady()
@@ -61,9 +56,6 @@ namespace HVR.Basis.Comms
             avatar.OnNetworkMessageReceived += OnNetworkMessageReceived;
             if (_isWearer)
             {
-                avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), NegotiationDelivery);
-                BasisNetworkManagement.OnRemotePlayerJoined += WearerOnRemotePlayerJoined;
-
                 _debugRetrySendNegotiation = new Stopwatch();
                 _debugRetrySendNegotiation.Restart();
             }
@@ -91,29 +83,47 @@ namespace HVR.Basis.Comms
             
             // The sender cannot receive
             if (_isWearer) return;
-            
-            // Only the wearer can send us messages
-            if (_wearerNetId != playerid) return;
 
             if (unsafeBuffer.Length == 0) return; // Protocol error: Missing sub-packet identifier
-
-            if (_fromTheirsToOurs == null) return; // Protocol error: No valid Networking packet was previously received
+            
+            var isSentByWearer = _wearerNetId == playerid;
             
             var theirs = unsafeBuffer[0];
             if (theirs == FeatureNetworking.NegotiationPacket)
             {
-                DecodeNegotiationPacket(new ArraySegment<byte>(unsafeBuffer, 1, unsafeBuffer.Length - 1));
+                // Only the wearer can send us this message
+                if (!isSentByWearer) return;
+                
+                DecodeNegotiationPacket(SubBuffer(unsafeBuffer));
             }
-            else if (_fromTheirsToOurs.TryGetValue(theirs, out var ours))
+            else if (theirs == FeatureNetworking.ReservedPacket)
             {
-                featureNetworking.OnPacketReceived(ours, new ArraySegment<byte>(unsafeBuffer, 1, unsafeBuffer.Length - 1));
+                // Reserved packets are not necessarily sent by the wearer.
+                DecodeReservedPacket(SubBuffer(unsafeBuffer));
             }
-            else
+            else // Transmission packet
             {
-                // Either:
-                // - Mismatching avatar structures, or
-                // - Protocol error: Remote has sent a GUID index greater or equal to the previously negotiated GUIDs. 
+                // Only the wearer can send us this message
+                if (!isSentByWearer) return;
+                
+                if (_fromTheirsToOurs == null) return; // Protocol error: No valid Networking packet was previously received
+                
+                if (_fromTheirsToOurs.TryGetValue(theirs, out var ours))
+                {
+                    featureNetworking.OnPacketReceived(ours, SubBuffer(unsafeBuffer));
+                }
+                else
+                {
+                    // Either:
+                    // - Mismatching avatar structures, or
+                    // - Protocol error: Remote has sent a GUID index greater or equal to the previously negotiated GUIDs. 
+                }
             }
+        }
+
+        private static ArraySegment<byte> SubBuffer(byte[] unsafeBuffer)
+        {
+            return new ArraySegment<byte>(unsafeBuffer, 1, unsafeBuffer.Length - 1);
         }
 
         private bool DecodeNegotiationPacket(ArraySegment<byte> unsafeGuids)
@@ -152,12 +162,13 @@ namespace HVR.Basis.Comms
             return true;
         }
 
-        private void WearerOnRemotePlayerJoined(BasisNetworkedPlayer net, BasisRemotePlayer remote)
+        private void DecodeReservedPacket(ArraySegment<byte> data)
         {
-            // FIXME: Packet is not received
-            // (dooly says:) IN CASE THIS DOES NOT WORK: Remove the NetId array at the end.
-            // avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), NegotiationDelivery, new[] { net.NetId });
-            avatar.NetworkMessageSend(OurMessageIndex, featureNetworking.GetNegotiationPacket(), NegotiationDelivery);
+            if (data.Count == 0) return; // Protocol error: Missing data identifier
+
+            var reservedPacketIdentifier = data.get_Item(0);
+
+            // Reserved packets are not currently used.
         }
     }
 }

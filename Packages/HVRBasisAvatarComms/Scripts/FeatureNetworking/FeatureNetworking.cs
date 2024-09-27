@@ -10,6 +10,7 @@ namespace HVR.Basis.Comms
     public class FeatureNetworking : MonoBehaviour
     {
         public const byte NegotiationPacket = 255;
+        public const byte ReservedPacket = 254;
 
         public delegate void InterpolatedDataChanged(float[] current);
 

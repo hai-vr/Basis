@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
+    [AddComponentMenu("HVR.Basis/Comms/Acquisition Service")]
     public class AcquisitionService : MonoBehaviour
     {
         public delegate void AddressUpdated(string address, float value);

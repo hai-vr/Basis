@@ -57,6 +57,10 @@ namespace HVR.Basis.Comms
         private void ForceUpdate()
         {
             SetBuiltInEyeFollowDriverOverriden(true);
+            
+            // FIXME: Debug a problem with our address registration
+            acquisitionService.UnregisterAddresses(OurAddresses, OnAddressUpdated);
+            acquisitionService.RegisterAddresses(OurAddresses, OnAddressUpdated);
 
             SetEyeRotation(_fEyeLeftX, _fEyeY, EyeSide.Left);
             SetEyeRotation(_fEyeRightX, _fEyeY, EyeSide.Right);
@@ -69,6 +73,8 @@ namespace HVR.Basis.Comms
             var euler = Quaternion.Euler(yDeg, xDeg, 0);
             switch (side)
             {
+                // FIXME: This wrongly assumes that eye bone transforms are oriented the same.
+                // This needs to be fixed later by using the work-in-progress normalized muscle system instead.
                 case EyeSide.Left: ;EyeFollowDriver.leftEyeTransform.localRotation = EyeFollowDriver.leftEyeInitialRotation * euler;
                     break;
                 case EyeSide.Right: ;EyeFollowDriver.rightEyeTransform.localRotation = EyeFollowDriver.rightEyeInitialRotation * euler;
