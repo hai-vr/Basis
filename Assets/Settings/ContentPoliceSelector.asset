@@ -152,3 +152,4 @@ MonoBehaviour:
   - UnityEngine.Transform
   - UnityEngine.Animator
   - UnityEngine.SkinnedMeshRenderer
+  - Basis.Scripts.BasisSdk.BasisConditionalLoad

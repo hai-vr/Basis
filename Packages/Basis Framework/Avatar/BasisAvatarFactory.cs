@@ -9,6 +9,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using Object = UnityEngine.Object;
+
 namespace Basis.Scripts.Avatar
 {
     public static class BasisAvatarFactory
@@ -168,6 +170,26 @@ namespace Basis.Scripts.Avatar
         }
         private static void InitializePlayerAvatar(BasisPlayer Player, GameObject Output)
         {
+            bool isLocal = Player is BasisLocalPlayer;
+            List<BasisConditionalLoad> conditionalLoadComps = new List<BasisConditionalLoad>();
+            Output.GetComponentsInChildren(true, conditionalLoadComps);
+            foreach (var conditionalLoadComp in conditionalLoadComps)
+            {
+                // null-Destroy check: Someone might have put multiple BasisConditionalLoad in the same object hierarchy
+                if (conditionalLoadComp)
+                {
+                    bool preserve = conditionalLoadComp.useNetworkCondition && (
+                        isLocal && (conditionalLoadComp.networkAllow & BasisConditionalLoadNetwork.Local) != 0
+                        || !isLocal && (conditionalLoadComp.networkAllow & BasisConditionalLoadNetwork.Remote) != 0
+                    );
+                    if (!preserve)
+                    {
+                        Object.Destroy(conditionalLoadComp.gameObject);
+                        // Note: Even if an object is local-only, content policing must be executed for the safety of the local user.
+                    }
+                }
+            }
+            
             if (Output.TryGetComponent(out BasisAvatar Avatar))
             {
                 DeleteLastAvatar(Player, true);
