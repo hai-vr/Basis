@@ -152,6 +152,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 input.CurrentInputState.Trigger == 1;
         }
 
+        /// <summary>
+        /// Deskop check for triggering AutoHold drop. Base implementation will always return true, since not all interactables have a concept of holding.
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
+        public virtual bool IsHoldDropTriggered(BasisInput input)
+        {
+            return true;
+        }
+
         public abstract bool CanHover(BasisInput input);
         public abstract bool IsHoveredBy(BasisInput input);
 
