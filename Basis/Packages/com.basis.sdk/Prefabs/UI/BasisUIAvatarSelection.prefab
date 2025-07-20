@@ -672,6 +672,17 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
+  - UnlockPassword: 56111b7c8a373d7d66095eebf71a11c1e766380289afad16082364ed3dcd0f13
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Avatars/DX11/ThirdParty/Mako/1fa16808bbaf4881b681336848402dbb20250720.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: 
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
   ParentedAvatarButtons: {fileID: 4009804357683877728}
   ButtonPrefab: {fileID: 5504761427362873086}
   AddAvatarApply: {fileID: 2085562167410064864}

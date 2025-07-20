@@ -6,7 +6,6 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using BattlePhaze.SettingsManager.Intergrations;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;

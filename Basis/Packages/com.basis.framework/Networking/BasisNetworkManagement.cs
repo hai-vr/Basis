@@ -277,49 +277,40 @@ namespace Basis.Scripts.Networking
                 ForceShutdown();
             }
         }
-        private async void PeerConnectedEvent(NetPeer peer)
-        {
-            await PeerConnectedEventAsync(peer);
-        }
-        private async Task PeerConnectedEventAsync(NetPeer peer)
+        private void PeerConnectedEvent(NetPeer peer)
         {
             BasisDebug.Log("Success! Now setting up Networked Local Player");
-
-            // Wrap the main logic in a task for thread safety and asynchronous execution.
-            await Task.Run((Action)(() =>
+            BasisNetworkManagement.MainThreadContext.Post(_ =>
             {
-                BasisNetworkManagement.MainThreadContext.Post((SendOrPostCallback)(_ =>
+                try
                 {
-                    try
+                    LocalPlayerPeer = peer;
+                    ushort LocalPlayerID = (ushort)peer.RemoteId;
+                    // Create the local networked player asynchronously.
+                    this.transform.GetPositionAndRotation(out Vector3 Position, out Quaternion Rotation);
+                    Transmitter = new BasisNetworkTransmitter(LocalPlayerID);
+                    LocalAccessTransmitter = Transmitter;
+                    // Initialize the local networked player.
+                    LocalInitalize(LocalAccessTransmitter, BasisLocalPlayer.Instance);
+                    if (AddPlayer(LocalAccessTransmitter))
                     {
-                        LocalPlayerPeer = peer;
-                        ushort LocalPlayerID = (ushort)peer.RemoteId;
-                        // Create the local networked player asynchronously.
-                        this.transform.GetPositionAndRotation(out Vector3 Position, out Quaternion Rotation);
-                        Transmitter = new BasisNetworkTransmitter(LocalPlayerID);
-                        LocalAccessTransmitter = Transmitter;
-                        // Initialize the local networked player.
-                        LocalInitalize(Transmitter, BasisLocalPlayer.Instance);
-                        if (AddPlayer(Transmitter))
-                        {
-                            //  BasisDebug.Log($"Added local player {LocalPlayerID}");
-                        }
-                        else
-                        {
-                            BasisDebug.LogError($"Cannot add player {LocalPlayerID}");
-                        }
-                        Transmitter.Initialize();
-                        // Notify listeners about the local player joining.
-                        BasisNetworkPlayer.OnLocalPlayerJoined?.Invoke(Transmitter, BasisLocalPlayer.Instance);
-                        BasisNetworkPlayer.OnPlayerJoined?.Invoke(Transmitter);
-                        LocalPlayerIsConnected = true;
+                        //  BasisDebug.Log($"Added local player {LocalPlayerID}");
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        BasisDebug.LogError($"Error setting up the local player: {ex.Message} {ex.StackTrace}");
+                        BasisDebug.LogError($"Cannot add player {LocalPlayerID}");
                     }
-                }), null);
-            }));
+                    LocalAccessTransmitter.Initialize();
+                    // Notify listeners about the local player joining.
+                    BasisNetworkPlayer.OnLocalPlayerJoined?.Invoke(LocalAccessTransmitter, BasisLocalPlayer.Instance);
+                    BasisNetworkPlayer.OnPlayerJoined?.Invoke(LocalAccessTransmitter);
+                    LocalPlayerIsConnected = true;
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogError($"Error setting up the local player: {ex.Message} {ex.StackTrace}");
+                }
+            }, null);
         }
         public static void LocalInitalize(BasisNetworkTransmitter BasisNetworkPlayer, BasisLocalPlayer BasisLocalPlayer)
         {

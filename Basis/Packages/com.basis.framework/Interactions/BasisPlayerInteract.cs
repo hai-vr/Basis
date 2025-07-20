@@ -8,6 +8,7 @@ using Unity.Burst;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using static Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject;
 namespace Basis.Scripts.BasisSdk.Interactions
 {
     public class BasisPlayerInteract : MonoBehaviour
@@ -233,8 +234,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             UnityEngine.Profiling.Profiler.EndSample();
 #endif
         }
-
-        // NOTE: if modifying this, please be careful to update UnsafeSetInteractcting accordingly.
         private BasisInteractInput UpdatePickupState(BasisInteractableObject hitInteractable, BasisInteractInput interactInput)
         {
             // hit a different target than last time
@@ -249,8 +248,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
                     }
 
-                    // interacted with new hit since last frame & we arent holding (in which case do nothing)
-                    if (hitInteractable.CanInteract(interactInput.input) && !interactInput.lastTarget.IsInteractingWith(interactInput.input))
+                    bool shouldHold = hitInteractable.AutoHold == BasisAutoHold.Yes;
+
+                    // interacted with new hit since last frame & we aren't holding (in which case do nothing)
+                    if (hitInteractable.CanInteract(interactInput.input) &&
+                        (!interactInput.lastTarget.IsInteractingWith(interactInput.input) || shouldHold))
                     {
                         hitInteractable.OnInteractStart(interactInput.input);
                         interactInput.lastTarget = hitInteractable;
@@ -260,11 +262,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 else
                 {
                     bool removeTarget = false;
-                    // end iteract of hit (unlikely since we just hit it this update)
+
+                    // end interact of hit (unlikely since we just hit it this update)
                     if (hitInteractable.IsInteractingWith(interactInput.input))
                     {
                         hitInteractable.OnInteractEnd(interactInput.input);
                     }
+
                     // end interact of previous object
                     if (interactInput.lastTarget.IsInteractingWith(interactInput.input))
                     {
@@ -279,7 +283,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         removeTarget = true;
                     }
 
-                    // remove here in case both hover and interact ended
                     if (removeTarget)
                     {
                         interactInput.lastTarget = null;
@@ -296,36 +299,36 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // hitting same interactable
             else
             {
-                // Pickup logic: 
-                // per input an object can be either held or hovered, not both. Objects can ignore this by purposfully modifying IsHovered/IsInteracted.
                 if (hitInteractable.IsInteractTriggered(interactInput.input))
                 {
-                    // first clear hover...
+                    // first clear hover
                     if (hitInteractable.IsHoveredBy(interactInput.input))
                     {
-                        // will interact this frame
                         hitInteractable.OnHoverEnd(interactInput.input, hitInteractable.CanInteract(interactInput.input));
                     }
 
                     // then try to interact
-                    // TODO: hand set pickup limitations
+                    bool shouldHold = hitInteractable.AutoHold == BasisAutoHold.Yes;// || interactInput.input.isHeld
+
                     if (hitInteractable.CanInteract(interactInput.input))
                     {
-                        hitInteractable.OnInteractStart(interactInput.input);
-                        interactInput.lastTarget = hitInteractable;
+                        // Avoid re-triggering interaction if already interacting and AutoHold is on
+                        if (!hitInteractable.IsInteractingWith(interactInput.input) || shouldHold)
+                        {
+                            hitInteractable.OnInteractStart(interactInput.input);
+                            interactInput.lastTarget = hitInteractable;
+                        }
                     }
                 }
-                // not holding
-                // hover if we arent holding, drop any held
                 else
                 {
-                    // first end interact...
-                    if (hitInteractable.IsInteractingWith(interactInput.input))
+                    // end interact if not holding and we're still interacting
+                    if (hitInteractable.IsInteractingWith(interactInput.input) && hitInteractable.AutoHold == BasisAutoHold.No)
                     {
                         hitInteractable.OnInteractEnd(interactInput.input);
                     }
 
-                    // then hover
+                    // hover logic
                     if (hitInteractable.CanHover(interactInput.input))
                     {
                         hitInteractable.OnHoverStart(interactInput.input);
@@ -333,6 +336,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     }
                 }
             }
+
             return interactInput;
         }
         private void RemoveInput(string uid)

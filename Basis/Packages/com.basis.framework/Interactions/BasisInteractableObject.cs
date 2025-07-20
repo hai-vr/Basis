@@ -8,13 +8,20 @@ namespace Basis.Scripts.BasisSdk.Interactions
     [Serializable]
     public abstract class BasisInteractableObject : MonoBehaviour
     {
+
         public BasisInputSources Inputs = new(0);
 
         [Header("Interactable Settings")]
 
         [SerializeField]
         private bool interactableEnabled = true;
-
+        [SerializeField]
+        public BasisAutoHold AutoHold = BasisAutoHold.No;
+        [System.Serializable]
+        public enum BasisAutoHold
+        {
+            Yes, No
+        }
 
         [Space(10)]
         public bool Equippable = false;
@@ -140,7 +147,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             return input.CurrentInputState.GripButton ||
                 // special case for desktop (left-click)
-                input.TryGetRole(out Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole role) &&
+                input.TryGetRole(out var role) &&
                 role == Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.CenterEye &&
                 input.CurrentInputState.Trigger == 1;
         }

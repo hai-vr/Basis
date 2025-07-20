@@ -1,24 +1,84 @@
-using Basis;
 using Basis.Network.Core;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Profiler;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using static BasisNetworkCore.Serializable.SerializableBasis;
 using static DarkRift.Basis_Common.Serializable.SerializableBasis;
 using static SerializableBasis;
 public static class BasisNetworkGenericMessages
 {
-    // Handler for server scene data messages
+    public class DeferredMessage
+    {
+        public ushort PlayerId { get; }
+        public ushort MessageIndex { get; }
+        public byte[] Payload { get; }
+        public DeliveryMethod DeliveryMethod { get; }
+
+        public DeferredMessage(ushort playerId, ushort messageIndex, byte[] payload, DeliveryMethod deliveryMethod)
+        {
+            PlayerId = playerId;
+            MessageIndex = messageIndex;
+            Payload = payload;
+            DeliveryMethod = deliveryMethod;
+        }
+    }
+    private static readonly List<DeferredMessage> _deferredMessages = new();
+    private static readonly Dictionary<ushort, Action<ushort, byte[], DeliveryMethod>> _handlers = new();
+    private const int MaxDeferredMessages = 1000; // Set your limit here
+
+    public static void RegisterHandler(ushort messageIndex, Action<ushort, byte[], DeliveryMethod> handler)
+    {
+        _handlers[messageIndex] = handler;
+        TryDeliverDeferredMessages();
+    }
+
+    public static void UnregisterHandler(ushort messageIndex)
+    {
+        _handlers.Remove(messageIndex);
+    }
+
     public static void HandleServerSceneDataMessage(NetPacketReader reader, DeliveryMethod deliveryMethod)
     {
-        ServerSceneDataMessage ServerSceneDataMessage = new ServerSceneDataMessage();
-        ServerSceneDataMessage.Deserialize(reader);
-        ushort playerID = ServerSceneDataMessage.playerIdMessage.playerID;
-        RemoteSceneDataMessage sceneDataMessage = ServerSceneDataMessage.sceneDataMessage;
-        BasisNetworkBehaviour.OnNetworkMessageReceived?.Invoke(playerID, sceneDataMessage.messageIndex, sceneDataMessage.payload,deliveryMethod);
+        var serverSceneDataMessage = new ServerSceneDataMessage();
+        serverSceneDataMessage.Deserialize(reader);
+
+        ushort playerID = serverSceneDataMessage.playerIdMessage.playerID;
+        var sceneDataMessage = serverSceneDataMessage.sceneDataMessage;
+        ushort messageIndex = sceneDataMessage.messageIndex;
+
+        if (_handlers.TryGetValue(messageIndex, out var handler))
+        {
+            handler.Invoke(playerID, sceneDataMessage.payload, deliveryMethod);
+        }
+        else
+        {
+            // Check capacity before adding
+            if (_deferredMessages.Count >= MaxDeferredMessages)
+            {
+                // Remove the oldest message (FIFO)
+                _deferredMessages.RemoveAt(0);
+            }
+
+            _deferredMessages.Add(new DeferredMessage(playerID, messageIndex, sceneDataMessage.payload, deliveryMethod));
+        }
+    }
+
+    private static void TryDeliverDeferredMessages()
+    {
+        for (int i = _deferredMessages.Count - 1; i >= 0; i--)
+        {
+            var msg = _deferredMessages[i];
+            if (_handlers.TryGetValue(msg.MessageIndex, out var handler))
+            {
+                handler.Invoke(msg.PlayerId, msg.Payload, msg.DeliveryMethod);
+                _deferredMessages.RemoveAt(i);
+            }
+        }
     }
     public delegate void OnNetworkMessageReceiveOwnershipTransfer(string UniqueEntityID, ushort NetIdNewOwner, bool IsOwner);
     public delegate void OnNetworkMessageReceiveOwnershipRemoved(string UniqueEntityID);
@@ -61,7 +121,7 @@ public static class BasisNetworkGenericMessages
     // Handler for server avatar data messages
     public static void HandleServerAvatarDataMessage(LiteNetLib.NetPacketReader reader, LiteNetLib.DeliveryMethod Method)
     {
-        BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAvatarData,reader.AvailableBytes);
+        BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAvatarData, reader.AvailableBytes);
         ServerAvatarDataMessage serverAvatarDataMessage = new ServerAvatarDataMessage();
         serverAvatarDataMessage.Deserialize(reader);
         ushort avatarLinkID = serverAvatarDataMessage.avatarDataMessage.PlayerIdMessage.playerID; // destination
@@ -128,7 +188,7 @@ public static class BasisNetworkGenericMessages
     {
         ServerUniqueIDMessages ServerNetIDMessage = new ServerUniqueIDMessages();
         ServerNetIDMessage.Deserialize(reader);
-        foreach(ServerNetIDMessage message in ServerNetIDMessage.Messages)
+        foreach (ServerNetIDMessage message in ServerNetIDMessage.Messages)
         {
             BasisNetworkIdResolver.CompleteMessageDelegation(message);
         }

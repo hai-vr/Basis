@@ -131,6 +131,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                     NetworkBehaviours[Index].OnNetworkAssign(Index, this);
                 }
             }
+            else
+            {
+                BasisDebug.LogError("Unable to proceed with Avatar Load Complete!");
+            }
         }
         public bool CheckForAvatar()
         {
@@ -324,6 +328,21 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             position = Vector3.zero;
             rotation = Quaternion.identity;
             return false;
+        }
+        public BasisCalibratedCoords GetTrackingData(BasisBoneTrackedRole Role)
+        {
+            if (Player.IsLocal)
+            {
+                if (BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out BasisLocalBoneControl Control, Role))
+                {
+                    return Control.OutgoingWorldData;
+                }
+            }
+            else
+            {
+                BasisDebug.LogError("Not Implemented Remote GetTrackingData", BasisDebug.LogTag.Networking);
+            }
+            return new BasisCalibratedCoords();
         }
         public bool GetTrackingData(BasisBoneTrackedRole Role, out BasisCalibratedCoords outgoing)
         {
