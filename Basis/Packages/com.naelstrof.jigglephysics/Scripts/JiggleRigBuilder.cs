@@ -252,11 +252,13 @@ namespace JigglePhysics
                 {
                     Initialize();
                 }
-
-                simulatedPoints[0].OnDrawGizmos(simulatedPoints, jiggleSettings, true);
-                for (int i = 1; i < boneCount; i++)
+                if (simulatedPoints != null && simulatedPoints.Length != 0)
                 {
-                    simulatedPoints[i].OnDrawGizmos(simulatedPoints, jiggleSettings);
+                    simulatedPoints[0].OnDrawGizmos(simulatedPoints, jiggleSettings, true);
+                    for (int i = 1; i < boneCount; i++)
+                    {
+                        simulatedPoints[i].OnDrawGizmos(simulatedPoints, jiggleSettings);
+                    }
                 }
             }
 

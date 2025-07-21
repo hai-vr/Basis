@@ -206,16 +206,19 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         if (Time.time < orientationCheckCooldown)
             return;
 
-        float roll = HHC.captureCamera.transform.eulerAngles.z;
-        if (roll > 180f) roll -= 360f; // Normalize to [-180, 180]
-
-        CameraOrientation newOrientation = Mathf.Abs(roll) > 45f ? CameraOrientation.Portrait : CameraOrientation.Landscape;
-
-        if (newOrientation != currentOrientation)
+        if (HHC != null && HHC.captureCamera != null)
         {
-            currentOrientation = newOrientation;
-            orientationCheckCooldown = Time.time + 0.5f; // Add cooldown to prevent flip-flopping
-            HandleOrientationChanged(currentOrientation);
+            float roll = HHC.captureCamera.transform.eulerAngles.z;
+            if (roll > 180f) roll -= 360f; // Normalize to [-180, 180]
+
+            CameraOrientation newOrientation = Mathf.Abs(roll) > 45f ? CameraOrientation.Portrait : CameraOrientation.Landscape;
+
+            if (newOrientation != currentOrientation)
+            {
+                currentOrientation = newOrientation;
+                orientationCheckCooldown = Time.time + 0.5f; // Add cooldown to prevent flip-flopping
+                HandleOrientationChanged(currentOrientation);
+            }
         }
     }
     private void HandleOrientationChanged(CameraOrientation newOrientation)

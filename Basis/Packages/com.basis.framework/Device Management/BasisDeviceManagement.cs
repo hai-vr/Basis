@@ -103,6 +103,7 @@ namespace Basis.Scripts.Device_Management
         public static Action OnDeviceManagementLoop;
         async void Start()
         {
+            BasisCursorManagement.OnReset();
             if (BasisHelpers.CheckInstance<BasisDeviceManagement>(Instance))
             {
                 Instance = this;

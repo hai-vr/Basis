@@ -41,7 +41,7 @@ public static class BasisCursorManagement
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
-       // BasisDebug.Log("Cursor Locked");
+        // BasisDebug.Log("Cursor Locked");
         cursorLockRequests.Add(requestName);
         OnCursorStateChange?.Invoke(CursorLockMode.Locked, false);
     }
@@ -69,7 +69,7 @@ public static class BasisCursorManagement
     {
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
-      //  BasisDebug.Log("Cursor Unlocked");
+        //  BasisDebug.Log("Cursor Unlocked");
         cursorLockRequests.Remove(requestName);
         OnCursorStateChange?.Invoke(CursorLockMode.None, true);
     }
@@ -84,7 +84,7 @@ public static class BasisCursorManagement
 
         Cursor.lockState = CursorLockMode.Confined;
         Cursor.visible = true;
-      //  BasisDebug.Log("Cursor Confined");
+        //  BasisDebug.Log("Cursor Confined");
         OnCursorStateChange?.Invoke(CursorLockMode.Confined, true);
     }
 
@@ -95,5 +95,12 @@ public static class BasisCursorManagement
         // When in VR mode, all cursor lock requests are must be ignored,
         // so that cursor control is not taken away from other external desktop overlay applications.
         return isUserInVR;
+    }
+    public static void OnReset()
+    {
+        cursorLockRequests.Clear();
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+        OnCursorStateChange?.Invoke(CursorLockMode.None, true);
     }
 }

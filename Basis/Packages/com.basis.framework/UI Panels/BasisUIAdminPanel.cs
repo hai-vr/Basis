@@ -91,7 +91,7 @@ public class BasisUIAdminPanel : BasisUIBase
         {
             if (FindID(UUIDSubmission.text, out ushort Id))
             {
-                BasisNetworkModeration.TeleportTo(Id);
+                BasisNetworkModeration.TryTeleportToPlayer(Id);
             }
             else
             {
