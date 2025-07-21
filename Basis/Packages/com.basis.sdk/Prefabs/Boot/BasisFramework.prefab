@@ -2596,6 +2596,7 @@ GameObject:
   - component: {fileID: -3061024371983229343}
   - component: {fileID: 8988764245560573337}
   - component: {fileID: 6910429841152494025}
+  - component: {fileID: 6223159200201450764}
   m_Layer: 0
   m_Name: BasisFramework
   m_TagString: Untagged
@@ -2635,6 +2636,7 @@ MonoBehaviour:
   BakedInCommandLineArgs: []
   HoverUI: {fileID: 8300000, guid: 273db99ef8423064ebdc96442f286a95, type: 3}
   pressUI: {fileID: 8300000, guid: fa511589a725a1a4c98781edd2f0f176, type: 3}
+  ForcedHeadLessMode: 0
   BasisDeviceNameMatcher: {fileID: 11400000, guid: 9b8e3db83cb310c40afaa430d0071a18, type: 2}
   AllInputDevices:
     _list: []
@@ -2648,6 +2650,7 @@ MonoBehaviour:
   - {fileID: -1434852531052301144}
   - {fileID: 508802122937325065}
   - {fileID: -3484738083713026149}
+  - {fileID: 6223159200201450764}
   - {fileID: -3061024371983229343}
   BasisLockToInputs: []
   PreviouslyConnectedDevices: []
@@ -2794,3 +2797,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   updateInterval: 0.1
   timeSinceLastUpdate: 0
+  IsBatchMode: 0
+--- !u!114 &6223159200201450764
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9135220577826176361}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 91528c69153be7a4abdc97d32886cec1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  BasisHeadlessInput: {fileID: 0}
