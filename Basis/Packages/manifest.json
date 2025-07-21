@@ -23,6 +23,7 @@
     "com.unity.xr.openxr": "1.15.0",
     "com.valvesoftware.unity.openvr": "file:com.valvesoftware.unity.openvr-1.2.1.tgz",
     "com.xiph.rnnoise": "https://github.com/BasisVR/RNNoise.Net.git",
+    "net.virtualwebsite.ffmpegunity": "https://github.com/VirtualBrightPlayz/FFmpeg.Unity.git?path=/Packages/FFmpeg.Unity#dynload",
     "org.basisvr.base128": "file:org.basisvr.base128-1.2.2.tgz",
     "org.basisvr.bouncycastle": "file:org.basisvr.bouncycastle-2.5.0.tgz",
     "org.basisvr.generator.equals": "file:org.basisvr.generator.equals-3.2.0.tgz",
