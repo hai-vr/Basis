@@ -14,7 +14,7 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
     [SerializeField]
     BasisPositionRotationScale LocalLastData = new BasisPositionRotationScale();
     [SerializeField]
-    public BasisObjectSyncDriver.BasisTranslationUpdate BTU = new BasisObjectSyncDriver.BasisTranslationUpdate();
+    public BasisTranslationUpdate BTU = new BasisTranslationUpdate();
     public BasisInput pendingStealRequest = null;
     public float CatchupLerp = 5;
     public byte[] buffer = new byte[BasisPositionRotationScale.Size];
@@ -41,8 +41,12 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
             BasisPickupInteractable.CanHoverInjected.Remove(CanHover);
             BasisPickupInteractable.CanInteractInjected.Remove(CanInteract);
         }
+    }
+    public override void OnDestroy()
+    {
         BasisObjectSyncDriver.RemoveRemoteOwner(this);
         BasisObjectSyncDriver.RemoveLocalOwner(this);
+        base.OnDestroy();
     }
     public override void OnNetworkReady()
     {

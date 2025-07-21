@@ -117,7 +117,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     }
                 }
             }
-            BasisDebug.Log($"Pickup {string.Join(", ", Inputs.ToArray().Select(x => x.GetState()))}");
+         //   BasisDebug.Log($"Pickup {string.Join(", ", Inputs.ToArray().Select(x => x.GetState()))}");
         }
         public void HighlightObject(bool highlight)
         {

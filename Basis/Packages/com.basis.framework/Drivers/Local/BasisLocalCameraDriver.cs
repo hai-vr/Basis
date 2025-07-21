@@ -82,10 +82,12 @@ namespace Basis.Scripts.Drivers
             largerScale = StartingScale * 1.2f;
             UpdateMicrophoneVisuals(BasisLocalMicrophoneDriver.isPaused, false);
 
+#if STEAMAUDIO_ENABLED
             if (SteamAudioListener != null)
             {
                 SteamAudioManager.NotifyAudioListenerChanged();
             }
+#endif
             SpriteRendererIcon.gameObject.SetActive(true);
             SettingsManager.Instance.Initalize(true);
         }

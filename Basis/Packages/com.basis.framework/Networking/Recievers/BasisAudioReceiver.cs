@@ -55,7 +55,7 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> Loadable = Addressables.LoadAssetAsync<GameObject>(AudioSource);
                 GameObject LoadableAudioSource = Loadable.WaitForCompletion();
-                GameObject ActualAudio = GameObject.Instantiate(LoadableAudioSource,BasisDeviceManagement.Instance.transform);
+                GameObject ActualAudio = GameObject.Instantiate(LoadableAudioSource, BasisDeviceManagement.Instance.transform);
                 AudioSourceTransform = ActualAudio.transform;
                 AudioSourceTransform.name = $"[Audio] {BasisNetworkPlayer.Player.DisplayName}";
                 HasTransform = true;
@@ -99,6 +99,10 @@ namespace Basis.Scripts.Networking.Receivers
         public static int outputSampleRate;
         public void Initalize(BasisNetworkPlayer networkedPlayer)
         {
+            if (BasisDeviceManagement.IsHeadless())
+            {
+                return;
+            }
             outputSampleRate = UnityEngine.AudioSettings.outputSampleRate;
             if (silentData == null)
             {
@@ -118,6 +122,10 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void AvatarChanged(BasisNetworkPlayer networkedPlayer)
         {
+            if (BasisDeviceManagement.IsHeadless())
+            {
+                return;
+            }
             if (audioSource != null)
             {
                 // Ensure viseme driver is initialized for audio processing
@@ -132,10 +140,18 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void StopAudio()
         {
+            if (BasisDeviceManagement.IsHeadless())
+            {
+                return;
+            }
             UnloadAudioSource();
         }
         public void StartAudio()
         {
+            if (BasisDeviceManagement.IsHeadless())
+            {
+                return;
+            }
             if (BasisNetworkPlayer != null)
             {
                 LoadAudioSource(BasisNetworkPlayer);

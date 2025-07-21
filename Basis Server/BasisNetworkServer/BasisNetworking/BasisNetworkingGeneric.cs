@@ -64,6 +64,7 @@ namespace Basis.Network.Server.Generic
             {
                 NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, BasisPlayerArray.GetSnapshot(), DeliveryMethod);
             }
+            serverSceneDataMessage.sceneDataMessage.Release();
         }
         public static void HandleAvatar(NetPacketReader Reader, DeliveryMethod DeliveryMethod, NetPeer sender)
         {

@@ -26,9 +26,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             }
         }
 
-#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
         public override void StartSDK()
-#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
         {
         }
         public override void StopSDK()

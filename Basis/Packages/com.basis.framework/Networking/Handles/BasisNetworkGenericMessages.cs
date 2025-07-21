@@ -6,6 +6,7 @@ using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using static BasisNetworkCore.Serializable.SerializableBasis;
 using static DarkRift.Basis_Common.Serializable.SerializableBasis;
@@ -54,6 +55,7 @@ public static class BasisNetworkGenericMessages
         if (_handlers.TryGetValue(messageIndex, out var handler))
         {
             handler.Invoke(playerID, sceneDataMessage.payload, deliveryMethod);
+            serverSceneDataMessage.sceneDataMessage.Release();//dont need todo this but not doing it will create more gc then necessary
         }
         else
         {
@@ -155,16 +157,20 @@ public static class BasisNetworkGenericMessages
         }
     }
     // Sending message with different conditions
-    public static void OnNetworkMessageSend(ushort messageIndex, byte[] buffer = null, DeliveryMethod deliveryMethod = DeliveryMethod.Unreliable, ushort[] recipients = null)
+    private static readonly ThreadLocal<NetDataWriter> threadLocalWriter = new ThreadLocal<NetDataWriter>(() => new NetDataWriter());
+
+    public static void OnNetworkMessageSend(ushort messageIndex,byte[] buffer = null,DeliveryMethod deliveryMethod = DeliveryMethod.Unreliable,ushort[] recipients = null)
     {
-        NetDataWriter netDataWriter = new NetDataWriter();
-        //BasisDebug.Log("Sending with Recipients and buffer");
+        NetDataWriter netDataWriter = threadLocalWriter.Value;
+        netDataWriter.Reset(); // clear previous data
+
         SceneDataMessage sceneDataMessage = new SceneDataMessage
         {
             messageIndex = messageIndex,
             payload = buffer,
             recipients = recipients
         };
+
         if (deliveryMethod == DeliveryMethod.Unreliable)
         {
             netDataWriter.Put(BasisNetworkCommons.SceneChannel);
@@ -176,6 +182,7 @@ public static class BasisNetworkGenericMessages
             sceneDataMessage.Serialize(netDataWriter);
             BasisNetworkManagement.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.SceneChannel, deliveryMethod);
         }
+
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.SceneData, netDataWriter.Length);
     }
     public static void NetIDAssign(LiteNetLib.NetPacketReader reader, LiteNetLib.DeliveryMethod Method)

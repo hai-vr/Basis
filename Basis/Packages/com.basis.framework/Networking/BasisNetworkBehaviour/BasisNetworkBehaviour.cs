@@ -45,7 +45,7 @@ namespace Basis
                 OnLocalPlayerJoined(null, null);
             }
         }
-        public void OnDestroy()
+        public virtual void OnDestroy()
         {
             if (HasNetworkID)
             {
@@ -130,7 +130,7 @@ namespace Basis
                 {
                     BasisDebug.LogError("No Owner for Id " + CurrentOwnerId);
                 }
-                BasisDebug.Log("Owner set to " + IsOwnedLocallyOnServer);
+               // BasisDebug.Log("Owner set to " + IsOwnedLocallyOnServer);
                 OnOwnershipTransfer(NetIdNewOwner);
             }
         }

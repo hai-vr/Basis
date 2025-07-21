@@ -122,6 +122,7 @@ namespace Basis.Scripts.Networking
             this.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             OnEnableInstanceCreate?.Invoke();
             NetworkRunning = true;
+
         }
         private void LogErrorOutput(string obj)
         {
@@ -180,12 +181,10 @@ namespace Basis.Scripts.Networking
 
             BasisDebug.Log("BasisNetworkManagement has been successfully shutdown.", BasisDebug.LogTag.Networking);
         }
-        public static void SimulateNetworkCompute()
+        public static void SimulateNetworkCompute(double TimeAsDouble)
         {
             if (NetworkRunning)
             {
-                double TimeAsDouble = Time.timeAsDouble;
-
                 // Schedule multithreaded tasks
                 for (int Index = 0; Index < ReceiverCount; Index++)
                 {
@@ -197,11 +196,10 @@ namespace Basis.Scripts.Networking
                 BasisNetworkProfiler.Update();
             }
         }
-        public static void SimulateNetworkApply()
+        public static void SimulateNetworkApply(double TimeAsDouble)
         {
             if (NetworkRunning)
             {
-                double TimeAsDouble = Time.timeAsDouble;
                 // Complete tasks and apply results
                 for (int Index = 0; Index < ReceiverCount; Index++)
                 {
@@ -548,7 +546,10 @@ namespace Basis.Scripts.Networking
                     }, null);
                     break;
                 case BasisNetworkCommons.VoiceChannel:
-                    await BasisNetworkHandleVoice.HandleAudioUpdate(Reader);
+                    if (BasisDeviceManagement.IsHeadless() == false)
+                    {
+                        await BasisNetworkHandleVoice.HandleAudioUpdate(Reader);
+                    }
                     Reader.Recycle();
                     break;
                 case BasisNetworkCommons.PlayerAvatarChannel:

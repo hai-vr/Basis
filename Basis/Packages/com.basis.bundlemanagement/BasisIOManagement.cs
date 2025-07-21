@@ -267,7 +267,7 @@ public static class BasisIOManagement
 
     public static string GenerateFilePath(string fileName, string subFolder)
     {
-        BasisDebug.Log($"Generating folder path for {fileName} in subfolder {subFolder}");
+       // BasisDebug.Log($"Generating folder path for {fileName} in subfolder {subFolder}");
 
         string folderPath = GenerateFolderPath(subFolder);
         string localPath = Path.Combine(folderPath, fileName);
@@ -278,7 +278,7 @@ public static class BasisIOManagement
 
     public static string GenerateFolderPath(string subFolder)
     {
-        BasisDebug.Log($"Generating folder path in subfolder {subFolder}");
+       // BasisDebug.Log($"Generating folder path in subfolder {subFolder}");
 
         string folderPath = Path.Combine(Application.persistentDataPath, subFolder);
 

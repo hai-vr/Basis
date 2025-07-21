@@ -35,7 +35,11 @@ namespace Basis.Scripts.Device_Management
         public const string ProfilePath = "Packages/com.hecomi.ulipsync/Assets/Profiles/uLipSync-Profile-Sample.asset";
         public static bool IsCurrentModeVR()
         {
-            switch (CurrentMode)
+            return IsCurrentModeVR(CurrentMode);
+        }
+        public static bool IsCurrentModeVR(string Type)
+        {
+            switch (Type)
             {
                 case "OpenVRLoader":
                     return true;
@@ -58,9 +62,18 @@ namespace Basis.Scripts.Device_Management
                 return Desktop;
             }
         }
+        public string HeadlessMode()
+        {
+            return "Headless";
+        }
         public static bool IsMobile()
         {
             return Application.platform == RuntimePlatform.Android;
+        }
+        public bool ForcedHeadLessMode = false;
+        public static bool IsHeadless()
+        {
+            return Application.isBatchMode || BasisDeviceManagement.Instance.ForcedHeadLessMode;
         }
         /// <summary>
         /// checks to see if we are in desktop
@@ -199,7 +212,14 @@ namespace Basis.Scripts.Device_Management
 
             if (string.IsNullOrEmpty(ForcedDevicemanager))
             {
-                SwitchMode(DefaultMode());
+                if (IsHeadless())
+                {
+                    SwitchMode(HeadlessMode());
+                }
+                else
+                {
+                    SwitchMode(DefaultMode());
+                }
             }
             else
             {
@@ -233,7 +253,7 @@ namespace Basis.Scripts.Device_Management
             if (CurrentMode != "None")
             {
                 BasisDebug.Log("killing off " + CurrentMode, BasisDebug.LogTag.Device);
-                if (newMode == "Desktop")
+                if (IsCurrentModeVR(newMode))
                 {
                     ShutDownXR();
                 }
@@ -258,13 +278,14 @@ namespace Basis.Scripts.Device_Management
             SMDMicrophone.LoadInMicrophoneData(CurrentMode);
             BasisDebug.Log("Loading " + CurrentMode, BasisDebug.LogTag.Device);
 
-            switch (CurrentMode)
+            if (IsCurrentModeVR())
             {
-                case "OpenVRLoader":
-                case "OpenXRLoader":
-                    BasisXRManagement.BeginLoad();
-                    break;
-                case "Desktop":
+                BasisXRManagement.BeginLoad();
+            }
+            else
+            {
+                if (IsUserInDesktop())
+                {
                     if (TryFindBasisBaseTypeManagement(Desktop, out List<BasisBaseTypeManagement> Matched))
                     {
                         foreach (var m in Matched)
@@ -272,19 +293,17 @@ namespace Basis.Scripts.Device_Management
                             m.BeginLoadSDK();
                         }
                     }
-                    break;
-                case "Exiting":
-                    break;
-                default:
-                    BasisDebug.LogError("This should not occur (default)");
-                    if (TryFindBasisBaseTypeManagement("Desktop", out Matched))
+                }
+                else
+                {
+                    if (TryFindBasisBaseTypeManagement(HeadlessMode(), out List<BasisBaseTypeManagement> Matched))
                     {
                         foreach (var m in Matched)
                         {
                             m.BeginLoadSDK();
                         }
                     }
-                    break;
+                }
             }
         }
         public void ShutDownXR(bool isExiting = false)
@@ -304,6 +323,13 @@ namespace Basis.Scripts.Device_Management
                 }
             }
             if (TryFindBasisBaseTypeManagement("SimulateXR", out Matched))
+            {
+                foreach (var m in Matched)
+                {
+                    m.StopSDK();
+                }
+            }
+            if (TryFindBasisBaseTypeManagement(HeadlessMode(), out Matched))
             {
                 foreach (var m in Matched)
                 {

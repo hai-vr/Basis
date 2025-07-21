@@ -9,19 +9,44 @@ public class BasisEventDriver : MonoBehaviour
 {
     public float updateInterval = 0.1f; // 100 milliseconds
     public float timeSinceLastUpdate = 0f;
+    public bool IsBatchMode = false;
     public void OnEnable()
     {
+        if (Application.isBatchMode)
+        {
+            IsBatchMode = true;
+        }
+        else
+        {
+            Application.onBeforeRender += OnBeforeRender;
+        }
         BasisSceneFactory.Initalize();
-        Application.onBeforeRender += OnBeforeRender;
+        BasisObjectSyncDriver.Initalization();
+    }
+    public void OnDestroy()
+    {
+        BasisObjectSyncDriver.OnDestroy();
+        Application.onBeforeRender -= OnBeforeRender;
     }
     public void OnDisable()
     {
-        Application.onBeforeRender -= OnBeforeRender;
+        if (BasisDeviceManagement.IsHeadless())
+        {
+            IsBatchMode = true;
+        }
+        else
+        {
+            Application.onBeforeRender -= OnBeforeRender;
+        }
     }
+    public float DeltaTime;
+    public double TimeAsDouble;
     public void Update()
     {
-        BasisNetworkManagement.SimulateNetworkCompute();
-        float DeltaTime = Time.deltaTime;
+        DeltaTime = Time.deltaTime;
+        TimeAsDouble = Time.timeAsDouble;
+        BasisNetworkManagement.SimulateNetworkCompute(TimeAsDouble);
+        BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
         InputSystem.Update();
         timeSinceLastUpdate += DeltaTime;
 
@@ -56,14 +81,19 @@ public class BasisEventDriver : MonoBehaviour
             BasisLocalPlayer.Instance.SimulateOnLateUpdate();
         }
         BasisLocalMicrophoneDriver.MicrophoneUpdate();
-        BasisObjectSyncDriver.TransmitOwnedPickups();
-        BasisNetworkManagement.SimulateNetworkApply();
+        BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
+        BasisNetworkManagement.SimulateNetworkApply(TimeAsDouble);
+        BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
+        if (IsBatchMode)
+        {
+            OnBeforeRender();
+        }
     }
     private void OnBeforeRender()
     {
         if (BasisLocalPlayer.PlayerReady)
         {
-            BasisLocalPlayer.Instance.SimulateOnRender();
+            BasisLocalPlayer.Instance.SimulateOnRender(DeltaTime);
             //send out avatar
             BasisNetworkTransmitter.AfterAvatarChanges?.Invoke();
         }

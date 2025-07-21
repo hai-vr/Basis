@@ -243,14 +243,8 @@ namespace Basis.Scripts.BasisSdk.Players
             FacialBlinkDriver.Simulate();
         }
 
-        public void SimulateOnRender()
+        public void SimulateOnRender(float DeltaTime)
         {
-            float DeltaTime = Time.deltaTime;
-            if (float.IsNaN(DeltaTime))
-            {
-                return;
-            }
-
             //moves all bones to where they belong
             LocalBoneDriver.SimulateAndApply(this, DeltaTime);
 

@@ -278,11 +278,11 @@ namespace Basis.Scripts.Device_Management.Devices
                         ? CurrentInputState.Primary2DAxis.x
                         : CurrentInputState.Primary2DAxis.y;
                     //0 to 1 largestValue
-
-                    BasisLocalPlayer.Instance.LocalCharacterDriver.SetMovementSpeedMultiplier(largestValue);
-                    BasisLocalPlayer.Instance.LocalCharacterDriver.SetMovementVector(CurrentInputState.Primary2DAxis);
+                    var CharacterController = BasisLocalPlayer.Instance.LocalCharacterDriver;
+                    CharacterController.SetMovementSpeedMultiplier(largestValue);
+                    CharacterController.SetMovementVector(CurrentInputState.Primary2DAxis);
                     // todo: consider hoisting variable to be toggled by another user input (eg: thumbstick click)
-                    BasisLocalPlayer.Instance.LocalCharacterDriver.UpdateMovementSpeed(true);
+                    CharacterController.UpdateMovementSpeed(true);
                     //only open ui after we have stopped pressing down on the secondary button
                     if (CurrentInputState.SecondaryButtonGetState == false && LastInputState.SecondaryButtonGetState)
                     {

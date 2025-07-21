@@ -29,16 +29,10 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
         public override void StopSDK()
         {
         }
-
-#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
         public override void BeginLoadSDK()
-#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
         {
         }
-
-#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
         public override void StartSDK()
-#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
         {
         }
 

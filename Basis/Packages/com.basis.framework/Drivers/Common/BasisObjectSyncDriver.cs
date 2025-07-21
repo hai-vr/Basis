@@ -1,98 +1,215 @@
+using System;
+using System.Collections.Generic;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-using System.Collections.Generic;
+using UnityEngine.Jobs;
+
 public static class BasisObjectSyncDriver
 {
-    public static List<BasisObjectSyncNetworking> OwnedObjectSyncs = new List<BasisObjectSyncNetworking>();
-    public static List<BasisObjectSyncNetworking> RemoteOwnedObjectSyncs = new List<BasisObjectSyncNetworking>();
-    public static float targetMiliseconds = 0.1f; // Target update frequency in Hz (10 times per second)
-    private static double _lastUpdateTime; // Last update timestamp
-    /// <summary>
-    /// only syncs when we are the owner
-    /// </summary>
-    public static void TransmitOwnedPickups()
+    public static readonly HashSet<BasisObjectSyncNetworking> OwnedObjectSyncs = new();
+    public static readonly HashSet<BasisObjectSyncNetworking> RemoteOwnedObjectSyncs = new();
+    public static float TargetMilliseconds = 0.1f;
+
+    private static double _lastUpdateTime;
+
+    private static TransformAccessArray _remoteTransforms;
+    private static NativeList<float3> _targetPositions;
+    private static NativeList<quaternion> _targetRotations;
+    private static NativeList<float> _lerpMultipliers;
+
+    private static Transform[] _cachedTransforms = Array.Empty<Transform>();
+    private static readonly List<Transform> _previousTransforms = new();
+
+    private static JobHandle _remoteJobHandle;
+
+    public static void Initalization()
     {
-        double timeAsDouble = Time.timeAsDouble;
-        if (timeAsDouble - _lastUpdateTime >= targetMiliseconds)
+        _remoteTransforms = new TransformAccessArray(0);
+        _targetPositions = new NativeList<float3>(128, Allocator.Persistent);
+        _targetRotations = new NativeList<quaternion>(128, Allocator.Persistent);
+        _lerpMultipliers = new NativeList<float>(128, Allocator.Persistent);
+    }
+
+    public static void OnDestroy()
+    {
+        _remoteJobHandle.Complete();
+
+        if (_remoteTransforms.isCreated) _remoteTransforms.Dispose();
+        if (_targetPositions.IsCreated) _targetPositions.Dispose();
+        if (_targetRotations.IsCreated) _targetRotations.Dispose();
+        if (_lerpMultipliers.IsCreated) _lerpMultipliers.Dispose();
+    }
+
+    public static void TransmitOwnedPickups(double currentTime)
+    {
+        if (currentTime - _lastUpdateTime < TargetMilliseconds)
         {
-            _lastUpdateTime = timeAsDouble;
-            int count = OwnedObjectSyncs.Count;
-            for (int Index = 0; Index < count; Index++)
-            {
-                BasisObjectSyncNetworking Object = OwnedObjectSyncs[Index];
-                Object.SendNetworkSync();
-            }
+            return;
         }
-        float Delta = Time.deltaTime;
-        int remotecount = RemoteOwnedObjectSyncs.Count;
-        for (int Index = 0; Index < remotecount; Index++)
+
+        _lastUpdateTime = currentTime;
+
+        foreach (BasisObjectSyncNetworking obj in OwnedObjectSyncs)
         {
-            BasisObjectSyncNetworking Object = RemoteOwnedObjectSyncs[Index];
-            if (Object.IsOwnedLocallyOnClient == false)
+            if (obj != null)
             {
-                float lerp = Object.BTU.LerpMultipliers * Delta;
-
-                if (lerp <= 0f)
-                {
-                    return;
-                }
-                Object.transform.GetLocalPositionAndRotation(out Vector3 LocalPosition, out Quaternion LocalRotation);
-
-                float3 Position = math.lerp(LocalPosition, Object.BTU.TargetPosition, lerp);
-                quaternion rotation = math.slerp(LocalRotation, Object.BTU.TargetRotation, lerp);
-
-                Object.transform.SetLocalPositionAndRotation(Position, rotation);
+                obj.SendNetworkSync();
             }
         }
     }
-    /// <summary>
-    /// Adds a new object to the owned object sync list.
-    /// </summary>
+
+    private static bool DidTransformListChange()
+    {
+        int count = _cachedTransforms.Length;
+        if (count != _previousTransforms.Count)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            if (_cachedTransforms[i] != _previousTransforms[i])
+                return true;
+        }
+
+        return false;
+    }
+
+    public static void ScheduleRemoteLerp(float deltaTime)
+    {
+        _remoteJobHandle.Complete();
+
+        int count = 0;
+
+        foreach (var obj in RemoteOwnedObjectSyncs)
+        {
+            if (obj == null || obj.IsOwnedLocallyOnClient) continue;
+            count++;
+        }
+
+        if (count == 0) return;
+
+        if (_cachedTransforms.Length != count)
+        {
+            _cachedTransforms = new Transform[count];
+        }
+
+        int index = 0;
+
+        foreach (var obj in RemoteOwnedObjectSyncs)
+        {
+            if (obj == null || obj.IsOwnedLocallyOnClient) continue;
+
+            _cachedTransforms[index] = obj.transform;
+
+            if (_targetPositions.Length <= index) _targetPositions.ResizeUninitialized(index + 1);
+            if (_targetRotations.Length <= index) _targetRotations.ResizeUninitialized(index + 1);
+            if (_lerpMultipliers.Length <= index) _lerpMultipliers.ResizeUninitialized(index + 1);
+
+            _targetPositions[index] = obj.BTU.TargetPosition;
+            _targetRotations[index] = obj.BTU.TargetRotation;
+            _lerpMultipliers[index] = obj.BTU.LerpMultipliers * deltaTime;
+
+            index++;
+        }
+
+        bool transformListChanged = DidTransformListChange();
+
+        if (_remoteTransforms.isCreated)
+        {
+            if (transformListChanged)
+            {
+                _remoteTransforms.Dispose();
+                _remoteTransforms = new TransformAccessArray(_cachedTransforms);
+            }
+            else
+            {
+                _remoteTransforms.SetTransforms(_cachedTransforms);
+            }
+        }
+        else
+        {
+            _remoteTransforms = new TransformAccessArray(_cachedTransforms);
+        }
+
+        _previousTransforms.Clear();
+        _previousTransforms.AddRange(_cachedTransforms);
+
+        var job = new RemoteSyncJob
+        {
+            targetPositions = _targetPositions,
+            targetRotations = _targetRotations,
+            lerpMultipliers = _lerpMultipliers
+        };
+
+        _remoteJobHandle = job.Schedule(_remoteTransforms);
+    }
+
+    public static void CompleteScheduledRemoteLerp()
+    {
+        _remoteJobHandle.Complete();
+    }
+
+    [BurstCompile]
+    public struct RemoteSyncJob : IJobParallelForTransform
+    {
+        [ReadOnly] public NativeList<float3> targetPositions;
+        [ReadOnly] public NativeList<quaternion> targetRotations;
+        [ReadOnly] public NativeList<float> lerpMultipliers;
+
+        public void Execute(int index, TransformAccess transform)
+        {
+            float lerp = lerpMultipliers[index];
+            if (lerp <= 0f) return;
+
+            if (transform.isValid)
+            {
+                transform.GetLocalPositionAndRotation(out Vector3 currentPos, out Quaternion currentRot);
+                float3 newPos = math.lerp(currentPos, targetPositions[index], lerp);
+                quaternion newRot = math.slerp(currentRot, targetRotations[index], lerp);
+
+                transform.SetLocalPositionAndRotation(newPos, newRot);
+            }
+        }
+    }
+
+    #region Static API
+
     public static void AddLocalOwner(BasisObjectSyncNetworking obj)
     {
-        if (obj != null && !OwnedObjectSyncs.Contains(obj))
-        {
+        if (obj != null)
             OwnedObjectSyncs.Add(obj);
-        }
     }
 
-    /// <summary>
-    /// Removes an object from the owned object sync list.
-    /// </summary>
     public static void RemoveLocalOwner(BasisObjectSyncNetworking obj)
     {
         if (obj != null)
-        {
             OwnedObjectSyncs.Remove(obj);
-        }
-    }
-    /// <summary>
-    /// Adds a new object to the owned object sync list.
-    /// </summary>
-    public static void AddRemoteOwner(BasisObjectSyncNetworking obj)
-    {
-        if (obj != null && !OwnedObjectSyncs.Contains(obj))
-        {
-            RemoteOwnedObjectSyncs.Add(obj);
-        }
     }
 
-    /// <summary>
-    /// Removes an object from the owned object sync list.
-    /// </summary>
+    public static void AddRemoteOwner(BasisObjectSyncNetworking obj)
+    {
+        if (obj != null)
+            RemoteOwnedObjectSyncs.Add(obj);
+    }
+
     public static void RemoveRemoteOwner(BasisObjectSyncNetworking obj)
     {
         if (obj != null)
-        {
             RemoteOwnedObjectSyncs.Remove(obj);
-        }
     }
-    [System.Serializable]
-    public struct BasisTranslationUpdate
-    {
-        public float3 TargetPosition;
-        public quaternion TargetRotation;
-        public float3 TargetScales;
-        public float LerpMultipliers;
-    }
+
+    #endregion
+}
+
+[Serializable]
+public struct BasisTranslationUpdate
+{
+    public float3 TargetPosition;
+    public quaternion TargetRotation;
+    public float3 TargetScales;
+    public float LerpMultipliers;
 }

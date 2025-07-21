@@ -344,7 +344,7 @@ public static class BasisLoadHandler
         {
             loadTasks.Add(Task.Run(async () =>
             {
-                BasisDebug.Log($"Loading file: {file}");
+               // BasisDebug.Log($"Loading file: {file}");
                 try
                 {
                     byte[] fileData = await File.ReadAllBytesAsync(file);
