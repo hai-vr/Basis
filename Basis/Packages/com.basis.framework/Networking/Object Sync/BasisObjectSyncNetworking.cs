@@ -18,8 +18,10 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
     public BasisInput pendingStealRequest = null;
     public float CatchupLerp = 5;
     public byte[] buffer = new byte[BasisPositionRotationScale.Size];
+    public Transform SelfTransform;
     public void Awake()
     {
+        SelfTransform = this.transform;
         if (BasisPickupInteractable == null)
         {
             BasisPickupInteractable = this.transform.GetComponentInChildren<BasisPickupInteractable>();

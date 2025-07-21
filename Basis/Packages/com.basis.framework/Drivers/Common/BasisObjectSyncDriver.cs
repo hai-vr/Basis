@@ -21,8 +21,6 @@ public static class BasisObjectSyncDriver
     private static NativeList<float> _lerpMultipliers;
 
     private static Transform[] _cachedTransforms = Array.Empty<Transform>();
-    private static readonly List<Transform> _previousTransforms = new();
-
     private static JobHandle _remoteJobHandle;
 
     public static void Initalization()
@@ -60,24 +58,6 @@ public static class BasisObjectSyncDriver
             }
         }
     }
-
-    private static bool DidTransformListChange()
-    {
-        int count = _cachedTransforms.Length;
-        if (count != _previousTransforms.Count)
-        {
-            return true;
-        }
-
-        for (int i = 0; i < count; i++)
-        {
-            if (_cachedTransforms[i] != _previousTransforms[i])
-                return true;
-        }
-
-        return false;
-    }
-
     public static void ScheduleRemoteLerp(float deltaTime)
     {
         _remoteJobHandle.Complete();
@@ -98,16 +78,21 @@ public static class BasisObjectSyncDriver
         }
 
         int index = 0;
+        bool State = _targetPositions.Length <= count;
 
-        foreach (var obj in RemoteOwnedObjectSyncs)
+        if (State)
+        {
+            _targetPositions.ResizeUninitialized(count);
+            _targetRotations.ResizeUninitialized(count);
+            _lerpMultipliers.ResizeUninitialized(count);
+        }
+
+
+        foreach (BasisObjectSyncNetworking obj in RemoteOwnedObjectSyncs)
         {
             if (obj == null || obj.IsOwnedLocallyOnClient) continue;
 
-            _cachedTransforms[index] = obj.transform;
-
-            if (_targetPositions.Length <= index) _targetPositions.ResizeUninitialized(index + 1);
-            if (_targetRotations.Length <= index) _targetRotations.ResizeUninitialized(index + 1);
-            if (_lerpMultipliers.Length <= index) _lerpMultipliers.ResizeUninitialized(index + 1);
+            _cachedTransforms[index] = obj.SelfTransform;
 
             _targetPositions[index] = obj.BTU.TargetPosition;
             _targetRotations[index] = obj.BTU.TargetRotation;
@@ -115,12 +100,9 @@ public static class BasisObjectSyncDriver
 
             index++;
         }
-
-        bool transformListChanged = DidTransformListChange();
-
         if (_remoteTransforms.isCreated)
         {
-            if (transformListChanged)
+            if (_remoteTransforms.length != _cachedTransforms.Length)
             {
                 _remoteTransforms.Dispose();
                 _remoteTransforms = new TransformAccessArray(_cachedTransforms);
@@ -134,9 +116,6 @@ public static class BasisObjectSyncDriver
         {
             _remoteTransforms = new TransformAccessArray(_cachedTransforms);
         }
-
-        _previousTransforms.Clear();
-        _previousTransforms.AddRange(_cachedTransforms);
 
         var job = new RemoteSyncJob
         {
