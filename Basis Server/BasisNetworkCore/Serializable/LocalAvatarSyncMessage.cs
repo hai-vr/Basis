@@ -1,91 +1,88 @@
 using LiteNetLib.Utils;
-
 public static partial class SerializableBasis
 {
     public struct LocalAvatarSyncMessage
     {
+        public byte[] array;//position -> rotation -> rotation
+        public const int AvatarSyncSize = 204 + 2;//plus a additional 1 byte after this for additional avatar data
         public const int StoredBones = 89;
-        public const int AvatarSyncSize = 204 + 2;
 
-        public byte[] array; // 178 (muscles) + 12 (position) + 14 (rotation) = 204
         public AdditionalAvatarData[] AdditionalAvatarDatas;
         public byte AdditionalAvatarDataSize;
+        //when we swap avatars additional avatar data could be wrong for a few frames when that occurs linked avatar index will update to match.
         public byte LinkedAvatarIndex;
-
-        public void Deserialize(NetDataReader reader)
+        public void Deserialize(NetDataReader Writer)
         {
-            int availableBytes = reader.AvailableBytes;
-            if (availableBytes < AvatarSyncSize)
+            int Bytes = Writer.AvailableBytes;
+            if (Bytes >= AvatarSyncSize)
             {
-                BNL.LogError($"Insufficient bytes for LocalAvatarSyncMessage. Available: {availableBytes}, Required: {AvatarSyncSize}");
-                return;
+                //89 * 2 = 178 + 12 + 14 = 204
+                //now 178 for muscles, 3*4 for position 12, 4*4 for rotation 16-2 (W is half) = 204
+                array ??= new byte[AvatarSyncSize];
+                Writer.GetBytes(array, AvatarSyncSize);
+                if (Writer.TryGetByte(out AdditionalAvatarDataSize))
+                {
+                    if (AdditionalAvatarDataSize != 0)
+                    {
+                        if (Writer.TryGetByte(out LinkedAvatarIndex))
+                        {
+
+                        }
+                        else
+                        {
+                            BNL.LogError("Missing LinkedAvatarIndex!");
+                        }
+                    }
+                    if (AdditionalAvatarDataSize != 0)
+                    {
+                        AdditionalAvatarDatas = new AdditionalAvatarData[AdditionalAvatarDataSize];
+                        for (int Index = 0; Index < AdditionalAvatarDataSize; Index++)
+                        {
+                            AdditionalAvatarDatas[Index] = new AdditionalAvatarData();
+                            AdditionalAvatarDatas[Index].Deserialize(Writer);
+                        }
+                        //  BNL.Log("found additional message " + AdditionalAvatarDatas.Length);
+                    }
+                }
+                else
+                {
+                    BNL.LogError("fundamental error missing Additional Avatar Data Byte");
+                }
             }
-
-            array ??= new byte[AvatarSyncSize];
-            reader.GetBytes(array, AvatarSyncSize);
-
-            if (!reader.TryGetByte(out AdditionalAvatarDataSize))
+            else
             {
-                BNL.LogError("Missing AdditionalAvatarDataSize byte.");
-                return;
+                BNL.LogError($"Unable to read Remaining bytes where {Bytes} in LocalAvatarSyncMessage");
             }
-
-            if (AdditionalAvatarDataSize == 0)
-            {
-                AdditionalAvatarDatas = null;
-                return;
-            }
-
-            if (!reader.TryGetByte(out LinkedAvatarIndex))
-            {
-                BNL.LogError("Missing LinkedAvatarIndex byte.");
-                return;
-            }
-
-            AdditionalAvatarDatas = new AdditionalAvatarData[AdditionalAvatarDataSize];
-            for (int i = 0; i < AdditionalAvatarDataSize; i++)
-            {
-                var data = new AdditionalAvatarData();
-                data.Deserialize(reader); // assumes this internally handles failure
-                AdditionalAvatarDatas[i] = data;
-            }
-
-            // BNL.Log($"Deserialized {AdditionalAvatarDataSize} additional avatar entries.");
         }
-
-        public void Serialize(NetDataWriter writer)
+        public void Serialize(NetDataWriter Writer)
         {
-            if (array == null || array.Length != AvatarSyncSize)
+            if (array == null)
             {
-                BNL.LogError("Avatar sync array is null or of incorrect size.");
-                return;
+                BNL.LogError("array was null!!");
             }
-
-            writer.Put(array);
-
-            if (AdditionalAvatarDatas == null || AdditionalAvatarDatas.Length == 0)
+            else
             {
-                writer.Put((byte)0);
-                return;
+                Writer.Put(array);
             }
-
-            int count = AdditionalAvatarDatas.Length;
-            if (count > 255)
+            if (AdditionalAvatarDatas == null || AdditionalAvatarDatas.Length == 0 || AdditionalAvatarDatas.Length > 256)
             {
-                BNL.LogError("AdditionalAvatarDatas length exceeds byte limit (255). Truncating.");
-                count = 255;
+                Writer.Put((byte)0);
             }
-
-            AdditionalAvatarDataSize = (byte)count;
-            writer.Put(AdditionalAvatarDataSize);
-            writer.Put(LinkedAvatarIndex);
-
-            for (int i = 0; i < count; i++)
+            else
             {
-                AdditionalAvatarDatas[i].Serialize(writer);
+                AdditionalAvatarDataSize = (byte)AdditionalAvatarDatas.Length;
+                Writer.Put(AdditionalAvatarDataSize);
+                if (AdditionalAvatarDataSize != 0)
+                {
+                    Writer.Put(LinkedAvatarIndex);//we only include the linked avatar if there is additional avatar size.
+                }
+                for (int Index = 0; Index < AdditionalAvatarDataSize; Index++)
+                {
+                    AdditionalAvatarData AAD = AdditionalAvatarDatas[Index];
+                    AAD.Serialize(Writer);
+                }
+                //   BNL.Log("sending additional message " + AdditionalAvatarDatas.Length);
             }
-
-            // BNL.Log($"Serialized {AdditionalAvatarDataSize} additional avatar entries.");
         }
     }
 }
