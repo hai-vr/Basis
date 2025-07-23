@@ -90,6 +90,7 @@ This would not be possible without the following:
 - [RNNoise.Net](https://github.com/Yellow-Dog-Man/RNNoise.Net)
 - [unity](https://unity.com/)
 - [ionic icons](https://github.com/ionic-team/ionicons?ref=svgrepo.com)
+- [LiteNetLib](https://github.com/RevenantX/LiteNetLib)
 
 
 ## Third-Party Code and Trademarks
