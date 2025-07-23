@@ -2,6 +2,7 @@ using Basis.Network.Core;
 using Basis.Network.Server;
 using Basis.Network.Server.Auth;
 using BasisDidLink;
+using BasisNetworkServer.BasisNetworkingReductionSystem;
 using BasisNetworkServer.Security;
 using BasisServerHandle;
 using LiteNetLib;
@@ -38,10 +39,9 @@ public static class NetworkServer
 
     private static void InitializePulseSettings()
     {
-        SyncedToPlayerPulse.BSRBaseMultiplier = Configuration.BSRBaseMultiplier;
-        SyncedToPlayerPulse.BSRSMillisecondDefaultInterval = Configuration.BSRSMillisecondDefaultInterval;
-        SyncedToPlayerPulse.BSRSIncreaseRate = Configuration.BSRSIncreaseRate;
-        SyncedToPlayerPulse.ByteBSRSMillisecondDefaultInterval = (byte)Configuration.BSRSMillisecondDefaultInterval;
+        BasisServerReductionSystemEvents.BSRBaseMultiplier = Configuration.BSRBaseMultiplier;
+        BasisServerReductionSystemEvents.BSRSMillisecondDefaultInterval = Configuration.BSRSMillisecondDefaultInterval;
+        BasisServerReductionSystemEvents.BSRSIncreaseRate = Configuration.BSRSIncreaseRate;
     }
 
     private static void InitializeAuth()

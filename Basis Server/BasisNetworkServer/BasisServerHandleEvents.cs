@@ -4,6 +4,7 @@ using Basis.Network.Server.Ownership;
 using BasisNetworkCore;
 using BasisNetworkCore.Pooling;
 using BasisNetworkServer.BasisNetworking;
+using BasisNetworkServer.BasisNetworkingReductionSystem;
 using BasisNetworkServer.Security;
 using LiteNetLib;
 using LiteNetLib.Utils;
@@ -82,7 +83,7 @@ namespace BasisServerHandle
         {
             BasisNetworkOwnership.RemovePlayerOwnership(id);
             BasisSavedState.RemovePlayer(peer);
-            BasisServerReductionSystem.RemovePlayer(peer);
+            BasisServerReductionSystemEvents.RemovePlayer(peer.Id);
             if (NetworkServer.Peers.IsEmpty)
             {
                 BasisNetworkIDDatabase.Reset();
