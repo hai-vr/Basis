@@ -70,7 +70,6 @@ namespace BasisServerHandle
                     BNL.LogError($"Failed to remove peer: {id}");
                 }
                 NetworkServer.AuthIdentity.RemoveConnection(peer);
-                NetworkServer.ChunkedNetPeerArray.SetPeer(id, null);
                 CleanupPlayerData(id, peer);
             }
             catch (Exception e)
@@ -202,7 +201,6 @@ namespace BasisServerHandle
             ushort PeerId = (ushort)newPeer.Id;
             if (NetworkServer.Peers.TryAdd(PeerId, newPeer))
             {
-                NetworkServer.ChunkedNetPeerArray.SetPeer(PeerId, newPeer);
                 BasisPlayerArray.AddPlayer(newPeer);
                 BNL.Log($"Peer connected: {newPeer.Id}");
                 //never ever assume the UUID provided by the user is good always recalc on the server.

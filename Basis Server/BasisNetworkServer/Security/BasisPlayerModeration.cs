@@ -1,15 +1,16 @@
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Xml.Serialization;
-using LiteNetLib;
-using LiteNetLib.Utils;
-using static BasisNetworkCore.Serializable.SerializableBasis;
 using Basis.Network.Core;
 using BasisNetworkCore;
+using LiteNetLib;
+using LiteNetLib.Utils;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using System.Xml.Serialization;
+using static BasisNetworkCore.Serializable.SerializableBasis;
 
 namespace BasisNetworkServer.Security
 {
@@ -249,17 +250,18 @@ namespace BasisNetworkServer.Security
                     break;
                 case AdminRequestMode.Message:
                     ushort RPI = reader.GetUShort();
-                    NetPeer RemotePeer = NetworkServer.ChunkedNetPeerArray.GetPeer(RPI);
-                    string Message = reader.GetString();
-                    SendBackMessage(RemotePeer, Message);
-                    BNL.Log($"sending Message | {Message}");
-
+                    if (NetworkServer.Peers.TryGetValue(RPI, out NetPeer RemotePeer))
+                    {
+                        string messagedata = reader.GetString();
+                        SendBackMessage(RemotePeer, messagedata);
+                        BNL.Log($"sending Message | {messagedata}");
+                    }
                     break;
                 case AdminRequestMode.MessageAll:
                     NetDataWriter Writer = new NetDataWriter(true, 4);
                     AdminRequest OutAdminRequest = new AdminRequest();
                     OutAdminRequest.Serialize(Writer, AdminRequestMode.MessageAll);
-                    Message = reader.GetString();
+                    string Message = reader.GetString();
                     Writer.Put(Message);
                     NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AdminChannel, peer, BasisPlayerArray.GetSnapshot(), DeliveryMethod.ReliableOrdered);
                     BNL.Log($"sending MessageAll | {Message}");

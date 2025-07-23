@@ -3,14 +3,14 @@ namespace Basis.Network.Core
     public static class BasisNetworkCommons
     {
         /// <summary>
-        /// this is the maximum connectinos that can occur under the hood.
+        /// this is the maximum Connections that can occur under the hood.
         /// </summary>
         public const int MaxConnections = 1024;
 
-        public const int NetworkIntervalPoll = 15;
+        public const int NetworkIntervalPoll = 5;
         public const int PingInterval = 1500;
         public const int ReceivePollingTime = 50000;
-        public const int PacketPoolSize = 700;
+        public const int PacketPoolSize = 1700;
         /// <summary>
         /// when adding a new message we need to increase this
         /// will function up to 64

@@ -234,7 +234,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                     var player = players[i].Player;
                     int queuedMessages = player.Peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
-                    if (queuedMessages > 20) continue;
+                    if (queuedMessages > 512) continue;
 
                     var cacheEntry = cachedData[i];
                     for (int entryIndex = 0; entryIndex < cacheEntry.Count; entryIndex++)
