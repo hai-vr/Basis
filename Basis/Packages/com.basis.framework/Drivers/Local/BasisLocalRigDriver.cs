@@ -88,9 +88,12 @@ namespace Basis.Scripts.Drivers
 
 			ApplyBoneIKHint(LeftHandTwoBoneIK, BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.position, BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.rotation);
 			ApplyBoneIKHint(RightHandTwoBoneIK, BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.position, BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.rotation);
-            // --- Do IK on animator ---
-            Builder.SyncLayers();
-            PlayableGraph.Evaluate(DeltaTime);
+			if (Builder != null)
+			{
+				// --- Do IK on animator ---
+				Builder.SyncLayers();
+				PlayableGraph.Evaluate(DeltaTime);
+			}
         }
 
 		public void ApplyBoneIKHint(BasisTwoBoneIKConstraint Constraint, Vector3 Position, Quaternion Rotation, Vector3 Direction)

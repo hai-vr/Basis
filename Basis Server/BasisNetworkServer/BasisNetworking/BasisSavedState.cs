@@ -26,9 +26,9 @@ namespace Basis.Network.Server.Generic
         /// <summary>
         /// Adds or updates the LocalAvatarSyncMessage for a player.
         /// </summary>
-        public static void AddLastData(NetPeer client, LocalAvatarSyncMessage avatarSyncMessage)
+        public static void AddLastData(int Index, LocalAvatarSyncMessage avatarSyncMessage)
         {
-            avatarSyncStates.SetPulse(client.Id, avatarSyncMessage);
+            avatarSyncStates.SetPulse(Index, avatarSyncMessage);
         }
 
         /// <summary>

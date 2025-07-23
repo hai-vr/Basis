@@ -12,9 +12,9 @@ namespace Basis.Network.Core.Compression
         /// Single API to handle all avatar decompression tasks.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Vector3 DecompressAndProcessAvatarFaster(ServerSideSyncPlayerMessage syncMessage)
+        public static Vector3 DecompressAndProcessAvatarFaster(LocalAvatarSyncMessage syncMessage)
         {
-            return ReadVectorFloatFromBytesFaster(ref syncMessage.avatarSerialization.array);
+            return ReadVectorFloatFromBytesFaster(ref syncMessage.array);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

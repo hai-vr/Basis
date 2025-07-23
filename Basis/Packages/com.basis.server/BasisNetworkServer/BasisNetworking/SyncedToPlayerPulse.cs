@@ -24,28 +24,29 @@ public class SyncedToPlayerPulse
     public static byte ByteBSRSMillisecondDefaultInterval;
     public static int BSRBaseMultiplier = 1;
     public static float BSRSIncreaseRate = 0.005f;
+    public static int MaxMessages = 80;
     /// <summary>
     /// Supply new data to a specific player.
     /// </summary>
     /// <param name="playerID">The ID of the player</param>
     /// <param name="serverSideSyncPlayerMessage">The message to be synced</param>
-    /// <param name="serverSidePlayer"></param>
-    public void SupplyNewData(NetPeer playerID, ServerSideSyncPlayerMessage serverSideSyncPlayerMessage, NetPeer serverSidePlayer, Vector3 Position)
+    /// <param name="PlayerIndex"></param>
+    public void SupplyNewData(NetPeer playerID, ServerSideSyncPlayerMessage serverSideSyncPlayerMessage, int PlayerIndex, Vector3 Position)
     {
-        ServerSideReducablePlayer playerData = ChunkedServerSideReducablePlayerArray.GetPlayer(serverSidePlayer.Id);
+        ServerSideReducablePlayer playerData = ChunkedServerSideReducablePlayerArray.GetPlayer(PlayerIndex);
         if (playerData != null)
         {
             // Update the player's message
             playerData.serverSideSyncPlayerMessage = serverSideSyncPlayerMessage;
             playerData.Position = Position;
-            ChunkedServerSideReducablePlayerArray.SetPlayer(serverSidePlayer.Id, playerData);
+            ChunkedServerSideReducablePlayerArray.SetPlayer(PlayerIndex, playerData);
         }
         else
         {
             ServerReductionClientPayload clientPayload = new ServerReductionClientPayload
             {
                 localClient = playerID,
-                dataCameFromThisUser = serverSidePlayer.Id
+                dataCameFromThisUser = PlayerIndex
             };
             serverSideSyncPlayerMessage.interval = ByteBSRSMillisecondDefaultInterval;
             ServerSideReducablePlayer newPlayer = new ServerSideReducablePlayer
@@ -56,9 +57,9 @@ public class SyncedToPlayerPulse
                 Position = Position,
             };
             SendPlayerData(clientPayload);
-            ChunkedServerSideReducablePlayerArray.SetPlayer(serverSidePlayer.Id, newPlayer);
+            ChunkedServerSideReducablePlayerArray.SetPlayer(PlayerIndex, newPlayer);
         }
-        SyncBoolArray.SetBool(serverSidePlayer.Id, true);
+        SyncBoolArray.SetBool(PlayerIndex, true);
     }
     /// <summary>
     /// Callback function to send player data at regular intervals.
@@ -98,10 +99,10 @@ public class SyncedToPlayerPulse
                         playerData.serverSideSyncPlayerMessage.interval = ByteAdjusted;
 
                         int Size = playerID.localClient.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
-                        if (Size < NetworkServer.MaxMessages && playerData.Writer != null)
+                        if (Size < MaxMessages && playerData.Writer != null)
                         {
                             playerData.serverSideSyncPlayerMessage.Serialize(playerData.Writer);
-                            NetworkServer.SendOutValidated(playerID.localClient, playerData.Writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
+                            NetworkServer.TrySend(playerID.localClient, playerData.Writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
                             playerData.Writer.Reset();
                         }
                         else

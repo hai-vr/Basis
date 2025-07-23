@@ -13,13 +13,8 @@ namespace Basis.Network.Server.Generic
         public ChunkedSyncedToPlayerPulseArray()
         {
             _maxPlayers = BasisNetworkCommons.MaxConnections;
-
-            if (_maxPlayers <= 0)
-                throw new ArgumentOutOfRangeException(nameof(BasisNetworkCommons.MaxConnections), "MaxConnections must be greater than zero.");
-
             _pulses = new T[_maxPlayers];
             _playerLocks = new ReaderWriterLockSlim[_maxPlayers];
-
             for (int Index = 0; Index < _maxPlayers; Index++)
             {
                 _playerLocks[Index] = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
@@ -28,9 +23,6 @@ namespace Basis.Network.Server.Generic
 
         public void SetPulse(int index, T pulse)
         {
-            if (index < 0 || index >= _maxPlayers)
-                throw new ArgumentOutOfRangeException(nameof(index), "Index is out of range.");
-
             var rwLock = _playerLocks[index];
             rwLock.EnterWriteLock();
             try
@@ -45,9 +37,6 @@ namespace Basis.Network.Server.Generic
 
         public T GetPulse(int index)
         {
-            if (index < 0 || index >= _maxPlayers)
-                throw new ArgumentOutOfRangeException(nameof(index), "Index is out of range.");
-
             var rwLock = _playerLocks[index];
             rwLock.EnterReadLock();
             try

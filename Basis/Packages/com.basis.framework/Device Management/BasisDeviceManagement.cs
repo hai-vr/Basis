@@ -73,7 +73,11 @@ namespace Basis.Scripts.Device_Management
         public bool ForcedHeadLessMode = false;
         public static bool IsHeadless()
         {
-            return Application.isBatchMode || BasisDeviceManagement.Instance.ForcedHeadLessMode;
+#if UNITY_SERVER
+            return true;
+#else
+            return false;
+#endif
         }
         /// <summary>
         /// checks to see if we are in desktop

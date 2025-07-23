@@ -1,4 +1,3 @@
-using System.Threading;
 using Basis.Scripts.Networking.Compression;
 using LiteNetLib.Utils;
 using static SerializableBasis;
@@ -7,7 +6,7 @@ using static SerializableBasis;
 /// </summary>
 public class ServerSideReducablePlayer
 {
-    public Timer timer;//create a new timer
+   // public Timer timer;//create a new timer
     public ServerSideSyncPlayerMessage serverSideSyncPlayerMessage;
     public NetDataWriter Writer;
     public Vector3 Position;

@@ -78,7 +78,9 @@ public class LockedBoolArray
             _array = new SyncedToPlayerPulse[TotalSize];
             _locks = new object[TotalSize];
             for (int i = 0; i < TotalSize; i++)
+            {
                 _locks[i] = new object();
+            }
         }
 
         public void SetPulse(int index, SyncedToPlayerPulse pulse)

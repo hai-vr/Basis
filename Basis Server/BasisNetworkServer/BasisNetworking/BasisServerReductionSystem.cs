@@ -6,34 +6,6 @@ using static SerializableBasis;
 public class BasisServerReductionSystem
 {
     public static LockedSyncedToPlayerPulseArray PlayerSync = new LockedSyncedToPlayerPulseArray();
-    /// <summary>
-    /// add the new client
-    /// then update all existing clients arrays
-    /// </summary>
-    /// <param name="playerID"></param>
-    /// <param name="playerToUpdate"></param>
-    /// <param name="Frompeer"></param>
-    public static void AddOrUpdatePlayer(Vector3 Position, NetPeer playerID, ServerSideSyncPlayerMessage playerToUpdate, NetPeer Frompeer)
-    {
-        SyncedToPlayerPulse OtherPulse = PlayerSync.GetPulse(playerID.Id);
-        //ok now we can try to schedule sending out this data!
-        if (OtherPulse != null)
-        {
-            // Update the player's message
-            OtherPulse.SupplyNewData(playerID, playerToUpdate, Frompeer, Position);
-        }
-        else
-        {
-            //first time request create said data!
-            OtherPulse = new SyncedToPlayerPulse
-            {
-                lastPlayerInformation = playerToUpdate,
-                Position = Position,
-            };
-            PlayerSync.SetPulse(playerID.Id, OtherPulse);
-            OtherPulse.SupplyNewData(playerID, playerToUpdate, Frompeer, Position);
-        }
-    }
     public static void RemovePlayer(NetPeer playerID)
     {
         int playerIndex = playerID.Id;
@@ -56,7 +28,7 @@ public class BasisServerReductionSystem
                 ServerSideReducablePlayer playerRef = otherPulse.ChunkedServerSideReducablePlayerArray.GetPlayer(playerIndex);
                 if (playerRef != null)
                 {
-                    playerRef.timer.Dispose();
+                  //  playerRef.timer.Dispose();
                     otherPulse.ChunkedServerSideReducablePlayerArray.SetPlayer(playerIndex, null);
                 }
             }
@@ -73,9 +45,18 @@ public class BasisServerReductionSystem
             ServerSideReducablePlayer player = pulse.ChunkedServerSideReducablePlayerArray.GetPlayer(Index);
             if (player != null)
             {
-                player.timer.Dispose();
+              //  player.timer.Dispose();
                 pulse.ChunkedServerSideReducablePlayerArray.SetPlayer(Index, null);
             }
+        }
+    }
+    public static void UpdateLastInformation(ServerSideSyncPlayerMessage ssspm, Vector3 Position, int Index)
+    {
+        SyncedToPlayerPulse playerData = BasisServerReductionSystem.PlayerSync.GetPulse(Index);
+        //stage 1 lets update whoever send us this datas last player information
+        if (playerData != null)
+        {
+            playerData.Position = Position;
         }
     }
 }
