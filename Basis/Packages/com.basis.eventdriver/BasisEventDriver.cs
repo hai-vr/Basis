@@ -13,7 +13,7 @@ public class BasisEventDriver : MonoBehaviour
     {
 #if UNITY_SERVER
 #else
-   Application.onBeforeRender += OnBeforeRender;
+        Application.onBeforeRender += OnBeforeRender;
 #endif
         BasisSceneFactory.Initalize();
         BasisObjectSyncDriver.Initalization();
@@ -27,7 +27,7 @@ public class BasisEventDriver : MonoBehaviour
     {
 #if UNITY_SERVER
 #else
-   Application.onBeforeRender -= OnBeforeRender;
+        Application.onBeforeRender -= OnBeforeRender;
 #endif
     }
     public float DeltaTime;
@@ -84,8 +84,6 @@ public class BasisEventDriver : MonoBehaviour
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
 #if UNITY_SERVER
         OnBeforeRender();
-#else
-   Application.onBeforeRender -= OnBeforeRender;
 #endif
     }
     private void OnBeforeRender()

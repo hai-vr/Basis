@@ -546,10 +546,10 @@ namespace Basis.Scripts.Networking
                     }, null);
                     break;
                 case BasisNetworkCommons.VoiceChannel:
-                    if (BasisDeviceManagement.IsHeadless() == false)
-                    {
-                        await BasisNetworkHandleVoice.HandleAudioUpdate(Reader);
-                    }
+#if UNITY_SERVER
+#else
+                    await BasisNetworkHandleVoice.HandleAudioUpdate(Reader);
+#endif
                     Reader.Recycle();
                     break;
                 case BasisNetworkCommons.PlayerAvatarChannel:
