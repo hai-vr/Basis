@@ -2,6 +2,7 @@ using Basis.Network.Core;
 using Basis.Network.Server;
 using Basis.Network.Server.Auth;
 using BasisDidLink;
+using BasisNetworkServer.BasisNetworkingReductionSystem;
 using BasisNetworkServer.Security;
 using BasisServerHandle;
 using LiteNetLib;
@@ -15,7 +16,6 @@ public static class NetworkServer
     public static EventBasedNetListener Listener;
     public static NetManager Server;
     public static ConcurrentDictionary<ushort, NetPeer> Peers = new();
-    public static StripedNetPeerArray ChunkedNetPeerArray = new();
     public static Configuration Configuration;
     public static IAuth Auth;
     public static IAuthIdentity AuthIdentity;
@@ -38,10 +38,9 @@ public static class NetworkServer
 
     private static void InitializePulseSettings()
     {
-        SyncedToPlayerPulse.BSRBaseMultiplier = Configuration.BSRBaseMultiplier;
-        SyncedToPlayerPulse.BSRSMillisecondDefaultInterval = Configuration.BSRSMillisecondDefaultInterval;
-        SyncedToPlayerPulse.BSRSIncreaseRate = Configuration.BSRSIncreaseRate;
-        SyncedToPlayerPulse.ByteBSRSMillisecondDefaultInterval = (byte)Configuration.BSRSMillisecondDefaultInterval;
+        BasisServerReductionSystemEvents.BSRBaseMultiplier = Configuration.BSRBaseMultiplier;
+        BasisServerReductionSystemEvents.BSRSMillisecondDefaultInterval = Configuration.BSRSMillisecondDefaultInterval;
+        BasisServerReductionSystemEvents.BSRSIncreaseRate = Configuration.BSRSIncreaseRate;
     }
 
     private static void InitializeAuth()
@@ -124,7 +123,6 @@ public static class NetworkServer
             }
         }
     }
-
     public static void BroadcastMessageToClients(NetDataWriter writer, byte channel, ReadOnlySpan<NetPeer> clients, DeliveryMethod deliveryMethod = DeliveryMethod.Sequenced, int maxMessages = 70)
     {
         if (!CheckValidated(writer)) return;

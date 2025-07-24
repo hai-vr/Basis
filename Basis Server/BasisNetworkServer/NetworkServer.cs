@@ -123,7 +123,6 @@ public static class NetworkServer
             }
         }
     }
-
     public static void BroadcastMessageToClients(NetDataWriter writer, byte channel, ReadOnlySpan<NetPeer> clients, DeliveryMethod deliveryMethod = DeliveryMethod.Sequenced, int maxMessages = 70)
     {
         if (!CheckValidated(writer)) return;

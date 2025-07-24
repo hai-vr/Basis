@@ -4,6 +4,7 @@ using Basis.Network.Server.Ownership;
 using BasisNetworkCore;
 using BasisNetworkCore.Pooling;
 using BasisNetworkServer.BasisNetworking;
+using BasisNetworkServer.BasisNetworkingReductionSystem;
 using BasisNetworkServer.Security;
 using LiteNetLib;
 using LiteNetLib.Utils;
@@ -69,7 +70,6 @@ namespace BasisServerHandle
                     BNL.LogError($"Failed to remove peer: {id}");
                 }
                 NetworkServer.AuthIdentity.RemoveConnection(peer);
-                NetworkServer.ChunkedNetPeerArray.SetPeer(id, null);
                 CleanupPlayerData(id, peer);
             }
             catch (Exception e)
@@ -82,7 +82,7 @@ namespace BasisServerHandle
         {
             BasisNetworkOwnership.RemovePlayerOwnership(id);
             BasisSavedState.RemovePlayer(peer);
-            BasisServerReductionSystem.RemovePlayer(peer);
+            BasisServerReductionSystemEvents.RemovePlayer(peer.Id);
             if (NetworkServer.Peers.IsEmpty)
             {
                 BasisNetworkIDDatabase.Reset();
@@ -201,7 +201,6 @@ namespace BasisServerHandle
             ushort PeerId = (ushort)newPeer.Id;
             if (NetworkServer.Peers.TryAdd(PeerId, newPeer))
             {
-                NetworkServer.ChunkedNetPeerArray.SetPeer(PeerId, newPeer);
                 BasisPlayerArray.AddPlayer(newPeer);
                 BNL.Log($"Peer connected: {newPeer.Id}");
                 //never ever assume the UUID provided by the user is good always recalc on the server.
@@ -299,90 +298,69 @@ namespace BasisServerHandle
             NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AvatarChangeMessageChannel, Peer, BasisPlayerArray.GetSnapshot(), DeliveryMethod.ReliableOrdered);
         }
 
-        public static void HandleVoiceMessage(NetPacketReader Reader, NetPeer peer)
+        public static void HandleVoiceMessage(NetPacketReader reader, NetPeer peer)
         {
-            /*
-            byte sequenceNumber = Reader.GetByte();
-            if (sequenceNumber > 63)
-            {
-                BNL.LogError("Sequence Number was greater the 63!");
-                sequenceNumber = 0;
-            }
-            */
             AudioSegmentDataMessage audioSegment = ThreadSafeMessagePool<AudioSegmentDataMessage>.Rent();
-            audioSegment.Deserialize(Reader);
-            Reader.Recycle();
-            ServerAudioSegmentMessage ServerAudio = new ServerAudioSegmentMessage
+            audioSegment.Deserialize(reader);
+            reader.Recycle();
+
+            ServerAudioSegmentMessage serverAudio = new ServerAudioSegmentMessage
             {
                 audioSegmentData = audioSegment
             };
-            SendVoiceMessageToClients(ServerAudio, BasisNetworkCommons.VoiceChannel, peer);
+
+            SendVoiceMessageToClients(serverAudio, BasisNetworkCommons.FallChannel, peer, DeliveryMethod.Unreliable);
+
             ThreadSafeMessagePool<AudioSegmentDataMessage>.Return(audioSegment);
         }
-        public static void SendVoiceMessageToClients(ServerAudioSegmentMessage audioSegment, byte channel, NetPeer sender)//byte sequenceNumber
+
+        public static void SendVoiceMessageToClients(ServerAudioSegmentMessage audioSegment, byte channel, NetPeer sender, DeliveryMethod method)
         {
-            if (BasisSavedState.GetLastVoiceReceivers(sender, out VoiceReceiversMessage data))
+            if (!BasisSavedState.GetLastVoiceReceivers(sender, out VoiceReceiversMessage receivers) || receivers.users == null || receivers.users.Length == 0)
             {
-                // If no users are found or the array is empty, return early
-                if (data.users == null || data.users.Length == 0)
-                {
-                    return;
-                }
-                int length = data.users.Length;
-                // Get the current snapshot of all peers
-                ReadOnlySpan<NetPeer> AllPeers = BasisPlayerArray.GetSnapshot();
-                int AllPeersLength = AllPeers.Length;
-                // Select valid clients based on the users list and corresponding NetPeer
-                List<NetPeer> endPoints = new List<NetPeer>(length);
-
-                for (int DataIndex = 0; DataIndex < length; DataIndex++)
-                {
-                    // Find the NetPeer corresponding to the user
-                    NetPeer matchingPeer = null;
-
-                    for (int PeerIndex = 0; PeerIndex < AllPeersLength; PeerIndex++)
-                    {
-                        if (AllPeers[PeerIndex].Id == data.users[DataIndex])
-                        {
-                            matchingPeer = AllPeers[PeerIndex];
-                            break;  // Found the peer, exit inner loop
-                        }
-                    }
-
-                    // If a matching peer was found, add it to the endPoints list
-                    if (matchingPeer != null)
-                    {
-                        endPoints.Add(matchingPeer);
-                    }
-                }
-
-                // If no valid endpoints were found, return early
-                if (endPoints.Count == 0)
-                {
-                    return;
-                }
-
-                // Add player ID to the audio segment message
-                audioSegment.playerIdMessage = new PlayerIdMessage
-                {
-                    playerID = (ushort)sender.Id,
-                    AdditionalData = 0,
-                };
-
-                // Serialize the audio segment message
-                NetDataWriter NetDataWriter = new NetDataWriter(true, 2);
-                audioSegment.Serialize(NetDataWriter);
-
-                // Broadcast the message to the clients
-                NetworkServer.BroadcastMessageToClients(NetDataWriter, channel, ref endPoints, DeliveryMethod.Sequenced);
+                BNL.Log($"[VoiceMessage] No receivers found for sender {sender.Id}.");
+                return;
             }
-            else
+
+            var targetPeers = GetTargetPeers(receivers.users);
+            if (targetPeers.Count == 0)
             {
-                // Log error if unable to find the sender in the data store
-                BNL.Log("Error unable to find " + sender.Id + " in the data store!");
+                BNL.Log($"[VoiceMessage] No valid peer matches found for sender {sender.Id}.");
+                return;
             }
+
+            audioSegment.playerIdMessage = new PlayerIdMessage
+            {
+                playerID = (ushort)sender.Id,
+                AdditionalData = 0
+            };
+
+            var writer = new NetDataWriter(true, 3);
+            writer.Put(BasisNetworkCommons.AvatarChannel);
+            audioSegment.Serialize(writer);
+
+            NetworkServer.BroadcastMessageToClients(writer, channel, ref targetPeers, method);
         }
 
+        private static List<NetPeer> GetTargetPeers(ushort[] userIds)
+        {
+            var allPeers = BasisPlayerArray.UnsafeArrayOfNetPeers;
+            var peers = new List<NetPeer>(userIds.Length);
+
+            foreach (var userId in userIds)
+            {
+                for (int i = 0; i < allPeers.Length; i++)
+                {
+                    if (allPeers[i].Id == userId)
+                    {
+                        peers.Add(allPeers[i]);
+                        break;
+                    }
+                }
+            }
+
+            return peers;
+        }
         public static void UpdateVoiceReceivers(NetPacketReader Reader, NetPeer Peer)
         {
             VoiceReceiversMessage VoiceReceiversMessage = new VoiceReceiversMessage();
@@ -410,6 +388,7 @@ namespace BasisServerHandle
                     playerID = (ushort)authClient.Id
                 }
             };
+            BasisServerReductionSystemEvents.AddMessage(authClient, readyMessage.localAvatarSyncMessage);
             BasisSavedState.AddLastData(authClient, readyMessage);
             return serverReadyMessage;
         }
@@ -475,17 +454,19 @@ namespace BasisServerHandle
                     changeState = new ClientAvatarChangeMessage();
                     BNL.LogError("Unable to get avatar Change Request!");
                 }
-
-                if (!BasisSavedState.GetLastAvatarSyncState(peer, out var syncState))
+               var Player = BasisServerReductionSystemEvents.players[peer.Id];
+                LocalAvatarSyncMessage syncState = new LocalAvatarSyncMessage();
+                if (Player.IsActive && Player.Player != null)
                 {
-                    syncState = new LocalAvatarSyncMessage()
-                    {
-                        array = new byte[LocalAvatarSyncMessage.AvatarSyncSize],
-                        AdditionalAvatarDatas = null,
-                         AdditionalAvatarDataSize = 0,
-                          LinkedAvatarIndex = 0,
-                    };
-                    BNL.LogError("Unable to get Last Player Avatar Data! Using Error Fallback");
+                    syncState = Player.Player.syncMsg.avatarSerialization;
+                }
+                else
+                {
+                  //  BNL.LogError("Unable to get Last Player Avatar Data! Using Error Fallback");
+                    syncState.array = new byte[LocalAvatarSyncMessage.AvatarSyncSize];
+                    syncState.AdditionalAvatarDatas = null;
+                    syncState.AdditionalAvatarDataSize = 0;
+                    syncState.LinkedAvatarIndex = 0;
                 }
 
                 if (!BasisSavedState.GetLastPlayerMetaData(peer, out var metaData))

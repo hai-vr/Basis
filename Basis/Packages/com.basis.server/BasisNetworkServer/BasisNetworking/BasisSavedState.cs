@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using LiteNetLib;
 using static SerializableBasis;
 
@@ -5,11 +6,10 @@ namespace Basis.Network.Server.Generic
 {
     public static class BasisSavedState
     {
-        // Chunked arrays for each type of data
-        private static readonly ChunkedSyncedToPlayerPulseArray<LocalAvatarSyncMessage> avatarSyncStates = new ChunkedSyncedToPlayerPulseArray<LocalAvatarSyncMessage>();
-        private static readonly ChunkedSyncedToPlayerPulseArray<ClientAvatarChangeMessage> avatarChangeStates = new ChunkedSyncedToPlayerPulseArray<ClientAvatarChangeMessage>();
-        private static readonly ChunkedSyncedToPlayerPulseArray<ClientMetaDataMessage> playerMetaDataMessages = new ChunkedSyncedToPlayerPulseArray<ClientMetaDataMessage>();
-        private static readonly ChunkedSyncedToPlayerPulseArray<VoiceReceiversMessage> voiceReceiversMessages = new ChunkedSyncedToPlayerPulseArray<VoiceReceiversMessage>();
+        // Thread-safe dictionaries for each type of data
+        private static readonly ConcurrentDictionary<int, ClientAvatarChangeMessage> avatarChangeStates = new();
+        private static readonly ConcurrentDictionary<int, ClientMetaDataMessage> playerMetaDataMessages = new();
+        private static readonly ConcurrentDictionary<int, VoiceReceiversMessage> voiceReceiversMessages = new();
 
         /// <summary>
         /// Removes all state data for a specific player.
@@ -17,18 +17,9 @@ namespace Basis.Network.Server.Generic
         public static void RemovePlayer(NetPeer client)
         {
             int id = client.Id;
-            avatarSyncStates.SetPulse(id, default);
-            avatarChangeStates.SetPulse(id, default);
-            playerMetaDataMessages.SetPulse(id, default);
-            voiceReceiversMessages.SetPulse(id, default);
-        }
-
-        /// <summary>
-        /// Adds or updates the LocalAvatarSyncMessage for a player.
-        /// </summary>
-        public static void AddLastData(int Index, LocalAvatarSyncMessage avatarSyncMessage)
-        {
-            avatarSyncStates.SetPulse(Index, avatarSyncMessage);
+            avatarChangeStates.TryRemove(id, out _);
+            playerMetaDataMessages.TryRemove(id, out _);
+            voiceReceiversMessages.TryRemove(id, out _);
         }
 
         /// <summary>
@@ -37,9 +28,8 @@ namespace Basis.Network.Server.Generic
         public static void AddLastData(NetPeer client, ReadyMessage readyMessage)
         {
             int id = client.Id;
-            avatarSyncStates.SetPulse(id, readyMessage.localAvatarSyncMessage);
-            avatarChangeStates.SetPulse(id, readyMessage.clientAvatarChangeMessage);
-            playerMetaDataMessages.SetPulse(id, readyMessage.playerMetaDataMessage);
+            avatarChangeStates[id] = readyMessage.clientAvatarChangeMessage;
+            playerMetaDataMessages[id] = readyMessage.playerMetaDataMessage;
 
             BNL.Log($"Updated {id} with AvatarID {readyMessage.clientAvatarChangeMessage.byteArray.Length}");
         }
@@ -49,7 +39,7 @@ namespace Basis.Network.Server.Generic
         /// </summary>
         public static void AddLastData(NetPeer client, VoiceReceiversMessage voiceReceiversMessage)
         {
-            voiceReceiversMessages.SetPulse(client.Id, voiceReceiversMessage);
+            voiceReceiversMessages[client.Id] = voiceReceiversMessage;
         }
 
         /// <summary>
@@ -57,16 +47,7 @@ namespace Basis.Network.Server.Generic
         /// </summary>
         public static void AddLastData(NetPeer client, ClientAvatarChangeMessage avatarChangeMessage)
         {
-            avatarChangeStates.SetPulse(client.Id, avatarChangeMessage);
-        }
-
-        /// <summary>
-        /// Retrieves the last LocalAvatarSyncMessage for a player.
-        /// </summary>
-        public static bool GetLastAvatarSyncState(NetPeer client, out LocalAvatarSyncMessage message)
-        {
-            message = avatarSyncStates.GetPulse(client.Id);
-            return !message.Equals(default);
+            avatarChangeStates[client.Id] = avatarChangeMessage;
         }
 
         /// <summary>
@@ -74,8 +55,7 @@ namespace Basis.Network.Server.Generic
         /// </summary>
         public static bool GetLastAvatarChangeState(NetPeer client, out ClientAvatarChangeMessage message)
         {
-            message = avatarChangeStates.GetPulse(client.Id);
-            return !message.Equals(default);
+            return avatarChangeStates.TryGetValue(client.Id, out message) && !message.Equals(default);
         }
 
         /// <summary>
@@ -83,8 +63,7 @@ namespace Basis.Network.Server.Generic
         /// </summary>
         public static bool GetLastPlayerMetaData(NetPeer client, out ClientMetaDataMessage message)
         {
-            message = playerMetaDataMessages.GetPulse(client.Id);
-            return !message.Equals(default);
+            return playerMetaDataMessages.TryGetValue(client.Id, out message) && !message.Equals(default);
         }
 
         /// <summary>
@@ -92,8 +71,7 @@ namespace Basis.Network.Server.Generic
         /// </summary>
         public static bool GetLastVoiceReceivers(NetPeer client, out VoiceReceiversMessage message)
         {
-            message = voiceReceiversMessages.GetPulse(client.Id);
-            return !message.Equals(default);
+            return voiceReceiversMessages.TryGetValue(client.Id, out message) && !message.Equals(default);
         }
     }
 }

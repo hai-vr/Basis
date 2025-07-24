@@ -2,6 +2,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Profiler;
 using Basis.Scripts.TransformBinders.BoneControl;
+using BasisNetworkCore;
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
@@ -238,17 +239,26 @@ namespace Basis.Scripts.Networking.Receivers
                 Mathf.Abs(b.z) > epsilon ? a.z / b.z : a.z   // Same for z-axis
             );
         }
+        public byte LastSequenceNumber;
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage audioSegment)
         {
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, audioSegment.audioSegmentData.LengthUsed);
-            AudioReceiverModule.OnDecode(audioSegment.audioSegmentData.buffer, audioSegment.audioSegmentData.LengthUsed);
-            Player.AudioReceived?.Invoke(true);
+            if (BasisPacketUtil.ValidatePacket(audioSegment.audioSegmentData.SequenceNumber, LastSequenceNumber))
+            {
+                LastSequenceNumber = audioSegment.audioSegmentData.SequenceNumber;
+                AudioReceiverModule.OnDecode(audioSegment.audioSegmentData.buffer, audioSegment.audioSegmentData.LengthUsed);
+                Player.AudioReceived?.Invoke(true);
+            }
         }
         public void ReceiveSilentNetworkAudio(ServerAudioSegmentMessage audioSilentSegment)
         {
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, 1);
-            AudioReceiverModule.OnDecodeSilence();
-            Player.AudioReceived?.Invoke(false);
+            if (BasisPacketUtil.ValidatePacket(audioSilentSegment.audioSegmentData.SequenceNumber, LastSequenceNumber))
+            {
+                LastSequenceNumber = audioSilentSegment.audioSegmentData.SequenceNumber;
+                AudioReceiverModule.OnDecodeSilence();
+                Player.AudioReceived?.Invoke(false);
+            }
         }
         public async void ReceiveAvatarChangeRequest(ServerAvatarChangeMessage ServerAvatarChangeMessage)
         {
