@@ -306,7 +306,7 @@ namespace BasisServerHandle
 
             ServerAudioSegmentMessage serverAudio = new ServerAudioSegmentMessage
             {
-                audioSegmentData = audioSegment
+                audioSegmentData = audioSegment,
             };
 
             SendVoiceMessageToClients(serverAudio, BasisNetworkCommons.FallChannel, peer, DeliveryMethod.Unreliable);
@@ -336,7 +336,7 @@ namespace BasisServerHandle
             };
 
             var writer = new NetDataWriter(true, 3);
-            writer.Put(BasisNetworkCommons.AvatarChannel);
+            writer.Put(BasisNetworkCommons.VoiceChannel);
             audioSegment.Serialize(writer);
 
             NetworkServer.BroadcastMessageToClients(writer, channel, ref targetPeers, method);

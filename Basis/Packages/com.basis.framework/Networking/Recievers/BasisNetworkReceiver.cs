@@ -239,7 +239,7 @@ namespace Basis.Scripts.Networking.Receivers
                 Mathf.Abs(b.z) > epsilon ? a.z / b.z : a.z   // Same for z-axis
             );
         }
-        public byte LastSequenceNumber;
+        public ushort LastSequenceNumber;
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage audioSegment)
         {
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, audioSegment.audioSegmentData.LengthUsed);
