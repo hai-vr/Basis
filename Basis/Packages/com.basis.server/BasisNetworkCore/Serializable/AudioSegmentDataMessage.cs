@@ -4,7 +4,7 @@ public static partial class SerializableBasis
     [System.Serializable]
     public struct AudioSegmentDataMessage
     {
-        public ushort SequenceNumber;
+        public byte SequenceNumber;
         public byte[] buffer;
         public int TotalLength;
         public int LengthUsed;

@@ -14,7 +14,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         private const ushort UShortMax = ushort.MaxValue;
         private const float FloatRangeDifference = UShortMax - UShortMin;
 
-        public static void DecompressAndProcessAvatar(BasisNetworkReceiver baseReceiver, ServerSideSyncPlayerMessage syncMessage, ushort playerId)
+        public static void DecompressAndProcessAvatar(BasisNetworkReceiver baseReceiver, ServerSideSyncPlayerMessage syncMessage)
         {
             if (syncMessage.avatarSerialization.array == null)
             {
@@ -32,7 +32,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             EnqueueAndProcessAdditionalData(baseReceiver, ref avatarBuffer, syncMessage.avatarSerialization,length);
         }
 
-        public static void DecompressAndProcessAvatar(BasisNetworkReceiver baseReceiver, LocalAvatarSyncMessage syncMessage, ushort playerId)
+        public static void DecompressAndProcessAvatar(BasisNetworkReceiver baseReceiver, LocalAvatarSyncMessage syncMessage)
         {
             if (syncMessage.array == null)
             {
@@ -55,7 +55,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             var avatarBuffer = new BasisAvatarBuffer
             {
-                Position = BasisUnityBitPackerExtensionsUnsafe.ReadVectorFloatFromBytes(ref data, ref offset),
+                Position = BasisUnityBitPackerExtensionsUnsafe.DecompressPosition(ref data, ref offset),
                 rotation = BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, BasisNetworkPlayer.RotationCompression, ref offset),
                 Muscles = new float[LocalAvatarSyncMessage.StoredBones]
             };
@@ -96,7 +96,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         }
         private static ushort ReadUShort(byte[] data, ref int offset)
         {
-            return BasisUnityBitPackerExtensions.ReadUShortFromBytes(ref data, ref offset);
+            return BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset);
         }
 
         public static float Decompress(ushort value, float minValue, float maxValue)

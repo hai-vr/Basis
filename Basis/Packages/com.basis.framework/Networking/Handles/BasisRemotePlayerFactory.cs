@@ -86,7 +86,7 @@ namespace Basis.Scripts.Networking
                 BasisDebug.LogError("Missing CharacterIKCalibration");
             }
             BasisNetworkReceiver.Initialize();//fires events and makes us network compatible
-            BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(BasisNetworkReceiver, ServerReadyMessage.localReadyMessage.localAvatarSyncMessage, ServerReadyMessage.playerIdMessage.playerID);
+            BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(BasisNetworkReceiver, ServerReadyMessage.localReadyMessage.localAvatarSyncMessage);
         }
     }
 }
