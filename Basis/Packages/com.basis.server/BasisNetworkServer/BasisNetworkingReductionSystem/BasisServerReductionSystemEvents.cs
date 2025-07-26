@@ -111,7 +111,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         {
             int id = message.FromPeer.Id;
             ServerSideSyncPlayerMessage syncMsg = CreateServerSideSyncPlayerMessage(message.AvatarMessage, (ushort)id);
-            var position = BasisNetworkCompressionExtensions.DecompressAndProcessAvatarFaster(message.AvatarMessage);
+            var position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
 
             if (!players[id].IsActive)
             {

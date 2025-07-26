@@ -70,7 +70,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             // Compress Position
             //   prevOffset = offset;
-            BasisUnityBitPackerExtensionsUnsafe.CompressPosition(animator.bodyPosition, ref message.array, ref offset);
+            BasisUnityBitPackerExtensionsUnsafe.WritePosition(animator.bodyPosition, ref message.array, ref offset);
             //   BasisDebug.Log($"CompressPosition: wrote {offset - prevOffset} bytes (offset now {offset})", BasisDebug.LogTag.Networking);
 
             // Compress Rotation

@@ -8,7 +8,7 @@ public static partial class SerializableBasis
         //6 position
         //14 rotation
         //2 ushort scale
-        public const int AvatarSyncSize = 203;//plus a additional 1 byte after this for additional avatar data
+        public const int AvatarSyncSize = 206;//plus a additional 1 byte after this for additional avatar data
         public const int StoredBones = 89;
 
         public AdditionalAvatarData[] AdditionalAvatarDatas;
@@ -26,8 +26,8 @@ public static partial class SerializableBasis
             int Bytes = Writer.AvailableBytes;
             if (Bytes >= AvatarSyncSize)
             {
-                //89 * 2 = 178 + 9 + 14 + 2 = 206
-                //now 178 for muscles, position 9, 4*4 for rotation 16-2 (W is half), 2 for scale = 204
+                //89 * 2 = 178 + 12 + 14 + 2 = 206
+                //now 178 for muscles, position 12, 4*4 for rotation 16-2 (W is half), 2 for scale = 204
                 array ??= new byte[AvatarSyncSize];
                 Writer.GetBytes(array, AvatarSyncSize);
                 if (Writer.TryGetByte(out AdditionalAvatarDataSize))

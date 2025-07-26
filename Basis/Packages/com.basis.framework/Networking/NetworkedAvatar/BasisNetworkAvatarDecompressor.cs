@@ -55,7 +55,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             var avatarBuffer = new BasisAvatarBuffer
             {
-                Position = BasisUnityBitPackerExtensionsUnsafe.DecompressPosition(ref data, ref offset),
+                Position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset),
                 rotation = BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, BasisNetworkPlayer.RotationCompression, ref offset),
                 Muscles = new float[LocalAvatarSyncMessage.StoredBones]
             };

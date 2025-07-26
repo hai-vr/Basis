@@ -77,43 +77,40 @@ namespace Basis.Scripts.Networking.Compression
             }
             offset += BasisBitPackingConstants.LengthUshortBytes;
         }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void CompressPosition(UnityEngine.Vector3 position, ref byte[] buffer, ref int offset)
+        public static void WritePosition(UnityEngine.Vector3 position, ref byte[] buffer, ref int offset)
         {
-            CompressAxis(position.x, buffer, offset);
-            CompressAxis(position.y, buffer, offset + 3);
-            CompressAxis(position.z, buffer, offset + 6);
-            offset += 9; // Actually 3 axes * 3 bytes each
+            unsafe
+            {
+                fixed (byte* dst = &buffer[offset])
+                {
+                    float* fDst = (float*)dst;
+                    fDst[0] = position.x;
+                    fDst[1] = position.y;
+                    fDst[2] = position.z;
+                }
+            }
+
+            offset += 12;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static UnityEngine.Vector3 DecompressPosition(ref byte[] buffer, ref int offset)
+        public static UnityEngine.Vector3 ReadPosition(ref byte[] buffer, ref int offset)
         {
-            float x = DecompressAxis(buffer, offset);
-            float y = DecompressAxis(buffer, offset + 3);
-            float z = DecompressAxis(buffer, offset + 6);
-            offset += 9;
-            return new UnityEngine.Vector3(x, y, z);
-        }
+            UnityEngine.Vector3 result;
+            unsafe
+            {
+                fixed (byte* src = &buffer[offset])
+                {
+                    float* fSrc = (float*)src;
+                    result.x = fSrc[0];
+                    result.y = fSrc[1];
+                    result.z = fSrc[2];
+                }
+            }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float DecompressAxis(byte[] buffer, int offset)
-        {
-            int value = (buffer[offset] << 16) | (buffer[offset + 1] << 8) | buffer[offset + 2];
-            value = (value & 0x800000) != 0 ? value | unchecked((int)0xFF000000) : value;
-            return value * BasisBitPackingConstants.Precision;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void CompressAxis(float value, byte[] buffer, int offset)
-        {
-            int scaled = (int)(value * BasisBitPackingConstants.Scale + 0.5f);
-            scaled = scaled > 8388607 ? 8388607 : (scaled < -8388608 ? -8388608 : scaled);
-
-            buffer[offset] = (byte)((scaled >> 16) & 0xFF);
-            buffer[offset + 1] = (byte)((scaled >> 8) & 0xFF);
-            buffer[offset + 2] = (byte)(scaled & 0xFF);
+            offset += 12;
+            return result;
         }
     }
 }
