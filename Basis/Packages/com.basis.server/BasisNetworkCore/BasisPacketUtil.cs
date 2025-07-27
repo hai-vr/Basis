@@ -6,9 +6,9 @@ namespace BasisNetworkCore
 {
     public static class BasisPacketUtil
     {
-        public static bool ValidatePacket(byte previous, byte ValidateMe)
+        public static bool ValidatePacket(byte New, byte Old)
         {
-            if (IsNewer(previous, ValidateMe) && previous != ValidateMe)
+            if (IsNewer(New, Old) && New != Old)
             {
                 return true;
             }

@@ -54,6 +54,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public float SmallestDistanceToAnotherPlayer;
         public float UnClampedInterval; // store in ms for consistency
         public float DefaultInterval;
+        public byte SequenceNumber;
         public BasisNetworkTransmitter(ushort PlayerID)
         {
 

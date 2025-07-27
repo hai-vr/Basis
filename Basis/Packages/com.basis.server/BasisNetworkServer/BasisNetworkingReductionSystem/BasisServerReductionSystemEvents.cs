@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
+using BasisNetworkCore;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
@@ -110,45 +111,50 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static void ProcessMessage(QueuedMessage message)
         {
             int id = message.FromPeer.Id;
-            ServerSideSyncPlayerMessage syncMsg = CreateServerSideSyncPlayerMessage(message.AvatarMessage, (ushort)id);
-            var position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
 
             if (!players[id].IsActive)
             {
-                var data = new PlayerWrapper();
-                var Player = new Player
+                if (BasisPlayerArray.UnsafeArrayOfNetPeers[id] != null)
                 {
-                    syncMsg = syncMsg,
-                    Peer = message.FromPeer,
-                    Id = id,
-                    Position = position,
-                    HasNewDataFrom = new BitArray(TotalPlayers, true),
-                    Writer = new NetDataWriter(true, 208)
-                };
-                data.Player = Player;
-                data.IsActive = true;
-                players[id] = data;
-
-                for (int Index = 0; Index < TotalPlayers; Index++)
-                {
-                    if (Index == id) continue;
-                    if (players[Index].IsActive)
+                    var data = new PlayerWrapper();
+                    var Player = new Player
                     {
-                        players[Index].Player.HasNewDataFrom.Set(id, true);
+                        Peer = message.FromPeer,
+                        Id = id,
+                        HasNewDataFrom = new BitArray(TotalPlayers, true),
+                        Writer = new NetDataWriter(true, 208),
+                    };
+                    Player.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
+                    Player.syncMsg = CreateServerSideSyncPlayerMessage(message.AvatarMessage, (ushort)id);
+                    data.Player = Player;
+                    data.IsActive = true;
+                    players[id] = data;
+                    for (int Index = 0; Index < TotalPlayers; Index++)
+                    {
+                        if (Index == id) continue;
+                        if (players[Index].IsActive)
+                        {
+                            players[Index].Player.HasNewDataFrom.Set(id, true);
+                        }
                     }
+                }
+                else
+                {
+                    BNL.LogError("Player was InActive and was becomign active but the Player Array was null");
                 }
             }
             else
             {
                 var player = players[id].Player;
-                player.Position = position;
-                player.syncMsg = syncMsg;
-                player.HasNewDataFrom.SetAll(true);
+                if (BasisPacketUtil.ValidatePacket(message.AvatarMessage.SequenceNumber,player.syncMsg.avatarSerialization.SequenceNumber))
+                {
+                    player.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
+                    player.syncMsg.avatarSerialization = message.AvatarMessage;
+                    player.HasNewDataFrom.SetAll(true);
+                }
             }
-
             QueuedMessagePool.Return(message);
         }
-
         public static ServerSideSyncPlayerMessage CreateServerSideSyncPlayerMessage(LocalAvatarSyncMessage local, ushort clientId)
         {
             return new ServerSideSyncPlayerMessage
@@ -233,7 +239,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     if (!players[i].IsActive || players[i].Player == null) continue;
 
                     var player = players[i].Player;
-                    int queuedMessages = player.Peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
+                    int queuedMessages = player.Peer.GetPacketsCountInQueue(BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable);
                     if (queuedMessages > 512) continue;
 
                     var cacheEntry = cachedData[i];
@@ -247,9 +253,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         if (elapsedTicks >= requiredTicks && other != null && players[other.Id].IsActive && player.HasNewDataFrom.Get(other.Id))
                         {
                             NetDataWriter writer = player.Writer;
+                            writer.Put(BasisNetworkCommons.PlayerAvatarChannel);
                             other.syncMsg.interval = interval;
                             other.syncMsg.Serialize(writer);
-                            player.Peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
+                            player.Peer.Send(writer, BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable);
                             player.HasNewDataFrom.Set(other.Id, false);
                             writer.Reset();
                             cacheEntry.LastSentTime[entryIndex] = nowTicks;

@@ -27,16 +27,17 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Get current pose from Animator
             transmitter.PoseHandler.GetHumanPose(ref transmitter.HumanPose);
 
-            CompressAvatarData(ref transmitter.FloatArray,ref transmitter.UshortArray,ref transmitter.LASM,transmitter.HumanPose,animator);
+            CompressAvatarData(ref transmitter.SequenceNumber, ref transmitter.FloatArray,ref transmitter.UshortArray,ref transmitter.LASM,transmitter.HumanPose,animator);
 
             transmitter.LASM.AdditionalAvatarDatas = transmitter.SendingOutAvatarData.Count == 0
                 ? null
                 : transmitter.SendingOutAvatarData.Values.ToArray();
 
+            transmitter.AvatarSendWriter.Put(BasisNetworkCommons.PlayerAvatarChannel);
             transmitter.LASM.Serialize(transmitter.AvatarSendWriter);
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
 
-            BasisNetworkManagement.LocalPlayerPeer.Send(transmitter.AvatarSendWriter,BasisNetworkCommons.PlayerAvatarChannel,DeliveryMethod.Sequenced);
+            BasisNetworkManagement.LocalPlayerPeer.Send(transmitter.AvatarSendWriter,BasisNetworkCommons.FallChannel,DeliveryMethod.Unreliable);
 
             transmitter.AvatarSendWriter.Reset();
             transmitter.ClearAdditional();
@@ -53,11 +54,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             message = new LocalAvatarSyncMessage(new byte[LocalAvatarSyncMessage.AvatarSyncSize]);
 
-            CompressAvatarData(ref floatArray, ref ushortArray, ref message,humanPose, animator);
+            CompressAvatarData(ref message.SequenceNumber, ref floatArray, ref ushortArray, ref message,humanPose, animator);
         }
 
         [BurstCompile]
-        public static void CompressAvatarData(ref float[] floatArray, ref ushort[] networkSend, ref LocalAvatarSyncMessage message, HumanPose pose, Animator animator)
+        public static void CompressAvatarData(ref byte SequenceNumber, ref float[] floatArray, ref ushort[] networkSend, ref LocalAvatarSyncMessage message, HumanPose pose, Animator animator)
         {
             int offset = 0;
 
@@ -65,9 +66,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             Array.Copy(pose.muscles, 0, floatArray, 0, BasisAvatarMuscleRange.FirstBuffer);
             Array.Copy(pose.muscles, BasisAvatarMuscleRange.SecondBuffer, floatArray, BasisAvatarMuscleRange.FirstBuffer, BasisAvatarMuscleRange.SizeAfterGap);
 
+            SequenceNumber = (byte)((SequenceNumber + 1) % 256);
+            message.SequenceNumber = SequenceNumber;
             // Track and log byte size written by each compress operation
             //  int prevOffset;
-
             // Compress Position
             //   prevOffset = offset;
             BasisUnityBitPackerExtensionsUnsafe.WritePosition(animator.bodyPosition, ref message.array, ref offset);
@@ -88,7 +90,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             CompressScale(animator.transform.localScale.y, ref message, ref offset);
             //  BasisDebug.Log($"CompressScale: wrote {offset - prevOffset} bytes (offset now {offset})", BasisDebug.LogTag.Networking);
         }
-
         public static void CompressAvatarMuscles(ref ushort[] networkOutData,ref float[] floatArray,ref LocalAvatarSyncMessage message,ref int offset)
         {
             using var floatArrayNative = new NativeArray<float>(floatArray, Allocator.TempJob);

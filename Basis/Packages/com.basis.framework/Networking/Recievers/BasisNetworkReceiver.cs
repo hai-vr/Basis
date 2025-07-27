@@ -57,6 +57,8 @@ namespace Basis.Scripts.Networking.Receivers
         public float[] Eyes = new float[4];
         public Vector3 SafeScale;
         public Vector3 SafePosition;
+        public byte LastAvatarSequenceNumber;
+        public byte LastAudioSequenceNumber;
         /// <summary>
         /// Perform computations to interpolate and update avatar state.
         /// </summary>
@@ -239,13 +241,12 @@ namespace Basis.Scripts.Networking.Receivers
                 Mathf.Abs(b.z) > epsilon ? a.z / b.z : a.z   // Same for z-axis
             );
         }
-        public byte LastSequenceNumber;
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage audioSegment)
         {
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, audioSegment.audioSegmentData.LengthUsed);
-            if (BasisPacketUtil.ValidatePacket(audioSegment.audioSegmentData.SequenceNumber, LastSequenceNumber))
+            if (BasisPacketUtil.ValidatePacket(audioSegment.audioSegmentData.SequenceNumber, LastAudioSequenceNumber))
             {
-                LastSequenceNumber = audioSegment.audioSegmentData.SequenceNumber;
+                LastAudioSequenceNumber = audioSegment.audioSegmentData.SequenceNumber;
                 AudioReceiverModule.OnDecode(audioSegment.audioSegmentData.buffer, audioSegment.audioSegmentData.LengthUsed);
                 Player.AudioReceived?.Invoke(true);
             }
@@ -253,9 +254,9 @@ namespace Basis.Scripts.Networking.Receivers
         public void ReceiveSilentNetworkAudio(ServerAudioSegmentMessage audioSilentSegment)
         {
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, 1);
-            if (BasisPacketUtil.ValidatePacket(audioSilentSegment.audioSegmentData.SequenceNumber, LastSequenceNumber))
+            if (BasisPacketUtil.ValidatePacket(audioSilentSegment.audioSegmentData.SequenceNumber, LastAudioSequenceNumber))
             {
-                LastSequenceNumber = audioSilentSegment.audioSegmentData.SequenceNumber;
+                LastAudioSequenceNumber = audioSilentSegment.audioSegmentData.SequenceNumber;
                 AudioReceiverModule.OnDecodeSilence();
                 Player.AudioReceived?.Invoke(false);
             }
