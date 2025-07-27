@@ -39,7 +39,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 {
                     if (kvp.Value.Count == 0) continue;
                     double avgMs = kvp.Value.Average(ticks => ticks / MsToTick);
-                    Console.WriteLine($"{kvp.Key}: {avgMs:F3} ms over {kvp.Value.Count} runs");
+                    BNL.Log($"{kvp.Key}: {avgMs:F3} ms over {kvp.Value.Count} runs");
                     kvp.Value.Clear(); // reset for next interval
                 }
 
