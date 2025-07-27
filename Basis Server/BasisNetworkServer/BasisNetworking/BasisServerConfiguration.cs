@@ -35,7 +35,7 @@ public class Configuration
     public string HealthCheckHost = "localhost";
     public ushort HealthCheckPort = 10666;
     public string HealthPath = "/health";
-    public int BSRSMillisecondDefaultInterval = 25;
+    public int BSRSMillisecondDefaultInterval = 50;
     public int BSRBaseMultiplier = 1;
     public float BSRSIncreaseRate = 0.005f;
     public float BSRSlowestSendRate = 2.5f;

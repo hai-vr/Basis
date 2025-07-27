@@ -462,9 +462,12 @@ namespace BasisServerHandle
 
                 int id = peer.Id;
                 LocalAvatarSyncMessage syncState;
-                if (BasisServerReductionSystemEvents.players.TryGetValue(id,out PlayerState State))
+
+                if (id < BasisServerReductionSystemEvents.peers.Count &&
+                    BasisServerReductionSystemEvents.isActive[id] &&
+                    BasisServerReductionSystemEvents.peers[id] != null)
                 {
-                    syncState = BasisServerReductionSystemEvents.players[id].SyncMessage.avatarSerialization;
+                    syncState = BasisServerReductionSystemEvents.syncMessages[id].avatarSerialization;
                 }
                 else
                 {
