@@ -19,6 +19,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public NetPeer FromPeer;
         public LocalAvatarSyncMessage AvatarMessage;
     }
+
     public class PlayerState
     {
         public NetPeer Peer;
@@ -32,18 +33,19 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public Dictionary<int, byte> DeliveryIntervals = new();
         public Dictionary<int, long> LastSentTimes = new();
     }
+
     public partial class BasisServerReductionSystemEvents
     {
         private static readonly CancellationTokenSource cts = new();
         private static readonly int MaxConcurrentPlayers = 1024;
         private static readonly ParallelOptions parallelOptions = new()
         {
-            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount)
         };
 
         public static ConcurrentDictionary<int, PlayerState> playerStates = new();
-
         private static ConcurrentDictionary<int, QueuedMessage> currentMessages = new();
+
         public static float BSRBaseMultiplier = 1.0f;
         public static float BSRSIncreaseRate = 0.01f;
         public static int BSRSMillisecondDefaultInterval = 50;
@@ -51,7 +53,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         static BasisServerReductionSystemEvents()
         {
-            StartBackgroundProcessing();
+            _ = StartBackgroundProcessingAsync(); // fire-and-forget async background task
         }
 
         public static void HandleAvatarMovement(NetPacketReader reader, NetPeer fromPeer)
@@ -70,40 +72,38 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             currentMessages.AddOrUpdate(fromPeer.Id, message, (_, _) => message);
         }
 
-        private static void StartBackgroundProcessing()
+        private static async Task StartBackgroundProcessingAsync()
         {
-            Thread backgroundThread = new(() =>
+            long intervalMs = 25;
+
+            while (!cts.Token.IsCancellationRequested)
             {
-                long intervalTicks = (long)(25 * MsToTick);
-                long nextTick = Stopwatch.GetTimestamp();
+                long startTick = Stopwatch.GetTimestamp();
 
-                while (!cts.Token.IsCancellationRequested)
+                Profiling.StartTimer("ProcessMessages", out long t1);
+                Parallel.ForEach(currentMessages.Values, parallelOptions, msg =>
                 {
-                    long current = Stopwatch.GetTimestamp();
-                    long waitTicks = nextTick - current;
-                    if (waitTicks > 0)
-                        Thread.Sleep(TimeSpan.FromTicks(waitTicks));
+                    try { ProcessMessage(msg); }
+                    catch (Exception ex) { BNL.LogError($"[ProcessMessage] Exception: {ex}"); }
+                });
+                currentMessages.Clear();
+                Profiling.EndTimer("ProcessMessages", t1);
 
-                    nextTick += intervalTicks;
-                    Profiling.StartTimer("ProcessMessages", out long t1);
-                    Parallel.ForEach(currentMessages.Values, parallelOptions, msg =>
-                    {
-                        try { ProcessMessage(msg); }
-                        catch (Exception ex) { BNL.LogError($"[ProcessMessage] Exception: {ex}"); }
-                    });
-                    currentMessages.Clear();
-                    Profiling.EndTimer("ProcessMessages", t1);
+                Profiling.StartTimer("SimulateCommunicationFromCache_Full", out long t2);
+                UpdateCommunicationAndDistances(Stopwatch.GetTimestamp());
+                Profiling.EndTimer("SimulateCommunicationFromCache_Full", t2);
 
-                    Profiling.StartTimer("SimulateCommunicationFromCache_Full", out long t3);
-                    UpdateCommunicationAndDistances(Stopwatch.GetTimestamp());
-                    Profiling.EndTimer("SimulateCommunicationFromCache_Full", t3);
+                Profiling.TryPrint();
 
-                    Profiling.TryPrint();
-                }
-            });
+                long elapsedTicks = Stopwatch.GetTimestamp() - startTick;
+                long elapsedMs = (long)(elapsedTicks / MsToTick);
+                long remainingMs = intervalMs - elapsedMs;
 
-            backgroundThread.IsBackground = true;
-            backgroundThread.Start();
+                if (remainingMs > 0)
+                    await Task.Delay((int)remainingMs, cts.Token);
+                else
+                    await Task.Yield(); // if over budget, yield control briefly
+            }
         }
 
         private static void UpdateCommunicationAndDistances(long nowTicks)
@@ -113,7 +113,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 if (!playerStates.TryGetValue(i, out var stateI) || !stateI.IsActive) return;
 
                 var peer = stateI.Peer;
-                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable) <= 512;
+                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) <= 512;
 
                 List<Player> nearby = new();
                 Dictionary<int, byte> intervals = new();
@@ -131,7 +131,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     intervals[j] = interval;
                     sentTimes[j] = stateI.LastSentTimes.GetValueOrDefault(j, 0);
 
-                    // Simulate communication if conditions are met
                     if (canSend && stateI.Writer != null && stateI.HasNewDataFrom != null)
                     {
                         long elapsed = nowTicks - sentTimes[j];
@@ -152,12 +151,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     }
                 }
 
-                // Apply new state updates after loop
                 stateI.NearbyPlayers = nearby;
                 stateI.DeliveryIntervals = intervals;
                 stateI.LastSentTimes = sentTimes;
             });
         }
+
         private static float DistanceSquared(Basis.Scripts.Networking.Compression.Vector3 a, Basis.Scripts.Networking.Compression.Vector3 b)
         {
             float dx = a.x - b.x;
@@ -187,6 +186,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             public int Id;
             public ServerSideSyncPlayerMessage syncMsg;
         }
+
         private static void ProcessMessage(QueuedMessage message)
         {
             int id = message.FromPeer.Id;
