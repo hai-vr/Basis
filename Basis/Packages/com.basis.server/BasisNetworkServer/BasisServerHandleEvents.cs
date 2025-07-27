@@ -57,6 +57,10 @@ namespace BasisServerHandle
         {
             try
             {
+                if(peer == null)
+                {
+                    return;
+                }
                 ushort id = (ushort)peer.Id;
                 ClientDisconnect(id);
 
@@ -449,31 +453,43 @@ namespace BasisServerHandle
         {
             try
             {
+                // Avatar Change State
                 if (!BasisSavedState.GetLastAvatarChangeState(peer, out var changeState))
                 {
                     changeState = new ClientAvatarChangeMessage();
                     BNL.LogError("Unable to get avatar Change Request!");
                 }
-               var Player = BasisServerReductionSystemEvents.players[peer.Id];
-                LocalAvatarSyncMessage syncState = new LocalAvatarSyncMessage();
-                if (Player.IsActive && Player.Player != null)
+
+                int id = peer.Id;
+                LocalAvatarSyncMessage syncState;
+                if (BasisServerReductionSystemEvents.playerStates.TryGetValue(id, out PlayerState state))
                 {
-                    syncState = Player.Player.syncMsg.avatarSerialization;
+                    syncState = state.SyncMessage.avatarSerialization;
                 }
                 else
                 {
-                  //  BNL.LogError("Unable to get Last Player Avatar Data! Using Error Fallback");
-                    syncState.array = new byte[LocalAvatarSyncMessage.AvatarSyncSize];
-                    syncState.AdditionalAvatarDatas = null;
-                    syncState.AdditionalAvatarDataSize = 0;
-                    syncState.LinkedAvatarIndex = 0;
+                    syncState = new LocalAvatarSyncMessage
+                    {
+                        array = new byte[LocalAvatarSyncMessage.AvatarSyncSize],
+                        AdditionalAvatarDatas = null,
+                        AdditionalAvatarDataSize = 0,
+                        LinkedAvatarIndex = 0
+                    };
+                    // Optionally log fallback
+                    // BNL.LogError("Unable to get Last Player Avatar Data! Using Error Fallback");
                 }
-
+                // Meta Data
                 if (!BasisSavedState.GetLastPlayerMetaData(peer, out var metaData))
                 {
-                    metaData = new ClientMetaDataMessage() { playerDisplayName = "Error", playerUUID = string.Empty };
+                    metaData = new ClientMetaDataMessage
+                    {
+                        playerDisplayName = "Error",
+                        playerUUID = string.Empty
+                    };
                     BNL.LogError("Unable to get Last Player Meta Data! Using Error Fallback");
                 }
+
+                // Construct ServerReadyMessage
                 ServerReadyMessage = new ServerReadyMessage
                 {
                     localReadyMessage = new ReadyMessage
@@ -485,8 +501,9 @@ namespace BasisServerHandle
                     playerIdMessage = new PlayerIdMessage
                     {
                         playerID = (ushort)peer.Id
-                    },
+                    }
                 };
+
                 return true;
             }
             catch (Exception ex)

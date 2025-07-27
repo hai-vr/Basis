@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using static BasisNetworkServer.BasisNetworkingReductionSystem.BasisServerReductionSystemEvents;
 using static SerializableBasis;
 
 namespace BasisNetworkServer.BasisNetworkingReductionSystem
@@ -18,10 +19,21 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public NetPeer FromPeer;
         public LocalAvatarSyncMessage AvatarMessage;
     }
+    public class PlayerState
+    {
+        public NetPeer Peer;
+        public bool IsActive;
+        public Basis.Scripts.Networking.Compression.Vector3 Position;
+        public FastBitSet HasNewDataFrom;
+        public ServerSideSyncPlayerMessage SyncMessage;
+        public NetDataWriter Writer;
 
+        public List<BasisServerReductionSystemEvents.Player> NearbyPlayers = new();
+        public Dictionary<int, byte> DeliveryIntervals = new();
+        public Dictionary<int, long> LastSentTimes = new();
+    }
     public partial class BasisServerReductionSystemEvents
     {
-        private const int DistanceRecalcIntervalMs = 250;
         private static readonly CancellationTokenSource cts = new();
         private static readonly int MaxConcurrentPlayers = 1024;
         private static readonly ParallelOptions parallelOptions = new()
@@ -29,26 +41,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
         };
 
-        public static ConcurrentDictionary<int, NetPeer> peers = new();
-        public static ConcurrentDictionary<int, bool> isActive = new();
-        public static ConcurrentDictionary<int, Basis.Scripts.Networking.Compression.Vector3> positions = new();
-        public static ConcurrentDictionary<int, FastBitSet> hasNewDataFrom = new();
-        public static ConcurrentDictionary<int, ServerSideSyncPlayerMessage> syncMessages = new();
-        public static ConcurrentDictionary<int, NetDataWriter> writers = new();
+        public static ConcurrentDictionary<int, PlayerState> playerStates = new();
 
-        public static ConcurrentDictionary<int, List<Player>> nearbyPlayers = new();
-        public static ConcurrentDictionary<int, Dictionary<int, byte>> deliveryIntervals = new();
-        public static ConcurrentDictionary<int, Dictionary<int, long>> lastSentTimes = new();
-
-        public static Stopwatch distanceRecalcTimer = Stopwatch.StartNew();
+        private static ConcurrentDictionary<int, QueuedMessage> currentMessages = new();
         public static float BSRBaseMultiplier = 1.0f;
         public static float BSRSIncreaseRate = 0.01f;
         public static int BSRSMillisecondDefaultInterval = 50;
-        public static byte BSRSMillisecondDefaultIntervalBytes = (byte)BSRSMillisecondDefaultInterval;
         private static readonly double MsToTick = Stopwatch.Frequency / 1000.0;
-
-        private static ConcurrentDictionary<int, QueuedMessage> currentMessages = new();
-        private static ConcurrentDictionary<int, QueuedMessage> processingMessages = new();
 
         static BasisServerReductionSystemEvents()
         {
@@ -86,32 +85,18 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         Thread.Sleep(TimeSpan.FromTicks(waitTicks));
 
                     nextTick += intervalTicks;
-
-                    var temp = processingMessages;
-                    processingMessages = currentMessages;
-                    currentMessages = temp;
-                    currentMessages.Clear();
-
                     Profiling.StartTimer("ProcessMessages", out long t1);
-                    Parallel.ForEach(processingMessages.Values, parallelOptions, msg =>
+                    Parallel.ForEach(currentMessages.Values, parallelOptions, msg =>
                     {
                         try { ProcessMessage(msg); }
                         catch (Exception ex) { BNL.LogError($"[ProcessMessage] Exception: {ex}"); }
                     });
-                    processingMessages.Clear();
+                    currentMessages.Clear();
                     Profiling.EndTimer("ProcessMessages", t1);
 
                     Profiling.StartTimer("SimulateCommunicationFromCache_Full", out long t3);
-                    SimulateCommunicationRange(Stopwatch.GetTimestamp());
+                    UpdateCommunicationAndDistances(Stopwatch.GetTimestamp());
                     Profiling.EndTimer("SimulateCommunicationFromCache_Full", t3);
-
-                    if (distanceRecalcTimer.ElapsedMilliseconds >= DistanceRecalcIntervalMs)
-                    {
-                        Profiling.StartTimer("RecalculateDistanceCache", out long t2);
-                        RecalculateDistanceCache();
-                        distanceRecalcTimer.Restart();
-                        Profiling.EndTimer("RecalculateDistanceCache", t2);
-                    }
 
                     Profiling.TryPrint();
                 }
@@ -121,126 +106,58 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             backgroundThread.Start();
         }
 
-        private static void SimulateCommunicationRange(long nowTicks)
+        private static void UpdateCommunicationAndDistances(long nowTicks)
         {
-            Parallel.ForEach(peers.Keys, parallelOptions, i =>
+            Parallel.ForEach(playerStates.Keys, parallelOptions, i =>
             {
-                if (!isActive.TryGetValue(i, out var active) || !active) return;
-                if (!peers.TryGetValue(i, out var peer)) return;
+                if (!playerStates.TryGetValue(i, out var stateI) || !stateI.IsActive) return;
 
-                if (peer.GetPacketsCountInQueue(BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable) > 512) return;
-
-                if (!writers.TryGetValue(i, out var writer)) return;
-                if (!syncMessages.TryGetValue(i, out var syncMsg)) return;
-                if (!hasNewDataFrom.TryGetValue(i, out var hasNew)) return;
-                if (!nearbyPlayers.TryGetValue(i, out var nearby)) return;
-                if (!deliveryIntervals.TryGetValue(i, out var intervals)) return;
-                if (!lastSentTimes.TryGetValue(i, out var lastSent)) return;
-
-                foreach (var other in nearby)
-                {
-                    if (!isActive.TryGetValue(other.Id, out var otherActive) || !otherActive) continue;
-
-                    if (!intervals.TryGetValue(other.Id, out byte interval))
-                        interval = BSRSMillisecondDefaultIntervalBytes;
-
-                    long elapsed = nowTicks - lastSent.GetValueOrDefault(other.Id, 0);
-                    long required = (long)(interval * MsToTick);
-
-                    if (elapsed >= required && hasNew.Get(other.Id))
-                    {
-                        writer.Put(BasisNetworkCommons.PlayerAvatarChannel);
-
-                        var tempMsg = other.syncMsg;
-                        tempMsg.interval = interval;
-                        tempMsg.Serialize(writer);
-
-                        peer.Send(writer, BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable);
-                        hasNew.Set(other.Id, false);
-                        writer.Reset();
-                        lastSent[other.Id] = nowTicks;
-                    }
-                }
-            });
-        }
-        private static void ProcessMessage(QueuedMessage message)
-        {
-            int id = message.FromPeer.Id;
-
-            if (!isActive.GetValueOrDefault(id))
-            {
-                isActive[id] = true;
-                peers[id] = message.FromPeer;
-                hasNewDataFrom[id] = new FastBitSet(MaxConcurrentPlayers);
-                hasNewDataFrom[id].SetAll(true);
-                positions[id] = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
-                syncMessages[id] = new ServerSideSyncPlayerMessage
-                {
-                    playerIdMessage = new PlayerIdMessage { playerID = (ushort)id },
-                    avatarSerialization = message.AvatarMessage
-                };
-                writers[id] = new NetDataWriter(true, 208);
-
-                foreach (var i in isActive.Keys)
-                {
-                    if (i == id || !isActive[i]) continue;
-                    hasNewDataFrom[i].Set(id, true);
-                }
-            }
-            else
-            {
-                if (BasisPacketUtil.ValidatePacket(message.AvatarMessage.SequenceNumber, syncMessages.GetValueOrDefault(id).avatarSerialization.SequenceNumber))
-                {
-                    positions[id] = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
-
-                    // Safely get and update syncMessages
-                    if (syncMessages.TryGetValue(id, out var msg))
-                    {
-                        msg.avatarSerialization = message.AvatarMessage;
-                        syncMessages[id] = msg;
-                        hasNewDataFrom[id].SetAll(true);
-                    }
-                    else
-                    {
-                        // In case syncMessages is missing key, add it back
-                        syncMessages[id] = new ServerSideSyncPlayerMessage
-                        {
-                            playerIdMessage = new PlayerIdMessage { playerID = (ushort)id },
-                            avatarSerialization = message.AvatarMessage
-                        };
-                        hasNewDataFrom[id].SetAll(true);
-                    }
-                }
-            }
-
-            QueuedMessagePool.Return(message);
-        }
-        private static void RecalculateDistanceCache()
-        {
-            Parallel.ForEach(isActive.Keys, parallelOptions, i =>
-            {
-                if (!isActive.GetValueOrDefault(i)) return;
-                if (!positions.TryGetValue(i, out var pos)) return;
+                var peer = stateI.Peer;
+                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable) <= 512;
 
                 List<Player> nearby = new();
                 Dictionary<int, byte> intervals = new();
                 Dictionary<int, long> sentTimes = new();
 
-                foreach (var j in isActive.Keys)
+                foreach (var j in playerStates.Keys)
                 {
-                    if (j == i || !isActive.GetValueOrDefault(j)) continue;
-                    float distSq = DistanceSquared(pos, positions[j]);
-                    nearby.Add(new Player { Id = j, syncMsg = syncMessages[j] });
-                    intervals[j] = CalculateIntervalFromDistanceSq(distSq);
-                    sentTimes[j] = 0;
+                    if (i == j) continue;
+                    if (!playerStates.TryGetValue(j, out var stateJ) || !stateJ.IsActive) continue;
+
+                    float distSq = DistanceSquared(stateI.Position, stateJ.Position);
+                    nearby.Add(new Player { Id = j, syncMsg = stateJ.SyncMessage });
+
+                    byte interval = CalculateIntervalFromDistanceSq(distSq);
+                    intervals[j] = interval;
+                    sentTimes[j] = stateI.LastSentTimes.GetValueOrDefault(j, 0);
+
+                    // Simulate communication if conditions are met
+                    if (canSend && stateI.Writer != null && stateI.HasNewDataFrom != null)
+                    {
+                        long elapsed = nowTicks - sentTimes[j];
+                        long required = (long)(interval * MsToTick);
+
+                        if (elapsed >= required && stateI.HasNewDataFrom.Get(j))
+                        {
+                            stateI.Writer.Put(BasisNetworkCommons.PlayerAvatarChannel);
+                            var tempMsg = stateJ.SyncMessage;
+                            tempMsg.interval = interval;
+                            tempMsg.Serialize(stateI.Writer);
+
+                            peer.Send(stateI.Writer, BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable);
+                            stateI.HasNewDataFrom.Set(j, false);
+                            stateI.Writer.Reset();
+                            sentTimes[j] = nowTicks;
+                        }
+                    }
                 }
 
-                nearbyPlayers[i] = nearby;
-                deliveryIntervals[i] = intervals;
-                lastSentTimes[i] = sentTimes;
+                // Apply new state updates after loop
+                stateI.NearbyPlayers = nearby;
+                stateI.DeliveryIntervals = intervals;
+                stateI.LastSentTimes = sentTimes;
             });
         }
-
         private static float DistanceSquared(Basis.Scripts.Networking.Compression.Vector3 a, Basis.Scripts.Networking.Compression.Vector3 b)
         {
             float dx = a.x - b.x;
@@ -259,14 +176,57 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         public static void RemovePlayer(int id)
         {
-            isActive[id] = false;
-            peers.TryRemove(id, out _);
+            if (playerStates.TryGetValue(id, out var state))
+            {
+                state.IsActive = false;
+            }
         }
 
         public struct Player
         {
             public int Id;
             public ServerSideSyncPlayerMessage syncMsg;
+        }
+        private static void ProcessMessage(QueuedMessage message)
+        {
+            int id = message.FromPeer.Id;
+            if (!playerStates.TryGetValue(id, out var state))
+            {
+                state = new PlayerState
+                {
+                    Peer = message.FromPeer,
+                    IsActive = true,
+                    Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array),
+                    HasNewDataFrom = new FastBitSet(MaxConcurrentPlayers),
+                    SyncMessage = new ServerSideSyncPlayerMessage
+                    {
+                        playerIdMessage = new PlayerIdMessage { playerID = (ushort)id },
+                        avatarSerialization = message.AvatarMessage
+                    },
+                    Writer = new NetDataWriter(true, 208)
+                };
+                state.HasNewDataFrom.SetAll(true);
+                playerStates[id] = state;
+
+                foreach (var kvp in playerStates)
+                {
+                    if (kvp.Key == id || !kvp.Value.IsActive) continue;
+                    kvp.Value.HasNewDataFrom.Set(id, true);
+                }
+            }
+            else
+            {
+                if (!state.IsActive) state.IsActive = true;
+
+                if (BasisPacketUtil.ValidatePacket(message.AvatarMessage.SequenceNumber, state.SyncMessage.avatarSerialization.SequenceNumber))
+                {
+                    state.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
+                    state.SyncMessage.avatarSerialization = message.AvatarMessage;
+                    state.HasNewDataFrom.SetAll(true);
+                }
+            }
+
+            QueuedMessagePool.Return(message);
         }
     }
 }

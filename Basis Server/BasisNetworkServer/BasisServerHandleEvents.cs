@@ -462,12 +462,9 @@ namespace BasisServerHandle
 
                 int id = peer.Id;
                 LocalAvatarSyncMessage syncState;
-
-                if (id < BasisServerReductionSystemEvents.peers.Count &&
-                    BasisServerReductionSystemEvents.isActive[id] &&
-                    BasisServerReductionSystemEvents.peers[id] != null)
+                if (BasisServerReductionSystemEvents.playerStates.TryGetValue(id, out PlayerState state))
                 {
-                    syncState = BasisServerReductionSystemEvents.syncMessages[id].avatarSerialization;
+                    syncState = state.SyncMessage.avatarSerialization;
                 }
                 else
                 {
@@ -481,7 +478,6 @@ namespace BasisServerHandle
                     // Optionally log fallback
                     // BNL.LogError("Unable to get Last Player Avatar Data! Using Error Fallback");
                 }
-
                 // Meta Data
                 if (!BasisSavedState.GetLastPlayerMetaData(peer, out var metaData))
                 {

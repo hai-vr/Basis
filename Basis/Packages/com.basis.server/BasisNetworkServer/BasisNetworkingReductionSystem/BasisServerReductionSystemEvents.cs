@@ -4,11 +4,12 @@ using BasisNetworkCore;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using static BasisNetworkServer.BasisNetworkingReductionSystem.BasisServerReductionSystemEvents;
 using static SerializableBasis;
 
 namespace BasisNetworkServer.BasisNetworkingReductionSystem
@@ -18,31 +19,38 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public NetPeer FromPeer;
         public LocalAvatarSyncMessage AvatarMessage;
     }
-
-    public class BasisServerReductionSystemEvents
+    public class PlayerState
     {
-        private const int TotalPlayers = 1024;
-        private const int DistanceRecalcIntervalMs = 250;
-        private static readonly CancellationTokenSource cts = new CancellationTokenSource();
+        public NetPeer Peer;
+        public bool IsActive;
+        public Basis.Scripts.Networking.Compression.Vector3 Position;
+        public FastBitSet HasNewDataFrom;
+        public ServerSideSyncPlayerMessage SyncMessage;
+        public NetDataWriter Writer;
 
-        public static PlayerWrapper[] players = new PlayerWrapper[TotalPlayers];
-        public static CachedCommunicationData[] cachedData = new CachedCommunicationData[1024];
-        public static Stopwatch distanceRecalcTimer = Stopwatch.StartNew();
+        public List<BasisServerReductionSystemEvents.Player> NearbyPlayers = new();
+        public Dictionary<int, byte> DeliveryIntervals = new();
+        public Dictionary<int, long> LastSentTimes = new();
+    }
+    public partial class BasisServerReductionSystemEvents
+    {
+        private static readonly CancellationTokenSource cts = new();
+        private static readonly int MaxConcurrentPlayers = 1024;
+        private static readonly ParallelOptions parallelOptions = new()
+        {
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
+        };
+
+        public static ConcurrentDictionary<int, PlayerState> playerStates = new();
+
+        private static ConcurrentDictionary<int, QueuedMessage> currentMessages = new();
         public static float BSRBaseMultiplier = 1.0f;
         public static float BSRSIncreaseRate = 0.01f;
         public static int BSRSMillisecondDefaultInterval = 50;
         private static readonly double MsToTick = Stopwatch.Frequency / 1000.0;
 
-        private static ConcurrentDictionary<int, QueuedMessage> currentMessages = new();
-        private static ConcurrentDictionary<int, QueuedMessage> processingMessages = new();
-
         static BasisServerReductionSystemEvents()
         {
-            for (int Index = 0; Index < cachedData.Length; Index++)
-            {
-                cachedData[Index] = new CachedCommunicationData(TotalPlayers);
-            }
-
             StartBackgroundProcessing();
         }
 
@@ -53,6 +61,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             reader.Recycle();
             AddMessage(fromPeer, localMessage);
         }
+
         public static void AddMessage(NetPeer fromPeer, LocalAvatarSyncMessage localMessage)
         {
             var message = QueuedMessagePool.Rent();
@@ -60,160 +69,95 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             message.AvatarMessage = localMessage;
             currentMessages.AddOrUpdate(fromPeer.Id, message, (_, _) => message);
         }
+
         private static void StartBackgroundProcessing()
         {
-            Task.Run(async () =>
+            Thread backgroundThread = new(() =>
             {
                 long intervalTicks = (long)(BSRSMillisecondDefaultInterval * MsToTick);
-                long nextTick = Stopwatch.GetTimestamp() + intervalTicks;
+                long nextTick = Stopwatch.GetTimestamp();
 
                 while (!cts.Token.IsCancellationRequested)
                 {
                     long current = Stopwatch.GetTimestamp();
                     long waitTicks = nextTick - current;
-
                     if (waitTicks > 0)
-                        await Task.Delay(TimeSpan.FromTicks(waitTicks), cts.Token);
+                        Thread.Sleep(TimeSpan.FromTicks(waitTicks));
 
                     nextTick += intervalTicks;
-
-                    // Swap message buffers
-                    var temp = processingMessages;
-                    processingMessages = currentMessages;
-                    currentMessages = temp;
-                    currentMessages.Clear();
-
-                    Parallel.ForEach(processingMessages.Values, msg =>
+                    Profiling.StartTimer("ProcessMessages", out long t1);
+                    Parallel.ForEach(currentMessages.Values, parallelOptions, msg =>
                     {
-                        try
-                        {
-                            ProcessMessage(msg);
-                        }
-                        catch (Exception ex)
-                        {
-                            BNL.LogError($"[ProcessMessage] Exception: {ex}");
-                        }
+                        try { ProcessMessage(msg); }
+                        catch (Exception ex) { BNL.LogError($"[ProcessMessage] Exception: {ex}"); }
                     });
+                    currentMessages.Clear();
+                    Profiling.EndTimer("ProcessMessages", t1);
 
-                    processingMessages.Clear();
+                    Profiling.StartTimer("SimulateCommunicationFromCache_Full", out long t3);
+                    UpdateCommunicationAndDistances(Stopwatch.GetTimestamp());
+                    Profiling.EndTimer("SimulateCommunicationFromCache_Full", t3);
 
-                    if (distanceRecalcTimer.ElapsedMilliseconds >= DistanceRecalcIntervalMs)
-                    {
-                        RecalculateDistanceCache();
-                        distanceRecalcTimer.Restart();
-                    }
-
-                    SimulateCommunicationFromCache();
-                }
-            }, cts.Token);
-        }
-
-        private static void ProcessMessage(QueuedMessage message)
-        {
-            int id = message.FromPeer.Id;
-
-            if (!players[id].IsActive)
-            {
-                if (BasisPlayerArray.UnsafeArrayOfNetPeers[id] != null)
-                {
-                    var data = new PlayerWrapper();
-                    var Player = new Player
-                    {
-                        Peer = message.FromPeer,
-                        Id = id,
-                        HasNewDataFrom = new BitArray(TotalPlayers, true),
-                        Writer = new NetDataWriter(true, 208),
-                    };
-                    Player.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
-                    Player.syncMsg = CreateServerSideSyncPlayerMessage(message.AvatarMessage, (ushort)id);
-                    data.Player = Player;
-                    data.IsActive = true;
-                    players[id] = data;
-                    for (int Index = 0; Index < TotalPlayers; Index++)
-                    {
-                        if (Index == id) continue;
-                        if (players[Index].IsActive)
-                        {
-                            players[Index].Player.HasNewDataFrom.Set(id, true);
-                        }
-                    }
-                }
-                else
-                {
-                    BNL.LogError("Player was InActive and was becomign active but the Player Array was null");
-                }
-            }
-            else
-            {
-                var player = players[id].Player;
-                if (BasisPacketUtil.ValidatePacket(message.AvatarMessage.SequenceNumber,player.syncMsg.avatarSerialization.SequenceNumber))
-                {
-                    player.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
-                    player.syncMsg.avatarSerialization = message.AvatarMessage;
-                    player.HasNewDataFrom.SetAll(true);
-                }
-            }
-            QueuedMessagePool.Return(message);
-        }
-        public static ServerSideSyncPlayerMessage CreateServerSideSyncPlayerMessage(LocalAvatarSyncMessage local, ushort clientId)
-        {
-            return new ServerSideSyncPlayerMessage
-            {
-                playerIdMessage = new PlayerIdMessage { playerID = clientId },
-                avatarSerialization = local
-            };
-        }
-
-        public static void Shutdown() => cts.Cancel();
-
-        public static void RemovePlayer(int id)
-        {
-            players[id].IsActive = false;
-            players[id].Player = null;
-        }
-
-        private static void RecalculateDistanceCache()
-        {
-            int batchSize = 64;
-            int totalBatches = TotalPlayers / batchSize;
-            int maxThreads = Math.Max(Environment.ProcessorCount - 1, 1);
-
-            Parallel.For(0, totalBatches, new ParallelOptions { MaxDegreeOfParallelism = maxThreads }, batchIndex =>
-            {
-                int start = batchIndex * batchSize;
-                int end = Math.Min(start + batchSize, TotalPlayers);
-
-                for (int i = start; i < end; i++)
-                {
-                    if (!players[i].IsActive) continue;
-
-                    var player = players[i].Player;
-                    var cacheEntry = cachedData[i];
-                    cacheEntry.Count = 0;
-
-                    for (int otherId = 0; otherId < TotalPlayers; otherId++)
-                    {
-                        if (otherId == i || !players[otherId].IsActive) continue;
-
-                        var other = players[otherId].Player;
-                        float distSq = DistanceSquared(player.Position, other.Position);
-
-                        int insertIndex = cacheEntry.Count;
-
-                        cacheEntry.NearbyPlayers[insertIndex] = other;
-                        cacheEntry.DeliveryIntervals[insertIndex] = CalculateIntervalFromDistanceSq(distSq);
-
-                        int previousIndex = Array.FindIndex(cacheEntry.NearbyPlayers, p => p?.Id == other.Id);
-                        cacheEntry.LastSentTime[insertIndex] = previousIndex >= 0
-                            ? cacheEntry.LastSentTime[previousIndex]
-                            : Stopwatch.GetTimestamp();
-
-                        cacheEntry.Count++;
-                    }
+                    Profiling.TryPrint();
                 }
             });
+
+            backgroundThread.IsBackground = true;
+            backgroundThread.Start();
         }
 
+        private static void UpdateCommunicationAndDistances(long nowTicks)
+        {
+            Parallel.ForEach(playerStates.Keys, parallelOptions, i =>
+            {
+                if (!playerStates.TryGetValue(i, out var stateI) || !stateI.IsActive) return;
+
+                var peer = stateI.Peer;
+                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable) <= 512;
+
+                List<Player> nearby = new();
+                Dictionary<int, byte> intervals = new();
+                Dictionary<int, long> sentTimes = new();
+
+                foreach (var j in playerStates.Keys)
+                {
+                    if (i == j) continue;
+                    if (!playerStates.TryGetValue(j, out var stateJ) || !stateJ.IsActive) continue;
+
+                    float distSq = DistanceSquared(stateI.Position, stateJ.Position);
+                    nearby.Add(new Player { Id = j, syncMsg = stateJ.SyncMessage });
+
+                    byte interval = CalculateIntervalFromDistanceSq(distSq);
+                    intervals[j] = interval;
+                    sentTimes[j] = stateI.LastSentTimes.GetValueOrDefault(j, 0);
+
+                    // Simulate communication if conditions are met
+                    if (canSend && stateI.Writer != null && stateI.HasNewDataFrom != null)
+                    {
+                        long elapsed = nowTicks - sentTimes[j];
+                        long required = (long)(interval * MsToTick);
+
+                        if (elapsed >= required && stateI.HasNewDataFrom.Get(j))
+                        {
+                            stateI.Writer.Put(BasisNetworkCommons.PlayerAvatarChannel);
+                            var tempMsg = stateJ.SyncMessage;
+                            tempMsg.interval = interval;
+                            tempMsg.Serialize(stateI.Writer);
+
+                            peer.Send(stateI.Writer, BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable);
+                            stateI.HasNewDataFrom.Set(j, false);
+                            stateI.Writer.Reset();
+                            sentTimes[j] = nowTicks;
+                        }
+                    }
+                }
+
+                // Apply new state updates after loop
+                stateI.NearbyPlayers = nearby;
+                stateI.DeliveryIntervals = intervals;
+                stateI.LastSentTimes = sentTimes;
+            });
+        }
         private static float DistanceSquared(Basis.Scripts.Networking.Compression.Vector3 a, Basis.Scripts.Networking.Compression.Vector3 b)
         {
             float dx = a.x - b.x;
@@ -222,86 +166,67 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             return dx * dx + dy * dy + dz * dz;
         }
 
-        private static void SimulateCommunicationFromCache()
-        {
-            long nowTicks = Stopwatch.GetTimestamp();
-            int batchSize = 64;
-            int totalBatches = TotalPlayers / batchSize;
-            int maxThreads = Math.Max(Environment.ProcessorCount - 1, 1);
-
-            Parallel.For(0, totalBatches, new ParallelOptions { MaxDegreeOfParallelism = maxThreads }, batchIndex =>
-            {
-                int start = batchIndex * batchSize;
-                int end = Math.Min(start + batchSize, TotalPlayers);
-
-                for (int i = start; i < end; i++)
-                {
-                    if (!players[i].IsActive || players[i].Player == null) continue;
-
-                    var player = players[i].Player;
-                    int queuedMessages = player.Peer.GetPacketsCountInQueue(BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable);
-                    if (queuedMessages > 512) continue;
-
-                    var cacheEntry = cachedData[i];
-                    for (int entryIndex = 0; entryIndex < cacheEntry.Count; entryIndex++)
-                    {
-                        long elapsedTicks = nowTicks - cacheEntry.LastSentTime[entryIndex];
-                        byte interval = cacheEntry.DeliveryIntervals[entryIndex];
-                        long requiredTicks = (long)(interval * MsToTick);
-
-                        Player other = cacheEntry.NearbyPlayers[entryIndex];
-                        if (elapsedTicks >= requiredTicks && other != null && players[other.Id].IsActive && player.HasNewDataFrom.Get(other.Id))
-                        {
-                            NetDataWriter writer = player.Writer;
-                            writer.Put(BasisNetworkCommons.PlayerAvatarChannel);
-                            other.syncMsg.interval = interval;
-                            other.syncMsg.Serialize(writer);
-                            player.Peer.Send(writer, BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable);
-                            player.HasNewDataFrom.Set(other.Id, false);
-                            writer.Reset();
-                            cacheEntry.LastSentTime[entryIndex] = nowTicks;
-                        }
-                    }
-                }
-            });
-        }
-
         private static byte CalculateIntervalFromDistanceSq(float distanceSq)
         {
             int rawInterval = (int)(BSRSMillisecondDefaultInterval * (BSRBaseMultiplier + (distanceSq * BSRSIncreaseRate)));
-            return Math.Min((byte)rawInterval, byte.MaxValue);
+            return (byte)Math.Min(rawInterval, byte.MaxValue);
         }
 
-        public class CachedCommunicationData
-        {
-            public Player[] NearbyPlayers;
-            public byte[] DeliveryIntervals;
-            public long[] LastSentTime;
-            public int Count;
+        public static void Shutdown() => cts.Cancel();
 
-            public CachedCommunicationData(int capacity)
+        public static void RemovePlayer(int id)
+        {
+            if (playerStates.TryGetValue(id, out var state))
             {
-                NearbyPlayers = new Player[capacity];
-                DeliveryIntervals = new byte[capacity];
-                LastSentTime = new long[capacity];
-                Count = 0;
+                state.IsActive = false;
             }
         }
 
-        public struct PlayerWrapper
+        public struct Player
         {
-            public Player Player;
-            public bool IsActive;
-        }
-
-        public class Player
-        {
-            public NetDataWriter Writer;
-            public NetPeer Peer;
             public int Id;
-            public Basis.Scripts.Networking.Compression.Vector3 Position;
             public ServerSideSyncPlayerMessage syncMsg;
-            public BitArray HasNewDataFrom;
+        }
+        private static void ProcessMessage(QueuedMessage message)
+        {
+            int id = message.FromPeer.Id;
+            if (!playerStates.TryGetValue(id, out var state))
+            {
+                state = new PlayerState
+                {
+                    Peer = message.FromPeer,
+                    IsActive = true,
+                    Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array),
+                    HasNewDataFrom = new FastBitSet(MaxConcurrentPlayers),
+                    SyncMessage = new ServerSideSyncPlayerMessage
+                    {
+                        playerIdMessage = new PlayerIdMessage { playerID = (ushort)id },
+                        avatarSerialization = message.AvatarMessage
+                    },
+                    Writer = new NetDataWriter(true, 208)
+                };
+                state.HasNewDataFrom.SetAll(true);
+                playerStates[id] = state;
+
+                foreach (var kvp in playerStates)
+                {
+                    if (kvp.Key == id || !kvp.Value.IsActive) continue;
+                    kvp.Value.HasNewDataFrom.Set(id, true);
+                }
+            }
+            else
+            {
+                if (!state.IsActive) state.IsActive = true;
+
+                if (BasisPacketUtil.ValidatePacket(message.AvatarMessage.SequenceNumber, state.SyncMessage.avatarSerialization.SequenceNumber))
+                {
+                    state.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
+                    state.SyncMessage.avatarSerialization = message.AvatarMessage;
+                    state.HasNewDataFrom.SetAll(true);
+                }
+            }
+
+            QueuedMessagePool.Return(message);
         }
     }
 }
