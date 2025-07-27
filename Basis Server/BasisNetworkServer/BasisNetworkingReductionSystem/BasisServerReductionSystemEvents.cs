@@ -74,7 +74,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         {
             Thread backgroundThread = new(() =>
             {
-                long intervalTicks = (long)(BSRSMillisecondDefaultInterval * MsToTick);
+                long intervalTicks = (long)(25 * MsToTick);
                 long nextTick = Stopwatch.GetTimestamp();
 
                 while (!cts.Token.IsCancellationRequested)
