@@ -33,11 +33,11 @@ namespace Basis.Scripts.Networking.Transmitters
         public float[] FloatArray = new float[LocalAvatarSyncMessage.StoredBones];
         public ushort[] UshortArray = new ushort[LocalAvatarSyncMessage.StoredBones];
         [SerializeField]
-        public LocalAvatarSyncMessage LASM = new LocalAvatarSyncMessage();
+        public LocalAvatarSyncMessage LASM = new LocalAvatarSyncMessage(new byte[LocalAvatarSyncMessage.AvatarSyncSize]);
         public BasisDistanceJobs distanceJob = new BasisDistanceJobs();
         public JobHandle distanceJobHandle;
         public int IndexLength = -1;
-        public NetDataWriter AvatarSendWriter = new NetDataWriter(true, LocalAvatarSyncMessage.AvatarSyncSize + 1);
+        public NetDataWriter AvatarSendWriter = new NetDataWriter(true, LocalAvatarSyncMessage.AvatarSyncSize + 2);
         public bool[] MicrophoneRangeIndex;
         public bool[] LastMicrophoneRangeIndex;
 
@@ -49,6 +49,12 @@ namespace Basis.Scripts.Networking.Transmitters
         public Dictionary<byte, AdditionalAvatarData> SendingOutAvatarData = new Dictionary<byte, AdditionalAvatarData>();
         public float[] CalculatedDistances;
         public static Action AfterAvatarChanges;
+        public float intervalSeconds = 0.5f; // interval in milliseconds
+        public float timer = 0f; // timer in seconds
+        public float SmallestDistanceToAnotherPlayer;
+        public float UnClampedInterval; // store in ms for consistency
+        public float DefaultInterval;
+        public byte SequenceNumber;
         public BasisNetworkTransmitter(ushort PlayerID)
         {
 
@@ -67,11 +73,6 @@ namespace Basis.Scripts.Networking.Transmitters
         {
             SendingOutAvatarData.Clear();
         }
-        public float intervalSeconds = 0.5f; // interval in milliseconds
-        public float timer = 0f; // timer in seconds
-        public float SmallestDistanceToAnotherPlayer;
-        public float UnClampedInterval; // store in ms for consistency
-        public float DefaultInterval;
         void SendOutLatest()
         {
             timer += Time.deltaTime;
@@ -94,7 +95,7 @@ namespace Basis.Scripts.Networking.Transmitters
 
                     float CalculatedIntervalBase = Message.BaseMultiplier + (SmallestDistanceToAnotherPlayer * Message.IncreaseRate);
                     UnClampedInterval = DefaultInterval * CalculatedIntervalBase;
-                    intervalSeconds = math.clamp(UnClampedInterval, DefaultInterval, Message.SlowestSendRate);
+                    intervalSeconds = Mathf.Clamp(UnClampedInterval, DefaultInterval, Message.SlowestSendRate);
                     // Account for overshoot
                     timer -= intervalSeconds;
                 }
@@ -102,9 +103,7 @@ namespace Basis.Scripts.Networking.Transmitters
         }
         public void HandleResults()
         {
-            if (distanceJob.DistanceResults == null ||
-                MicrophoneRangeIndex == null ||
-                MicrophoneRangeIndex.Length != distanceJob.DistanceResults.Length)
+            if (distanceJob.DistanceResults == null ||MicrophoneRangeIndex == null || MicrophoneRangeIndex.Length != distanceJob.DistanceResults.Length)
             {
                 return;
             }

@@ -14,11 +14,8 @@
 
 	<ItemGroup>
 		<Compile Remove="BasisNetworkServer\**" />
-		<Compile Remove="NewFolder\**" />
 		<EmbeddedResource Remove="BasisNetworkServer\**" />
-		<EmbeddedResource Remove="NewFolder\**" />
 		<None Remove="BasisNetworkServer\**" />
-		<None Remove="NewFolder\**" />
 	</ItemGroup>
 
 	<ItemGroup>

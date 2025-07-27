@@ -21,8 +21,8 @@ namespace LiteNetLib
     {
         Warning,
         Error,
-        //Trace,
-        // Info
+        Trace,
+        Info
     }
 
     /// <summary>
@@ -58,18 +58,6 @@ namespace LiteNetLib
                     Logger.WriteNet(logLevel, str, args);
                 }
             }
-        }
-
-        // [Conditional("DEBUG_MESSAGES")]
-        // internal static void Write(string str)
-        //{
-        //  WriteLogic(NetLogLevel.Trace, str);
-        //}
-
-        [Conditional("DEBUG_MESSAGES")]
-        internal static void Write(NetLogLevel level, string str)
-        {
-            WriteLogic(level, str);
         }
         internal static void WriteError(string str)
         {

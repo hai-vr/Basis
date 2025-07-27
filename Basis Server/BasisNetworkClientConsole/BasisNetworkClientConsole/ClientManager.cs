@@ -46,7 +46,9 @@ namespace Basis.Network
                     },
                     localAvatarSyncMessage = new LocalAvatarSyncMessage
                     {
-                        array = MovementSender.AvatarMessage
+                        array = MovementSender.AvatarMessage,
+                         AdditionalAvatarDataSize = 0,
+                          LinkedAvatarIndex = 0,
                     }
                 };
 

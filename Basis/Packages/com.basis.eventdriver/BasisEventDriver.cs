@@ -9,17 +9,12 @@ public class BasisEventDriver : MonoBehaviour
 {
     public float updateInterval = 0.1f; // 100 milliseconds
     public float timeSinceLastUpdate = 0f;
-    public bool IsBatchMode = false;
     public void OnEnable()
     {
-        if (Application.isBatchMode)
-        {
-            IsBatchMode = true;
-        }
-        else
-        {
-            Application.onBeforeRender += OnBeforeRender;
-        }
+#if UNITY_SERVER
+#else
+        Application.onBeforeRender += OnBeforeRender;
+#endif
         BasisSceneFactory.Initalize();
         BasisObjectSyncDriver.Initalization();
     }
@@ -30,14 +25,10 @@ public class BasisEventDriver : MonoBehaviour
     }
     public void OnDisable()
     {
-        if (BasisDeviceManagement.IsHeadless())
-        {
-            IsBatchMode = true;
-        }
-        else
-        {
-            Application.onBeforeRender -= OnBeforeRender;
-        }
+#if UNITY_SERVER
+#else
+        Application.onBeforeRender -= OnBeforeRender;
+#endif
     }
     public float DeltaTime;
     public double TimeAsDouble;
@@ -47,7 +38,11 @@ public class BasisEventDriver : MonoBehaviour
         TimeAsDouble = Time.timeAsDouble;
         BasisNetworkManagement.SimulateNetworkCompute(TimeAsDouble);
         BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
+
+#if UNITY_SERVER
+#else
         InputSystem.Update();
+#endif
         timeSinceLastUpdate += DeltaTime;
 
         if (timeSinceLastUpdate >= updateInterval) // Use '>=' to avoid small errors
@@ -80,14 +75,16 @@ public class BasisEventDriver : MonoBehaviour
         {
             BasisLocalPlayer.Instance.SimulateOnLateUpdate();
         }
+#if UNITY_SERVER
+#else
         BasisLocalMicrophoneDriver.MicrophoneUpdate();
+#endif
         BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
         BasisNetworkManagement.SimulateNetworkApply(TimeAsDouble);
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
-        if (IsBatchMode)
-        {
-            OnBeforeRender();
-        }
+#if UNITY_SERVER
+        OnBeforeRender();
+#endif
     }
     private void OnBeforeRender()
     {

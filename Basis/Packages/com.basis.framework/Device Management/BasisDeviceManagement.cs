@@ -71,10 +71,6 @@ namespace Basis.Scripts.Device_Management
             return Application.platform == RuntimePlatform.Android;
         }
         public bool ForcedHeadLessMode = false;
-        public static bool IsHeadless()
-        {
-            return Application.isBatchMode || BasisDeviceManagement.Instance.ForcedHeadLessMode;
-        }
         /// <summary>
         /// checks to see if we are in desktop
         /// this being false does not mean its vr.
@@ -212,14 +208,11 @@ namespace Basis.Scripts.Device_Management
 
             if (string.IsNullOrEmpty(ForcedDevicemanager))
             {
-                if (IsHeadless())
-                {
-                    SwitchMode(HeadlessMode());
-                }
-                else
-                {
-                    SwitchMode(DefaultMode());
-                }
+#if UNITY_SERVER
+         SwitchMode(HeadlessMode());
+#else
+         SwitchMode(DefaultMode());
+#endif
             }
             else
             {

@@ -99,10 +99,9 @@ namespace Basis.Scripts.Networking.Receivers
         public static int outputSampleRate;
         public void Initalize(BasisNetworkPlayer networkedPlayer)
         {
-            if (BasisDeviceManagement.IsHeadless())
-            {
-                return;
-            }
+#if UNITY_SERVER
+       return;
+#endif
             outputSampleRate = UnityEngine.AudioSettings.outputSampleRate;
             if (silentData == null)
             {
@@ -122,10 +121,9 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void AvatarChanged(BasisNetworkPlayer networkedPlayer)
         {
-            if (BasisDeviceManagement.IsHeadless())
-            {
-                return;
-            }
+#if UNITY_SERVER
+       return;
+#endif
             if (audioSource != null)
             {
                 // Ensure viseme driver is initialized for audio processing
@@ -140,18 +138,16 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void StopAudio()
         {
-            if (BasisDeviceManagement.IsHeadless())
-            {
-                return;
-            }
+#if UNITY_SERVER
+       return;
+#endif
             UnloadAudioSource();
         }
         public void StartAudio()
         {
-            if (BasisDeviceManagement.IsHeadless())
-            {
-                return;
-            }
+#if UNITY_SERVER
+       return;
+#endif
             if (BasisNetworkPlayer != null)
             {
                 LoadAudioSource(BasisNetworkPlayer);

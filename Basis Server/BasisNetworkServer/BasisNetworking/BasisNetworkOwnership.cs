@@ -22,7 +22,7 @@ namespace Basis.Network.Server.Ownership
                 ownershipTransferMessage.playerIdMessage.playerID = Ownership.Value;
                 ownershipTransferMessage.ownershipID = Ownership.Key;
                 ownershipTransferMessage.Serialize(Writer);
-                NetworkServer.SendOutValidated(Peer, Writer, BasisNetworkCommons.GetCurrentOwnerRequestChannel, DeliveryMethod.ReliableOrdered);
+                NetworkServer.TrySend(Peer, Writer, BasisNetworkCommons.GetCurrentOwnerRequestChannel, DeliveryMethod.ReliableOrdered);
                 Writer.Reset();
             }
         }
@@ -39,7 +39,7 @@ namespace Basis.Network.Server.Ownership
             ownershipTransferMessage.playerIdMessage.playerID = currentOwner;
             ownershipTransferMessage.Serialize(Writer);
             BNL.Log("OwnershipResponse " + currentOwner + " for " + ownershipTransferMessage.playerIdMessage.playerID);
-            NetworkServer.SendOutValidated(Peer, Writer, BasisNetworkCommons.GetCurrentOwnerRequestChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.TrySend(Peer, Writer, BasisNetworkCommons.GetCurrentOwnerRequestChannel, DeliveryMethod.ReliableOrdered);
         }
         /// <summary>
         /// this api removes a owner from the object,

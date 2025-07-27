@@ -96,7 +96,10 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
         {
             if (!hasRoleAssigned) return;
 
-            timeSinceLastInputChange += Time.unscaledDeltaTime;
+
+            float TimeUnscaled = Time.unscaledDeltaTime;
+
+            timeSinceLastInputChange += TimeUnscaled;
 
             if (timeSinceLastInputChange >= inputChangeInterval)
             {
@@ -105,10 +108,10 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
             }
 
             // Smoothly lerp to target values
-            currentMoveVector = Vector2.Lerp(currentMoveVector, targetMoveVector, Time.unscaledDeltaTime * inputLerpSpeed);
-            currentPrimary2DAxis = Vector2.Lerp(currentPrimary2DAxis, targetPrimary2DAxis, Time.unscaledDeltaTime * inputLerpSpeed);
-            currentSecondary2DAxis = Vector2.Lerp(currentSecondary2DAxis, targetSecondary2DAxis, Time.unscaledDeltaTime * inputLerpSpeed);
-            currentRotation = Quaternion.Slerp(currentRotation, targetRotation, Time.unscaledDeltaTime * rotationLerpSpeed);
+            currentMoveVector = Vector2.Lerp(currentMoveVector, targetMoveVector, TimeUnscaled * inputLerpSpeed);
+            currentPrimary2DAxis = Vector2.Lerp(currentPrimary2DAxis, targetPrimary2DAxis, TimeUnscaled * inputLerpSpeed);
+            currentSecondary2DAxis = Vector2.Lerp(currentSecondary2DAxis, targetSecondary2DAxis, TimeUnscaled * inputLerpSpeed);
+            currentRotation = Quaternion.Slerp(currentRotation, targetRotation, TimeUnscaled * rotationLerpSpeed);
 
             // Apply to character movement
             BasisLocalPlayer.Instance.LocalCharacterDriver.SetMovementVector(currentMoveVector);

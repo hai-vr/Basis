@@ -2,146 +2,180 @@ using System.Globalization;
 using System.IO;
 using System.Collections.Generic;
 using UnityEngine;
+
 namespace Basis.Scripts.Common
 {
     public static class BasisDataStore
     {
-        // Method to save the avatar(string and byte) to a file using JSON
         public static void SaveAvatar(string avatarName, byte avatarData, string fileNameAndExtension)
         {
-            string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
-            string json = JsonUtility.ToJson(new BasisSavedAvatar(avatarName, avatarData));
-            File.WriteAllText(filePath, json);
-            BasisDebug.Log("Avatar saved to " + filePath);
+            try
+            {
+                string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
+                string json = JsonUtility.ToJson(new BasisSavedAvatar(avatarName, avatarData));
+                File.WriteAllText(filePath, json);
+                BasisDebug.Log("Avatar saved to " + filePath);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("SaveAvatar failed: " + e.Message);
+            }
         }
+
         [System.Serializable]
         public class BasisSavedAvatar
         {
-            public string UniqueID;//this is associated with a ID on Disc
+            public string UniqueID;
             public byte loadmode;
+
             public BasisSavedAvatar(string name, byte data)
             {
                 UniqueID = name;
-                 loadmode = data;
+                loadmode = data;
             }
         }
-        // Method to load the avatar (string and byte) from a file using JSON
-        public static bool LoadAvatar(string fileNameAndExtension, string defaultName, byte defaultData,out BasisSavedAvatar BasisSavedAvatar)
+
+        public static bool LoadAvatar(string fileNameAndExtension, string defaultName, byte defaultData, out BasisSavedAvatar BasisSavedAvatar)
         {
-            string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
-            if (File.Exists(filePath))
+            try
             {
-                string json = File.ReadAllText(filePath);
-                BasisSavedAvatar avatarWrapper = JsonUtility.FromJson<BasisSavedAvatar>(json);
-                if (string.IsNullOrEmpty(avatarWrapper.UniqueID))
+                string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
+                if (File.Exists(filePath))
                 {
-                    avatarWrapper.UniqueID = defaultName;
-                     avatarWrapper.loadmode = defaultData;
-                }
-                BasisDebug.Log("Avatar loaded from " + filePath);
-                BasisSavedAvatar = avatarWrapper;
-                return true;
-            }
-            else
-            {
-                BasisDebug.LogWarning("File not found at " + filePath);
-                BasisSavedAvatar = null;
-                return false;
-            }
-        }
-        // Method to save the string to a file using JSON
-        public static void SaveString(string stringContents, string fileNameAndExtension)
-        {
-            string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
-            string json = JsonUtility.ToJson(new BasisSavedString(stringContents));
-            File.WriteAllText(filePath, json);
-            BasisDebug.Log("String saved to " + filePath);
-        }
-
-        // Method to load the string from a file using JSON
-        public static string LoadString(string fileNameAndExtension, string defaultValue)
-        {
-            string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
-            if (File.Exists(filePath))
-            {
-                string json = File.ReadAllText(filePath);
-                BasisSavedString stringWrapper = JsonUtility.FromJson<BasisSavedString>(json);
-                BasisDebug.Log("String loaded from " + filePath);
-                return stringWrapper.ToValue();
-            }
-            else
-            {
-                Debug.LogWarning("File not found at " + filePath);
-                return defaultValue;
-            }
-        }
-
-        // Method to save an int value to a file
-        public static void SaveInt(int intValue, string fileNameAndExtension)
-        {
-            string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
-            string json = JsonUtility.ToJson(new BasisSavedInt(intValue));
-            File.WriteAllText(filePath, json);
-            BasisDebug.Log("Int saved to " + filePath);
-        }
-
-        // Method to load an int value from a file
-        public static int LoadInt(string fileNameAndExtension, int defaultValue)
-        {
-            string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
-            if (File.Exists(filePath))
-            {
-                string json = File.ReadAllText(filePath);
-                BasisSavedInt intWrapper = JsonUtility.FromJson<BasisSavedInt>(json);
-                BasisDebug.Log("Int loaded from " + filePath);
-                return intWrapper.ToValue();
-            }
-            else
-            {
-                Debug.LogWarning("File not found at " + filePath);
-                return defaultValue;
-            }
-        }
-
-        // Method to save a float value to a file using invariant culture
-        public static void SaveFloat(float floatValue, string fileNameAndExtension)
-        {
-            string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
-            string json = JsonUtility.ToJson(new BasisSavedFloat(floatValue.ToString(CultureInfo.InvariantCulture)));
-            File.WriteAllText(filePath, json);
-            BasisDebug.Log("Float saved to " + filePath);
-        }
-
-        // Method to load a float value from a file using invariant culture
-        public static bool LoadFloat(string fileNameAndExtension, float defaultValue, out float returningValue)
-        {
-            string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
-            if (File.Exists(filePath))
-            {
-                string json = File.ReadAllText(filePath);
-                BasisSavedFloat floatWrapper = JsonUtility.FromJson<BasisSavedFloat>(json);
-                if (float.TryParse(floatWrapper.ToValue(), NumberStyles.Float, CultureInfo.InvariantCulture, out float loadedFloat))
-                {
-                    BasisDebug.Log("Float loaded from " + filePath);
-                    returningValue = loadedFloat;
+                    string json = File.ReadAllText(filePath);
+                    BasisSavedAvatar avatarWrapper = JsonUtility.FromJson<BasisSavedAvatar>(json);
+                    if (string.IsNullOrEmpty(avatarWrapper.UniqueID))
+                    {
+                        avatarWrapper.UniqueID = defaultName;
+                        avatarWrapper.loadmode = defaultData;
+                    }
+                    BasisDebug.Log("Avatar loaded from " + filePath);
+                    BasisSavedAvatar = avatarWrapper;
                     return true;
                 }
-                else
-                {
-                    Debug.LogWarning("Failed to parse float, returning default value.");
-                    returningValue = defaultValue;
-                    return false;
-                }
             }
-            else
+            catch (System.Exception e)
             {
-                Debug.LogWarning("File not found at " + filePath);
-                returningValue = defaultValue;
-                return false;
+                BasisDebug.LogWarning("LoadAvatar failed: " + e.Message);
+            }
+
+            BasisSavedAvatar = new BasisSavedAvatar(defaultName, defaultData);
+            return false;
+        }
+
+        public static void SaveString(string stringContents, string fileNameAndExtension)
+        {
+            try
+            {
+                string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
+                string json = JsonUtility.ToJson(new BasisSavedString(stringContents));
+                File.WriteAllText(filePath, json);
+                BasisDebug.Log("String saved to " + filePath);
+            }
+            catch (System.Exception e)
+            {
+                BasisDebug.LogWarning("SaveString failed: " + e.Message);
             }
         }
 
-        // Wrapper class for serializing and deserializing the string
+        public static string LoadString(string fileNameAndExtension, string defaultValue)
+        {
+            try
+            {
+                string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
+                if (File.Exists(filePath))
+                {
+                    string json = File.ReadAllText(filePath);
+                    BasisSavedString stringWrapper = JsonUtility.FromJson<BasisSavedString>(json);
+                    BasisDebug.Log("String loaded from " + filePath);
+                    return stringWrapper.ToValue();
+                }
+            }
+            catch (System.Exception e)
+            {
+                BasisDebug.LogWarning("LoadString failed: " + e.Message);
+            }
+
+            return defaultValue;
+        }
+
+        public static void SaveInt(int intValue, string fileNameAndExtension)
+        {
+            try
+            {
+                string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
+                string json = JsonUtility.ToJson(new BasisSavedInt(intValue));
+                File.WriteAllText(filePath, json);
+                BasisDebug.Log("Int saved to " + filePath);
+            }
+            catch (System.Exception e)
+            {
+                BasisDebug.LogWarning("SaveInt failed: " + e.Message);
+            }
+        }
+
+        public static int LoadInt(string fileNameAndExtension, int defaultValue)
+        {
+            try
+            {
+                string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
+                if (File.Exists(filePath))
+                {
+                    string json = File.ReadAllText(filePath);
+                    BasisSavedInt intWrapper = JsonUtility.FromJson<BasisSavedInt>(json);
+                    BasisDebug.Log("Int loaded from " + filePath);
+                    return intWrapper.ToValue();
+                }
+            }
+            catch (System.Exception e)
+            {
+                BasisDebug.LogWarning("LoadInt failed: " + e.Message);
+            }
+
+            return defaultValue;
+        }
+
+        public static void SaveFloat(float floatValue, string fileNameAndExtension)
+        {
+            try
+            {
+                string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
+                string json = JsonUtility.ToJson(new BasisSavedFloat(floatValue.ToString(CultureInfo.InvariantCulture)));
+                File.WriteAllText(filePath, json);
+                BasisDebug.Log("Float saved to " + filePath);
+            }
+            catch (System.Exception e)
+            {
+                BasisDebug.LogWarning("SaveFloat failed: " + e.Message);
+            }
+        }
+
+        public static bool LoadFloat(string fileNameAndExtension, float defaultValue, out float returningValue)
+        {
+            try
+            {
+                string filePath = Path.Combine(Application.persistentDataPath, fileNameAndExtension);
+                if (File.Exists(filePath))
+                {
+                    string json = File.ReadAllText(filePath);
+                    BasisSavedFloat floatWrapper = JsonUtility.FromJson<BasisSavedFloat>(json);
+                    if (float.TryParse(floatWrapper.ToValue(), NumberStyles.Float, CultureInfo.InvariantCulture, out float loadedFloat))
+                    {
+                        BasisDebug.Log("Float loaded from " + filePath);
+                        returningValue = loadedFloat;
+                        return true;
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                BasisDebug.LogWarning("LoadFloat failed: " + e.Message);
+            }
+
+            returningValue = defaultValue;
+            return false;
+        }
+
         [System.Serializable]
         private class BasisSavedString
         {
@@ -158,7 +192,6 @@ namespace Basis.Scripts.Common
             }
         }
 
-        // Wrapper class for serializing and deserializing the int
         [System.Serializable]
         private class BasisSavedInt
         {
@@ -175,7 +208,6 @@ namespace Basis.Scripts.Common
             }
         }
 
-        // Wrapper class for serializing and deserializing the float using a string representation (to handle culture)
         [System.Serializable]
         private class BasisSavedFloat
         {
@@ -192,15 +224,14 @@ namespace Basis.Scripts.Common
             }
         }
 
-        // Wrapper class for serializing and deserializing a list of URLs
         [System.Serializable]
         private class BasisSavedUrlList
         {
             public List<string> UrlList;
 
-            public BasisSavedUrlList(List<string> BundleURL)
+            public BasisSavedUrlList(List<string> bundleURL)
             {
-                UrlList = BundleURL;
+                UrlList = bundleURL;
             }
 
             public List<string> ToValue()

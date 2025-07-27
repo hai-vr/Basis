@@ -42,8 +42,7 @@ namespace Basis.Network.Server.Generic
                 //  BNL.Log("Query Recipients " + recipientsLength);
                 for (int index = 0; index < recipientsLength; index++)
                 {
-                    NetPeer client = NetworkServer.chunkedNetPeerArray.GetPeer(SceneDataMessage.recipients[index]);
-                    if (client != null)
+                    if (NetworkServer.Peers.TryGetValue(SceneDataMessage.recipients[index], out NetPeer client))
                     {
                         //   BNL.Log("Found Peer! " + SceneDataMessage.recipients[index]);
                         targetedClients.Add(client);
@@ -101,8 +100,7 @@ namespace Basis.Network.Server.Generic
                 //  BNL.Log("Query Recipients " + recipientsLength);
                 for (int index = 0; index < recipientsLength; index++)
                 {
-                    NetPeer client = NetworkServer.chunkedNetPeerArray.GetPeer(avatarDataMessage.recipients[index]);
-                    if (client != null)
+                    if (NetworkServer.Peers.TryGetValue(avatarDataMessage.recipients[index], out NetPeer client))
                     {
                         //   BNL.Log("Found Peer! " + SceneDataMessage.recipients[index]);
                         targetedClients.Add(client);

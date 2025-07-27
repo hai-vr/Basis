@@ -4,7 +4,6 @@ using UnityEngine;
 
 public static class LocalOpusSettings
 {
-    public const DeliveryMethod AudioSendMethod = DeliveryMethod.Sequenced;
     public static int RecordingFullLength = 1;
     public static OpusPredefinedValues OpusApplication = OpusPredefinedValues.OPUS_APPLICATION_AUDIO;
     public static int MicrophoneSampleRate = 48000;

@@ -16,86 +16,89 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 {
     public static class BasisNetworkAvatarCompressor
     {
-        public static void Compress(BasisNetworkTransmitter Transmit, Animator Anim)
-        {
-            if (Transmit.UshortArray == null)
-            {
-                BasisDebug.LogError("Network send was null!");
-                Transmit.UshortArray = new ushort[LocalAvatarSyncMessage.StoredBones];
-            }
-            if (Transmit.FloatArray == null)
-            {
-                BasisDebug.LogError("FloatArray send was null!");
-                Transmit.FloatArray = new float[LocalAvatarSyncMessage.StoredBones];
-            }
-            if (Transmit.PoseHandler == null)
-            {
-                Transmit.PoseHandler = new HumanPoseHandler(Anim.avatar, Anim.transform);
-            }
-            if (Transmit.LASM.array == null || Transmit.LASM.array.Length == 0)
-            {
-                Transmit.LASM.array = new byte[LocalAvatarSyncMessage.AvatarSyncSize];
-            }
-            // Retrieve the human pose from the Animator
-            Transmit.PoseHandler.GetHumanPose(ref Transmit.HumanPose);
+        private const ushort UShortMin = ushort.MinValue;
+        private const ushort UShortMax = ushort.MaxValue;
+        private const ushort UShortRangeDifference = UShortMax - UShortMin;
 
-            CompressAvatarData(ref Transmit.FloatArray, ref Transmit.UshortArray, ref Transmit.LASM, Transmit.PoseHandler, Transmit.HumanPose, Anim);
-
-            if (Transmit.SendingOutAvatarData.Count == 0)
-            {
-                Transmit.LASM.AdditionalAvatarDatas = null;
-            }
-            else
-            {
-                Transmit.LASM.AdditionalAvatarDatas = Transmit.SendingOutAvatarData.Values.ToArray();
-                // BasisDebug.Log("Sending out AvatarData " + Transmit.SendingOutAvatarData.Count);
-            }
-            Transmit.LASM.Serialize(Transmit.AvatarSendWriter);
-            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, Transmit.AvatarSendWriter.Length);
-            BasisNetworkManagement.LocalPlayerPeer.Send(Transmit.AvatarSendWriter, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
-            Transmit.AvatarSendWriter.Reset();
-            Transmit.ClearAdditional();
-        }
-        public static void InitalAvatarData(Animator Anim, out LocalAvatarSyncMessage LocalAvatarSyncMessage)
+        public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
         {
-            HumanPoseHandler PoseHandler = new HumanPoseHandler(Anim.avatar, Anim.transform);
-            HumanPose HumanPose = new HumanPose();
-            PoseHandler.GetHumanPose(ref HumanPose);
-            float[] FloatArray = new float[LocalAvatarSyncMessage.StoredBones];
-            ushort[] UshortArray = new ushort[LocalAvatarSyncMessage.StoredBones];
-            LocalAvatarSyncMessage = new LocalAvatarSyncMessage();
-            if (LocalAvatarSyncMessage.array == null || LocalAvatarSyncMessage.array.Length == 0)
-            {
-                LocalAvatarSyncMessage.array = new byte[LocalAvatarSyncMessage.AvatarSyncSize];
-            }
-            CompressAvatarData(ref FloatArray, ref UshortArray, ref LocalAvatarSyncMessage, PoseHandler, HumanPose, Anim);
+            EnsureTransmitterIsInitialized(transmitter, animator);
+
+            // Get current pose from Animator
+            transmitter.PoseHandler.GetHumanPose(ref transmitter.HumanPose);
+
+            CompressAvatarData(ref transmitter.SequenceNumber, ref transmitter.FloatArray,ref transmitter.UshortArray,ref transmitter.LASM,transmitter.HumanPose,animator);
+
+            transmitter.LASM.AdditionalAvatarDatas = transmitter.SendingOutAvatarData.Count == 0
+                ? null
+                : transmitter.SendingOutAvatarData.Values.ToArray();
+
+            transmitter.AvatarSendWriter.Put(BasisNetworkCommons.PlayerAvatarChannel);
+            transmitter.LASM.Serialize(transmitter.AvatarSendWriter);
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
+
+            BasisNetworkManagement.LocalPlayerPeer.Send(transmitter.AvatarSendWriter,BasisNetworkCommons.FallChannel,DeliveryMethod.Unreliable);
+
+            transmitter.AvatarSendWriter.Reset();
+            transmitter.ClearAdditional();
         }
+
+        public static void InitalAvatarData(Animator animator, out LocalAvatarSyncMessage message)
+        {
+            var poseHandler = new HumanPoseHandler(animator.avatar, animator.transform);
+            var humanPose = new HumanPose();
+            poseHandler.GetHumanPose(ref humanPose);
+
+            float[] floatArray = new float[LocalAvatarSyncMessage.StoredBones];
+            ushort[] ushortArray = new ushort[LocalAvatarSyncMessage.StoredBones];
+
+            message = new LocalAvatarSyncMessage(new byte[LocalAvatarSyncMessage.AvatarSyncSize]);
+
+            CompressAvatarData(ref message.SequenceNumber, ref floatArray, ref ushortArray, ref message,humanPose, animator);
+        }
+
         [BurstCompile]
-        public static void CompressAvatarData( ref float[] FloatArray, ref ushort[] NetworkSend, ref LocalAvatarSyncMessage LocalAvatarSyncMessage, HumanPoseHandler Handler, HumanPose PoseHandler, Animator Anim)
+        public static void CompressAvatarData(ref byte SequenceNumber, ref float[] floatArray, ref ushort[] networkSend, ref LocalAvatarSyncMessage message, HumanPose pose, Animator animator)
         {
-            int Offset = 0;
-            // Copy muscles [0..14]
-            Array.Copy(PoseHandler.muscles, 0, FloatArray, 0, BasisAvatarMuscleRange.FirstBuffer);
+            int offset = 0;
 
-            // Copy muscles [21..end]
-            Array.Copy(PoseHandler.muscles, BasisAvatarMuscleRange.SecondBuffer, FloatArray, BasisAvatarMuscleRange.FirstBuffer, BasisAvatarMuscleRange.SizeAfterGap);
+            // Copy muscles to float array
+            Array.Copy(pose.muscles, 0, floatArray, 0, BasisAvatarMuscleRange.FirstBuffer);
+            Array.Copy(pose.muscles, BasisAvatarMuscleRange.SecondBuffer, floatArray, BasisAvatarMuscleRange.FirstBuffer, BasisAvatarMuscleRange.SizeAfterGap);
 
-            //we write position first so we can use that on the server
-            BasisUnityBitPackerExtensionsUnsafe.WriteVectorFloatToBytes(Anim.bodyPosition, ref LocalAvatarSyncMessage.array, ref Offset);
-            BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(Anim.bodyRotation, ref LocalAvatarSyncMessage.array, ref Offset, BasisNetworkPlayer.RotationCompression);
+            SequenceNumber = (byte)((SequenceNumber + 1) % 256);
+            message.SequenceNumber = SequenceNumber;
+            // Track and log byte size written by each compress operation
+            //  int prevOffset;
+            // Compress Position
+            //   prevOffset = offset;
+            BasisUnityBitPackerExtensionsUnsafe.WritePosition(animator.bodyPosition, ref message.array, ref offset);
+            //   BasisDebug.Log($"CompressPosition: wrote {offset - prevOffset} bytes (offset now {offset})", BasisDebug.LogTag.Networking);
 
-            CompressAvatarMuscles(ref NetworkSend, ref FloatArray, ref LocalAvatarSyncMessage, ref Offset);
-            CompressScale(Anim.transform.localScale.y, ref LocalAvatarSyncMessage, ref Offset);
+            // Compress Rotation
+            //  prevOffset = offset;
+            BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(animator.bodyRotation, ref message.array, ref offset, BasisNetworkPlayer.RotationCompression);
+            // BasisDebug.Log($"WriteQuaternionToBytes: wrote {offset - prevOffset} bytes (offset now {offset})", BasisDebug.LogTag.Networking);
+
+            // Compress Muscles
+            //   prevOffset = offset;
+            CompressAvatarMuscles(ref networkSend, ref floatArray, ref message, ref offset);
+            //  BasisDebug.Log($"CompressAvatarMuscles: wrote {offset - prevOffset} bytes (offset now {offset})", BasisDebug.LogTag.Networking);
+
+            // Compress Scale
+            // prevOffset = offset;
+            CompressScale(animator.transform.localScale.y, ref message, ref offset);
+            //  BasisDebug.Log($"CompressScale: wrote {offset - prevOffset} bytes (offset now {offset})", BasisDebug.LogTag.Networking);
         }
-        public static void CompressAvatarMuscles(ref ushort[] NetworkOutData, ref float[] FloatArray, ref LocalAvatarSyncMessage LocalAvatarSyncMessage, ref int Offset)
+        public static void CompressAvatarMuscles(ref ushort[] networkOutData,ref float[] floatArray,ref LocalAvatarSyncMessage message,ref int offset)
         {
-            NativeArray<float> floatArrayNative = new NativeArray<float>(FloatArray, Allocator.TempJob);
-            NativeArray<float> minMuscleNative = new NativeArray<float>(BasisAvatarMuscleRange.MinMuscle, Allocator.TempJob);
-            NativeArray<float> maxMuscleNative = new NativeArray<float>(BasisAvatarMuscleRange.MaxMuscle, Allocator.TempJob);
-            NativeArray<float> rangeMuscleNative = new NativeArray<float>(BasisAvatarMuscleRange.RangeMuscle, Allocator.TempJob);
-            NativeArray<ushort> networkSendNative = new NativeArray<ushort>(LocalAvatarSyncMessage.StoredBones, Allocator.TempJob);
+            using var floatArrayNative = new NativeArray<float>(floatArray, Allocator.TempJob);
+            using var minMuscleNative = new NativeArray<float>(BasisAvatarMuscleRange.MinMuscle, Allocator.TempJob);
+            using var maxMuscleNative = new NativeArray<float>(BasisAvatarMuscleRange.MaxMuscle, Allocator.TempJob);
+            using var rangeMuscleNative = new NativeArray<float>(BasisAvatarMuscleRange.RangeMuscle, Allocator.TempJob);
+            using var networkSendNative = new NativeArray<ushort>(LocalAvatarSyncMessage.StoredBones, Allocator.TempJob);
 
-            CompressMusclesJob MuscleJob = new CompressMusclesJob
+            var muscleJob = new CompressMusclesJob
             {
                 ValueArray = floatArrayNative,
                 MinMuscle = minMuscleNative,
@@ -104,33 +107,25 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 NetworkSend = networkSendNative
             };
 
-            JobHandle handle = MuscleJob.Schedule(LocalAvatarSyncMessage.StoredBones, 64);
-            handle.Complete();
+            muscleJob.Schedule(LocalAvatarSyncMessage.StoredBones, 64).Complete();
 
-            networkSendNative.CopyTo(NetworkOutData);
-
-            floatArrayNative.Dispose();
-            minMuscleNative.Dispose();
-            maxMuscleNative.Dispose();
-            rangeMuscleNative.Dispose();
-            networkSendNative.Dispose();
-
-            BasisUnityBitPackerExtensionsUnsafe.WriteUShortsToBytes(NetworkOutData, ref LocalAvatarSyncMessage.array, ref Offset);
+            networkSendNative.CopyTo(networkOutData);
+            BasisUnityBitPackerExtensionsUnsafe.WriteUShortsToBytes(networkOutData, ref message.array, ref offset);
         }
-        public static void CompressScale(float Scale, ref LocalAvatarSyncMessage LocalAvatarSyncMessage, ref int Offset)
+
+        public static void CompressScale(float scale, ref LocalAvatarSyncMessage message, ref int offset)
         {
-            //we can squeeze out more 
-            const float MinimumValueSupported = 0.005f;
-            const float MaximumValueSupported = 150;
-            const float valueDiffence = MaximumValueSupported - MinimumValueSupported;
+            const float Min = 0.005f;
+            const float Max = 150f;
+            const float range = Max - Min;
 
-            //basis does not support ununiform scaling, if your avatar is not uniform you need to get help. - dooly
-            float value = math.clamp(Scale, MinimumValueSupported, MaximumValueSupported);
-            float normalized = (value - MinimumValueSupported) / valueDiffence; // 0..1
-            ushort ScaleUshort = (ushort)(normalized * ushortRangeDifference);
+            float clamped = math.clamp(scale, Min, Max);
+            float normalized = (clamped - Min) / range;
 
-            BasisUnityBitPackerExtensions.WriteUShortToBytes(ScaleUshort, ref LocalAvatarSyncMessage.array, ref Offset);
+            ushort compressed = (ushort)(normalized * UShortRangeDifference);
+            BasisUnityBitPackerExtensionsUnsafe.WriteUShort(compressed, ref message.array, ref offset);
         }
+
         [BurstCompile]
         public struct CompressMusclesJob : IJobParallelFor
         {
@@ -139,15 +134,25 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             [ReadOnly] public NativeArray<float> MaxMuscle;
             [ReadOnly] public NativeArray<float> valueDiffence;
             [WriteOnly] public NativeArray<ushort> NetworkSend;
+
             public void Execute(int index)
             {
-                float value = math.clamp(ValueArray[index], MinMuscle[index], MaxMuscle[index]);
-                float normalized = (value - MinMuscle[index]) / valueDiffence[index]; // 0..1
-                NetworkSend[index] = (ushort)(normalized * ushortRangeDifference); // Assuming ushortRangeDifference is ushort.MaxValue
+                float clamped = math.clamp(ValueArray[index], MinMuscle[index], MaxMuscle[index]);
+                float normalized = (clamped - MinMuscle[index]) / valueDiffence[index];
+                NetworkSend[index] = (ushort)(normalized * UShortRangeDifference);
             }
         }
-        private const ushort UShortMin = ushort.MinValue; // 0
-        private const ushort UShortMax = ushort.MaxValue; // 65535
-        private const ushort ushortRangeDifference = UShortMax - UShortMin;
+
+        private static void EnsureTransmitterIsInitialized(BasisNetworkTransmitter transmitter, Animator animator)
+        {
+            if (transmitter.UshortArray == null)
+                transmitter.UshortArray = new ushort[LocalAvatarSyncMessage.StoredBones];
+
+            if (transmitter.FloatArray == null)
+                transmitter.FloatArray = new float[LocalAvatarSyncMessage.StoredBones];
+
+            if (transmitter.PoseHandler == null)
+                transmitter.PoseHandler = new HumanPoseHandler(animator.avatar, animator.transform);
+        }
     }
 }

@@ -6,7 +6,7 @@ public static partial class SerializableBasis
 {
     public struct DatabasePrimativeMessage
     {
-        public string DatabaseID;
+        public string Name;
         public ConcurrentDictionary<string, object> jsonPayload;
 
         private enum SerializedType : byte
@@ -29,7 +29,7 @@ public static partial class SerializableBasis
 
         public void Serialize(NetDataWriter writer)
         {
-            writer.Put(DatabaseID);
+            writer.Put(Name);
 
             if (jsonPayload == null)
             {
@@ -126,7 +126,7 @@ public static partial class SerializableBasis
 
         public void Deserialize(NetDataReader reader)
         {
-            DatabaseID = reader.GetString();
+            Name = reader.GetString();
 
             int count = reader.GetInt();
             jsonPayload = new ConcurrentDictionary<string, object>();

@@ -26,7 +26,7 @@ namespace BasisNetworkCore
                 };
                 NetDataWriter Writer = new NetDataWriter(true);
                 SNIM.Serialize(Writer);
-                NetworkServer.SendOutValidated(NetPeer, Writer, BasisNetworkCommons.netIDAssignChannel, DeliveryMethod.ReliableOrdered);
+                NetworkServer.TrySend(NetPeer, Writer, BasisNetworkCommons.netIDAssignChannel, DeliveryMethod.ReliableOrdered);
                 BNL.Log($"Sent existing NetID ({Value}) for {UniqueStringID} to peer {NetPeer.Address}");
             }
             else

@@ -1,15 +1,16 @@
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Xml.Serialization;
-using LiteNetLib;
-using LiteNetLib.Utils;
-using static BasisNetworkCore.Serializable.SerializableBasis;
 using Basis.Network.Core;
 using BasisNetworkCore;
+using LiteNetLib;
+using LiteNetLib.Utils;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using System.Xml.Serialization;
+using static BasisNetworkCore.Serializable.SerializableBasis;
 
 namespace BasisNetworkServer.Security
 {
@@ -100,12 +101,12 @@ namespace BasisNetworkServer.Security
             if (string.IsNullOrEmpty(reason))
                 return "[Error] Reason cannot be null or empty.";
 
-            if (!NetworkServer.authIdentity.UUIDToNetID(UUID, out NetPeer peer))
+            if (!NetworkServer.AuthIdentity.UUIDToNetID(UUID, out NetPeer peer))
             {
                 return $"[Error] Unable to find player: {UUID}";
             }
 
-            NetworkServer.server.DisconnectPeer(peer, Encoding.UTF8.GetBytes(reason));
+            NetworkServer.Server.DisconnectPeer(peer, Encoding.UTF8.GetBytes(reason));
 
             if (BannedUUIDs.Contains(UUID))
             {
@@ -135,10 +136,10 @@ namespace BasisNetworkServer.Security
             if (string.IsNullOrEmpty(reason))
                 return "[Error] Reason cannot be null or empty.";
 
-            if (!NetworkServer.authIdentity.UUIDToNetID(UUID, out NetPeer peer))
+            if (!NetworkServer.AuthIdentity.UUIDToNetID(UUID, out NetPeer peer))
                 return $"[Error] Unable to find player: {UUID}";
 
-            NetworkServer.server.DisconnectPeer(peer, Encoding.UTF8.GetBytes(reason));
+            NetworkServer.Server.DisconnectPeer(peer, Encoding.UTF8.GetBytes(reason));
             string ip = peer.Address.ToString();
 
             if (BannedUUIDs.Contains(UUID))
@@ -167,10 +168,10 @@ namespace BasisNetworkServer.Security
             if (string.IsNullOrEmpty(reason))
                 return "[Error] Reason cannot be null or empty.";
 
-            if (!NetworkServer.authIdentity.UUIDToNetID(UUID, out NetPeer peer))
+            if (!NetworkServer.AuthIdentity.UUIDToNetID(UUID, out NetPeer peer))
                 return $"[Error] Unable to find player: {UUID}";
 
-            NetworkServer.server.DisconnectPeer(peer, Encoding.UTF8.GetBytes(reason));
+            NetworkServer.Server.DisconnectPeer(peer, Encoding.UTF8.GetBytes(reason));
             return $"Player {UUID} kicked successfully.";
         }
 
@@ -214,16 +215,16 @@ namespace BasisNetworkServer.Security
             SaveBannedPlayers();
             return true;
         }
-        public static void OnAdminMessage(NetPeer peer, NetDataReader reader)
+        public static void OnAdminMessage(NetPeer peer, NetPacketReader reader)
         {
-            if (!NetworkServer.authIdentity.NetIDToUUID(peer, out string UUID))
+            if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string UUID))
             {
                 string msg = $"Netpeer was not in database {peer.Address}";
                 BNL.LogError(msg);
                 SendBackMessage(peer, msg);
                 return;
             }
-            if (!NetworkServer.authIdentity.IsNetPeerAdmin(UUID))
+            if (!NetworkServer.AuthIdentity.IsNetPeerAdmin(UUID))
             {
                 string msg = $"Was not admin! {UUID}";
                 BNL.LogError(msg);
@@ -249,17 +250,18 @@ namespace BasisNetworkServer.Security
                     break;
                 case AdminRequestMode.Message:
                     ushort RPI = reader.GetUShort();
-                    NetPeer RemotePeer = NetworkServer.chunkedNetPeerArray.GetPeer(RPI);
-                    string Message = reader.GetString();
-                    SendBackMessage(RemotePeer, Message);
-                    BNL.Log($"sending Message | {Message}");
-
+                    if (NetworkServer.Peers.TryGetValue(RPI, out NetPeer RemotePeer))
+                    {
+                        string messagedata = reader.GetString();
+                        SendBackMessage(RemotePeer, messagedata);
+                        BNL.Log($"sending Message | {messagedata}");
+                    }
                     break;
                 case AdminRequestMode.MessageAll:
                     NetDataWriter Writer = new NetDataWriter(true, 4);
                     AdminRequest OutAdminRequest = new AdminRequest();
                     OutAdminRequest.Serialize(Writer, AdminRequestMode.MessageAll);
-                    Message = reader.GetString();
+                    string Message = reader.GetString();
                     Writer.Put(Message);
                     NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AdminChannel, peer, BasisPlayerArray.GetSnapshot(), DeliveryMethod.ReliableOrdered);
                     BNL.Log($"sending MessageAll | {Message}");
@@ -302,7 +304,7 @@ namespace BasisNetworkServer.Security
                     break;
                 case AdminRequestMode.AddAdmin:
                     string AddingAdmin = reader.GetString();
-                    if (NetworkServer.authIdentity.AddNetPeerAsAdmin(AddingAdmin))
+                    if (NetworkServer.AuthIdentity.AddNetPeerAsAdmin(AddingAdmin))
                     {
                         SendBackMessage(peer, $"Added Admin {AddingAdmin}");
                     }
@@ -313,7 +315,7 @@ namespace BasisNetworkServer.Security
                     break;
                 case AdminRequestMode.RemoveAdmin:
                     string RemoveAdmin = reader.GetString();
-                    if (NetworkServer.authIdentity.RemoveNetPeerAsAdmin(RemoveAdmin))
+                    if (NetworkServer.AuthIdentity.RemoveNetPeerAsAdmin(RemoveAdmin))
                     {
                         SendBackMessage(peer, $"Removing Admin {RemoveAdmin}");
                     }
@@ -329,7 +331,7 @@ namespace BasisNetworkServer.Security
                     PlayerDestination = reader.GetUShort();
                     Writer.Put(PlayerDestination);
 
-                    NetworkServer.SendOutValidated(peer, Writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+                    NetworkServer.TrySend(peer, Writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
                     break;
                 default:
                     BNL.LogError("Missing Mode!");
@@ -337,6 +339,7 @@ namespace BasisNetworkServer.Security
                     SendBackMessage(peer, ReturnMessage);
                     break;
             }
+            reader.Recycle();
         }
         public static void SendBackMessage(NetPeer Peer, string ReturnMessage)
         {
@@ -349,7 +352,7 @@ namespace BasisNetworkServer.Security
             AdminRequest OutAdminRequest = new AdminRequest();
             OutAdminRequest.Serialize(Writer, AdminRequestMode.Message);
             Writer.Put(ReturnMessage);
-            NetworkServer.SendOutValidated(Peer, Writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.TrySend(Peer, Writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
         }
     }
 }

@@ -143,7 +143,7 @@ namespace BasisNetworkConsole
             if (args.Length >= 1)
             {
                 string value = args[0];
-                if (NetworkServer.authIdentity.AddNetPeerAsAdmin(value))
+                if (NetworkServer.AuthIdentity.AddNetPeerAsAdmin(value))
                 {
                     BNL.Log($"Added Admin {value}");
                 }

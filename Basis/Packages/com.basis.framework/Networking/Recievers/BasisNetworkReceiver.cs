@@ -2,6 +2,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Profiler;
 using Basis.Scripts.TransformBinders.BoneControl;
+using BasisNetworkCore;
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
@@ -56,6 +57,8 @@ namespace Basis.Scripts.Networking.Receivers
         public float[] Eyes = new float[4];
         public Vector3 SafeScale;
         public Vector3 SafePosition;
+        public byte LastAvatarSequenceNumber;
+        public byte LastAudioSequenceNumber;
         /// <summary>
         /// Perform computations to interpolate and update avatar state.
         /// </summary>
@@ -241,14 +244,22 @@ namespace Basis.Scripts.Networking.Receivers
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage audioSegment)
         {
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, audioSegment.audioSegmentData.LengthUsed);
-            AudioReceiverModule.OnDecode(audioSegment.audioSegmentData.buffer, audioSegment.audioSegmentData.LengthUsed);
-            Player.AudioReceived?.Invoke(true);
+            if (BasisPacketUtil.ValidatePacket(audioSegment.audioSegmentData.SequenceNumber, LastAudioSequenceNumber))
+            {
+                LastAudioSequenceNumber = audioSegment.audioSegmentData.SequenceNumber;
+                AudioReceiverModule.OnDecode(audioSegment.audioSegmentData.buffer, audioSegment.audioSegmentData.LengthUsed);
+                Player.AudioReceived?.Invoke(true);
+            }
         }
         public void ReceiveSilentNetworkAudio(ServerAudioSegmentMessage audioSilentSegment)
         {
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, 1);
-            AudioReceiverModule.OnDecodeSilence();
-            Player.AudioReceived?.Invoke(false);
+            if (BasisPacketUtil.ValidatePacket(audioSilentSegment.audioSegmentData.SequenceNumber, LastAudioSequenceNumber))
+            {
+                LastAudioSequenceNumber = audioSilentSegment.audioSegmentData.SequenceNumber;
+                AudioReceiverModule.OnDecodeSilence();
+                Player.AudioReceived?.Invoke(false);
+            }
         }
         public async void ReceiveAvatarChangeRequest(ServerAvatarChangeMessage ServerAvatarChangeMessage)
         {
