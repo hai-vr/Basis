@@ -175,9 +175,27 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         public static void RemovePlayer(int id)
         {
-            if (playerStates.TryGetValue(id, out var state))
+            if (playerStates.TryRemove(id, out var removedState))
             {
-                state.IsActive = false;
+                removedState.IsActive = false;
+
+                // Reset writer if needed
+                removedState.Writer?.Reset();
+
+                // Clean up HasNewDataFrom bitsets in other players
+                foreach (var kvp in playerStates)
+                {
+                    kvp.Value.HasNewDataFrom?.Set(id, false);
+                    kvp.Value.DeliveryIntervals?.Remove(id);
+                    kvp.Value.LastSentTimes?.Remove(id);
+                    kvp.Value.NearbyPlayers?.RemoveAll(p => p.Id == id);
+                }
+
+                BNL.Log($"Player {id} removed and cleaned up.");
+            }
+            else
+            {
+                BNL.LogError("Missing Player From Index this is scary! " + id);
             }
         }
 
