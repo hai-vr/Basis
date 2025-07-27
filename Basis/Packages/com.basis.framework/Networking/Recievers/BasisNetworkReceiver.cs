@@ -68,6 +68,10 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 // Calculate interpolation time
                 interpolationTime = Mathf.Clamp01((float)((TimeAsDouble - TimeInThePast) / TimeBeforeCompletion));
+                if (float.IsNaN(interpolationTime))
+                {
+                    interpolationTime = 0f;
+                }
                 if (First == null)
                 {
                     if (Last != null)
@@ -205,30 +209,32 @@ namespace Basis.Scripts.Networking.Receivers
                 HasAvatarQueue = true;
             }
         }
-        public void ApplyPoseData(Transform AnimatorsTransform, Animator animator, float3 Scale, float3 Position, Quaternion Rotation,bool HasMuscle, NativeArray<float> Muscles)
+        public void ApplyPoseData(Transform AnimatorsTransform, Animator animator, float3 Scale, float3 Position, Quaternion Rotation, bool HasMuscle, NativeArray<float> Muscles)
         {
+            // Validate and sanitize scale and position
+            Scale = SanitizeVector3(Scale, 1f);
+            Position = SanitizeVector3(Position, 0f);
+
+            // Clamp the scale to prevent extremes
+            Scale = ClampVector3(Scale, 0.0001f, 10000f);
+
             // Directly adjust scaling by applying the inverse of the AvatarHumanScale
-            Vector3 Scaling = Vector3.one / animator.humanScale;  // Initial scaling with human scale inverse
+            Vector3 Scaling = Vector3.one / animator.humanScale;
+            Scaling = Divide(Scaling, Scale);
 
-            // Now adjust scaling with the output scaling vector
-            Scaling = Divide(Scaling, Scale);  // Apply custom scaling logic
-
-            // Apply scaling to position
-            Vector3 ScaledPosition = Vector3.Scale(Position, Scaling);  // Apply the scaling
+            Vector3 ScaledPosition = Vector3.Scale(Position, Scaling);
             HumanPose.bodyPosition = ScaledPosition;
             HumanPose.bodyRotation = Rotation;
+
             if (HasMuscle)
             {
-                // Copy from job to MuscleFinalStageOutput
                 Muscles.CopyTo(MuscleFinalStageOutput);
-                // First, copy the first 14 elements directly
                 Array.Copy(MuscleFinalStageOutput, 0, HumanPose.muscles, 0, BasisAvatarMuscleRange.FirstBuffer);
-                // Then, copy the remaining elements from index 15 onwards into the pose.muscles array, starting from index 21
                 Array.Copy(MuscleFinalStageOutput, BasisAvatarMuscleRange.FirstBuffer, HumanPose.muscles, BasisAvatarMuscleRange.SecondBuffer, BasisAvatarMuscleRange.SizeAfterGap);
                 Array.Copy(Eyes, 0, HumanPose.muscles, BasisAvatarMuscleRange.FirstBuffer, 4);
             }
-            // Adjust the local scale of the animator's transform
-            AnimatorsTransform.localScale = Scale;  // Directly adjust scale with output scaling
+
+            AnimatorsTransform.localScale = Scale;
         }
         public static Vector3 Divide(Vector3 a, Vector3 b)
         {
@@ -347,6 +353,41 @@ namespace Basis.Scripts.Networking.Receivers
         {
             PlayerIDMessage.playerID = PlayerID;
             hasID = true;
+        }
+        public static float3 SanitizeVector3(float3 input, float defaultValue = 0f)
+        {
+            return new float3(
+                float.IsNaN(input.x) ? defaultValue : input.x,
+                float.IsNaN(input.y) ? defaultValue : input.y,
+                float.IsNaN(input.z) ? defaultValue : input.z
+            );
+        }
+
+        public static Vector3 SanitizeVector3(Vector3 input, float defaultValue = 0f)
+        {
+            return new Vector3(
+                float.IsNaN(input.x) ? defaultValue : input.x,
+                float.IsNaN(input.y) ? defaultValue : input.y,
+                float.IsNaN(input.z) ? defaultValue : input.z
+            );
+        }
+
+        public static float3 ClampVector3(float3 input, float min, float max)
+        {
+            return new float3(
+                math.clamp(input.x, min, max),
+                math.clamp(input.y, min, max),
+                math.clamp(input.z, min, max)
+            );
+        }
+
+        public static Vector3 ClampVector3(Vector3 input, float min, float max)
+        {
+            return new Vector3(
+                Mathf.Clamp(input.x, min, max),
+                Mathf.Clamp(input.y, min, max),
+                Mathf.Clamp(input.z, min, max)
+            );
         }
     }
 }
