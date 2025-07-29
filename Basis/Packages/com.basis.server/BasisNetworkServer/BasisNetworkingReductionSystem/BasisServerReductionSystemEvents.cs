@@ -71,27 +71,40 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static async Task StartBackgroundProcessingAsync()
         {
-            long intervalMs = 25;
+            long intervalMs = 10;
 
             while (!cts.Token.IsCancellationRequested)
             {
                 long startTick = Stopwatch.GetTimestamp();
 
+                // Snapshot messages safely
+                var messagesSnapshot = new List<QueuedMessage>(currentMessages.Count);
+                messagesSnapshot.AddRange(currentMessages.Values);
+                currentMessages.Clear(); // Safe to clear after snapshot
+
+                // Process messages
                 Profiling.StartTimer("ProcessMessages", out long t1);
-                Parallel.ForEach(currentMessages.Values, parallelOptions, msg =>
+                Parallel.ForEach(messagesSnapshot, parallelOptions, msg =>
                 {
-                    try { ProcessMessage(msg); }
-                    catch (Exception ex) { BNL.LogError($"[ProcessMessage] Exception: {ex}"); }
+                    try
+                    {
+                        ProcessMessage(msg);
+                    }
+                    catch (Exception ex)
+                    {
+                        BNL.LogError($"[ProcessMessage] Exception: {ex}");
+                    }
                 });
-                currentMessages.Clear();
                 Profiling.EndTimer("ProcessMessages", t1);
 
+                // Network updates
                 Profiling.StartTimer("SimulateCommunicationFromCache_Full", out long t2);
                 UpdateCommunicationAndDistances(Stopwatch.GetTimestamp());
                 Profiling.EndTimer("SimulateCommunicationFromCache_Full", t2);
 
                 Profiling.TryPrint();
 
+                // Throttle loop if under time budget
                 long elapsedTicks = Stopwatch.GetTimestamp() - startTick;
                 long elapsedMs = (long)(elapsedTicks / MsToTick);
                 long remainingMs = intervalMs - elapsedMs;
@@ -99,7 +112,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 if (remainingMs > 0)
                     await Task.Delay((int)remainingMs, cts.Token);
                 else
-                    await Task.Yield(); // if over budget, yield control briefly
+                    await Task.Yield();
             }
         }
         private static List<(int id, PlayerState state)> _threadLocalActivePlayers = new();
@@ -120,7 +133,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 var stateI = playerI.state;
                 var peer = stateI.Peer;
 
-                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) <= 1024;
+                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) <= 64;
                 var intervals = stateI.DeliveryIntervals;
                 var sentTimes = stateI.LastSentTimes;
 
@@ -181,7 +194,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static byte CalculateIntervalFromDistanceSq(float distanceSq)
         {
             int rawInterval = (int)(BSRSMillisecondDefaultInterval * (BSRBaseMultiplier + (distanceSq * BSRSIncreaseRate)));
-            return (byte)Math.Min(rawInterval, byte.MaxValue);
+
+            // Offset so the actual interval is: encodedByte + BSRSMillisecondDefaultInterval
+            int encodedInterval = rawInterval - BSRSMillisecondDefaultInterval;
+
+            return (byte)Math.Clamp(encodedInterval, 0, byte.MaxValue);
         }
 
         public static void Shutdown() => cts.Cancel();

@@ -44,7 +44,7 @@ public static partial class SerializableBasis
             }
             if (SlowestSendRate == 0)
             {
-                SlowestSendRate = 2.5f;
+                SlowestSendRate = 2.55f;
                 BNL.LogError("Slowest Send Rate was not set!");
             }
 

@@ -1,9 +1,7 @@
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Profiler;
-using BasisNetworkCore;
 using System;
-using UnityEngine.UIElements;
 using static SerializableBasis;
 
 namespace Basis.Scripts.Networking.NetworkedAvatar
@@ -27,7 +25,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             int length = data.Length;
             if (length >= LocalAvatarSyncMessage.AvatarSyncSize)
             {
-                BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, baseReceiver, syncMessage.interval / 1000f);
+                int Interval = BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
+                BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, baseReceiver, (Interval + syncMessage.interval) / 1000f);
                 EnqueueAndProcessAdditionalData(baseReceiver, ref avatarBuffer, syncMessage.avatarSerialization, length);
             }
             else

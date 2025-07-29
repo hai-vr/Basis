@@ -38,7 +38,7 @@ public class Configuration
     public int BSRSMillisecondDefaultInterval = 50;
     public int BSRBaseMultiplier = 1;
     public float BSRSIncreaseRate = 0.005f;
-    public float BSRSlowestSendRate = 2.5f;
+    public float BSRSlowestSendRate = 2.55f;
     public bool OverrideAutoDiscoveryOfIpv = false;
     public string IPv4Address = "0.0.0.0";
     public string IPv6Address = "::1";
