@@ -9,19 +9,6 @@ public static class BasisCursorManagement
     private static List<string> cursorLockRequests = new List<string>();
     // Event that gets triggered whenever the cursor state changes
     public static event Action<CursorLockMode, bool> OnCursorStateChange;
-
-    public static void OverrideAbleLock(string requestName)
-    {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-        BasisDebug.Log("Requested a forced Cursor Lock for " + requestName);
-    }
-    public static void ScreenControls(string requestName)
-    {
-        Cursor.lockState = CursorLockMode.Confined;
-        Cursor.visible = true;
-        BasisDebug.Log("Requested a forced Cursor Lock for " + requestName);
-    }
     public static CursorLockMode ActiveLockState()
     {
         return Cursor.lockState;

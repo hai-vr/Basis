@@ -3,6 +3,7 @@ using Basis.Scripts.Addressable_Driver.Factory;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.UI;
 using Basis.Scripts.UI.UI_Panels;
@@ -219,20 +220,17 @@ namespace Basis.Scripts.Device_Management.Devices
         {
             if (BasisLocalPlayer.Instance.LocalBoneDriver == null)
             {
-                BasisDebug.LogError("Missing Driver!");
+                BasisDebug.LogError($"Missing {nameof(BasisLocalBoneDriver)}!", BasisDebug.LogTag.Input);
                 return;
             }
             UnAssignRoleAndTracker();
             if (HasEvents)
             {
+                //deassign
                 BasisLocalPlayer.Instance.OnPreSimulateBones -= PollData;
                 BasisLocalPlayer.Instance.OnAvatarSwitched -= UnAssignFullBodyTrackers;
                 BasisLocalPlayer.AfterFinalMove.RemoveAction(98, ApplyFinalMovement);
                 HasEvents = false;
-            }
-            else
-            {
-                BasisDebug.Log("has device events assigned already " + UniqueDeviceIdentifier, BasisDebug.LogTag.Input);
             }
         }
         public void SetRealTrackers(BasisHasTracked hasTracked, BasisHasRigLayer HasLayer)
@@ -469,6 +467,11 @@ namespace Basis.Scripts.Device_Management.Devices
         public void OnDestroy()
         {
             StopTracking();
+            if (hasRoleAssigned && trackedRole != BasisBoneTrackedRole.CenterEye)
+            {
+                //this solves hands being removed and there tracker states
+                SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer);
+            }
             if (BasisUIRaycast != null)
             {
                 BasisUIRaycast.OnDeInitialize();

@@ -46,9 +46,6 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
                 Instance = this;
 
             PlayerInitialized();
-
-            BasisCursorManagement.OverrideAbleLock(nameof(BasisAvatarEyeInput));
-
             if (!HasEyeEvents)
             {
                 BasisLocalPlayer.OnLocalAvatarChanged += PlayerInitialized;

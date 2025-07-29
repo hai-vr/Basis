@@ -2,6 +2,7 @@ using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices.OpenVR.Structs;
 using Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
@@ -44,7 +45,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 }
             }
         }
-
         private void CreateTrackerDevice(uint deviceIndex, ETrackedDeviceClass deviceClass, string uniqueID, string notUniqueID)
         {
             OpenVRDevice openVRDevice = new OpenVRDevice
@@ -111,8 +111,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 HandleExistingDevice(uniqueID, notUniqueID, nameof(BasisOpenVRInputSpatial), device);
             }
         }
-
-        public  void CreateController(OpenVRDevice device, string uniqueID, string notUniqueID)
+        public void CreateController(OpenVRDevice device, string uniqueID, string notUniqueID)
         {
             if (!TypicalDevices.ContainsKey(uniqueID))
             {
@@ -129,7 +128,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 HandleExistingDevice(uniqueID, notUniqueID, nameof(BasisOpenVRInputController), device);
             }
         }
-
         public void CreateTracker(OpenVRDevice device, string uniqueID, string notUniqueID, bool autoAssignRole, BasisBoneTrackedRole role)
         {
             if (!TypicalDevices.ContainsKey(uniqueID))
@@ -146,7 +144,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 HandleExistingDevice(uniqueID, notUniqueID, nameof(BasisOpenVRInput), device);
             }
         }
-
         public bool TryAssignRole(ETrackedDeviceClass deviceClass, uint deviceIndex, string NameInCaseFallback, out BasisBoneTrackedRole role, out SteamVR_Input_Sources source)
         {
             source = SteamVR_Input_Sources.Any;
@@ -197,14 +194,12 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             return false;
         }
-
         public void DestroyPhysicalTrackedDevice(string id)
         {
             TypicalDevices.Remove(id);
             BasisDeviceManagement.Instance.RemoveDevicesFrom(nameof(BasisOpenVRManagement), id);
         }
-
-        private  void HandleExistingDevice(string uniqueID, string notUniqueID, string className, OpenVRDevice device)
+        private void HandleExistingDevice(string uniqueID, string notUniqueID, string className, OpenVRDevice device)
         {
             foreach (BasisInput input in BasisDeviceManagement.Instance.AllInputDevices)
             {
@@ -248,13 +243,15 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 }
             }
         }
-
         public override void StopSDK()
         {
+            SteamVR.SafeDispose();
+
             if (SteamVR_BehaviourGameobject != null)
             {
                 GameObject.Destroy(SteamVR_BehaviourGameobject);
             }
+            SteamVR_BehaviourGameobject = null;
 
             foreach (var device in TypicalDevices.Keys.ToList())
             {
@@ -266,12 +263,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             IsInUse = false;
             SteamVR_Events.DeviceConnected.RemoveListener(OnDeviceConnected);
         }
-
-        public override void BeginLoadSDK()
-        {
-        }
-
-        public override void StartSDK()
+        public override async void StartSDK()
         {
             if (IsInUse)
             {
@@ -279,7 +271,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 return;
             }
             IsInUse = true;
-            BasisDeviceManagement.Instance.SetCameraRenderState(true);
+            BasisLocalCameraDriver.AllowXRRenderering(true);
 
             BasisDebug.Log("Starting SteamVR Instance...");
             SteamVR = SteamVR.instance;
@@ -292,29 +284,54 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             // Initialize SteamVR components
             SteamVR_Behaviour = BasisHelpers.GetOrAddComponent<SteamVR_Behaviour>(SteamVR_BehaviourGameobject);
             SteamVR_Render = BasisHelpers.GetOrAddComponent<SteamVR_Render>(SteamVR_BehaviourGameobject);
-            SteamVR_Behaviour.Initialize(SteamVR_Render, SteamVR_Behaviour);
-            WaitingUntilReady();
 
             // Register SteamVR events
             SteamVR_Events.DeviceConnected.Listen(OnDeviceConnected);
             SteamVR_Events.System(EVREventType.VREvent_TrackedDeviceRoleChanged).Listen(OnTrackedDeviceRoleChanged);
-            BasisDebug.Log("SteamVR SDK started successfully.");
+
+            SteamVR_Behaviour.Initialize(SteamVR_Render, SteamVR_Behaviour);
+
+            bool State = await WaitingUntilReady();
+
+            if (State)
+            {
+                BasisDebug.Log("SteamVR SDK started successfully.");
+                BasisCursorManagement.UnlockCursorBypassChecks("Forceful Unlock OPENVR");
+            }
+            else
+            {
+                BasisDebug.Log("SteamVR SDK failed falling back.");
+                BasisDeviceManagement.Instance.SwitchSetModeToDefault();
+            }
         }
-        public async void WaitingUntilReady()
+        public async Task<bool> WaitingUntilReady()
         {
             // Wait for SteamVR to initialize
             while (SteamVR.initializedState == SteamVR.InitializedStates.None)
             {
-                Debug.LogWarning("Waiting for SteamVR to initialize...");
+                BasisDebug.LogWarning("Waiting for SteamVR to switch from None...");
                 await Task.Yield();
             }
-
+            while (SteamVR.initializedState == SteamVR.InitializedStates.Initializing)
+            {
+                BasisDebug.LogWarning("SteamVR switched to Initializing...");
+                await Task.Yield();
+            }
             // Handle initialization failure
             if (SteamVR.initializedState == SteamVR.InitializedStates.InitializeFailure)
             {
-                BasisDebug.LogError("SteamVR failed to initialize");
-                return;
+                BasisDebug.LogError("SteamVR failed to initialize", BasisDebug.LogTag.Device);
+                return false;
             }
+            else
+            {
+                if (SteamVR.initializedState == SteamVR.InitializedStates.InitializeSuccess)
+                {
+                    BasisDebug.Log("SteamVR Initialize Success", BasisDebug.LogTag.Device);
+                    return true;
+                }
+            }
+            return false;
         }
         private void OnDeviceConnected(int deviceIndex, bool deviceConnected)
         {
@@ -325,10 +342,13 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         {
             OnDeviceConnected(vrEvent.trackedDeviceIndex, true);
         }
-
-        public override string Type()
+        public override bool IsDeviceBootable(string BootRequest)
         {
-            return "OpenVRLoader";
+            if (BootRequest == "OpenVRLoader")
+            {
+                return true;
+            }
+            return false;
         }
     }
 }

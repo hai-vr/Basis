@@ -9,7 +9,7 @@ namespace Basis.Network
 {
     public static class MovementSender
     {
-        public static byte[] AvatarMessage = new byte[LocalAvatarSyncMessage.AvatarSyncSize + 3];
+        public static byte[] AvatarMessage = new byte[LocalAvatarSyncMessage.AvatarSyncSize + 2];
         public static Quaternion Rotation = new Quaternion(0, 0, 0, 1);
         public static float[] FloatArray = new float[LocalAvatarSyncMessage.StoredBones];
         public static ushort[] UshortArray = new ushort[LocalAvatarSyncMessage.StoredBones];
@@ -46,16 +46,12 @@ namespace Basis.Network
             int offset = 0;
             Vector3 delta = Randomizer.GetRandomOffset();
             PlayersCurrentPosition[index] = PlayersCurrentPosition[index] +  delta;
-            AvatarMessage[offset] = BasisNetworkCommons.PlayerAvatarChannel;
-            offset++;
-            AvatarMessage[offset] = (byte)((AvatarMessage[offset] + 1) % 256);
-            offset++;
             WriteVectorFloatToBytes(PlayersCurrentPosition[index], ref AvatarMessage, ref offset);
             WriteQuaternionToBytes(Rotation, ref AvatarMessage, ref offset, RotationCompression);
             WriteUShortsToBytes(UshortArray, ref AvatarMessage, ref offset);
             CompressScale(1, ref AvatarMessage, ref offset);
 
-            peer.Send(AvatarMessage, BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable);
+            peer.Send(AvatarMessage, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
         }
         // Ensure the byte array is large enough to hold the data
         private static void EnsureSize(ref byte[] bytes, int requiredSize)

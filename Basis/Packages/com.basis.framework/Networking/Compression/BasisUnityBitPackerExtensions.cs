@@ -30,12 +30,14 @@ namespace Basis.Scripts.Networking.Compression
         {
             fixed (byte* ptr = &bytes[offset])
             {
-                *((float*)ptr) = q.value.x;
-                *((float*)(ptr + 4)) = q.value.y;
-                *((float*)(ptr + 8)) = q.value.z;
+                *((float*)ptr) = float.IsNaN(q.value.x) ? 0f : q.value.x;
+                *((float*)(ptr + 4)) = float.IsNaN(q.value.y) ? 0f : q.value.y;
+                *((float*)(ptr + 8)) = float.IsNaN(q.value.z) ? 0f : q.value.z;
             }
             offset += 12;
-            ushort compressedW = compressor.Compress(q.value.w);
+
+            float w = float.IsNaN(q.value.w) ? 1f : q.value.w;
+            ushort compressedW = compressor.Compress(w);
             WriteUShort(compressedW, ref bytes, ref offset);
         }
 
@@ -49,8 +51,17 @@ namespace Basis.Scripts.Networking.Compression
                 z = *((float*)(ptr + 8));
             }
             offset += 12;
+
             ushort compressedW = ReadUShort(ref bytes, ref offset);
-            return new quaternion(x, y, z, compressor.Decompress(compressedW));
+            float w = compressor.Decompress(compressedW);
+
+            // Sanitize potential NaNs
+            if (float.IsNaN(x)) x = 0f;
+            if (float.IsNaN(y)) y = 0f;
+            if (float.IsNaN(z)) z = 0f;
+            if (float.IsNaN(w)) w = 1f;
+
+            return new quaternion(x, y, z, w);
         }
 
         public unsafe static void WriteUShortsToBytes(ushort[] values, ref byte[] bytes, ref int offset)
@@ -103,9 +114,9 @@ namespace Basis.Scripts.Networking.Compression
                 fixed (byte* src = &buffer[offset])
                 {
                     float* fSrc = (float*)src;
-                    result.x = fSrc[0];
-                    result.y = fSrc[1];
-                    result.z = fSrc[2];
+                    result.x = float.IsNaN(fSrc[0]) ? 0f : fSrc[0];
+                    result.y = float.IsNaN(fSrc[1]) ? 0f : fSrc[1];
+                    result.z = float.IsNaN(fSrc[2]) ? 0f : fSrc[2];
                 }
             }
 

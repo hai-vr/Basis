@@ -51,7 +51,7 @@ namespace Basis.Scripts.Drivers
             phonemeBlendShapeTable.Clear();
             if (uLipSync.profile == null)
             {
-                uLipSync.profile = BasisDeviceManagement.LipSyncProfile.Result;
+                uLipSync.profile = BasisDeviceManagement.Instance.LipSyncProfile;
             }
             if (uLipSyncBlendShape == null)
             {

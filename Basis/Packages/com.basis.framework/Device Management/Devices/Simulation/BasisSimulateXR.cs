@@ -26,19 +26,9 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
             BasisDeviceManagement.Instance.TryAdd(BasisInput);
             return BasisInput;
         }
-        public override void StopSDK()
+        public override bool IsDeviceBootable(string BootRequest)
         {
-        }
-        public override void BeginLoadSDK()
-        {
-        }
-        public override void StartSDK()
-        {
-        }
-
-        public override string Type()
-        {
-            return "SimulateXR";
+            return BootRequest == "SimulateXR";
         }
     }
 }

@@ -197,7 +197,7 @@ namespace Basis.Scripts.Drivers
         }
         private void OnModeSwitch(string mode)
         {
-            if (mode == BasisDeviceManagement.Desktop)
+            if (mode == BasisConstants.Desktop)
             {
                 Camera.fieldOfView = DefaultCameraFov;
             }
@@ -339,6 +339,17 @@ namespace Basis.Scripts.Drivers
 
             // The position is the center plus the offset
             return offset + center;
+        }
+        public static void AllowXRRenderering(bool AllowXRRendering)
+        {
+            if (Instance != null)
+            {
+                Instance.CameraData.allowXRRendering = AllowXRRendering;
+            }
+            else
+            {
+                BasisDebug.LogError("Missing Instance of Local CameraDriver!", BasisDebug.LogTag.Camera);
+            }
         }
     }
 }

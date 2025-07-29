@@ -87,7 +87,7 @@ namespace Basis.Scripts.UI.UI_Panels
         public void PutIntoCalibrationMode()
         {
             BasisDebug.Log("Attempting" + nameof(PutIntoCalibrationMode));
-            string BasisBootedMode = BasisDeviceManagement.CurrentMode;
+            string BasisBootedMode = BasisDeviceManagement.StaticCurrentMode;
             if (OverrideForceCalibration || BasisBootedMode == "OpenVRLoader" || BasisBootedMode == "OpenXRLoader")
             {
                 BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();

@@ -1,10 +1,6 @@
-using Basis.Scripts.BasisSdk;
-using Basis.Scripts.BasisSdk.Players;
-using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices.Headless;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -14,37 +10,9 @@ using UnityEngine.SceneManagement;
 public class BasisHeadlessManagement : BasisBaseTypeManagement
 {
     public BasisHeadlessInput BasisHeadlessInput;
-    public override void BeginLoadSDK()
-    {
-#if UNITY_SERVER
-        if (BasisHeadlessInput == null)
-        {
-            BasisDeviceManagement.Instance.SetCameraRenderState(false);
-            BasisDeviceManagement.CurrentMode = "Headless";
-            GameObject gameObject = new GameObject("Headless Eye");
-            if (BasisLocalPlayer.Instance != null)
-            {
-                gameObject.transform.parent = BasisLocalPlayer.Instance.transform;
-            }
-            BasisHeadlessInput = gameObject.AddComponent<BasisHeadlessInput>();
-            BasisHeadlessInput.Initialize("Desktop Eye", nameof(Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput));
-            BasisDeviceManagement.Instance.TryAdd(BasisHeadlessInput);
-        }
-        BasisDebug.Log(nameof(BeginLoadSDK), BasisDebug.LogTag.Device);
-        BasisLocalPlayer.Instance.DisplayName = GenerateRandomPlayerName();
-        BasisLocalPlayer.Instance.SetSafeDisplayname();
-        if (BasisNetworkManagement.Instance != null)
-        {
-            ConnectToNetwork();
-        }
-        else
-        {
-            BasisNetworkManagement.OnEnableInstanceCreate += ConnectToNetwork;
-        }
-        SceneManager.activeSceneChanged += OnSceneLoadeded;
-#endif
-    }
-
+    public static string Password = "default_password";
+    public static string Ip = "localhost";
+    public static int Port = 4296;
     private void OnSceneLoadeded(Scene arg0, Scene arg1)
     {
         RemoveAllMaterialTextures();
@@ -111,10 +79,6 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
 
         Debug.Log("All reflection probes removed from scene.");
     }
-
-    public static string Password = "default_password";
-    public static string Ip = "localhost";
-    public static int Port = 4296;
     public static void LoadOrCreateConfigXml()
     {
         string filePath = Path.Combine(Application.dataPath, "config.xml");
@@ -165,15 +129,46 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
     }
     public override void StartSDK()
     {
+#if UNITY_SERVER
+        if (BasisHeadlessInput == null)
+        {
+            BasisDeviceManagement.Instance.SetCameraRenderState(false);
+            BasisDeviceManagement.CurrentMode = "Headless";
+            GameObject gameObject = new GameObject("Headless Eye");
+            if (BasisLocalPlayer.Instance != null)
+            {
+                gameObject.transform.parent = BasisLocalPlayer.Instance.transform;
+            }
+            BasisHeadlessInput = gameObject.AddComponent<BasisHeadlessInput>();
+            BasisHeadlessInput.Initialize("Desktop Eye", nameof(Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput));
+            BasisDeviceManagement.Instance.TryAdd(BasisHeadlessInput);
+        }
+        BasisDebug.Log(nameof(BeginLoadSDK), BasisDebug.LogTag.Device);
+        BasisLocalPlayer.Instance.DisplayName = GenerateRandomPlayerName();
+        BasisLocalPlayer.Instance.SetSafeDisplayname();
+        if (BasisNetworkManagement.Instance != null)
+        {
+            ConnectToNetwork();
+        }
+        else
+        {
+            BasisNetworkManagement.OnEnableInstanceCreate += ConnectToNetwork;
+        }
+        SceneManager.activeSceneChanged += OnSceneLoadeded;
+#endif
         BasisDebug.Log(nameof(StartSDK), BasisDebug.LogTag.Device);
     }
     public override void StopSDK()
     {
         BasisDebug.Log(nameof(StopSDK), BasisDebug.LogTag.Device);
     }
-    public override string Type()
+    public override bool IsDeviceBootable(string BootRequest)
     {
-        return "Headless";
+        if (BootRequest == "Headless")
+        {
+            return true;
+        }
+        return false;
     }
     public static string[] adjectives = { "Swift", "Brave", "Clever", "Fierce", "Nimble", "Silent", "Bold", "Lucky", "Strong", "Mighty", "Sneaky", "Fearless", "Wise", "Vicious", "Daring" };
     public static string[] nouns = { "Warrior", "Hunter", "Mage", "Rogue", "Paladin", "Shaman", "Knight", "Archer", "Monk", "Druid", "Assassin", "Sorcerer", "Ranger", "Guardian", "Berserker" };

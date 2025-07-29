@@ -2594,9 +2594,9 @@ GameObject:
   - component: {fileID: 508802122937325065}
   - component: {fileID: -1434852531052301144}
   - component: {fileID: -3061024371983229343}
+  - component: {fileID: 6223159200201450764}
   - component: {fileID: 8988764245560573337}
   - component: {fileID: 6910429841152494025}
-  - component: {fileID: 6223159200201450764}
   m_Layer: 0
   m_Name: BasisFramework
   m_TagString: Untagged
@@ -2633,11 +2633,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   FireOffNetwork: 1
+  FBBD: {fileID: 11400000, guid: 9b1578359dddd0245b76d3ccd9dcc2d3, type: 2}
   BakedInCommandLineArgs: []
   HoverUI: {fileID: 8300000, guid: 273db99ef8423064ebdc96442f286a95, type: 3}
   pressUI: {fileID: 8300000, guid: fa511589a725a1a4c98781edd2f0f176, type: 3}
-  ForcedHeadLessMode: 0
-  BasisDeviceNameMatcher: {fileID: 11400000, guid: 9b8e3db83cb310c40afaa430d0071a18, type: 2}
   AllInputDevices:
     _list: []
   BasisXRManagement:
@@ -2654,8 +2653,10 @@ MonoBehaviour:
   - {fileID: -3061024371983229343}
   BasisLockToInputs: []
   PreviouslyConnectedDevices: []
-  UseAbleDeviceConfigs: []
   InputActions: {fileID: 761910860860970306}
+  BasisDeviceNameMatcher: {fileID: 11400000, guid: 9b8e3db83cb310c40afaa430d0071a18, type: 2}
+  ForcedDefault: 
+  LipSyncProfile: {fileID: 11400000, guid: 0beeb56a431ea1646bb55ff6c6fc5a62, type: 2}
 --- !u!114 &6370897756145117596
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2680,6 +2681,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e66a79eb227d0d448870a4e95dc14eeb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  IsDeviceBooted: 0
+  DeviceMode: 0
   controls: []
   Trackers: []
   HTCOpenXRViveTracker:
@@ -2712,6 +2715,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f6123d863654b2c84d1d6a7c9e1124c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  IsDeviceBooted: 0
+  DeviceMode: 0
   SteamVR_BehaviourGameobject: {fileID: 0}
   SteamVR_Behaviour: {fileID: 0}
   SteamVR_Render: {fileID: 0}
@@ -2728,6 +2733,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2e5d5e882bba1084e835f4f55f35f83a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  IsDeviceBooted: 0
+  DeviceMode: 0
   BasisAvatarEyeInput: {fileID: 0}
 --- !u!114 &-3061024371983229343
 MonoBehaviour:
@@ -2741,7 +2748,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cdd91b42509b7c540806806d7d931a11, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  IsDeviceBooted: 0
+  DeviceMode: 1
   Inputs: []
+--- !u!114 &6223159200201450764
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9135220577826176361}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 91528c69153be7a4abdc97d32886cec1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  IsDeviceBooted: 0
+  DeviceMode: 0
+  BasisHeadlessInput: {fileID: 0}
 --- !u!114 &8988764245560573337
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2797,17 +2821,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   updateInterval: 0.1
   timeSinceLastUpdate: 0
-  IsBatchMode: 0
---- !u!114 &6223159200201450764
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9135220577826176361}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 91528c69153be7a4abdc97d32886cec1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  BasisHeadlessInput: {fileID: 0}
+  DeltaTime: 0
+  TimeAsDouble: 0

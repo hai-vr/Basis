@@ -14,11 +14,11 @@ namespace Basis.Scripts.UI.UI_Panels
         }
         public void Desktop()
         {
-            BasisDeviceManagement.Instance.SwitchMode(BasisDeviceManagement.Desktop);
+            BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.Desktop);
         }
         public void OpenVRLoader()
         {
-            BasisDeviceManagement.Instance.SwitchMode("OpenVRLoader");
+            BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
         }
     }
 }

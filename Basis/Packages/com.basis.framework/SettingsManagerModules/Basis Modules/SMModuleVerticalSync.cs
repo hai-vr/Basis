@@ -37,7 +37,7 @@ namespace BattlePhaze.SettingsManager.Integrations
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = 25;
 #else
-            if (BasisDeviceManagement.CurrentMode == BasisDeviceManagement.Desktop)
+            if (BasisDeviceManagement.StaticCurrentMode == BasisConstants.Desktop)
             {
                 switch (quality)
                 {

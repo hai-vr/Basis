@@ -91,7 +91,7 @@ public static class BasisLocalMicrophoneDriver
                 BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
                 HasEvents = true;
             }
-            SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.CurrentMode);
+            SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
             ResetMicrophones(SMDMicrophone.SelectedMicrophone);
             ConfigureDenoiser(SMDMicrophone.SelectedDenoiserMicrophone);
             StartProcessingThread();  // Start the processing thread once

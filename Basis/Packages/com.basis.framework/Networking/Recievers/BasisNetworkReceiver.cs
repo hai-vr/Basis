@@ -57,8 +57,6 @@ namespace Basis.Scripts.Networking.Receivers
         public float[] Eyes = new float[4];
         public Vector3 SafeScale;
         public Vector3 SafePosition;
-        public byte LastAvatarSequenceNumber;
-        public byte LastAudioSequenceNumber;
         /// <summary>
         /// Perform computations to interpolate and update avatar state.
         /// </summary>
@@ -211,13 +209,6 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void ApplyPoseData(Transform AnimatorsTransform, Animator animator, float3 Scale, float3 Position, Quaternion Rotation, bool HasMuscle, NativeArray<float> Muscles)
         {
-            // Validate and sanitize scale and position
-            Scale = SanitizeVector3(Scale, 1f);
-            Position = SanitizeVector3(Position, 0f);
-
-            // Clamp the scale to prevent extremes
-            Scale = ClampVector3(Scale, 0.0001f, 10000f);
-
             // Directly adjust scaling by applying the inverse of the AvatarHumanScale
             Vector3 Scaling = Vector3.one / animator.humanScale;
             Scaling = Divide(Scaling, Scale);
@@ -250,22 +241,14 @@ namespace Basis.Scripts.Networking.Receivers
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage audioSegment)
         {
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, audioSegment.audioSegmentData.LengthUsed);
-            if (BasisPacketUtil.ValidatePacket(audioSegment.audioSegmentData.SequenceNumber, LastAudioSequenceNumber))
-            {
-                LastAudioSequenceNumber = audioSegment.audioSegmentData.SequenceNumber;
-                AudioReceiverModule.OnDecode(audioSegment.audioSegmentData.buffer, audioSegment.audioSegmentData.LengthUsed);
-                Player.AudioReceived?.Invoke(true);
-            }
+            AudioReceiverModule.OnDecode(audioSegment.audioSegmentData.buffer, audioSegment.audioSegmentData.LengthUsed);
+            Player.AudioReceived?.Invoke(true);
         }
         public void ReceiveSilentNetworkAudio(ServerAudioSegmentMessage audioSilentSegment)
         {
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, 1);
-            if (BasisPacketUtil.ValidatePacket(audioSilentSegment.audioSegmentData.SequenceNumber, LastAudioSequenceNumber))
-            {
-                LastAudioSequenceNumber = audioSilentSegment.audioSegmentData.SequenceNumber;
-                AudioReceiverModule.OnDecodeSilence();
-                Player.AudioReceived?.Invoke(false);
-            }
+            AudioReceiverModule.OnDecodeSilence();
+            Player.AudioReceived?.Invoke(false);
         }
         public async void ReceiveAvatarChangeRequest(ServerAvatarChangeMessage ServerAvatarChangeMessage)
         {
@@ -353,41 +336,6 @@ namespace Basis.Scripts.Networking.Receivers
         {
             PlayerIDMessage.playerID = PlayerID;
             hasID = true;
-        }
-        public static float3 SanitizeVector3(float3 input, float defaultValue = 0f)
-        {
-            return new float3(
-                float.IsNaN(input.x) ? defaultValue : input.x,
-                float.IsNaN(input.y) ? defaultValue : input.y,
-                float.IsNaN(input.z) ? defaultValue : input.z
-            );
-        }
-
-        public static Vector3 SanitizeVector3(Vector3 input, float defaultValue = 0f)
-        {
-            return new Vector3(
-                float.IsNaN(input.x) ? defaultValue : input.x,
-                float.IsNaN(input.y) ? defaultValue : input.y,
-                float.IsNaN(input.z) ? defaultValue : input.z
-            );
-        }
-
-        public static float3 ClampVector3(float3 input, float min, float max)
-        {
-            return new float3(
-                math.clamp(input.x, min, max),
-                math.clamp(input.y, min, max),
-                math.clamp(input.z, min, max)
-            );
-        }
-
-        public static Vector3 ClampVector3(Vector3 input, float min, float max)
-        {
-            return new Vector3(
-                Mathf.Clamp(input.x, min, max),
-                Mathf.Clamp(input.y, min, max),
-                Mathf.Clamp(input.z, min, max)
-            );
         }
     }
 }

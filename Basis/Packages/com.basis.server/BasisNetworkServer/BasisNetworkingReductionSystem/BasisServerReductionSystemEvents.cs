@@ -138,12 +138,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                         if (elapsed >= required && stateI.HasNewDataFrom.Get(j))
                         {
-                            stateI.Writer.Put(BasisNetworkCommons.PlayerAvatarChannel);
                             var tempMsg = stateJ.SyncMessage;
                             tempMsg.interval = interval;
                             tempMsg.Serialize(stateI.Writer);
 
-                            peer.Send(stateI.Writer, BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable);
+                            peer.Send(stateI.Writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
                             stateI.HasNewDataFrom.Set(j, false);
                             stateI.Writer.Reset();
                             sentTimes[j] = nowTicks;
@@ -175,9 +174,27 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         public static void RemovePlayer(int id)
         {
-            if (playerStates.TryGetValue(id, out var state))
+            if (playerStates.TryRemove(id, out var removedState))
             {
-                state.IsActive = false;
+                removedState.IsActive = false;
+
+                // Reset writer if needed
+                removedState.Writer?.Reset();
+
+                // Clean up HasNewDataFrom bitsets in other players
+                foreach (var kvp in playerStates)
+                {
+                    kvp.Value.HasNewDataFrom?.Set(id, false);
+                    kvp.Value.DeliveryIntervals?.Remove(id);
+                    kvp.Value.LastSentTimes?.Remove(id);
+                    kvp.Value.NearbyPlayers?.RemoveAll(p => p.Id == id);
+                }
+
+                BNL.Log($"Player {id} removed and cleaned up.");
+            }
+            else
+            {
+                BNL.LogError("Missing Player From Index this is scary! " + id);
             }
         }
 
@@ -218,12 +235,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             {
                 if (!state.IsActive) state.IsActive = true;
 
-                if (BasisPacketUtil.ValidatePacket(message.AvatarMessage.SequenceNumber, state.SyncMessage.avatarSerialization.SequenceNumber))
-                {
-                    state.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
-                    state.SyncMessage.avatarSerialization = message.AvatarMessage;
-                    state.HasNewDataFrom.SetAll(true);
-                }
+                state.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
+                state.SyncMessage.avatarSerialization = message.AvatarMessage;
+                state.HasNewDataFrom.SetAll(true);
             }
 
             QueuedMessagePool.Return(message);

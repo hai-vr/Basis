@@ -138,12 +138,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                         if (elapsed >= required && stateI.HasNewDataFrom.Get(j))
                         {
-                            stateI.Writer.Put(BasisNetworkCommons.PlayerAvatarChannel);
                             var tempMsg = stateJ.SyncMessage;
                             tempMsg.interval = interval;
                             tempMsg.Serialize(stateI.Writer);
 
-                            peer.Send(stateI.Writer, BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable);
+                            peer.Send(stateI.Writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
                             stateI.HasNewDataFrom.Set(j, false);
                             stateI.Writer.Reset();
                             sentTimes[j] = nowTicks;
@@ -236,12 +235,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             {
                 if (!state.IsActive) state.IsActive = true;
 
-                if (BasisPacketUtil.ValidatePacket(message.AvatarMessage.SequenceNumber, state.SyncMessage.avatarSerialization.SequenceNumber))
-                {
-                    state.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
-                    state.SyncMessage.avatarSerialization = message.AvatarMessage;
-                    state.HasNewDataFrom.SetAll(true);
-                }
+                state.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
+                state.SyncMessage.avatarSerialization = message.AvatarMessage;
+                state.HasNewDataFrom.SetAll(true);
             }
 
             QueuedMessagePool.Return(message);

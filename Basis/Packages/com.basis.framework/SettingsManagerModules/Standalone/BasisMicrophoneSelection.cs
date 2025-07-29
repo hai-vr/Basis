@@ -28,7 +28,7 @@ public class BasisMicrophoneSelection : MonoBehaviour
 
     public void GenerateUI()
     {
-        SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.CurrentMode);
+        SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
         Dropdown.ClearOptions();
         List<TMP_Dropdown.OptionData> TmpOptions = new List<TMP_Dropdown.OptionData>();
 
@@ -64,13 +64,13 @@ public class BasisMicrophoneSelection : MonoBehaviour
 
     private void VolumeChanged(float value)
     {
-        SMDMicrophone.SaveVolumeSettings(BasisDeviceManagement.CurrentMode, value);
+        SMDMicrophone.SaveVolumeSettings(BasisDeviceManagement.StaticCurrentMode, value);
         UpdateMicrophoneVolumeText(value);
     }
 
     private void ApplyChanges(int index)
     {
-        SMDMicrophone.SaveMicrophoneData(BasisDeviceManagement.CurrentMode, SMDMicrophone.MicrophoneDevices[index]);
+        SMDMicrophone.SaveMicrophoneData(BasisDeviceManagement.StaticCurrentMode, SMDMicrophone.MicrophoneDevices[index]);
     }
 
     private void UpdateMicrophoneVolumeText(float value)

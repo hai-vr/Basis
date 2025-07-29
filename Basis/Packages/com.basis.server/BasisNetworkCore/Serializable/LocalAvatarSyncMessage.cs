@@ -15,8 +15,6 @@ public static partial class SerializableBasis
         public byte AdditionalAvatarDataSize;
         //when we swap avatars additional avatar data could be wrong for a few frames when that occurs linked avatar index will update to match.
         public byte LinkedAvatarIndex;
-
-        public byte SequenceNumber;
         public LocalAvatarSyncMessage(byte[] array) : this()
         {
             this.array = array;
@@ -24,7 +22,6 @@ public static partial class SerializableBasis
 
         public void Deserialize(NetDataReader Writer)
         {
-            Writer.Get(out SequenceNumber);
             int Bytes = Writer.AvailableBytes;
             if (Bytes >= AvatarSyncSize)
             {
@@ -68,7 +65,6 @@ public static partial class SerializableBasis
         }
         public void Serialize(NetDataWriter Writer)
         {
-            Writer.Put(SequenceNumber);
             if (array == null)
             {
                 BNL.LogError("array was null!!");

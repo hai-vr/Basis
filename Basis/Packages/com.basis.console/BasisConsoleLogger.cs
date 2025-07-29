@@ -51,7 +51,7 @@ public class BasisConsoleLogger : BasisUIBase
             $"Version: {Application.version} | " +
             $"Unity Version: {Application.unityVersion} | " +
             $"Platform: {Application.platform} | " +
-            $"Mode: {BasisDeviceManagement.CurrentMode} | " +
+            $"Mode: {BasisDeviceManagement.StaticCurrentMode} | " +
             $"Build GUID: {Application.buildGUID} | " +
             $"Log Path: {Application.consoleLogPath} | " +
             $"Data Path: {Application.dataPath}";

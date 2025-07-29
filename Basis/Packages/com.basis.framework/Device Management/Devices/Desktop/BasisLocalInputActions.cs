@@ -284,17 +284,20 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         {
             InputState.PrimaryButtonGetState = false;
         }
-
         public void OnSwitchDesktop(InputAction.CallbackContext ctx)
         {
-            BasisDeviceManagement.ForceSetDesktop();
+            if (ctx.phase == InputActionPhase.Performed)
+            {
+                BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.Desktop);
+            }
         }
-
         public void OnSwitchOpenXR(InputAction.CallbackContext ctx)
         {
-            BasisDeviceManagement.ForceLoadXR();
+            if (ctx.phase == InputActionPhase.Performed)
+            {
+                BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
+            }
         }
-
         public void OnLeftMouse(InputAction.CallbackContext ctx)
         {
             InputState.Trigger = ctx.ReadValue<float>();

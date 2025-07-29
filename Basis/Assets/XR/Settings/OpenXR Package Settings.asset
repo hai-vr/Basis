@@ -663,7 +663,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dd51bcce6c4135c4aa362a8ca1c29508, type: 3}
   m_Name: HTCViveTrackerProfile Standalone
   m_EditorClassIdentifier: 
-  m_enabled: 1
+  m_enabled: 0
   nameUi: HTC Vive Tracker Profile
   version: 0.0.2
   featureIdInternal: com.basis.openxr.feature.input.htcvivetracker
