@@ -33,11 +33,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 ? null
                 : transmitter.SendingOutAvatarData.Values.ToArray();
 
-            transmitter.AvatarSendWriter.Put(BasisNetworkCommons.PlayerAvatarChannel);
             transmitter.LASM.Serialize(transmitter.AvatarSendWriter);
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
 
-            BasisNetworkManagement.LocalPlayerPeer.Send(transmitter.AvatarSendWriter,BasisNetworkCommons.FallChannel,DeliveryMethod.Unreliable);
+            BasisNetworkManagement.LocalPlayerPeer.Send(transmitter.AvatarSendWriter,BasisNetworkCommons.PlayerAvatarChannel,DeliveryMethod.Sequenced);
 
             transmitter.AvatarSendWriter.Reset();
             transmitter.ClearAdditional();

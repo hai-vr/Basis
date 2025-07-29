@@ -113,7 +113,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 if (!playerStates.TryGetValue(i, out var stateI) || !stateI.IsActive) return;
 
                 var peer = stateI.Peer;
-                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable) <= 512;
+                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) <= 512;
 
                 List<Player> nearby = new();
                 Dictionary<int, byte> intervals = new();

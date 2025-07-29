@@ -19,8 +19,6 @@ namespace Basis.Scripts.Networking.Transmitters
         public bool IsInitalized = false;
         public bool HasEvents = false;
 
-        public byte SequenceNumber;
-
         public AudioSegmentDataMessage AudioSegmentData = new AudioSegmentDataMessage();
         public AudioSegmentDataMessage SilentSegmentData = new AudioSegmentDataMessage();
 
@@ -113,9 +111,6 @@ namespace Basis.Scripts.Networking.Transmitters
                 AudioSegmentData.buffer,
                 AudioSegmentData.TotalLength
             );
-
-            AudioSegmentData.SequenceNumber = GetNextSequence();
-            writer.Put(BasisNetworkCommons.VoiceChannel);
             AudioSegmentData.Serialize(writer);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, AudioSegmentData.LengthUsed);
@@ -131,9 +126,6 @@ namespace Basis.Scripts.Networking.Transmitters
             writer.Reset();
 
             SilentSegmentData.LengthUsed = 0;
-            SilentSegmentData.SequenceNumber = GetNextSequence();
-
-            writer.Put(BasisNetworkCommons.VoiceChannel);
             SilentSegmentData.Serialize(writer);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, writer.Length);
@@ -142,15 +134,9 @@ namespace Basis.Scripts.Networking.Transmitters
             BasisLocalPlayer.Instance.AudioReceived?.Invoke(false);
         }
 
-        private byte GetNextSequence()
-        {
-            SequenceNumber = (byte)((SequenceNumber + 1) % 256);
-            return SequenceNumber;
-        }
-
         public void SendOutVoice(NetDataWriter writer)
         {
-            BasisNetworkManagement.LocalPlayerPeer.Send(writer, BasisNetworkCommons.FallChannel, DeliveryMethod.Unreliable);
+            BasisNetworkManagement.LocalPlayerPeer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Sequenced);
         }
     }
 }
