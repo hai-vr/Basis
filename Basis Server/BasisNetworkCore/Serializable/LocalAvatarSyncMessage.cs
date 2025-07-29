@@ -3,11 +3,7 @@ public static partial class SerializableBasis
 {
     public struct LocalAvatarSyncMessage
     {
-        public byte[] array;//position -> rotation -> rotation
-        //89 * 2 = 178
-        //6 position
-        //14 rotation
-        //2 ushort scale
+        public byte[] array;//position -> rotation -> rotation -> scale
         public const int AvatarSyncSize = 206;//plus a additional 1 byte after this for additional avatar data
         public const int StoredBones = 89;
 
@@ -25,8 +21,7 @@ public static partial class SerializableBasis
             int Bytes = Writer.AvailableBytes;
             if (Bytes >= AvatarSyncSize)
             {
-                //89 * 2 = 178 + 12 + 14 + 2 = 206
-                //now 178 for muscles, position 12, 4*4 for rotation 16-2 (W is half), 2 for scale = 204
+                //89 * 2 = 178 + 12 + 14 + 2 = 204
                 array ??= new byte[AvatarSyncSize];
                 Writer.GetBytes(array, AvatarSyncSize);
                 if (Writer.TryGetByte(out AdditionalAvatarDataSize))
@@ -41,9 +36,6 @@ public static partial class SerializableBasis
                         {
                             BNL.LogError("Missing LinkedAvatarIndex!");
                         }
-                    }
-                    if (AdditionalAvatarDataSize != 0)
-                    {
                         AdditionalAvatarDatas = new AdditionalAvatarData[AdditionalAvatarDataSize];
                         for (int Index = 0; Index < AdditionalAvatarDataSize; Index++)
                         {
@@ -84,6 +76,10 @@ public static partial class SerializableBasis
                 if (AdditionalAvatarDataSize != 0)
                 {
                     Writer.Put(LinkedAvatarIndex);//we only include the linked avatar if there is additional avatar size.
+                }
+                else
+                {
+                    return;
                 }
                 for (int Index = 0; Index < AdditionalAvatarDataSize; Index++)
                 {

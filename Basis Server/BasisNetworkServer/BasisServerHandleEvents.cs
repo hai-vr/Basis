@@ -313,7 +313,7 @@ namespace BasisServerHandle
                 audioSegmentData = audioSegment,
             };
 
-            SendVoiceMessageToClients(serverAudio, BasisNetworkCommons.FallChannel, peer, DeliveryMethod.Unreliable);
+            SendVoiceMessageToClients(serverAudio, BasisNetworkCommons.VoiceChannel, peer, DeliveryMethod.Sequenced);
 
             ThreadSafeMessagePool<AudioSegmentDataMessage>.Return(audioSegment);
         }
@@ -340,7 +340,6 @@ namespace BasisServerHandle
             };
 
             var writer = new NetDataWriter(true, 3);
-            writer.Put(BasisNetworkCommons.VoiceChannel);
             audioSegment.Serialize(writer);
 
             NetworkServer.BroadcastMessageToClients(writer, channel, ref targetPeers, method);
