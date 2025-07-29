@@ -27,9 +27,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public Basis.Scripts.Networking.Compression.Vector3 Position;
         public FastBitSet HasNewDataFrom;
         public ServerSideSyncPlayerMessage SyncMessage;
-        public NetDataWriter Writer;
-
-        public List<BasisServerReductionSystemEvents.Player> NearbyPlayers = new();
         public Dictionary<int, byte> DeliveryIntervals = new();
         public Dictionary<int, long> LastSentTimes = new();
     }
@@ -105,57 +102,74 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     await Task.Yield(); // if over budget, yield control briefly
             }
         }
-
+        private static List<(int id, PlayerState state)> _threadLocalActivePlayers = new();
         private static void UpdateCommunicationAndDistances(long nowTicks)
         {
-            Parallel.ForEach(playerStates.Keys, parallelOptions, i =>
+            _threadLocalActivePlayers.Clear();
+            foreach (var kvp in playerStates)
             {
-                if (!playerStates.TryGetValue(i, out var stateI) || !stateI.IsActive) return;
-
-                var peer = stateI.Peer;
-                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) <= 512;
-
-                List<Player> nearby = new();
-                Dictionary<int, byte> intervals = new();
-                Dictionary<int, long> sentTimes = new();
-
-                foreach (var j in playerStates.Keys)
+                if (kvp.Value.IsActive)
                 {
-                    if (i == j) continue;
-                    if (!playerStates.TryGetValue(j, out var stateJ) || !stateJ.IsActive) continue;
+                    _threadLocalActivePlayers.Add((kvp.Key, kvp.Value));
+                }
+            }
+            int PlayerCount = _threadLocalActivePlayers.Count;
 
+            Parallel.ForEach(_threadLocalActivePlayers, parallelOptions, playerI =>
+            {
+                var stateI = playerI.state;
+                var peer = stateI.Peer;
+
+                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) <= 1024;
+                var intervals = stateI.DeliveryIntervals;
+                var sentTimes = stateI.LastSentTimes;
+
+                for (int Index = 0; Index < PlayerCount; Index++)
+                {
+                    var playerJ = _threadLocalActivePlayers[Index];
+                    if (playerI.id == playerJ.id)
+                        continue;
+
+                    var stateJ = playerJ.state;
                     float distSq = DistanceSquared(stateI.Position, stateJ.Position);
-                    nearby.Add(new Player { Id = j, syncMsg = stateJ.SyncMessage });
-
                     byte interval = CalculateIntervalFromDistanceSq(distSq);
-                    intervals[j] = interval;
-                    sentTimes[j] = stateI.LastSentTimes.GetValueOrDefault(j, 0);
+                    intervals[playerJ.id] = interval;
 
-                    if (canSend && stateI.Writer != null && stateI.HasNewDataFrom != null)
+                    if (!sentTimes.ContainsKey(playerJ.id))
+                        sentTimes[playerJ.id] = 0;
+
+                    if (canSend && stateI.HasNewDataFrom != null)
                     {
-                        long elapsed = nowTicks - sentTimes[j];
+                        long elapsed = nowTicks - sentTimes[playerJ.id];
                         long required = (long)(interval * MsToTick);
 
-                        if (elapsed >= required && stateI.HasNewDataFrom.Get(j))
+                        if (elapsed >= required && stateI.HasNewDataFrom.Get(playerJ.id))
                         {
                             var tempMsg = stateJ.SyncMessage;
                             tempMsg.interval = interval;
-                            tempMsg.Serialize(stateI.Writer);
-
-                            peer.Send(stateI.Writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
-                            stateI.HasNewDataFrom.Set(j, false);
-                            stateI.Writer.Reset();
-                            sentTimes[j] = nowTicks;
+                            NetDataWriter Writer = RentWriter();
+                            tempMsg.Serialize(Writer);
+                            peer.Send(Writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
+                            stateI.HasNewDataFrom.Set(playerJ.id, false);
+                            ReturnWriter(Writer);
+                            sentTimes[playerJ.id] = nowTicks;
                         }
                     }
                 }
-
-                stateI.NearbyPlayers = nearby;
-                stateI.DeliveryIntervals = intervals;
-                stateI.LastSentTimes = sentTimes;
             });
         }
+        public static readonly ConcurrentQueue<NetDataWriter> WriterPool = new();
 
+        public static NetDataWriter RentWriter()
+        {
+            return WriterPool.TryDequeue(out var writer) ? writer : new NetDataWriter(true, 208);
+        }
+
+        public static void ReturnWriter(NetDataWriter writer)
+        {
+            writer.Reset();
+            WriterPool.Enqueue(writer);
+        }
         private static float DistanceSquared(Basis.Scripts.Networking.Compression.Vector3 a, Basis.Scripts.Networking.Compression.Vector3 b)
         {
             float dx = a.x - b.x;
@@ -178,16 +192,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             {
                 removedState.IsActive = false;
 
-                // Reset writer if needed
-                removedState.Writer?.Reset();
-
                 // Clean up HasNewDataFrom bitsets in other players
                 foreach (var kvp in playerStates)
                 {
                     kvp.Value.HasNewDataFrom?.Set(id, false);
                     kvp.Value.DeliveryIntervals?.Remove(id);
                     kvp.Value.LastSentTimes?.Remove(id);
-                    kvp.Value.NearbyPlayers?.RemoveAll(p => p.Id == id);
                 }
 
                 BNL.Log($"Player {id} removed and cleaned up.");
@@ -200,8 +210,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         public struct Player
         {
-            public int Id;
+            public readonly int Id;
             public ServerSideSyncPlayerMessage syncMsg;
+
+            public Player(int id, ServerSideSyncPlayerMessage syncMsg)
+            {
+                Id = id;
+                this.syncMsg = syncMsg;
+            }
         }
 
         private static void ProcessMessage(QueuedMessage message)
@@ -220,7 +236,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         playerIdMessage = new PlayerIdMessage { playerID = (ushort)id },
                         avatarSerialization = message.AvatarMessage
                     },
-                    Writer = new NetDataWriter(true, 208)
                 };
                 state.HasNewDataFrom.SetAll(true);
                 playerStates[id] = state;
