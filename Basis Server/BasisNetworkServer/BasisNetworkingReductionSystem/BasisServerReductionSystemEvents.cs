@@ -132,7 +132,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 var stateI = playerI.state;
                 var peer = stateI.Peer;
 
-                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) <= 64;
+                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) == 0;//if there is any packets for this message index that means last time we ran this that data then has not been processed.
                 var sentTimes = stateI.LastSentTimes;
 
                 for (int Index = 0; Index < PlayerCount; Index++)
