@@ -2,7 +2,6 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Profiler;
 using Basis.Scripts.TransformBinders.BoneControl;
-using BasisNetworkCore;
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
@@ -68,6 +67,7 @@ namespace Basis.Scripts.Networking.Receivers
                 interpolationTime = Mathf.Clamp01((float)((TimeAsDouble - TimeInThePast) / TimeBeforeCompletion));
                 if (float.IsNaN(interpolationTime))
                 {
+                    BasisDebug.LogError("IsNaN on Interpolation Time");
                     interpolationTime = 0f;
                 }
                 if (First == null)

@@ -25,8 +25,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             int length = data.Length;
             if (length >= LocalAvatarSyncMessage.AvatarSyncSize)
             {
-                int Interval = BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
-                BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, baseReceiver, (Interval + syncMessage.interval) / 1000f);
+                double Interval = (double)BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;// Interval + syncMessage.interval
+                BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, baseReceiver, (double)(Interval + (double)syncMessage.interval) / 1000f);
                 EnqueueAndProcessAdditionalData(baseReceiver, ref avatarBuffer, syncMessage.avatarSerialization, length);
             }
             else
