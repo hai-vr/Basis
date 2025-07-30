@@ -4,6 +4,7 @@ namespace Basis.Scripts.Device_Management
     {
         public const string InvalidConst = "Invalid";
         public const string Desktop = "Desktop";
+        public const string Headless = "Headless";
         public const string SimulateXR = "SimulateXR";
         public const string OpenVRLoader = "OpenVRLoader";
         public const string OpenXRLoader = "OpenXRLoader";

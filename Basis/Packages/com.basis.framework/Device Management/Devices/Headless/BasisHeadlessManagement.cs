@@ -1,3 +1,5 @@
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices.Headless;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
@@ -132,8 +134,6 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
 #if UNITY_SERVER
         if (BasisHeadlessInput == null)
         {
-            BasisDeviceManagement.Instance.SetCameraRenderState(false);
-            BasisDeviceManagement.CurrentMode = "Headless";
             GameObject gameObject = new GameObject("Headless Eye");
             if (BasisLocalPlayer.Instance != null)
             {
@@ -143,7 +143,7 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
             BasisHeadlessInput.Initialize("Desktop Eye", nameof(Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput));
             BasisDeviceManagement.Instance.TryAdd(BasisHeadlessInput);
         }
-        BasisDebug.Log(nameof(BeginLoadSDK), BasisDebug.LogTag.Device);
+        BasisDebug.Log(nameof(StartSDK), BasisDebug.LogTag.Device);
         BasisLocalPlayer.Instance.DisplayName = GenerateRandomPlayerName();
         BasisLocalPlayer.Instance.SetSafeDisplayname();
         if (BasisNetworkManagement.Instance != null)

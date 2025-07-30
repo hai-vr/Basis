@@ -154,13 +154,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                         if (elapsed >= required && stateI.HasNewDataFrom.Get(playerJ.id))
                         {
+                            stateI.HasNewDataFrom.Set(playerJ.id, false);//instantly no new data ok.
                             var tempMsg = stateJ.SyncMessage;
                             tempMsg.interval = interval;
                             NetDataWriter Writer = RentWriter();
                             tempMsg.Serialize(Writer);
                             peer.Send(Writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
-                            stateI.HasNewDataFrom.Set(playerJ.id, false);
-                            ReturnWriter(Writer);
+                            ReturnWriter(Writer);//return as fast as possible to reduce pressure of creating more and having more in mem.
                             sentTimes[playerJ.id] = nowTicks;
                         }
                     }

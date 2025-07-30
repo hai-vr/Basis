@@ -381,11 +381,26 @@ namespace Basis.Scripts.Device_Management
             hasPendingActions = true;
         }
 
-        public string DefaultMode() => IsMobile() ? BasisConstants.OpenXRLoader : BasisConstants.Desktop;
+        public string DefaultMode()
+        {
+#if UNITY_SERVER
+            return BasisConstants.Headless;
+#else
+#endif
+            if (IsMobile())
+            {
+                return BasisConstants.OpenXRLoader;
+            }
+            else
+            {
+                return BasisConstants.Desktop;
+            }
+        }
+
         public static bool IsMobile() => Application.platform == RuntimePlatform.Android;
         public static bool IsUserInDesktop() => StaticCurrentMode == BasisConstants.Desktop;
         public static bool IsCurrentModeVR() => StaticCurrentMode == BasisConstants.OpenVRLoader || StaticCurrentMode == BasisConstants.OpenXRLoader;
 
-        #endregion
+#endregion
     }
 }
