@@ -9,6 +9,8 @@ public class BasisEventDriver : MonoBehaviour
 {
     public float updateInterval = 0.1f; // 100 milliseconds
     public float timeSinceLastUpdate = 0f;
+    public float DeltaTime;
+    public double TimeAsDouble;
     public void OnEnable()
     {
 #if UNITY_SERVER
@@ -30,8 +32,6 @@ public class BasisEventDriver : MonoBehaviour
         Application.onBeforeRender -= OnBeforeRender;
 #endif
     }
-    public float DeltaTime;
-    public double TimeAsDouble;
     public void Update()
     {
         DeltaTime = Time.deltaTime;

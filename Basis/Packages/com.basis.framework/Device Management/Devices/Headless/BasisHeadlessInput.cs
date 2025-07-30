@@ -4,6 +4,7 @@ using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
+using System.Collections;
 using UnityEngine;
 
 namespace Basis.Scripts.Device_Management.Devices.Headless
@@ -31,7 +32,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
         private float inputLerpSpeed = 3f;
         private float timeSinceLastInputChange = 0f;
         private float inputChangeInterval = 2f;
-
+        public float respawnInterval = 300;
         public void Initialize(string ID = "Desktop Eye", string subSystems = "BasisDesktopManagement")
         {
             BasisDebug.Log("Initializing Avatar Eye", BasisDebug.LogTag.Input);
@@ -54,7 +55,9 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
                 BasisVirtualSpine.Initialize();
                 OnPlayersHeightChanged();
                 HasEyeEvents = true;
+                StartCoroutine(RespawnRoutine());
             }
+            
         }
 
         public new void OnDestroy()
@@ -123,6 +126,11 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
             CurrentInputState.Primary2DAxis = currentPrimary2DAxis;
             CurrentInputState.Secondary2DAxis = currentSecondary2DAxis;
 
+            if(Random.value > 0.9f)
+            {
+                BasisLocalPlayer.Instance.LocalCharacterDriver.HandleJump();
+            }
+
             // Rotation and position
             UnscaledDeviceCoord.rotation = currentRotation;
             float baseHeight = BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerHeight;
@@ -188,6 +196,14 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
         public override void PlaySoundEffect(string SoundEffectName, float Volume)
         {
             PlaySoundEffectDefaultImplementation(SoundEffectName, Volume);
+        }
+        private IEnumerator RespawnRoutine()
+        {
+            while (true)
+            {
+                yield return new WaitForSeconds(respawnInterval);
+                BasisSceneFactory.SpawnPlayer(BasisLocalPlayer.Instance);
+            }
         }
     }
 }
