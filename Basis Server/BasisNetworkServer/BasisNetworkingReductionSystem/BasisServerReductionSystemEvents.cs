@@ -217,27 +217,34 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
         public static void Shutdown() => cts.Cancel();
 
+        private static readonly object playerStateLock = new();
+
         public static void RemovePlayer(int id)
         {
-            if (playerStates.TryRemove(id, out var removedState))
+            lock (playerStateLock)
             {
-                removedState.IsActive = false;
-
-                // Clean up HasNewDataFrom bitsets in other players
-                foreach (var kvp in playerStates)
+                if (playerStates.TryRemove(id, out var removedState))
                 {
-                    kvp.Value.HasNewDataFrom?.Set(id, false);
-                    kvp.Value.LastSentTimes?.Remove(id);
-                }
+                    removedState.IsActive = false;
 
-                BNL.Log($"Player {id} removed and cleaned up.");
-            }
-            else
-            {
-                BNL.LogError("Missing Player From Index this is scary! " + id);
+                    foreach (var kvp in playerStates)
+                    {
+                        var state = kvp.Value;
+                        lock (state)
+                        {
+                            state.HasNewDataFrom?.Set(id, false);
+                            state.LastSentTimes?.Remove(id);
+                        }
+                    }
+
+                    BNL.Log($"Player {id} removed and cleaned up.");
+                }
+                else
+                {
+                    BNL.LogError("Missing Player From Index this is scary! " + id);
+                }
             }
         }
-
         public struct Player
         {
             public readonly int Id;
