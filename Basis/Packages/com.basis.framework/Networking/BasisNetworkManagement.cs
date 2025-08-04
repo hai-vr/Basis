@@ -103,6 +103,7 @@ namespace Basis.Scripts.Networking
             {
                 Instance = this;
             }
+            BasisAudioRemoteSource.Initalize();
             instantiationParameters = new InstantiationParameters(Vector3.zero, Quaternion.identity, BasisDeviceManagement.Instance.transform);
             BasisAvatarMuscleRange.Initalize();
             MainThreadContext = SynchronizationContext.Current;
@@ -138,6 +139,7 @@ namespace Basis.Scripts.Networking
         }
         public async void OnDestroy()
         {
+            BasisAudioRemoteSource.DeInitalize();
             Players.Clear();
             await Shutdown();
             BasisAvatarBufferPool.Clear();

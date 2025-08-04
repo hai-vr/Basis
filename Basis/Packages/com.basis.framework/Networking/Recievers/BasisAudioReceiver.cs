@@ -53,10 +53,7 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (AudioSourceTransform == null)
             {
-                UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> Loadable = Addressables.LoadAssetAsync<GameObject>(AudioSource);
-                GameObject LoadableAudioSource = Loadable.WaitForCompletion();
-                GameObject ActualAudio = GameObject.Instantiate(LoadableAudioSource, BasisDeviceManagement.Instance.transform);
-                AudioSourceTransform = ActualAudio.transform;
+                AudioSourceTransform = BasisAudioRemoteSource.RequestAudio().transform;
                 AudioSourceTransform.name = $"[Audio] {BasisNetworkPlayer.Player.DisplayName}";
                 HasTransform = true;
                 if (audioSource == null)
@@ -82,7 +79,7 @@ namespace Basis.Scripts.Networking.Receivers
             }
             if (AudioSourceTransform != null)
             {
-                GameObject.Destroy(AudioSourceTransform.gameObject);
+                BasisAudioRemoteSource.Return(AudioSourceTransform.gameObject);
                 AudioSourceTransform = null;
                 HasTransform = false;
                 BasisRemoteVisemeAudioDriver = null;

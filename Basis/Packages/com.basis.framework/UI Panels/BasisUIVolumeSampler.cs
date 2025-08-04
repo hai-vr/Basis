@@ -1,9 +1,7 @@
 using Basis.Scripts.BasisSdk.Players;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.Audio;
 using UnityEngine.UI;
-
 public class BasisUIVolumeSampler : MonoBehaviour
 {
     public Image[] MicrophoneSections;
