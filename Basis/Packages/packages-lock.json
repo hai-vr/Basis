@@ -591,13 +591,6 @@
       "source": "embedded",
       "dependencies": {}
     },
-    "net.virtualwebsite.ffmpegunity": {
-      "version": "https://github.com/VirtualBrightPlayz/FFmpeg.Unity.git?path=/Packages/FFmpeg.Unity#dynload",
-      "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "519941daf7e79446ec58ddf87c28842158b6d96b"
-    },
     "org.basisvr.base128": {
       "version": "file:org.basisvr.base128-1.2.2.tgz",
       "depth": 0,

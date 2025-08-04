@@ -105,11 +105,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 5a56da6aca6070344a386c9c12cd08be
-    m_Address: Assets/Video Player/Video Player.prefab
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 5ae1051fd2d154e43bd647430b08a010
     m_Address: Packages/com.basis.basisdk/Materials/VideoPlayer.mat
     m_ReadOnly: 0

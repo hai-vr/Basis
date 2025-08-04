@@ -8,11 +8,9 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.Assertions.Must;
 using UnityEngine.SceneManagement;
 using static BundledContentHolder;
 using static SerializableBasis;
-
 public static class BasisNetworkSpawnItem
 {
     public static bool RequestSceneLoad(string UnlockPassword, string CombinedURL, bool Persist, out LocalLoadResource localLoadResource)
@@ -179,6 +177,12 @@ public static class BasisNetworkSpawnItem
             new Vector3(localLoadResource.ScaleX, localLoadResource.ScaleY, localLoadResource.ScaleZ),
             localLoadResource.ModifyScale, Selector, BasisNetworkManagement.Instance.transform);
 
+        if (reference == null)
+        {
+            BasisDebug.LogError($"Unable to load {loadBundle.BasisLocalEncryptedBundle.DownloadedBeeFileLocation}", BasisDebug.LogTag.Networking);
+            BasisProgressReport.OnProgressReport -= BasisUILoadingBar.ProgressReport;
+            return null;
+        }
         if (reference.TryGetComponent<BasisNetworkContentBase>(out BasisNetworkContentBase BasisContentBase))
         {
             BasisContentBase.AssignNetworkGUIDIdentifier(localLoadResource.LoadedNetID);

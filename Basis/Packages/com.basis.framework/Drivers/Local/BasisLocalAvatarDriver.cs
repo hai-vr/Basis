@@ -474,7 +474,10 @@ namespace Basis.Scripts.Drivers
 			for (int Index = 0; Index < SkinnedMeshRendererLength; Index++)
 			{
 				SkinnedMeshRenderer Render = SkinnedMeshRenderer[Index];
-				Render.forceMatrixRecalculationPerRender = State;
+				if (Render != null)
+				{
+					Render.forceMatrixRecalculationPerRender = State;
+				}
 			}
 		}
 
@@ -483,7 +486,10 @@ namespace Basis.Scripts.Drivers
 			for (int Index = 0; Index < SkinnedMeshRendererLength; Index++)
 			{
 				SkinnedMeshRenderer Render = SkinnedMeshRenderer[Index];
-				Render.updateWhenOffscreen = State;
+				if (Render != null)
+				{
+					Render.updateWhenOffscreen = State;
+				}
 			}
 		}
         public Quaternion MoveAvatar(BasisAvatar BasisAvatar)

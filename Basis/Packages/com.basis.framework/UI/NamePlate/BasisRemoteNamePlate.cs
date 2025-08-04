@@ -123,10 +123,10 @@ namespace Basis.Scripts.UI.NamePlate
         {
             CurrentColor = Renderer.sharedMaterials[0].color;
             float elapsedTime = 0f;
-
+            float DeltaTime = Time.deltaTime;
             while (elapsedTime < BasisRemoteNamePlateDriver.transitionDuration)
             {
-                elapsedTime += Time.deltaTime;
+                elapsedTime += DeltaTime;
                 float lerpProgress = Mathf.Clamp01(elapsedTime / BasisRemoteNamePlateDriver.transitionDuration);
                 Renderer.materials[0].color = Color.Lerp(CurrentColor, targetColor, lerpProgress);
                 yield return cachedEndOfFrame;

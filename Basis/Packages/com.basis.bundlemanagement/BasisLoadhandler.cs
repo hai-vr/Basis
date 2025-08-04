@@ -29,21 +29,42 @@ public static class BasisLoadHandler
 
     private static async void SceneUnloaded(Scene UnloadedScene)
     {
+        if (LoadedBundles == null || string.IsNullOrEmpty(UnloadedScene.path))
+            return;
+
+        List<string> keysToRemove = new List<string>();
+
         foreach (KeyValuePair<string, BasisTrackedBundleWrapper> kvp in LoadedBundles)
         {
-            if (kvp.Value != null)
+            var bundle = kvp.Value;
+
+            if (bundle == null || string.IsNullOrEmpty(bundle.MetaLink))
+                continue;
+
+            if (bundle.MetaLink == UnloadedScene.path)
             {
-                if (kvp.Value.MetaLink == UnloadedScene.path)
+                bundle.DeIncrement();
+
+                bool state = false;
+                try
                 {
-                    kvp.Value.DeIncrement();
-                    bool State = await kvp.Value.UnloadIfReady();
-                    if (State)
-                    {
-                        LoadedBundles.Remove(kvp.Key);
-                        return;
-                    }
+                    state = await bundle.UnloadIfReady();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Error while unloading bundle '{kvp.Key}': {ex}");
+                }
+
+                if (state)
+                {
+                    keysToRemove.Add(kvp.Key);
                 }
             }
+        }
+
+        foreach (string key in keysToRemove)
+        {
+            LoadedBundles.Remove(key);
         }
     }
     /// <summary>

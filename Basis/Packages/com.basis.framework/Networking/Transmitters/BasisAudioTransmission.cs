@@ -110,9 +110,7 @@ namespace Basis.Scripts.Networking.Transmitters
             AudioSegmentData.Serialize(writer);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, AudioSegmentData.LengthUsed);
-            SendOutVoice(writer);
-
-            BasisLocalPlayer.Instance.AudioReceived?.Invoke(true);
+            SendOutVoice(writer, true);
         }
 
         private void SendSilenceOverNetwork()
@@ -125,14 +123,16 @@ namespace Basis.Scripts.Networking.Transmitters
             SilentSegmentData.Serialize(writer);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, writer.Length);
-            SendOutVoice(writer);
-
-            BasisLocalPlayer.Instance.AudioReceived?.Invoke(false);
+            SendOutVoice(writer, false);
         }
 
-        public void SendOutVoice(NetDataWriter writer)
+        public void SendOutVoice(NetDataWriter writer, bool State)
         {
             BasisNetworkManagement.LocalPlayerPeer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Sequenced);
+            if (BasisLocalPlayer.Instance != null)
+            {
+                BasisLocalPlayer.Instance.AudioReceived?.Invoke(State);
+            }
         }
     }
 }
