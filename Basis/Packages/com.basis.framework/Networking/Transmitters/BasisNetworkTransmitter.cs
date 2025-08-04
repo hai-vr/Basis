@@ -234,7 +234,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public override void Initialize()
         {
             IndexLength = -1;
-            AudioTransmission.OnEnable(this);
+            AudioTransmission.Initialize(this);
             OnAvatarCalibrationLocal();
             if (HasEvents == false)
             {
@@ -323,7 +323,7 @@ namespace Basis.Scripts.Networking.Transmitters
         {
             if (AudioTransmission != null)
             {
-                AudioTransmission.OnDisable();
+                AudioTransmission.DeInitialize();
             }
             if (HasEvents)
             {

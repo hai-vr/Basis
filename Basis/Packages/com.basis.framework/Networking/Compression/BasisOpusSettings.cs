@@ -1,5 +1,6 @@
 using LiteNetLib;
 using OpusSharp.Core;
+using System;
 using UnityEngine;
 
 public static class LocalOpusSettings
@@ -17,15 +18,39 @@ public static class LocalOpusSettings
     public static int rmsWindowSize = 10;
     public static void SetDeviceAudioConfig(int maxFreq)
     {
-    //    MicrophoneSampleRate = maxFreq;
+        //    MicrophoneSampleRate = maxFreq;
     }
     public static int SampleRate()
     {
-      return Mathf.CeilToInt(SharedOpusSettings.DesiredDurationInSeconds * MicrophoneSampleRate);
+        return Mathf.CeilToInt(SharedOpusSettings.DesiredDurationInSeconds * MicrophoneSampleRate);
     }
-    public static float[] CalculateProcessBuffer()
+    public static void EnsureProcessBuffer(ref float[] Processed, out int ProcessBufferLength)
     {
-        return new float[SampleRate()];
+        ProcessBufferLength = SampleRate(); // Protect against negative sizes
+
+        if (Processed == null)
+        {
+            Processed = new float[ProcessBufferLength];
+            return;
+        }
+
+        if (Processed.Length != ProcessBufferLength)
+        {
+            Array.Resize(ref Processed, ProcessBufferLength);
+        }
+    }
+    public static void CreateOrResizeArray(int Input,ref float[] Processed)
+    {
+        if (Processed == null)
+        {
+            Processed = new float[Input];
+            return;
+        }
+
+        if (Processed.Length != Input)
+        {
+            Array.Resize(ref Processed, Input);
+        }
     }
 }
 public static class SharedOpusSettings

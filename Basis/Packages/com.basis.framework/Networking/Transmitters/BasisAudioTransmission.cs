@@ -15,16 +15,12 @@ namespace Basis.Scripts.Networking.Transmitters
         public OpusEncoder encoder;
         public BasisNetworkPlayer NetworkedPlayer;
         public BasisLocalPlayer Local;
-
         public bool IsInitalized = false;
         public bool HasEvents = false;
-
         public AudioSegmentDataMessage AudioSegmentData = new AudioSegmentDataMessage();
         public AudioSegmentDataMessage SilentSegmentData = new AudioSegmentDataMessage();
-
         public NetDataWriter writer = new NetDataWriter();
-
-        public void OnEnable(BasisNetworkPlayer networkedPlayer)
+        public void Initialize(BasisNetworkPlayer networkedPlayer)
         {
             if (IsInitalized) return;
 
@@ -38,14 +34,14 @@ namespace Basis.Scripts.Networking.Transmitters
             IsInitalized = true;
         }
 
-        public void OnDisable()
+        public void DeInitialize()
         {
             if (HasEvents)
             {
                 DetachMicrophoneEvents();
             }
 
-            BasisLocalMicrophoneDriver.OnDestroy();
+            BasisLocalMicrophoneDriver.DeInitialize();
 
             encoder?.Dispose();
             encoder = null;

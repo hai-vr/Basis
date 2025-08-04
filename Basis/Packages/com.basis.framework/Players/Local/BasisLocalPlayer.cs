@@ -106,7 +106,7 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 await CreateAvatar(LoadModeLocal, BasisAvatarFactory.LoadingAvatar);
             }
-            BasisLocalMicrophoneDriver.TryInitialize();
+            BasisLocalMicrophoneDriver.Initialize();
             PlayerReady = true;
             OnLocalPlayerCreatedAndReady?.Invoke();
             BasisScene BasisScene = FindFirstObjectByType<BasisScene>(FindObjectsInactive.Exclude);

@@ -31,7 +31,10 @@ public static class BasisNetworkGenericMessages
     private static readonly List<DeferredMessage> _deferredMessages = new();
     private static readonly Dictionary<ushort, Action<ushort, byte[], DeliveryMethod>> _handlers = new();
     private const int MaxDeferredMessages = 1000; // Set your limit here
-
+    public delegate void OnNetworkMessageReceiveOwnershipTransfer(string UniqueEntityID, ushort NetIdNewOwner, bool IsOwner);
+    public delegate void OnNetworkMessageReceiveOwnershipRemoved(string UniqueEntityID);
+    // Sending message with different conditions
+    private static readonly ThreadLocal<NetDataWriter> threadLocalWriter = new ThreadLocal<NetDataWriter>(() => new NetDataWriter());
     public static void RegisterHandler(ushort messageIndex, Action<ushort, byte[], DeliveryMethod> handler)
     {
         _handlers[messageIndex] = handler;
@@ -72,18 +75,16 @@ public static class BasisNetworkGenericMessages
 
     private static void TryDeliverDeferredMessages()
     {
-        for (int i = _deferredMessages.Count - 1; i >= 0; i--)
+        for (int Index = _deferredMessages.Count - 1; Index >= 0; Index--)
         {
-            var msg = _deferredMessages[i];
+            var msg = _deferredMessages[Index];
             if (_handlers.TryGetValue(msg.MessageIndex, out var handler))
             {
                 handler.Invoke(msg.PlayerId, msg.Payload, msg.DeliveryMethod);
-                _deferredMessages.RemoveAt(i);
+                _deferredMessages.RemoveAt(Index);
             }
         }
     }
-    public delegate void OnNetworkMessageReceiveOwnershipTransfer(string UniqueEntityID, ushort NetIdNewOwner, bool IsOwner);
-    public delegate void OnNetworkMessageReceiveOwnershipRemoved(string UniqueEntityID);
     public static void HandleOwnershipTransfer(NetPacketReader reader)
     {
         OwnershipTransferMessage OwnershipTransferMessage = new OwnershipTransferMessage();
@@ -126,12 +127,12 @@ public static class BasisNetworkGenericMessages
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAvatarData, reader.AvailableBytes);
         ServerAvatarDataMessage serverAvatarDataMessage = new ServerAvatarDataMessage();
         serverAvatarDataMessage.Deserialize(reader);
-        ushort avatarLinkID = serverAvatarDataMessage.avatarDataMessage.PlayerIdMessage.playerID; // destination
-        if (BasisNetworkManagement.Players.TryGetValue(avatarLinkID, out BasisNetworkPlayer player))
+        ushort playerID = serverAvatarDataMessage.avatarDataMessage.PlayerIdMessage.playerID; // destination
+        if (BasisNetworkManagement.Players.TryGetValue(playerID, out BasisNetworkPlayer player))
         {
             if (player.Player == null)
             {
-                BasisDebug.LogError("Missing Player! " + avatarLinkID);
+                BasisDebug.LogError("Missing Player! " + playerID);
                 return;
             }
             if (player.Player.BasisAvatar != null)
@@ -140,6 +141,16 @@ public static class BasisNetworkGenericMessages
                 if (player.NetworkBehaviours.Length >= output.messageIndex)
                 {
                     bool IsDifferentAvatar = output.AvatarLinkIndex != player.LastLinkedAvatarIndex;
+                    if(IsDifferentAvatar)
+                    {
+                        byte NextAvatarIndex = (byte)((player.LastLinkedAvatarIndex + 1) % (byte.MaxValue + 1));
+                        if(NextAvatarIndex == output.AvatarLinkIndex)
+                        {
+                            //ok we know that its a different avatar and that its actually the next to load avatar
+                            //as of such lets store this message so we can play it back shortly
+
+                        }
+                    }
                     if (output.messageIndex < player.NetworkBehaviourCount)
                     {
                         player.NetworkBehaviours[output.messageIndex].OnNetworkMessageReceived(serverAvatarDataMessage.playerIdMessage.playerID, output.payload, Method, IsDifferentAvatar);
@@ -156,9 +167,6 @@ public static class BasisNetworkGenericMessages
             BasisDebug.Log("Missing Player For Message " + serverAvatarDataMessage.playerIdMessage.playerID);
         }
     }
-    // Sending message with different conditions
-    private static readonly ThreadLocal<NetDataWriter> threadLocalWriter = new ThreadLocal<NetDataWriter>(() => new NetDataWriter());
-
     public static void OnNetworkMessageSend(ushort messageIndex,byte[] buffer = null,DeliveryMethod deliveryMethod = DeliveryMethod.Unreliable,ushort[] recipients = null)
     {
         NetDataWriter netDataWriter = threadLocalWriter.Value;

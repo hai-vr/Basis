@@ -28,7 +28,6 @@ public static class BasisLocalMicrophoneDriver
     public static AudioClip clip;
     public static bool IsInitialize = false;
     public static string MicrophoneDevice = null;
-    public static int ProcessBufferLength;
     public static float Volume = 1; // Volume adjustment factor, default to 1 (no adjustment)
     [HideInInspector]
     public static float[] microphoneBufferArray;
@@ -49,56 +48,88 @@ public static class BasisLocalMicrophoneDriver
     public static Action MainThreadOnHasAudio;
     public static Action MainThreadOnHasSilence; // Event triggered when silence is detected
     private static readonly object _lock = new object();
-    public static void OnDestroy()
+    public static bool Initialize()
     {
-        StopProcessingThread();  // Stop the processing thread
-        if (HasEvents)
-        {
-            SMDMicrophone.OnMicrophoneChanged -= ResetMicrophones;
-            SMDMicrophone.OnMicrophoneVolumeChanged -= ChangeMicrophoneVolume;
-            SMDMicrophone.OnMicrophoneUseDenoiserChanged -= ConfigureDenoiser;
-            BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
+        if (IsInitialize) return true;
 
-            HasEvents = false;
-        }
-        // Dispose the NativeArray when done to avoid memory leaks
-        if (VAJ.processBufferArray.IsCreated)
+        lock (_lock)
         {
-            VAJ.processBufferArray.Dispose();
-        }
-#if !UNITY_ANDROID && !UNITY_STANDALONE_LINUX
-        Denoiser.Dispose();
-#endif
-    }
-    public static bool TryInitialize()
-    {
-        if (!IsInitialize)
-        {
-            if (!HasEvents)
+            if (IsInitialize) return true;
+
+            try
             {
-                int value = PlayerPrefs.GetInt(MicrophoneState, 0);
-                if (value == 0)
-                {
-                    SetPauseState(true);
-                }
-                else
-                {
-                    SetPauseState(false);
-                }
-                SMDMicrophone.OnMicrophoneChanged += ResetMicrophones;
-                SMDMicrophone.OnMicrophoneVolumeChanged += ChangeMicrophoneVolume;
-                SMDMicrophone.OnMicrophoneUseDenoiserChanged += ConfigureDenoiser;
-                BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
-                HasEvents = true;
+                RegisterEvents();
+                SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+                ResetMicrophones(SMDMicrophone.SelectedMicrophone);
+                ConfigureDenoiser(SMDMicrophone.SelectedDenoiserMicrophone);
+                StartProcessingThread();
+                IsInitialize = true;
+                return true;
             }
-            SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
-            ResetMicrophones(SMDMicrophone.SelectedMicrophone);
-            ConfigureDenoiser(SMDMicrophone.SelectedDenoiserMicrophone);
-            StartProcessingThread();  // Start the processing thread once
-            IsInitialize = true;
-            return true;
+            catch (Exception ex)
+            {
+                BasisDebug.LogError($"Microphone Initialization Failed: {ex}");
+                DeInitialize(); // Clean up any partial state
+                return false;
+            }
         }
-        return false;
+    }
+
+    public static void DeInitialize()
+    {
+        lock (_lock)
+        {
+            if (!IsInitialize) return;
+
+            StopProcessingThread();
+            UnregisterEvents();
+
+            StopSelectedMicrophone();
+            if (handle.IsCompleted == false)
+            {
+                handle.Complete();
+            }
+            if (VAJ.processBufferArray.IsCreated)
+            {
+                VAJ.processBufferArray.Dispose();
+            }
+
+#if !UNITY_ANDROID && !UNITY_STANDALONE_LINUX
+            Denoiser?.Dispose();
+#endif
+
+            clip = null;
+            microphoneBufferArray = null;
+            processBufferArray = null;
+            rmsValues = null;
+
+            IsInitialize = false;
+            BasisDebug.Log("Microphone Driver Deinitialized.");
+        }
+    }
+
+    private static void RegisterEvents()
+    {
+        if (HasEvents) return;
+
+        SMDMicrophone.OnMicrophoneChanged += ResetMicrophones;
+        SMDMicrophone.OnMicrophoneVolumeChanged += ChangeMicrophoneVolume;
+        SMDMicrophone.OnMicrophoneUseDenoiserChanged += ConfigureDenoiser;
+        BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
+
+        HasEvents = true;
+    }
+
+    private static void UnregisterEvents()
+    {
+        if (!HasEvents) return;
+
+        SMDMicrophone.OnMicrophoneChanged -= ResetMicrophones;
+        SMDMicrophone.OnMicrophoneVolumeChanged -= ChangeMicrophoneVolume;
+        SMDMicrophone.OnMicrophoneUseDenoiserChanged -= ConfigureDenoiser;
+        BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
+
+        HasEvents = false;
     }
     private static void ConfigureDenoiser(bool useDenoiser)
     {
@@ -123,66 +154,78 @@ public static class BasisLocalMicrophoneDriver
         }
         if (!Microphone.devices.Contains(newMicrophone))
         {
-            //   BasisDebug.LogError("Microphone " + newMicrophone + " not found!");
-            if (Microphone.devices.Length != 0)
-            {
-                newMicrophone = Microphone.devices[0];
-                BasisDebug.LogError("Falling Back To Microphone " + newMicrophone);
-            }
-            else
-            {
-                BasisDebug.LogError("Microphone " + newMicrophone + " not found! and Alternative not found");
-                return;
-            }
+            newMicrophone = Microphone.devices[0];//we have prechecked microphones
         }
         bool isRecording = Microphone.IsRecording(newMicrophone);
-        BasisDebug.Log(isRecording ? $"Is Recording {MicrophoneDevice}" : $"Is not Recording {MicrophoneDevice}");
-        if (MicrophoneDevice != newMicrophone)
+        //we should not be in a state where the new microphone is recording already.
+        if (isRecording)
         {
-            StopMicrophone();
+            Microphone.End(newMicrophone);
         }
-        if (!isRecording)
+        //we stop the active microphone and also reset the data to the write state,
+        //we dont check to see if we have already stopped the microphone that happens internally now.
+        StopSelectedMicrophone();
+
+        if (IsPaused)
         {
-            if (!IsPaused)
+            BasisDebug.Log("Microphone Is Paused");
+        }
+        else
+        {
+            BasisDebug.Log("Starting Microphone :" + newMicrophone);
+
+            Microphone.GetDeviceCaps(newMicrophone, out minFreq, out maxFreq);
+            LocalOpusSettings.SetDeviceAudioConfig(maxFreq);
+
+            clip = Microphone.Start(newMicrophone, true, LocalOpusSettings.RecordingFullLength, LocalOpusSettings.MicrophoneSampleRate);
+            bufferLength = LocalOpusSettings.RecordingFullLength * LocalOpusSettings.MicrophoneSampleRate;
+            LocalOpusSettings.CreateOrResizeArray(bufferLength, ref microphoneBufferArray);
+            MicrophoneIsStarted = true;
+            LocalOpusSettings.EnsureProcessBuffer(ref processBufferArray, out SampleRate);
+            HandleBasisVolumeAdjustmentJob();
+            LocalOpusSettings.CreateOrResizeArray(LocalOpusSettings.rmsWindowSize, ref rmsValues);
+            PacketSize = SampleRate * 4;
+            ChangeMicrophoneVolume(SMDMicrophone.SelectedVolumeMicrophone);
+        }
+        MicrophoneDevice = newMicrophone;
+    }
+    public static void HandleBasisVolumeAdjustmentJob()
+    {
+        if (PBA.IsCreated)
+        {
+            if (PBA.Length == processBufferArray.Length)
             {
-                BasisDebug.Log("Starting Microphone :" + newMicrophone);
-
-                Microphone.GetDeviceCaps(newMicrophone, out minFreq, out maxFreq);
-                LocalOpusSettings.SetDeviceAudioConfig(maxFreq);
-
-                clip = Microphone.Start(newMicrophone, true, LocalOpusSettings.RecordingFullLength, LocalOpusSettings.MicrophoneSampleRate);
-                microphoneBufferArray = new float[LocalOpusSettings.RecordingFullLength * LocalOpusSettings.MicrophoneSampleRate];
-                MicrophoneIsStarted = true;
-                processBufferArray = LocalOpusSettings.CalculateProcessBuffer();
-                SampleRate = LocalOpusSettings.SampleRate();
-                PBA = new NativeArray<float>(processBufferArray, Allocator.Persistent);
-                VAJ = new BasisVolumeAdjustmentJob
-                {
-                    processBufferArray = PBA,
-                    Volume = Volume
-                };
-                ProcessBufferLength = processBufferArray.Length;
-                rmsValues = new float[LocalOpusSettings.rmsWindowSize];
-                bufferLength = microphoneBufferArray.Length;
-                PacketSize = ProcessBufferLength * 4;
-                ChangeMicrophoneVolume(SMDMicrophone.SelectedVolumeMicrophone);
+                //dont need todo anything memory is good to use.
             }
             else
             {
-                BasisDebug.Log("Microphone Change Stored");
+                PBA.Dispose();
+                PBA = new NativeArray<float>(processBufferArray, Allocator.Persistent);
             }
-            MicrophoneDevice = newMicrophone;
         }
+        else
+        {
+            PBA = new NativeArray<float>(processBufferArray, Allocator.Persistent);
+        }
+        VAJ = new BasisVolumeAdjustmentJob
+        {
+            processBufferArray = PBA,
+            Volume = Volume
+        };
     }
 
-    private static void StopMicrophone()
+    private static void StopSelectedMicrophone()
     {
         if (string.IsNullOrEmpty(MicrophoneDevice))
         {
             return;
         }
-        Microphone.End(MicrophoneDevice);
-        BasisDebug.Log("Stopped Microphone " + MicrophoneDevice);
+        bool isRecording = Microphone.IsRecording(MicrophoneDevice);
+        if (isRecording)
+        {
+            Microphone.End(MicrophoneDevice);
+            BasisDebug.Log("Stopped Microphone " + MicrophoneDevice);
+        }
         MicrophoneDevice = null;
         MicrophoneIsStarted = false;
     }
@@ -191,17 +234,6 @@ public static class BasisLocalMicrophoneDriver
     {
         IsPaused = !IsPaused;
     }
-
-    public static void SetPauseState(bool isPaused)
-    {
-        IsPaused = isPaused;
-    }
-
-    public static bool GetPausedState()
-    {
-        return IsPaused;
-    }
-
     public static bool isPaused = false;
     private static bool IsPaused
     {
@@ -215,7 +247,7 @@ public static class BasisLocalMicrophoneDriver
             isPaused = value;
             if (isPaused)
             {
-                StopMicrophone();
+                StopSelectedMicrophone();
             }
             else
             {
@@ -257,20 +289,23 @@ public static class BasisLocalMicrophoneDriver
             }
         }
     }
-
+    private static CancellationTokenSource processingTokenSource;
     static void StartProcessingThread()
     {
+        processingTokenSource = new CancellationTokenSource();
         processingThread = new Thread(() =>
         {
-            while (isRunning)
+            while (!processingTokenSource.IsCancellationRequested)
             {
-                processingEvent.WaitOne();  // Wait until there's data to process
+                processingEvent.WaitOne();
+                if (processingTokenSource.IsCancellationRequested) break;
+
                 lock (processingLock)
                 {
-                    if (!isRunning) break;  // Exit if the thread should stop
                     ProcessAudioData(position);
                 }
-                processingEvent.Reset();  // Reset the event to wait for new data
+
+                processingEvent.Reset();
             }
         });
         processingThread.Start();
@@ -278,36 +313,33 @@ public static class BasisLocalMicrophoneDriver
 
     public static void StopProcessingThread()
     {
-        lock (processingLock)
+        processingTokenSource?.Cancel();
+        processingEvent?.Set();
+
+        if (processingThread != null && processingThread.IsAlive)
         {
-            isRunning = false;
-
-            // Safely trigger the event if the thread is waiting on it
-            processingEvent?.Set();
-
-            // Check if the thread is still alive before attempting to join it
-            if (processingThread != null && processingThread.IsAlive)
-            {
-                // Wait for the thread to finish, with a timeout to prevent hanging
-                bool terminated = processingThread.Join(1000); // 1 second timeout
-            }
+            processingThread.Join();
         }
+
+        processingThread = null;
+        processingTokenSource?.Dispose();
+        processingTokenSource = null;
     }
     public static void ProcessAudioData(int position)
     {
         int dataLength = GetDataLength(bufferLength, head, position);
 
-        while (dataLength >= ProcessBufferLength)
+        while (dataLength >= SampleRate)
         {
             int remain = bufferLength - head;
-            if (remain < ProcessBufferLength)
+            if (remain < SampleRate)
             {
                 Array.Copy(microphoneBufferArray, head, processBufferArray, 0, remain);
-                Array.Copy(microphoneBufferArray, 0, processBufferArray, remain, ProcessBufferLength - remain);
+                Array.Copy(microphoneBufferArray, 0, processBufferArray, remain, SampleRate - remain);
             }
             else
             {
-                Array.Copy(microphoneBufferArray, head, processBufferArray, 0, ProcessBufferLength);
+                Array.Copy(microphoneBufferArray, head, processBufferArray, 0, SampleRate);
             }
 
             AdjustVolume();  // Adjust the volume of the audio data
@@ -336,8 +368,8 @@ public static class BasisLocalMicrophoneDriver
                 }
             }
 
-            head = (head + ProcessBufferLength) % bufferLength;
-            dataLength -= ProcessBufferLength;
+            head = (head + SampleRate) % bufferLength;
+            dataLength -= SampleRate;
         }
     }
     public static void AdjustVolume()
@@ -354,13 +386,13 @@ public static class BasisLocalMicrophoneDriver
         // Use a double for the sum to avoid overflow and precision issues
         double sum = 0.0;
 
-        for (int Index = 0; Index < ProcessBufferLength; Index++)
+        for (int Index = 0; Index < SampleRate; Index++)
         {
             float value = processBufferArray[Index];
             sum += value * value;
         }
 
-        return Mathf.Sqrt((float)(sum / ProcessBufferLength));
+        return Mathf.Sqrt((float)(sum / SampleRate));
     }
     public static int GetDataLength(int bufferLength, int head, int position)
     {
@@ -378,7 +410,7 @@ public static class BasisLocalMicrophoneDriver
         Volume = volume;
         // Create the job
         VAJ.Volume = Volume;
-        BasisDebug.Log("Set Microphone Volume To " + Volume);
+        BasisDebug.Log($"Set Microphone Volume To {Volume}");
     }
     public static void ApplyDeNoise()
     {
