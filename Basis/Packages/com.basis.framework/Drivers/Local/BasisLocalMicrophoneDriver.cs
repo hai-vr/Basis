@@ -19,8 +19,7 @@ public static class BasisLocalMicrophoneDriver
     private static ManualResetEvent processingEvent = new ManualResetEvent(false);
     private static object processingLock = new object();
     private static int position;
-    private static NativeArray<float> PBA;
-    private static BasisVolumeAdjustmentJob VAJ;
+    private static BasisVolumeAdjustmentJob VAJ = new BasisVolumeAdjustmentJob();
     private static JobHandle handle;
     public const string MicrophoneState = "MicrophoneState";
     public static Action OnHasAudio;
@@ -48,6 +47,30 @@ public static class BasisLocalMicrophoneDriver
     public static Action MainThreadOnHasAudio;
     public static Action MainThreadOnHasSilence; // Event triggered when silence is detected
     private static readonly object _lock = new object();
+    public static bool isPaused = false;
+    private static bool IsPaused
+    {
+        get
+        {
+            return isPaused;
+        }
+        set
+        {
+            isPaused = value;
+            PlayerPrefs.SetInt(MicrophoneState, isPaused ? 1 : 0);
+            //if (isPaused)
+            //{
+            //     StopSelectedMicrophone();
+            // }
+            // else
+            // {
+            //     ResetMicrophones(SMDMicrophone.SelectedMicrophone);
+            // }
+            ResetMicrophones(SMDMicrophone.SelectedMicrophone);
+            OnPausedAction?.Invoke(isPaused);
+        }
+    }
+    private static CancellationTokenSource processingTokenSource;
     public static bool Initialize()
     {
         if (IsInitialize) return true;
@@ -191,27 +214,27 @@ public static class BasisLocalMicrophoneDriver
     }
     public static void HandleBasisVolumeAdjustmentJob()
     {
-        if (PBA.IsCreated)
+        if (handle.IsCompleted == false)
         {
-            if (PBA.Length == processBufferArray.Length)
+            handle.Complete();
+        }
+        if (VAJ.processBufferArray.IsCreated)
+        {
+            if (VAJ.processBufferArray.Length == processBufferArray.Length)
             {
                 //dont need todo anything memory is good to use.
             }
             else
             {
-                PBA.Dispose();
-                PBA = new NativeArray<float>(processBufferArray, Allocator.Persistent);
+                VAJ.processBufferArray.Dispose();
+                VAJ.processBufferArray = new NativeArray<float>(processBufferArray, Allocator.Persistent);
             }
         }
         else
         {
-            PBA = new NativeArray<float>(processBufferArray, Allocator.Persistent);
+            VAJ.processBufferArray = new NativeArray<float>(processBufferArray, Allocator.Persistent);
         }
-        VAJ = new BasisVolumeAdjustmentJob
-        {
-            processBufferArray = PBA,
-            Volume = Volume
-        };
+        VAJ.Volume = Volume;
     }
 
     private static void StopSelectedMicrophone()
@@ -233,28 +256,6 @@ public static class BasisLocalMicrophoneDriver
     public static void ToggleIsPaused()
     {
         IsPaused = !IsPaused;
-    }
-    public static bool isPaused = false;
-    private static bool IsPaused
-    {
-        get
-        {
-            return isPaused;
-        }
-        set
-        {
-            PlayerPrefs.SetInt(MicrophoneState, isPaused ? 1 : 0);
-            isPaused = value;
-            if (isPaused)
-            {
-                StopSelectedMicrophone();
-            }
-            else
-            {
-                ResetMicrophones(SMDMicrophone.SelectedMicrophone);
-            }
-            OnPausedAction?.Invoke(isPaused);
-        }
     }
     public static void MicrophoneUpdate()
     {
@@ -289,7 +290,6 @@ public static class BasisLocalMicrophoneDriver
             }
         }
     }
-    private static CancellationTokenSource processingTokenSource;
     static void StartProcessingThread()
     {
         processingTokenSource = new CancellationTokenSource();
