@@ -27,7 +27,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public Basis.Scripts.Networking.Compression.Vector3 Position;
         public FastBitSet HasNewDataFrom;
         public ServerSideSyncPlayerMessage SyncMessage;
-        public Dictionary<int, byte> DeliveryIntervals = new();
         public Dictionary<int, long> LastSentTimes = new();
     }
 
@@ -37,7 +36,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static readonly int MaxConcurrentPlayers = 1024;
         private static readonly ParallelOptions parallelOptions = new()
         {
-            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount)
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount -1)
         };
 
         public static ConcurrentDictionary<int, PlayerState> playerStates = new();
@@ -68,7 +67,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             message.AvatarMessage = localMessage;
             currentMessages.AddOrUpdate(fromPeer.Id, message, (_, _) => message);
         }
-
+        private static List<(int id, PlayerState state)> _threadLocalActivePlayers = new();
         private static async Task StartBackgroundProcessingAsync()
         {
             long intervalMs = 10;
@@ -79,8 +78,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                 // Snapshot messages safely
                 var messagesSnapshot = new List<QueuedMessage>(currentMessages.Count);
-                messagesSnapshot.AddRange(currentMessages.Values);
-                currentMessages.Clear(); // Safe to clear after snapshot
+                foreach (var kvp in currentMessages)
+                {
+                    if (currentMessages.TryRemove(kvp.Key, out var msg))
+                    {
+                        messagesSnapshot.Add(msg);
+                    }
+                }
 
                 // Process messages
                 Profiling.StartTimer("ProcessMessages", out long t1);
@@ -115,7 +119,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     await Task.Yield();
             }
         }
-        private static List<(int id, PlayerState state)> _threadLocalActivePlayers = new();
+
         private static void UpdateCommunicationAndDistances(long nowTicks)
         {
             _threadLocalActivePlayers.Clear();
@@ -133,44 +137,54 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 var stateI = playerI.state;
                 var peer = stateI.Peer;
 
-                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) <= 64;
-                var intervals = stateI.DeliveryIntervals;
+                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) < 10;
+
                 var sentTimes = stateI.LastSentTimes;
 
                 for (int Index = 0; Index < PlayerCount; Index++)
                 {
                     var playerJ = _threadLocalActivePlayers[Index];
                     if (playerI.id == playerJ.id)
+                    {
                         continue;
+                    }
 
                     var stateJ = playerJ.state;
                     float distSq = DistanceSquared(stateI.Position, stateJ.Position);
-                    byte interval = CalculateIntervalFromDistanceSq(distSq);
-                    intervals[playerJ.id] = interval;
+                    CalculateIntervalFromDistanceSq(distSq,out byte StartAtZeroInterval,out int ActualInterval);
 
                     if (!sentTimes.ContainsKey(playerJ.id))
-                        sentTimes[playerJ.id] = 0;
-
-                    if (canSend && stateI.HasNewDataFrom != null)
                     {
-                        long elapsed = nowTicks - sentTimes[playerJ.id];
-                        long required = (long)(interval * MsToTick);
+                        sentTimes[playerJ.id] = 0;
+                    }
 
-                        if (elapsed >= required && stateI.HasNewDataFrom.Get(playerJ.id))
-                        {
-                            var tempMsg = stateJ.SyncMessage;
-                            tempMsg.interval = interval;
-                            NetDataWriter Writer = RentWriter();
-                            tempMsg.Serialize(Writer);
-                            peer.Send(Writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
-                            stateI.HasNewDataFrom.Set(playerJ.id, false);
-                            ReturnWriter(Writer);
-                            sentTimes[playerJ.id] = nowTicks;
-                        }
+                    if (stateI.HasNewDataFrom == null)
+                    {
+                        continue;
+                    }
+
+                    long lastSent = sentTimes[playerJ.id];
+                    long elapsed = nowTicks - lastSent;
+                    elapsed = Math.Max(0, elapsed); // avoid wrap issues
+
+                    long required = (long)(ActualInterval * MsToTick);
+                    bool hasNewData = stateI.HasNewDataFrom.Get(playerJ.id);
+
+                    if (canSend && hasNewData && elapsed >= required)
+                    {
+                        stateI.HasNewDataFrom.Set(playerJ.id, false);
+                        var tempMsg = stateJ.SyncMessage;
+                        tempMsg.interval = StartAtZeroInterval;
+                        NetDataWriter Writer = RentWriter();
+                        tempMsg.Serialize(Writer);
+                        peer.Send(Writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
+                        ReturnWriter(Writer);
+                        sentTimes[playerJ.id] = nowTicks;
                     }
                 }
             });
         }
+
         public static readonly ConcurrentQueue<NetDataWriter> WriterPool = new();
 
         public static NetDataWriter RentWriter()
@@ -190,41 +204,47 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             float dz = a.z - b.z;
             return dx * dx + dy * dy + dz * dz;
         }
-
-        private static byte CalculateIntervalFromDistanceSq(float distanceSq)
+        /// <summary>
+        /// Calculates the offset byte and the actual interval from the squared distance.
+        /// </summary>
+        private static void CalculateIntervalFromDistanceSq(float distanceSq, out byte offsetByte, out int actualInterval)
         {
             int rawInterval = (int)(BSRSMillisecondDefaultInterval * (BSRBaseMultiplier + (distanceSq * BSRSIncreaseRate)));
-
-            // Offset so the actual interval is: encodedByte + BSRSMillisecondDefaultInterval
             int encodedInterval = rawInterval - BSRSMillisecondDefaultInterval;
 
-            return (byte)Math.Clamp(encodedInterval, 0, byte.MaxValue);
+            offsetByte = (byte)Math.Clamp(encodedInterval, 0, byte.MaxValue);
+            actualInterval = offsetByte + BSRSMillisecondDefaultInterval;
         }
-
         public static void Shutdown() => cts.Cancel();
+
+        private static readonly object playerStateLock = new();
 
         public static void RemovePlayer(int id)
         {
-            if (playerStates.TryRemove(id, out var removedState))
+            lock (playerStateLock)
             {
-                removedState.IsActive = false;
-
-                // Clean up HasNewDataFrom bitsets in other players
-                foreach (var kvp in playerStates)
+                if (playerStates.TryRemove(id, out var removedState))
                 {
-                    kvp.Value.HasNewDataFrom?.Set(id, false);
-                    kvp.Value.DeliveryIntervals?.Remove(id);
-                    kvp.Value.LastSentTimes?.Remove(id);
-                }
+                    removedState.IsActive = false;
 
-                BNL.Log($"Player {id} removed and cleaned up.");
-            }
-            else
-            {
-                BNL.LogError("Missing Player From Index this is scary! " + id);
+                    foreach (var kvp in playerStates)
+                    {
+                        var state = kvp.Value;
+                        lock (state)
+                        {
+                            state.HasNewDataFrom?.Set(id, false);
+                            state.LastSentTimes?.Remove(id);
+                        }
+                    }
+
+                    BNL.Log($"Player {id} removed and cleaned up.");
+                }
+                else
+                {
+                    BNL.LogError("Missing Player From Index this is scary! " + id);
+                }
             }
         }
-
         public struct Player
         {
             public readonly int Id;

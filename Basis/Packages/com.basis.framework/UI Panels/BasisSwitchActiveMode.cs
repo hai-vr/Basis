@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Basis.Scripts.UI.UI_Panels
 {
-    public class SwitchActiveMode : MonoBehaviour
+    public class BasisSwitchActiveMode : MonoBehaviour
     {
         public UnityEngine.UI.Button VRButton;
         public UnityEngine.UI.Button DesktopButton;

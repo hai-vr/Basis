@@ -29,7 +29,10 @@ namespace Basis.Network
                 PlayersCurrentPosition[Index] = Randomizer.GetRandomOffset();
             }
         }
-
+        public static void ProcessSingle(NetPeer peer, int index)
+        {
+            SendMovement(peer, index);
+        }
         public static void Process(NetPeer[] peers)
         {
             int Peers = peers.Length;

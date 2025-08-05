@@ -1,14 +1,11 @@
 using Basis.Network.Core;
 using Basis.Network.Server.Generic;
 using Basis.Network.Server.Ownership;
-using BasisNetworkServer.BasisNetworking;
 using BasisNetworkServer.BasisNetworkingReductionSystem;
 using BasisNetworkServer.Security;
 using BasisServerHandle;
 using LiteNetLib;
-using LiteNetLib.Utils;
 using System;
-using static SerializableBasis;
 public static class BasisNetworkMessageProcessor
 {
     public static void ProcessMessage(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
@@ -16,9 +13,6 @@ public static class BasisNetworkMessageProcessor
         try
         {
             if (TryRedirectFallChannel(peer,reader, ref channel, deliveryMethod))
-                return;
-
-            if (!BasisServerHandleEvents.ValidateSize(reader, peer, channel))
                 return;
 
             switch (channel)

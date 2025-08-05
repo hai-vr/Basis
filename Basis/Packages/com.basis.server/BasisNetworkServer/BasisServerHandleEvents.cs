@@ -257,19 +257,6 @@ namespace BasisServerHandle
             }
         }
         #endregion
-
-        #region Network Receive Handlers
-        public static bool ValidateSize(NetPacketReader reader, NetPeer peer, byte channel)
-        {
-            if (reader.AvailableBytes == 0)
-            {
-                BNL.LogError($"Missing Data from peer! {peer.Id} with channel ID {channel}");
-                reader.Recycle();
-                return false;
-            }
-            return true;
-        }
-        #endregion
         // Define the delegate type
         public delegate void AuthEventHandler(NetPacketReader reader, NetPeer peer);
 
