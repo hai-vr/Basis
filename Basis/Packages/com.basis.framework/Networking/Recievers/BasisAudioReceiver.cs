@@ -1,14 +1,11 @@
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Common;
-using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using OpusSharp.Core;
 using OpusSharp.Core.Extensions;
 using System;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-
 namespace Basis.Scripts.Networking.Receivers
 {
     [System.Serializable]
@@ -27,11 +24,10 @@ namespace Basis.Scripts.Networking.Receivers
         public Transform AudioSourceTransform;
         public float[] resampledSegment;
         public bool HasTransform = false;
-        const string AudioSource = "Packages/com.basis.sdk/Prefabs/Players/AudioSource.prefab";
         public BasisNetworkPlayer BasisNetworkPlayer;
         //everything can safely share the same silent data as we only copy it.
         public static float[] silentData;
-
+        public static int outputSampleRate;
         public OpusDecoder decoder = new OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
         public void OnDecode(byte[] data, int length)
         {
@@ -48,7 +44,6 @@ namespace Basis.Scripts.Networking.Receivers
                 InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize);
             }
         }
-
         public async void LoadAudioSource(BasisNetworkPlayer networkedPlayer)
         {
             if (AudioSourceTransform == null)
@@ -88,12 +83,8 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void MoveAudio(BasisCalibratedCoords Coords)
         {
-            if (HasTransform)
-            {
-                AudioSourceTransform.SetPositionAndRotation(Coords.position, Coords.rotation);
-            }
+            AudioSourceTransform.SetPositionAndRotation(Coords.position, Coords.rotation);
         }
-        public static int outputSampleRate;
         public void Initalize(BasisNetworkPlayer networkedPlayer)
         {
 #if UNITY_SERVER
@@ -150,39 +141,52 @@ namespace Basis.Scripts.Networking.Receivers
                 LoadAudioSource(BasisNetworkPlayer);
             }
         }
-        public void ChangeRemotePlayersVolumeSettings(float Volume = 1.0f, float dopplerLevel = 0, float spatialBlend = 1.0f, bool spatialize = true, bool spatializePostEffects = true)
+        public void ChangeRemotePlayersVolumeSettings(float volume = 1.0f,float dopplerLevel = 0,float spatialBlend = 1.0f,bool spatialize = true,bool spatializePostEffects = true)
         {
-            // Set spatial and doppler settings
-            if (audioSource != null)
+            // Safety check for audio source
+            if (audioSource == null)
             {
-                audioSource.spatialize = spatialize;
-                audioSource.spatializePostEffects = spatializePostEffects;
-                audioSource.spatialBlend = spatialBlend;
-                audioSource.dopplerLevel = dopplerLevel;
+                Debug.LogWarning("AudioSource is null. Cannot apply volume settings.");
+                return;
             }
-            short Gain;
 
-            if (Volume <= 0f)
+            // Apply spatial audio settings
+            audioSource.spatialize = spatialize;
+            audioSource.spatializePostEffects = spatializePostEffects;
+            audioSource.spatialBlend = Mathf.Clamp01(spatialBlend);
+            audioSource.dopplerLevel = Mathf.Max(0f, dopplerLevel); // Doppler should not be negative
+
+            // Determine gain value
+            short gain;
+
+            if (volume <= 0f)
             {
-                // Mute audio source and set gain to 0
                 audioSource.volume = 0f;
-                Gain = 256;
+                gain = 256; // Mute gain for Opus (e.g., 256 = silence)
             }
-            else if (Volume <= 1f)
+            else if (volume <= 1f)
             {
-                // Set audio volume directly, gain stays at default (1.0 * 1024)
-                audioSource.volume = Volume;
-                Gain = (short)1024; // Normal gain
+                audioSource.volume = volume;
+                gain = 1024; // Normal gain
             }
             else
             {
-                // Max out Unity volume, and use Opus gain for amplification
                 audioSource.volume = 1f;
-                Gain = (short)(Volume * 1024);
+                gain = (short)Mathf.Clamp(volume * 1024f, 1024f, short.MaxValue); // Prevent overflow
             }
-            // BasisDebug.Log("Set Gain To " + Gain);
-            OpusDecoderExtensions.SetGain(decoder, Gain);
 
+            // Log for debugging if needed
+            Debug.Log($"[AudioDebug] Set Volume: {volume}, UnityVolume: {audioSource.volume}, Gain: {gain}, Spatialize: {spatialize}");
+
+            // Apply gain to decoder
+            if (decoder != null)
+            {
+                OpusDecoderExtensions.SetGain(decoder, gain);
+            }
+            else
+            {
+                Debug.LogWarning("Decoder is null. Cannot apply gain.");
+            }
         }
         public void OnAudioFilterRead(float[] data, int channels, int length)
         {

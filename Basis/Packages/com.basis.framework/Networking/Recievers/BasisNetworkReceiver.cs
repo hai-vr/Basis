@@ -164,7 +164,10 @@ namespace Basis.Scripts.Networking.Receivers
             ApplyPoseData(Player.BasisAvatarTransform, Player.BasisAvatar.Animator, SafeScale, SafePosition, OutputRotation, ApplyMuscle, EuroValuesOutput);
             PoseHandler.SetHumanPose(ref HumanPose);
             RemotePlayer.RemoteBoneDriver.SimulateAndApplyRemote(SafeScale);
-            AudioReceiverModule.MoveAudio(RemotePlayer.RemoteBoneDriver.Mouth.OutGoingData);
+            if (AudioReceiverModule.HasTransform)
+            {
+                AudioReceiverModule.MoveAudio(RemotePlayer.RemoteBoneDriver.Mouth.OutGoingData);
+            }
             if (RemotePlayer.HasRemoteNamePlate)
             {
                 RemotePlayer.RemoteNamePlate.Simulate();
