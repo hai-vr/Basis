@@ -30,11 +30,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 26ade42e4ff7eb64eb194e1a6453ad85
-    m_Address: NetworkManagement
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 2a27b24eacd47d84ba39d6ee782dd1e8
     m_Address: Packages/com.basis.sdk/Prefabs/UI/Loading Bar.prefab
     m_ReadOnly: 0

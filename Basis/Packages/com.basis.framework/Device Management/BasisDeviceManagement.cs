@@ -1,4 +1,3 @@
-using Basis.Scripts.Addressable_Driver.Resource;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Command_Line_Args;
 using Basis.Scripts.Device_Management.Devices;
@@ -20,10 +19,9 @@ namespace Basis.Scripts.Device_Management
 {
     public partial class BasisDeviceManagement : MonoBehaviour
     {
-        public bool FireOffNetwork = true;
-
         public static bool HasEvents = false;
         public string CurrentMode = BasisConstants.None;
+        public bool FireOffNetwork = true;
         public static string StaticCurrentMode
         {
             get
@@ -54,7 +52,7 @@ namespace Basis.Scripts.Device_Management
         public static BasisDeviceManagement Instance;
 
         public static event Action<string> OnBootModeChanged;
-        public delegate Task InitializationCompletedHandler();
+        public delegate void InitializationCompletedHandler();
         public static event InitializationCompletedHandler OnInitializationCompleted;
         public static readonly ConcurrentQueue<Action> mainThreadActions = new ConcurrentQueue<Action>();
         public static volatile bool hasPendingActions = false;
@@ -105,7 +103,9 @@ namespace Basis.Scripts.Device_Management
             SubscribeEvents();
 
             if (OnInitializationCompleted != null)
-                await OnInitializationCompleted.Invoke();
+            {
+                OnInitializationCompleted.Invoke();
+            }
         }
         #endregion
 
@@ -346,6 +346,14 @@ namespace Basis.Scripts.Device_Management
                 HasEvents = false;
             }
         }
+        public GameObject BasisNetworking;
+        private void RunAfterInitialized()
+        {
+            if(FireOffNetwork)
+            {
+                BasisNetworking.SetActive(true);
+            }
+        }
 
         public void CheckForPass(string type)
         {
@@ -357,18 +365,6 @@ namespace Basis.Scripts.Device_Management
             BasisDebug.Log("Loading " + type, BasisDebug.LogTag.Device);
             StartDevices(type);
             StaticCurrentMode = type;
-        }
-
-        public async Task RunAfterInitialized()
-        {
-            if (!FireOffNetwork) return;
-
-            var data = await AddressableResourceProcess.LoadAsGameObjectsAsync(BasisConstants.NetworkManagement,new InstantiationParameters(), new ChecksRequired(false, false, false), BundledContentHolder.Selector.System);
-
-            if (data.Item1.Count == 0)
-            {
-                BasisDebug.LogError($"Missing {BasisConstants.NetworkManagement}! Ensure this addressable exists.",BasisDebug.LogTag.Device);
-            }
         }
         #endregion
 
