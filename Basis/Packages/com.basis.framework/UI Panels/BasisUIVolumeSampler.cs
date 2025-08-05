@@ -42,6 +42,23 @@ public class BasisUIVolumeSampler : MonoBehaviour
         if (HasEvent)
         {
             HasEvent = false;
+            if (RemotePlayer == null)
+            {
+                return;
+            }
+            if (RemotePlayer.NetworkReceiver == null)
+            {
+                return;
+            }
+            if (RemotePlayer.NetworkReceiver.AudioReceiverModule == null)
+            {
+                return;
+            }
+            if (RemotePlayer.NetworkReceiver.AudioReceiverModule.BasisRemoteVisemeAudioDriver == null)
+            {
+                return;
+            }
+            //this can be null if the player goes outside of our voice range.
             RemotePlayer.NetworkReceiver.AudioReceiverModule.BasisRemoteVisemeAudioDriver.AudioData -= OnAudio;
         }
     }
