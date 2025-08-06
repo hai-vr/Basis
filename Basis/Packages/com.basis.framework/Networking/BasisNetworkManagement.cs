@@ -13,6 +13,7 @@ using BasisNetworkClient;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -102,6 +103,12 @@ namespace Basis.Scripts.Networking
             if (BasisHelpers.CheckInstance(Instance))
             {
                 Instance = this;
+            }
+            if(HasDisconnectReason)
+            {
+                HandleDisconnectionReason(LastDisconnectInfo);
+                HasDisconnectReason = false;
+                LastDisconnectInfo = default;
             }
             BasisAudioRemoteSource.Initalize();
             instantiationParameters = new InstantiationParameters(Vector3.zero, Quaternion.identity, BasisDeviceManagement.Instance.transform);
@@ -329,35 +336,39 @@ namespace Basis.Scripts.Networking
                 BasisDebug.LogError("Missing CharacterIKCalibration");
             }
         }
-        private async void PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
+        private void PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             BasisDebug.Log($"Client disconnected from server [{peer.Id}]");
             if (peer == LocalPlayerPeer)
             {
-                await Task.Run(() =>
+                MainThreadContext.Post(async _ =>
                 {
-                    MainThreadContext.Post(async _ =>
+                    if (LocalPlayerPeer != null && Players.TryGetValue((ushort)LocalPlayerPeer.RemoteId, out BasisNetworkPlayer NetworkedPlayer))
                     {
-                        if (LocalPlayerPeer != null && Players.TryGetValue((ushort)LocalPlayerPeer.RemoteId, out BasisNetworkPlayer NetworkedPlayer))
-                        {
-                            BasisNetworkPlayer.OnLocalPlayerLeft?.Invoke(NetworkedPlayer, (BasisLocalPlayer)NetworkedPlayer.Player);
-                            BasisNetworkPlayer.OnPlayerLeft?.Invoke(NetworkedPlayer);
-                        }
-                        if (BasisNetworkServerRunner != null)
-                        {
-                            BasisNetworkServerRunner.Stop();
-                            BasisNetworkServerRunner = null;
-                        }
-                        Players.Clear();
-                        OwnershipPairing.Clear();
-                        ReceiverCount = 0;
-                        BasisDebug.Log($"Client disconnected from server [{peer.RemoteId}] [{disconnectInfo.Reason}]");
-                        SceneManager.LoadScene(0, LoadSceneMode.Single);//reset
-                        await Boot_Sequence.BootSequence.OnAddressablesInitializationComplete();
-                        HandleDisconnectionReason(disconnectInfo);
-                    }, null);
-                });
+                        BasisNetworkPlayer.OnLocalPlayerLeft?.Invoke(NetworkedPlayer, (BasisLocalPlayer)NetworkedPlayer.Player);
+                        BasisNetworkPlayer.OnPlayerLeft?.Invoke(NetworkedPlayer);
+                    }
+                    if (BasisNetworkServerRunner != null)
+                    {
+                        BasisNetworkServerRunner.Stop();
+                        BasisNetworkServerRunner = null;
+                    }
+                    Players.Clear();
+                    OwnershipPairing.Clear();
+                    ReceiverCount = 0;
+                    BasisDebug.Log($"Client disconnected from server [{peer.RemoteId}] [{disconnectInfo.Reason}]");
+                    SceneManager.LoadScene(0, LoadSceneMode.Single);//reset
+                    await Boot_Sequence.BootSequence.OnAddressablesInitializationComplete();
+                    ScheduleDisconnectionMessage(disconnectInfo);
+                }, null);
             }
+        }
+        public static DisconnectInfo LastDisconnectInfo;
+        public static bool HasDisconnectReason = false;
+        public void ScheduleDisconnectionMessage(DisconnectInfo disconnectInfo)
+        {
+            LastDisconnectInfo = disconnectInfo;
+            HasDisconnectReason = true;
         }
         public void HandleDisconnectionReason(DisconnectInfo disconnectInfo)
         {

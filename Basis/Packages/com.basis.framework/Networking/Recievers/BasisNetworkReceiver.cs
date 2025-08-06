@@ -131,13 +131,13 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 return;
             }
+            EuroFilterHandle.Complete();//we always call complete so that way scheduling can occur.
             if (HasAvatarQueue)
             {
                 OutputRotation = math.slerp(First.rotation, Last.rotation, interpolationTime);
                 try
                 {
                     // Complete the jobs and apply the results
-                    EuroFilterHandle.Complete();
                     SafeScale = OutputVectors[1];
                     SafePosition = OutputVectors[0];
                     ApplyComputedData(true);
@@ -161,7 +161,7 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void ApplyComputedData(bool ApplyMuscle)
         {
-            ApplyPoseData(Player.BasisAvatarTransform, Player.BasisAvatar.Animator, SafeScale, SafePosition, OutputRotation, ApplyMuscle, EuroValuesOutput);
+            ApplyPoseData(Player.BasisAvatarTransform, Player.BasisAvatar.AnimatorHumanScale, SafeScale, SafePosition, OutputRotation, ApplyMuscle, EuroValuesOutput);
             PoseHandler.SetHumanPose(ref HumanPose);
             RemotePlayer.RemoteBoneDriver.SimulateAndApplyRemote(SafeScale);
             if (AudioReceiverModule.HasTransform)
@@ -210,10 +210,9 @@ namespace Basis.Scripts.Networking.Receivers
                 HasAvatarQueue = true;
             }
         }
-        public void ApplyPoseData(Transform AnimatorsTransform, Animator animator, float3 Scale, float3 Position, Quaternion Rotation, bool HasMuscle, NativeArray<float> Muscles)
+        public void ApplyPoseData(Transform AnimatorsTransform, Vector3 Scaling, float3 Scale, float3 Position, Quaternion Rotation, bool HasMuscle, NativeArray<float> Muscles)
         {
             // Directly adjust scaling by applying the inverse of the AvatarHumanScale
-            Vector3 Scaling = Vector3.one / animator.humanScale;
             Scaling = Divide(Scaling, Scale);
 
             Vector3 ScaledPosition = Vector3.Scale(Position, Scaling);

@@ -12,7 +12,7 @@ namespace Basis.Scripts.BasisSdk
         public int[] FaceVisemeMovement = new int[] { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
         public int[] BlinkViseme = new int[] { -1 };
         public int laughterBlendTarget = -1;
-
+        public Vector3 AnimatorHumanScale = Vector3.one;//stops us needing to go over the mashal.
         private ushort linkedPlayerID;
         public bool HasLinkedPlayer { get; private set; } = false;
         public bool IsOwnedLocally;

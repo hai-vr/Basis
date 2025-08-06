@@ -26,7 +26,7 @@ namespace Basis.Scripts.Editor
                 Debug.LogError("Avatar or its Animator was null!");
                 return;
             }
-
+            avatar.AnimatorHumanScale = Vector3.one / avatar.Animator.humanScale;
             float3 bottom = avatar.Animator.transform.position;
             Vector2 previousAvatarEyePosition = avatar.AvatarEyePosition;
             Vector2 previousAvatarMouthPosition = avatar.AvatarMouthPosition;

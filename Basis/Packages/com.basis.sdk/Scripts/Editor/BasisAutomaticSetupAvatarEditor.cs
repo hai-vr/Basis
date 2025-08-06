@@ -67,12 +67,14 @@ namespace Basis.Scripts.Editor
 
                 if (avatar.gameObject.TryGetComponent(out avatar.Animator))
                 {
+                    avatar.AnimatorHumanScale  = Vector3.one / avatar.Animator.humanScale;
                     return true;
                 }
                 Animator Anim = avatar.gameObject.GetComponentInChildren<Animator>();
                 if (Anim != null)
                 {
                     avatar.Animator = Anim;
+                    avatar.AnimatorHumanScale = Vector3.one / Anim.humanScale;
                     return true;
                 }
             }
