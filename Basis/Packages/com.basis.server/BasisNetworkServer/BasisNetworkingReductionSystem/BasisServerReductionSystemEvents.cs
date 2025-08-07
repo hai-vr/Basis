@@ -47,6 +47,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public static int BSRSMillisecondDefaultInterval = 50;
         private static readonly double MsToTick = Stopwatch.Frequency / 1000.0;
 
+        private static List<(int id, PlayerState state)> _threadLocalActivePlayers = new();
+        public static readonly ConcurrentQueue<NetDataWriter> WriterPool = new();
+        private static readonly ConcurrentQueue<int> playersToRemove = new();
+
         static BasisServerReductionSystemEvents()
         {
             _ = StartBackgroundProcessingAsync(); // fire-and-forget async background task
@@ -67,7 +71,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             message.AvatarMessage = localMessage;
             currentMessages.AddOrUpdate(fromPeer.Id, message, (_, _) => message);
         }
-        private static List<(int id, PlayerState state)> _threadLocalActivePlayers = new();
         private static async Task StartBackgroundProcessingAsync()
         {
             long intervalMs = 10;
@@ -75,7 +78,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             while (!cts.Token.IsCancellationRequested)
             {
                 long startTick = Stopwatch.GetTimestamp();
-
                 // Snapshot messages safely
                 var messagesSnapshot = new List<QueuedMessage>(currentMessages.Count);
                 foreach (var kvp in currentMessages)
@@ -86,7 +88,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     }
                 }
 
-                // Process messages
+                // Process messages also adds players
                 Profiling.StartTimer("ProcessMessages", out long t1);
                 Parallel.ForEach(messagesSnapshot, parallelOptions, msg =>
                 {
@@ -100,6 +102,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     }
                 });
                 Profiling.EndTimer("ProcessMessages", t1);
+
+                //once all the new players are added lets remove players that have been requested.
+                //its better to remove a player that might still exist as there next send will fix the state.
+                Profiling.StartTimer("ProcessPendingRemovals", out long t3);
+                ProcessPendingRemovals();
+                Profiling.EndTimer("ProcessPendingRemovals", t3);
 
                 // Network updates
                 Profiling.StartTimer("SimulateCommunicationFromCache_Full", out long t2);
@@ -119,7 +127,32 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     await Task.Yield();
             }
         }
+        private static void ProcessPendingRemovals()
+        {
+            while (playersToRemove.TryDequeue(out int id))
+            {
+                if (playerStates.TryRemove(id, out var removedState))
+                {
+                    removedState.IsActive = false;
 
+                    foreach (var kvp in playerStates)
+                    {
+                        var state = kvp.Value;
+                        lock (state)
+                        {
+                            state.HasNewDataFrom?.Set(id, false);
+                            state.LastSentTimes?.Remove(id);
+                        }
+                    }
+
+                    BNL.Log($"Player {id} removed and cleaned up.");
+                }
+                else
+                {
+                    BNL.LogError("Missing Player From Index this is scary! " + id);
+                }
+            }
+        }
         private static void UpdateCommunicationAndDistances(long nowTicks)
         {
             _threadLocalActivePlayers.Clear();
@@ -184,9 +217,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 }
             });
         }
-
-        public static readonly ConcurrentQueue<NetDataWriter> WriterPool = new();
-
         public static NetDataWriter RentWriter()
         {
             return WriterPool.TryDequeue(out var writer) ? writer : new NetDataWriter(true, 208);
@@ -216,34 +246,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             actualInterval = offsetByte + BSRSMillisecondDefaultInterval;
         }
         public static void Shutdown() => cts.Cancel();
-
-        private static readonly object playerStateLock = new();
-
         public static void RemovePlayer(int id)
         {
-            lock (playerStateLock)
-            {
-                if (playerStates.TryRemove(id, out var removedState))
-                {
-                    removedState.IsActive = false;
-
-                    foreach (var kvp in playerStates)
-                    {
-                        var state = kvp.Value;
-                        lock (state)
-                        {
-                            state.HasNewDataFrom?.Set(id, false);
-                            state.LastSentTimes?.Remove(id);
-                        }
-                    }
-
-                    BNL.Log($"Player {id} removed and cleaned up.");
-                }
-                else
-                {
-                    BNL.LogError("Missing Player From Index this is scary! " + id);
-                }
-            }
+            playersToRemove.Enqueue(id);
         }
         public struct Player
         {
@@ -256,7 +261,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 this.syncMsg = syncMsg;
             }
         }
-
         private static void ProcessMessage(QueuedMessage message)
         {
             int id = message.FromPeer.Id;

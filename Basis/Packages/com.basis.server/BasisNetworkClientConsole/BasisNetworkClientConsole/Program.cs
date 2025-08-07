@@ -25,10 +25,22 @@ namespace Basis
 
             MovementSender.Initialize(clientManager.ClientCount);
 
-            // Start staggered movement tasks
-            await StartStaggeredMovementLoop(clientManager.FinalPeers);
-        }
+            // Start staggered movement
+            _ = StartStaggeredMovementLoop(clientManager.FinalPeers);
 
+            // Start random reconnects
+            _ = StartRandomReconnectLoop(clientManager);
+
+            await Task.Delay(-1); // keep main alive
+        }
+        public static void StopClient(ClientManager Manager, int Index)
+        {
+            var Value = Manager.FinalPeers[Index];
+            if(Value != null)
+            {
+                Value.Disconnect();
+            }
+        }
         private static async Task StartStaggeredMovementLoop(NetPeer[] peers)
         {
             int peerCount = peers.Length;
@@ -56,6 +68,22 @@ namespace Basis
                 await Task.WhenAll(tasks);
 
                 await Task.Delay(baseDelay); // global cycle delay before next batch
+            }
+        }
+        private static async Task StartRandomReconnectLoop(ClientManager clientManager)
+        {
+            var rng = new Random();
+            int totalClients = clientManager.ClientCount;
+
+            while (true)
+            {
+                int waitMinutes = rng.Next(1, 21); // 1 to 20 minutes
+                await Task.Delay(TimeSpan.FromMinutes(waitMinutes));
+
+                int indexToRestart = rng.Next(0, totalClients);
+
+                BNL.Log($"Randomly restarting client at index {indexToRestart}");
+                await clientManager.ReconnectClientAsync(indexToRestart);
             }
         }
     }

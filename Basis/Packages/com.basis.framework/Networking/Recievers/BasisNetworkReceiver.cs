@@ -161,6 +161,7 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void ApplyComputedData(bool ApplyMuscle)
         {
+            Player.BasisAvatar.AnimatorHumanScale = Vector3.one / Player.BasisAvatar.Animator.humanScale;
             ApplyPoseData(Player.BasisAvatarTransform, Player.BasisAvatar.AnimatorHumanScale, SafeScale, SafePosition, OutputRotation, ApplyMuscle, EuroValuesOutput);
             PoseHandler.SetHumanPose(ref HumanPose);
             RemotePlayer.RemoteBoneDriver.SimulateAndApplyRemote(SafeScale);

@@ -70,7 +70,64 @@ namespace Basis.Network
             }
             FinalPeers = peers.ToArray();
         }
+        public async Task ReconnectClientAsync(int index)
+        {
+            if (index < 0 || index >= clients.Count) return;
 
+            var oldClient = clients[index];
+            var oldPeer = FinalPeers[index];
+
+            oldClient?.Disconnect();
+            BNL.Log($"Disconnected client at index {index}");
+
+            await Task.Delay(3000); // wait before reconnecting
+
+            var name = NameGenerator.GenerateRandomPlayerName();
+            var uuid = Guid.NewGuid().ToString();
+
+            var avatarInfo = new AvatarNetworkLoadInformation
+            {
+                AvatarMetaUrl = "LoadingAvatar",
+                AvatarBundleUrl = "LoadingAvatar",
+                UnlockPassword = "LoadingAvatar"
+            };
+            var avatarBytes = avatarInfo.EncodeToBytes();
+
+            var readyMessage = new ReadyMessage
+            {
+                playerMetaDataMessage = new ClientMetaDataMessage
+                {
+                    playerDisplayName = name,
+                    playerUUID = uuid
+                },
+                clientAvatarChangeMessage = new ClientAvatarChangeMessage
+                {
+                    byteArray = avatarBytes,
+                    loadMode = 1
+                },
+                localAvatarSyncMessage = new LocalAvatarSyncMessage
+                {
+                    array = MovementSender.AvatarMessage,
+                    AdditionalAvatarDataSize = 0,
+                    LinkedAvatarIndex = 0,
+                }
+            };
+
+            var netClient = new NetworkClient();
+            var passwordBytes = Encoding.UTF8.GetBytes(ConfigManager.Password);
+            var peer = netClient.StartClient(ConfigManager.Ip, ConfigManager.Port, readyMessage, passwordBytes, true);
+
+            if (peer != null)
+            {
+                netClient.listener.NetworkReceiveEvent += MessageHandler.OnReceive;
+                netClient.listener.PeerDisconnectedEvent += MessageHandler.OnDisconnect;
+
+                lock (clients) clients[index] = netClient;
+                FinalPeers[index] = peer;
+
+                BNL.Log($"Reconnected: {name} ({uuid}) at index {index}");
+            }
+        }
         public Task StopClientsAsync()
         {
             foreach (var client in clients) client?.Disconnect();
