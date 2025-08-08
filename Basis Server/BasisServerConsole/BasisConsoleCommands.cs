@@ -100,28 +100,25 @@ namespace BasisNetworkConsole
                     string? input = Console.ReadLine()?.Trim();
                     if (string.IsNullOrEmpty(input)) continue;
 
-                    // Try to match the longest possible command key
+                    string[] parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     bool matched = false;
 
-                    foreach (var key in commands.Keys.OrderByDescending(k => k.Length))
+                    // Try to match the longest possible command
+                    for (int i = parts.Length; i > 0; i--)
                     {
-                        if (input.StartsWith(key, StringComparison.InvariantCultureIgnoreCase))
+                        string potentialCommand = string.Join(' ', parts.Take(i)).ToLower();
+
+                        if (commands.TryGetValue(potentialCommand, out var command))
                         {
-                            var command = commands[key];
-
-                            // Get arguments by removing the command part from input
-                            string remaining = input.Substring(key.Length).Trim();
-                            string[] args = string.IsNullOrEmpty(remaining) ? Array.Empty<string>() : remaining.Split(' ');
-
+                            string[] args = parts.Skip(i).ToArray();
                             try
                             {
                                 command.Handler(args);
                             }
                             catch (Exception ex)
                             {
-                                BNL.Log($"Error executing command '{key}': {ex.Message}");
+                                BNL.Log($"Error executing command '{potentialCommand}': {ex.Message}");
                             }
-
                             matched = true;
                             break;
                         }

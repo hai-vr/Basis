@@ -46,7 +46,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ea7f8ee05ae1754488a389ba53893fb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Ip: server2.basisvr.org
+  Ip: basis.jinxxy.com
   Port: 4296
   Password: default_password
   IsHostMode: 0

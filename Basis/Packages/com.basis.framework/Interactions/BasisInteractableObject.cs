@@ -23,9 +23,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             Yes, No
         }
 
-        [Space(10)]
-        public bool Equippable = false;
-
         [NonSerialized]
         internal bool RequiresUpdateLoop = false;
 

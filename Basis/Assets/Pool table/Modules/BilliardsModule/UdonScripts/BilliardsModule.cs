@@ -3034,7 +3034,7 @@ public class BilliardsModule : MonoBehaviour
 
         pickup.gameObject.SetActive(active);
         pickup.GetComponent<SphereCollider>().enabled = active;
-        ((BasisPickupInteractable)pickup.GetComponent(typeof(BasisPickupInteractable))).Equippable = active;
+        ((BasisPickupInteractable)pickup.GetComponent(typeof(BasisPickupInteractable))).InteractableEnabled = active;
         if (!active) ((BasisPickupInteractable)pickup.GetComponent(typeof(BasisPickupInteractable))).Drop();
     }
 
