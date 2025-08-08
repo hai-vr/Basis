@@ -59,7 +59,8 @@ namespace BasisNetworkCore
                 NetDataWriter Writer = new NetDataWriter(true);
                 SUIMA.Serialize(Writer);
 
-                NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.netIDAssignChannel, BasisPlayerArray.GetSnapshot(), DeliveryMethod.ReliableOrdered);
+                NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+                NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.netIDAssignChannel, peers, DeliveryMethod.ReliableOrdered);
                 BNL.Log($"Broadcasted new ID ({newID}) for {UniqueStringID} to all connected peers.");
             }
         }

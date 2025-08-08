@@ -156,8 +156,8 @@ namespace BasisNetworkConsole
         }
         public static void HandleShowPlayers(string[] args)
         {
-            string ConnectedPlayerNames = $"Connected Player count is {NetworkServer.Peers.Count} ";
-            foreach(NetPeer Peer in NetworkServer.Peers.Values)
+            string ConnectedPlayerNames = $"Connected Player count is {NetworkServer.AuthenticatedPeers.Count} ";
+            foreach(NetPeer Peer in NetworkServer.AuthenticatedPeers.Values)
             {
                 if(BasisSavedState.GetLastPlayerMetaData(Peer,out SerializableBasis.ClientMetaDataMessage Message))
                 {

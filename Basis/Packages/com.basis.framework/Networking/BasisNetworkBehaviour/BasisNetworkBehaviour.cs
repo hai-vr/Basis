@@ -145,6 +145,7 @@ namespace Basis
         {
             if (HasNetworkID)
             {
+               // BasisDebug.Log("Sening Out Custom Network Event");
                 BasisNetworkGenericMessages.OnNetworkMessageSend(NetworkID, buffer, DeliveryMethod, Recipients);
             }
             else

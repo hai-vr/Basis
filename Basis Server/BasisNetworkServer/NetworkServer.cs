@@ -15,7 +15,7 @@ public static class NetworkServer
 {
     public static EventBasedNetListener Listener;
     public static NetManager Server;
-    public static ConcurrentDictionary<ushort, NetPeer> Peers = new();
+    public static ConcurrentDictionary<ushort, NetPeer> AuthenticatedPeers = new();
     public static Configuration Configuration;
     public static IAuth Auth;
     public static IAuthIdentity AuthIdentity;
@@ -153,6 +153,10 @@ public static class NetworkServer
             if (queuedMessages <= maxMessages)
             {
                 client.Send(writer, channel, deliveryMethod);
+            }
+            else
+            {
+               // BNL.LogError("Skipping send out of Channel " + channel);
             }
         }
         else

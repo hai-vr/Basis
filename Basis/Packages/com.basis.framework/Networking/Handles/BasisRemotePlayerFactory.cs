@@ -43,7 +43,15 @@ namespace Basis.Scripts.Networking
                 }
                 else
                 {
-                    BasisDebug.LogError("Critical issue could not add player to data");
+                    BasisNetworkManagement.RemovePlayer(ServerReadyMessage.playerIdMessage.playerID);
+                    if (BasisNetworkManagement.AddPlayer(BasisNetworkReceiver))
+                    {
+                        BasisDebug.LogError($"Player Forcefully removed and readded with new Identity : {ServerReadyMessage.playerIdMessage.playerID}");
+                    }
+                    else
+                    {
+                        BasisDebug.LogError("Critical issue this should never occur this is after the fallback system");
+                    }
                     return null;
                 }
                 //  BasisDebug.Log("Added Player " + ServerReadyMessage.playerIdMessage.playerID);

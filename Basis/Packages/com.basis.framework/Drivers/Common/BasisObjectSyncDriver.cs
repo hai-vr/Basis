@@ -11,7 +11,7 @@ public static class BasisObjectSyncDriver
 {
     public static readonly HashSet<BasisObjectSyncNetworking> OwnedObjectSyncs = new();
     public static readonly HashSet<BasisObjectSyncNetworking> RemoteOwnedObjectSyncs = new();
-    public static float TargetMilliseconds = 0.1f;
+    public static float TargetMilliseconds = 0.25f;
 
     private static double _lastUpdateTime;
 

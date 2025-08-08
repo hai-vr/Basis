@@ -176,7 +176,7 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             // Log for debugging if needed
-            Debug.Log($"[AudioDebug] Set Volume: {volume}, UnityVolume: {audioSource.volume}, Gain: {gain}, Spatialize: {spatialize}");
+            //Debug.Log($"[AudioDebug] Set Volume: {volume}, UnityVolume: {audioSource.volume}, Gain: {gain}, Spatialize: {spatialize}");
 
             // Apply gain to decoder
             if (decoder != null)

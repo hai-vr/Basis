@@ -63,40 +63,76 @@ namespace Basis.Scripts.Networking
         public static ServerMetaDataMessage ServerMetaDataMessage = new ServerMetaDataMessage();
         public static bool AddPlayer(BasisNetworkPlayer NetPlayer)
         {
-            if (Instance != null)
-            {
-                if (NetPlayer.Player != null)
-                {
-                    if (NetPlayer.Player.IsLocal == false)
-                    {
-                        RemotePlayers.TryAdd(NetPlayer.playerId, (BasisNetworkReceiver)NetPlayer);
-                        BasisNetworkManagement.ReceiversSnapshot = RemotePlayers.Values.ToArray();
-                        ReceiverCount = ReceiversSnapshot.Length;
-                    }
-                }
-                else
-                {
-                    BasisDebug.LogError("Player was Null!");
-                }
-                return Players.TryAdd(NetPlayer.playerId, NetPlayer);
-            }
-            else
+            if (Instance == null)
             {
                 BasisDebug.LogError("No network Instance Existed!");
+                return false;
             }
-            return false;
+
+            if (NetPlayer == null || NetPlayer.Player == null)
+            {
+                BasisDebug.LogError("NetPlayer or NetPlayer.Player was null!");
+                return false;
+            }
+
+            if (!Players.TryAdd(NetPlayer.playerId, NetPlayer))
+            {
+                BasisDebug.LogError($"Failed to add player {NetPlayer.playerId} to Players.");
+                return false;
+            }
+
+            if (!NetPlayer.Player.IsLocal)
+            {
+                if (!RemotePlayers.TryAdd(NetPlayer.playerId, (BasisNetworkReceiver)NetPlayer))
+                {
+                    // Rollback Players since RemotePlayers add failed
+                    Players.TryRemove(NetPlayer.playerId, out _);
+                    BasisDebug.LogError($"Failed to add remote player {NetPlayer.playerId} to RemotePlayers. Rolled back from Players.");
+                    return false;
+                }
+
+                // Update snapshot and count only on successful add
+                BasisNetworkManagement.ReceiversSnapshot = RemotePlayers.Values.ToArray();
+                ReceiverCount = BasisNetworkManagement.ReceiversSnapshot.Length;
+            }
+
+            return true;
         }
         public static bool RemovePlayer(ushort NetID)
         {
-            if (Instance != null)
+            if (Instance == null)
             {
-                RemotePlayers.TryRemove(NetID, out BasisNetworkReceiver A);
-                BasisNetworkManagement.ReceiversSnapshot = RemotePlayers.Values.ToArray();
-                ReceiverCount = ReceiversSnapshot.Length;
-                //BasisDebug.Log("ReceiverCount was " + ReceiverCount);
-                return Players.Remove(NetID, out var B);
+                BasisDebug.LogError("No network Instance existed!");
+                return false;
             }
-            return false;
+
+            // First try to remove from Players
+            if (!Players.Remove(NetID, out var player))
+            {
+                BasisDebug.LogError($"Failed to remove player {NetID} from Players.");
+                return false;
+            }
+
+            // Then try to remove from RemotePlayers
+            if (!RemotePlayers.TryRemove(NetID, out var receiver))
+            {
+                // Rollback Players removal if RemotePlayers removal failed
+                if (!Players.TryAdd(NetID, player))
+                {
+                    BasisDebug.LogError($"CRITICAL: Failed to rollback player {NetID} after RemotePlayers removal failed!");
+                }
+                else
+                {
+                    BasisDebug.LogError($"Failed to remove remote player {NetID} from RemotePlayers. Rolled back Players entry.");
+                }
+                return false;
+            }
+
+            // Update snapshot and count only if both removals succeeded
+            BasisNetworkManagement.ReceiversSnapshot = RemotePlayers.Values.ToArray();
+            ReceiverCount = BasisNetworkManagement.ReceiversSnapshot.Length;
+
+            return true;
         }
         public void OnEnable()
         {

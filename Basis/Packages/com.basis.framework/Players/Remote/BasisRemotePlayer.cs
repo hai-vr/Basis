@@ -2,7 +2,6 @@ using Basis.Scripts.Avatar;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.UI.NamePlate;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using static SerializableBasis;

@@ -104,11 +104,6 @@ namespace Basis.Scripts.Networking.Receivers
                 }
                 AvatarJob.Time = interpolationTime;
 
-
-                //need to make sure AvatarJob and so on its complete and ready to be rescheduled
-
-                AvatarHandle = AvatarJob.Schedule();
-
                 // Muscle interpolation job
                 musclesJob.Time = interpolationTime;
                 musclesHandle = musclesJob.Schedule(LocalAvatarSyncMessage.StoredBones, 64, AvatarHandle);
@@ -119,6 +114,7 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void Apply(double TimeAsDouble)
         {
+            EuroFilterHandle.Complete();//we always call complete so that way scheduling can occur.
             if (PoseHandler == null)
             {
                 return;
@@ -131,7 +127,6 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 return;
             }
-            EuroFilterHandle.Complete();//we always call complete so that way scheduling can occur.
             if (HasAvatarQueue)
             {
                 OutputRotation = math.slerp(First.rotation, Last.rotation, interpolationTime);
