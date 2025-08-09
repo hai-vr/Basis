@@ -333,7 +333,10 @@ namespace Basis.Scripts.Networking.Receivers
         public BasisNetworkReceiver(ushort PlayerID)
         {
             PlayerIDMessage.playerID = PlayerID;
+            SetPlayerID = PlayerID;
             hasID = true;
         }
+        [SerializeField]
+        private ushort SetPlayerID;
     }
 }

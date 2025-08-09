@@ -86,6 +86,7 @@ namespace Basis.Scripts.Device_Management
 
         void OnDestroy()
         {
+            BasisPlayerFactory.DeInitalize();
             StopAllDevices();
             UnsubscribeEvents();
         }
@@ -96,6 +97,7 @@ namespace Basis.Scripts.Device_Management
 
         public async Task Initialize()
         {
+            BasisPlayerFactory.Initalize();
             BasisCommandLineArgs.Initialize(BakedInCommandLineArgs, out ForcedDefault);
             await BasisPlayerFactory.CreateLocalPlayer(new InstantiationParameters(transform, true));
             StartAllStartIfPermanentlyExists();

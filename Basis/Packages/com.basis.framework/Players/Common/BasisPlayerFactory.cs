@@ -1,51 +1,61 @@
-using Basis.Scripts.Addressable_Driver.Resource;
 using Basis.Scripts.BasisSdk.Players;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using static SerializableBasis;
 namespace Basis.Scripts.Player
 {
     public static class BasisPlayerFactory
     {
-        public static async Task<BasisLocalPlayer> CreateLocalPlayer(InstantiationParameters InstantiationParameters, string RemotePlayerId = "LocalPlayer")
+        public static GameObject LocalPlayerReadyToSpawn;
+        public static GameObject RemotePlayerReadyToSpawn;
+        public static string LocalPlayerId = "LocalPlayer";
+        public static string RemotePlayerId = "RemotePlayer";
+        public static UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> LocalHandle;
+        public static UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> RemoteHandle;
+        public static void Initalize()
         {
-            BasisPlayer Player = await CreatePlayer(RemotePlayerId, InstantiationParameters);
-            BasisLocalPlayer CreatedLocalPlayer = (BasisLocalPlayer)Player;
+            LocalHandle = Addressables.LoadAssetAsync<GameObject>(LocalPlayerId);
+            LocalPlayerReadyToSpawn = LocalHandle.WaitForCompletion();
+
+            RemoteHandle = Addressables.LoadAssetAsync<GameObject>(RemotePlayerId);
+            RemotePlayerReadyToSpawn = RemoteHandle.WaitForCompletion();
+        }
+        public static void DeInitalize()
+        {
+            Addressables.Release(LocalHandle);
+            Addressables.Release(RemoteHandle);
+        }
+        public static async Task<BasisLocalPlayer> CreateLocalPlayer(InstantiationParameters InstantiationParameters)
+        {
+            GameObject gameObject = GameObject.Instantiate(LocalPlayerReadyToSpawn, InstantiationParameters.Position, InstantiationParameters.Rotation, InstantiationParameters.Parent);
+            if (gameObject.TryGetComponent<BasisLocalPlayer>(out BasisLocalPlayer CreatedLocalPlayer))
+            {
+
+            }
+            else
+            {
+                BasisDebug.LogError("Missing LocalPlayer");
+            }
             CreatedLocalPlayer.PlayerSelf = CreatedLocalPlayer.transform;
             await CreatedLocalPlayer.LocalInitialize();
             return CreatedLocalPlayer;
         }
-        public static async Task<BasisRemotePlayer> CreateRemotePlayer(InstantiationParameters InstantiationParameters, ClientAvatarChangeMessage AvatarURL, ClientMetaDataMessage PlayerMetaDataMessage, string LocalPlayerId = "RemotePlayer")
+        public static async Task<BasisRemotePlayer> CreateRemotePlayer(InstantiationParameters InstantiationParameters, ClientAvatarChangeMessage AvatarURL, ClientMetaDataMessage PlayerMetaDataMessage)
         {
-            BasisPlayer Player = await CreatePlayer(LocalPlayerId, InstantiationParameters);
-            BasisRemotePlayer CreatedRemotePlayer = (BasisRemotePlayer)Player;
-            CreatedRemotePlayer.PlayerSelf = CreatedRemotePlayer.transform;
-            await CreatedRemotePlayer.RemoteInitialize(AvatarURL, PlayerMetaDataMessage);
-            return CreatedRemotePlayer;
-        }
-        public static async Task<BasisPlayer> CreatePlayer(string PlayerAddressableID, InstantiationParameters InstantiationParameters)
-        {
-            ChecksRequired Required = new ChecksRequired(false, false, false);
-            var data = await AddressableResourceProcess.LoadAsGameObjectsAsync(PlayerAddressableID, InstantiationParameters, Required, BundledContentHolder.Selector.System);
-            List<GameObject> Gameobjects = data.Item1;
-            if (Gameobjects.Count != 0)
+            GameObject gameObject = GameObject.Instantiate(RemotePlayerReadyToSpawn, InstantiationParameters.Position, InstantiationParameters.Rotation, InstantiationParameters.Parent);
+            if (gameObject.TryGetComponent<BasisRemotePlayer>(out BasisRemotePlayer CreatedRemotePlayer))
             {
-                foreach (GameObject gameObject in Gameobjects)
-                {
-                    if (gameObject.TryGetComponent(out BasisPlayer Player))
-                    {
-                        return Player;
-                    }
-                }
+
             }
             else
             {
-                BasisDebug.LogError("Missing ");
+                BasisDebug.LogError("Missing RemotePlayer");
             }
-            BasisDebug.LogError("Error Missing Player!");
-            return null;
+            CreatedRemotePlayer.PlayerSelf = CreatedRemotePlayer.transform;
+            await CreatedRemotePlayer.RemoteInitialize(AvatarURL, PlayerMetaDataMessage);
+            return CreatedRemotePlayer;
         }
     }
 }
