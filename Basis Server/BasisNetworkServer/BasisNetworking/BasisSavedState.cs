@@ -30,7 +30,7 @@ namespace Basis.Network.Server.Generic
             avatarChangeStates[id] = readyMessage.clientAvatarChangeMessage;
             playerMetaDataMessages[id] = readyMessage.playerMetaDataMessage;
 
-            BNL.Log($"Updated {id} with AvatarID {readyMessage.clientAvatarChangeMessage.byteArray.Length}");
+          // BNL.Log($"Updated {id} with AvatarID {readyMessage.clientAvatarChangeMessage.byteArray.Length}");
         }
 
         /// <summary>

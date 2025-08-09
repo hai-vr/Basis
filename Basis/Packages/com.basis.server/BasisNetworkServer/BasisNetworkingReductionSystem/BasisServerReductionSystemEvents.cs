@@ -145,7 +145,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         }
                     }
 
-                    BNL.Log($"Player {id} removed and cleaned up.");
+                  //  BNL.Log($"Player {id} removed and cleaned up.");
                 }
                 else
                 {

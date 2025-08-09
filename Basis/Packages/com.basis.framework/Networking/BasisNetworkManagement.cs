@@ -98,34 +98,25 @@ namespace Basis.Scripts.Networking
 
             return true;
         }
-        public static bool RemovePlayer(ushort NetID)
+        public static bool RemovePlayer(ushort NetID,out BasisNetworkPlayer Player)
         {
             if (Instance == null)
             {
+                Player = null;
                 BasisDebug.LogError("No network Instance existed!");
                 return false;
             }
 
-            // First try to remove from Players
-            if (!Players.Remove(NetID, out var player))
+            // First try to remove from Playerss
+            if (!Players.Remove(NetID, out Player))
             {
                 BasisDebug.LogError($"Failed to remove player {NetID} from Players.");
-                return false;
             }
 
             // Then try to remove from RemotePlayers
             if (!RemotePlayers.TryRemove(NetID, out var receiver))
             {
-                // Rollback Players removal if RemotePlayers removal failed
-                if (!Players.TryAdd(NetID, player))
-                {
-                    BasisDebug.LogError($"CRITICAL: Failed to rollback player {NetID} after RemotePlayers removal failed!");
-                }
-                else
-                {
-                    BasisDebug.LogError($"Failed to remove remote player {NetID} from RemotePlayers. Rolled back Players entry.");
-                }
-                return false;
+                BasisDebug.LogError($"Failed to remove remote player {NetID} from RemotePlayers.");
             }
 
             // Update snapshot and count only if both removals succeeded

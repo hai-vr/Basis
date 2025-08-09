@@ -92,7 +92,7 @@ namespace BasisServerHandle
                     NetPeer[] Peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
                     foreach (var client in Peers)
                     {
-                        if (client.Id != id)
+                       // if (client.Id != id)
                         {
                             client.Send(writer, BasisNetworkCommons.DisconnectionChannel, DeliveryMethod.ReliableOrdered);
                         }
@@ -135,7 +135,7 @@ namespace BasisServerHandle
                     RejectWithReason(ConReq, "Banned IP");
                     return;
                 }
-                BNL.Log("Processing Connection Request");
+              //  BNL.Log("Processing Connection Request");
                 int ServerCount = NetworkServer.Server.ConnectedPeersCount;
 
                 if (ServerCount >= NetworkServer.Configuration.PeerLimit)

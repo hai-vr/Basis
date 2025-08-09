@@ -43,7 +43,7 @@ namespace Basis.Scripts.Networking
                 }
                 else
                 {
-                    BasisNetworkManagement.RemovePlayer(ServerReadyMessage.playerIdMessage.playerID);
+                    BasisNetworkHandleRemoval.HandleDisconnectId(ServerReadyMessage.playerIdMessage.playerID);
                     if (BasisNetworkManagement.AddPlayer(BasisNetworkReceiver))
                     {
                         BasisDebug.LogError($"Player Forcefully removed and readded with new Identity : {ServerReadyMessage.playerIdMessage.playerID}");
