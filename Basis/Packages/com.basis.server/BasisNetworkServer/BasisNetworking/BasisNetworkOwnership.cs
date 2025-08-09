@@ -4,6 +4,7 @@ using LiteNetLib;
 using LiteNetLib.Utils;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using static DarkRift.Basis_Common.Serializable.SerializableBasis;
 namespace Basis.Network.Server.Ownership
 {
@@ -62,7 +63,8 @@ namespace Basis.Network.Server.Ownership
                         {
                             NetDataWriter Writer = new NetDataWriter(true);
                             ownershipTransferMessage.Serialize(Writer);
-                            NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.RemoveCurrentOwnerRequestChannel, BasisPlayerArray.GetSnapshot(), DeliveryMethod.ReliableOrdered);
+                            NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+                            NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.RemoveCurrentOwnerRequestChannel, peers, DeliveryMethod.ReliableOrdered);
                         }
                         else
                         {
@@ -98,7 +100,8 @@ namespace Basis.Network.Server.Ownership
                 ownershipTransferMessage.Serialize(Writer);
 
                 BNL.Log("OwnershipResponse " + ownershipTransferMessage.ownershipID + " for " + ownershipTransferMessage.playerIdMessage);
-                NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, BasisPlayerArray.GetSnapshot(), DeliveryMethod.ReliableOrdered);
+                NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+                NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, peers, DeliveryMethod.ReliableOrdered);
             }
             else
             {
@@ -107,7 +110,8 @@ namespace Basis.Network.Server.Ownership
                 //once a ownership has been requested there good for life or when a ownership switch happens.
                 NetworkRequestNewOrExisting(ownershipTransferMessage, out ushort currentOwner);
                 ownershipTransferMessage.Serialize(Writer);
-                NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, BasisPlayerArray.GetSnapshot(), DeliveryMethod.ReliableOrdered);
+                NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+                NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, peers, DeliveryMethod.ReliableOrdered);
             }
         }
         /// <summary>
@@ -264,7 +268,8 @@ namespace Basis.Network.Server.Ownership
                         ownershipTransferMessage.ownershipID = OwnershipId;
 
                         ownershipTransferMessage.Serialize(Writer);
-                        NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.RemoveCurrentOwnerRequestChannel, BasisPlayerArray.GetSnapshot(), DeliveryMethod.ReliableOrdered);
+                        NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+                        NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.RemoveCurrentOwnerRequestChannel, peers, DeliveryMethod.ReliableOrdered);
                     }
                 }
                 BNL.Log($"Player {playerId}'s ownership removed from {objectsToRemove.Count} objects.");

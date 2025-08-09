@@ -14,9 +14,8 @@ namespace Basis.Network.Server.Generic
         /// <summary>
         /// Removes all state data for a specific player.
         /// </summary>
-        public static void RemovePlayer(NetPeer client)
+        public static void RemovePlayer(int id)
         {
-            int id = client.Id;
             avatarChangeStates.TryRemove(id, out _);
             playerMetaDataMessages.TryRemove(id, out _);
             voiceReceiversMessages.TryRemove(id, out _);
@@ -31,7 +30,7 @@ namespace Basis.Network.Server.Generic
             avatarChangeStates[id] = readyMessage.clientAvatarChangeMessage;
             playerMetaDataMessages[id] = readyMessage.playerMetaDataMessage;
 
-            BNL.Log($"Updated {id} with AvatarID {readyMessage.clientAvatarChangeMessage.byteArray.Length}");
+          // BNL.Log($"Updated {id} with AvatarID {readyMessage.clientAvatarChangeMessage.byteArray.Length}");
         }
 
         /// <summary>

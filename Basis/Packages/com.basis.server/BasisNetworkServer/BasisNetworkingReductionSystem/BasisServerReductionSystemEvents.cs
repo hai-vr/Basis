@@ -1,6 +1,5 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
-using BasisNetworkCore;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
@@ -89,7 +88,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 }
 
                 // Process messages also adds players
-                Profiling.StartTimer("ProcessMessages", out long t1);
+                // Profiling.StartTimer("ProcessMessages", out long t1);
                 Parallel.ForEach(messagesSnapshot, parallelOptions, msg =>
                 {
                     try
@@ -101,20 +100,20 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         BNL.LogError($"[ProcessMessage] Exception: {ex}");
                     }
                 });
-                Profiling.EndTimer("ProcessMessages", t1);
+                //  Profiling.EndTimer("ProcessMessages", t1);
 
                 //once all the new players are added lets remove players that have been requested.
                 //its better to remove a player that might still exist as there next send will fix the state.
-                Profiling.StartTimer("ProcessPendingRemovals", out long t3);
+                //Profiling.StartTimer("ProcessPendingRemovals", out long t3);
                 ProcessPendingRemovals();
-                Profiling.EndTimer("ProcessPendingRemovals", t3);
+                // Profiling.EndTimer("ProcessPendingRemovals", t3);
 
                 // Network updates
-                Profiling.StartTimer("SimulateCommunicationFromCache_Full", out long t2);
+                // Profiling.StartTimer("SimulateCommunicationFromCache_Full", out long t2);
                 UpdateCommunicationAndDistances(Stopwatch.GetTimestamp());
-                Profiling.EndTimer("SimulateCommunicationFromCache_Full", t2);
+                // Profiling.EndTimer("SimulateCommunicationFromCache_Full", t2);
 
-                Profiling.TryPrint();
+                // Profiling.TryPrint();
 
                 // Throttle loop if under time budget
                 long elapsedTicks = Stopwatch.GetTimestamp() - startTick;
@@ -145,7 +144,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         }
                     }
 
-                  //  BNL.Log($"Player {id} removed and cleaned up.");
+                    BNL.Log($"Player {id} removed and cleaned up.");
                 }
                 else
                 {

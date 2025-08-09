@@ -101,12 +101,14 @@ namespace BasisNetworkServer.Security
             if (string.IsNullOrEmpty(reason))
                 return "[Error] Reason cannot be null or empty.";
 
-            if (!NetworkServer.AuthIdentity.UUIDToNetID(UUID, out NetPeer peer))
+            if (!NetworkServer.AuthIdentity.UUIDToNetID(UUID, out ushort peer))
             {
                 return $"[Error] Unable to find player: {UUID}";
             }
+            NetworkServer.AuthenticatedPeers.TryGetValue(peer, out var peers);
 
-            NetworkServer.Server.DisconnectPeer(peer, Encoding.UTF8.GetBytes(reason));
+
+            NetworkServer.Server.DisconnectPeer(peers, Encoding.UTF8.GetBytes(reason));
 
             if (BannedUUIDs.Contains(UUID))
             {
@@ -136,11 +138,13 @@ namespace BasisNetworkServer.Security
             if (string.IsNullOrEmpty(reason))
                 return "[Error] Reason cannot be null or empty.";
 
-            if (!NetworkServer.AuthIdentity.UUIDToNetID(UUID, out NetPeer peer))
+            if (!NetworkServer.AuthIdentity.UUIDToNetID(UUID, out ushort peer))
                 return $"[Error] Unable to find player: {UUID}";
 
-            NetworkServer.Server.DisconnectPeer(peer, Encoding.UTF8.GetBytes(reason));
-            string ip = peer.Address.ToString();
+            NetworkServer.AuthenticatedPeers.TryGetValue(peer, out var peers);
+
+            NetworkServer.Server.DisconnectPeer(peers, Encoding.UTF8.GetBytes(reason));
+            string ip = peers.Address.ToString();
 
             if (BannedUUIDs.Contains(UUID))
                 return $"[Info] Player {UUID} is already banned.";
@@ -168,10 +172,12 @@ namespace BasisNetworkServer.Security
             if (string.IsNullOrEmpty(reason))
                 return "[Error] Reason cannot be null or empty.";
 
-            if (!NetworkServer.AuthIdentity.UUIDToNetID(UUID, out NetPeer peer))
+            if (!NetworkServer.AuthIdentity.UUIDToNetID(UUID, out ushort peer))
                 return $"[Error] Unable to find player: {UUID}";
 
-            NetworkServer.Server.DisconnectPeer(peer, Encoding.UTF8.GetBytes(reason));
+            NetworkServer.AuthenticatedPeers.TryGetValue(peer, out var peers);
+
+            NetworkServer.Server.DisconnectPeer(peers, Encoding.UTF8.GetBytes(reason));
             return $"Player {UUID} kicked successfully.";
         }
 
@@ -250,7 +256,7 @@ namespace BasisNetworkServer.Security
                     break;
                 case AdminRequestMode.Message:
                     ushort RPI = reader.GetUShort();
-                    if (NetworkServer.Peers.TryGetValue(RPI, out NetPeer RemotePeer))
+                    if (NetworkServer.AuthenticatedPeers.TryGetValue(RPI, out NetPeer RemotePeer))
                     {
                         string messagedata = reader.GetString();
                         SendBackMessage(RemotePeer, messagedata);
@@ -263,7 +269,8 @@ namespace BasisNetworkServer.Security
                     OutAdminRequest.Serialize(Writer, AdminRequestMode.MessageAll);
                     string Message = reader.GetString();
                     Writer.Put(Message);
-                    NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AdminChannel, peer, BasisPlayerArray.GetSnapshot(), DeliveryMethod.ReliableOrdered);
+                    NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+                    NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AdminChannel, peer, peers, DeliveryMethod.ReliableOrdered);
                     BNL.Log($"sending MessageAll | {Message}");
                     break;
                 case AdminRequestMode.UnBanIP:
@@ -299,7 +306,8 @@ namespace BasisNetworkServer.Security
                     OutAdminRequest.Serialize(Writer, AdminRequestMode.TeleportAll);
                     ushort PlayerDestination = reader.GetUShort();
                     Writer.Put(PlayerDestination);
-                    NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AdminChannel, peer, BasisPlayerArray.GetSnapshot(), DeliveryMethod.ReliableOrdered);
+                    NetPeer[] outgoingpeers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+                    NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AdminChannel, peer, outgoingpeers, DeliveryMethod.ReliableOrdered);
                     BNL.Log($"sending TeleportAll destination is NetID {PlayerDestination}");
                     break;
                 case AdminRequestMode.AddAdmin:

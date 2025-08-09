@@ -3,6 +3,7 @@ using BasisNetworkCore;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System.Collections.Generic;
+using System.Linq;
 using static SerializableBasis;
 
 namespace Basis.Network.Server.Generic
@@ -42,7 +43,7 @@ namespace Basis.Network.Server.Generic
                 //  BNL.Log("Query Recipients " + recipientsLength);
                 for (int index = 0; index < recipientsLength; index++)
                 {
-                    if (NetworkServer.Peers.TryGetValue(SceneDataMessage.recipients[index], out NetPeer client))
+                    if (NetworkServer.AuthenticatedPeers.TryGetValue(SceneDataMessage.recipients[index], out NetPeer client))
                     {
                         //   BNL.Log("Found Peer! " + SceneDataMessage.recipients[index]);
                         targetedClients.Add(client);
@@ -61,7 +62,8 @@ namespace Basis.Network.Server.Generic
             }
             else
             {
-                NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, BasisPlayerArray.GetSnapshot(), DeliveryMethod);
+                NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+                NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, peers, DeliveryMethod);
             }
             serverSceneDataMessage.sceneDataMessage.Release();
         }
@@ -100,7 +102,7 @@ namespace Basis.Network.Server.Generic
                 //  BNL.Log("Query Recipients " + recipientsLength);
                 for (int index = 0; index < recipientsLength; index++)
                 {
-                    if (NetworkServer.Peers.TryGetValue(avatarDataMessage.recipients[index], out NetPeer client))
+                    if (NetworkServer.AuthenticatedPeers.TryGetValue(avatarDataMessage.recipients[index], out NetPeer client))
                     {
                         //   BNL.Log("Found Peer! " + SceneDataMessage.recipients[index]);
                         targetedClients.Add(client);
@@ -119,7 +121,8 @@ namespace Basis.Network.Server.Generic
             }
             else
             {
-                NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, BasisPlayerArray.GetSnapshot(), DeliveryMethod);
+                NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+                NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, peers, DeliveryMethod);
             }
         }
     }
