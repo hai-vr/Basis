@@ -61,6 +61,10 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void Compute(double TimeAsDouble)
         {
+            if (EuroFilterHandle.IsCompleted == false)
+            {
+                EuroFilterHandle.Complete();//we always call complete so that way scheduling can occur.
+            }
             if (HasAvatarQueue)
             {
                 // Calculate interpolation time
@@ -106,15 +110,14 @@ namespace Basis.Scripts.Networking.Receivers
 
                 // Muscle interpolation job
                 musclesJob.Time = interpolationTime;
+                AvatarHandle = AvatarJob.Schedule();
                 musclesHandle = musclesJob.Schedule(LocalAvatarSyncMessage.StoredBones, 64, AvatarHandle);
-
                 oneEuroFilterJob.DeltaTime = interpolationTime;
                 EuroFilterHandle = oneEuroFilterJob.Schedule(LocalAvatarSyncMessage.StoredBones, 64, musclesHandle);
             }
         }
         public void Apply(double TimeAsDouble)
         {
-            EuroFilterHandle.Complete();//we always call complete so that way scheduling can occur.
             if (PoseHandler == null)
             {
                 return;
@@ -132,6 +135,7 @@ namespace Basis.Scripts.Networking.Receivers
                 OutputRotation = math.slerp(First.rotation, Last.rotation, interpolationTime);
                 try
                 {
+                    EuroFilterHandle.Complete();//we always call complete so that way scheduling can occur.
                     // Complete the jobs and apply the results
                     SafeScale = OutputVectors[1];
                     SafePosition = OutputVectors[0];
