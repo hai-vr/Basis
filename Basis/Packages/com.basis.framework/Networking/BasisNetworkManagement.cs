@@ -75,6 +75,13 @@ namespace Basis.Scripts.Networking
                 return false;
             }
 
+            // Check if player already exists in Players
+            if (Players.ContainsKey(NetPlayer.playerId))
+            {
+                BasisDebug.LogWarning($"Player {NetPlayer.playerId} already exists. Removing old entry before adding new one.");
+                BasisNetworkHandleRemoval.HandleDisconnectIdImmediate(NetPlayer.playerId);
+            }
+
             if (!Players.TryAdd(NetPlayer.playerId, NetPlayer))
             {
                 BasisDebug.LogError($"Failed to add player {NetPlayer.playerId} to Players.");
@@ -83,6 +90,12 @@ namespace Basis.Scripts.Networking
 
             if (!NetPlayer.Player.IsLocal)
             {
+                if (RemotePlayers.ContainsKey(NetPlayer.playerId))
+                {
+                    BasisDebug.LogWarning($"Remote player {NetPlayer.playerId} already exists. Removing old entry before adding new one.");
+                    BasisNetworkHandleRemoval.HandleDisconnectIdImmediate(NetPlayer.playerId);
+                }
+
                 if (!RemotePlayers.TryAdd(NetPlayer.playerId, (BasisNetworkReceiver)NetPlayer))
                 {
                     // Rollback Players since RemotePlayers add failed
