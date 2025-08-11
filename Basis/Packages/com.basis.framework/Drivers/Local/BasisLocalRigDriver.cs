@@ -88,9 +88,12 @@ namespace Basis.Scripts.Drivers
 
 			ApplyBoneIKHint(LeftHandTwoBoneIK, BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.position, BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.rotation);
 			ApplyBoneIKHint(RightHandTwoBoneIK, BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.position, BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.rotation);
-            // --- Do IK on animator ---
-            Builder.SyncLayers();
-            PlayableGraph.Evaluate(DeltaTime);
+			if (Builder != null)
+			{
+				// --- Do IK on animator ---
+				Builder.SyncLayers();
+				PlayableGraph.Evaluate(DeltaTime);
+			}
         }
 
 		public void ApplyBoneIKHint(BasisTwoBoneIKConstraint Constraint, Vector3 Position, Quaternion Rotation, Vector3 Direction)
@@ -220,7 +223,8 @@ namespace Basis.Scripts.Drivers
 			{
 				RigTransform Hips = references.Hips.gameObject.AddComponent<RigTransform>();
 			}
-		}
+            BasisLocalBoneControl.HasEvents = true;
+        }
 
 		private void SetupTwistBoneSpine(BasisLocalBoneDriver driver)
 		{
@@ -273,7 +277,7 @@ namespace Basis.Scripts.Drivers
 		private void SetupRightShoulderRig(BasisLocalBoneDriver driver)
 		{
 			GameObject RightShoulder = CreateOrGetRig("RightShoulder", false, out RightShoulderRig, out RightShoulderLayer);
-			BasisAnimationRiggingHelper.Damp(localPlayer, RightShoulder, references.RightShoulder, BasisBoneTrackedRole.RightShoulder, 1, 1);
+			BasisAnimationRiggingHelper.Damp(localPlayer, RightShoulder, references.RightShoulder, BasisBoneTrackedRole.RightShoulder);
 			List<BasisLocalBoneControl> controls = new List<BasisLocalBoneControl>();
 			if (driver.FindBone(out BasisLocalBoneControl RightShoulderRole, BasisBoneTrackedRole.RightShoulder))
 			{
@@ -285,7 +289,7 @@ namespace Basis.Scripts.Drivers
 		private void SetupLeftShoulderRig(BasisLocalBoneDriver driver)
 		{
 			GameObject LeftShoulder = CreateOrGetRig("LeftShoulder", false, out LeftShoulderRig, out LeftShoulderLayer);
-			BasisAnimationRiggingHelper.Damp(localPlayer, LeftShoulder, references.leftShoulder, BasisBoneTrackedRole.LeftShoulder, 1, 1);
+			BasisAnimationRiggingHelper.Damp(localPlayer, LeftShoulder, references.leftShoulder, BasisBoneTrackedRole.LeftShoulder);
 			List<BasisLocalBoneControl> controls = new List<BasisLocalBoneControl>();
 			if (driver.FindBone(out BasisLocalBoneControl LeftShoulderRole, BasisBoneTrackedRole.LeftShoulder))
 			{
@@ -369,7 +373,7 @@ namespace Basis.Scripts.Drivers
 			{
 				WriteUpEvents(new List<BasisLocalBoneControl>() { Control }, LeftToeLayer);
 			}
-			LeftToeConstraint = BasisAnimationRiggingHelper.Damp(localPlayer, LeftToe, references.leftToes, BasisBoneTrackedRole.LeftToes, 0, 0);
+			LeftToeConstraint = BasisAnimationRiggingHelper.Damp(localPlayer, LeftToe, references.leftToes, BasisBoneTrackedRole.LeftToes);
 		}
 
 		public void RightToe(BasisLocalBoneDriver driver)
@@ -379,7 +383,7 @@ namespace Basis.Scripts.Drivers
 			{
 				WriteUpEvents(new List<BasisLocalBoneControl>() { Control }, RightToeLayer);
 			}
-			RightToeConstraint = BasisAnimationRiggingHelper.Damp(localPlayer, RightToe, references.rightToes, BasisBoneTrackedRole.RightToes, 0, 0);
+			RightToeConstraint = BasisAnimationRiggingHelper.Damp(localPlayer, RightToe, references.rightToes, BasisBoneTrackedRole.RightToes);
 		}
 
 		public void CalibrateRoles()
@@ -455,7 +459,6 @@ namespace Basis.Scripts.Drivers
 			{
 				// Add event listener for each control to update Layer's active state when HasRigLayer changes
 				control.OnHasRigChanged += delegate { UpdateLayerActiveState(Controls, Layer); };
-				control.HasEvents = true;
 			}
 
 			// Set the initial state based on the current controls' states

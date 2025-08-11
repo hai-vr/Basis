@@ -3,27 +3,47 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Transmitters;
-using Basis.Scripts.UI.NamePlate;
 using UnityEngine;
 using UnityEngine.InputSystem;
 public class BasisEventDriver : MonoBehaviour
 {
     public float updateInterval = 0.1f; // 100 milliseconds
     public float timeSinceLastUpdate = 0f;
+    public float DeltaTime;
+    public double TimeAsDouble;
     public void OnEnable()
     {
-        BasisSceneFactory.Initalize();
+#if UNITY_SERVER
+#else
         Application.onBeforeRender += OnBeforeRender;
+#endif
+        BasisSceneFactory.Initalize();
+        BasisObjectSyncDriver.Initalization();
+    }
+    public void OnDestroy()
+    {
+        BasisObjectSyncDriver.OnDestroy();
+        Application.onBeforeRender -= OnBeforeRender;
     }
     public void OnDisable()
     {
+#if UNITY_SERVER
+#else
         Application.onBeforeRender -= OnBeforeRender;
+#endif
     }
     public void Update()
     {
-        BasisNetworkManagement.SimulateNetworkCompute();
+        DeltaTime = Time.deltaTime;
+        TimeAsDouble = Time.timeAsDouble;
+        BasisNetworkManagement.SimulateNetworkCompute(TimeAsDouble);
+        BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
+
+#if UNITY_SERVER
+#else
         InputSystem.Update();
-        timeSinceLastUpdate += Time.deltaTime;
+#endif
+        timeSinceLastUpdate += DeltaTime;
 
         if (timeSinceLastUpdate >= updateInterval) // Use '>=' to avoid small errors
         {
@@ -55,14 +75,22 @@ public class BasisEventDriver : MonoBehaviour
         {
             BasisLocalPlayer.Instance.SimulateOnLateUpdate();
         }
+#if UNITY_SERVER
+#else
         BasisLocalMicrophoneDriver.MicrophoneUpdate();
-        BasisNetworkManagement.SimulateNetworkApply();
+#endif
+        BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
+        BasisNetworkManagement.SimulateNetworkApply(TimeAsDouble);
+        BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
+#if UNITY_SERVER
+        OnBeforeRender();
+#endif
     }
     private void OnBeforeRender()
     {
         if (BasisLocalPlayer.PlayerReady)
         {
-            BasisLocalPlayer.Instance.SimulateOnRender();
+            BasisLocalPlayer.Instance.SimulateOnRender(DeltaTime);
             //send out avatar
             BasisNetworkTransmitter.AfterAvatarChanges?.Invoke();
         }

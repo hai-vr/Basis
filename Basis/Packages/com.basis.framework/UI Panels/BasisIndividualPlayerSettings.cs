@@ -23,6 +23,7 @@ public class BasisIndividualPlayerSettings : BasisUIBase
     public BasisUIVolumeSampler BasisUIVolumeSampler;
 
     public Button RequestAvatarClone;
+    public float step = 0.05f; // The interval between values
     public override void DestroyEvent()
     {
         BasisCursorManagement.LockCursor(CursorRequest);
@@ -66,7 +67,6 @@ public class BasisIndividualPlayerSettings : BasisUIBase
 
         UserVolumeOverride.onValueChanged.AddListener(value => ChangePlayersVolume(playerUUID, value));
     }
-    public float step = 0.05f; // The interval between values
     float SnapValue(float value)
     {
         return Mathf.Round(value / step) * step;

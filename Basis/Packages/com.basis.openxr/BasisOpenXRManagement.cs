@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
@@ -31,6 +32,54 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
         public XRHandSubsystem m_Subsystem;
         public BasisOpenXRHandInput LeftHand;
         public BasisOpenXRHandInput RightHand;
+        public override bool IsDeviceBootable(string BootRequest)
+        {
+            if(BootRequest == "OpenXRLoader")
+            {
+                return true;
+            }
+            return false;
+        }
+        public override void StopSDK()
+        {
+            BasisDebug.Log("Stopping SDK for BasisOpenXRManagement");
+
+            foreach (var device in controls)
+            {
+                BasisDebug.Log($"Destroying control device: {device.UniqueDeviceIdentifier}");
+                DestroyPhysicalTrackedDevice(device.UniqueDeviceIdentifier);
+            }
+
+            controls.Clear();
+            OpenXRTrackers.Clear();
+
+            BasisDebug.Log("SDK stopped and all resources cleaned up.");
+            InputSystem.onDeviceChange -= onDeviceChange;
+            BasisDeviceManagement.OnDeviceManagementLoop -= CheckTrackersPulse;
+            if (m_Subsystem != null)
+            {
+                m_Subsystem.updatedHands -= OnHandUpdate;
+            }
+        }
+        public override void StartSDK()
+        {
+            BasisDebug.Log("Starting SDK for BasisOpenXRManagement");
+            BasisLocalCameraDriver.AllowXRRenderering(true);
+
+            CreatePhysicalHeadTracker("Head OPENXR", "Head OPENXR");
+            LeftHand = CreatePhysicalHandTracker("Left Hand OPENXR", "Left Hand OPENXR", BasisBoneTrackedRole.LeftHand);
+            RightHand = CreatePhysicalHandTracker("Right Hand OPENXR", "Right Hand OPENXR", BasisBoneTrackedRole.RightHand);
+            BasisDebug.Log("SDK started successfully.");
+            InputSystem.onDeviceChange += onDeviceChange;
+            BasisDeviceManagement.OnDeviceManagementLoop += CheckTrackersPulse;
+            m_Subsystem = XRGeneralSettings.Instance?.Manager?.activeLoader?.GetLoadedSubsystem<XRHandSubsystem>();
+            if (m_Subsystem != null)
+            {
+                m_Subsystem.updatedHands += OnHandUpdate;
+            }
+            BasisCursorManagement.UnlockCursorBypassChecks("Forceful Unlock OPENXR");
+        }
+
         private BasisOpenXRHandInput CreatePhysicalHandTracker(string device, string uniqueID, BasisBoneTrackedRole role)
         {
             BasisDebug.Log($"Creating physical hand tracker: {uniqueID}, Role: {role}");
@@ -95,53 +144,6 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
             BasisDebug.Log($"Destroying tracked device with ID: {id}");
             BasisDeviceManagement.Instance.RemoveDevicesFrom(nameof(BasisOpenXRManagement), id);
         }
-
-        public override void StopSDK()
-        {
-            BasisDebug.Log("Stopping SDK for BasisOpenXRManagement");
-
-            foreach (var device in controls)
-            {
-                BasisDebug.Log($"Destroying control device: {device.UniqueDeviceIdentifier}");
-                DestroyPhysicalTrackedDevice(device.UniqueDeviceIdentifier);
-            }
-
-            controls.Clear();
-            OpenXRTrackers.Clear();
-
-            BasisDebug.Log("SDK stopped and all resources cleaned up.");
-            InputSystem.onDeviceChange -= onDeviceChange;
-            BasisDeviceManagement.OnDeviceManagementLoop -= CheckTrackersPulse;
-            if (m_Subsystem != null)
-            {
-                m_Subsystem.updatedHands -= OnHandUpdate;
-            }
-        }
-
-        public override void BeginLoadSDK()
-        {
-            BasisDebug.Log("Begin loading SDK (no-op)");
-        }
-
-        public override void StartSDK()
-        {
-            BasisDebug.Log("Starting SDK for BasisOpenXRManagement");
-
-            BasisDeviceManagement.Instance.SetCameraRenderState(true);
-
-            CreatePhysicalHeadTracker("Head OPENXR", "Head OPENXR");
-            LeftHand = CreatePhysicalHandTracker("Left Hand OPENXR", "Left Hand OPENXR", BasisBoneTrackedRole.LeftHand);
-            RightHand = CreatePhysicalHandTracker("Right Hand OPENXR", "Right Hand OPENXR", BasisBoneTrackedRole.RightHand);
-            BasisDebug.Log("SDK started successfully.");
-            InputSystem.onDeviceChange += onDeviceChange;
-            BasisDeviceManagement.OnDeviceManagementLoop += CheckTrackersPulse;
-            m_Subsystem = XRGeneralSettings.Instance?.Manager?.activeLoader?.GetLoadedSubsystem<XRHandSubsystem>();
-            if (m_Subsystem != null)
-            {
-                m_Subsystem.updatedHands += OnHandUpdate;
-            }
-        }
-
         private void OnHandUpdate(XRHandSubsystem subsystem, XRHandSubsystem.UpdateSuccessFlags flags, XRHandSubsystem.UpdateType type)
         {
             if (type != XRHandSubsystem.UpdateType.BeforeRender)
@@ -206,10 +208,6 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
             DeviceTrackedInfo.usage = usage;
             Trackers.Add(DeviceTrackedInfo);
 
-        }
-        public override string Type()
-        {
-            return "OpenXRLoader";
         }
         private void TryAddTracker(InputDevice addedTracker)
         {

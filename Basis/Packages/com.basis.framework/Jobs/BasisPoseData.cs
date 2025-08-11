@@ -1,27 +1,25 @@
-using Basis.Scripts.Common;
 using UnityEngine;
-
 [System.Serializable]
-public struct BasisPoseData
+public class BasisPoseData
 {
     [SerializeField]
-    public BasisCalibratedCoords[] LeftThumb;
+    public Quaternion[] LeftThumb = new Quaternion[3];
     [SerializeField]
-    public BasisCalibratedCoords[] LeftIndex;
+    public Quaternion[] LeftIndex = new Quaternion[3];
     [SerializeField]
-    public BasisCalibratedCoords[] LeftMiddle;
+    public Quaternion[] LeftMiddle = new Quaternion[3];
     [SerializeField]
-    public BasisCalibratedCoords[] LeftRing;
+    public Quaternion[] LeftRing = new Quaternion[3];
     [SerializeField]
-    public BasisCalibratedCoords[] LeftLittle;
+    public Quaternion[] LeftLittle = new Quaternion[3];
     [SerializeField]
-    public BasisCalibratedCoords[] RightThumb;
+    public Quaternion[] RightThumb = new Quaternion[3];
     [SerializeField]
-    public BasisCalibratedCoords[] RightIndex;
+    public Quaternion[] RightIndex = new Quaternion[3];
     [SerializeField]
-    public BasisCalibratedCoords[] RightMiddle;
+    public Quaternion[] RightMiddle = new Quaternion[3];
     [SerializeField]
-    public BasisCalibratedCoords[] RightRing;
+    public Quaternion[] RightRing = new Quaternion[3];
     [SerializeField]
-    public BasisCalibratedCoords[] RightLittle;
+    public Quaternion[] RightLittle = new Quaternion[3];
 }

@@ -36,13 +36,13 @@ public static class BasisMenuItemsEditor
     [MenuItem("Basis/Trackers/Hide Trackers")]
     public static void HideTrackersEditor()
     {
-        HideTrackers();
+        BasisDeviceManagement.VisibleTrackers(false);
     }
 
     [MenuItem("Basis/Trackers/Show Trackers")]
     public static void ShowTrackersEditor()
     {
-        ShowTrackers();
+        BasisDeviceManagement.VisibleTrackers(true);
     }
     [MenuItem("Basis/Trackers/Destroy All Tracker")]
     public static void DestroyXRInput()
@@ -83,7 +83,7 @@ public static class BasisMenuItemsEditor
         BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
 
         FindSimulate().CreatePhysicalTrackedDevice("{htc}vr_tracker_vive_3_0" + UnityEngine.Random.Range(-9999999999999, 999999999999), "{htc}vr_tracker_vive_3_0");
-        BasisDeviceManagement.ShowTrackers();
+        BasisDeviceManagement.VisibleTrackers(true);
         BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
     }
     [MenuItem("Basis/Trackers/Create Vive Right Controller")]
@@ -93,7 +93,7 @@ public static class BasisMenuItemsEditor
         BasisInputXRSimulate RightTracker =  FindSimulate().CreatePhysicalTrackedDevice("{indexcontroller}valve_controller_knu_3_0_right" + UnityEngine.Random.Range(-9999999999999, 999999999999), "{indexcontroller}valve_controller_knu_3_0_right", BasisBoneTrackedRole.RightHand, true);
         RightTracker.FollowMovement.position = RightHand.OutgoingWorldData.position;
         RightTracker.FollowMovement.rotation = Quaternion.identity;
-        BasisDeviceManagement.ShowTrackers();
+        BasisDeviceManagement.VisibleTrackers(true);
     }
     [MenuItem("Basis/Trackers/Create Vive Left Controller")]
     public static  void CreateViveLeftTracker()
@@ -102,7 +102,7 @@ public static class BasisMenuItemsEditor
         BasisInputXRSimulate LeftTracker =  FindSimulate().CreatePhysicalTrackedDevice("{indexcontroller}valve_controller_knu_3_0_left" + UnityEngine.Random.Range(-9999999999999, 999999999999), "{indexcontroller}valve_controller_knu_3_0_left", BasisBoneTrackedRole.LeftHand, true);
         LeftTracker.FollowMovement.position = LeftHand.OutgoingWorldData.position;
         LeftTracker.FollowMovement.rotation = Quaternion.identity;
-        BasisDeviceManagement.ShowTrackers();
+        BasisDeviceManagement.VisibleTrackers(true);
     }
     [MenuItem("Basis/Trackers/Create Unknown Tracker")]
     public static  void CreateUnknowonTracker()
@@ -111,7 +111,7 @@ public static class BasisMenuItemsEditor
         BasisInputXRSimulate LeftTracker =  FindSimulate().CreatePhysicalTrackedDevice("Unknown" + UnityEngine.Random.Range(-9999999999999, 999999999999), "Unknown", BasisBoneTrackedRole.CenterEye, false);
         LeftTracker.FollowMovement.position = LeftHand.OutgoingWorldData.position;
         LeftTracker.FollowMovement.rotation = Quaternion.identity;
-        BasisDeviceManagement.ShowTrackers();
+        BasisDeviceManagement.VisibleTrackers(true);
     }
     [MenuItem("Basis/Trackers/Create Left And Right Hands")]
     public static void CreateLRTracker()
@@ -145,7 +145,7 @@ public static class BasisMenuItemsEditor
         BasisRightFoot.FollowMovement.rotation = UnityEngine.Random.rotation;
         BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
         // Show the trackers
-        BasisDeviceManagement.ShowTrackers();
+        BasisDeviceManagement.VisibleTrackers(true);
     }
     [MenuItem("Basis/Trackers/Create MaxTracker Tracking")]
     public static void CreateFullMaxTracker()
@@ -180,7 +180,7 @@ public static class BasisMenuItemsEditor
                 XR.Inputs[Index].FollowMovement.SetPositionAndRotation(bodyPartPosition, UnityEngine.Random.rotation);
             }
         }
-        BasisDeviceManagement.ShowTrackers();
+        BasisDeviceManagement.VisibleTrackers(true);
     }
     [MenuItem("Basis/Trackers/Create MaxTracker Tracking Normal Pos")]
     public static void CreateFullMaxTrackerUnModifedPos()
@@ -215,7 +215,7 @@ public static class BasisMenuItemsEditor
                 XR.Inputs[Index].FollowMovement.SetPositionAndRotation(bodyPartPosition, UnityEngine.Random.rotation);
             }
         }
-        BasisDeviceManagement.ShowTrackers();
+        BasisDeviceManagement.VisibleTrackers(true);
     }
     [MenuItem("Basis/Avatar/TPose Animator")]
     public static void PutAvatarIntoTpose()

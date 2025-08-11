@@ -18,6 +18,9 @@ namespace BattlePhaze.SettingsManager.Integrations
             BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
             Application.targetFrameRate = -1;
             QualitySettings.maxQueuedFrames = -1;
+#if UNITY_SERVER
+            Application.targetFrameRate = 25;
+#endif
         }
         public void OnDestroy()
         {
@@ -30,7 +33,11 @@ namespace BattlePhaze.SettingsManager.Integrations
         public void ChangeVerticalSync(string quality)
         {
             CurrentMode = quality;
-            if (BasisDeviceManagement.CurrentMode == BasisDeviceManagement.Desktop)
+#if UNITY_SERVER
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = 25;
+#else
+            if (BasisDeviceManagement.StaticCurrentMode == BasisConstants.Desktop)
             {
                 switch (quality)
                 {
@@ -49,6 +56,8 @@ namespace BattlePhaze.SettingsManager.Integrations
             {
                 QualitySettings.vSyncCount = 0;
             }
+        
+#endif
         }
     }
 }

@@ -8,25 +8,24 @@ namespace Basis.Scripts.BasisSdk.Interactions
     [Serializable]
     public abstract class BasisInteractableObject : MonoBehaviour
     {
+
         public BasisInputSources Inputs = new(0);
 
         [Header("Interactable Settings")]
 
         [SerializeField]
         private bool interactableEnabled = true;
-
-
-        [Space(10)]
-        public bool Equippable = false;
+        [SerializeField]
+        public BasisAutoHold AutoHold = BasisAutoHold.No;
+        [System.Serializable]
+        public enum BasisAutoHold
+        {
+            Yes, No
+        }
 
         [NonSerialized]
         internal bool RequiresUpdateLoop = false;
 
-        /// <summary>
-        /// Whether this object is controlled elsewhere.
-        /// This is used to block interaction, set iskinematic, ect.
-        /// </summary>
-        public bool IsPuppeted = false;
         // Delegates for interaction events
         public Action<BasisInput> OnInteractStartEvent;
         public Action<BasisInput> OnInteractEndEvent;
@@ -145,9 +144,19 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             return input.CurrentInputState.GripButton ||
                 // special case for desktop (left-click)
-                input.TryGetRole(out Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole role) &&
+                input.TryGetRole(out var role) &&
                 role == Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.CenterEye &&
                 input.CurrentInputState.Trigger == 1;
+        }
+
+        /// <summary>
+        /// Deskop check for triggering AutoHold drop. Base implementation will always return true, since not all interactables have a concept of holding.
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
+        public virtual bool IsHoldDropTriggered(BasisInput input)
+        {
+            return true;
         }
 
         public abstract bool CanHover(BasisInput input);
@@ -184,8 +193,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public abstract void InputUpdate();
 
         /// <summary>
-        /// clear is the generic,
-        /// a ungeneric would be drop
+        /// Cleanly clear state of all inputs. This will call hover/interact end for each input with hovering/interacting state. 
         /// </summary>
         public virtual void ClearAllInfluencing()
         {
@@ -215,15 +223,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public virtual bool IsInfluencable(BasisInput input)
         {
             return InteractableEnabled && (CanHover(input) || CanInteract(input));
-        }
-
-        public virtual void StartRemoteControl()
-        {
-            IsPuppeted = true;
-        }
-        public virtual void StopRemoteControl()
-        {
-            IsPuppeted = false;
         }
     }
 }

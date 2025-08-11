@@ -36,11 +36,7 @@ namespace Basis.Scripts.BasisSdk.Players
         public const byte LoadModeError = 2;
         public bool FaceIsVisible;
         public BasisMeshRendererCheck FaceRenderer;
-        public CancellationToken CurrentAvatarsCancellationToken;
-
-
         public BasisProgressReport AvatarProgress = new BasisProgressReport();
-        public CancellationToken CancellationToken;
         public Action<bool> AudioReceived;
         public bool HasJiggles = false;
         public delegate void SimulationHandler();

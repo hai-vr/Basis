@@ -16,7 +16,7 @@ public static class BasisNetworkHandleAvatar
         SSM.Deserialize(Reader);
         if (BasisNetworkManagement.RemotePlayers.TryGetValue(SSM.playerIdMessage.playerID, out BasisNetworkReceiver player))
         {
-            BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(player, SSM, SSM.playerIdMessage.playerID);
+            BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(player, SSM);
         }
         else
         {

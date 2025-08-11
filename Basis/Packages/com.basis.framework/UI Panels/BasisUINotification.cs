@@ -13,7 +13,10 @@ public class BasisUINotification : BasisUIBase
     public override void DestroyEvent()
     {
         BasisUIMovementDriver.DeInitalize();
-        BasisCursorManagement.LockCursor(CursorRequest);
+        if (BasisUIMovementDriver != null)
+        {
+            BasisCursorManagement.LockCursor(CursorRequest);
+        }
     }
     public static void OpenNotification(string Reason, bool OverridePosition, Vector3 Position)
     {
@@ -23,12 +26,18 @@ public class BasisUINotification : BasisUIBase
         Notification.Text.text = Reason;
         if (OverridePosition)
         {
-            Notification.BasisUIMovementDriver.enabled = false;
+            if (Notification.BasisUIMovementDriver != null)
+            {
+                Notification.BasisUIMovementDriver.enabled = false;
+            }
             Notification.transform.position = Position;
         }
         else
         {
-            Notification.BasisUIMovementDriver.enabled = true;
+            if (Notification.BasisUIMovementDriver != null)
+            {
+                Notification.BasisUIMovementDriver.enabled = true;
+            }
         }
     }
     public override void InitalizeEvent()

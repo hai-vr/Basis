@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.XR.Management;
 
@@ -10,9 +11,7 @@ namespace Basis.Scripts.Device_Management.Devices
     {
         public XRManagerSettings xRManagerSettings;
         public XRGeneralSettings xRGeneralSettings;
-        // Define the event
-        public event System.Action<string> CheckForPass;
-
+        public string[] ActiveOnModes = new string[] { BasisConstants.OpenVRLoader, BasisConstants.OpenXRLoader };
         // Store the initial list of loaders
         [SerializeField]
         public List<XRLoader> initialLoaders = new List<XRLoader>();
@@ -27,12 +26,15 @@ namespace Basis.Scripts.Device_Management.Devices
                 }
             }
         }
-        public void BeginLoad()
+        public void TryBeginLoad(string Mode)
         {
-            BasisDebug.Log("Starting LoadXR");
-            // BasisDebug.Log("Begin Load of XR");
-            ReInitalizeCheck();
-            BasisDeviceManagement.Instance.StartCoroutine(LoadXR());
+            if (ActiveOnModes.Contains(Mode))
+            {
+                BasisDebug.Log("Starting LoadXR", BasisDebug.LogTag.Device);
+                // BasisDebug.Log("Begin Load of XR");
+                ReInitalizeCheck();
+                BasisDeviceManagement.Instance.StartCoroutine(LoadXR());
+            }
         }
         public void DisableDeviceManagerSolution(string BasisBootedMode)
         {
@@ -51,17 +53,18 @@ namespace Basis.Scripts.Device_Management.Devices
         {
             // Initialize the XR loader
             yield return xRManagerSettings.InitializeLoader();
-            string result = BasisDeviceManagement.Desktop;
+            string result = BasisConstants.Desktop;
             // Check the result
             if (xRManagerSettings.activeLoader != null)
             {
                 xRManagerSettings.StartSubsystems();
                 result = xRManagerSettings.activeLoader?.name;
             }
-            BasisDebug.Log("Found Loader " + result);
-            CheckForPass?.Invoke(result);
+            BasisDebug.Log("Found Loader " + result, BasisDebug.LogTag.Device);
+
+         BasisDeviceManagement.Instance.CheckForPass(result);
         }
-        public void StopXR(bool IsExiting)
+        public void StopXR()
         {
             if (xRManagerSettings != null)
             {
@@ -69,14 +72,6 @@ namespace Basis.Scripts.Device_Management.Devices
                 {
                     xRManagerSettings.DeinitializeLoader();
                 }
-            }
-            if (IsExiting)
-            {
-                CheckForPass?.Invoke("Exiting");
-            }
-            else
-            {
-                CheckForPass?.Invoke(BasisDeviceManagement.Desktop);
             }
         }
     }

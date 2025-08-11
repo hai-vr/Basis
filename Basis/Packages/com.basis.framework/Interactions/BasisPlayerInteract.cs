@@ -8,6 +8,7 @@ using Unity.Burst;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using static Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject;
 namespace Basis.Scripts.BasisSdk.Interactions
 {
     public class BasisPlayerInteract : MonoBehaviour
@@ -151,11 +152,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 {
                     if (interactInput.lastTarget != null)
                     {
-                        // seperate if blocks in case implementation allows for hovering and holding of the same object
+                        // Implementation could allow for hovering and holding of the same object, clear independently
 
+                        bool autoHold = BasisDeviceManagement.IsUserInDesktop() && interactInput.lastTarget.AutoHold == BasisAutoHold.Yes;
                         // TODO: proximity check so we dont keep interacting with objects out side of player's reach. Needs an impl that wont break under lag though. `|| !interactInput.targetObject.IsWithinRange(interactInput.input.transform)`
                         // Drop logic: only drop when not triggered
-                        if (!interactInput.lastTarget.IsInteractTriggered(interactInput.input) && interactInput.lastTarget.IsInteractingWith(interactInput.input))
+                        if (
+                            !interactInput.lastTarget.IsInteractTriggered(interactInput.input) &&
+                            interactInput.lastTarget.IsInteractingWith(interactInput.input) &&
+                            !autoHold
+                        )
                         {
                             interactInput.lastTarget.OnInteractEnd(interactInput.input);
                         }
@@ -238,33 +244,52 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // hit a different target than last time
             if (interactInput.lastTarget != null && interactInput.lastTarget.GetInstanceID() != hitInteractable.GetInstanceID())
             {
+                bool holdDropTriggered = interactInput.lastTarget.IsHoldDropTriggered(interactInput.input);
+
                 // Holding Logic: 
+                // last target had input trigger
                 if (interactInput.lastTarget.IsInteractTriggered(interactInput.input))
                 {
-                    // clear hover
+                    // clear hover of last
                     if (interactInput.lastTarget.IsHoveredBy(interactInput.input))
                     {
                         interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
                     }
 
-                    // interacted with new hit since last frame & we arent holding (in which case do nothing)
-                    if (hitInteractable.CanInteract(interactInput.input) && !interactInput.lastTarget.IsInteractingWith(interactInput.input))
+                    bool shouldHold = hitInteractable.AutoHold == BasisAutoHold.Yes; // TODO before merge, is dooly being silly
+
+                    // interacted with new hit since last frame & we aren't holding (in which case do nothing)
+                    if (hitInteractable.CanInteract(interactInput.input) &&
+                        (!interactInput.lastTarget.IsInteractingWith(interactInput.input) || shouldHold))
                     {
                         hitInteractable.OnInteractStart(interactInput.input);
                         interactInput.lastTarget = hitInteractable;
                     }
                 }
-                // No trigger
+                // No primary trigger
+                // auto hold & remove
                 else
                 {
                     bool removeTarget = false;
-                    // end iteract of hit (unlikely since we just hit it this update)
+
+                    bool autoHoldDropped = true;
+                    if (IsDesktopCenterEye(interactInput.input))
+                    {
+                        autoHoldDropped = interactInput.lastTarget.AutoHold != BasisAutoHold.Yes ||
+                                            interactInput.lastTarget.AutoHold == BasisAutoHold.Yes &&
+                                            holdDropTriggered;
+                    }
+
+                    // end interact of hit (unlikely since we just hit it this update)
                     if (hitInteractable.IsInteractingWith(interactInput.input))
                     {
                         hitInteractable.OnInteractEnd(interactInput.input);
                     }
+
                     // end interact of previous object
-                    if (interactInput.lastTarget.IsInteractingWith(interactInput.input))
+                    if (
+                        interactInput.lastTarget.IsInteractingWith(interactInput.input) && autoHoldDropped
+                    )
                     {
                         interactInput.lastTarget.OnInteractEnd(interactInput.input);
                         removeTarget = true;
@@ -277,14 +302,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         removeTarget = true;
                     }
 
-                    // remove here in case both hover and interact ended
                     if (removeTarget)
                     {
                         interactInput.lastTarget = null;
                     }
 
                     // try hovering new interactable
-                    if (hitInteractable.CanHover(interactInput.input))
+                    if (hitInteractable.CanHover(interactInput.input) && autoHoldDropped)
                     {
                         hitInteractable.OnHoverStart(interactInput.input);
                         interactInput.lastTarget = hitInteractable;
@@ -294,36 +318,44 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // hitting same interactable
             else
             {
-                // Pickup logic: 
-                // per input an object can be either held or hovered, not both. Objects can ignore this by purposfully modifying IsHovered/IsInteracted.
                 if (hitInteractable.IsInteractTriggered(interactInput.input))
                 {
-                    // first clear hover...
+                    // first clear hover
                     if (hitInteractable.IsHoveredBy(interactInput.input))
                     {
-                        // will interact this frame
                         hitInteractable.OnHoverEnd(interactInput.input, hitInteractable.CanInteract(interactInput.input));
                     }
 
                     // then try to interact
-                    // TODO: hand set pickup limitations
+                    bool shouldHold = hitInteractable.AutoHold == BasisAutoHold.Yes;// || interactInput.input.isHeld
+
                     if (hitInteractable.CanInteract(interactInput.input))
                     {
-                        hitInteractable.OnInteractStart(interactInput.input);
-                        interactInput.lastTarget = hitInteractable;
+                        if (!hitInteractable.IsInteractingWith(interactInput.input) || shouldHold)
+                        {
+                            hitInteractable.OnInteractStart(interactInput.input);
+                            interactInput.lastTarget = hitInteractable;
+                        }
                     }
                 }
-                // not holding
-                // hover if we arent holding, drop any held
                 else
                 {
-                    // first end interact...
-                    if (hitInteractable.IsInteractingWith(interactInput.input))
+
+                    bool autoHoldDropped = true;
+                    if (IsDesktopCenterEye(interactInput.input))
+                    {
+                        autoHoldDropped = hitInteractable.AutoHold != BasisAutoHold.Yes ||
+                                            hitInteractable.AutoHold == BasisAutoHold.Yes &&
+                                            hitInteractable.IsHoldDropTriggered(interactInput.input);
+                    }
+
+                    // end interact if not holding and we're still interacting
+                    if (hitInteractable.IsInteractingWith(interactInput.input) && autoHoldDropped)
                     {
                         hitInteractable.OnInteractEnd(interactInput.input);
                     }
 
-                    // then hover
+                    // hover logic
                     if (hitInteractable.CanHover(interactInput.input))
                     {
                         hitInteractable.OnHoverStart(interactInput.input);
@@ -331,6 +363,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     }
                 }
             }
+
             return interactInput;
         }
         private void RemoveInput(string uid)
@@ -442,9 +475,32 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 }
             }
         }
+
+
+        public bool ForceSetInteracting(BasisInteractableObject interactableObject, BasisInput input)
+        {
+            if (
+                input.TryGetRole(out BasisBoneTrackedRole role) &&
+                interactableObject.Inputs.ChangeStateByRole(role, BasisInteractInputState.Hovering)
+                )
+            {
+                for (int i = 0; i < InteractInputs.Length; i++)
+                {
+                    if (InteractInputs[i].IsInput(input))
+                    {
+                        BasisDebug.Log("Stole ownership, starting interact", BasisDebug.LogTag.Networking);
+                        interactableObject.OnInteractStart(input);
+                        InteractInputs[i].lastTarget = interactableObject;
+                    }
+                }
+
+                return true;
+            }
+            else return false;
+        }
         public bool IsDesktopCenterEye(BasisInput input)
         {
-            return input.TryGetRole(out BasisBoneTrackedRole role) && role == BasisBoneTrackedRole.CenterEye;
+            return BasisDeviceManagement.IsUserInDesktop() && input.TryGetRole(out BasisBoneTrackedRole role) && role == BasisBoneTrackedRole.CenterEye;
         }
         /// <summary>
         /// Gets the closest InteractableObject in the given HoverSphere where IsInfluencable is true for the given input.

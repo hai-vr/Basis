@@ -34,7 +34,7 @@ namespace Basis.Scripts.BasisSdk.Players
         public byte AlwaysRequestedMode;//0 downloading 1 local
         [HideInInspector]
         public BasisLoadableBundle AlwaysRequestedAvatar;
-        public async Task RemoteInitialize(ClientAvatarChangeMessage cACM, PlayerMetaDataMessage PlayerMetaDataMessage)
+        public async Task RemoteInitialize(ClientAvatarChangeMessage cACM, ClientMetaDataMessage PlayerMetaDataMessage)
         {
             CACM = cACM;
             DisplayName = PlayerMetaDataMessage.playerDisplayName;
@@ -90,12 +90,31 @@ namespace Basis.Scripts.BasisSdk.Players
             if (BasisPlayerSettingsData.AvatarVisible && InAvatarRange)
             {
                 //    BasisDebug.Log("loading avatar from " + BasisLoadableBundle.BasisRemoteBundleEncrypted.CombinedURL + " with net mode " + Mode);
-                await BasisAvatarFactory.LoadAvatarRemote(this, Mode, BasisLoadableBundle);
+                await BasisAvatarFactory.LoadAvatarRemote(this, Mode, BasisLoadableBundle, Vector3.zero, Quaternion.identity);
             }
             else
             {
                 // BasisDebug.Log("Going to load Loading Avatar Instead of requested Avatar");
-                BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this, BasisAvatarFactory.LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation);
+                BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this, BasisAvatarFactory.LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation, Vector3.zero, Quaternion.identity);
+            }
+            if (NetworkReceiver != null)
+            {
+                if (NetworkReceiver.PoseHandler == null)
+                {
+                    return;
+                }
+                if (NetworkReceiver.First == null)
+                {
+                    return;
+                }
+                if (NetworkReceiver.Last == null)
+                {
+                    return;
+                }
+                if (NetworkReceiver.HasAvatarQueue)
+                {
+                    NetworkReceiver.ApplyComputedData(false);
+                }
             }
         }
         public void OnDestroy()

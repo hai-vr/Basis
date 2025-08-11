@@ -15,18 +15,8 @@ MonoBehaviour:
   m_GroupName: Basis Foundation Assets
   m_GUID: 37c75a6cf72db324eb01200602299fc8
   m_SerializeEntries:
-  - m_GUID: 04d8d7db6114a384aaabeb1d02dd2013
-    m_Address: Packages/com.hecomi.ulipsync/Assets/Profiles/uLipSync-Profile-Sample-Female.asset
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 06b1965d0565c4444b4ce3ea5aa8e690
     m_Address: Packages/com.basis.tests/Mirror/BasisSDKMIrror.prefab
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 0beeb56a431ea1646bb55ff6c6fc5a62
-    m_Address: Packages/com.hecomi.ulipsync/Assets/Profiles/uLipSync-Profile-Sample.asset
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -37,11 +27,6 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 1a876a9e9a22e4643b0d03f0eb3d0c30
     m_Address: Locomotion
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 26ade42e4ff7eb64eb194e1a6453ad85
-    m_Address: NetworkManagement
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -197,11 +182,6 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: dd1db054b177db7459cc81633b86e525
     m_Address: Assets/Scenes/initialization.unity
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: e7bee847b0146493d97aceaf14bb2903
-    m_Address: Packages/com.hecomi.ulipsync/Assets/Profiles/uLipSync-Profile-Sample-Male.asset
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

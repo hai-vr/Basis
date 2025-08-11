@@ -56,21 +56,33 @@ public class SMModuleDistanceBasedReductions : SettingsManagerOption
         {
             if (SliderReadOption(Option, Manager, out var newMicrophoneRange))
             {
+#if UNITY_SERVER
+                MicrophoneRange = 0;
+#else
                 MicrophoneRange = newMicrophoneRange * newMicrophoneRange;
+#endif
             }
         }
         else if (NameReturn(1, Option))
         {
             if (SliderReadOption(Option, Manager, out var newHearingRange))
             {
-                HearingRange = newHearingRange * newHearingRange;
+#if UNITY_SERVER
+                HearingRange = 0;
+#else
+    HearingRange = newHearingRange * newHearingRange;
+#endif
             }
         }
         else if (NameReturn(2, Option))
         {
             if (SliderReadOption(Option, Manager, out var LoadRange))
             {
-                AvatarRange = LoadRange * LoadRange;
+#if UNITY_SERVER
+                AvatarRange = 0;
+#else
+   AvatarRange = LoadRange * LoadRange;
+#endif
             }
         }
     }

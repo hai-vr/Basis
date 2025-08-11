@@ -13,6 +13,7 @@ using BasisNetworkClient;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,7 +23,6 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
-using static DarkRift.Basis_Common.Serializable.SerializableBasis;
 using static SerializableBasis;
 namespace Basis.Scripts.Networking
 {
@@ -34,9 +34,8 @@ namespace Basis.Scripts.Networking
         [HideInInspector]
         public string Password = "default_password";
         public bool IsHostMode = false;
-        /// <summary>
-        /// fire when ownership is changed for a unique string
-        /// </summary>
+
+        public static Dictionary<string, ushort> OwnershipPairing = new Dictionary<string, ushort>();
         public static ConcurrentDictionary<ushort, BasisNetworkPlayer> Players = new ConcurrentDictionary<ushort, BasisNetworkPlayer>();
         public static ConcurrentDictionary<ushort, BasisNetworkReceiver> RemotePlayers = new ConcurrentDictionary<ushort, BasisNetworkReceiver>();
         public static HashSet<ushort> JoiningPlayers = new HashSet<ushort>();
@@ -47,58 +46,97 @@ namespace Basis.Scripts.Networking
 
         public static SynchronizationContext MainThreadContext;
         public static NetPeer LocalPlayerPeer;
-        public BasisNetworkTransmitter Transmitter;
+        public static BasisNetworkTransmitter Transmitter;
+        /// <summary>
+        /// just so we can show it in the inspector ;/
+        /// </summary>
+        [SerializeField]
+        public BasisNetworkTransmitter LocalAccessTransmitter;
         [SerializeField]
         public NetworkClient NetworkClient = new NetworkClient();
         public static bool LocalPlayerIsConnected { get; private set; }
         public static Action OnEnableInstanceCreate;
         public static BasisNetworkManagement Instance;
-        public static Dictionary<string, ushort> OwnershipPairing = new Dictionary<string, ushort>();
-       public static InstantiationParameters instantiationParameters;
-        /// <summary>
-        /// allows a local host to be the server
-        /// </summary>
+        public static InstantiationParameters instantiationParameters;
         public BasisNetworkServerRunner BasisNetworkServerRunner = null;
         public static bool NetworkRunning = false;
-        public static BasisNetworkTransmitter LocalNetworkedPlayer;
-        public bool IsRunning = true;
+        public static ServerMetaDataMessage ServerMetaDataMessage = new ServerMetaDataMessage();
         public static bool AddPlayer(BasisNetworkPlayer NetPlayer)
         {
-            if (Instance != null)
-            {
-                if (NetPlayer.Player != null)
-                {
-                    if (NetPlayer.Player.IsLocal == false)
-                    {
-                        RemotePlayers.TryAdd(NetPlayer.NetId, (BasisNetworkReceiver)NetPlayer);
-                        BasisNetworkManagement.ReceiversSnapshot = RemotePlayers.Values.ToArray();
-                        ReceiverCount = ReceiversSnapshot.Length;
-                      //  BasisDebug.Log("ReceiverCount was " + ReceiverCount);
-                    }
-                }
-                else
-                {
-                    BasisDebug.LogError("Player was Null!");
-                }
-                return Players.TryAdd(NetPlayer.NetId, NetPlayer);
-            }
-            else
+            if (Instance == null)
             {
                 BasisDebug.LogError("No network Instance Existed!");
+                return false;
             }
-            return false;
-        }
-        public static bool RemovePlayer(ushort NetID)
-        {
-            if (Instance != null)
+
+            if (NetPlayer == null || NetPlayer.Player == null)
             {
-                RemotePlayers.TryRemove(NetID, out BasisNetworkReceiver A);
-                BasisNetworkManagement.ReceiversSnapshot = RemotePlayers.Values.ToArray();
-                ReceiverCount = ReceiversSnapshot.Length;
-                //BasisDebug.Log("ReceiverCount was " + ReceiverCount);
-                return Players.Remove(NetID, out var B);
+                BasisDebug.LogError("NetPlayer or NetPlayer.Player was null!");
+                return false;
             }
-            return false;
+
+            // Check if player already exists in Players
+            if (Players.ContainsKey(NetPlayer.playerId))
+            {
+                BasisDebug.LogWarning($"Player {NetPlayer.playerId} already exists. Removing old entry before adding new one.");
+                BasisNetworkHandleRemoval.HandleDisconnectIdImmediate(NetPlayer.playerId);
+            }
+
+            if (!Players.TryAdd(NetPlayer.playerId, NetPlayer))
+            {
+                BasisDebug.LogError($"Failed to add player {NetPlayer.playerId} to Players.");
+                return false;
+            }
+
+            if (!NetPlayer.Player.IsLocal)
+            {
+                if (RemotePlayers.ContainsKey(NetPlayer.playerId))
+                {
+                    BasisDebug.LogWarning($"Remote player {NetPlayer.playerId} already exists. Removing old entry before adding new one.");
+                    BasisNetworkHandleRemoval.HandleDisconnectIdImmediate(NetPlayer.playerId);
+                }
+
+                if (!RemotePlayers.TryAdd(NetPlayer.playerId, (BasisNetworkReceiver)NetPlayer))
+                {
+                    // Rollback Players since RemotePlayers add failed
+                    Players.TryRemove(NetPlayer.playerId, out _);
+                    BasisDebug.LogError($"Failed to add remote player {NetPlayer.playerId} to RemotePlayers. Rolled back from Players.");
+                    return false;
+                }
+
+                // Update snapshot and count only on successful add
+                BasisNetworkManagement.ReceiversSnapshot = RemotePlayers.Values.ToArray();
+                ReceiverCount = BasisNetworkManagement.ReceiversSnapshot.Length;
+            }
+
+            return true;
+        }
+        public static bool RemovePlayer(ushort NetID,out BasisNetworkPlayer Player)
+        {
+            if (Instance == null)
+            {
+                Player = null;
+                BasisDebug.LogError("No network Instance existed!");
+                return false;
+            }
+
+            // First try to remove from Playerss
+            if (!Players.Remove(NetID, out Player))
+            {
+                BasisDebug.LogError($"Failed to remove player {NetID} from Players.");
+            }
+
+            // Then try to remove from RemotePlayers
+            if (!RemotePlayers.TryRemove(NetID, out var receiver))
+            {
+                BasisDebug.LogError($"Failed to remove remote player {NetID} from RemotePlayers.");
+            }
+
+            // Update snapshot and count only if both removals succeeded
+            BasisNetworkManagement.ReceiversSnapshot = RemotePlayers.Values.ToArray();
+            ReceiverCount = BasisNetworkManagement.ReceiversSnapshot.Length;
+
+            return true;
         }
         public void OnEnable()
         {
@@ -106,17 +144,25 @@ namespace Basis.Scripts.Networking
             {
                 Instance = this;
             }
+            if(HasDisconnectReason)
+            {
+                HandleDisconnectionReason(LastDisconnectInfo);
+                HasDisconnectReason = false;
+                LastDisconnectInfo = default;
+            }
+            BasisAudioRemoteSource.Initalize();
             instantiationParameters = new InstantiationParameters(Vector3.zero, Quaternion.identity, BasisDeviceManagement.Instance.transform);
             BasisAvatarMuscleRange.Initalize();
             MainThreadContext = SynchronizationContext.Current;
             // Initialize AvatarBuffer
             BasisAvatarBufferPool.AvatarBufferPool(30);
             OwnershipPairing.Clear();
-            if (BasisScene.Instance != null)
-            {
-                SetupSceneEvents(BasisScene.Instance);
-            }
-            BasisScene.Ready += SetupSceneEvents;
+            ServerMetaDataMessage = new ServerMetaDataMessage();
+            ServerMetaDataMessage.ClientMetaDataMessage = new ClientMetaDataMessage();
+            ServerMetaDataMessage.SyncInterval = 50;
+            ServerMetaDataMessage.BaseMultiplier = 1;
+            ServerMetaDataMessage.IncreaseRate = 0.005f;
+            ServerMetaDataMessage.SlowestSendRate = 2.5f;
             if (BasisDeviceManagement.Instance != null)
             {
                 this.transform.parent = BasisDeviceManagement.Instance.transform;
@@ -124,6 +170,7 @@ namespace Basis.Scripts.Networking
             this.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
             OnEnableInstanceCreate?.Invoke();
             NetworkRunning = true;
+
         }
         private void LogErrorOutput(string obj)
         {
@@ -139,6 +186,7 @@ namespace Basis.Scripts.Networking
         }
         public async void OnDestroy()
         {
+            BasisAudioRemoteSource.DeInitalize();
             Players.Clear();
             await Shutdown();
             BasisAvatarBufferPool.Clear();
@@ -161,6 +209,7 @@ namespace Basis.Scripts.Networking
             MainThreadContext = null;
             LocalPlayerPeer = null;
             Transmitter = null;
+            LocalAccessTransmitter = null;
             BasisNetworkPlayer.OnLocalPlayerJoined = null;
             LocalPlayerIsConnected = false;
             BasisNetworkPlayer.OnRemotePlayerJoined = null;
@@ -181,12 +230,10 @@ namespace Basis.Scripts.Networking
 
             BasisDebug.Log("BasisNetworkManagement has been successfully shutdown.", BasisDebug.LogTag.Networking);
         }
-        public static void SimulateNetworkCompute()
+        public static void SimulateNetworkCompute(double TimeAsDouble)
         {
             if (NetworkRunning)
             {
-                double TimeAsDouble = Time.timeAsDouble;
-
                 // Schedule multithreaded tasks
                 for (int Index = 0; Index < ReceiverCount; Index++)
                 {
@@ -198,11 +245,10 @@ namespace Basis.Scripts.Networking
                 BasisNetworkProfiler.Update();
             }
         }
-        public static void SimulateNetworkApply()
+        public static void SimulateNetworkApply(double TimeAsDouble)
         {
             if (NetworkRunning)
             {
-                double TimeAsDouble = Time.timeAsDouble;
                 // Complete tasks and apply results
                 for (int Index = 0; Index < ReceiverCount; Index++)
                 {
@@ -223,10 +269,6 @@ namespace Basis.Scripts.Networking
             LocalID = 0;
             return false;
         }
-        public void SetupSceneEvents(BasisScene BasisScene)
-        {
-            BasisScene.OnNetworkMessageSend += BasisNetworkGenericMessages.OnNetworkMessageSend;
-        }
         public void Connect()
         {
             Connect(Port, Ip, Password, IsHostMode);
@@ -242,7 +284,7 @@ namespace Basis.Scripts.Networking
             {
                 IpString = "localhost";
                 BasisNetworkServerRunner = new BasisNetworkServerRunner();
-                Configuration ServerConfig = new Configuration() { IPv4Address = IpString, HasFileSupport = false, UseNativeSockets = false, UseAuthIdentity = true, UseAuth = true, Password = PrimitivePassword, EnableStatistics = false  };
+                Configuration ServerConfig = new Configuration() { IPv4Address = IpString, HasFileSupport = false, UseNativeSockets = false, UseAuthIdentity = true, UseAuth = true, Password = PrimitivePassword, EnableStatistics = false };
                 BasisNetworkServerRunner.Initalize(ServerConfig, string.Empty, UUID);
             }
 
@@ -258,8 +300,9 @@ namespace Basis.Scripts.Networking
                 {
                     byteArray = Information,
                     loadMode = BasisLocalPlayer.AvatarLoadMode,
+                    LocalAvatarIndex = 0,
                 },
-                playerMetaDataMessage = new PlayerMetaDataMessage
+                playerMetaDataMessage = new ClientMetaDataMessage
                 {
                     playerUUID = BasisLocalPlayer.UUID,
                     playerDisplayName = BasisLocalPlayer.DisplayName
@@ -281,47 +324,40 @@ namespace Basis.Scripts.Networking
                 ForceShutdown();
             }
         }
-        private async void PeerConnectedEvent(NetPeer peer)
-        {
-            await PeerConnectedEventAsync(peer);
-        }
-        private async Task PeerConnectedEventAsync(NetPeer peer)
+        private void PeerConnectedEvent(NetPeer peer)
         {
             BasisDebug.Log("Success! Now setting up Networked Local Player");
-
-            // Wrap the main logic in a task for thread safety and asynchronous execution.
-            await Task.Run(() =>
+            BasisNetworkManagement.MainThreadContext.Post(_ =>
             {
-                BasisNetworkManagement.MainThreadContext.Post((SendOrPostCallback)(_ =>
+                try
                 {
-                    try
+                    LocalPlayerPeer = peer;
+                    ushort LocalPlayerID = (ushort)peer.RemoteId;
+                    // Create the local networked player asynchronously.
+                    this.transform.GetPositionAndRotation(out Vector3 Position, out Quaternion Rotation);
+                    Transmitter = new BasisNetworkTransmitter(LocalPlayerID);
+                    LocalAccessTransmitter = Transmitter;
+                    // Initialize the local networked player.
+                    LocalInitalize(LocalAccessTransmitter, BasisLocalPlayer.Instance);
+                    if (AddPlayer(LocalAccessTransmitter))
                     {
-                        LocalPlayerPeer = peer;
-                        ushort LocalPlayerID = (ushort)peer.RemoteId;
-                        // Create the local networked player asynchronously.
-                        this.transform.GetPositionAndRotation(out Vector3 Position, out Quaternion Rotation);
-                        LocalNetworkedPlayer = new BasisNetworkTransmitter(LocalPlayerID);
-                        // Initialize the local networked player.
-                        LocalInitalize(LocalNetworkedPlayer, BasisLocalPlayer.Instance);
-                        if (AddPlayer(LocalNetworkedPlayer))
-                        {
-                          //  BasisDebug.Log($"Added local player {LocalPlayerID}");
-                        }
-                        else
-                        {
-                            BasisDebug.LogError($"Cannot add player {LocalPlayerID}");
-                        }
-                        LocalNetworkedPlayer.Initialize();
-                        // Notify listeners about the local player joining.
-                        BasisNetworkPlayer.OnLocalPlayerJoined?.Invoke(LocalNetworkedPlayer, BasisLocalPlayer.Instance);
-                        LocalPlayerIsConnected = true;
+                        //  BasisDebug.Log($"Added local player {LocalPlayerID}");
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        BasisDebug.LogError($"Error setting up the local player: {ex.Message} {ex.StackTrace}");
+                        BasisDebug.LogError($"Cannot add player {LocalPlayerID}");
                     }
-                }), null);
-            });
+                    LocalAccessTransmitter.Initialize();
+                    // Notify listeners about the local player joining.
+                    BasisNetworkPlayer.OnLocalPlayerJoined?.Invoke(LocalAccessTransmitter, BasisLocalPlayer.Instance);
+                    BasisNetworkPlayer.OnPlayerJoined?.Invoke(LocalAccessTransmitter);
+                    LocalPlayerIsConnected = true;
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogError($"Error setting up the local player: {ex.Message} {ex.StackTrace}");
+                }
+            }, null);
         }
         public static void LocalInitalize(BasisNetworkTransmitter BasisNetworkPlayer, BasisLocalPlayer BasisLocalPlayer)
         {
@@ -339,36 +375,40 @@ namespace Basis.Scripts.Networking
             {
                 BasisDebug.LogError("Missing CharacterIKCalibration");
             }
-            BasisNetworkManagement.Instance.Transmitter = (BasisNetworkTransmitter)BasisNetworkPlayer;
         }
-        private async void PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
+        private void PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             BasisDebug.Log($"Client disconnected from server [{peer.Id}]");
             if (peer == LocalPlayerPeer)
             {
-                await Task.Run(() =>
+                MainThreadContext.Post(async _ =>
                 {
-                    MainThreadContext.Post(async _ =>
+                    if (LocalPlayerPeer != null && Players.TryGetValue((ushort)LocalPlayerPeer.RemoteId, out BasisNetworkPlayer NetworkedPlayer))
                     {
-                        if (LocalPlayerPeer != null && Players.TryGetValue((ushort)LocalPlayerPeer.RemoteId, out BasisNetworkPlayer NetworkedPlayer))
-                        {
-                            BasisNetworkPlayer.OnLocalPlayerLeft?.Invoke(NetworkedPlayer, (BasisLocalPlayer)NetworkedPlayer.Player);
-                        }
-                        if (BasisNetworkServerRunner != null)
-                        {
-                            BasisNetworkServerRunner.Stop();
-                            BasisNetworkServerRunner = null;
-                        }
-                        Players.Clear();
-                        OwnershipPairing.Clear();
-                        ReceiverCount = 0;
-                        BasisDebug.Log($"Client disconnected from server [{peer.RemoteId}] [{disconnectInfo.Reason}]");
-                        SceneManager.LoadScene(0, LoadSceneMode.Single);//reset
-                        await Boot_Sequence.BootSequence.OnAddressablesInitializationComplete();
-                        HandleDisconnectionReason(disconnectInfo);
-                    }, null);
-                });
+                        BasisNetworkPlayer.OnLocalPlayerLeft?.Invoke(NetworkedPlayer, (BasisLocalPlayer)NetworkedPlayer.Player);
+                        BasisNetworkPlayer.OnPlayerLeft?.Invoke(NetworkedPlayer);
+                    }
+                    if (BasisNetworkServerRunner != null)
+                    {
+                        BasisNetworkServerRunner.Stop();
+                        BasisNetworkServerRunner = null;
+                    }
+                    Players.Clear();
+                    OwnershipPairing.Clear();
+                    ReceiverCount = 0;
+                    BasisDebug.Log($"Client disconnected from server [{peer.RemoteId}] [{disconnectInfo.Reason}]");
+                    SceneManager.LoadScene(0, LoadSceneMode.Single);//reset
+                    await Boot_Sequence.BootSequence.OnAddressablesInitializationComplete();
+                    ScheduleDisconnectionMessage(disconnectInfo);
+                }, null);
             }
+        }
+        public static DisconnectInfo LastDisconnectInfo;
+        public static bool HasDisconnectReason = false;
+        public void ScheduleDisconnectionMessage(DisconnectInfo disconnectInfo)
+        {
+            LastDisconnectInfo = disconnectInfo;
+            HasDisconnectReason = true;
         }
         public void HandleDisconnectionReason(DisconnectInfo disconnectInfo)
         {
@@ -394,6 +434,7 @@ namespace Basis.Scripts.Networking
                      if (LocalPlayerPeer != null && Players.TryGetValue((ushort)LocalPlayerPeer.RemoteId, out BasisNetworkPlayer NetworkedPlayer))
                      {
                          BasisNetworkPlayer.OnLocalPlayerLeft?.Invoke(NetworkedPlayer, (BasisLocalPlayer)NetworkedPlayer.Player);
+                         BasisNetworkPlayer.OnPlayerLeft?.Invoke(NetworkedPlayer);
                      }
                      if (BasisNetworkServerRunner != null)
                      {
@@ -431,7 +472,7 @@ namespace Basis.Scripts.Networking
             if (BasisDIDAuthIdentityClient.IdentityMessage(peer, Reader, out NetDataWriter Writer))
             {
                 BasisDebug.Log("Sent Identity To Server!");
-                LocalPlayerPeer.Send(Writer, BasisNetworkCommons.AuthIdentityMessage, DeliveryMethod.ReliableSequenced);
+                LocalPlayerPeer.Send(Writer, BasisNetworkCommons.AuthIdentityChannel, DeliveryMethod.ReliableOrdered);
                 Reader.Recycle();
             }
             else
@@ -471,10 +512,10 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }
                     break;
-                case BasisNetworkCommons.AuthIdentityMessage:
+                case BasisNetworkCommons.AuthIdentityChannel:
                     AuthIdentityMessage(peer, Reader, channel);
                     break;
-                case BasisNetworkCommons.Disconnection:
+                case BasisNetworkCommons.DisconnectionChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -483,7 +524,7 @@ namespace Basis.Scripts.Networking
                     BasisNetworkHandleRemoval.HandleDisconnection(Reader);
                     Reader.Recycle();
                     break;
-                case BasisNetworkCommons.AvatarChangeMessage:
+                case BasisNetworkCommons.AvatarChangeMessageChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -495,7 +536,7 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }, null);
                     break;
-                case BasisNetworkCommons.CreateRemotePlayer:
+                case BasisNetworkCommons.CreateRemotePlayerChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -507,7 +548,7 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }, null);
                     break;
-                case BasisNetworkCommons.CreateRemotePlayersForNewPeer:
+                case BasisNetworkCommons.CreateRemotePlayersForNewPeerChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -521,7 +562,7 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }, null);
                     break;
-                case BasisNetworkCommons.GetCurrentOwnerRequest:
+                case BasisNetworkCommons.GetCurrentOwnerRequestChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -533,7 +574,7 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }, null);
                     break;
-                case BasisNetworkCommons.ChangeCurrentOwnerRequest:
+                case BasisNetworkCommons.ChangeCurrentOwnerRequestChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -545,7 +586,7 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }, null);
                     break;
-                case BasisNetworkCommons.RemoveCurrentOwnerRequest:
+                case BasisNetworkCommons.RemoveCurrentOwnerRequestChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -558,10 +599,13 @@ namespace Basis.Scripts.Networking
                     }, null);
                     break;
                 case BasisNetworkCommons.VoiceChannel:
+#if UNITY_SERVER
+#else
                     await BasisNetworkHandleVoice.HandleAudioUpdate(Reader);
+#endif
                     Reader.Recycle();
                     break;
-                case BasisNetworkCommons.MovementChannel:
+                case BasisNetworkCommons.PlayerAvatarChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -594,7 +638,7 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }, null);
                     break;
-                case BasisNetworkCommons.NetIDAssigns:
+                case BasisNetworkCommons.NetIDAssignsChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -606,7 +650,7 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }, null);
                     break;
-                case BasisNetworkCommons.netIDAssign:
+                case BasisNetworkCommons.netIDAssignChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -618,7 +662,7 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }, null);
                     break;
-                case BasisNetworkCommons.LoadResourceMessage:
+                case BasisNetworkCommons.LoadResourceChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -630,7 +674,7 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }, null);
                     break;
-                case BasisNetworkCommons.UnloadResourceMessage:
+                case BasisNetworkCommons.UnloadResourceChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -642,7 +686,7 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }, null);
                     break;
-                case BasisNetworkCommons.AdminMessage:
+                case BasisNetworkCommons.AdminChannel:
                     if (ValidateSize(Reader, peer, channel) == false)
                     {
                         Reader.Recycle();
@@ -654,170 +698,27 @@ namespace Basis.Scripts.Networking
                         Reader.Recycle();
                     }, null);
                     break;
+                case BasisNetworkCommons.metaDataChannel:
+                    if (ValidateSize(Reader, peer, channel) == false)
+                    {
+                        Reader.Recycle();
+                        return;
+                    }
+                    ServerMetaDataMessage ServerMetaDataMessage = new ServerMetaDataMessage();
+                    ServerMetaDataMessage.Deserialize(Reader);
+                    Reader.Recycle();
+
+                    BasisLocalPlayer.Instance.UUID = ServerMetaDataMessage.ClientMetaDataMessage.playerUUID;
+                    BasisLocalPlayer.Instance.DisplayName = ServerMetaDataMessage.ClientMetaDataMessage.playerDisplayName;
+                    BasisNetworkManagement.ServerMetaDataMessage = ServerMetaDataMessage;
+
+                    break;
                 default:
                     BNL.LogError($"this Channel was not been implemented {channel}");
                     Reader.Recycle();
                     break;
             }
         }
-        public static async Task<(bool, ushort)> RemoveOwnershipAsync(string UniqueNetworkId, int timeoutMs = 5000)
-        {
-            var tcs = new TaskCompletionSource<(bool, ushort)>();
-            using var cancellationTokenSource = new CancellationTokenSource();
-
-            void OnOwnershipTransferred(string ownershipID, ushort playerID, bool isLocalOwner)
-            {
-                if (ownershipID == UniqueNetworkId)
-                {
-                    BasisNetworkPlayer.OnOwnershipTransfer -= OnOwnershipTransferred;
-                    cancellationTokenSource.Cancel(); // Stop timeout countdown
-                    tcs.TrySetResult((true, playerID));
-                }
-            }
-
-            cancellationTokenSource.Token.Register(() =>
-            {
-                BasisNetworkPlayer.OnOwnershipTransfer -= OnOwnershipTransferred;
-                tcs.TrySetResult((false, 0));
-            });
-
-            BasisNetworkPlayer.OnOwnershipTransfer += OnOwnershipTransferred;
-
-            var ownershipTransferMessage = new OwnershipTransferMessage
-            {
-                playerIdMessage = new PlayerIdMessage
-                {
-                    playerID = (ushort)BasisNetworkManagement.LocalPlayerPeer.RemoteId,
-                },
-                ownershipID = UniqueNetworkId
-            };
-
-            var netDataWriter = new NetDataWriter();
-            ownershipTransferMessage.Serialize(netDataWriter);
-
-            var peer = BasisNetworkManagement.LocalPlayerPeer;
-            if (peer != null)
-            {
-                peer.Send(netDataWriter, BasisNetworkCommons.RemoveCurrentOwnerRequest, DeliveryMethod.ReliableSequenced);
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.OwnershipTransfer, netDataWriter.Length);
-            }
-            else
-            {
-                BasisNetworkPlayer.OnOwnershipTransfer -= OnOwnershipTransferred;
-                return (false, 0);
-            }
-
-            cancellationTokenSource.CancelAfter(timeoutMs);
-            return await tcs.Task;
-        }
-        public static async Task<(bool, ushort)> TakeOwnershipAsync(string UniqueNetworkId, ushort NewOwner, int timeoutMs = 5000)
-        {
-            var tcs = new TaskCompletionSource<(bool, ushort)>();
-            using var cancellationTokenSource = new CancellationTokenSource();
-
-            void OnOwnershipTransferred(string ownershipID, ushort playerID, bool isLocalOwner)
-            {
-                if (ownershipID == UniqueNetworkId && playerID == NewOwner)
-                {
-                    BasisNetworkPlayer.OnOwnershipTransfer -= OnOwnershipTransferred;
-                    cancellationTokenSource.Cancel(); // Stop timeout countdown
-                    tcs.TrySetResult((true, playerID));
-                }
-            }
-
-            cancellationTokenSource.Token.Register(() =>
-            {
-                BasisNetworkPlayer.OnOwnershipTransfer -= OnOwnershipTransferred;
-                tcs.TrySetResult((false, 0));
-            });
-
-            BasisNetworkPlayer.OnOwnershipTransfer += OnOwnershipTransferred;
-
-            var ownershipTransferMessage = new OwnershipTransferMessage
-            {
-                playerIdMessage = new PlayerIdMessage
-                {
-                    playerID = NewOwner
-                },
-                ownershipID = UniqueNetworkId
-            };
-
-            var netDataWriter = new NetDataWriter();
-            ownershipTransferMessage.Serialize(netDataWriter);
-
-            var peer = BasisNetworkManagement.LocalPlayerPeer;
-            if (peer != null)
-            {
-                peer.Send(netDataWriter, BasisNetworkCommons.ChangeCurrentOwnerRequest, DeliveryMethod.ReliableSequenced);
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.OwnershipTransfer, netDataWriter.Length);
-            }
-            else
-            {
-                BasisNetworkPlayer.OnOwnershipTransfer -= OnOwnershipTransferred;
-                return (false, 0);
-            }
-
-            cancellationTokenSource.CancelAfter(timeoutMs);
-            return await tcs.Task;
-        }
-        public static async Task<(bool, ushort)> RequestCurrentOwnershipAsync(string UniqueNetworkId, int timeoutMs = 5000)
-        {
-            if (OwnershipPairing.TryGetValue(UniqueNetworkId, out ushort Unique))
-            {
-                return (true, Unique);
-            }
-
-            var tcs = new TaskCompletionSource<(bool, ushort)>();
-            using var cancellationTokenSource = new CancellationTokenSource();
-
-            void OnOwnershipTransferred(string ownershipID, ushort playerID, bool isLocalOwner)
-            {
-                if (ownershipID == UniqueNetworkId)
-                {
-                    BasisNetworkPlayer.OnOwnershipTransfer -= OnOwnershipTransferred;
-                    cancellationTokenSource.Cancel(); // Stop timeout countdown
-                    tcs.TrySetResult((true, playerID));
-                }
-            }
-
-            cancellationTokenSource.Token.Register(() =>
-            {
-                BasisNetworkPlayer.OnOwnershipTransfer -= OnOwnershipTransferred;
-                tcs.TrySetResult((false, 0));
-            });
-
-            BasisNetworkPlayer.OnOwnershipTransfer += OnOwnershipTransferred;
-
-            var ownershipTransferMessage = new OwnershipTransferMessage
-            {
-                playerIdMessage = new PlayerIdMessage
-                {
-                    playerID = (ushort)BasisNetworkManagement.LocalPlayerPeer.RemoteId,
-                },
-                ownershipID = UniqueNetworkId
-            };
-
-            var netDataWriter = new NetDataWriter();
-            ownershipTransferMessage.Serialize(netDataWriter);
-
-            // Ensure the peer is valid before sending
-            var peer = BasisNetworkManagement.LocalPlayerPeer;
-            if (peer != null)
-            {
-                peer.Send(netDataWriter, BasisNetworkCommons.GetCurrentOwnerRequest, DeliveryMethod.ReliableSequenced);
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.RequestOwnershipTransfer, netDataWriter.Length);
-            }
-            else
-            {
-                BasisNetworkPlayer.OnOwnershipTransfer -= OnOwnershipTransferred;
-                return (false, 0);
-            }
-
-            cancellationTokenSource.CancelAfter(timeoutMs);
-
-            return await tcs.Task;
-        }
-
         public static bool AvatarToPlayer(BasisAvatar Avatar, out BasisPlayer BasisPlayer, out BasisNetworkPlayer NetworkedPlayer)
         {
             if (Avatar == null)
@@ -957,7 +858,7 @@ namespace Basis.Scripts.Networking
         {
             if (LocalPlayerPeer != null)
             {
-                LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.ServerBoundMessage, Mode);
+                LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.ServerBoundChannel, Mode);
                 BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.SceneData, netDataWriter.Length);
             }
             else

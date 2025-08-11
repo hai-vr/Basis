@@ -129,7 +129,7 @@ namespace Basis.Scripts.Drivers
                     }
                     else
                     {
-                        if (BasisDeviceManagement.FBBD.FindBone(out BasisFallBone FallBackBone, driver.trackedRoles[Index]))
+                        if (BasisDeviceManagement.Instance.FBBD.FindBone(out BasisFallBone FallBackBone, driver.trackedRoles[Index]))
                         {
                             if (TryConvertToHumanoidRole(driver.trackedRoles[Index], out HumanBodyBones HumanBones))
                             {

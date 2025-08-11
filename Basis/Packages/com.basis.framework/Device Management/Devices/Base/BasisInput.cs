@@ -3,6 +3,7 @@ using Basis.Scripts.Addressable_Driver.Factory;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.UI;
 using Basis.Scripts.UI.UI_Panels;
@@ -20,7 +21,7 @@ namespace Basis.Scripts.Device_Management.Devices
         private BasisBoneTrackedRole trackedRole;
         [SerializeField]
         public bool hasRoleAssigned;
-        public BasisLocalBoneControl Control = new BasisLocalBoneControl();
+        public BasisLocalBoneControl Control = null;
         public bool HasControl = false;
         public string UniqueDeviceIdentifier;
         public string ClassName;
@@ -131,8 +132,7 @@ namespace Basis.Scripts.Device_Management.Devices
                     //this looks sus
                     Control.InverseOffsetFromBone.position = BasisInverseOffsetData.InitialInverseTrackRotation * (Control.OutgoingWorldData.position - BasisInverseOffsetData.TrackerPosition);
                     Control.InverseOffsetFromBone.rotation = BasisInverseOffsetData.InitialInverseTrackRotation * BasisInverseOffsetData.InitialControlRotation;
-                    Control.InverseOffsetFromBone.Use = true;
-                    Control.IsHintRoleIgnoreRotation = BasisBoneTrackedRoleCommonCheck.CheckIfHintRole(trackedRole);
+                    Control.UseInverseOffset = true;
                 }
                 SetRealTrackers(BasisHasTracked.HasTracker, BasisHasRigLayer.HasRigLayer);
             }
@@ -142,7 +142,7 @@ namespace Basis.Scripts.Device_Management.Devices
             }
         }
         [SerializeField]
-        public BasisInverseOffsetFromBoneData BasisInverseOffsetData;
+        public BasisInverseOffsetFromBoneData BasisInverseOffsetData = new BasisInverseOffsetFromBoneData();
 
         public void UnAssignRoleAndTracker()
         {
@@ -182,7 +182,6 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 if (BasisBoneTrackedRoleCommonCheck.CheckItsFBTracker(trackedRole))
                 {
-                    Control.IsHintRoleIgnoreRotation = false;
                     UnAssignTracker();
                 }
             }
@@ -191,7 +190,6 @@ namespace Basis.Scripts.Device_Management.Devices
         {
             if (BasisBoneTrackedRoleCommonCheck.CheckItsFBTracker(trackedRole))
             {
-                Control.IsHintRoleIgnoreRotation = false;
                 UnAssignTracker();
             }
         }
@@ -208,7 +206,7 @@ namespace Basis.Scripts.Device_Management.Devices
                     BasisDebug.Log("UnAssigning Tracker " + Control.name, BasisDebug.LogTag.Input);
                     Control.InverseOffsetFromBone.position = Vector3.zero;
                     Control.InverseOffsetFromBone.rotation = Quaternion.identity;
-                    Control.InverseOffsetFromBone.Use = false;
+                    Control.UseInverseOffset = false;
                 }
                 UnAssignRoleAndTracker();
             }
@@ -223,25 +221,22 @@ namespace Basis.Scripts.Device_Management.Devices
         {
             if (BasisLocalPlayer.Instance.LocalBoneDriver == null)
             {
-                BasisDebug.LogError("Missing Driver!");
+                BasisDebug.LogError($"Missing {nameof(BasisLocalBoneDriver)}!", BasisDebug.LogTag.Input);
                 return;
             }
             UnAssignRoleAndTracker();
             if (HasEvents)
             {
+                //deassign
                 BasisLocalPlayer.Instance.OnPreSimulateBones -= PollData;
                 BasisLocalPlayer.Instance.OnAvatarSwitched -= UnAssignFullBodyTrackers;
                 BasisLocalPlayer.AfterFinalMove.RemoveAction(98, ApplyFinalMovement);
                 HasEvents = false;
             }
-            else
-            {
-                BasisDebug.Log("has device events assigned already " + UniqueDeviceIdentifier, BasisDebug.LogTag.Input);
-            }
         }
         public void SetRealTrackers(BasisHasTracked hasTracked, BasisHasRigLayer HasLayer)
         {
-            if (Control != null && Control.HasBone)
+            if (Control != null)
             {
                 Control.HasTracked = hasTracked;
                 Control.HasRigLayer = HasLayer;
@@ -282,11 +277,11 @@ namespace Basis.Scripts.Device_Management.Devices
                         ? CurrentInputState.Primary2DAxis.x
                         : CurrentInputState.Primary2DAxis.y;
                     //0 to 1 largestValue
-
-                    BasisLocalPlayer.Instance.LocalCharacterDriver.SetMovementSpeedMultiplier(largestValue);
-                    BasisLocalPlayer.Instance.LocalCharacterDriver.SetMovementVector(CurrentInputState.Primary2DAxis);
+                    var CharacterController = BasisLocalPlayer.Instance.LocalCharacterDriver;
+                    CharacterController.SetMovementSpeedMultiplier(largestValue);
+                    CharacterController.SetMovementVector(CurrentInputState.Primary2DAxis);
                     // todo: consider hoisting variable to be toggled by another user input (eg: thumbstick click)
-                    BasisLocalPlayer.Instance.LocalCharacterDriver.UpdateMovementSpeed(true);
+                    CharacterController.UpdateMovementSpeed(true);
                     //only open ui after we have stopped pressing down on the secondary button
                     if (CurrentInputState.SecondaryButtonGetState == false && LastInputState.SecondaryButtonGetState)
                     {
@@ -473,6 +468,11 @@ namespace Basis.Scripts.Device_Management.Devices
         public void OnDestroy()
         {
             StopTracking();
+            if (hasRoleAssigned && trackedRole != BasisBoneTrackedRole.CenterEye)
+            {
+                //this solves hands being removed and there tracker states
+                SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer);
+            }
             if (BasisUIRaycast != null)
             {
                 BasisUIRaycast.OnDeInitialize();

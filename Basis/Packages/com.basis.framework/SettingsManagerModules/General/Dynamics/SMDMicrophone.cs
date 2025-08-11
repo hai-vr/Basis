@@ -69,6 +69,9 @@ public class SMDMicrophone : SettingsManagerOption
             OnMicrophoneUseDenoiserChanged?.Invoke(selectedDenoiserMicrophone);
         }
     }
+    public static string[] MicrophoneDevices;
+    public static Dictionary<string, string> MicrophoneSelections = new Dictionary<string, string>();
+    public static Dictionary<string, float> VolumeSettings = new Dictionary<string, float>();
     public override void ReceiveOption(SettingsMenuInput Option, SettingsManager Manager = null)
     {
         if (Manager == null)
@@ -80,10 +83,6 @@ public class SMDMicrophone : SettingsManagerOption
             SelectedDenoiserMicrophone = CheckIsOn(Option.SelectedValue);
         }
     }
-    public static string[] MicrophoneDevices;
-    public static Dictionary<string, string> MicrophoneSelections = new Dictionary<string, string>();
-    public static Dictionary<string, float> VolumeSettings = new Dictionary<string, float>();
-
     public static void LoadInMicrophoneData(string mode)
     {
         BasisDebug.Log($"Loading microphone and volume for mode: {mode}");
@@ -95,8 +94,8 @@ public class SMDMicrophone : SettingsManagerOption
             return;
         }
 
-        string savedMicrophone = PlayerPrefs.GetString(mode + "_Microphone", "");
-        float savedVolume = PlayerPrefs.GetFloat(mode + "_Volume", 1.0f);
+        string savedMicrophone = PlayerPrefs.GetString($"{mode}_Microphone", "");
+        float savedVolume = PlayerPrefs.GetFloat($"{mode}_Volume", 1.0f);
 
         if (string.IsNullOrEmpty(savedMicrophone) && MicrophoneDevices.Length > 0)
         {
@@ -120,7 +119,7 @@ public class SMDMicrophone : SettingsManagerOption
 
         BasisDebug.Log($"Saving selected microphone for mode: {mode}");
         MicrophoneSelections[mode] = selectedMicrophone;
-        PlayerPrefs.SetString(mode + "_Microphone", selectedMicrophone);
+        PlayerPrefs.SetString($"{mode}_Microphone", selectedMicrophone);
         PlayerPrefs.Save();
         SelectedMicrophone = selectedMicrophone;
     }
@@ -135,7 +134,7 @@ public class SMDMicrophone : SettingsManagerOption
 
         BasisDebug.Log($"Saving volume settings for mode: {mode}");
         VolumeSettings[mode] = volume;
-        PlayerPrefs.SetFloat(mode + "_Volume", volume);
+        PlayerPrefs.SetFloat($"{mode}_Volume", volume);
         PlayerPrefs.Save();
         SelectedVolumeMicrophone = volume;
     }

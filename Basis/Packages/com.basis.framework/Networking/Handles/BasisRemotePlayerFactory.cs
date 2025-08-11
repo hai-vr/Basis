@@ -36,17 +36,27 @@ namespace Basis.Scripts.Networking
                 BasisRemotePlayer remote = await createRemotePlayerTask;
                 // Continue with the rest of the code
                 RemoteInitialization(BasisNetworkReceiver, remote, ServerReadyMessage);
+                BasisNetworkReceiver.LastLinkedAvatarIndex = avatarID.LocalAvatarIndex;
                 if (BasisNetworkManagement.AddPlayer(BasisNetworkReceiver))
                 {
-                //    BasisDebug.Log("Added Player AT " + BasisNetworkReceiver.NetId);
+                    //    BasisDebug.Log("Added Player AT " + BasisNetworkReceiver.NetId);
                 }
                 else
                 {
-                    BasisDebug.LogError("Critical issue could not add player to data");
+                    BasisNetworkHandleRemoval.HandleDisconnectId(ServerReadyMessage.playerIdMessage.playerID);
+                    if (BasisNetworkManagement.AddPlayer(BasisNetworkReceiver))
+                    {
+                        BasisDebug.LogError($"Player Forcefully removed and readded with new Identity : {ServerReadyMessage.playerIdMessage.playerID}");
+                    }
+                    else
+                    {
+                        BasisDebug.LogError("Critical issue this should never occur this is after the fallback system");
+                    }
                     return null;
                 }
-              //  BasisDebug.Log("Added Player " + ServerReadyMessage.playerIdMessage.playerID);
+                //  BasisDebug.Log("Added Player " + ServerReadyMessage.playerIdMessage.playerID);
                 BasisNetworkPlayer.OnRemotePlayerJoined?.Invoke(BasisNetworkReceiver, remote);
+                BasisNetworkPlayer.OnPlayerJoined?.Invoke(BasisNetworkReceiver);
 
                 BasisNetworkManagement.JoiningPlayers.Remove(ServerReadyMessage.playerIdMessage.playerID);
                 remote.LoadAvatarFromInitial(avatarID);
@@ -84,7 +94,7 @@ namespace Basis.Scripts.Networking
                 BasisDebug.LogError("Missing CharacterIKCalibration");
             }
             BasisNetworkReceiver.Initialize();//fires events and makes us network compatible
-            BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(BasisNetworkReceiver, ServerReadyMessage.localReadyMessage.localAvatarSyncMessage, ServerReadyMessage.playerIdMessage.playerID);
+            BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(BasisNetworkReceiver, ServerReadyMessage.localReadyMessage.localAvatarSyncMessage);
         }
     }
 }

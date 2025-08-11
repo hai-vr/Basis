@@ -46,7 +46,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 Instance = this;
             }
             PlayerInitialized();
-            BasisCursorManagement.OverrideAbleLock(nameof(BasisAvatarEyeInput));
             if (HasEyeEvents == false)
             {
                 BasisLocalPlayer.OnLocalAvatarChanged += PlayerInitialized;

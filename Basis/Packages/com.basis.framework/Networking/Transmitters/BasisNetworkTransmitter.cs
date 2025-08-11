@@ -19,9 +19,6 @@ namespace Basis.Scripts.Networking.Transmitters
     public class BasisNetworkTransmitter : BasisNetworkPlayer
     {
         public bool HasEvents = false;
-        public float timer = 0f;
-        public float interval = 0.0333333333333333f;
-        public float SmallestDistanceToAnotherPlayer;
         public BasisLocalBoneControl MouthBone;
         [SerializeField]
         public BasisAudioTransmission AudioTransmission = new BasisAudioTransmission();
@@ -36,17 +33,11 @@ namespace Basis.Scripts.Networking.Transmitters
         public float[] FloatArray = new float[LocalAvatarSyncMessage.StoredBones];
         public ushort[] UshortArray = new ushort[LocalAvatarSyncMessage.StoredBones];
         [SerializeField]
-        public LocalAvatarSyncMessage LASM = new LocalAvatarSyncMessage();
-        public float UnClampedInterval;
-
-        public static float DefaultInterval = 0.0333333333333333f;
-        public static float BaseMultiplier = 1f; // Starting multiplier.
-        public static float IncreaseRate = 0.005f; // Rate of increase per unit distance.
+        public LocalAvatarSyncMessage LASM = new LocalAvatarSyncMessage(new byte[LocalAvatarSyncMessage.AvatarSyncSize]);
         public BasisDistanceJobs distanceJob = new BasisDistanceJobs();
         public JobHandle distanceJobHandle;
         public int IndexLength = -1;
-        public static float SlowestSendRate = 2.5f;
-        public NetDataWriter AvatarSendWriter = new NetDataWriter(true, LocalAvatarSyncMessage.AvatarSyncSize + 1);
+        public NetDataWriter AvatarSendWriter = new NetDataWriter(true, LocalAvatarSyncMessage.AvatarSyncSize + 2);
         public bool[] MicrophoneRangeIndex;
         public bool[] LastMicrophoneRangeIndex;
 
@@ -58,9 +49,14 @@ namespace Basis.Scripts.Networking.Transmitters
         public Dictionary<byte, AdditionalAvatarData> SendingOutAvatarData = new Dictionary<byte, AdditionalAvatarData>();
         public float[] CalculatedDistances;
         public static Action AfterAvatarChanges;
-        public const float SmallestOutgoingInterval = 0.005f;
+        public float intervalSeconds = 0.5f; // interval in milliseconds
+        public float timer = 0f; // timer in seconds
+        public float SmallestDistanceToAnotherPlayer;
+        public float UnClampedInterval; // store in ms for consistency
+        public float DefaultInterval;
         public BasisNetworkTransmitter(ushort PlayerID)
         {
+
             PlayerIDMessage.playerID = PlayerID;
             hasID = true;
         }
@@ -80,7 +76,7 @@ namespace Basis.Scripts.Networking.Transmitters
         {
             timer += Time.deltaTime;
 
-            if (timer >= interval)
+            if (timer > intervalSeconds) // at max will overshoot a frame
             {
                 if (Player.BasisAvatar != null)
                 {
@@ -88,22 +84,25 @@ namespace Basis.Scripts.Networking.Transmitters
                     BasisNetworkAvatarCompressor.Compress(this, Player.BasisAvatar.Animator);
                     distanceJobHandle.Complete();
                     HandleResults();
+
                     SmallestDistanceToAnotherPlayer = distanceJob.smallestDistance[0];
+                    //SmallestDistanceToAnotherPlayer was tested and its 140 atm
+                    ServerMetaDataMessage Message = BasisNetworkManagement.ServerMetaDataMessage;
 
-                    // Calculate next interval and clamp it
-                    UnClampedInterval = DefaultInterval * (BaseMultiplier + (SmallestDistanceToAnotherPlayer * IncreaseRate));
-                    interval = math.clamp(UnClampedInterval, SmallestOutgoingInterval, SlowestSendRate);
+                    // Message values are assumed to be in milliseconds
+                    DefaultInterval = Message.SyncInterval / 1000f;
 
+                    float CalculatedIntervalBase = Message.BaseMultiplier + (SmallestDistanceToAnotherPlayer * Message.IncreaseRate);
+                    UnClampedInterval = DefaultInterval * CalculatedIntervalBase;
+                    intervalSeconds = Mathf.Clamp(UnClampedInterval, DefaultInterval, Message.SlowestSendRate);
                     // Account for overshoot
-                    timer -= interval;
+                    timer -= intervalSeconds;
                 }
             }
         }
         public void HandleResults()
         {
-            if (distanceJob.DistanceResults == null ||
-                MicrophoneRangeIndex == null ||
-                MicrophoneRangeIndex.Length != distanceJob.DistanceResults.Length)
+            if (distanceJob.DistanceResults == null ||MicrophoneRangeIndex == null || MicrophoneRangeIndex.Length != distanceJob.DistanceResults.Length)
             {
                 return;
             }
@@ -126,7 +125,7 @@ namespace Basis.Scripts.Networking.Transmitters
                 try
                 {
                     Receivers.BasisNetworkReceiver Rec = BasisNetworkManagement.ReceiversSnapshot[Index];
-                    if(Rec == null)
+                    if (Rec == null)
                     {
                         //this can happen when a remote player leaves during this iteration from the other thread.
                         //no need to error
@@ -196,7 +195,7 @@ namespace Basis.Scripts.Networking.Transmitters
                 };
                 NetDataWriter writer = new NetDataWriter();
                 VRM.Serialize(writer);
-                BasisNetworkManagement.LocalPlayerPeer.Send(writer, BasisNetworkCommons.AudioRecipients, DeliveryMethod.ReliableOrdered);
+                BasisNetworkManagement.LocalPlayerPeer.Send(writer, BasisNetworkCommons.AudioRecipientsChannel, DeliveryMethod.ReliableOrdered);
                 BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, writer.Length);
             }
         }
@@ -235,7 +234,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public override void Initialize()
         {
             IndexLength = -1;
-            AudioTransmission.OnEnable(this);
+            AudioTransmission.Initialize(this);
             OnAvatarCalibrationLocal();
             if (HasEvents == false)
             {
@@ -324,7 +323,7 @@ namespace Basis.Scripts.Networking.Transmitters
         {
             if (AudioTransmission != null)
             {
-                AudioTransmission.OnDisable();
+                AudioTransmission.DeInitialize();
             }
             if (HasEvents)
             {
@@ -356,13 +355,17 @@ namespace Basis.Scripts.Networking.Transmitters
         public void SendOutAvatarChange()
         {
             NetDataWriter Writer = new NetDataWriter();
+            // Increment and wrap around from 255 to 0
+            LastLinkedAvatarIndex = (byte)((LastLinkedAvatarIndex + 1) % (byte.MaxValue + 1));
+
             ClientAvatarChangeMessage ClientAvatarChangeMessage = new ClientAvatarChangeMessage
             {
                 byteArray = BasisBundleConversionNetwork.ConvertBasisLoadableBundleToBytes(Player.AvatarMetaData),
                 loadMode = Player.AvatarLoadMode,
+                LocalAvatarIndex = LastLinkedAvatarIndex,
             };
             ClientAvatarChangeMessage.Serialize(Writer);
-            BasisNetworkManagement.LocalPlayerPeer.Send(Writer, BasisNetworkCommons.AvatarChangeMessage, DeliveryMethod.ReliableOrdered);
+            BasisNetworkManagement.LocalPlayerPeer.Send(Writer, BasisNetworkCommons.AvatarChangeMessageChannel, DeliveryMethod.ReliableOrdered);
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AvatarChange, Writer.Length);
         }
     }

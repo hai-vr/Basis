@@ -106,7 +106,7 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 await CreateAvatar(LoadModeLocal, BasisAvatarFactory.LoadingAvatar);
             }
-            BasisLocalMicrophoneDriver.TryInitialize();
+            BasisLocalMicrophoneDriver.Initialize();
             PlayerReady = true;
             OnLocalPlayerCreatedAndReady?.Invoke();
             BasisScene BasisScene = FindFirstObjectByType<BasisScene>(FindObjectsInactive.Exclude);
@@ -179,7 +179,7 @@ namespace Basis.Scripts.BasisSdk.Players
 
         public async Task CreateAvatar(byte LoadMode, BasisLoadableBundle BasisLoadableBundle)
         {
-            await BasisAvatarFactory.LoadAvatarLocal(this, LoadMode, BasisLoadableBundle);
+            await BasisAvatarFactory.LoadAvatarLocal(this, LoadMode, BasisLoadableBundle,this.transform.position,Quaternion.identity);
             BasisDataStore.SaveAvatar(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, LoadMode, LoadFileNameAndExtension);
             OnLocalAvatarChanged?.Invoke();
         }
@@ -243,14 +243,8 @@ namespace Basis.Scripts.BasisSdk.Players
             FacialBlinkDriver.Simulate();
         }
 
-        public void SimulateOnRender()
+        public void SimulateOnRender(float DeltaTime)
         {
-            float DeltaTime = Time.deltaTime;
-            if (float.IsNaN(DeltaTime))
-            {
-                return;
-            }
-
             //moves all bones to where they belong
             LocalBoneDriver.SimulateAndApply(this, DeltaTime);
 

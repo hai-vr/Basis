@@ -1,16 +1,19 @@
-[System.Serializable]
+using System;
+
+[Serializable]
 public class BasisPlayerSettingsData
 {
-    public string UUID = string.Empty;
-    public float VolumeLevel = 1.0f;
-    public bool AvatarVisible = true;
+    public string UUID;
+    public float VolumeLevel;
+    public bool AvatarVisible;
+    public int Version = 1;
 
-    public BasisPlayerSettingsData(string uuid, float volume, bool avatarVisible)
+    public static readonly BasisPlayerSettingsData Default = new BasisPlayerSettingsData("", 1.0f, true);
+
+    public BasisPlayerSettingsData(string uuid, float volumeLevel, bool avatarVisible)
     {
         UUID = uuid;
-        VolumeLevel = volume;
+        VolumeLevel = volumeLevel;
         AvatarVisible = avatarVisible;
     }
-    public static readonly BasisPlayerSettingsData Default = new BasisPlayerSettingsData(null, 1.0f,true);
-
 }
