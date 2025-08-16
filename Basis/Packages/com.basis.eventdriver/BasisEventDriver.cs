@@ -3,6 +3,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Transmitters;
+using GatorDragonGames.JigglePhysics;
 using UnityEngine;
 using UnityEngine.InputSystem;
 public class BasisEventDriver : MonoBehaviour
@@ -85,6 +86,8 @@ public class BasisEventDriver : MonoBehaviour
 #if UNITY_SERVER
         OnBeforeRender();
 #endif
+        JigglePhysics.ScheduleUpdate(DeltaTime);
+        JigglePhysics.CompleteUpdate();
     }
     private void OnBeforeRender()
     {
@@ -97,6 +100,11 @@ public class BasisEventDriver : MonoBehaviour
     }
     public void OnApplicationQuit()
     {
+        JigglePhysics.Dispose();
         BasisLocalMicrophoneDriver.StopProcessingThread();
+    }
+    public void OnDrawGizmos()
+    {
+        JigglePhysics.OnDrawGizmos();
     }
 }

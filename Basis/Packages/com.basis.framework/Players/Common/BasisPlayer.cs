@@ -1,7 +1,6 @@
 using Basis.Scripts.Drivers;
 using System;
 using System.Text.RegularExpressions;
-using System.Threading;
 using UnityEngine;
 namespace Basis.Scripts.BasisSdk.Players
 {
@@ -38,41 +37,20 @@ namespace Basis.Scripts.BasisSdk.Players
         public BasisMeshRendererCheck FaceRenderer;
         public BasisProgressReport AvatarProgress = new BasisProgressReport();
         public Action<bool> AudioReceived;
-        public bool HasJiggles = false;
         public delegate void SimulationHandler();
         public SimulationHandler OnPreSimulateBones;
-
         public bool IsConsideredFallBackAvatar = true;
         public byte AvatarLoadMode;//0 downloading 1 local
         [HideInInspector]
         public BasisLoadableBundle AvatarMetaData;
-        [Header("Jiggle Driver")]
-        [SerializeField]
-        public BasisAvatarStrainJiggleDriver BasisAvatarStrainJiggleDriver = new BasisAvatarStrainJiggleDriver();
         [Header("Blink Driver")]
         [SerializeField]
         public BasisFacialBlinkDriver FacialBlinkDriver = new BasisFacialBlinkDriver();
-        public static bool UseJiggles = true;
 
         public void SetSafeDisplayname()
         {
             // Regex pattern to match any <...> tags
             SafeDisplayName = Regex.Replace(DisplayName, "<.*?>", string.Empty);
-        }
-        public void AvatarInitalize()
-        {
-            if (UseJiggles)
-            {
-                HasJiggles = false;
-                try
-                {
-                    HasJiggles = BasisAvatarStrainJiggleDriver.Initalize(this);
-                }
-                catch (Exception e)
-                {
-                    BasisDebug.LogError($"{e.ToString()} {e.StackTrace}");
-                }
-            }
         }
         public void UpdateFaceVisibility(bool State)
         {

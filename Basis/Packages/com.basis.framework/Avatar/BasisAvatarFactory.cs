@@ -289,14 +289,12 @@ namespace Basis.Scripts.Avatar
         public static void SetupRemoteAvatar(BasisRemotePlayer Player)
         {
             Player.RemoteAvatarDriver.RemoteCalibration(Player);
-            Player.AvatarInitalize();
             SetupAvatar(Player, BasisLayerMapper.RemoteAvatarLayer);
             Player.BasisAvatar.OnAvatarReady?.Invoke(false);
         }
         public static void SetupLocalAvatar(BasisLocalPlayer Player)
         {
             Player.LocalAvatarDriver.InitialLocalCalibration(Player);
-            Player.AvatarInitalize();
             SetupAvatar(Player, BasisLayerMapper.LocalAvatarLayer);
             Player.BasisAvatar.OnAvatarReady?.Invoke(true);
         }

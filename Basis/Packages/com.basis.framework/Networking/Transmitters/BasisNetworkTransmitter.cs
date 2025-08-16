@@ -151,15 +151,6 @@ namespace Basis.Scripts.Networking.Transmitters
                             Rec.RemotePlayer.OutOfRangeFromLocal = true;
                         }
                     }
-                    //now we process the avatar based stuff in order of risk to break.
-                    if (Rec.RemotePlayer.HasJiggles)
-                    {
-                        if (float.IsNaN(CalculatedDistances[Index]) || CalculatedDistances[Index] == 0)
-                        {
-                            CalculatedDistances[Index] = 0.1f;
-                        }
-                        Rec.RemotePlayer.BasisAvatarStrainJiggleDriver.Simulate(CalculatedDistances[Index]);
-                    }
                     Rec.RemotePlayer.RemoteEyeDriver.Simulate();
                     Rec.RemotePlayer.FacialBlinkDriver.Simulate();
                 }

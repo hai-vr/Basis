@@ -308,44 +308,6 @@ public class BasisAvatarValidator
             CheckMesh(SMR, ref errors,ref warnings);
 
         }
-        if (Avatar.JiggleStrains != null && Avatar.JiggleStrains.Length != 0)
-        {
-            for (int JiggleStrainIndex = 0; JiggleStrainIndex < Avatar.JiggleStrains.Length; JiggleStrainIndex++)
-            {
-                BasisJiggleStrain Strain = Avatar.JiggleStrains[JiggleStrainIndex];
-                if (Strain != null)
-                {
-                    if (Strain.IgnoredTransforms != null && Strain.IgnoredTransforms.Length != 0)
-                    {
-                        for (int Index = 0; Index < Strain.IgnoredTransforms.Length; Index++)
-                        {
-                            if (Strain.IgnoredTransforms[Index] == null)
-                            {
-                                errors.Add(new BasisValidationIssue("Avatar Ignored Transform is Missing", null));
-                            }
-                        }
-                    }
-                    if (Strain.RootTransform == null)
-                    {
-                        errors.Add(new BasisValidationIssue("RootTransform of Jiggle is missing!", null));
-                    }
-                    if (Strain.Colliders != null && Strain.Colliders.Length != 0)
-                    {
-                        for (int Index = 0; Index < Strain.Colliders.Length; Index++)
-                        {
-                            if (Strain.Colliders[Index] == null)
-                            {
-                                errors.Add(new BasisValidationIssue("Avatar Jiggle Collider Is Missing!", null));
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    errors.Add(new BasisValidationIssue("Avatar.JiggleStrains Has a Empty Strain!! at index " + JiggleStrainIndex, null));
-                }
-            }
-        }
         Transform[] transforms = Avatar.GetComponentsInChildren<Transform>();
         Dictionary<string, int> nameCounts = new Dictionary<string, int>();
 
