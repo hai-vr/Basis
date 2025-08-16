@@ -29,11 +29,15 @@ namespace Basis.Scripts.Networking.Transmitters
         public NativeArray<bool> HearingResults;
         public NativeArray<bool> AvatarResults;
         public NativeArray<float> smallestDistance;
-
-        public float[] FloatArray = new float[LocalAvatarSyncMessage.StoredBones];
-        public ushort[] UshortArray = new ushort[LocalAvatarSyncMessage.StoredBones];
         [SerializeField]
-        public LocalAvatarSyncMessage LASM = new LocalAvatarSyncMessage(new byte[LocalAvatarSyncMessage.AvatarSyncSize]);
+        public StoredAvatarData storedAvatarData = new StoredAvatarData();
+        [System.Serializable]
+        public class StoredAvatarData
+        {
+            public float[] FloatArray = new float[LocalAvatarSyncMessage.StoredBones];
+            [SerializeField]
+            public LocalAvatarSyncMessage LASM = new LocalAvatarSyncMessage(new byte[LocalAvatarSyncMessage.AvatarSyncSize]);
+        }
         public BasisDistanceJobs distanceJob = new BasisDistanceJobs();
         public JobHandle distanceJobHandle;
         public int IndexLength = -1;

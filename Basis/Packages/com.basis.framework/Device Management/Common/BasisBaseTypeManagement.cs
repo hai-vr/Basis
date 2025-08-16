@@ -18,14 +18,14 @@ public abstract class BasisBaseTypeManagement : MonoBehaviour
     {
         return false;
     }
-    public bool AttemptIsDeviceBootable(string BootRequest)
+    public bool AttemptIsDeviceBootable(string BootRequest,bool OnlyFinding)
     {
         if (string.IsNullOrEmpty(BootRequest))
         {
             BasisDebug.LogError("Empty or null boot request recieved", BasisDebug.LogTag.Device);
             return false;
         }
-        if (IsDeviceBooted)
+        if (IsDeviceBooted && OnlyFinding == false)
         {
             return false;
             //if this is device is already booted we dont touch it.

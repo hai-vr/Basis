@@ -64,14 +64,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             var position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset);
             var rotation = BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, BasisNetworkPlayer.RotationCompression, ref offset);
-
             float[] muscles = GenerateMuscleArray(ref data, ref baseReceiver.CopyData, ref offset);
-
-            float scale = Decompress(
-                BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset),
-                MinimumValueSupported,
-                MaximumValueSupported
-            );
+            float scale = MuscleDecompress(BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset),MinimumValueSupported,MaximumValueSupported);
 
             return new BasisAvatarBuffer
             {
@@ -85,15 +79,43 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
         private static float[] GenerateMuscleArray(ref byte[] data, ref ushort[] copyData, ref int offset)
         {
-            BasisUnityBitPackerExtensionsUnsafe.ReadMusclesFromBytes(ref data, ref copyData, ref offset);
+            int nonFingerCount = 55;
+            int fingerCount = 34;
+
+            // Read first 55 muscles as ushorts
+            BasisUnityBitPackerExtensionsUnsafe.ReadMusclesFromBytes(ref data, ref copyData, ref offset, nonFingerCount);
+
+            // Read next 34 muscles as bytes
+            byte[] fingerData = new byte[fingerCount];
+            BasisUnityBitPackerExtensionsUnsafe.ReadBytes(ref data, ref fingerData, ref offset, fingerCount);
+
             float[] muscles = new float[LocalAvatarSyncMessage.StoredBones];
 
-            for (int Index = 0; Index < LocalAvatarSyncMessage.StoredBones; Index++)
+            // Decompress first 55 muscles
+            for (int i = 0; i < nonFingerCount; i++)
             {
-                muscles[Index] = Decompress(copyData[Index], BasisAvatarMuscleRange.MinMuscle[Index], BasisAvatarMuscleRange.MaxMuscle[Index]);
+                muscles[i] = MuscleDecompress(copyData[i], BasisAvatarMuscleRange.MinMuscle[i], BasisAvatarMuscleRange.MaxMuscle[i]);
+            }
+
+            // Decompress next 34 finger muscles
+            for (int i = 0; i < fingerCount; i++)
+            {
+                muscles[nonFingerCount + i] = FingerDecompress(fingerData[i], BasisAvatarMuscleRange.MinMuscle[nonFingerCount + i], BasisAvatarMuscleRange.MaxMuscle[nonFingerCount + i]);
             }
 
             return muscles;
+        }
+
+        public static float MuscleDecompress(ushort value, float minValue, float maxValue)
+        {
+            float normalized = value / FloatRangeDifference;
+            return normalized * (maxValue - minValue) + minValue;
+        }
+        private const float ByteRangeDifference = byte.MaxValue;
+        public static float FingerDecompress(byte value, float minValue, float maxValue)
+        {
+            float normalized = value / (float)ByteRangeDifference;
+            return normalized * (maxValue - minValue) + minValue;
         }
         private static void EnqueueAndProcessAdditionalData(BasisNetworkReceiver baseReceiver, ref BasisAvatarBuffer avatarBuffer, LocalAvatarSyncMessage message, int dataLength)
         {
@@ -118,11 +140,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                     }
                 }
             }
-        }
-        public static float Decompress(ushort value, float minValue, float maxValue)
-        {
-            float normalized = value / FloatRangeDifference;
-            return normalized * (maxValue - minValue) + minValue;
         }
     }
 }

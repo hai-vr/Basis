@@ -3,8 +3,8 @@ public static partial class SerializableBasis
 {
     public struct LocalAvatarSyncMessage
     {
-        public byte[] array;//position -> rotation -> rotation -> scale
-        public const int AvatarSyncSize = 206;//plus a additional 1 byte after this for additional avatar data
+        public byte[] array;//position -> rotation -> muscle rotation -> scale
+        public const int AvatarSyncSize = 172;//plus a additional 1 byte after this for additional avatar data
         public const int StoredBones = 89;
 
         public AdditionalAvatarData[] AdditionalAvatarDatas;
@@ -21,7 +21,6 @@ public static partial class SerializableBasis
             int Bytes = Writer.AvailableBytes;
             if (Bytes >= AvatarSyncSize)
             {
-                //89 * 2 = 178 + 12 + 14 + 2 = 204
                 array ??= new byte[AvatarSyncSize];
                 Writer.GetBytes(array, AvatarSyncSize);
                 if (Writer.TryGetByte(out AdditionalAvatarDataSize))

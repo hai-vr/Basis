@@ -308,7 +308,8 @@ namespace Basis.Scripts.Networking
                     playerDisplayName = BasisLocalPlayer.DisplayName
                 }
             };
-            BasisNetworkAvatarCompressor.InitalAvatarData(BasisLocalPlayer.Instance.BasisAvatar.Animator, out readyMessage.localAvatarSyncMessage);
+            BasisNetworkAvatarCompressor.InitalAvatarData(BasisLocalPlayer.Instance.BasisAvatar.Animator, out var DataSet);
+            readyMessage.localAvatarSyncMessage = DataSet.LASM;
             BasisDebug.Log("Network Starting Client");
             // BasisDebug.Log("Size is " + BasisNetworkClient.AuthenticationMessage.Message.Length);
             LocalPlayerPeer = NetworkClient.StartClient(IpString, Port, readyMessage, Encoding.UTF8.GetBytes(PrimitivePassword), true);

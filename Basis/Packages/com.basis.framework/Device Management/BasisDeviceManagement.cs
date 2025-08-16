@@ -190,14 +190,14 @@ namespace Basis.Scripts.Device_Management
                 input.UnAssignFBTracker();
         }
 
-        public bool TryFindBasisBaseTypeManagement(string name, out List<BasisBaseTypeManagement> match)
+        public bool TryFindBasisBaseTypeManagement(string name, out List<BasisBaseTypeManagement> match,bool OnlyFinding = false)
         {
             match = new List<BasisBaseTypeManagement>();
             if (string.IsNullOrEmpty(name) || BaseTypes == null) return false;
 
             foreach (var type in BaseTypes)
             {
-                if (type != null && type.AttemptIsDeviceBootable(name))
+                if (type != null && type.AttemptIsDeviceBootable(name, OnlyFinding))
                     match.Add(type);
             }
 
