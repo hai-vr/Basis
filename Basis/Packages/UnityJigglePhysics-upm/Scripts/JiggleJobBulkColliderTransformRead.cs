@@ -1,25 +1,27 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine;
 using UnityEngine.Jobs;
 
 namespace GatorDragonGames.JigglePhysics {
 
 [BurstCompile]
 public struct JiggleJobBulkColliderTransformRead : IJobParallelForTransform {
-    public NativeArray<float3> positions;
+    public NativeArray<JiggleCollider> colliders;
 
     public JiggleJobBulkColliderTransformRead(JiggleMemoryBus bus) {
-        positions = bus.colliderPositions;
+        colliders = bus.colliders;
     }
 
     public void UpdateArrays(JiggleMemoryBus bus) {
-        positions = bus.colliderPositions;
+        colliders = bus.colliders;
     }
 
     public void Execute(int index, TransformAccess transform) {
-        transform.GetPositionAndRotation(out var position, out var rotation);
-        positions[index] = position;
+        var collider = colliders[index];
+        collider.localToWorldMatrix = transform.localToWorldMatrix;
+        colliders[index] = collider;
     }
 }
 

@@ -18,19 +18,34 @@ public struct BoneNormalizedDistanceFromRoot {
 }
 
 public class JiggleRig : MonoBehaviour {
-    [SerializeField] protected Transform _rootBone;
-    [SerializeField] protected bool _advanced;
-    [SerializeField] protected bool _animated;
-    [SerializeField] protected bool _excludeRoot;
+    [SerializeField] private Transform _rootBone;
+    [FormerlySerializedAs("_advanced")] [SerializeField] protected bool advanced;
+    [FormerlySerializedAs("_excludeRoot")] [SerializeField] protected bool excludeRoot;
     [SerializeField] protected JiggleTreeInputParameters jiggleTreeInputParameters;
-    [SerializeField] protected List<Transform> _excludedTransforms = new List<Transform>();
+    [FormerlySerializedAs("_excludedTransforms")] [SerializeField] protected List<Transform> excludedTransforms = new List<Transform>();
+    [SerializeField] protected List<JiggleCollider> personalColliders = new List<JiggleCollider>();
     [SerializeField, HideInInspector] List<BoneNormalizedDistanceFromRoot> _boneNormalizedDistanceFromRootList;
+    [SerializeField] protected List<JiggleColliderSerializable> jiggleColliders = new List<JiggleColliderSerializable>();
 
     private JiggleTreeSegment _jiggleTreeSegment;
     bool isValid = false;
-    public bool rootExcluded => _excludeRoot;
+    public bool rootExcluded => excludeRoot;
     public Transform rootBone => _rootBone;
-    public bool CheckExcluded(Transform t) => _excludedTransforms.Contains(t);
+    public bool CheckExcluded(Transform t) => excludedTransforms.Contains(t);
+    
+    public void GetJiggleColliders(List<JiggleCollider> colliders) {
+        colliders.Clear();
+        foreach (var collider in jiggleColliders) {
+            colliders.Add(collider.collider);
+        }
+    }
+    
+    public void GetJiggleColliderTransforms(List<Transform> colliderTransforms) {
+        colliderTransforms.Clear();
+        foreach (var collider in jiggleColliders) {
+            colliderTransforms.Add(collider.transform);
+        }
+    }
 
     public float GetNormalizedDistanceFromRoot(Transform t) {
         var entry = _boneNormalizedDistanceFromRootList.Find(x => x.bone == t);
@@ -63,7 +78,7 @@ public class JiggleRig : MonoBehaviour {
 
     void OnValidate() {
         isValid = _rootBone.IsChildOf(gameObject.transform);
-        if (_excludedTransforms == null) _excludedTransforms = new List<Transform>();
+        if (excludedTransforms == null) excludedTransforms = new List<Transform>();
         ValidateCurve(ref jiggleTreeInputParameters.stiffnessCurve);
         ValidateCurve(ref jiggleTreeInputParameters.angleLimitCurve);
         ValidateCurve(ref jiggleTreeInputParameters.stretchCurve);
@@ -80,12 +95,10 @@ public class JiggleRig : MonoBehaviour {
         VisitAndSetNormalizedDistanceFromRoot(_rootBone, _rootBone.position, 0f, totalLength);
     }
 
-    public void VisitAndSetNormalizedDistanceFromRoot(Transform t, Vector3 lastPosition, float currentLength,
-        float totalLength) {
+    public void VisitAndSetNormalizedDistanceFromRoot(Transform t, Vector3 lastPosition, float currentLength, float totalLength) {
         if (CheckExcluded(t)) {
             return;
         }
-
         currentLength += Vector3.Distance(lastPosition, t.position);
         _boneNormalizedDistanceFromRootList.Add(new BoneNormalizedDistanceFromRoot() {
             bone = t,

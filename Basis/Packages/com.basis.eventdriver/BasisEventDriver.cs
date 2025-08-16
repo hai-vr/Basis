@@ -86,7 +86,7 @@ public class BasisEventDriver : MonoBehaviour
 #if UNITY_SERVER
         OnBeforeRender();
 #endif
-        JigglePhysics.ScheduleUpdate(DeltaTime);
+        JigglePhysics.ScheduleUpdate(TimeAsDouble);
         JigglePhysics.CompleteUpdate();
     }
     private void OnBeforeRender()

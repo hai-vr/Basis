@@ -16,7 +16,7 @@ public struct JiggleJobSimulate : IJobFor {
     public NativeArray<JiggleTransform> inputPoses;
 
     [NativeDisableParallelForRestriction] public NativeArray<PoseData> outputPoses;
-    [NativeDisableParallelForRestriction] public NativeArray<float3> testColliders;
+    [NativeDisableParallelForRestriction] public NativeArray<JiggleCollider> testColliders;
 
     public NativeArray<JiggleTreeJobData> jiggleTrees;
 
@@ -24,7 +24,7 @@ public struct JiggleJobSimulate : IJobFor {
         inputPoses = bus.simulateInputPoses;
         jiggleTrees = bus.jiggleTreeStructs;
         outputPoses = bus.simulationOutputPoseData;
-        testColliders = bus.colliderPositions;
+        testColliders = bus.colliders;
         timeStamp = Time.timeAsDouble;
         gravity = Physics.gravity;
     }
@@ -33,7 +33,7 @@ public struct JiggleJobSimulate : IJobFor {
         inputPoses = bus.simulateInputPoses;
         jiggleTrees = bus.jiggleTreeStructs;
         outputPoses = bus.simulationOutputPoseData;
-        testColliders = bus.colliderPositions;
+        testColliders = bus.colliders;
     }
 
 
@@ -115,6 +115,32 @@ public struct JiggleJobSimulate : IJobFor {
     float float3Angle(float3 a, float3 b) {
         return math.degrees(math.acos(math.clamp(math.dot(math.normalizesafe(a, new float3(0,0,1)), math.normalizesafe(b, new float3(0,0,1))), -1f, 1f)));
     }
+    
+    float AverageScale(float4x4 matrix) {
+        float sx = math.length(matrix.c0.xyz);
+        float sy = math.length(matrix.c1.xyz);
+        float sz = math.length(matrix.c2.xyz);
+        return (sx + sy + sz) / 3f;
+    }
+
+    private float3 DoDepenetration(float3 inputPosition, float worldInputRadius, JiggleCollider collider) {
+        switch (collider.type) {
+            case JiggleCollider.JiggleColliderType.Sphere:
+                var colliderPosition = collider.localToWorldMatrix.c3.xyz;
+                var colliderScale = AverageScale(collider.localToWorldMatrix);
+                var colliderRadius = collider.radius * colliderScale;
+                        
+                var sphere_diff = inputPosition - colliderPosition;
+                var sphere_distance = math.length(sphere_diff);
+                if (sphere_distance > colliderRadius + worldInputRadius) {
+                    return inputPosition;
+                }
+                var desiredPosition = colliderPosition + math.normalizesafe(sphere_diff, new float3(0,0,1)) * (colliderRadius + worldInputRadius);
+                var hardness = 0.5f;
+                return math.lerp(inputPosition, desiredPosition, hardness);
+        }
+        return inputPosition;
+    }
 
     private unsafe void Constrain(JiggleTreeJobData tree) {
         for (int i = 0; i < tree.pointCount; i++) {
@@ -172,18 +198,11 @@ public struct JiggleJobSimulate : IJobFor {
             #endregion
 
             #region Collisions
-
-            var colliderCount = testColliders.Length;
-            for (int index = 0; index < colliderCount; index++) {
-                var colliderPosition = testColliders[index];
-                var vectorFromCollider = point.desiredConstraint - colliderPosition;
-                var distanceToCollider = math.length(vectorFromCollider);
-                var minDistance = point.parameters.collisionRadius + 1f;
-                if (distanceToCollider < minDistance) {
-                    var correctionDir = math.normalizesafe(vectorFromCollider, new float3(0,0,1));
-                    var correctionDistance = minDistance - distanceToCollider;
-                    point.desiredConstraint += correctionDir * correctionDistance * (1f - 0.5f); // TODO: soften
-                }
+            
+            var inputPose = tree.GetInputPose(inputPoses, i);
+            var averagePointScale = (inputPose.scale.x + inputPose.scale.y + inputPose.scale.z) / 3f;
+            for (int index = (int)tree.colliderIndexOffset; index < tree.colliderCount; index++) {
+                point.desiredConstraint = DoDepenetration(point.desiredConstraint, averagePointScale*point.parameters.collisionRadius, testColliders[index]);
             }
 
             #endregion
@@ -221,8 +240,16 @@ public struct JiggleJobSimulate : IJobFor {
             var length_elasticity = parent.parameters.lengthElasticity;
             var diff = point.desiredConstraint - parent.desiredConstraint;
             var dir = math.normalizesafe(diff, new float3(0,0,1));
-            var forwardConstraint = math.lerp(point.desiredConstraint,
-                parent.desiredConstraint + dir * point.desiredLengthToParent, length_elasticity);
+
+            var desiredPositionAfterLengthConstraint = parent.desiredConstraint + dir * point.desiredLengthToParent;
+            
+            var errorLength = math.distance(point.desiredConstraint, desiredPositionAfterLengthConstraint);
+            if (point.desiredLengthToParent != 0) {
+                errorLength /= point.desiredLengthToParent;
+            }
+            errorLength = math.min(errorLength, 1.0f);
+            errorLength = math.pow(errorLength, parent.parameters.elasticitySoften);
+            var forwardConstraint = math.lerp(point.desiredConstraint, desiredPositionAfterLengthConstraint, length_elasticity*errorLength);
             point.desiredConstraint = forwardConstraint;
 
             #endregion

@@ -21,6 +21,7 @@ public class JiggleRigEditor : Editor {
         visualTreeAsset.CloneTree(visualElement);
 
         var rootElement = visualElement.Q<ObjectField>("RootField");
+        rootElement.objectType = typeof(Transform);
         rootElement.BindProperty(serializedObject.FindProperty("_rootBone"));
         rootElement.Q<Label>().text = "Root Transform";
         var errorSection = visualElement.Q<VisualElement>("RootTransformErrorSection");
@@ -30,11 +31,14 @@ public class JiggleRigEditor : Editor {
         errorSection.style.display = script.rootTransformError ? DisplayStyle.Flex : DisplayStyle.None;
 
         var excludeRootToggleElement = visualElement.Q<Toggle>("ExcludeRootToggle");
-        excludeRootToggleElement.BindProperty(serializedObject.FindProperty("_excludeRoot"));
+        excludeRootToggleElement.BindProperty(serializedObject.FindProperty("excludeRoot"));
         excludeRootToggleElement.Q<Label>().text = "Motionless Root";
 
         var excludedTransformsElement = visualElement.Q<PropertyField>("IgnoredTransformsField");
-        excludedTransformsElement.BindProperty(serializedObject.FindProperty("_excludedTransforms"));
+        excludedTransformsElement.BindProperty(serializedObject.FindProperty("excludedTransforms"));
+
+        var personalCollidersElement = visualElement.Q<PropertyField>("PersonalCollidersField");
+        personalCollidersElement.BindProperty(serializedObject.FindProperty("jiggleColliders"));
 
         visualElement.Add(script.GetInspectorVisualElement(serializedObject.FindProperty("jiggleTreeInputParameters")));
         
@@ -49,25 +53,24 @@ public class JiggleRigEditor : Editor {
     public void OnSceneGUI() {
         var script = (JiggleRig)target;
         var cam = SceneView.lastActiveSceneView.camera;
-        var transforms = script.GetJiggleBoneTransforms();
         var jiggleTree = JigglePhysics.CreateJiggleTree(script, null);
         var points = jiggleTree.points;
         for (var index = 0; index < points.Length; index++) {
             var simulatedPoint = points[index];
             if (simulatedPoint.parentIndex == -1) continue;
             if (!points[simulatedPoint.parentIndex].hasTransform) continue;
-            DrawBone(points[simulatedPoint.parentIndex].position, simulatedPoint.position, simulatedPoint.parameters,
+            DrawBone(points[simulatedPoint.parentIndex].position, simulatedPoint.position, jiggleTree.bones[index].lossyScale, points[simulatedPoint.parentIndex].parameters,
                 cam);
         }
     }
 
-    public void DrawBone(Vector3 boneHead, Vector3 boneTail, JigglePointParameters jigglePointParameters, Camera cam) {
+    public void DrawBone(Vector3 boneHead, Vector3 boneTail, Vector3 boneScale, JigglePointParameters jigglePointParameters, Camera cam) {
         var camForward = cam.transform.forward;
         var fixedScreenSize = 0.01f;
         var toCam = cam.transform.position - boneHead;
         var distance = toCam.magnitude;
         var scale = distance * fixedScreenSize;
-        scale = jigglePointParameters.collisionRadius;
+        scale = jigglePointParameters.collisionRadius * (boneScale.x + boneScale.y + boneScale.z)/3f;
         Handles.DrawWireDisc(boneHead, camForward, scale);
         Handles.DrawLine(boneHead, boneTail);
         var boneDirection = (boneTail - boneHead).normalized;
