@@ -460,15 +460,18 @@ public partial class BasisAvatarSDKInspector : Editor
         {
             smr.meshLodSelectionBias = 0;
             smr.forceMeshLod = -1;
-
             var mesh = smr.sharedMesh;
-            if (mesh == null) continue;
+            if (mesh == null)
+            {
+                continue;
+            }
 
             // Use default flags or specify MeshLodUtility.LodGenerationFlags
             MeshLodUtility.GenerateMeshLods(mesh, lodLimit);
 
             BasisDebug.Log($"Generated up to {lodLimit} LOD(s) for mesh: {mesh.name}");
         }
+        AssetDatabase.Refresh();
     }
 #endif
 }
