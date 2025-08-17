@@ -1,0 +1,153 @@
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using System.IO;
+using System.Collections.Generic;
+using System;
+using System.Threading.Tasks;
+
+[Serializable]
+public class SettingsData
+{
+    public string version;
+    public Dictionary<string, string> settings = new Dictionary<string, string>();
+}
+
+public static class BasisSettings
+{
+    public const string SettingsJson = "settingsConfig.json";
+    private static string filePath = Path.Combine(Application.persistentDataPath, SettingsJson);
+    private static string currentVersion = Application.version;
+    private static SettingsData settingsData = new SettingsData();
+
+    public static event Action<string, string> OnSettingChanged;
+
+    static BasisSettings()
+    {
+        // Load once at startup
+        _ = LoadAllSettingsAsync();
+
+        // 🔹 Subscribe to scene load
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // Fire & forget reload whenever a scene loads
+        _ = LoadAllSettingsAsync();
+    }
+
+    public static async Task SetSettingsValueAsync(string uniqueSettingsName, string value)
+    {
+        bool changed = false;
+
+        if (settingsData.settings.ContainsKey(uniqueSettingsName))
+        {
+            if (settingsData.settings[uniqueSettingsName] != value)
+            {
+                settingsData.settings[uniqueSettingsName] = value;
+                changed = true;
+            }
+        }
+        else
+        {
+            settingsData.settings.Add(uniqueSettingsName, value);
+            changed = true;
+        }
+
+        await SaveAllSettingsAsync();
+
+        if (changed)
+            OnSettingChanged?.Invoke(uniqueSettingsName, value);
+    }
+
+    public static string LoadSettingsValue(string uniqueSettingsName, string defaultValue = "")
+    {
+        if (settingsData.settings.TryGetValue(uniqueSettingsName, out string value))
+            return value;
+
+        _ = SetSettingsValueAsync(uniqueSettingsName, defaultValue); // async save default
+        return defaultValue;
+    }
+
+    public static async Task LoadAllSettingsAsync()
+    {
+        try
+        {
+            if (!File.Exists(filePath))
+            {
+                BasisDebug.Log("Settings file not found, creating defaults.");
+                await ResetToDefaultAsync();
+                return;
+            }
+
+            string json = await File.ReadAllTextAsync(filePath);
+            settingsData = JsonUtility.FromJson<SettingsData>(json);
+
+            if (settingsData == null || settingsData.version != currentVersion)
+            {
+                BasisDebug.LogWarning("Settings version mismatch or corrupt file. Resetting.");
+                await ResetToDefaultAsync();
+            }
+        }
+        catch (Exception e)
+        {
+            BasisDebug.LogError($"Failed to load settings: {e.Message}. Resetting.");
+            await ResetToDefaultAsync();
+        }
+    }
+
+    public static async Task SaveAllSettingsAsync()
+    {
+        try
+        {
+            settingsData.version = currentVersion;
+            string json = JsonUtility.ToJson(settingsData, true);
+            await File.WriteAllTextAsync(filePath, json);
+        }
+        catch (Exception e)
+        {
+            BasisDebug.LogError($"Failed to save settings: {e.Message}");
+        }
+    }
+
+    private static async Task ResetToDefaultAsync()
+    {
+        settingsData = new SettingsData();
+        settingsData.version = currentVersion;
+        await SaveAllSettingsAsync();
+    }
+
+    public static async Task NukeSettingsAsync()
+    {
+        BasisDebug.Log("Nuking settings file and resetting to defaults.");
+        await ResetToDefaultAsync();
+    }
+
+    // 🔹 Strongly-typed accessors
+    public static int LoadInt(string key, int defaultValue = 0)
+    {
+        string val = LoadSettingsValue(key, defaultValue.ToString());
+        return int.TryParse(val, out int result) ? result : defaultValue;
+    }
+
+    public static float LoadFloat(string key, float defaultValue = 0f)
+    {
+        string val = LoadSettingsValue(key, defaultValue.ToString());
+        return float.TryParse(val, out float result) ? result : defaultValue;
+    }
+
+    public static bool LoadBool(string key, bool defaultValue = false)
+    {
+        string val = LoadSettingsValue(key, defaultValue ? "1" : "0");
+        return val == "1" || val.ToLower() == "true";
+    }
+
+    public static async Task SetIntAsync(string key, int value) =>
+        await SetSettingsValueAsync(key, value.ToString());
+
+    public static async Task SetFloatAsync(string key, float value) =>
+        await SetSettingsValueAsync(key, value.ToString());
+
+    public static async Task SetBoolAsync(string key, bool value) =>
+        await SetSettingsValueAsync(key, value ? "1" : "0");
+}

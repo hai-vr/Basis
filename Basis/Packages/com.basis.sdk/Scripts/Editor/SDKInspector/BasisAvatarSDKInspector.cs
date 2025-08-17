@@ -24,7 +24,6 @@ public partial class BasisAvatarSDKInspector : Editor
     public bool AvatarEyePositionState = false;
     public bool AvatarMouthPositionState = false;
     public VisualElement rootElement;
-    //Deprecated 15052025 Use BasisJiggleBonesComponent instead public AvatarSDKJiggleBonesView AvatarSDKJiggleBonesView = new AvatarSDKJiggleBonesView();
     public AvatarSDKVisemes AvatarSDKVisemes = new AvatarSDKVisemes();
     public Button EventCallbackAvatarBundleButton { get; private set; }
     public Texture2D Texture;
@@ -143,7 +142,6 @@ public partial class BasisAvatarSDKInspector : Editor
         AssetDatabase.Refresh();
         AvatarSDKVisemes.Initialize(this);
     }
-
     public void AutomaticallyFindBlinking()
     {
         SkinnedMeshRenderer Renderer = Avatar.FaceBlinkMesh;
@@ -164,7 +162,6 @@ public partial class BasisAvatarSDKInspector : Editor
         AssetDatabase.Refresh();
         AvatarSDKVisemes.Initialize(this);
     }
-
     public void ClickedAvatarEyePositionButton(Button Button)
     {
         Undo.RecordObject(Avatar, "Toggle Eye Position Gizmo");
@@ -173,7 +170,6 @@ public partial class BasisAvatarSDKInspector : Editor
         EditorUtility.SetDirty(Avatar);
         ButtonClicked?.Invoke();
     }
-
     public void ClickedAvatarMouthPositionButton(Button Button)
     {
         Undo.RecordObject(Avatar, "Toggle Mouth Position Gizmo");
@@ -182,7 +178,6 @@ public partial class BasisAvatarSDKInspector : Editor
         EditorUtility.SetDirty(Avatar);
         ButtonClicked?.Invoke();
     }
-
     private void OnMouthHeightValueChanged(ChangeEvent<Vector2> evt)
     {
         Undo.RecordObject(Avatar, "Change Mouth Height");
@@ -190,7 +185,6 @@ public partial class BasisAvatarSDKInspector : Editor
         EditorUtility.SetDirty(Avatar);
         ValueChanged?.Invoke();
     }
-
     private void OnEyeHeightValueChanged(ChangeEvent<Vector2> evt)
     {
         Undo.RecordObject(Avatar, "Change Eye Height");
@@ -198,8 +192,6 @@ public partial class BasisAvatarSDKInspector : Editor
         EditorUtility.SetDirty(Avatar);
         ValueChanged?.Invoke();
     }
-
-
     public void EventCallbackAnimator(ChangeEvent<UnityEngine.Object> evt, ref Animator Renderer)
     {
         //  Debug.Log(nameof(EventCallbackAnimator));
@@ -213,7 +205,6 @@ public partial class BasisAvatarSDKInspector : Editor
         }
         EditorUtility.SetDirty(Avatar);
     }
-
     public void EventCallbackFaceVisemeMesh(ChangeEvent<UnityEngine.Object> evt, ref SkinnedMeshRenderer Renderer)
     {
         // Debug.Log(nameof(EventCallbackFaceVisemeMesh));
