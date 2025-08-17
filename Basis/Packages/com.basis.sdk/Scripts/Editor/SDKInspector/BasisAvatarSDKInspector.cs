@@ -241,7 +241,7 @@ public partial class BasisAvatarSDKInspector : Editor
         Button avatarBundleButton = BasisHelpersGizmo.Button(uiElementsRoot, BasisSDKConstants.AvatarBundleButton);
         Button avatarAutomaticVisemeDetectionClick = BasisHelpersGizmo.Button(uiElementsRoot, BasisSDKConstants.AvatarAutomaticVisemeDetection);
         Button avatarAutomaticBlinkDetectionClick = BasisHelpersGizmo.Button(uiElementsRoot, BasisSDKConstants.AvatarAutomaticBlinkDetection);
-        Button AvatarTestInEditorClick = BasisHelpersGizmo.Button(uiElementsRoot,BasisSDKConstants.AvatarTestInEditor);
+        Button AvatarTestInEditorClick = BasisHelpersGizmo.Button(uiElementsRoot, BasisSDKConstants.AvatarTestInEditor);
 
         // Initialize Event Callbacks for Vector2 fields (for Avatar Eye and Mouth Position)
         BasisHelpersGizmo.CallBackVector2Field(uiElementsRoot, BasisSDKConstants.avatarEyePositionField, Avatar.AvatarEyePosition, OnEyeHeightValueChanged);
@@ -307,6 +307,11 @@ public partial class BasisAvatarSDKInspector : Editor
             Debug.LogError("No build targets selected.");
             return;
         }
+
+#if UNITY_6000_2_OR_NEWER
+        GenerateMeshLODs(3);
+#endif
+
         if (BasisAvatarValidator.ValidateAvatar(out List<BasisValidationIssue> Errors, out List<BasisValidationIssue> Warnings, out List<string> Passes))
         {
             if (Avatar.Animator.runtimeAnimatorController != null)
@@ -346,7 +351,7 @@ public partial class BasisAvatarSDKInspector : Editor
 
             // Add the result label to the UI
             uiElementsRoot.Add(resultLabel);
-          //  BuildReportViewerWindow.ShowWindow();
+            //  BuildReportViewerWindow.ShowWindow();
         }
         else
         {
@@ -364,7 +369,7 @@ public partial class BasisAvatarSDKInspector : Editor
     {
         if (!Application.isPlaying)
         {
-            int result = EditorUtility.DisplayDialogComplex("Confirmation","this feature requires the editor to be in playmode. do you want to enter play mode now?", "Yes","No",""
+            int result = EditorUtility.DisplayDialogComplex("Confirmation", "this feature requires the editor to be in playmode. do you want to enter play mode now?", "Yes", "No", ""
         );
 
             switch (result)
@@ -447,4 +452,23 @@ public partial class BasisAvatarSDKInspector : Editor
         EditorUtility.SetDirty(Avatar);
         AssetDatabase.Refresh();
     }
+#if UNITY_6000_2_OR_NEWER
+    public void GenerateMeshLODs(int lodLimit = -1)
+    {
+        var skinnedRenders = Avatar.GetComponentsInChildren<SkinnedMeshRenderer>();
+        foreach (SkinnedMeshRenderer smr in skinnedRenders)
+        {
+            smr.meshLodSelectionBias = 0;
+            smr.forceMeshLod = -1;
+
+            var mesh = smr.sharedMesh;
+            if (mesh == null) continue;
+
+            // Use default flags or specify MeshLodUtility.LodGenerationFlags
+            MeshLodUtility.GenerateMeshLods(mesh, lodLimit);
+
+            BasisDebug.Log($"Generated up to {lodLimit} LOD(s) for mesh: {mesh.name}");
+        }
+    }
+#endif
 }
