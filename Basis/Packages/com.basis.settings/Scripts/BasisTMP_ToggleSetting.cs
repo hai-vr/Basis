@@ -12,25 +12,25 @@ public class BasisTMP_ToggleSetting : MonoBehaviour
     private void Awake()
     {
         bool defaultValue = platformDefault.GetDefault();
-        toggle.isOn = BasisSettings.LoadBool(settingKey, defaultValue);
+        toggle.isOn = BasisSettingsSystem.LoadBool(settingKey, defaultValue);
 
         toggle.onValueChanged.AddListener(async v =>
         {
-            await BasisSettings.SetBoolAsync(settingKey, v);
+            await BasisSettingsSystem.SetBoolAsync(settingKey, v);
         });
 
-        BasisSettings.OnSettingChanged += HandleSettingChanged;
+        BasisSettingsSystem.OnSettingChanged += HandleSettingChanged;
     }
 
     private void OnDestroy()
     {
-        BasisSettings.OnSettingChanged -= HandleSettingChanged;
+        BasisSettingsSystem.OnSettingChanged -= HandleSettingChanged;
     }
 
     private void HandleSettingChanged(string key, string value)
     {
         if (key == settingKey)
-            toggle.SetIsOnWithoutNotify(BasisSettings.LoadBool(settingKey));
+            toggle.SetIsOnWithoutNotify(BasisSettingsSystem.LoadBool(settingKey));
     }
     private void OnValidate()
     {

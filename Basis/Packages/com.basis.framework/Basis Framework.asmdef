@@ -2,7 +2,6 @@
     "name": "Basis Framework",
     "rootNamespace": "",
     "references": [
-        "GUID:08e043fee1083724eb9a215c6b5ffacd",
         "GUID:2684ea0d564097444a05d23355ff46a1",
         "GUID:2bafac87e7f4b9b418d9448d219b01ab",
         "GUID:3e4bdb8597ff0de42b05a502fabce576",
@@ -36,7 +35,8 @@
         "GUID:fe5c9d210f6859a4eac877d630830953",
         "GUID:b41b79a7b1dfc39458fe04a9dd001de4",
         "GUID:fe25561d224ed4743af4c60938a59d0b",
-        "GUID:5e0b455853cd340e0813387221dfd501"
+        "GUID:5e0b455853cd340e0813387221dfd501",
+        "GUID:a16aeb37b717b1945aec1e5f96e604d8"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

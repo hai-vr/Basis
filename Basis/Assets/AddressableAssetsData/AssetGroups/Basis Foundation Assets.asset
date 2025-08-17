@@ -81,7 +81,7 @@ MonoBehaviour:
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 432cc037784849f449cebf9338d58f11
-    m_Address: SettingsPanel
+    m_Address: Packages/com.basis.sdk/Prefabs/UI/Settings UI.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

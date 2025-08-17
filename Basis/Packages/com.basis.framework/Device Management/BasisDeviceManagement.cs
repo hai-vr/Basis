@@ -101,7 +101,7 @@ namespace Basis.Scripts.Device_Management
             BasisCommandLineArgs.Initialize(BakedInCommandLineArgs, out ForcedDefault);
             await BasisPlayerFactory.CreateLocalPlayer(new InstantiationParameters(transform, true));
             StartAllStartIfPermanentlyExists();
-            SwitchSetModeToDefault();
+            await SwitchSetModeToDefault();
             SubscribeEvents();
 
             if (OnInitializationCompleted != null)
@@ -113,13 +113,13 @@ namespace Basis.Scripts.Device_Management
 
         #region Mode Handling
 
-        public void SwitchSetModeToDefault()
+        public async Task SwitchSetModeToDefault()
         {
             string mode = string.IsNullOrEmpty(ForcedDefault) ? DefaultMode() : ForcedDefault;
-            SwitchSetMode(mode);
+           await SwitchSetMode(mode);
         }
 
-        public void SwitchSetMode(string newMode)
+        public async Task SwitchSetMode(string newMode)
         {
             if (string.IsNullOrEmpty(newMode))
             {
@@ -147,19 +147,21 @@ namespace Basis.Scripts.Device_Management
 
             BasisXRManagement.TryBeginLoad(newMode);
 
-            StartDevices(StaticCurrentMode);
+          await StartDevices(StaticCurrentMode);
             SMDMicrophone.LoadInMicrophoneData(StaticCurrentMode);
+
+            await BasisSettingsSystem.LoadAllSettingsAsync();
         }
         #endregion
 
         #region Device Management
 
-        public void StartDevices(string mode)
+        public async Task StartDevices(string mode)
         {
             if (TryFindBasisBaseTypeManagement(mode, out var matched))
             {
                 foreach (var type in matched)
-                    type?.AttemptStartSDK();
+                    await type?.AttemptStartSDK();
             }
         }
 

@@ -1,5 +1,6 @@
 using Basis.Scripts.Device_Management;
 using System;
+using System.Threading.Tasks;
 using UnityEngine;
 
 public abstract class BasisBaseTypeManagement : MonoBehaviour
@@ -47,7 +48,7 @@ public abstract class BasisBaseTypeManagement : MonoBehaviour
             IsDeviceBooted = false;//make sure tis stopped first
         }
     }
-    public void AttemptStartSDK()
+    public async Task AttemptStartSDK()
     {
         try
         {
@@ -64,14 +65,14 @@ public abstract class BasisBaseTypeManagement : MonoBehaviour
         catch (Exception E)
         {
             BasisDebug.LogError($"AttemptStartSDK Failed {E} booting Default!", BasisDebug.LogTag.Device);
-            BasisDeviceManagement.Instance.SwitchSetModeToDefault();
+           await BasisDeviceManagement.Instance.SwitchSetModeToDefault();
         }
     }
-    public void StartIfPermanentlyExists()
+    public async Task StartIfPermanentlyExists()
     {
         if (DeviceMode == BasisDeviceMode.PermanentlyExists)
         {
-            AttemptStartSDK();
+          await  AttemptStartSDK();
         }
     }
     public enum BasisDeviceMode

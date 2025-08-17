@@ -12,19 +12,19 @@ public class BasisTMP_DropdownSetting : MonoBehaviour
     private void Awake()
     {
         int defaultValue = platformDefault.GetDefault();
-        dropdown.value = BasisSettings.LoadInt(settingKey, defaultValue);
+        dropdown.value = BasisSettingsSystem.LoadInt(settingKey, defaultValue);
 
         dropdown.onValueChanged.AddListener(async v =>
         {
-            await BasisSettings.SetIntAsync(settingKey, v);
+            await BasisSettingsSystem.SetIntAsync(settingKey, v);
         });
 
-        BasisSettings.OnSettingChanged += HandleSettingChanged;
+        BasisSettingsSystem.OnSettingChanged += HandleSettingChanged;
     }
 
     private void OnDestroy()
     {
-        BasisSettings.OnSettingChanged -= HandleSettingChanged;
+        BasisSettingsSystem.OnSettingChanged -= HandleSettingChanged;
     }
 
     private void HandleSettingChanged(string key, string value)
