@@ -19,9 +19,6 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
                     HandleRenderResolution(RenderResolution);
                 }
                 break;
-            case "Upscaling":
-                SetUpscaler(optionValue);
-                break;
             case "Foveated Rendering":
                 if (SliderReadOption(optionValue, out float FoveationLevel))
                 {
@@ -85,31 +82,6 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
 
         xrDisplaySubsystem.foveatedRenderingFlags = XRDisplaySubsystem.FoveatedRenderingFlags.GazeAllowed;
 
-        xrDisplaySubsystem.foveatedRenderingLevel  = value;
-    }
-    public void SetUpscaler(string Using)
-    {
-#if UNITY_ANDROID
-#else
-        UniversalRenderPipelineAsset Asset = (UniversalRenderPipelineAsset)QualitySettings.renderPipeline;
-        switch (Using)
-        {
-            case "auto":
-                Asset.upscalingFilter = UpscalingFilterSelection.Auto;
-                break;
-            case "linear":
-                Asset.upscalingFilter = UpscalingFilterSelection.Linear;
-                break;
-            case "point":
-                Asset.upscalingFilter = UpscalingFilterSelection.Point;
-                break;
-            case "fsr":
-                Asset.upscalingFilter = UpscalingFilterSelection.FSR;
-                break;
-            case "stp":
-                Asset.upscalingFilter = UpscalingFilterSelection.STP;
-                break;
-        }
-#endif
+        xrDisplaySubsystem.foveatedRenderingLevel = value;
     }
 }

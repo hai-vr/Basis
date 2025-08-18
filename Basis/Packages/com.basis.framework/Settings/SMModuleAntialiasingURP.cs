@@ -19,45 +19,60 @@ public class SMModuleAntialiasingURP : BasisSettingsBase
         {
             return;
         }
-#if UNITY_ANDROID
-        Asset.msaaSampleCount = 2;
-        Camera.allowMSAA = false;
-        Data.antialiasing = AntialiasingMode.None;
-        Data.antialiasingQuality = AntialiasingQuality.Low;
-#else
         switch (optionValue)
         {
-            case "very low":
+            case "MSAA off":
                 Asset.msaaSampleCount = 1;
                 Camera.allowMSAA = false;
                 Data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
                 Data.antialiasingQuality = AntialiasingQuality.Low;
+                Asset.upscalingFilter = UpscalingFilterSelection.Auto;
                 break;
-            case "low":
+            case "MSAA 2X":
                 Asset.msaaSampleCount = LowmsaaSampleCount;
                 Camera.allowMSAA = true;
                 Data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
                 Data.antialiasingQuality = AntialiasingQuality.Low;
+                Asset.upscalingFilter = UpscalingFilterSelection.Auto;
                 break;
-            case "medium":
+            case "MSAA 4X":
                 Asset.msaaSampleCount = MediumLowmsaaSampleCount;
                 Camera.allowMSAA = true;
                 Data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
                 Data.antialiasingQuality = AntialiasingQuality.Medium;
+                Asset.upscalingFilter = UpscalingFilterSelection.Auto;
                 break;
-            case "high":
+            case "MSAA 8X":
                 Asset.msaaSampleCount = HighmsaaSampleCount;
                 Camera.allowMSAA = true;
                 Data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
                 Data.antialiasingQuality = AntialiasingQuality.High;
+                Asset.upscalingFilter = UpscalingFilterSelection.Auto;
                 break;
-            case "ultra":
-                Asset.msaaSampleCount = HighmsaaSampleCount;
-                Camera.allowMSAA = true;
-                Data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing;
-                Data.antialiasingQuality = AntialiasingQuality.High;
+            case "linear":
+                Asset.upscalingFilter = UpscalingFilterSelection.Linear;
+                Camera.allowMSAA = false;
+                Data.antialiasing = AntialiasingMode.None;
+                Data.antialiasingQuality = AntialiasingQuality.Low;
+                break;
+            case "point":
+                Asset.upscalingFilter = UpscalingFilterSelection.Point;
+                Camera.allowMSAA = false;
+                Data.antialiasing = AntialiasingMode.None;
+                Data.antialiasingQuality = AntialiasingQuality.Low;
+                break;
+            case "fsr":
+                Asset.upscalingFilter = UpscalingFilterSelection.FSR;
+                Camera.allowMSAA = false;
+                Data.antialiasing = AntialiasingMode.None;
+                Data.antialiasingQuality = AntialiasingQuality.Low;
+                break;
+            case "stp":
+                Asset.upscalingFilter = UpscalingFilterSelection.STP;
+                Camera.allowMSAA = false;
+                Data.antialiasing = AntialiasingMode.None;
+                Data.antialiasingQuality = AntialiasingQuality.Low;
                 break;
         }
-#endif
     }
 }
