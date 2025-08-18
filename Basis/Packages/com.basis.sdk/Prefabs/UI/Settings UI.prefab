@@ -1035,7 +1035,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 25
+  m_text: 25 m
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -2041,7 +2041,8 @@ MonoBehaviour:
   slider: {fileID: 4024648727797786387}
   Text: {fileID: 1845629160578181789}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 0
+  displayMode: 2
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &536120648658158228
 GameObject:
@@ -2637,7 +2638,8 @@ MonoBehaviour:
   slider: {fileID: 1314951854407227033}
   Text: {fileID: 1296154762303717230}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 1
+  displayMode: 0
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &666230254162152022
 GameObject:
@@ -2851,9 +2853,9 @@ MonoBehaviour:
   m_HandleRect: {fileID: 5098400442167683918}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 80
+  m_MaxValue: 100
   m_WholeNumbers: 1
-  m_Value: 25
+  m_Value: 75
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -2871,14 +2873,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisSettings::BasisTMP_SliderSetting
   settingKey: world volume
   platformDefault:
-    windows: 60
-    android: 60
-    linux: 60
-    other: 60
+    windows: 75
+    android: 75
+    linux: 75
+    other: 75
   slider: {fileID: 1571773575179432186}
   Text: {fileID: 1039450111892542202}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 1
+  displayMode: 0
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &735545279232596298
 GameObject:
@@ -4631,7 +4634,8 @@ MonoBehaviour:
   slider: {fileID: 2483973006290834395}
   Text: {fileID: 3717085055315141319}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 0
+  displayMode: 2
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &1717373764299212625
 GameObject:
@@ -5626,7 +5630,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 25
+  m_text: 25 m
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -5918,7 +5922,8 @@ MonoBehaviour:
   slider: {fileID: 1249802655459668493}
   Text: {fileID: 6098930937113121744}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 0
+  displayMode: 0
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &2347498340276322491
 GameObject:
@@ -7849,7 +7854,8 @@ MonoBehaviour:
   slider: {fileID: 6189808837403669649}
   Text: {fileID: 5480909583929381190}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 0
+  displayMode: 1
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &3122782992189589509
 GameObject:
@@ -11093,7 +11099,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 25
+  m_text: 25 m
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -12082,7 +12088,8 @@ MonoBehaviour:
   slider: {fileID: 8679809294621061501}
   Text: {fileID: 4100462357455554281}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 1
+  displayMode: 1
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &4443520061655931256
 GameObject:
@@ -12631,7 +12638,8 @@ MonoBehaviour:
   slider: {fileID: 8922904082443488571}
   Text: {fileID: 1183567375888856743}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 0
+  displayMode: 2
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &4606970799313489871
 GameObject:
@@ -14313,7 +14321,8 @@ MonoBehaviour:
   slider: {fileID: 5465733622776767629}
   Text: {fileID: 2208978960711685376}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 0
+  displayMode: 0
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &5319029816944283240
 GameObject:
@@ -14949,7 +14958,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 31%
+  m_text: 75%
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -16004,7 +16013,8 @@ MonoBehaviour:
   slider: {fileID: 6980013257692494148}
   Text: {fileID: 6944879849374987246}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 1
+  displayMode: 0
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &5916428591395379900
 GameObject:
@@ -16699,9 +16709,9 @@ MonoBehaviour:
   m_HandleRect: {fileID: 401057895755462302}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 80
+  m_MaxValue: 100
   m_WholeNumbers: 1
-  m_Value: 25
+  m_Value: 75
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -16719,14 +16729,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisSettings::BasisTMP_SliderSetting
   settingKey: main volume
   platformDefault:
-    windows: 60
-    android: 60
-    linux: 60
-    other: 60
+    windows: 75
+    android: 75
+    linux: 75
+    other: 75
   slider: {fileID: 2173608287541347480}
   Text: {fileID: 7564286812007145967}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 1
+  displayMode: 0
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &6028654121907136407
 GameObject:
@@ -17036,7 +17047,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 58%
+  m_text: 65
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -17625,9 +17636,9 @@ MonoBehaviour:
   m_HandleRect: {fileID: 8022200103022822476}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 80
+  m_MaxValue: 100
   m_WholeNumbers: 1
-  m_Value: 25
+  m_Value: 75
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -17645,14 +17656,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisSettings::BasisTMP_SliderSetting
   settingKey: menu volume
   platformDefault:
-    windows: 60
-    android: 60
-    linux: 60
-    other: 60
+    windows: 75
+    android: 75
+    linux: 75
+    other: 75
   slider: {fileID: 6349449527791009837}
   Text: {fileID: 9109470459795044185}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 1
+  displayMode: 0
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &6267685465746053445
 GameObject:
@@ -18411,6 +18423,9 @@ MonoBehaviour:
     - m_Text: Off
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
+    - m_Text: Capped
+      m_Image: {fileID: 0}
+      m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -18431,7 +18446,7 @@ MonoBehaviour:
   platformDefault:
     windows: On
     android: On
-    linux: On
+    linux: Capped
     other: On
   dropdown: {fileID: 7918896244018548208}
   Text: {fileID: 92441740753613862}
@@ -18502,7 +18517,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 25
+  m_text: 29%
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -20244,7 +20259,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 31%
+  m_text: 75%
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -21266,7 +21281,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 31%
+  m_text: 75%
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -21610,7 +21625,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 31%
+  m_text: 75%
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -24637,7 +24652,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 1
+  m_text: 100%
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -25749,9 +25764,9 @@ MonoBehaviour:
   m_HandleRect: {fileID: 8465128843631687553}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 80
+  m_MaxValue: 100
   m_WholeNumbers: 1
-  m_Value: 25
+  m_Value: 75
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -25769,14 +25784,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisSettings::BasisTMP_SliderSetting
   settingKey: player volume
   platformDefault:
-    windows: 60
-    android: 60
-    linux: 60
-    other: 60
+    windows: 75
+    android: 75
+    linux: 75
+    other: 75
   slider: {fileID: 6812720856038687404}
   Text: {fileID: 5373501167617558476}
   applyButton: {fileID: 588725358341691364}
-  displayAsPercentage: 1
+  displayMode: 0
+  decimalPlaces: 2
   autoValidate: 0
 --- !u!1 &8366547951321576249
 GameObject:

@@ -12,15 +12,23 @@ public class BasisTMP_SliderSetting : MonoBehaviour
 
     public Slider slider;
     public TextMeshProUGUI Text;
-    public Button applyButton; // NEW: Apply button reference
+    public Button applyButton;
 
     [Header("Display Options")]
-    public bool displayAsPercentage = true; // default true (percentage)
+    public DisplayMode displayMode = DisplayMode.Percentage;
+    public int decimalPlaces = 2; // used for Raw and Meters
 
     [Header("Editor Auto Setup")]
-    public bool autoValidate = true; // when true, OnValidate can set defaults automatically
+    public bool autoValidate = true;
 
-    private float pendingValue; // NEW: holds unsaved slider value
+    private float pendingValue;
+
+    public enum DisplayMode
+    {
+        Percentage,
+        Raw,
+        Meters
+    }
 
     private void Awake()
     {
@@ -37,14 +45,12 @@ public class BasisTMP_SliderSetting : MonoBehaviour
 
         UpdateText(slider.value);
 
-        // Only update preview text, not saving immediately
         slider.onValueChanged.AddListener(v =>
         {
             pendingValue = v;
             UpdateText(v);
         });
 
-        // Apply button saves the value
         if (applyButton != null)
             applyButton.onClick.AddListener(ApplySetting);
 
@@ -62,7 +68,7 @@ public class BasisTMP_SliderSetting : MonoBehaviour
     private async void ApplySetting()
     {
         await BasisSettingsSystem.SetFloatAsync(settingKey, pendingValue);
-     //   Debug.Log($"[Settings] Applied {settingKey} = {pendingValue}");
+        // Debug.Log($"[Settings] Applied {settingKey} = {pendingValue}");
     }
 
     private void HandleSettingChanged(string key, string value)
@@ -79,16 +85,21 @@ public class BasisTMP_SliderSetting : MonoBehaviour
     {
         if (Text == null || slider == null) return;
 
-        if (displayAsPercentage)
+        switch (displayMode)
         {
-            float range = slider.maxValue - slider.minValue;
-            float normalized = (range > 0f) ? (value - slider.minValue) / range : 0f;
-            Text.text = $"{Mathf.RoundToInt(normalized * 100f)}%";
-        }
-        else
-        {
-            // Show raw value with 2 decimals
-            Text.text = value.ToString("0.##");
+            case DisplayMode.Percentage:
+                float range = slider.maxValue - slider.minValue;
+                float normalized = (range > 0f) ? (value - slider.minValue) / range : 0f;
+                Text.text = $"{Mathf.RoundToInt(normalized * 100f)}%";
+                break;
+
+            case DisplayMode.Raw:
+                Text.text = value.ToString("0." + new string('#', decimalPlaces));
+                break;
+
+            case DisplayMode.Meters:
+                Text.text = value.ToString("0." + new string('#', decimalPlaces)) + " m";
+                break;
         }
     }
 

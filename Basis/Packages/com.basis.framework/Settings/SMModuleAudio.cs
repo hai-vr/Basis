@@ -39,7 +39,7 @@ public class SMModuleAudio : BasisSettingsBase
                 {
                     ActiveMenusVolume = NewActiveMenusVolume;
                     MenusVolume?.Invoke(ActiveMenusVolume);
-                    ChangeVolume(NewActiveMenusVolume - 80, "menu");
+                    ChangeVolume(ActiveMenusVolume, "menu");
                 }
                 break;
             case "world volume":
@@ -47,7 +47,7 @@ public class SMModuleAudio : BasisSettingsBase
                 {
                     ActiveWorldVolume = NewActiveWorldVolume;
                     WorldVolume?.Invoke(ActiveWorldVolume);
-                    ChangeVolume(NewActiveWorldVolume - 80, "world");
+                    ChangeVolume(ActiveWorldVolume, "world");
                 }
                 break;
             case "player volume":
@@ -55,14 +55,21 @@ public class SMModuleAudio : BasisSettingsBase
                 {
                     ActivePlayerVolume = NewActivePlayerVolume;
                     PlayerVolume?.Invoke(ActivePlayerVolume);
-                    ChangeVolume(NewActivePlayerVolume - 80, "player");
+                    ChangeVolume(ActivePlayerVolume, "player");
                 }
                 break;
         }
     }
-    public void ChangeVolume(float Value, string Name)
+    public void ChangeVolume(float value, string name)
     {
-        BasisDebug.Log(Name + "set to" + Value);
-        Mixer.SetFloat(Name, Value);
+        // Convert 0–100 slider to 0.0001–1 (linear scale)
+        float linear = Mathf.Clamp01(value / 100f);
+
+        // Convert linear 0–1 to decibels (-80dB to 0dB)
+        float dB = Mathf.Log10(Mathf.Max(linear, 0.0001f)) * 20f;
+
+        // Debug & apply
+        BasisDebug.Log($"{name} set to {value} (linear: {linear}, dB: {dB})");
+        Mixer.SetFloat(name, dB);
     }
 }
