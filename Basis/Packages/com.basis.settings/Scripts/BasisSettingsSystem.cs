@@ -127,6 +127,10 @@ public static class BasisSettingsSystem
             {
                 settingsData.RebuildDictionary();
             }
+            foreach (var KeyStore in settingsData.settings)
+            {
+                OnSettingChanged?.Invoke(KeyStore.Key, KeyStore.Value);
+            }
         }
         catch (Exception e)
         {

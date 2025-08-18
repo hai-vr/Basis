@@ -1,6 +1,4 @@
-
 using System;
-using UnityEngine;
 public class SMModuleDistanceBasedReductions : BasisSettingsBase
 {
     private static float _microphoneRange;
@@ -49,11 +47,9 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     /// hearing range
     /// maximum avatars
     /// </summary>
-    /// <param name="Option"></param>
-    /// <param name="Manager"></param>
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        if (matchedSettingName == "MicrophoneRange".ToLower())
+        if (matchedSettingName.ToLower() == "MicrophoneRange".ToLower())
         {
             if (SliderReadOption(optionValue, out float NewMicrophoneRange))
             {
@@ -61,10 +57,11 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
            MicrophoneRange = 0;
 #else
                 MicrophoneRange = NewMicrophoneRange * NewMicrophoneRange;
+               // BasisDebug.Log($"MicrophoneRange Is Now {MicrophoneRange}");
 #endif
             }
         }
-        else if (matchedSettingName == "HearingRange".ToLower())
+        else if (matchedSettingName.ToLower() == "HearingRange".ToLower())
         {
             if (SliderReadOption(optionValue, out float newHearingRange))
             {
@@ -72,10 +69,11 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
            HearingRange = 0;
 #else
                 HearingRange = newHearingRange * newHearingRange;
+              //  BasisDebug.Log($"HearingRange Is Now {HearingRange}");
 #endif
             }
         }
-        else if (matchedSettingName == "AvatarRange".ToLower())
+        else if (matchedSettingName.ToLower() == "AvatarRange".ToLower())
         {
             if (SliderReadOption(optionValue, out float LoadRange))
             {
@@ -83,6 +81,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
            AvatarRange = 0;
 #else
                 AvatarRange = LoadRange * LoadRange;
+             //   BasisDebug.Log($"AvatarRange Is Now {AvatarRange}");
 #endif
             }
         }
