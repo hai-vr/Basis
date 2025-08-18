@@ -43,14 +43,7 @@ public static partial class SerializableBasis
                         for (int Index = 0; Index < AdditionalAvatarDataSize; Index++)
                         {
                             AdditionalAvatarDatas[Index] = new AdditionalAvatarData();
-                            if (AdditionalAvatarDatas[Index] != null)
-                            {
-                                AdditionalAvatarDatas[Index].Deserialize(Writer);
-                            }
-                            else
-                            {
-                                BNL.LogError($"AdditionalAvatarData[{Index}] was null during Deserialize!");
-                            }
+                            AdditionalAvatarDatas[Index].Deserialize(Writer);
                         }
                     }
                 }
