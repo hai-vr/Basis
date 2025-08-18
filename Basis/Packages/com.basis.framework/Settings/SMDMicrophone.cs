@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
-
-public class SMDMicrophone : MonoBehaviour
+public class SMDMicrophone : BasisSettingsBase
 {
+    public static string[] MicrophoneDevices;
+    public static Dictionary<string, string> MicrophoneSelections = new Dictionary<string, string>();
+    public static Dictionary<string, float> VolumeSettings = new Dictionary<string, float>();
     // Define a delegate for the callback
     public delegate void MicrophoneChangedHandler(string newMicrophone);
 
@@ -67,9 +69,6 @@ public class SMDMicrophone : MonoBehaviour
             OnMicrophoneUseDenoiserChanged?.Invoke(selectedDenoiserMicrophone);
         }
     }
-    public static string[] MicrophoneDevices;
-    public static Dictionary<string, string> MicrophoneSelections = new Dictionary<string, string>();
-    public static Dictionary<string, float> VolumeSettings = new Dictionary<string, float>();
     public static void LoadInMicrophoneData(string mode)
     {
         BasisDebug.Log($"Loading microphone and volume for mode: {mode}");
@@ -124,5 +123,13 @@ public class SMDMicrophone : MonoBehaviour
         PlayerPrefs.SetFloat($"{mode}_Volume", volume);
         PlayerPrefs.Save();
         SelectedVolumeMicrophone = volume;
+    }
+
+    public override void ValidSettingsChange(string matchedSettingName, string optionValue)
+    {
+        if (bool.TryParse(optionValue, out bool DenoiserMicrophone))
+        {
+            SelectedDenoiserMicrophone = DenoiserMicrophone;
+        }
     }
 }

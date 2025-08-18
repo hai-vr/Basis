@@ -12,12 +12,15 @@ public class BasisTMP_SliderSetting : MonoBehaviour
 
     public Slider slider;
     public TextMeshProUGUI Text;
+    public Button applyButton; // NEW: Apply button reference
 
     [Header("Display Options")]
     public bool displayAsPercentage = true; // default true (percentage)
 
     [Header("Editor Auto Setup")]
     public bool autoValidate = true; // when true, OnValidate can set defaults automatically
+
+    private float pendingValue; // NEW: holds unsaved slider value
 
     private void Awake()
     {
@@ -27,15 +30,23 @@ public class BasisTMP_SliderSetting : MonoBehaviour
     public void Initialize()
     {
         float defaultValue = platformDefault.GetDefault();
-        slider.value = BasisSettingsSystem.LoadFloat(settingKey, defaultValue);
+        float savedValue = BasisSettingsSystem.LoadFloat(settingKey, defaultValue);
+
+        slider.value = savedValue;
+        pendingValue = savedValue;
 
         UpdateText(slider.value);
 
-        slider.onValueChanged.AddListener(async v =>
+        // Only update preview text, not saving immediately
+        slider.onValueChanged.AddListener(v =>
         {
-            await BasisSettingsSystem.SetFloatAsync(settingKey, v);
+            pendingValue = v;
             UpdateText(v);
         });
+
+        // Apply button saves the value
+        if (applyButton != null)
+            applyButton.onClick.AddListener(ApplySetting);
 
         BasisSettingsSystem.OnSettingChanged += HandleSettingChanged;
     }
@@ -43,6 +54,15 @@ public class BasisTMP_SliderSetting : MonoBehaviour
     private void OnDestroy()
     {
         BasisSettingsSystem.OnSettingChanged -= HandleSettingChanged;
+
+        if (applyButton != null)
+            applyButton.onClick.RemoveListener(ApplySetting);
+    }
+
+    private async void ApplySetting()
+    {
+        await BasisSettingsSystem.SetFloatAsync(settingKey, pendingValue);
+        Debug.Log($"[Settings] Applied {settingKey} = {pendingValue}");
     }
 
     private void HandleSettingChanged(string key, string value)
@@ -50,6 +70,7 @@ public class BasisTMP_SliderSetting : MonoBehaviour
         if (key == settingKey && float.TryParse(value, out float f))
         {
             slider.SetValueWithoutNotify(f);
+            pendingValue = f;
             UpdateText(f);
         }
     }
@@ -73,19 +94,15 @@ public class BasisTMP_SliderSetting : MonoBehaviour
 
     private void OnValidate()
     {
-        // Auto-assign slider if missing
         if (slider == null)
             slider = GetComponent<Slider>();
 
-        // Auto-assign Text if missing (search in children)
         if (Text == null)
             Text = GetComponentInChildren<TextMeshProUGUI>();
 
-        // Auto-assign setting key if empty
         if (string.IsNullOrEmpty(settingKey))
             settingKey = this.gameObject.name;
 
-        // If AutoValidate is enabled and platform default is "0" → match slider's current value
         if (autoValidate && Mathf.Approximately(platformDefault.GetDefault(), 0f) && slider != null)
         {
             platformDefault.android = slider.value;
@@ -94,7 +111,6 @@ public class BasisTMP_SliderSetting : MonoBehaviour
             platformDefault.other = slider.value;
         }
 
-        // Keep label preview updated in editor
         if (slider != null)
             UpdateText(slider.value);
     }

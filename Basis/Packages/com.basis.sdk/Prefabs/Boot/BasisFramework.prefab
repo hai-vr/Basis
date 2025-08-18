@@ -401,6 +401,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b79b7a6356e9dd40a5bc486cd555a8c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  SettingsNames:
+  - voicedenoiser
 --- !u!114 &9218905915079737845
 MonoBehaviour:
   m_ObjectHideFlags: 0
