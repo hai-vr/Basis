@@ -15672,6 +15672,7 @@ RectTransform:
   - {fileID: 8888335329216557916}
   - {fileID: 4645575629209778746}
   - {fileID: 3246084898382601186}
+  - {fileID: 5371893728680962465}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -19182,6 +19183,53 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!1 &6741966878592928001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5371893728680962465}
+  - component: {fileID: 5571432815902340417}
+  m_Layer: 0
+  m_Name: SMD Resolution
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5371893728680962465
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6741966878592928001}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7903228025353514208}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5571432815902340417
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6741966878592928001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 31c3866dc0581284385f845ed998d652, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Basis Framework::BattlePhaze.SettingsManager.Intergrations.SMDResolution
+  monitorDropdown: {fileID: 1261333099191905559}
+  screenModeDropdown: {fileID: 4028743016536554110}
+  resolutionDropdown: {fileID: 945831755765610570}
 --- !u!1 &6743592116140150761
 GameObject:
   m_ObjectHideFlags: 0
@@ -25433,7 +25481,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Option A
+  m_text: Exclusive FullScreen
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -27388,6 +27436,7 @@ GameObject:
   - component: {fileID: 3303941505229138861}
   - component: {fileID: 6861912449595550772}
   - component: {fileID: 4028743016536554110}
+  - component: {fileID: 4056761286699231298}
   m_Layer: 5
   m_Name: ScreenMode
   m_TagString: Untagged
@@ -27522,6 +27571,28 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_AlphaFadeSpeed: 0.15
+--- !u!114 &4056761286699231298
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8987062457533787257}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2d89f5f2cd6ce6945a286820caad0146, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: BasisSettings::BasisTMP_DropdownSetting
+  settingKey: ScreenMode
+  platformDefault:
+    windows: Windowed
+    android: Fullscreen
+    linux: Windowed
+    other: Windowed
+  dropdown: {fileID: 4028743016536554110}
+  Text: {fileID: 8861383406346075346}
+  showSelectedLabel: 1
+  autoValidate: 0
 --- !u!1 &9038702795155437582
 GameObject:
   m_ObjectHideFlags: 0

@@ -33,35 +33,30 @@ public class SMModuleAudio : BasisSettingsBase
                     MainVolume?.Invoke(ActiveMainVolume);
                     AudioListener.volume = ActiveMainVolume;
                 }
-
                 break;
             case "menu volume":
                 if (SliderReadOption(optionValue, out float NewActiveMenusVolume))
                 {
                     ActiveMenusVolume = NewActiveMenusVolume;
                     MenusVolume?.Invoke(ActiveMenusVolume);
-                    ChangeVolume(NewActiveMenusVolume - 80, matchedSettingName);
+                    ChangeVolume(NewActiveMenusVolume - 80, "menu");
                 }
-
                 break;
-
             case "world volume":
                 if (SliderReadOption(optionValue, out float NewActiveWorldVolume))
                 {
                     ActiveWorldVolume = NewActiveWorldVolume;
                     WorldVolume?.Invoke(ActiveWorldVolume);
-                    ChangeVolume(NewActiveWorldVolume - 80, matchedSettingName);
+                    ChangeVolume(NewActiveWorldVolume - 80, "world");
                 }
-
                 break;
             case "player volume":
                 if (SliderReadOption(optionValue, out float NewActivePlayerVolume))
                 {
                     ActivePlayerVolume = NewActivePlayerVolume;
                     PlayerVolume?.Invoke(ActivePlayerVolume);
-                    ChangeVolume(NewActivePlayerVolume - 80, matchedSettingName);
+                    ChangeVolume(NewActivePlayerVolume - 80, "player");
                 }
-
                 break;
         }
     }

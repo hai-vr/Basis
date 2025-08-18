@@ -1,58 +1,20 @@
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
-
 namespace BattlePhaze.SettingsManager.Intergrations
 {
     public class SMModuleQualityAndQualitySetURP : BasisSettingsBase
     {
         public UniversalAdditionalCameraData Data;
+        public Camera Camera;
         public override void ValidSettingsChange(string matchedSettingName, string optionValue)
         {
             QualitySettings.SetQualityLevel(QualitySettings.GetQualityLevel(), true);
-            ChangeQualityLevel(optionValue);
-        }
-
-        public Camera Camera;
-
-        private void EnsureCameraData()
-        {
             if (Camera == null)
             {
                 Camera = Camera.main;
                 Data = Camera.GetComponent<UniversalAdditionalCameraData>();
             }
-        }
-
-        public void ChangeOpaque(string value)
-        {
-            EnsureCameraData();
-
-            if (Data != null)
-            {
-                bool State = value == "on";
-                Data.requiresColorOption = State ? CameraOverrideOption.On: CameraOverrideOption.Off;
-                Data.requiresColorTexture = State;
-                BasisDebug.Log($"Opaque rendering set to {value}.");
-            }
-        }
-
-        public void ChangeDepth(string value)
-        {
-            EnsureCameraData();
-
-            if (Data != null)
-            {
-                bool State = value == "on";
-                Data.requiresDepthOption = State? CameraOverrideOption.On: CameraOverrideOption.Off;
-                Data.requiresDepthTexture = State;
-                BasisDebug.Log($"Depth rendering set to {value}.");
-            }
-        }
-        public void ChangeQualityLevel(string quality)
-        {
-            EnsureCameraData();
-
-            switch (quality)
+            switch (optionValue.ToLower())
             {
                 case "very low":
                     ApplyQualitySettings(AnisotropicFiltering.Enable, 256, false, false);
@@ -76,17 +38,11 @@ namespace BattlePhaze.SettingsManager.Intergrations
                     break;
             }
         }
-
-        private void ApplyQualitySettings(
-            AnisotropicFiltering anisotropicFilter,
-            int particleBudget,
-            bool renderShadows,
-            bool stopNaN)
+        private void ApplyQualitySettings(AnisotropicFiltering anisotropicFilter,int particleBudget,bool renderShadows, bool stopNaN)
         {
             QualitySettings.anisotropicFiltering = anisotropicFilter;
             QualitySettings.particleRaycastBudget = particleBudget;
             QualitySettings.SetQualityLevel(QualitySettings.GetQualityLevel(), true);
-
             if (Data != null)
             {
                 Data.renderShadows = renderShadows;
