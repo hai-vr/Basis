@@ -55,7 +55,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     {
         if (matchedSettingName == "MicrophoneRange".ToLower())
         {
-            if (float.TryParse(optionValue, out float NewMicrophoneRange))
+            if (SliderReadOption(optionValue, out float NewMicrophoneRange))
             {
 #if UNITY_SERVER
            MicrophoneRange = 0;
@@ -66,7 +66,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
         }
         else if (matchedSettingName == "HearingRange".ToLower())
         {
-            if (float.TryParse(optionValue, out float newHearingRange))
+            if (SliderReadOption(optionValue, out float newHearingRange))
             {
 #if UNITY_SERVER
            HearingRange = 0;
@@ -77,7 +77,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
         }
         else if (matchedSettingName == "AvatarRange".ToLower())
         {
-            if (float.TryParse(optionValue, out float LoadRange))
+            if (SliderReadOption(optionValue, out float LoadRange))
             {
 #if UNITY_SERVER
            AvatarRange = 0;

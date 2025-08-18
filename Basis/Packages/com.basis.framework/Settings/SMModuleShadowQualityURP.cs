@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.Rendering.Universal;
 public class SMModuleShadowQualityURP : BasisSettingsBase
 {
-    public void ChangeShadowQuality(string Quality)
+    public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
         UniversalRenderPipelineAsset Asset = (UniversalRenderPipelineAsset)QualitySettings.renderPipeline;
         Asset.shadowCascadeCount = 4;               // Four cascades for shadow quality
@@ -10,7 +10,7 @@ public class SMModuleShadowQualityURP : BasisSettingsBase
         Asset.cascade2Split = 0.12f;                // 12% for 2-cascade setting
         Asset.cascade3Split = new Vector2(0.12f, 0.5f);  // 12% and 50% for 3-cascade setting
         Asset.cascade4Split = new Vector3(0.12f, 0.3f, 0.6f); // 12%, 30%, and 60% for 4-cascade setting
-        switch (Quality)
+        switch (optionValue)
         {
             case "very low":
                 Asset.mainLightShadowmapResolution = 256;
@@ -43,9 +43,5 @@ public class SMModuleShadowQualityURP : BasisSettingsBase
                 Asset.shadowDistance = 150;
                 break;
         }
-    }
-    public override void ValidSettingsChange(string matchedSettingName, string optionValue)
-    {
-        ChangeShadowQuality(optionValue);
     }
 }
