@@ -4698,7 +4698,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 25
+  m_text: 0.01
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -7822,9 +7822,9 @@ MonoBehaviour:
   m_HandleRect: {fileID: 5250307821411002801}
   m_Direction: 0
   m_MinValue: 0
-  m_MaxValue: 100
-  m_WholeNumbers: 1
-  m_Value: 25
+  m_MaxValue: 1
+  m_WholeNumbers: 0
+  m_Value: 0.01
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -7842,10 +7842,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisSettings::BasisTMP_SliderSetting
   settingKey: joystickdeadzone
   platformDefault:
-    windows: 1
-    android: 1
-    linux: 1
-    other: 1
+    windows: 0.01
+    android: 0.01
+    linux: 0.01
+    other: 0.01
   slider: {fileID: 6189808837403669649}
   Text: {fileID: 5480909583929381190}
   applyButton: {fileID: 588725358341691364}
@@ -12698,7 +12698,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Memory Allocation
+  m_text: Texture Budget
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -15724,7 +15724,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 1
+  m_PresetInfoIsWorld: 0
 --- !u!114 &6328418170902668384
 MonoBehaviour:
   m_ObjectHideFlags: 0

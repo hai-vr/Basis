@@ -7,13 +7,10 @@ public class SMDMicrophone : BasisSettingsBase
     public static Dictionary<string, float> VolumeSettings = new Dictionary<string, float>();
     // Define a delegate for the callback
     public delegate void MicrophoneChangedHandler(string newMicrophone);
-
     // Create an event of the delegate type
     public static event MicrophoneChangedHandler OnMicrophoneChanged;
-
     // Backing field for the SelectedMicrophone property
     private static string selectedMicrophone;
-
     // Property with a callback in the set accessor
     public static string SelectedMicrophone
     {
@@ -30,12 +27,10 @@ public class SMDMicrophone : BasisSettingsBase
         }
     }
     public delegate void MicrophoneVolumeChangedHandler(float Volume);
-
     // Create an event of the delegate type
     public static event MicrophoneVolumeChangedHandler OnMicrophoneVolumeChanged;
     // Backing field for the SelectedMicrophone property
     private static float selectedVolumeMicrophone = 1;
-
     // Property with a callback in the set accessor
     public static float SelectedVolumeMicrophone
     {
@@ -43,7 +38,6 @@ public class SMDMicrophone : BasisSettingsBase
         {
             return selectedVolumeMicrophone;
         }
-
         set
         {
             selectedVolumeMicrophone = value;
@@ -52,12 +46,10 @@ public class SMDMicrophone : BasisSettingsBase
         }
     }
     public delegate void MicrophoneUseDenoiserChangedHandler(bool useDenoiser);
-
     // Create an event of the delegate type
     public static event MicrophoneUseDenoiserChangedHandler OnMicrophoneUseDenoiserChanged;
     // Backing field for the SelectedMicrophone property
     private static bool selectedDenoiserMicrophone;
-
     // Property with a callback in the set accessor
     public static bool SelectedDenoiserMicrophone
     {
@@ -79,22 +71,17 @@ public class SMDMicrophone : BasisSettingsBase
             BasisDebug.LogError("Missing Device Mode!");
             return;
         }
-
         string savedMicrophone = PlayerPrefs.GetString($"{mode}_Microphone", "");
         float savedVolume = PlayerPrefs.GetFloat($"{mode}_Volume", 1.0f);
-
         if (string.IsNullOrEmpty(savedMicrophone) && MicrophoneDevices.Length > 0)
         {
             savedMicrophone = MicrophoneDevices[0];
         }
-
         MicrophoneSelections[mode] = savedMicrophone;
         VolumeSettings[mode] = savedVolume;
-
         SelectedMicrophone = savedMicrophone;
         SelectedVolumeMicrophone = savedVolume;
     }
-
     public static void SaveMicrophoneData(string mode, string selectedMicrophone)
     {
         if (string.IsNullOrEmpty(mode))
@@ -102,14 +89,12 @@ public class SMDMicrophone : BasisSettingsBase
             BasisDebug.LogError("Missing Device Mode!");
             return;
         }
-
         BasisDebug.Log($"Saving selected microphone for mode: {mode}");
         MicrophoneSelections[mode] = selectedMicrophone;
         PlayerPrefs.SetString($"{mode}_Microphone", selectedMicrophone);
         PlayerPrefs.Save();
         SelectedMicrophone = selectedMicrophone;
     }
-
     public static void SaveVolumeSettings(string mode, float volume)
     {
         if (string.IsNullOrEmpty(mode))
@@ -124,12 +109,16 @@ public class SMDMicrophone : BasisSettingsBase
         PlayerPrefs.Save();
         SelectedVolumeMicrophone = volume;
     }
-
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
         if (bool.TryParse(optionValue, out bool DenoiserMicrophone))
         {
             SelectedDenoiserMicrophone = DenoiserMicrophone;
+            BasisDebug.Log($"setting Denoiser to {SelectedDenoiserMicrophone}");
+        }
+        else
+        {
+            BasisDebug.LogError("Unable to parse Denoiser Setting!");
         }
     }
 }

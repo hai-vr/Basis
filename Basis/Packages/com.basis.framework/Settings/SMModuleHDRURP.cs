@@ -10,24 +10,36 @@ public class SMModuleHDRURP : BasisSettingsBase
 #if UNITY_ANDROID
         Asset.hdrColorBufferPrecision = HDRColorBufferPrecision._32Bits;
         Asset.supportsHDR = false;
-        Camera.main.allowHDR = false;
+                if (Camera.main != null)
+                {
+                    Camera.main.allowHDR = false;
+                }
 #else
         switch (optionValue)
         {
             case "64bit":
                 Asset.hdrColorBufferPrecision = HDRColorBufferPrecision._64Bits;
                 Asset.supportsHDR = true;
-                Camera.main.allowHDR = true;
+                if (Camera.main != null)
+                {
+                    Camera.main.allowHDR = true;
+                }
                 break;
             case "32bit":
                 Asset.hdrColorBufferPrecision = HDRColorBufferPrecision._32Bits;
                 Asset.supportsHDR = true;
-                Camera.main.allowHDR = true;
+                if (Camera.main != null)
+                {
+                    Camera.main.allowHDR = true;
+                }
                 break;
             case "off":
                 Asset.hdrColorBufferPrecision = HDRColorBufferPrecision._32Bits;
                 Asset.supportsHDR = false;
-                Camera.main.allowHDR = false;
+                if (Camera.main != null)
+                {
+                    Camera.main.allowHDR = false;
+                }
                 break;
         }
 #endif
