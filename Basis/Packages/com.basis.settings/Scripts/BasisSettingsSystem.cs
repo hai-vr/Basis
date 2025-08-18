@@ -33,7 +33,7 @@ public static class BasisSettingsSystem
         // Fire & forget reload whenever a scene loads
         _ = LoadAllSettingsAsync();
     }
-    public static async Task SetSettingsValueAsync(string uniqueSettingsName, string value)
+    public static async Task SaveString(string uniqueSettingsName, string value)
     {
         bool changed = false;
 
@@ -56,12 +56,12 @@ public static class BasisSettingsSystem
         if (changed)
             OnSettingChanged?.Invoke(uniqueSettingsName, value);
     }
-    public static string LoadSettingsValue(string uniqueSettingsName, string defaultValue = "")
+    public static string LoadString(string uniqueSettingsName, string defaultValue = "")
     {
         if (settingsData.settings.TryGetValue(uniqueSettingsName, out string value))
             return value;
 
-        _ = SetSettingsValueAsync(uniqueSettingsName, defaultValue); // async save default
+        _ = SaveString(uniqueSettingsName, defaultValue); // async save default
         return defaultValue;
     }
     public static async Task LoadAllSettingsAsync()
@@ -117,20 +117,20 @@ public static class BasisSettingsSystem
     // 🔹 Strongly-typed accessors
     public static int LoadInt(string key, int defaultValue = 0)
     {
-        string val = LoadSettingsValue(key, defaultValue.ToString());
+        string val = LoadString(key, defaultValue.ToString());
         return int.TryParse(val, out int result) ? result : defaultValue;
     }
     public static float LoadFloat(string key, float defaultValue = 0f)
     {
-        string val = LoadSettingsValue(key, defaultValue.ToString());
+        string val = LoadString(key, defaultValue.ToString());
         return float.TryParse(val, out float result) ? result : defaultValue;
     }
     public static bool LoadBool(string key, bool defaultValue = false)
     {
-        string val = LoadSettingsValue(key, defaultValue ? "1" : "0");
+        string val = LoadString(key, defaultValue ? "1" : "0");
         return val == "1" || val.ToLower() == "true";
     }
-    public static async Task SetIntAsync(string key, int value) => await SetSettingsValueAsync(key, value.ToString());
-    public static async Task SetFloatAsync(string key, float value) => await SetSettingsValueAsync(key, value.ToString());
-    public static async Task SetBoolAsync(string key, bool value) => await SetSettingsValueAsync(key, value ? "1" : "0");
+    public static async Task SetIntAsync(string key, int value) => await SaveString(key, value.ToString());
+    public static async Task SetFloatAsync(string key, float value) => await SaveString(key, value.ToString());
+    public static async Task SetBoolAsync(string key, bool value) => await SaveString(key, value ? "1" : "0");
 }

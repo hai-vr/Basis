@@ -12,11 +12,11 @@ public class BasisTMP_InputSetting : MonoBehaviour
     private void Awake()
     {
         string defaultValue = platformDefault.GetDefault();
-        input.text = BasisSettingsSystem.LoadSettingsValue(settingKey, defaultValue);
+        input.text = BasisSettingsSystem.LoadString(settingKey, defaultValue);
 
         input.onValueChanged.AddListener(async v =>
         {
-            await BasisSettingsSystem.SetSettingsValueAsync(settingKey, v);
+            await BasisSettingsSystem.SaveString(settingKey, v);
         });
 
         BasisSettingsSystem.OnSettingChanged += HandleSettingChanged;
