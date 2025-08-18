@@ -62,7 +62,7 @@ public class BasisTMP_SliderSetting : MonoBehaviour
     private async void ApplySetting()
     {
         await BasisSettingsSystem.SetFloatAsync(settingKey, pendingValue);
-        Debug.Log($"[Settings] Applied {settingKey} = {pendingValue}");
+     //   Debug.Log($"[Settings] Applied {settingKey} = {pendingValue}");
     }
 
     private void HandleSettingChanged(string key, string value)
