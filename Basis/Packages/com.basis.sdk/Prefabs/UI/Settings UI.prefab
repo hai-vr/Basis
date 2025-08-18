@@ -5915,10 +5915,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisSettings::BasisTMP_SliderSetting
   settingKey: Foveated Rendering
   platformDefault:
-    windows: 1
+    windows: 0
     android: 1
-    linux: 1
-    other: 1
+    linux: 0
+    other: 0
   slider: {fileID: 1249802655459668493}
   Text: {fileID: 6098930937113121744}
   applyButton: {fileID: 588725358341691364}
@@ -15734,7 +15734,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 0
+  m_PresetInfoIsWorld: 1
 --- !u!114 &6328418170902668384
 MonoBehaviour:
   m_ObjectHideFlags: 0
