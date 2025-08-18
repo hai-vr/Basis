@@ -25,9 +25,10 @@ namespace Basis.Scripts.Networking.Transmitters
         public NativeArray<float3> targetPositions;
         public NativeArray<float> distances;
         public NativeArray<bool> DistanceResults;
-
         public NativeArray<bool> HearingResults;
         public NativeArray<bool> AvatarResults;
+        public NativeArray<bool> MeshLodResults;
+
         public NativeArray<float> smallestDistance;
         [SerializeField]
         public StoredAvatarData storedAvatarData = new StoredAvatarData();
@@ -141,6 +142,7 @@ namespace Basis.Scripts.Networking.Transmitters
                         Rec.RemotePlayer.InAvatarRange = AvatarIndex[Index];
                         Rec.RemotePlayer.ReloadAvatar();
                     }
+                    Rec.RemotePlayer.ChangeMeshLOD(CalculatedDistances[Index], SMModuleDistanceBasedReductions.MeshLod);
                     //then handle voice
                     if (Rec.AudioReceiverModule.IsPlaying != HearingIndex[Index])
                     {
@@ -295,6 +297,10 @@ namespace Basis.Scripts.Networking.Transmitters
             {
                 AvatarResults.Dispose();
             }
+            if (MeshLodResults.IsCreated)
+            {
+                MeshLodResults.Dispose();
+            }
             smallestDistance = new NativeArray<float>(1, Allocator.Persistent);
             smallestDistance[0] = float.MaxValue;
             targetPositions = new NativeArray<float3>(TotalUserCount, Allocator.Persistent);
@@ -303,12 +309,12 @@ namespace Basis.Scripts.Networking.Transmitters
 
             HearingResults = new NativeArray<bool>(TotalUserCount, Allocator.Persistent);
             AvatarResults = new NativeArray<bool>(TotalUserCount, Allocator.Persistent);
+            MeshLodResults = new NativeArray<bool>(TotalUserCount, Allocator.Persistent);
             // Step 2: Find closest index in the next frame
             distanceJob.distances = distances;
             distanceJob.DistanceResults = DistanceResults;
             distanceJob.HearingResults = HearingResults;
             distanceJob.AvatarResults = AvatarResults;
-
 
             distanceJob.targetPositions = targetPositions;
 
@@ -343,6 +349,10 @@ namespace Basis.Scripts.Networking.Transmitters
                 if (AvatarResults.IsCreated)
                 {
                     AvatarResults.Dispose();
+                }
+                if (MeshLodResults.IsCreated)
+                {
+                    MeshLodResults.Dispose();
                 }
                 HasEvents = false;
             }

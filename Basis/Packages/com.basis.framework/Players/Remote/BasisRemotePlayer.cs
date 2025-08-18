@@ -116,6 +116,7 @@ namespace Basis.Scripts.BasisSdk.Players
                     NetworkReceiver.ApplyComputedData(false);
                 }
             }
+            LastComputedMeshLod = -1;
         }
         public void OnDestroy()
         {
@@ -140,6 +141,25 @@ namespace Basis.Scripts.BasisSdk.Players
         public void RemoteCalibration()
         {
             RemoteBoneDriver.OnCalibration(this);
+        }
+        public short LastComputedMeshLod = -1;
+
+        public void ChangeMeshLOD(float DistanceToPlayer, float ReducationMultiplier, float MaxRange = 200)
+        {
+            // Scale distance by multiplier (0 = normal, >0 = more aggressive LOD reduction)
+            float scaledDistance = DistanceToPlayer * (1f + ReducationMultiplier);
+
+            // Map to 0-3 LOD grid based on MaxRange
+            short grid = (short)Mathf.Min(Mathf.FloorToInt(scaledDistance / MaxRange * 4f), 3);
+
+            if (LastComputedMeshLod != grid)
+            {
+                LastComputedMeshLod = grid;
+                foreach (Renderer Renderer in BasisAvatar.Renders)
+                {
+                    Renderer.forceMeshLod = grid;
+                }
+            }
         }
     }
 }

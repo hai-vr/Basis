@@ -1,13 +1,17 @@
 using System;
+
 public class SMModuleDistanceBasedReductions : BasisSettingsBase
 {
     private static float _microphoneRange;
     private static float _hearingRange;
     private static float _AvatarRange;
+    private static float _meshLod;
 
     public static event Action<float> OnMicrophoneRangeChanged;
     public static event Action<float> OnHearingRangeChanged;
     public static event Action<float> OnAvatarRangeChanged;
+    public static event Action<float> OnMeshLodChanged; 
+
     /// <summary>
     /// will be value * value returned pre-squared
     /// </summary>
@@ -20,6 +24,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
             OnMicrophoneRangeChanged?.Invoke(value);
         }
     }
+
     /// <summary>
     /// will be value * value returned pre-squared
     /// </summary>
@@ -32,6 +37,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
             OnHearingRangeChanged?.Invoke(value);
         }
     }
+
     public static float AvatarRange
     {
         get => _AvatarRange;
@@ -42,48 +48,75 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
         }
     }
 
+    public static float MeshLod
+    {
+        get => _meshLod;
+        set
+        {
+            _meshLod = value;
+            OnMeshLodChanged?.Invoke(value);
+        }
+    }
+
     /// <summary>
     /// microphone range
     /// hearing range
     /// maximum avatars
+    /// mesh LOD
     /// </summary>
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        if (matchedSettingName.ToLower() == "MicrophoneRange".ToLower())
+        string key = matchedSettingName.ToLower();
+
+        switch (key)
         {
-            if (SliderReadOption(optionValue, out float NewMicrophoneRange))
-            {
+            case "microphonerange":
+                if (SliderReadOption(optionValue, out float newMicrophoneRange))
+                {
 #if UNITY_SERVER
-           MicrophoneRange = 0;
+                    MicrophoneRange = 0;
 #else
-                MicrophoneRange = NewMicrophoneRange * NewMicrophoneRange;
-               // BasisDebug.Log($"MicrophoneRange Is Now {MicrophoneRange}");
+                    MicrophoneRange = newMicrophoneRange * newMicrophoneRange;
 #endif
-            }
-        }
-        else if (matchedSettingName.ToLower() == "HearingRange".ToLower())
-        {
-            if (SliderReadOption(optionValue, out float newHearingRange))
-            {
+                }
+                break;
+
+            case "hearingrange":
+                if (SliderReadOption(optionValue, out float newHearingRange))
+                {
 #if UNITY_SERVER
-           HearingRange = 0;
+                    HearingRange = 0;
 #else
-                HearingRange = newHearingRange * newHearingRange;
-              //  BasisDebug.Log($"HearingRange Is Now {HearingRange}");
+                    HearingRange = newHearingRange * newHearingRange;
 #endif
-            }
-        }
-        else if (matchedSettingName.ToLower() == "AvatarRange".ToLower())
-        {
-            if (SliderReadOption(optionValue, out float LoadRange))
-            {
+                }
+                break;
+
+            case "avatarrange":
+                if (SliderReadOption(optionValue, out float loadRange))
+                {
 #if UNITY_SERVER
-           AvatarRange = 0;
+                    AvatarRange = 0;
 #else
-                AvatarRange = LoadRange * LoadRange;
-             //   BasisDebug.Log($"AvatarRange Is Now {AvatarRange}");
+                    AvatarRange = loadRange * loadRange;
 #endif
-            }
+                }
+                break;
+
+            case "meshlod":
+                if (SliderReadOption(optionValue, out float lod))
+                {
+#if UNITY_SERVER
+                    MeshLod = 0;
+#else
+                    MeshLod = lod * lod;
+#endif
+                }
+                break;
+
+            default:
+                // Optionally handle unknown settings
+                break;
         }
     }
 }

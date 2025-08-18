@@ -470,6 +470,7 @@ MonoBehaviour:
   - MicrophoneRange
   - HearingRange
   - AvatarRange
+  - MeshLod
 --- !u!114 &8285517692325404402
 MonoBehaviour:
   m_ObjectHideFlags: 0
