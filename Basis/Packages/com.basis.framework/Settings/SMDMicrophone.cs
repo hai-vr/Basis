@@ -70,10 +70,6 @@ public class SMDMicrophone : MonoBehaviour
     public static string[] MicrophoneDevices;
     public static Dictionary<string, string> MicrophoneSelections = new Dictionary<string, string>();
     public static Dictionary<string, float> VolumeSettings = new Dictionary<string, float>();
-    public void Awake()
-    {
-      // SelectedDenoiserMicrophone = CheckIsOn(Option.SelectedValue);
-    }
     public static void LoadInMicrophoneData(string mode)
     {
         BasisDebug.Log($"Loading microphone and volume for mode: {mode}");

@@ -11,9 +11,24 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
     public List<XRDisplaySubsystem> xrDisplays = new List<XRDisplaySubsystem>();
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        SetUpscaler(optionValue);
-        HandleRenderResolution(0);
-        HandleFoveatedRendering(0);
+        switch (matchedSettingName)
+        {
+            case "Render Resolution":
+                if (SliderReadOption(optionValue, out float RenderResolution))
+                {
+                    HandleRenderResolution(RenderResolution);
+                }
+                break;
+            case "Upscaling":
+                SetUpscaler(optionValue);
+                break;
+            case "Foveated Rendering":
+                if (SliderReadOption(optionValue, out float FoveationLevel))
+                {
+                    HandleFoveatedRendering(FoveationLevel);
+                }
+                break;
+        }
     }
     private void HandleRenderResolution(float Option)
     {
@@ -21,7 +36,31 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
         {
             XRSettings.useOcclusionMesh = true;
         }
-        SetRenderResolution(Option);
+#if UNITY_ANDROID
+#else
+        RenderScale = Option;
+        if (BasisDeviceManagement.StaticCurrentMode == BasisConstants.Desktop)
+        {
+            UniversalRenderPipelineAsset Asset = (UniversalRenderPipelineAsset)QualitySettings.renderPipeline;
+            if (Asset.renderScale != RenderScale)
+            {
+                Asset.renderScale = RenderScale;
+            }
+        }
+        else
+        {
+            UniversalRenderPipelineAsset Asset = (UniversalRenderPipelineAsset)QualitySettings.renderPipeline;
+            if (XRSettings.eyeTextureResolutionScale != Option)
+            {
+                XRSettings.eyeTextureResolutionScale = RenderScale;
+            }
+            /// the system allows us to scale the render resolution correctly, however gpu culling does not know about this
+            if (Asset.renderScale != 1)
+            {
+                Asset.renderScale = 1;
+            }
+        }
+#endif
     }
     private void HandleFoveatedRendering(float value)
     {
@@ -46,35 +85,7 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
 
         xrDisplaySubsystem.foveatedRenderingFlags = XRDisplaySubsystem.FoveatedRenderingFlags.GazeAllowed;
 
-        xrDisplaySubsystem.foveatedRenderingLevel = value;
-    }
-    public void SetRenderResolution(float renderScale)
-    {
-#if UNITY_ANDROID
-#else
-        RenderScale = renderScale;
-        if (BasisDeviceManagement.StaticCurrentMode == BasisConstants.Desktop)
-        {
-            UniversalRenderPipelineAsset Asset = (UniversalRenderPipelineAsset)QualitySettings.renderPipeline;
-            if (Asset.renderScale != RenderScale)
-            {
-                Asset.renderScale = RenderScale;
-            }
-        }
-        else
-        {
-            UniversalRenderPipelineAsset Asset = (UniversalRenderPipelineAsset)QualitySettings.renderPipeline;
-            if (XRSettings.eyeTextureResolutionScale != renderScale)
-            {
-                XRSettings.eyeTextureResolutionScale = RenderScale;
-            }
-            /// the system allows us to scale the render resolution correctly, however gpu culling does not know about this
-            if (Asset.renderScale != 1)
-            {
-                Asset.renderScale = 1;
-            }
-        }
-#endif
+        xrDisplaySubsystem.foveatedRenderingLevel  = value;
     }
     public void SetUpscaler(string Using)
     {

@@ -297,9 +297,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c48d3c2688693184aa9901530ef6069f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
-  Mixer: {fileID: 24100000, guid: 471a0209081144d4da2426822e8a0b47, type: 2}
-  WorldDefaultMixer: {fileID: 6216228358845890117, guid: 471a0209081144d4da2426822e8a0b47, type: 2}
+  SettingsNames:
+  - main volume
+  - menu volume
+  - world volume
+  - player volume
+  Mixer: {fileID: 24100000, guid: 1ff7d045b2e32054aad6c5815495d8b8, type: 2}
+  WorldDefaultMixer: {fileID: 6216228358845890117, guid: 1ff7d045b2e32054aad6c5815495d8b8, type: 2}
 --- !u!114 &9200716433913716904
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -312,7 +316,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1233f799a24f05e49a119304535e9f76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
+  SettingsNames:
+  - Memory Allocation
   StreamingMipmapsMaxLevelReduction: 4
   treamingMipmapsMaxFileIORequests: 512
 --- !u!114 &5461552350079237887
@@ -327,7 +332,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 201a185017cc6d04c97fce13187e2656, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
+  SettingsNames:
+  - Vertical Sync
 --- !u!114 &4701745481011786116
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -340,7 +346,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 54871b009a78c5f47a02578a6c8371bc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
+  SettingsNames:
+  - Quality Level
   Data: {fileID: 0}
   Camera: {fileID: 0}
 --- !u!114 &1569955236900806052
@@ -406,7 +413,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fc8df63894ddda14cb55be55c4b1ef3d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
+  SettingsNames:
+  - Antialiasing
   Camera: {fileID: 0}
   Data: {fileID: 0}
   LowmsaaSampleCount: 2
@@ -424,7 +432,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 683272fbf0dd1314b8a35ec2f5d6d851, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
+  SettingsNames:
+  - HDR Support
 --- !u!114 &9083967000269050117
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -437,7 +446,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0b38bf286b32cb645beea7403572d0c9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
+  SettingsNames:
+  - Shadow Quality
 --- !u!114 &8872717251192576908
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -450,7 +460,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a08b2118cf8f6694cbe0db24a14690cc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
+  SettingsNames:
+  - joystickdeadzone
+  - snapturnangle
 --- !u!114 &8531479666972516414
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -463,7 +475,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 633c4e80403923a47861cd2cb534911b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
+  SettingsNames:
+  - Debug Visuals
 --- !u!114 &4926678751529155332
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -476,7 +489,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8998dd8911f2d564681606559676bd44, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
+  SettingsNames:
+  - Render Resolution
+  - Upscaling
+  - Foveated Rendering
   RenderScale: 1
 --- !u!114 &1359221182720975491
 MonoBehaviour:
@@ -490,7 +506,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c229f703169cd27498ae018a1e50a433, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
+  SettingsNames:
+  - MicrophoneRange
+  - HearingRange
+  - AvatarRange
 --- !u!114 &8285517692325404402
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -503,7 +522,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0954d8d22c0cc9f4ba61e520c621bfa2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SettingsNames: []
+  SettingsNames:
+  - Field Of View
   SelectedFOV: 82
 --- !u!1 &6119941615115968628
 GameObject:
@@ -640,7 +660,7 @@ MonoBehaviour:
       m_Calls: []
   m_ActionEvents: []
   m_NeverAutoSwitchControlSchemes: 0
-  m_DefaultControlScheme: 
+  m_DefaultControlScheme: All
   m_DefaultActionMap: Player
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
