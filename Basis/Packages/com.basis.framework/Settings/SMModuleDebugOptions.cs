@@ -3,7 +3,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
 {
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        if (bool.TryParse(optionValue, out bool Selected))
+        if (bool.TryParse(optionValue.ToLower(), out bool Selected))
         {
             if (BasisGizmoManager.UseGizmos != Selected)
             {

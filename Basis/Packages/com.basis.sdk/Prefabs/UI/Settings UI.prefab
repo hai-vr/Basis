@@ -1610,10 +1610,10 @@ MonoBehaviour:
   m_MultiSelect: 0
   m_Options:
     m_Options:
-    - m_Text: On
+    - m_Text: true
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: Off
+    - m_Text: false
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_OnValueChanged:
@@ -1634,14 +1634,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisSettings::BasisTMP_DropdownSetting
   settingKey: Debug Visuals
   platformDefault:
-    windows: On
-    android: Off
-    linux: On
-    other: On
+    windows: false
+    android: false
+    linux: false
+    other: false
   dropdown: {fileID: 5047729006350340013}
   Text: {fileID: 3914632797715958160}
   showSelectedLabel: 1
-  autoValidate: 1
+  autoValidate: 0
 --- !u!1 &475259668382207000
 GameObject:
   m_ObjectHideFlags: 0
@@ -1782,7 +1782,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Off
+  m_text: false
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -8849,10 +8849,10 @@ MonoBehaviour:
   m_MultiSelect: 0
   m_Options:
     m_Options:
-    - m_Text: Off
+    - m_Text: true
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: On
+    - m_Text: false
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_OnValueChanged:
@@ -8873,10 +8873,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisSettings::BasisTMP_DropdownSetting
   settingKey: voicedenoiser
   platformDefault:
-    windows: On
-    android: Off
-    linux: Off
-    other: Off
+    windows: true
+    android: false
+    linux: false
+    other: false
   dropdown: {fileID: 1938348308983007752}
   Text: {fileID: 9136588314365751323}
   showSelectedLabel: 1
@@ -10957,7 +10957,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Off
+  m_text: true
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -13344,7 +13344,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Dynamic
+  m_text: 7
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -15085,7 +15085,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Off
+  m_text: true
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -27649,7 +27649,7 @@ MonoBehaviour:
   m_Placeholder: {fileID: 0}
   m_ItemText: {fileID: 9209066810197872613}
   m_ItemImage: {fileID: 0}
-  m_Value: 6
+  m_Value: 7
   m_MultiSelect: 0
   m_Options:
     m_Options:
@@ -27692,10 +27692,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisSettings::BasisTMP_DropdownSetting
   settingKey: Memory Allocation
   platformDefault:
-    windows: Ultra
+    windows: Dynamic
     android: Very Low
-    linux: Ultra
-    other: Ultra
+    linux: Dynamic
+    other: Dynamic
   dropdown: {fileID: 5088171213920914552}
   Text: {fileID: 9209066810197872613}
   showSelectedLabel: 1

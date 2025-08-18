@@ -111,14 +111,14 @@ public class SMDMicrophone : BasisSettingsBase
     }
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        if (bool.TryParse(optionValue, out bool DenoiserMicrophone))
+        if (bool.TryParse(optionValue.ToLower(), out bool DenoiserMicrophone))
         {
             SelectedDenoiserMicrophone = DenoiserMicrophone;
             BasisDebug.Log($"setting Denoiser to {SelectedDenoiserMicrophone}");
         }
         else
         {
-            BasisDebug.LogError("Unable to parse Denoiser Setting!");
+            BasisDebug.LogError($"Unable to parse Denoiser Setting! {optionValue}");
         }
     }
 }
