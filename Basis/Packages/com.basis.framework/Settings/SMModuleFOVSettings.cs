@@ -1,27 +1,16 @@
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
-using UnityEngine;
-
-public class SMModuleFOVSettings : MonoBehaviour
+using System.Globalization;
+public class SMModuleFOVSettings : BasisSettingsBase
 {
-    public void Awake()
+    public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        BasisLocalCameraDriver.InstanceExists += InstanceExists;
-        if(BasisLocalCameraDriver.Instance != null)
-        {
-            InstanceExists();
-        }
-    }
-    public void OnDestroy()
-    {
-        BasisLocalCameraDriver.InstanceExists -= InstanceExists;
-    }
-    private void InstanceExists()
-    {
+        float.TryParse(optionValue, NumberStyles.Any, CultureInfo.InvariantCulture, out SelectedFOV);
         if (BasisDeviceManagement.IsUserInDesktop())
         {
             BasisLocalCameraDriver.Instance.Camera.fieldOfView = SelectedFOV;
         }
     }
+
     public float SelectedFOV = 60;
 }

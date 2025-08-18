@@ -1,36 +1,39 @@
 using UnityEngine;
-public class SMModuleDebugOptions : MonoBehaviour
+public class SMModuleDebugOptions : BasisSettingsBase
 {
-    public void ReceiveOption(bool Selected)
+    public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        if (BasisGizmoManager.UseGizmos != Selected)
+        if (bool.TryParse(optionValue, out bool Selected))
         {
-            BasisGizmoManager.UseGizmos = Selected;
-            BasisDebug.Log($"Gizmo State is {BasisGizmoManager.UseGizmos} {Selected}");
-            if (BasisGizmoManager.UseGizmos)
+            if (BasisGizmoManager.UseGizmos != Selected)
             {
-                BasisGizmoManager.TryCreateParent();
-            }
-            BasisGizmoManager.OnUseGizmosChanged?.Invoke(BasisGizmoManager.UseGizmos);
-            if (BasisGizmoManager.UseGizmos == false)
-            {
-                BasisGizmoManager.DestroyParent();
-                foreach (BasisGizmos BasisGizmos in BasisGizmoManager.Gizmos.Values)
+                BasisGizmoManager.UseGizmos = Selected;
+                BasisDebug.Log($"Gizmo State is {BasisGizmoManager.UseGizmos} {Selected}");
+                if (BasisGizmoManager.UseGizmos)
                 {
-                    if (BasisGizmos != null)
-                    {
-                        GameObject.Destroy(BasisGizmos.gameObject);
-                    }
+                    BasisGizmoManager.TryCreateParent();
                 }
-                foreach (BasisLineGizmos BasisLineGizmos in BasisGizmoManager.GizmosLine.Values)
+                BasisGizmoManager.OnUseGizmosChanged?.Invoke(BasisGizmoManager.UseGizmos);
+                if (BasisGizmoManager.UseGizmos == false)
                 {
-                    if (BasisLineGizmos != null)
+                    BasisGizmoManager.DestroyParent();
+                    foreach (BasisGizmos BasisGizmos in BasisGizmoManager.Gizmos.Values)
                     {
-                        GameObject.Destroy(BasisLineGizmos.gameObject);
+                        if (BasisGizmos != null)
+                        {
+                            GameObject.Destroy(BasisGizmos.gameObject);
+                        }
                     }
+                    foreach (BasisLineGizmos BasisLineGizmos in BasisGizmoManager.GizmosLine.Values)
+                    {
+                        if (BasisLineGizmos != null)
+                        {
+                            GameObject.Destroy(BasisLineGizmos.gameObject);
+                        }
+                    }
+                    BasisGizmoManager.Gizmos.Clear();
+                    BasisGizmoManager.GizmosLine.Clear();
                 }
-                BasisGizmoManager.Gizmos.Clear();
-                BasisGizmoManager.GizmosLine.Clear();
             }
         }
     }

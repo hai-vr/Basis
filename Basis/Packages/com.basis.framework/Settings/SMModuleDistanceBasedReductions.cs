@@ -1,7 +1,7 @@
 
 using System;
 using UnityEngine;
-public class SMModuleDistanceBasedReductions : MonoBehaviour
+public class SMModuleDistanceBasedReductions : BasisSettingsBase
 {
     private static float _microphoneRange;
     private static float _hearingRange;
@@ -43,7 +43,7 @@ public class SMModuleDistanceBasedReductions : MonoBehaviour
             OnAvatarRangeChanged?.Invoke(value);
         }
     }
-    /*
+
     /// <summary>
     /// microphone range
     /// hearing range
@@ -51,41 +51,40 @@ public class SMModuleDistanceBasedReductions : MonoBehaviour
     /// </summary>
     /// <param name="Option"></param>
     /// <param name="Manager"></param>
-    public void ReceiveOption(SettingsMenuInput Option, SettingsManager Manager)
+    public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        if (NameReturn(0, Option))
+        if (matchedSettingName == "MicrophoneRange".ToLower())
         {
-            if (SliderReadOption(Option, Manager, out var newMicrophoneRange))
+            if (float.TryParse(optionValue, out float NewMicrophoneRange))
             {
 #if UNITY_SERVER
-                MicrophoneRange = 0;
+           MicrophoneRange = 0;
 #else
-                MicrophoneRange = newMicrophoneRange * newMicrophoneRange;
+                MicrophoneRange = NewMicrophoneRange * NewMicrophoneRange;
 #endif
             }
         }
-        else if (NameReturn(1, Option))
+        else if (matchedSettingName == "HearingRange".ToLower())
         {
-            if (SliderReadOption(Option, Manager, out var newHearingRange))
+            if (float.TryParse(optionValue, out float newHearingRange))
             {
 #if UNITY_SERVER
-                HearingRange = 0;
+           HearingRange = 0;
 #else
-    HearingRange = newHearingRange * newHearingRange;
+                HearingRange = newHearingRange * newHearingRange;
 #endif
             }
         }
-        else if (NameReturn(2, Option))
+        else if (matchedSettingName == "AvatarRange".ToLower())
         {
-            if (SliderReadOption(Option, Manager, out var LoadRange))
+            if (float.TryParse(optionValue, out float LoadRange))
             {
 #if UNITY_SERVER
-                AvatarRange = 0;
+           AvatarRange = 0;
 #else
-   AvatarRange = LoadRange * LoadRange;
+                AvatarRange = LoadRange * LoadRange;
 #endif
             }
         }
     }
-    */
 }

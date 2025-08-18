@@ -1,3 +1,4 @@
+using System.Globalization;
 using UnityEngine;
 public abstract class BasisSettingsBase : MonoBehaviour
 {
@@ -26,6 +27,10 @@ public abstract class BasisSettingsBase : MonoBehaviour
                 return;
             }
         }
+    }
+    public bool SliderReadOption(string String, out float Value)
+    {
+        return float.TryParse(String, NumberStyles.Any, CultureInfo.InvariantCulture, out Value);
     }
     /// <summary>
     /// Called when a valid setting change occurs.

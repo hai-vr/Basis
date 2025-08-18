@@ -1,38 +1,31 @@
 using UnityEngine;
 namespace BattlePhaze.SettingsManager.Intergrations
 {
-    public class SMModuleHDRSupport : MonoBehaviour
+    public class SMModuleHDRSupport : BasisSettingsBase
     {
         public Camera Camera;
-        public void Awake()
+        public override void ValidSettingsChange(string matchedSettingName, string optionValue)
         {
-            
-        }
-        public void ChangeSettings(string Option)
-        {
-           // if (NameReturn(0, Option))
+            if (Camera == null)
             {
+                Camera = Camera.main;
                 if (Camera == null)
                 {
-                    Camera = Camera.main;
+                    Camera = FindFirstObjectByType<Camera>();
                     if (Camera == null)
                     {
-                        Camera = FindFirstObjectByType<Camera>();
-                        if (Camera == null)
-                        {
-                            return;
-                        }
+                        return;
                     }
                 }
-                switch (Option)
-                {
-                    case "true":
-                        Camera.allowHDR = true;
-                        break;
-                    case "false":
-                        Camera.allowHDR = false;
-                        break;
-                }
+            }
+            switch (optionValue)
+            {
+                case "true":
+                    Camera.allowHDR = true;
+                    break;
+                case "false":
+                    Camera.allowHDR = false;
+                    break;
             }
         }
     }

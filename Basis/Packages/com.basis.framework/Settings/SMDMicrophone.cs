@@ -72,11 +72,7 @@ public class SMDMicrophone : MonoBehaviour
     public static Dictionary<string, float> VolumeSettings = new Dictionary<string, float>();
     public void Awake()
     {
-        //   SelectedDenoiserMicrophone = CheckIsOn(Option.SelectedValue);
-    }
-    public void OnDestroy()
-    {
-        
+      // SelectedDenoiserMicrophone = CheckIsOn(Option.SelectedValue);
     }
     public static void LoadInMicrophoneData(string mode)
     {

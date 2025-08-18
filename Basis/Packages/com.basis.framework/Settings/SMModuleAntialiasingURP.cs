@@ -1,16 +1,13 @@
-
-
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
-public class SMModuleAntialiasingURP : MonoBehaviour
+public class SMModuleAntialiasingURP : BasisSettingsBase
 {
     public Camera Camera;
     public UniversalAdditionalCameraData Data;
-    //       SetMSAAQuality(Option.SelectedValue);
     public int LowmsaaSampleCount = 2;
     public int MediumLowmsaaSampleCount = 4;
     public int HighmsaaSampleCount = 8;
-    public void SetMSAAQuality(string Quality)
+    public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
         UniversalRenderPipelineAsset Asset = (UniversalRenderPipelineAsset)QualitySettings.renderPipeline;
         if (Camera == null)
@@ -28,7 +25,7 @@ public class SMModuleAntialiasingURP : MonoBehaviour
         Data.antialiasing = AntialiasingMode.None;
         Data.antialiasingQuality = AntialiasingQuality.Low;
 #else
-        switch (Quality)
+        switch (optionValue)
         {
             case "very low":
                 Asset.msaaSampleCount = 1;

@@ -3,14 +3,13 @@ using UnityEngine.Rendering.Universal;
 
 namespace BattlePhaze.SettingsManager.Intergrations
 {
-    public class SMModuleQualityAndQualitySetURP : MonoBehaviour
+    public class SMModuleQualityAndQualitySetURP : BasisSettingsBase
     {
         public UniversalAdditionalCameraData Data;
-
-        public void ReceiveOption(string Option)
+        public override void ValidSettingsChange(string matchedSettingName, string optionValue)
         {
             QualitySettings.SetQualityLevel(QualitySettings.GetQualityLevel(), true);
-            ChangeQualityLevel(Option);
+            ChangeQualityLevel(optionValue);
         }
 
         public Camera Camera;
