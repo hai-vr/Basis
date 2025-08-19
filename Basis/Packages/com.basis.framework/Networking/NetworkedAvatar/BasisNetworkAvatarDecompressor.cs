@@ -2,6 +2,7 @@ using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Profiler;
 using System;
+using System.Collections.Generic;
 using Unity.Mathematics;
 using static SerializableBasis;
 
@@ -14,7 +15,53 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         private const ushort UShortMin = ushort.MinValue;
         private const ushort UShortMax = ushort.MaxValue;
         private const float FloatRangeDifference = UShortMax - UShortMin;
+        public static class FloatPool
+        {
+            private const int PoolCount = 32;
+            private const int PoolSize = 95;
 
+            // Internal list of available pools
+            private static readonly Queue<float[]> availablePools = new Queue<float[]>(PoolCount);
+
+            // Initialize all pools
+            static FloatPool()
+            {
+                for (int i = 0; i < PoolCount; i++)
+                {
+                    availablePools.Enqueue(new float[PoolSize]);
+                }
+            }
+
+            /// <summary>
+            /// Get a float[95] from the pool
+            /// </summary>
+            public static float[] Get()
+            {
+                if (availablePools.Count > 0)
+                {
+                    return availablePools.Dequeue();
+                }
+
+                // All pools are in use; create a new one if needed
+                return new float[PoolSize];
+            }
+
+            /// <summary>
+            /// Return a float[95] to the pool
+            /// </summary>
+            public static void Return(float[] array)
+            {
+                if (array == null || array.Length != PoolSize)
+                {
+                    throw new System.ArgumentException($"Returned array must be of length {PoolSize}");
+                }
+
+                if (availablePools.Count < 1024)//max connections we can sustain
+                {
+                    availablePools.Enqueue(array);
+                }
+            }
+        }
         public static void DecompressAndProcessAvatar(BasisNetworkReceiver baseReceiver, ServerSideSyncPlayerMessage syncMessage)
         {
             if (syncMessage.avatarSerialization.array == null)
@@ -65,14 +112,15 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             var position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset);
             var rotation = BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, BasisNetworkPlayer.RotationCompression, ref offset);
-            DecompressAvatarMuscles_NoLoop(data, ref baseReceiver.muscles, ref offset);
-            float scale = MuscleDecompress(BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset),MinimumValueSupported,MaximumValueSupported);
+            float[] Data = FloatPool.Get();
+            DecompressAvatarMuscles_NoLoop(data, ref Data, ref offset);
+            float scale = MuscleDecompress(BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset), MinimumValueSupported, MaximumValueSupported);
 
             return new BasisAvatarBuffer
             {
                 Position = position,
                 rotation = rotation,
-                Muscles = baseReceiver.muscles,
+                Muscles = Data,
                 Scale = scale,
                 SecondsInterval = SecondsInterval
             };

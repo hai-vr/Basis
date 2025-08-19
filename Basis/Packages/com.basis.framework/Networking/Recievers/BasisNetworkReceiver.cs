@@ -8,6 +8,7 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using static Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkAvatarDecompressor;
 using static SerializableBasis;
 
 namespace Basis.Scripts.Networking.Receivers
@@ -17,7 +18,6 @@ namespace Basis.Scripts.Networking.Receivers
     public class BasisNetworkReceiver : BasisNetworkPlayer
     {
         public BasisRemoteBoneControl MouthBone;
-        public float[] muscles = new float[95];//LocalAvatarSyncMessage.StoredBones
         [SerializeField]
         public BasisAudioReceiver AudioReceiverModule = new BasisAudioReceiver();
         [SerializeField]
@@ -52,7 +52,7 @@ namespace Basis.Scripts.Networking.Receivers
         public const float DerivativeCutoff = 1.0f;
         public JobHandle EuroFilterHandle;
         public bool LogFirstError = false;
-        public float[] Eyes = new float[4];
+        public float[] EyesAndMouth = new float[] {0,0,0,0,1,0 };
         public Vector3 SafeScale;
         public Vector3 SafePosition;
         /// <summary>
@@ -147,6 +147,7 @@ namespace Basis.Scripts.Networking.Receivers
             }
             if (interpolationTime >= 1 && PayloadQueue.TryDequeue(out BasisAvatarBuffer result))
             {
+                FloatPool.Return(First.Muscles);//first is no longer needed here.
                 First = Last;
                 Last = result;
 
@@ -200,6 +201,7 @@ namespace Basis.Scripts.Networking.Receivers
                 while (PayloadQueue.Count > BufferCapacityBeforeCleanup)
                 {
                     PayloadQueue.TryDequeue(out BasisAvatarBuffer Buffer);
+                    FloatPool.Return(Buffer.Muscles);
                 }
             }
             else
@@ -221,6 +223,7 @@ namespace Basis.Scripts.Networking.Receivers
             if (HasMuscle)
             {
                 Muscles.CopyTo(HumanPose.muscles);
+                Array.Copy(EyesAndMouth, 0, HumanPose.muscles,15, 6);
             }
 
             AnimatorsTransform.localScale = Scale;

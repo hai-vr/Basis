@@ -155,7 +155,6 @@ namespace Basis.Scripts.Networking
             BasisMuscleRange.Initalize();
             MainThreadContext = SynchronizationContext.Current;
             // Initialize AvatarBuffer
-            BasisAvatarBufferPool.AvatarBufferPool(30);
             OwnershipPairing.Clear();
             ServerMetaDataMessage = new ServerMetaDataMessage();
             ServerMetaDataMessage.ClientMetaDataMessage = new ClientMetaDataMessage();
@@ -189,7 +188,6 @@ namespace Basis.Scripts.Networking
             BasisAudioRemoteSource.DeInitalize();
             Players.Clear();
             await Shutdown();
-            BasisAvatarBufferPool.Clear();
             NetworkClient.Disconnect();
             NetworkRunning = false;
         }
