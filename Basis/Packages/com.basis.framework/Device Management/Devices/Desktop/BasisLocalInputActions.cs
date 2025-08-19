@@ -304,11 +304,11 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
               await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
             }
         }
-        public void OnSwitchOpenVR(InputAction.CallbackContext ctx)
+        public async void OnSwitchOpenVR(InputAction.CallbackContext ctx)
         {
             if (ctx.phase == InputActionPhase.Performed)
             {
-              await  BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
+                await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
             }
         }
         public void OnLeftMouse(InputAction.CallbackContext ctx)
