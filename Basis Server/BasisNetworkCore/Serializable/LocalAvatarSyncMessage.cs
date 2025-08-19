@@ -5,7 +5,6 @@ public static partial class SerializableBasis
     {
         public byte[] array;//position -> rotation -> muscle rotation -> scale
         public const int AvatarSyncSize = 165;
-        public const int StoredBones = 89;
 
         public AdditionalAvatarData[] AdditionalAvatarDatas;
         public byte AdditionalAvatarDataSize;
