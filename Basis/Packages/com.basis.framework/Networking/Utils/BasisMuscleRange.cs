@@ -5,11 +5,11 @@ public static class BasisMuscleRange
     public static float[] MinMuscle;
     public static float[] MaxMuscle;
     public static float[] RangeMuscle;
-    public static string[] MusclesName;
+  //  public static string[] MusclesName;
     public static int TotalMuscles;
 
     // Stores all muscles as a single appended string
-    public static string AllMusclesString;
+    //public static string AllMusclesString;
 
     public static void Initalize()
     {
@@ -17,16 +17,16 @@ public static class BasisMuscleRange
         MinMuscle = new float[TotalMuscles];
         MaxMuscle = new float[TotalMuscles];
         RangeMuscle = new float[TotalMuscles];
-        MusclesName = new string[TotalMuscles];
+        //MusclesName = new string[TotalMuscles];
 
         for (int MuscleIndex = 0; MuscleIndex < TotalMuscles; MuscleIndex++)
         {
             MinMuscle[MuscleIndex] = HumanTrait.GetMuscleDefaultMin(MuscleIndex);
             MaxMuscle[MuscleIndex] = HumanTrait.GetMuscleDefaultMax(MuscleIndex);
             RangeMuscle[MuscleIndex] = MaxMuscle[MuscleIndex] - MinMuscle[MuscleIndex];
-            MusclesName[MuscleIndex] = HumanTrait.MuscleName[MuscleIndex];
-            AllMusclesString += $"{MusclesName[MuscleIndex]}: Range {RangeMuscle[MuscleIndex]} ";
+           // MusclesName[MuscleIndex] = HumanTrait.MuscleName[MuscleIndex];
+           // AllMusclesString += $"{MusclesName[MuscleIndex]}: Range {RangeMuscle[MuscleIndex]} ";
         }
-        BasisDebug.Log(AllMusclesString);
+      //  BasisDebug.Log(AllMusclesString);
     }
 }

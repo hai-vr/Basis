@@ -42,12 +42,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             StoredAvatarData = new StoredAvatarData();
             CompressAvatarData(StoredAvatarData, humanPose, animator);
         }
-        /// <summary>
-        /// uses 55 ushorts * 2 = 110 bytes
-        /// </summary>
-        /// <param name="floatArray"></param>
-        /// <param name="message"></param>
-        /// <param name="offset"></param>
         [BurstCompile]
         public static void CompressAvatarData(StoredAvatarData AvatarData, HumanPose pose, Animator animator)
         {
@@ -58,13 +52,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Compress Rotation 3*4 = 12 + 2 = 14 bytes
             BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset, BasisNetworkPlayer.RotationCompression);
 
-            // Compress Muscles totals 110 bytes
+            // Compress Muscles totals 137 bytes
             CompressAvatarMuscles_NoLoop(ref pose.muscles, ref AvatarData.LASM, ref offset);
 
             // Compress Scale 2 bytes
             CompressScale(animator.transform.localScale.y, ref AvatarData.LASM, ref offset);
             //28
-            // 12 + 14 + 110 + 34 + 2 = 172 bytes
+            // 12 + 14 + 137 + 2 = 165 bytes
         }
         const int muscleCount = 95 - 6;//we remove the stuff we dont even put on the network first.
         public static byte[][] CBytes = new byte[muscleCount][];
@@ -189,6 +183,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             SetCompressedUshort(ref CBytes, ref floatArray, 92, 86, true); // Right Little Spread: Range 40 byteable
             SetCompressedUshort(ref CBytes, ref floatArray, 93, 87, true); // Right Little 2 Stretched: Range 90 byteable
             SetCompressedUshort(ref CBytes, ref floatArray, 94, 88, true); // Right Little 3 Stretched: Range 90 byteable
+
 
             int totalLength = 0;
             for (int Index = 0; Index < muscleCount; Index++)
