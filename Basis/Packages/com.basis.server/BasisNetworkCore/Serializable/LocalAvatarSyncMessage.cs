@@ -4,7 +4,7 @@ public static partial class SerializableBasis
     public struct LocalAvatarSyncMessage
     {
         public byte[] array;//position -> rotation -> muscle rotation -> scale
-        public const int AvatarSyncSize = 130;
+        public const int AvatarSyncSize = 158;//130 + 12 +14 + 2
 
         public AdditionalAvatarData[] AdditionalAvatarDatas;
         public byte AdditionalAvatarDataSize;

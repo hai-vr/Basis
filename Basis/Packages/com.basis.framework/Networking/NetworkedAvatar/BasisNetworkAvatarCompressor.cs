@@ -61,7 +61,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public static byte[][] CBytes = new byte[muscleCount][];
         public static void CompressAvatarMuscles_NoLoop(ref float[] floatArray, ref LocalAvatarSyncMessage message, ref int offset)
         {
-            BasisDebug.Log($"Count was {floatArray.Length}");
+          //  BasisDebug.Log($"Count was {floatArray.Length}");
 
             SetCompressedUshort(ref CBytes, ref floatArray, 0, 0, false);  // Spine Front-Back: Range 80
             SetCompressedUshort(ref CBytes, ref floatArray, 1, 1, false);  // Spine Left-Right: Range 80
@@ -198,7 +198,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 Array.Copy(CBytes[Index], 0, combined, pos, CBytes[Index].Length);
                 pos += CBytes[Index].Length;
             }
-            BasisDebug.Log($"compressed size was {combined.Length}");
+         //   BasisDebug.Log($"compressed size was {combined.Length}");
             // Write to message
             Array.Copy(combined, 0, message.array, offset, combined.Length);
             offset += combined.Length;
@@ -210,24 +210,22 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             int requiredLength = AsByte ? 1 : 2;
 
-            // Allocate if null or wrong length
             if (compressedBytes[compressedindex] == null || compressedBytes[compressedindex].Length != requiredLength)
-            {
                 compressedBytes[compressedindex] = new byte[requiredLength];
-            }
 
             if (AsByte)
             {
-                byte compressed = (byte)(normalized * 255f);
+                byte compressed = (byte)math.round(normalized * 255f);
                 compressedBytes[compressedindex][0] = compressed;
             }
             else
             {
-                ushort compressed = (ushort)(normalized * BasisMuscleRange.UShortRangeDifference);
-                compressedBytes[compressedindex][0] = (byte)(compressed & 0xFF); // little endian
+                ushort compressed = (ushort)math.round(normalized * 65535f);
+                compressedBytes[compressedindex][0] = (byte)(compressed & 0xFF);
                 compressedBytes[compressedindex][1] = (byte)(compressed >> 8);
             }
         }
+
         public static void CompressScale(float scale, ref LocalAvatarSyncMessage message, ref int offset)
         {
             const float Min = 0.005f;
