@@ -142,15 +142,16 @@ namespace Basis.Scripts.Device_Management
             }
 
             StaticCurrentMode = newMode;
-            OnBootModeChanged?.Invoke(StaticCurrentMode);
-            BasisDebug.Log($"Loading mode: {StaticCurrentMode}", BasisDebug.LogTag.Device);
 
-            BasisXRManagement.TryBeginLoad(newMode);
+         //   BasisXRManagement.TryBeginLoad(newMode);
 
-          await StartDevices(StaticCurrentMode);
-            SMDMicrophone.LoadInMicrophoneData(StaticCurrentMode);
+        //  await StartDevices(StaticCurrentMode);
+          //  SMDMicrophone.LoadInMicrophoneData(StaticCurrentMode);
 
-            await BasisSettingsSystem.LoadAllSettingsAsync();
+			            if (!BasisXRManagement.TryBeginLoad(newMode))
+            {
+                StartDevices(StaticCurrentMode);
+            }
         }
         #endregion
 
@@ -161,8 +162,13 @@ namespace Basis.Scripts.Device_Management
             if (TryFindBasisBaseTypeManagement(mode, out var matched))
             {
                 foreach (var type in matched)
+
                     await type?.AttemptStartSDK();
             }
+			            await BasisSettingsSystem.LoadAllSettingsAsync();
+            SMDMicrophone.LoadInMicrophoneData(mode);
+            OnBootModeChanged?.Invoke(mode);
+            BasisDebug.Log($"Loading mode: {mode}", BasisDebug.LogTag.Device);
         }
 
         public void StopAllDevices()
@@ -357,18 +363,6 @@ namespace Basis.Scripts.Device_Management
             {
                 BasisNetworking.SetActive(true);
             }
-        }
-
-        public void CheckForPass(string type)
-        {
-            if (string.IsNullOrEmpty(type))
-            {
-                BasisDebug.LogError("Type in CheckForPass is null or empty.", BasisDebug.LogTag.Device);
-                return;
-            }
-            BasisDebug.Log("Loading " + type, BasisDebug.LogTag.Device);
-            StartDevices(type);
-            StaticCurrentMode = type;
         }
         #endregion
 

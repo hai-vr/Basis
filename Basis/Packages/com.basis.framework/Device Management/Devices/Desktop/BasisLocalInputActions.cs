@@ -26,6 +26,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public InputActionReference PrimaryButtonGetState;
 
         public InputActionReference DesktopSwitch;
+        public InputActionReference VRSwitch;
         public InputActionReference XRSwitch;
 
         public InputActionReference LeftMousePressed;
@@ -94,6 +95,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         {
             DesktopSwitch.action.Enable();
             XRSwitch.action.Enable();
+            VRSwitch.action.Enable();
             MoveAction.action.Enable();
             LookAction.action.Enable();
             JumpAction.action.Enable();
@@ -111,6 +113,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         {
             DesktopSwitch.action.Disable();
             XRSwitch.action.Disable();
+            VRSwitch.action.Disable();
             MoveAction.action.Disable();
             LookAction.action.Disable();
             JumpAction.action.Disable();
@@ -139,6 +142,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             RunButton.action.performed += OnRunStarted;
             LookAction.action.performed += OnLookActionPerformed;
             XRSwitch.action.performed += OnSwitchOpenXR;
+            VRSwitch.action.performed += OnSwitchOpenVR;
 
             CrouchAction.action.canceled += OnCrouchCancelled;
             DesktopSwitch.action.canceled += OnSwitchDesktop;
@@ -169,6 +173,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             RunButton.action.performed -= OnRunStarted;
             LookAction.action.performed -= OnLookActionPerformed;
             XRSwitch.action.performed -= OnSwitchOpenXR;
+            VRSwitch.action.performed -= OnSwitchOpenVR;
 
             CrouchAction.action.canceled -= OnCrouchCancelled;
             DesktopSwitch.action.canceled -= OnSwitchDesktop;
@@ -297,6 +302,13 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             if (ctx.phase == InputActionPhase.Performed)
             {
               await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
+            }
+        }
+        public void OnSwitchOpenVR(InputAction.CallbackContext ctx)
+        {
+            if (ctx.phase == InputActionPhase.Performed)
+            {
+              await  BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
             }
         }
         public void OnLeftMouse(InputAction.CallbackContext ctx)
