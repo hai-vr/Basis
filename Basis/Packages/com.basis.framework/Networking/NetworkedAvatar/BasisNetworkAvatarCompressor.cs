@@ -121,6 +121,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Right Arm
             SetCompressedUshort(ref CBytes, ref floatArray, 46, 40, true); // Right Shoulder Down-Up: Range 45 byteable
             SetCompressedUshort(ref CBytes, ref floatArray, 47, 41, true); // Right Shoulder Front-Back: Range 30 byteable
+
             SetCompressedUshort(ref CBytes, ref floatArray, 48, 42, false); // Right Arm Down-Up: Range 160
             SetCompressedUshort(ref CBytes, ref floatArray, 49, 43, false); // Right Arm Front-Back: Range 200
             SetCompressedUshort(ref CBytes, ref floatArray, 50, 44, false); // Right Arm Twist In-Out: Range 180
