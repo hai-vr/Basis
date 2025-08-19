@@ -143,21 +143,20 @@ namespace Basis.Scripts.BasisSdk.Players
             RemoteBoneDriver.OnCalibration(this);
         }
         public short LastComputedMeshLod = -1;
-
-        public void ChangeMeshLOD(float DistanceToPlayer, float ReducationMultiplier, float MaxRange = 200)
+        public void ChangeMeshLOD(float DistanceToPlayer, float ReductionMultiplier)
         {
-            // Scale distance by multiplier (0 = normal, >0 = more aggressive LOD reduction)
-            float scaledDistance = DistanceToPlayer * (1f + ReducationMultiplier);
+            // Normalize distance into [0,1]
+            float normalized = DistanceToPlayer * ReductionMultiplier;
 
-            // Map to 0-3 LOD grid based on MaxRange
-            short grid = (short)Mathf.Min(Mathf.FloorToInt(scaledDistance / MaxRange * 4f), 3);
+            // Map evenly to 0–3 LOD (4 levels total)
+            short grid = (short)Mathf.Clamp(Mathf.FloorToInt(normalized * 4f), 0, 3);
 
             if (LastComputedMeshLod != grid)
             {
                 LastComputedMeshLod = grid;
-                foreach (Renderer Renderer in BasisAvatar.Renders)
+                foreach (Renderer renderer in BasisAvatar.Renders)
                 {
-                    Renderer.forceMeshLod = grid;
+                    renderer.forceMeshLod = grid;          // Correct property, not "forceMeshLod"
                 }
             }
         }
