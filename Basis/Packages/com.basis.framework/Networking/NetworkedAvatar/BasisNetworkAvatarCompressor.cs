@@ -16,9 +16,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 {
     public static class BasisNetworkAvatarCompressor
     {
-        private const ushort UShortMin = ushort.MinValue;
-        private const ushort UShortMax = ushort.MaxValue;
-        private const ushort UShortRangeDifference = UShortMax - UShortMin;
         public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
         {
             EnsureTransmitterIsInitialized(transmitter, animator);
@@ -217,7 +214,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             if (asUshort)
             {
-                ushort compressed = (ushort)(normalized * UShortRangeDifference);
+                ushort compressed = (ushort)(normalized * BasisMuscleRange.UShortRangeDifference);
                 compressedBytes[compressedindex][0] = (byte)(compressed & 0xFF); // little endian
                 compressedBytes[compressedindex][1] = (byte)(compressed >> 8);
             }
@@ -236,7 +233,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             float clamped = math.clamp(scale, Min, Max);
             float normalized = (clamped - Min) / range;
 
-            ushort compressed = (ushort)(normalized * UShortRangeDifference);
+            ushort compressed = (ushort)(normalized * BasisMuscleRange.UShortRangeDifference);
             BasisUnityBitPackerExtensionsUnsafe.WriteUShort(compressed, ref message.array, ref offset);
         }
 

@@ -7,7 +7,9 @@ public static class BasisMuscleRange
     public static float[] RangeMuscle;
   //  public static string[] MusclesName;
     public static int TotalMuscles;
-
+    public const ushort UShortMin = ushort.MinValue;
+    public const ushort UShortMax = ushort.MaxValue;
+    public const ushort UShortRangeDifference = UShortMax - UShortMin;
     // Stores all muscles as a single appended string
     //public static string AllMusclesString;
 

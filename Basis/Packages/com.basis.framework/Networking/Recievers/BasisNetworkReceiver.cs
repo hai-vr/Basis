@@ -17,7 +17,7 @@ namespace Basis.Scripts.Networking.Receivers
     public class BasisNetworkReceiver : BasisNetworkPlayer
     {
         public BasisRemoteBoneControl MouthBone;
-        public ushort[] CopyData = new ushort[LocalAvatarSyncMessage.StoredBones];
+        public float[] muscles = new float[95];//LocalAvatarSyncMessage.StoredBones
         [SerializeField]
         public BasisAudioReceiver AudioReceiverModule = new BasisAudioReceiver();
         [SerializeField]
@@ -37,7 +37,6 @@ namespace Basis.Scripts.Networking.Receivers
         public JobHandle AvatarHandle;
         public UpdateAvatarMusclesJob musclesJob = new UpdateAvatarMusclesJob();
         public UpdateAvatarJob AvatarJob = new UpdateAvatarJob();
-        public float[] MuscleFinalStageOutput = new float[LocalAvatarSyncMessage.StoredBones];
         public quaternion OutputRotation;
         public BasisAvatarBuffer First;
         public BasisAvatarBuffer Last;
@@ -111,9 +110,9 @@ namespace Basis.Scripts.Networking.Receivers
                 // Muscle interpolation job
                 musclesJob.Time = interpolationTime;
                 AvatarHandle = AvatarJob.Schedule();
-                musclesHandle = musclesJob.Schedule(LocalAvatarSyncMessage.StoredBones, 64, AvatarHandle);
+                musclesHandle = musclesJob.Schedule(95, 64, AvatarHandle);
                 oneEuroFilterJob.DeltaTime = interpolationTime;
-                EuroFilterHandle = oneEuroFilterJob.Schedule(LocalAvatarSyncMessage.StoredBones, 64, musclesHandle);
+                EuroFilterHandle = oneEuroFilterJob.Schedule(95, 64, musclesHandle);
             }
         }
         public void Apply(double TimeAsDouble)
@@ -221,7 +220,7 @@ namespace Basis.Scripts.Networking.Receivers
 
             if (HasMuscle)
             {
-                Muscles.CopyTo(MuscleFinalStageOutput);
+                Muscles.CopyTo(HumanPose.muscles);
             }
 
             AnimatorsTransform.localScale = Scale;
@@ -262,11 +261,11 @@ namespace Basis.Scripts.Networking.Receivers
             OutputVectors = new NativeArray<float3>(2, Allocator.Persistent); // Index 0 = position, Index 1 = scale
             TargetVectors = new NativeArray<float3>(2, Allocator.Persistent); // Index 0 = target position, Index 1 = target scale
                                                                               //  musclesPreEuro = new NativeArray<float>(LocalAvatarSyncMessage.StoredBones, Allocator.Persistent);
-            targetMuscles = new NativeArray<float>(LocalAvatarSyncMessage.StoredBones, Allocator.Persistent);
-            EuroValuesOutput = new NativeArray<float>(LocalAvatarSyncMessage.StoredBones, Allocator.Persistent);
+            targetMuscles = new NativeArray<float>(95, Allocator.Persistent);
+            EuroValuesOutput = new NativeArray<float>(95, Allocator.Persistent);
 
-            positionFilters = new NativeArray<float2>(LocalAvatarSyncMessage.StoredBones, Allocator.Persistent);
-            derivativeFilters = new NativeArray<float2>(LocalAvatarSyncMessage.StoredBones, Allocator.Persistent);
+            positionFilters = new NativeArray<float2>(95, Allocator.Persistent);
+            derivativeFilters = new NativeArray<float2>(95, Allocator.Persistent);
 
             musclesJob = new UpdateAvatarMusclesJob();
             AvatarJob = new UpdateAvatarJob();
@@ -287,7 +286,7 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void ForceUpdateFilters()
         {
-            for (int Index = 0; Index < LocalAvatarSyncMessage.StoredBones; Index++)
+            for (int Index = 0; Index < 95; Index++)
             {
                 positionFilters[Index] = new float2(0, 0);
                 derivativeFilters[Index] = new float2(0, 0);

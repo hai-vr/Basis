@@ -64,34 +64,6 @@ namespace Basis.Scripts.Networking.Compression
 
             return new quaternion(x, y, z, w);
         }
-
-        public unsafe static void WriteUShortsToBytes(ushort[] values, ref byte[] bytes, ref int offset,int Length)
-        {
-           int TotalSize = Length * 2;
-            fixed (byte* dst = &bytes[offset])
-            fixed (ushort* src = values)
-            {
-                Buffer.MemoryCopy(src, dst, TotalSize, TotalSize);
-            }
-            offset += TotalSize;
-        }
-
-        public unsafe static void ReadMusclesFromBytes(ref byte[] bytes, ref ushort[] muscles, ref int offset, int Length)
-        {
-
-            if (muscles == null || muscles.Length != LocalAvatarSyncMessage.StoredBones)
-            {
-                muscles = new ushort[LocalAvatarSyncMessage.StoredBones];
-            }
-            int TotalSize = Length * 2;
-
-            fixed (byte* src = &bytes[offset])
-            fixed (ushort* dst = muscles)
-            {
-                Buffer.MemoryCopy(src, dst, TotalSize, TotalSize);
-            }
-            offset += TotalSize;
-        }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WritePosition(UnityEngine.Vector3 position, ref byte[] buffer, ref int offset)
         {
@@ -126,45 +98,6 @@ namespace Basis.Scripts.Networking.Compression
 
             offset += 12;
             return result;
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe static void WriteBytes(byte[] values, ref byte[] bytes, ref int offset)
-        {
-            int length = values.Length;
-            int remaining = bytes.Length - offset;
-
-            if (remaining < length)
-                throw new ArgumentOutOfRangeException(nameof(offset), $"Not enough space in destination buffer. remaining {remaining} length {length}");
-
-            fixed (byte* dst = &bytes[offset])
-            fixed (byte* src = values)
-            {
-                Buffer.MemoryCopy(src, dst, remaining, length);
-            }
-
-            offset += length;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void ReadBytes(ref byte[] data, ref byte[] target, ref int offset, int count)
-        {
-            if (target == null || target.Length < count)
-                target = new byte[count];
-
-            int remaining = data.Length - offset;
-            if (remaining < count)
-                throw new ArgumentOutOfRangeException(nameof(offset), $"Not enough bytes in source buffer. Remaining: {remaining}, requested: {count}");
-
-            unsafe
-            {
-                fixed (byte* src = &data[offset])
-                fixed (byte* dst = target)
-                {
-                    Buffer.MemoryCopy(src, dst, count, count);
-                }
-            }
-
-            offset += count;
         }
     }
 }
