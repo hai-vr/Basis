@@ -94,6 +94,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             SetCompressedUshort(ref CBytes, ref floatArray, 24, 18, false); // Left Lower Leg Stretch: Range 160
             SetCompressedUshort(ref CBytes, ref floatArray, 25, 19, false); // Left Lower Leg Twist In-Out: Range 180
             SetCompressedUshort(ref CBytes, ref floatArray, 26, 20, false); // Left Foot Up-Down: Range 100
+
             SetCompressedUshort(ref CBytes, ref floatArray, 27, 21, true); // Left Foot Twist In-Out: Range 60 byteable
             SetCompressedUshort(ref CBytes, ref floatArray, 28, 22, true); // Left Toes Up-Down: Range 100 byteable
 
@@ -104,12 +105,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             SetCompressedUshort(ref CBytes, ref floatArray, 32, 26, false); // Right Lower Leg Stretch: Range 160
             SetCompressedUshort(ref CBytes, ref floatArray, 33, 27, false); // Right Lower Leg Twist In-Out: Range 180
             SetCompressedUshort(ref CBytes, ref floatArray, 34, 28, false); // Right Foot Up-Down: Range 100
+
             SetCompressedUshort(ref CBytes, ref floatArray, 35, 29, true); // Right Foot Twist In-Out: Range 60 byteable
             SetCompressedUshort(ref CBytes, ref floatArray, 36, 30, true); // Right Toes Up-Down: Range 100 byteable
 
             // Left Arm
             SetCompressedUshort(ref CBytes, ref floatArray, 37, 31, true); // Left Shoulder Down-Up: Range 45 byteable
             SetCompressedUshort(ref CBytes, ref floatArray, 38, 32, true); // Left Shoulder Front-Back: Range 30 byteable
+
             SetCompressedUshort(ref CBytes, ref floatArray, 39, 33, false); // Left Arm Down-Up: Range 160
             SetCompressedUshort(ref CBytes, ref floatArray, 40, 34, false); // Left Arm Front-Back: Range 200
             SetCompressedUshort(ref CBytes, ref floatArray, 41, 35, false); // Left Arm Twist In-Out: Range 180
@@ -200,12 +203,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             Array.Copy(combined, 0, message.array, offset, combined.Length);
             offset += combined.Length;
         }
-        public static void SetCompressedUshort(ref byte[][] compressedBytes, ref float[] value, int index, int compressedindex, bool asUshort)
+        public static void SetCompressedUshort(ref byte[][] compressedBytes, ref float[] value, int index, int compressedindex, bool AsByte)
         {
             float clamped = math.clamp(value[index], BasisMuscleRange.MinMuscle[index], BasisMuscleRange.MaxMuscle[index]);
             float normalized = (clamped - BasisMuscleRange.MinMuscle[index]) / BasisMuscleRange.RangeMuscle[index];
 
-            int requiredLength = asUshort ? 2 : 1;
+            int requiredLength = AsByte ? 1 : 2;
 
             // Allocate if null or wrong length
             if (compressedBytes[compressedindex] == null || compressedBytes[compressedindex].Length != requiredLength)
@@ -213,16 +216,16 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 compressedBytes[compressedindex] = new byte[requiredLength];
             }
 
-            if (asUshort)
+            if (AsByte)
+            {
+                byte compressed = (byte)(normalized * 255f);
+                compressedBytes[compressedindex][0] = compressed;
+            }
+            else
             {
                 ushort compressed = (ushort)(normalized * BasisMuscleRange.UShortRangeDifference);
                 compressedBytes[compressedindex][0] = (byte)(compressed & 0xFF); // little endian
                 compressedBytes[compressedindex][1] = (byte)(compressed >> 8);
-            }
-            else
-            {
-                byte compressed = (byte)(normalized * 255f);
-                compressedBytes[compressedindex][0] = compressed;
             }
         }
         public static void CompressScale(float scale, ref LocalAvatarSyncMessage message, ref int offset)

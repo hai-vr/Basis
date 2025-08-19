@@ -81,20 +81,21 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             int dataPos = offset;
 
-            float ReadCompressed(int index, bool asUshort)
+            float ReadCompressed(int index, bool AsByte)
             {
                 float normalized;
-                if (asUshort)
-                {
-                    ushort compressed = (ushort)(data[dataPos] | (data[dataPos + 1] << 8));
-                    normalized = compressed / (float)BasisMuscleRange.UShortRangeDifference;
-                    dataPos += 2;
-                }
-                else
+                if (AsByte)
                 {
                     byte compressed = data[dataPos];
                     normalized = compressed / 255f;
                     dataPos += 1;
+                }
+                else
+                {
+
+                    ushort compressed = (ushort)(data[dataPos] | (data[dataPos + 1] << 8));
+                    normalized = compressed / (float)BasisMuscleRange.UShortRangeDifference;
+                    dataPos += 2;
                 }
                 return BasisMuscleRange.MinMuscle[index] + normalized * BasisMuscleRange.RangeMuscle[index];
             }
@@ -121,6 +122,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // ReadCompressed(ref floatArray, 18, true); // Right Eye In-Out: Range 40 byteable
             // ReadCompressed(ref floatArray, 19, true); // Jaw Close: Range 20 byteable
             // ReadCompressed(ref floatArray, 20, true); // Jaw Left-Right: Range 20 byteable
+
             // Left Leg
             floatArray[21] = ReadCompressed(15, false);// Left Upper Leg Front-Back: Range 140
             floatArray[22] = ReadCompressed(16, false);// Left Upper Leg In-Out: Range 120
@@ -128,6 +130,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             floatArray[24] = ReadCompressed(18, false);// Left Lower Leg Stretch: Range 160
             floatArray[25] = ReadCompressed(19, false);// Left Lower Leg Twist In-Out: Range 180
             floatArray[26] = ReadCompressed(20, false);// Left Foot Up-Down: Range 100
+
             floatArray[27] = ReadCompressed(21, true);// Left Foot Twist In-Out: Range 60 byteable
             floatArray[28] = ReadCompressed(22, true);// Left Toes Up-Down: Range 100 byteable
 
@@ -138,12 +141,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             floatArray[32] = ReadCompressed(26, false);// Right Lower Leg Stretch: Range 160
             floatArray[33] = ReadCompressed(27, false);// Right Lower Leg Twist In-Out: Range 180
             floatArray[34] = ReadCompressed(28, false);// Right Foot Up-Down: Range 100
+
             floatArray[35] = ReadCompressed(29, true);// Right Foot Twist In-Out: Range 60 byteable
             floatArray[36] = ReadCompressed(30, true);// Right Toes Up-Down: Range 100 byteable
 
             // Left Arm
             floatArray[37] = ReadCompressed(31, true);// Left Shoulder Down-Up: Range 45 byteable
             floatArray[38] = ReadCompressed(32, true); // Left Shoulder Front-Back: Range 30 byteable
+
             floatArray[39] = ReadCompressed(33, false);// Left Arm Down-Up: Range 160
             floatArray[40] = ReadCompressed(34, false);// Left Arm Front-Back: Range 200
             floatArray[41] = ReadCompressed(35, false);// Left Arm Twist In-Out: Range 180
@@ -155,6 +160,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Right Arm
             floatArray[46] = ReadCompressed(40, true);// Right Shoulder Down-Up: Range 45 byteable
             floatArray[47] = ReadCompressed(41, true);// Right Shoulder Front-Back: Range 30 byteable
+
             floatArray[48] = ReadCompressed(42, false);// Right Arm Down-Up: Range 160
             floatArray[49] = ReadCompressed(43, false);// Right Arm Front-Back: Range 200
             floatArray[50] = ReadCompressed(44, false);// Right Arm Twist In-Out: Range 180
