@@ -181,8 +181,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             ReadCompressed(25, false, ref floatArray);// Left Lower Leg Twist In-Out: Range 180
             ReadCompressed(26, false, ref floatArray);// Left Foot Up-Down: Range 100
 
-            ReadCompressed(27, true, ref floatArray);// Left Foot Twist In-Out: Range 60 byteable
-            ReadCompressed(28, true, ref floatArray);// Left Toes Up-Down: Range 100 byteable
+            ReadCompressed(27, false, ref floatArray);// Left Foot Twist In-Out: Range 60 byteable
+            ReadCompressed(28, false, ref floatArray);// Left Toes Up-Down: Range 100 byteable
 
             // Right Leg
             ReadCompressed(29, false, ref floatArray);// Right Upper Leg Front-Back: Range 140
@@ -192,12 +192,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             ReadCompressed(33, false, ref floatArray);// Right Lower Leg Twist In-Out: Range 180
             ReadCompressed(34, false, ref floatArray);// Right Foot Up-Down: Range 100
 
-            ReadCompressed(35, true, ref floatArray);// Right Foot Twist In-Out: Range 60 byteable
-            ReadCompressed(36, true, ref floatArray);// Right Toes Up-Down: Range 100 byteable
+            ReadCompressed(35, false, ref floatArray);// Right Foot Twist In-Out: Range 60 byteable
+            ReadCompressed(36, false, ref floatArray);// Right Toes Up-Down: Range 100 byteable
 
             // Left Arm
-            ReadCompressed(37, true, ref floatArray);// Left Shoulder Down-Up: Range 45 byteable
-            ReadCompressed(38, true, ref floatArray); // Left Shoulder Front-Back: Range 30 byteable
+            ReadCompressed(37, false, ref floatArray);// Left Shoulder Down-Up: Range 45 byteable
+            ReadCompressed(38, false, ref floatArray); // Left Shoulder Front-Back: Range 30 byteable
 
             ReadCompressed(39, false, ref floatArray);// Left Arm Down-Up: Range 160
             ReadCompressed(40, false, ref floatArray);// Left Arm Front-Back: Range 200
@@ -208,8 +208,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             ReadCompressed(45, false, ref floatArray);// Left Hand In-Out: Range 80
 
             // Right Arm
-            ReadCompressed(46, true, ref floatArray);// Right Shoulder Down-Up: Range 45 byteable
-            ReadCompressed(47, true, ref floatArray);// Right Shoulder Front-Back: Range 30 byteable
+            ReadCompressed(46, false, ref floatArray);// Right Shoulder Down-Up: Range 45 byteable
+            ReadCompressed(47, false, ref floatArray);// Right Shoulder Front-Back: Range 30 byteable
 
             ReadCompressed(48, false, ref floatArray);// Right Arm Down-Up: Range 160
             ReadCompressed(49, false, ref floatArray);// Right Arm Front-Back: Range 200
@@ -222,7 +222,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Left Hand Fingers
             ReadCompressed(55, true, ref floatArray);// Left Thumb 1 Stretched: Range 40 byteable
             ReadCompressed(56, true, ref floatArray);// Left Thumb Spread: Range 50 byteable
-            ReadCompressed(57, true, ref floatArray);// Left Thumb 2 Stretched: Range 75 byteable
+            ReadCompressed(57, false, ref floatArray);// Left Thumb 2 Stretched: Range 75 byteable
             ReadCompressed(58, true, ref floatArray);// Left Thumb 3 Stretched: Range 75 byteable
 
             ReadCompressed(59, true, ref floatArray);// Left Index 1 Stretched: Range 100 byteable
@@ -248,7 +248,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Right Hand Fingers
             ReadCompressed(75, true, ref floatArray);// Right Thumb 1 Stretched: Range 40 byteable
             ReadCompressed(76, true, ref floatArray);// Right Thumb Spread: Range 50 byteable
-            ReadCompressed(77, true, ref floatArray);// Right Thumb 2 Stretched: Range 75 byteable
+            ReadCompressed(77, false, ref floatArray);// Right Thumb 2 Stretched: Range 75 byteable
             ReadCompressed(78, true, ref floatArray);// Right Thumb 3 Stretched: Range 75 byteable
 
             ReadCompressed(79, true, ref floatArray);// Right Index 1 Stretched: Range 100 byteable

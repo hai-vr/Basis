@@ -95,8 +95,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             SetCompressedUshort(ref CBytes, ref floatArray, 25, 19, false); // Left Lower Leg Twist In-Out: Range 180
             SetCompressedUshort(ref CBytes, ref floatArray, 26, 20, false); // Left Foot Up-Down: Range 100
 
-            SetCompressedUshort(ref CBytes, ref floatArray, 27, 21, true); // Left Foot Twist In-Out: Range 60 byteable
-            SetCompressedUshort(ref CBytes, ref floatArray, 28, 22, true); // Left Toes Up-Down: Range 100 byteable
+            SetCompressedUshort(ref CBytes, ref floatArray, 27, 21, false); // Left Foot Twist In-Out: Range 60 byteable
+            SetCompressedUshort(ref CBytes, ref floatArray, 28, 22, false); // Left Toes Up-Down: Range 100 byteable
 
             // Right Leg
             SetCompressedUshort(ref CBytes, ref floatArray, 29, 23, false); // Right Upper Leg Front-Back: Range 140
@@ -106,12 +106,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             SetCompressedUshort(ref CBytes, ref floatArray, 33, 27, false); // Right Lower Leg Twist In-Out: Range 180
             SetCompressedUshort(ref CBytes, ref floatArray, 34, 28, false); // Right Foot Up-Down: Range 100
 
-            SetCompressedUshort(ref CBytes, ref floatArray, 35, 29, true); // Right Foot Twist In-Out: Range 60 byteable
-            SetCompressedUshort(ref CBytes, ref floatArray, 36, 30, true); // Right Toes Up-Down: Range 100 byteable
+            SetCompressedUshort(ref CBytes, ref floatArray, 35, 29, false); // Right Foot Twist In-Out: Range 60 byteable
+            SetCompressedUshort(ref CBytes, ref floatArray, 36, 30, false); // Right Toes Up-Down: Range 100 byteable
 
             // Left Arm
-            SetCompressedUshort(ref CBytes, ref floatArray, 37, 31, true); // Left Shoulder Down-Up: Range 45 byteable
-            SetCompressedUshort(ref CBytes, ref floatArray, 38, 32, true); // Left Shoulder Front-Back: Range 30 byteable
+            SetCompressedUshort(ref CBytes, ref floatArray, 37, 31, false); // Left Shoulder Down-Up: Range 45 byteable
+            SetCompressedUshort(ref CBytes, ref floatArray, 38, 32, false); // Left Shoulder Front-Back: Range 30 byteable
 
             SetCompressedUshort(ref CBytes, ref floatArray, 39, 33, false); // Left Arm Down-Up: Range 160
             SetCompressedUshort(ref CBytes, ref floatArray, 40, 34, false); // Left Arm Front-Back: Range 200
@@ -122,8 +122,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             SetCompressedUshort(ref CBytes, ref floatArray, 45, 39, false); // Left Hand In-Out: Range 80
 
             // Right Arm
-            SetCompressedUshort(ref CBytes, ref floatArray, 46, 40, true); // Right Shoulder Down-Up: Range 45 byteable
-            SetCompressedUshort(ref CBytes, ref floatArray, 47, 41, true); // Right Shoulder Front-Back: Range 30 byteable
+            SetCompressedUshort(ref CBytes, ref floatArray, 46, 40, false); // Right Shoulder Down-Up: Range 45 byteable
+            SetCompressedUshort(ref CBytes, ref floatArray, 47, 41, false); // Right Shoulder Front-Back: Range 30 byteable
 
             SetCompressedUshort(ref CBytes, ref floatArray, 48, 42, false); // Right Arm Down-Up: Range 160
             SetCompressedUshort(ref CBytes, ref floatArray, 49, 43, false); // Right Arm Front-Back: Range 200
@@ -136,7 +136,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Left Hand Fingers
             SetCompressedUshort(ref CBytes, ref floatArray, 55, 49, true); // Left Thumb 1 Stretched: Range 40 byteable
             SetCompressedUshort(ref CBytes, ref floatArray, 56, 50, true); // Left Thumb Spread: Range 50 byteable
-            SetCompressedUshort(ref CBytes, ref floatArray, 57, 51, true); // Left Thumb 2 Stretched: Range 75 byteable
+            SetCompressedUshort(ref CBytes, ref floatArray, 57, 51, false); // Left Thumb 2 Stretched: Range 75 byteable
             SetCompressedUshort(ref CBytes, ref floatArray, 58, 52, true); // Left Thumb 3 Stretched: Range 75 byteable
 
             SetCompressedUshort(ref CBytes, ref floatArray, 59, 53, true); // Left Index 1 Stretched: Range 100 byteable
@@ -162,7 +162,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Right Hand Fingers
             SetCompressedUshort(ref CBytes, ref floatArray, 75, 69, true); // Right Thumb 1 Stretched: Range 40 byteable
             SetCompressedUshort(ref CBytes, ref floatArray, 76, 70, true); // Right Thumb Spread: Range 50 byteable
-            SetCompressedUshort(ref CBytes, ref floatArray, 77, 71, true); // Right Thumb 2 Stretched: Range 75 byteable
+            SetCompressedUshort(ref CBytes, ref floatArray, 77, 71, false); // Right Thumb 2 Stretched: Range 75 byteable
             SetCompressedUshort(ref CBytes, ref floatArray, 78, 72, true); // Right Thumb 3 Stretched: Range 75 byteable
 
             SetCompressedUshort(ref CBytes, ref floatArray, 79, 73, true); // Right Index 1 Stretched: Range 100 byteable
@@ -198,7 +198,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 Array.Copy(CBytes[Index], 0, combined, pos, CBytes[Index].Length);
                 pos += CBytes[Index].Length;
             }
-         //   BasisDebug.Log($"compressed size was {combined.Length}");
+           // BasisDebug.Log($"compressed size was {combined.Length}");
             // Write to message
             Array.Copy(combined, 0, message.array, offset, combined.Length);
             offset += combined.Length;
