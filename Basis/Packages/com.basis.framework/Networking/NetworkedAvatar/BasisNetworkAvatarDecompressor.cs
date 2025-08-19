@@ -94,13 +94,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Decompress first 55 muscles
             for (int i = 0; i < nonFingerCount; i++)
             {
-                muscles[i] = MuscleDecompress(copyData[i], BasisAvatarMuscleRange.MinMuscle[i], BasisAvatarMuscleRange.MaxMuscle[i]);
+                muscles[i] = MuscleDecompress(copyData[i], BasisMuscleRange.MinMuscle[i], BasisMuscleRange.MaxMuscle[i]);
             }
 
             // Decompress next 34 finger muscles
             for (int i = 0; i < fingerCount; i++)
             {
-                muscles[nonFingerCount + i] = FingerDecompress(fingerData[i], BasisAvatarMuscleRange.MinMuscle[nonFingerCount + i], BasisAvatarMuscleRange.MaxMuscle[nonFingerCount + i]);
+                muscles[nonFingerCount + i] = FingerDecompress(fingerData[i], BasisMuscleRange.MinMuscle[nonFingerCount + i], BasisMuscleRange.MaxMuscle[nonFingerCount + i]);
             }
 
             return muscles;

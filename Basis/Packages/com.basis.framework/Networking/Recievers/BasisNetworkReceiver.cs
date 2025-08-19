@@ -222,9 +222,6 @@ namespace Basis.Scripts.Networking.Receivers
             if (HasMuscle)
             {
                 Muscles.CopyTo(MuscleFinalStageOutput);
-                Array.Copy(MuscleFinalStageOutput, 0, HumanPose.muscles, 0, BasisAvatarMuscleRange.FirstBuffer);
-                Array.Copy(MuscleFinalStageOutput, BasisAvatarMuscleRange.FirstBuffer, HumanPose.muscles, BasisAvatarMuscleRange.SecondBuffer, BasisAvatarMuscleRange.SizeAfterGap);
-                Array.Copy(Eyes, 0, HumanPose.muscles, BasisAvatarMuscleRange.FirstBuffer, 4);
             }
 
             AnimatorsTransform.localScale = Scale;

@@ -35,7 +35,6 @@ namespace Basis.Scripts.Networking.Transmitters
         [System.Serializable]
         public class StoredAvatarData
         {
-            public float[] FloatArray = new float[LocalAvatarSyncMessage.StoredBones];
             [SerializeField]
             public LocalAvatarSyncMessage LASM = new LocalAvatarSyncMessage(new byte[LocalAvatarSyncMessage.AvatarSyncSize]);
         }
