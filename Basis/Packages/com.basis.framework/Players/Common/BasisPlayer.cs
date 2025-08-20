@@ -24,7 +24,7 @@ namespace Basis.Scripts.BasisSdk.Players
         public string UUID;
         public string SafeDisplayName;
         public BasisAvatar BasisAvatar;
-        public Transform BasisAvatarTransform;
+        public Transform AvatarTransform;
         public Transform PlayerSelf;//yes caching myself is faster.
         // public event Action OnMetaDataUpdated;
         public event Action OnAvatarSwitched;

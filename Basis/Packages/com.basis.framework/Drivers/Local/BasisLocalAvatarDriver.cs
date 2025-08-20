@@ -130,8 +130,8 @@ namespace Basis.Scripts.Drivers
 				Spine.HasRigLayer = BasisHasRigLayer.HasRigLayer;
 			}
 			StoredRolesTransforms = BasisAvatarIKStageCalibration.GetAllRolesAsTransform();
-			player.BasisAvatarTransform.parent = player.transform;
-			player.BasisAvatarTransform.SetLocalPositionAndRotation(-Hips.TposeLocal.position, Quaternion.identity);
+			player.AvatarTransform.parent = player.transform;
+			player.AvatarTransform.SetLocalPositionAndRotation(-Hips.TposeLocal.position, Quaternion.identity);
 			MaxExtendedDistance = Vector3.Distance(BasisLocalBoneDriver.HeadControl.TposeLocal.position, BasisLocalBoneDriver.HipsControl.TposeLocal.position);
 			player.LocalRigDriver.BuildBuilder();
 			IsNormalHead = true;

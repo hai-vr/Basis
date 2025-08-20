@@ -113,7 +113,7 @@ namespace Basis.Scripts.BasisSdk.Players
                 }
                 if (NetworkReceiver.HasAvatarQueue)
                 {
-                    NetworkReceiver.ApplyComputedData(false);
+                    NetworkReceiver.ApplyComputedData();
                 }
             }
             LastComputedMeshLod = -1;

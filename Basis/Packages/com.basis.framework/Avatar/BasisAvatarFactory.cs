@@ -208,7 +208,7 @@ namespace Basis.Scripts.Avatar
             DeleteLastAvatar(Player);
             Player.IsConsideredFallBackAvatar = isFallback;
             Player.BasisAvatar = avatar;
-            Player.BasisAvatarTransform = avatar.transform;
+            Player.AvatarTransform = avatar.transform;
             Player.BasisAvatar.Renders = avatar.GetComponentsInChildren<Renderer>(true);
             Player.BasisAvatar.IsOwnedLocally = Player.IsLocal;
 
