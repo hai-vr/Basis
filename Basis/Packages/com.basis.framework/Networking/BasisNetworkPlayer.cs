@@ -39,8 +39,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         [SerializeField]
         public HumanPoseHandler PoseHandler;
         public BasisPlayer Player;
-        [SerializeField]
-        public PlayerIdMessage PlayerIDMessage = new PlayerIdMessage();
         public bool hasID = false;
         public bool HasReasonToSendAudio
         {
@@ -59,21 +57,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 }
             }
         }
-        public ushort playerId
-        {
-            get
-            {
-                if (hasID)
-                {
-                    return PlayerIDMessage.playerID;
-                }
-                else
-                {
-                    BasisDebug.LogError("Missing Network ID!");
-                    return 0;
-                }
-            }
-        }
+        public ushort playerId;
         public abstract void Initialize();
         public abstract void DeInitialize();
         public void OnAvatarCalibrationLocal()

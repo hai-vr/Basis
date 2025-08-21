@@ -4,6 +4,7 @@ using Basis.Scripts.Profiler;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
@@ -14,106 +15,22 @@ namespace Basis.Scripts.Networking.Receivers
     [System.Serializable]
     public class BasisNetworkReceiver : BasisNetworkPlayer
     {
-        // ---------- Status / Diagnostics ----------
-        public enum ReceiverStatus
-        {
-            Idle,
-            WaitingForFirst,
-            WaitingForLast,
-            Bootstrapped,
-            Ready,
-            Interpolating,
-            Advancing,
-            Applying,
-            QueueStarved,
-            QueueOverrun,
-            ErrorMissingData,
-            ErrorNaNInterpolation,
-            ErrorInvalidInterval
-        }
-
-        [SerializeField] public ReceiverStatus Status = ReceiverStatus.Idle;
-        [SerializeField] public string StatusReason = "";
-        [SerializeField] public double StatusChangedAt;
-
-        private void SetStatus(ReceiverStatus next, string reason = null)
-        {
-            if (Status != next || (reason != null && !string.Equals(StatusReason, reason)))
-            {
-                Status = next;
-                StatusReason = reason ?? "";
-                StatusChangedAt = Time.timeAsDouble;
-                // BasisDebug.Log($"[ReceiverStatus] {Status} :: {StatusReason}");
-            }
-        }
-
-        public void ReportStatus()
-        {
-            BasisDebug.Log(
-                $"[ReceiverStatus] {Status} :: {StatusReason} | " +
-                $"HasFirst:{BufferHolder.HasFirst} HasLast:{BufferHolder.HasLast} " +
-                $"HasAvatarQueue:{HasAvatarQueue} Queue:{PayloadQueue.Count} " +
-                $"interp:{interpolationTime:0.000} dt:{(Time.timeAsDouble - StatusChangedAt):0.000}s");
-        }
-
         // ---------- Constants ----------
         private const int EyesAndMouthOffset = 15;
         private const int EyesAndMouthCount = 6;
-        public int BufferCapacityBeforeCleanup = 5;
         public const int EyeAndMouthSize = EyesAndMouthOffset * sizeof(float);
         public const int EyeAndMouthcount = EyesAndMouthCount * sizeof(float);
 
-        // ---------- Playback / jitter tuning (50 ms granularity) ----------
-        [Header("Playback/Jitter Settings (Quantized)")]
-        [Tooltip("How many buffers we try to keep queued ahead.")]
-        public int TargetQueueDepth = 2;
+        [Tooltip("If more than this many frames are queued, old frames will be dropped to catch up.")]
+        public int BufferCapacityBeforeCleanup = 5;
 
-        [Tooltip("Lower bound on accepted segment duration (seconds).")]
-        public double MinSegmentDuration = 0.015; // ~66 Hz
-
-        [Tooltip("Upper bound on accepted segment duration (seconds).")]
-        public double MaxSegmentDuration = 0.100; // ~10 Hz
-
-        [Tooltip("EMA alpha for SecondsInterval smoothing. 0=no smoothing, 1=freeze.")]
-        [Range(0f, 1f)]
-        public float IntervalEmaAlpha = 0.15f;
-
-        [Tooltip("Base playout lead (seconds), quantized; min 0.05s as per constraint.")]
-        public double BaseLeadSeconds = 0.050;
-
-        [Tooltip("Lead quantization step (seconds). Smallest allowed nudge is 50 ms).")]
-        public double LeadQuantumSeconds = 0.050;
-
-        [Tooltip("Maximum playout lead (seconds).")]
-        public double MaxLeadSeconds = 0.200;
-
-        [Tooltip("How strongly queue deficit increases the desired lead (before quantization).")]
-        public double AdaptiveLeadGain = 0.25;
-
-        // Internal smoothed cadence
-        private double _smoothedInterval = 0.033;
-
-        // Prevent double-advance within the SAME frame (Compute/Apply)
-        private int _advanceFrameStamp = -1;
-
-        // ---------- Anti-jitter state ----------
-        // Lead pinned per-segment; we don't modify it mid-segment.
-        private double _appliedLead = 0.050;
-
-        // Stable time anchor for the current segment; t=0 at this instant and only moves forward.
-        private double _anchorStart = 0.0;
-
-        // Monotonic guard
-        private double _lastRawT = 0.0;
-
-        // ---------- Public Fields ----------
+        // ---------- Serialized / External ----------
         public BasisRemoteBoneControl MouthBone;
 
         [SerializeField] public BasisAudioReceiver AudioReceiverModule = new BasisAudioReceiver();
         [SerializeField] public ConcurrentQueue<BasisAvatarBuffer> PayloadQueue = new ConcurrentQueue<BasisAvatarBuffer>();
 
         public BasisRemotePlayer RemotePlayer;
-        public bool HasEvents = false;
 
         [SerializeField] public BasisRemoteAvatarBufferHolder BufferHolder = new BasisRemoteAvatarBufferHolder();
 
@@ -141,9 +58,8 @@ namespace Basis.Scripts.Networking.Receivers
             }
         }
 
-        public float interpolationTime;
-        public double TimeBeforeCompletion; // effective [First->Last] duration
-        public double TimeInThePast;        // local start time for current segment (see anchor logic)
+        // ---------- State ----------
+        public bool HasEvents = false;
         public bool HasAvatarQueue;
 
         public bool LogFirstError = false;
@@ -151,35 +67,45 @@ namespace Basis.Scripts.Networking.Receivers
         public float[] EyesAndMouth = new float[] { 0, 0, 0, 0, 1, 0 };
         public float[] Muscles = new float[95];
 
+        // Computed by driver
         public quaternion ApplyingRotation;
         public float3 ApplyingPosition;
         public float3 ApplyingScale;
 
-        public bool HasApplyFrameEarlyExit = false;
+        // Interpolation timing
+        private float interpolationTime = 0f;
 
-        // ---------- Core Loop ----------
-        public bool BufferHoldMeetsCriteria = false;
+        // Main-thread staging for dequeued packets
+        private readonly List<BasisAvatarBuffer> _staged = new List<BasisAvatarBuffer>(16);
 
+        // Shared zero array for safety
+        private static readonly float[] ZeroMuscles = new float[95];
+
+        // ---------- Compute / Apply ----------
+        // This is called from your network simulation (main thread).
+        // It pulls data from the off-thread queue, builds an interpolation window,
+        // computes the fraction using SecondsInterval, and pushes inputs to the driver.
         public void Compute(double timeNow)
         {
-            // NOTE: do NOT stamp _advanceFrameStamp here; only stamp when we actually advance.
-            PrimeBuffersIfPossible();
-            TryBootstrapIfOnlyFirst();
+            // 1) Pull network packets to main-thread staging
+            PumpQueueToStaging();
 
-            if (!HasAvatarQueue)
+            // 2) Ensure we have a valid interpolation window (First -> Last)
+            BuildOrAdvanceWindow();
+
+            // 3) If we have a window, compute interpolation fraction and feed the compute phase
+            if (BufferHolder.HasFirst && BufferHolder.HasLast)
             {
-                SetStatus(BufferHolder.HasFirst ? ReceiverStatus.WaitingForLast : ReceiverStatus.WaitingForFirst, "Compute: waiting to become ready");
-                return;
-            }
+                ComputeInterpolationFraction();
 
-            InterpolateBuffersAndCatchUp(timeNow);
-
-            BufferHoldMeetsCriteria = BufferHolder.HasFirst && BufferHolder.HasLast;
-
-            if (BufferHoldMeetsCriteria)
-            {
                 var first = BufferHolder.First;
                 var last = BufferHolder.Last;
+
+                // Ensure muscles are non-null
+                var prevMuscles = first.Muscles;
+                var targetMuscles = last.Muscles;
+                if (prevMuscles == null || prevMuscles.Length < 95) prevMuscles = ZeroMuscles;
+                if (targetMuscles == null || targetMuscles.Length < 95) targetMuscles = ZeroMuscles;
 
                 BasisRemoteNetworkDriver.SetInputs(
                     playerId,
@@ -187,241 +113,16 @@ namespace Basis.Scripts.Networking.Receivers
                     first.Scale, last.Scale,
                     first.rotation, last.rotation,
                     interpolationTime,
-                    first.Muscles, last.Muscles
+                    prevMuscles, targetMuscles
                 );
             }
         }
 
         public void Apply(double timeNow)
         {
-            if (!HasAvatarQueue || !BufferHolder.HasFirst || !BufferHolder.HasLast)
-            {
-                PrimeBuffersIfPossible();
-                TryBootstrapIfOnlyFirst();
-
-                HasApplyFrameEarlyExit = !HasAvatarQueue || !BufferHolder.HasFirst || !BufferHolder.HasLast;
-                if (HasApplyFrameEarlyExit)
-                {
-                    SetStatus(BufferHolder.HasFirst ? ReceiverStatus.WaitingForLast : ReceiverStatus.WaitingForFirst, "Apply: not ready after re-prime");
-                    return;
-                }
-            }
-
-            InterpolateBuffersAndCatchUp(timeNow);
-
             if (BasisRemoteNetworkDriver.GetOutputs(playerId, out ApplyingPosition, out ApplyingScale, out ApplyingRotation, ref Muscles))
             {
-                SetStatus(ReceiverStatus.Applying, "Applying outputs");
                 ApplyComputedData();
-            }
-
-            // NOTE: Advancement is centralized in InterpolateBuffersAndCatchUp to avoid double-advance.
-        }
-
-        // ---------- Helpers ----------
-
-        private void PrimeBuffersIfPossible()
-        {
-            int pulledCount = 0;
-            int safety = 32;
-            while (safety-- > 0 && (!BufferHolder.HasFirst || !BufferHolder.HasLast) && PayloadQueue.TryDequeue(out var pulled))
-            {
-                pulledCount++;
-                if (!BufferHolder.HasFirst)
-                {
-                    BufferHolder.First = pulled;
-                    BufferHolder.HasFirst = true;
-                    SetStatus(ReceiverStatus.WaitingForLast, "Primed First");
-                }
-                else if (!BufferHolder.HasLast)
-                {
-                    BufferHolder.Last = pulled;
-                    BufferHolder.HasLast = true;
-                    SetStatus(ReceiverStatus.Ready, "Primed Last");
-                }
-            }
-
-            if (!HasAvatarQueue && BufferHolder.HasFirst && BufferHolder.HasLast)
-            {
-                _smoothedInterval = ClampInterval(BufferHolder.Last.SecondsInterval, MinSegmentDuration, MaxSegmentDuration);
-                TimeBeforeCompletion = _smoothedInterval;
-
-                // Quantize an initial lead and pin it for this segment
-                _appliedLead = math.clamp(QuantizeUp(BaseLeadSeconds, LeadQuantumSeconds), 0.0, MaxLeadSeconds);
-
-                // Stable anchor scheme: start t at 0 and let it grow
-                double now = Time.timeAsDouble;
-                _anchorStart = now;                 // t=0 at this moment
-                TimeInThePast = now + _appliedLead; // semantic bookkeeping; not used in t calc directly
-
-                _lastRawT = 0.0;
-                interpolationTime = 0f;
-                HasAvatarQueue = true;
-
-                SetStatus(ReceiverStatus.Ready, $"AvatarQueue READY (pulled {pulledCount})");
-            }
-            else if (!BufferHolder.HasFirst && !BufferHolder.HasLast && PayloadQueue.IsEmpty)
-            {
-                SetStatus(ReceiverStatus.WaitingForFirst, "Prime: queue empty");
-            }
-        }
-
-        private void TryBootstrapIfOnlyFirst()
-        {
-            if (!HasAvatarQueue && BufferHolder.HasFirst && !BufferHolder.HasLast && PayloadQueue.IsEmpty)
-            {
-                BufferHolder.Last = BufferHolder.First;
-                BufferHolder.HasLast = true;
-
-                TimeBeforeCompletion = 0.0; // zero-length segment
-
-                // Pin initial lead and anchor
-                _appliedLead = math.clamp(QuantizeUp(BaseLeadSeconds, LeadQuantumSeconds), 0.0, MaxLeadSeconds);
-                double now = Time.timeAsDouble;
-                _anchorStart = now;                 // start at t=0
-                TimeInThePast = now + _appliedLead; // bookkeeping
-
-                _lastRawT = 0.0;
-                interpolationTime = 0f;
-                HasAvatarQueue = true;
-
-                SetStatus(ReceiverStatus.Bootstrapped, "Bootstrap: mirrored First -> Last (zero interval)");
-            }
-        }
-
-        private void InterpolateBuffersAndCatchUp(double now)
-        {
-            if (!BufferHolder.HasFirst || !BufferHolder.HasLast)
-            {
-                interpolationTime = 0f;
-                SetStatus(ReceiverStatus.ErrorMissingData, "Interpolate: missing First/Last");
-                return;
-            }
-
-            // Effective (smoothed + clamped) segment duration
-            double incomingInterval = ClampInterval(BufferHolder.Last.SecondsInterval, MinSegmentDuration, MaxSegmentDuration);
-            _smoothedInterval = Ema(_smoothedInterval, incomingInterval, IntervalEmaAlpha);
-            TimeBeforeCompletion = _smoothedInterval;
-
-            // Compute desired lead from queue deficit (for NEXT segment decisioning only)
-            // We DO NOT change lead mid-segment to avoid backward jumps.
-            // (Keeping this calc if you want to log/inspect or prewarm next segment choice.)
-            // int qCount = Math.Max(0, PayloadQueue.Count);
-            // int deficit = TargetQueueDepth - qCount;
-            // double desiredLead = BaseLeadSeconds + deficit * _smoothedInterval * AdaptiveLeadGain;
-            // desiredLead = math.clamp(desiredLead, 0.0, MaxLeadSeconds);
-            // double adaptiveLead = QuantizeUp(desiredLead, LeadQuantumSeconds);
-
-            // Zero/invalid interval => instant transition; advance centrally here
-            if (!(TimeBeforeCompletion > 0.0) || double.IsNaN(TimeBeforeCompletion))
-            {
-                if (double.IsNaN(TimeBeforeCompletion))
-                {
-                    SetStatus(ReceiverStatus.ErrorInvalidInterval, "Interpolate: NaN interval treated as zero");
-                }
-                interpolationTime = 1f;
-                TryAdvanceWhilePossible(now);
-                if (PayloadQueue.IsEmpty)
-                {
-                    SetStatus(ReceiverStatus.QueueStarved, "Interpolate: waiting for next buffer after zero interval");
-                }
-                return;
-            }
-
-            // Stable, monotonic t against a fixed anchor
-            double rawT = (now - _anchorStart) / TimeBeforeCompletion;
-
-            if (rawT >= 1.0)
-            {
-                SetStatus(ReceiverStatus.Advancing, "Interpolate: overshoot catch-up");
-                TryAdvanceWhilePossible(now);
-
-                // Recompute after advancing (new anchorStart set in AdvanceToNext)
-                rawT = (now - _anchorStart) / Math.Max(TimeBeforeCompletion, MinSegmentDuration);
-            }
-
-            // Ensure t never goes backwards within a segment
-            if (rawT < _lastRawT)
-                rawT = _lastRawT;
-
-            _lastRawT = rawT;
-
-            float tClamped = Mathf.Clamp01((float)rawT);
-            interpolationTime = Mathf.SmoothStep(0f, 1f, tClamped);
-
-            if (float.IsNaN(interpolationTime))
-            {
-                SetStatus(ReceiverStatus.ErrorNaNInterpolation, "Interpolate: NaN interpolation time");
-                interpolationTime = 0f;
-                return;
-            }
-
-            SetStatus(ReceiverStatus.Interpolating, $"Interpolate: t={interpolationTime:0.000}");
-        }
-
-        private void AdvanceToNext(ref BasisAvatarBuffer next, double now)
-        {
-            if (BufferHolder.HasFirst)
-            {
-                BasisAvatarBufferPool.Release(ref BufferHolder.First);
-                BufferHolder.HasFirst = false;
-            }
-
-            if (BufferHolder.HasLast)
-            {
-                BufferHolder.First = BufferHolder.Last;
-                BufferHolder.HasFirst = true;
-            }
-
-            BufferHolder.Last = next;
-            BufferHolder.HasLast = true;
-
-            double candidate = ClampInterval(BufferHolder.Last.SecondsInterval, MinSegmentDuration, MaxSegmentDuration);
-            _smoothedInterval = Ema(_smoothedInterval, candidate, IntervalEmaAlpha);
-            TimeBeforeCompletion = _smoothedInterval;
-
-            // Decide and pin lead for THIS new segment
-            int qCount = Math.Max(0, PayloadQueue.Count);
-            int deficit = TargetQueueDepth - qCount;
-            double desiredLead = BaseLeadSeconds + deficit * _smoothedInterval * AdaptiveLeadGain;
-            desiredLead = math.clamp(desiredLead, 0.0, MaxLeadSeconds);
-            _appliedLead = QuantizeUp(desiredLead, LeadQuantumSeconds);
-
-            // Stable anchor: t restarts at 0
-            _anchorStart = now;                 // t=0 now
-            TimeInThePast = now + _appliedLead; // bookkeeping only
-            _lastRawT = 0.0;
-
-            interpolationTime = 0f;
-            SetStatus(ReceiverStatus.Ready, $"Advance: interval={TimeBeforeCompletion:0.000###}s lead={_appliedLead:0.000}s");
-        }
-
-        private void TryAdvanceWhilePossible(double now)
-        {
-            // Guard: advance at most once per frame (across Compute/Apply)
-            if (_advanceFrameStamp == Time.frameCount)
-            {
-                return;
-            }
-
-            int safety = 32;
-            bool advancedAny = false;
-            while (safety-- > 0 && PayloadQueue.TryDequeue(out var next))
-            {
-                AdvanceToNext(ref next, now);
-                advancedAny = true;
-
-                if (TimeBeforeCompletion > 0.0 && !double.IsNaN(TimeBeforeCompletion))
-                    break; // stop if the new segment has a real duration
-            }
-
-            if (advancedAny)
-            {
-                _advanceFrameStamp = Time.frameCount; // mark we advanced this frame
-            }
-            else
-            {
-                SetStatus(ReceiverStatus.QueueStarved, "Advance: no buffers to advance into");
             }
         }
 
@@ -458,33 +159,16 @@ namespace Basis.Scripts.Networking.Receivers
         {
             return new float3(
                 math.abs(b.x) > epsilon ? a.x / b.x : a.x,
-                math.abs(b.y) > epsilon ? a.y / b.y : a.y,
+                math.abs(b.y) > epsilon ? a.y / b.y : a.y, // fixed
                 math.abs(b.z) > epsilon ? a.z / b.z : a.z);
         }
 
+        /// <summary>
+        /// Called from a background/network thread. Thread-safe.
+        /// </summary>
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)
         {
             PayloadQueue.Enqueue(avatarBuffer);
-
-            bool overrun = false;
-            while (PayloadQueue.Count > BufferCapacityBeforeCleanup && PayloadQueue.TryDequeue(out BasisAvatarBuffer buffer))
-            {
-                overrun = true;
-                BasisAvatarBufferPool.Release(ref buffer);
-            }
-            if (overrun)
-            {
-                SetStatus(ReceiverStatus.QueueOverrun, $"Enqueue: dropped to cap {BufferCapacityBeforeCleanup}");
-            }
-
-            // If EnQueue can be called off-thread, consider deferring priming to main thread.
-            PrimeBuffersIfPossible();
-
-            if (!HasAvatarQueue && BufferHolder.HasFirst && !BufferHolder.HasLast)
-            {
-                PrimeBuffersIfPossible();
-                TryBootstrapIfOnlyFirst();
-            }
         }
 
         // ---------- Lifecycle ----------
@@ -499,7 +183,10 @@ namespace Basis.Scripts.Networking.Receivers
                 HasEvents = true;
             }
 
-            SetStatus(ReceiverStatus.WaitingForFirst, "Initialized");
+            HasAvatarQueue = true;
+            _staged.Clear();
+            BufferHolder.ClearAndRelease();
+            interpolationTime = 0f;
         }
 
         public void OnCalibration()
@@ -511,6 +198,13 @@ namespace Basis.Scripts.Networking.Receivers
         public override void DeInitialize()
         {
             BufferHolder.ClearAndRelease();
+
+            for (int i = 0; i < _staged.Count; i++)
+            {
+                var b = _staged[i];
+                BasisAvatarBufferPool.Release(ref b);
+            }
+            _staged.Clear();
 
             while (PayloadQueue.TryDequeue(out var buffer))
             {
@@ -526,19 +220,7 @@ namespace Basis.Scripts.Networking.Receivers
             AudioReceiverModule?.OnDestroy();
 
             HasAvatarQueue = false;
-            interpolationTime = 0f;
-            TimeBeforeCompletion = 0;
-            TimeInThePast = 0;
-
-            // Reset anti-jitter state
-            _appliedLead = BaseLeadSeconds;
-            _anchorStart = 0.0;
-            _lastRawT = 0.0;
-
-            SetStatus(ReceiverStatus.Idle, "Deinitialized");
         }
-
-        // ---------- Audio ----------
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage audioSegment)
         {
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, audioSegment.audioSegmentData.LengthUsed);
@@ -565,28 +247,125 @@ namespace Basis.Scripts.Networking.Receivers
         // ---------- Ctor ----------
         public BasisNetworkReceiver(ushort PlayerID)
         {
-            PlayerIDMessage.playerID = PlayerID;
+            playerId = PlayerID;
             hasID = true;
         }
-
-        // ---------- Utils ----------
-        private static double ClampInterval(double value, double min, double max)
+        /// <summary>
+        /// Move packets from the concurrent queue to a main-thread staging list.
+        /// </summary>
+        private void PumpQueueToStaging()
         {
-            if (double.IsNaN(value) || value <= 0.0) return min;
-            return math.clamp(value, min, max);
+            while (PayloadQueue.TryDequeue(out var buffer))
+            {
+                _staged.Add(buffer);
+            }
+
+            const int MaxStage = 64;
+            if (_staged.Count > MaxStage)
+            {
+                int drop = _staged.Count - MaxStage;
+                DropOldestFromStaging(drop);
+            }
         }
 
-        private static double Ema(double prev, double current, float alpha)
+        /// <summary>
+        /// Ensures we have a (First, Last) interpolation window and advances when consumed.
+        /// </summary>
+        private void BuildOrAdvanceWindow()
         {
-            alpha = Mathf.Clamp01(alpha);
-            return alpha * prev + (1.0f - alpha) * current;
+            // Seed First if missing
+            if (!BufferHolder.HasFirst)
+            {
+                TrySeedFirstFromStaging();
+            }
+
+            // Fill Last if missing
+            if (!BufferHolder.HasLast)
+            {
+                TrySetLastFromStaging();
+            }
+
+            // If either still missing, bail; we'll try again next compute tick
+            if (!BufferHolder.HasFirst || !BufferHolder.HasLast)
+                return;
+
+            // If we've consumed the current window, advance; repeat while we have more staged
+            while (interpolationTime >= 1f && _staged.Count > 0)
+            {
+                // Release old First
+                if (BufferHolder.HasFirst)
+                {
+                    BasisAvatarBufferPool.Release(ref BufferHolder.First);
+                    BufferHolder.HasFirst = false;
+                }
+
+                // Promote Last -> First
+                BufferHolder.First = BufferHolder.Last;
+                BufferHolder.HasFirst = true;
+
+                // Pull new Last
+                BufferHolder.HasLast = false;
+
+                interpolationTime = 0f;
+
+                TrySetLastFromStaging();
+            }
+
+            // If staging backlog is large, drop old frames to reduce latency
+            if (_staged.Count > BufferCapacityBeforeCleanup)
+            {
+                int drop = _staged.Count - BufferCapacityBeforeCleanup;
+                DropOldestFromStaging(drop);
+            }
         }
 
-        private static double QuantizeUp(double value, double quantum)
+        private void TrySeedFirstFromStaging()
         {
-            if (quantum <= 0.0) return value;
-            double steps = Math.Ceiling(value / quantum);
-            return steps <= 0 ? 0.0 : steps * quantum;
+            if (_staged.Count == 0) return;
+
+            var first = _staged[0];
+            _staged.RemoveAt(0);
+
+            BufferHolder.First = first;
+            BufferHolder.HasFirst = true;
+        }
+
+        private void TrySetLastFromStaging()
+        {
+            if (!BufferHolder.HasFirst) return;
+            if (_staged.Count == 0) return;
+
+            var last = _staged[0];
+            _staged.RemoveAt(0);
+            BufferHolder.Last = last;
+            BufferHolder.HasLast = true;
+        }
+
+        private void ComputeInterpolationFraction()
+        {
+            var first = BufferHolder.First;
+            var last = BufferHolder.Last;
+
+            double windowDuration = last.SecondsInterval > 0 ? last.SecondsInterval :
+                                    (first.SecondsInterval > 0 ? first.SecondsInterval : (1.0 / 60.0));
+
+            if (windowDuration <= 1e-6) windowDuration = 1e-3;
+
+            double step = Math.Max(Time.unscaledDeltaTime, 0.0);
+            interpolationTime += (float)(step / windowDuration);
+            if (interpolationTime > 1f) interpolationTime = 1f;
+            if (interpolationTime < 0f) interpolationTime = 0f;
+        }
+
+        private void DropOldestFromStaging(int count)
+        {
+            count = Mathf.Min(count, _staged.Count);
+            for (int i = 0; i < count; i++)
+            {
+                var b = _staged[i];
+                BasisAvatarBufferPool.Release(ref b);
+            }
+            _staged.RemoveRange(0, count);
         }
     }
 }

@@ -61,7 +61,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public BasisNetworkTransmitter(ushort PlayerID)
         {
 
-            PlayerIDMessage.playerID = PlayerID;
+            playerId = PlayerID;
             hasID = true;
         }
         /// <summary>
