@@ -37,7 +37,7 @@ public class BasisEventDriver : MonoBehaviour
     {
         DeltaTime = Time.deltaTime;
         TimeAsDouble = Time.timeAsDouble;
-        BasisNetworkManagement.SimulateNetworkCompute(TimeAsDouble);
+        BasisNetworkManagement.SimulateNetworkCompute();
         BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
 
 #if UNITY_SERVER

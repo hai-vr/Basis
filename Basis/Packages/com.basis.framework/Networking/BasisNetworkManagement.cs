@@ -231,7 +231,7 @@ namespace Basis.Scripts.Networking
 
             BasisDebug.Log("BasisNetworkManagement has been successfully shutdown.", BasisDebug.LogTag.Networking);
         }
-        public static void SimulateNetworkCompute(double TimeAsDouble)
+        public static void SimulateNetworkCompute()
         {
             if (NetworkRunning)
             {
@@ -240,7 +240,7 @@ namespace Basis.Scripts.Networking
                 {
                     if (ReceiversSnapshot[Index] != null)
                     {
-                        ReceiversSnapshot[Index].Compute(TimeAsDouble);
+                        ReceiversSnapshot[Index].Compute();
                     }
                 }
                 BasisRemoteNetworkDriver.Compute();

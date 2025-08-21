@@ -85,7 +85,7 @@ namespace Basis.Scripts.Networking.Receivers
         // This is called from your network simulation (main thread).
         // It pulls data from the off-thread queue, builds an interpolation window,
         // computes the fraction using SecondsInterval, and pushes inputs to the driver.
-        public void Compute(double timeNow)
+        public void Compute()
         {
             // 1) Pull network packets to main-thread staging
             PumpQueueToStaging();
