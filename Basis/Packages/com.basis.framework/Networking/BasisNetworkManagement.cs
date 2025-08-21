@@ -23,6 +23,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
+using static Basis.Scripts.Networking.Receivers.BasisNetworkReceiver;
 using static SerializableBasis;
 namespace Basis.Scripts.Networking
 {
@@ -144,7 +145,8 @@ namespace Basis.Scripts.Networking
             {
                 Instance = this;
             }
-            if(HasDisconnectReason)
+            BasisRemoteNetworkDriver.Initialize(95,64, Unity.Collections.Allocator.Persistent);
+            if (HasDisconnectReason)
             {
                 HandleDisconnectionReason(LastDisconnectInfo);
                 HasDisconnectReason = false;
@@ -193,6 +195,7 @@ namespace Basis.Scripts.Networking
         }
         public async Task Shutdown()
         {
+            BasisRemoteNetworkDriver.Shutdown();
             // Reset static fields
             Ip = "0.0.0.0";
             Port = 0;
@@ -240,6 +243,7 @@ namespace Basis.Scripts.Networking
                         ReceiversSnapshot[Index].Compute(TimeAsDouble);
                     }
                 }
+                BasisRemoteNetworkDriver.Compute();
                 BasisNetworkProfiler.Update();
             }
         }
@@ -247,6 +251,7 @@ namespace Basis.Scripts.Networking
         {
             if (NetworkRunning)
             {
+                BasisRemoteNetworkDriver.Apply();
                 // Complete tasks and apply results
                 for (int Index = 0; Index < ReceiverCount; Index++)
                 {

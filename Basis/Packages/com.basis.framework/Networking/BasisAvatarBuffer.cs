@@ -1,5 +1,6 @@
 namespace Basis.Scripts.Networking.NetworkedAvatar
 {
+    [System.Serializable]
     public class BasisAvatarBuffer
     {
         public Unity.Mathematics.quaternion rotation;

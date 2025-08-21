@@ -81,10 +81,6 @@ namespace Basis.Scripts.Networking.Receivers
             }
             IsPlaying = false;
         }
-        public void MoveAudio(BasisCalibratedCoords Coords)
-        {
-            AudioSourceTransform.SetPositionAndRotation(Coords.position, Coords.rotation);
-        }
         public void Initalize(BasisNetworkPlayer networkedPlayer)
         {
 #if UNITY_SERVER
