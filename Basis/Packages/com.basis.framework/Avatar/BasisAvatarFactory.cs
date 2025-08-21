@@ -2,6 +2,7 @@ using Basis.Scripts.Addressable_Driver;
 using Basis.Scripts.Addressable_Driver.Resource;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -291,12 +292,18 @@ namespace Basis.Scripts.Avatar
             Player.RemoteAvatarDriver.RemoteCalibration(Player);
             SetupAvatar(Player, BasisLayerMapper.RemoteAvatarLayer);
             Player.BasisAvatar.OnAvatarReady?.Invoke(false);
+
+            Player.RemoteAvatarDriver.RemoveJiggleRigs();
+            Player.RemoteAvatarDriver.AddJiggleRigs(Player.RemoteAvatarDriver.References);
         }
         public static void SetupLocalAvatar(BasisLocalPlayer Player)
         {
             Player.LocalAvatarDriver.InitialLocalCalibration(Player);
             SetupAvatar(Player, BasisLayerMapper.LocalAvatarLayer);
             Player.BasisAvatar.OnAvatarReady?.Invoke(true);
+
+            Player.LocalAvatarDriver.RemoveJiggleRigs();
+            Player.LocalAvatarDriver.AddJiggleRigs(BasisLocalAvatarDriver.References);
         }
         public static void SetupAvatar(BasisPlayer Player, int Layer)
         {

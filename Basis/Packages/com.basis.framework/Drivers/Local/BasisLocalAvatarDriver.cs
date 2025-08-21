@@ -17,7 +17,8 @@ namespace Basis.Scripts.Drivers
 	[Serializable]
 	public class BasisLocalAvatarDriver : BasisAvatarDriver
 	{
-		public static Vector3 HeadScale = Vector3.one;
+        public const string TPose = "Assets/Animator/Animated TPose.controller";
+        public static Vector3 HeadScale = Vector3.one;
 		public static Vector3 HeadScaledDown = Vector3.zero;
 		public static bool HasTPoseEvent = false;
 		public const string Locomotion = "Locomotion";

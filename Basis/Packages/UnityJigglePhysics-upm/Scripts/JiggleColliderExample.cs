@@ -1,4 +1,3 @@
-using System;
 using GatorDragonGames.JigglePhysics;
 using UnityEngine;
 
