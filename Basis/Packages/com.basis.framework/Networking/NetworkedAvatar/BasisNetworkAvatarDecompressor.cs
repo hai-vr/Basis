@@ -2,10 +2,8 @@ using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Profiler;
 using System;
-using System.Collections.Generic;
 using Unity.Mathematics;
 using static SerializableBasis;
-
 namespace Basis.Scripts.Networking.NetworkedAvatar
 {
     public static class BasisNetworkAvatarDecompressor
@@ -22,13 +20,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 throw new ArgumentException("Cannot serialize avatar data.");
             }
             byte[] data = syncMessage.avatarSerialization.array;
-            int offset = 0;
             int length = data.Length;
             if (length >= LocalAvatarSyncMessage.AvatarSyncSize)
             {
+                int offset = 0;
                 double Interval = (double)BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;// Interval + syncMessage.interval
-                BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, baseReceiver, (double)(Interval + (double)syncMessage.interval) / 1000f);
-                EnqueueAndProcessAdditionalData(baseReceiver, ref avatarBuffer, syncMessage.avatarSerialization, length);
+                BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, (double)(Interval + (double)syncMessage.interval) / 1000f);
+                EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, syncMessage.avatarSerialization, length);
             }
             else
             {
@@ -48,12 +46,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 throw new ArgumentException("Cannot serialize inital avatar data.");
             }
             byte[] data = avatarSerialization.array;
-            int offset = 0;
             int length = data.Length;
             if (length >= LocalAvatarSyncMessage.AvatarSyncSize)
             {
-                BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, baseReceiver, 0.01f);
-                EnqueueAndProcessAdditionalData(baseReceiver, ref avatarBuffer, avatarSerialization, length);
+                int offset = 0;
+                BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, 0.01f);
+                EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, avatarSerialization, length);
             }
             else
             {
@@ -61,15 +59,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
         }
 
-        private static BasisAvatarBuffer CreateAvatarBuffer(byte[] data, ref int offset, BasisNetworkReceiver baseReceiver, double SecondsInterval)
+        private static BasisAvatarBuffer CreateAvatarBuffer(byte[] data, ref int offset,double SecondsInterval)
         {
-            var position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset);
-            var rotation = BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, BasisNetworkPlayer.RotationCompression, ref offset);
-           BasisAvatarBuffer Buffer = BasisAvatarBufferPool.Get();
+            BasisAvatarBuffer Buffer = BasisAvatarBufferPool.Get();
+            Buffer.Position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset);
+            Buffer.rotation = BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, BasisNetworkPlayer.RotationCompression, ref offset);
             DecompressAvatarMuscles_NoLoop(data, ref Buffer.Muscles, ref offset);
             Buffer.Scale = MuscleDecompress(BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset), MinimumValueSupported, MaximumValueSupported);
-            Buffer.rotation = rotation;
-            Buffer.Position = position;
             Buffer.SecondsInterval = SecondsInterval;
             return Buffer;
         }
@@ -77,10 +73,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public static void DecompressAvatarMuscles_NoLoop(byte[] data, ref float[] floatArray, ref int offset)
         {
             int dataPos = offset;
-            if (floatArray == null || floatArray.Length != 95)
-            {
-                floatArray = new float[95];
-            }
             void ReadCompressed(int index, bool AsByte,ref float[] floatArray)
             {
                 float normalized;
@@ -229,13 +221,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             float normalized = value / FloatRangeDifference;
             return normalized * (maxValue - minValue) + minValue;
         }
-        private static void EnqueueAndProcessAdditionalData(BasisNetworkReceiver baseReceiver, ref BasisAvatarBuffer avatarBuffer, LocalAvatarSyncMessage message, int dataLength)
+        private static void EnqueueAndProcessAdditionalData(BasisNetworkReceiver baseReceiver, BasisAvatarBuffer avatarBuffer, LocalAvatarSyncMessage message, int dataLength)
         {
             // Add to profiler
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, dataLength);
 
             // Queue the avatar buffer
-            baseReceiver.EnQueueAvatarBuffer(ref avatarBuffer);
+            baseReceiver.EnQueueAvatarBuffer(avatarBuffer);
 
             // Process additional avatar data
             if (message.AdditionalAvatarDataSize > 0 && message.AdditionalAvatarDatas != null)

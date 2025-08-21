@@ -145,7 +145,7 @@ namespace Basis.Scripts.Networking
             {
                 Instance = this;
             }
-            BasisRemoteNetworkDriver.Initialize(95,64, Unity.Collections.Allocator.Persistent);
+            BasisRemoteNetworkDriver.Initialize(95, Unity.Collections.Allocator.Persistent);
             if (HasDisconnectReason)
             {
                 HandleDisconnectionReason(LastDisconnectInfo);

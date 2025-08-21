@@ -1,6 +1,5 @@
 using Basis.Scripts.Networking.Receivers;
 using System;
-using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -9,23 +8,29 @@ using UnityEngine;
 public static partial class BasisRemoteNetworkDriver
 {
     /// <summary>
-    /// Returns the number of active (registered) players.
+    /// Fixed capacity for this driver instance.
     /// </summary>
-    public static int ActivePlayerCount => _activePlayers.Count;
+    public const int FixedCapacity = 1024;
+
+    /// <summary>
+    /// Returns the number of active indices (max index that has been written + 1).
+    /// This is advanced automatically when you call SetInputs for a higher index.
+    /// </summary>
+    public static int ActivePlayerCount => _activeCount;
 
     /// <summary>
     /// Muscle count used by the driver.
     /// </summary>
     public static int MuscleCount => _muscleCount;
 
-    // Native buffers (size == _capacity, except muscles which is _capacity * _muscleCount)
+    // Native buffers (size == FixedCapacity, except muscles which is FixedCapacity * _muscleCount)
     static NativeArray<float3> _prevPositions;
     static NativeArray<float3> _targetPositions;
     static NativeArray<float3> _prevScales;
     static NativeArray<float3> _targetScales;
     static NativeArray<quaternion> _prevRotations;
     static NativeArray<quaternion> _targetRotations;
-    static NativeArray<float> _interpolationTimes; // per-player dt or interpolation t
+    static NativeArray<float> _interpolationTimes; // per-index dt or interpolation t
 
     static NativeArray<float3> _outPositions;
     static NativeArray<float3> _outScales;
@@ -46,18 +51,13 @@ public static partial class BasisRemoteNetworkDriver
     static float Beta = 0.01f;
     static float DerivativeCutoff = 1.0f;
 
-    // Managed bookkeeping
-    static readonly List<BasisNetworkReceiver> _activePlayers = new List<BasisNetworkReceiver>(128);
-    static readonly Dictionary<BasisNetworkReceiver, int> _indexMap = new Dictionary<BasisNetworkReceiver, int>(128);
-    static readonly Stack<int> _freeIndices = new Stack<int>(128);
-
-    static readonly List<BasisNetworkReceiver> _pendingAdd = new List<BasisNetworkReceiver>(32);
-    static readonly List<BasisNetworkReceiver> _pendingRemove = new List<BasisNetworkReceiver>(32);
-
-    static int _capacity;
+    // State
     static int _muscleCount;
     static bool _initialized;
+    static int _activeCount; // highest index written + 1
     static Allocator _allocator = Allocator.Persistent;
+
+    public static JobHandle oneEuroJob;
 
     static void EnsureInitialized()
     {
@@ -66,21 +66,42 @@ public static partial class BasisRemoteNetworkDriver
     }
 
     /// <summary>
-    /// Initialize the driver. Must be called before any Add/Simulate/Shutdown.
+    /// Initialize the driver with a fixed capacity of 1024. Must be called before SetInputs/Compute/Apply/GetOutputs.
     /// </summary>
-    public static void Initialize(int muscleCount, int initialCapacity = 64, Allocator allocator = Allocator.Persistent)
+    public static void Initialize(int muscleCount, Allocator allocator = Allocator.Persistent)
     {
         if (_initialized) return;
 
         if (muscleCount <= 0)
-        {
             throw new ArgumentOutOfRangeException(nameof(muscleCount));
-        }
+
         _allocator = allocator;
         _muscleCount = muscleCount;
-        _capacity = math.max(16, initialCapacity);
+        _activeCount = 0;
 
-        AllocateAll(_capacity);
+        AllocateAll(FixedCapacity);
+
+        // Seed defaults
+        for (int i = 0; i < FixedCapacity; i++)
+        {
+            _prevScales[i] = new float3(1, 1, 1);
+            _targetScales[i] = new float3(1, 1, 1);
+            _prevRotations[i] = quaternion.identity;
+            _targetRotations[i] = quaternion.identity;
+            _interpolationTimes[i] = 0f;
+        }
+
+        // Seed muscles/filter state
+        int flat = FixedCapacity * _muscleCount;
+        for (int c = 0; c < flat; c++)
+        {
+            _prevMuscles[c] = 0f;
+            _targetMuscles[c] = 0f;
+            _outMuscles[c] = 0f;
+            euroValuesOutput[c] = 0f;
+            positionFilters[c] = float2.zero;
+            derivativeFilters[c] = float2.zero;
+        }
 
         _initialized = true;
     }
@@ -93,44 +114,17 @@ public static partial class BasisRemoteNetworkDriver
         if (!_initialized) return;
 
         DisposeAll();
-
-        _indexMap.Clear();
-        _freeIndices.Clear();
-        _activePlayers.Clear();
-        _pendingAdd.Clear();
-        _pendingRemove.Clear();
-
+        _activeCount = 0;
+        _muscleCount = 0;
         _initialized = false;
     }
 
     /// <summary>
-    /// Queue a player to be added. The player gets assigned a stable index at the start of the next Simulate().
+    /// Write inputs for a given index (0..FixedCapacity-1) for this frame.
+    /// You manage indices yourself; this driver never resizes or re-maps.
     /// </summary>
-    public static void AddPlayer(BasisNetworkReceiver player)
-    {
-        if (player == null) return;
-        EnsureInitialized();
-        if (_indexMap.ContainsKey(player)) return;
-        _pendingAdd.Add(player);
-    }
-
-    /// <summary>
-    /// Queue a player to be removed. Removal is applied at the start of the next Simulate().
-    /// </summary>
-    public static void RemovePlayer(BasisNetworkReceiver player)
-    {
-        if (player == null) return;
-        EnsureInitialized();
-        if (!_indexMap.ContainsKey(player)) return;
-        _pendingRemove.Add(player);
-    }
-
-    /// <summary>
-    /// Write the per-player inputs for this frame (previous/target transform, interpolation t, and muscles).
-    /// Call after AddPlayer and before Compute().
-    /// </summary>
-    public static void SetPlayerInputs(
-        BasisNetworkReceiver player,
+    public static void SetInputs(
+        int index,
         float3 prevPos, float3 targetPos,
         float3 prevScale, float3 targetScale,
         quaternion prevRot, quaternion targetRot,
@@ -138,60 +132,82 @@ public static partial class BasisRemoteNetworkDriver
         float[] prevMuscles, float[] targetMuscles)
     {
         EnsureInitialized();
-        if (!_indexMap.TryGetValue(player, out var idx)) return;
+        if ((uint)index >= FixedCapacity)
+            throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
 
-        _prevPositions[idx] = prevPos;
-        _targetPositions[idx] = targetPos;
-        _prevScales[idx] = prevScale;
-        _targetScales[idx] = targetScale;
-        _prevRotations[idx] = prevRot;
-        _targetRotations[idx] = targetRot;
-        _interpolationTimes[idx] = math.clamp(interpolationTime, 0f, 1f);
+        if (prevMuscles == null || targetMuscles == null)
+            throw new ArgumentNullException("prevMuscles/targetMuscles must be non-null arrays");
 
-        // Flattened write: [idx * MuscleCount .. (idx+1) * MuscleCount)
-        int baseOffset = idx * _muscleCount;
+        if (prevMuscles.Length < _muscleCount || targetMuscles.Length < _muscleCount)
+            throw new ArgumentException($"prevMuscles/targetMuscles must have length >= {_muscleCount}");
 
-        // Copy muscles (NativeArray.Copy handles same-length validation)
+        _prevPositions[index] = prevPos;
+        _targetPositions[index] = targetPos;
+        _prevScales[index] = prevScale;
+        _targetScales[index] = targetScale;
+        _prevRotations[index] = prevRot;
+        _targetRotations[index] = targetRot;
+        _interpolationTimes[index] = math.clamp(interpolationTime, 0f, 1f);
+
+        // Flattened write: [index * MuscleCount .. (index+1) * MuscleCount)
+        int baseOffset = index * _muscleCount;
+
         NativeArray<float>.Copy(prevMuscles, 0, _prevMuscles, baseOffset, _muscleCount);
         NativeArray<float>.Copy(targetMuscles, 0, _targetMuscles, baseOffset, _muscleCount);
+
+        // Advance active count if needed
+        if (index + 1 > _activeCount) _activeCount = index + 1;
     }
 
     /// <summary>
-    /// Read back the computed outputs for a player after Apply().
+    /// Optional: reset a given index back to defaults (zeros/identity). Useful if you stop updating an index.
     /// </summary>
-    public static bool GetPlayerOutputs(
-        BasisNetworkReceiver player,
-        out float3 outPos, out float3 outScale, out quaternion outRot,
-        ref float[] outMuscles) // length == MuscleCount
+    public static void ResetIndex(int index)
     {
         EnsureInitialized();
-        outPos = default;
-        outScale = default;
-        outRot = default;
+        if ((uint)index >= FixedCapacity)
+            throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
 
-        if (!_indexMap.TryGetValue(player, out var idx)) return false;
+        _prevPositions[index] = default;
+        _targetPositions[index] = default;
+        _prevScales[index] = new float3(1, 1, 1);
+        _targetScales[index] = new float3(1, 1, 1);
+        _prevRotations[index] = quaternion.identity;
+        _targetRotations[index] = quaternion.identity;
+        _interpolationTimes[index] = 0f;
 
-        outPos = _outPositions[idx];
-        outScale = _outScales[idx];
-        outRot = _outRotations[idx];
+        int baseOffset = index * _muscleCount;
+        for (int m = 0; m < _muscleCount; m++)
+        {
+            int flat = baseOffset + m;
+            _prevMuscles[flat] = 0f;
+            _targetMuscles[flat] = 0f;
+            _outMuscles[flat] = 0f;
 
-        int baseOffset = idx * _muscleCount;
-        NativeArray<float>.Copy(euroValuesOutput, baseOffset, outMuscles, 0, _muscleCount);
-        return true;
+            euroValuesOutput[flat] = 0f;
+            positionFilters[flat] = float2.zero;
+            derivativeFilters[flat] = float2.zero;
+        }
+
+        // Optionally shrink active count if we cleared the tail
+        if (index == _activeCount - 1)
+        {
+            int newCount = index;
+            // Walk backwards to find last non-zero time OR simply collapse to first index with any usage.
+            // Cheap approach: just decrement; users may call ResetIndex on many tails in a row.
+            _activeCount = newCount;
+        }
     }
 
     /// <summary>
     /// Run the batched jobs once for the current frame.
-    /// It applies pending adds/removes in a safe place, resizes buffers if needed, and completes the jobs.
     /// </summary>
     public static void Compute()
     {
         EnsureInitialized();
 
-        ApplyPendingAddsAndRemoves();
-
-        int numPlayers = _activePlayers.Count;
-        if (numPlayers == 0) return;
+        int num = _activeCount;
+        if (num <= 0) return;
 
         var avatarJob = new UpdateAllAvatarsJob
         {
@@ -206,42 +222,69 @@ public static partial class BasisRemoteNetworkDriver
             OutputPositions = _outPositions,
             OutputScales = _outScales,
             OutputRotations = _outRotations
-        }.Schedule(numPlayers, 64);
+        }.Schedule(num, 128);
 
         // Interpolate muscles across players * muscles (flattened)
         JobHandle musclesJob = new UpdateAllAvatarMusclesJob
         {
             PreviousMuscles = _prevMuscles,
             TargetMuscles = _targetMuscles,
-            InterpolationTimes = _interpolationTimes, // IMPORTANT: this job must index by player, not flattened
+            InterpolationTimes = _interpolationTimes, // index-based per "player"
             OutputMuscles = _outMuscles,
             MuscleCountPerAvatar = _muscleCount
-        }.Schedule(numPlayers * _muscleCount, 128, avatarJob);
+        }.Schedule(num * _muscleCount, 128, avatarJob);
 
         // 1€ filter: read interpolated muscles, write filtered output
         oneEuroJob = new BasisOneEuroFilterParallelJob
         {
-            InputValues = _outMuscles,          // raw/interpolated input per (player,muscle)
+            InputValues = _outMuscles,          // raw/interpolated input per (index,muscle)
             OutputValues = euroValuesOutput,    // filtered output
-            DeltaTime = _interpolationTimes,    // per-player dt / interpolation t
+            DeltaTime = _interpolationTimes,    // per-index dt / interpolation t
             MinCutoff = MinCutoff,
             Beta = Beta,
             DerivativeCutoff = DerivativeCutoff,
             PositionFilters = positionFilters,
             DerivativeFilters = derivativeFilters,
             MuscleCountPerAvatar = _muscleCount
-        }.Schedule(numPlayers * _muscleCount, 64, musclesJob);
+        }.Schedule(num * _muscleCount, 128, musclesJob);
     }
-
-    public static JobHandle oneEuroJob;
 
     /// <summary>
     /// Completes all scheduled work for this frame.
     /// </summary>
     public static void Apply()
     {
+        if (!_initialized) return;
         oneEuroJob.Complete();
     }
+
+    /// <summary>
+    /// Read back the computed outputs for an index after Apply().
+    /// </summary>
+    public static bool GetOutputs(
+        int index,
+        out float3 outPos, out float3 outScale, out quaternion outRot,
+        ref float[] outMuscles) // length == MuscleCount
+    {
+        EnsureInitialized();
+        outPos = default;
+        outScale = default;
+        outRot = default;
+
+        if ((uint)index >= FixedCapacity) return false;
+        if (outMuscles == null || outMuscles.Length < _muscleCount)
+            outMuscles = new float[_muscleCount];
+
+        outPos = _outPositions[index];
+        outScale = _outScales[index];
+        outRot = _outRotations[index];
+
+        int baseOffset = index * _muscleCount;
+        NativeArray<float>.Copy(euroValuesOutput, baseOffset, outMuscles, 0, _muscleCount);
+        return true;
+    }
+
+    // ---------------- internal allocation helpers ----------------
 
     static void AllocateAll(int capacity)
     {
@@ -292,173 +335,5 @@ public static partial class BasisRemoteNetworkDriver
         if (euroValuesOutput.IsCreated) euroValuesOutput.Dispose();
         if (positionFilters.IsCreated) positionFilters.Dispose();
         if (derivativeFilters.IsCreated) derivativeFilters.Dispose();
-    }
-
-    static void GrowIfNeeded(int requiredPlayers)
-    {
-        if (requiredPlayers <= _capacity) return;
-
-        int newCapacity = math.max(requiredPlayers, _capacity * 2);
-
-        // Keep old references
-        var old_prevPositions = _prevPositions;
-        var old_targetPositions = _targetPositions;
-        var old_prevScales = _prevScales;
-        var old_targetScales = _targetScales;
-        var old_prevRotations = _prevRotations;
-        var old_targetRotations = _targetRotations;
-        var old_interpolationTimes = _interpolationTimes;
-
-        var old_outPositions = _outPositions;
-        var old_outScales = _outScales;
-        var old_outRotations = _outRotations;
-
-        var old_prevMuscles = _prevMuscles;
-        var old_targetMuscles = _targetMuscles;
-        var old_outMuscles = _outMuscles;
-
-        var old_euroValuesOutput = euroValuesOutput;
-        var old_positionFilters = positionFilters;
-        var old_derivativeFilters = derivativeFilters;
-
-        // Allocate new
-        AllocateAll(newCapacity);
-
-        // Copy transform data
-        NativeArray<float3>.Copy(old_prevPositions, _prevPositions, old_prevPositions.Length);
-        NativeArray<float3>.Copy(old_targetPositions, _targetPositions, old_targetPositions.Length);
-        NativeArray<float3>.Copy(old_prevScales, _prevScales, old_prevScales.Length);
-        NativeArray<float3>.Copy(old_targetScales, _targetScales, old_targetScales.Length);
-        NativeArray<quaternion>.Copy(old_prevRotations, _prevRotations, old_prevRotations.Length);
-        NativeArray<quaternion>.Copy(old_targetRotations, _targetRotations, old_targetRotations.Length);
-        NativeArray<float>.Copy(old_interpolationTimes, _interpolationTimes, old_interpolationTimes.Length);
-
-        NativeArray<float3>.Copy(old_outPositions, _outPositions, old_outPositions.Length);
-        NativeArray<float3>.Copy(old_outScales, _outScales, old_outScales.Length);
-        NativeArray<quaternion>.Copy(old_outRotations, _outRotations, old_outRotations.Length);
-
-        // Copy muscles
-        NativeArray<float>.Copy(old_prevMuscles, _prevMuscles, old_prevMuscles.Length);
-        NativeArray<float>.Copy(old_targetMuscles, _targetMuscles, old_targetMuscles.Length);
-        NativeArray<float>.Copy(old_outMuscles, _outMuscles, old_outMuscles.Length);
-
-        // Copy Euro filter buffers
-        NativeArray<float>.Copy(old_euroValuesOutput, euroValuesOutput, old_euroValuesOutput.Length);
-        NativeArray<float2>.Copy(old_positionFilters, positionFilters, old_positionFilters.Length);
-        NativeArray<float2>.Copy(old_derivativeFilters, derivativeFilters, old_derivativeFilters.Length);
-
-        // Dispose old
-        old_prevPositions.Dispose();
-        old_targetPositions.Dispose();
-        old_prevScales.Dispose();
-        old_targetScales.Dispose();
-        old_prevRotations.Dispose();
-        old_targetRotations.Dispose();
-        old_interpolationTimes.Dispose();
-
-        old_outPositions.Dispose();
-        old_outScales.Dispose();
-        old_outRotations.Dispose();
-
-        old_prevMuscles.Dispose();
-        old_targetMuscles.Dispose();
-        old_outMuscles.Dispose();
-
-        old_euroValuesOutput.Dispose();
-        old_positionFilters.Dispose();
-        old_derivativeFilters.Dispose();
-
-        _capacity = newCapacity;
-    }
-
-    static void ApplyPendingAddsAndRemoves()
-    {
-        // Removals first
-        if (_pendingRemove.Count > 0)
-        {
-            for (int i = 0; i < _pendingRemove.Count; i++)
-            {
-                var p = _pendingRemove[i];
-                if (!_indexMap.TryGetValue(p, out var idx)) continue;
-
-                // Clear data
-                _prevPositions[idx] = default;
-                _targetPositions[idx] = default;
-                _prevScales[idx] = new float3(1, 1, 1);
-                _targetScales[idx] = new float3(1, 1, 1);
-                _prevRotations[idx] = quaternion.identity;
-                _targetRotations[idx] = quaternion.identity;
-                _interpolationTimes[idx] = 0f;
-
-                int baseOffset = idx * _muscleCount;
-                for (int m = 0; m < _muscleCount; m++)
-                {
-                    int flat = baseOffset + m;
-                    _prevMuscles[flat] = 0f;
-                    _targetMuscles[flat] = 0f;
-                    _outMuscles[flat] = 0f;
-
-                    // Reset Euro filter state
-                    euroValuesOutput[flat] = 0f;
-                    positionFilters[flat] = float2.zero;
-                    derivativeFilters[flat] = float2.zero;
-                }
-
-                _indexMap.Remove(p);
-                _activePlayers.Remove(p);
-                _freeIndices.Push(idx);
-            }
-            _pendingRemove.Clear();
-        }
-
-        // Adds next
-        if (_pendingAdd.Count > 0)
-        {
-            int requiredPlayers = _activePlayers.Count + _pendingAdd.Count;
-            GrowIfNeeded(requiredPlayers);
-
-            for (int Index = 0; Index < _pendingAdd.Count; Index++)
-            {
-                var p = _pendingAdd[Index];
-                if (_indexMap.ContainsKey(p)) continue;
-
-                int idx = _freeIndices.Count > 0 ? _freeIndices.Pop() : _activePlayers.Count;
-
-                if (idx == _activePlayers.Count)
-                {
-                    _activePlayers.Add(p);
-                }
-                else
-                {
-                    while (_activePlayers.Count <= idx) _activePlayers.Add(null);
-                    _activePlayers[idx] = p;
-                }
-
-                _indexMap[p] = idx;
-
-                // Seed defaults
-                _prevScales[idx] = new float3(1, 1, 1);
-                _targetScales[idx] = new float3(1, 1, 1);
-                _prevRotations[idx] = quaternion.identity;
-                _targetRotations[idx] = quaternion.identity;
-                _interpolationTimes[idx] = 0f;
-
-                int baseOffset = idx * _muscleCount;
-                for (int m = 0; m < _muscleCount; m++)
-                {
-                    int flat = baseOffset + m;
-                    _prevMuscles[flat] = 0f;
-                    _targetMuscles[flat] = 0f;
-                    _outMuscles[flat] = 0f;
-
-                    // Initialize Euro filter state
-                    euroValuesOutput[flat] = 0f;
-                    positionFilters[flat] = float2.zero;
-                    derivativeFilters[flat] = float2.zero;
-                }
-            }
-
-            _pendingAdd.Clear();
-        }
     }
 }
