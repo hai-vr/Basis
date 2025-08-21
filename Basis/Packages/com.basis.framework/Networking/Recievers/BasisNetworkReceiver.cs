@@ -118,14 +118,16 @@ namespace Basis.Scripts.Networking.Receivers
             }
         }
 
-        public void Apply(double timeNow)
+        public void Apply()
         {
-            if (BasisRemoteNetworkDriver.GetOutputs(playerId, out ApplyingPosition, out ApplyingScale, out ApplyingRotation, ref Muscles))
+            if (BufferHolder.HasFirst && BufferHolder.HasLast)
             {
-                ApplyComputedData();
+                if (BasisRemoteNetworkDriver.GetOutputs(playerId, out ApplyingPosition, out ApplyingScale, out ApplyingRotation, ref Muscles))
+                {
+                    ApplyComputedData();
+                }
             }
         }
-
         public void ApplyComputedData()
         {
             ApplyPoseData(Player.AvatarTransform, Player.BasisAvatar.AnimatorHumanScale, ApplyingScale, ApplyingPosition, ApplyingRotation, Muscles);

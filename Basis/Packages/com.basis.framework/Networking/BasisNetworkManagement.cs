@@ -247,7 +247,7 @@ namespace Basis.Scripts.Networking
                 BasisNetworkProfiler.Update();
             }
         }
-        public static void SimulateNetworkApply(double TimeAsDouble)
+        public static void SimulateNetworkApply()
         {
             if (NetworkRunning)
             {
@@ -257,7 +257,7 @@ namespace Basis.Scripts.Networking
                 {
                     if (ReceiversSnapshot[Index] != null)
                     {
-                        ReceiversSnapshot[Index].Apply(TimeAsDouble);
+                        ReceiversSnapshot[Index].Apply();
                     }
                 }
             }

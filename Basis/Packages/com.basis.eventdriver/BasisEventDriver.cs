@@ -81,7 +81,7 @@ public class BasisEventDriver : MonoBehaviour
         BasisLocalMicrophoneDriver.MicrophoneUpdate();
 #endif
         BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
-        BasisNetworkManagement.SimulateNetworkApply(TimeAsDouble);
+        BasisNetworkManagement.SimulateNetworkApply();
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
 #if UNITY_SERVER
         OnBeforeRender();
