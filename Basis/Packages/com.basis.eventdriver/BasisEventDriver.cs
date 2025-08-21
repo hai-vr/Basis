@@ -1,5 +1,6 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Transmitters;
@@ -86,8 +87,19 @@ public class BasisEventDriver : MonoBehaviour
 #if UNITY_SERVER
         OnBeforeRender();
 #endif
-        JigglePhysics.ScheduleUpdate(TimeAsDouble);
-        JigglePhysics.CompleteUpdate();
+        if(BasisLocalAvatarDriver.IsNormalHead == false)
+        {
+            BasisLocalAvatarDriver.ScaleHeadToNormal();
+            JigglePhysics.ScheduleUpdate(TimeAsDouble);
+            JigglePhysics.CompleteUpdate();
+            BasisLocalAvatarDriver.ScaleheadToZero();
+        }
+        else
+        {
+            //if the local head is good already just continue on.
+            JigglePhysics.ScheduleUpdate(TimeAsDouble);
+            JigglePhysics.CompleteUpdate();
+        }
     }
     private void OnBeforeRender()
     {
