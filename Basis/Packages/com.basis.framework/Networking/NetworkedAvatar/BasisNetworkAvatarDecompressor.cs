@@ -15,53 +15,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         private const ushort UShortMin = ushort.MinValue;
         private const ushort UShortMax = ushort.MaxValue;
         private const float FloatRangeDifference = UShortMax - UShortMin;
-        public static class FloatPool
-        {
-            private const int PoolCount = 32;
-            private const int PoolSize = 95;
-
-            // Internal list of available pools
-            private static readonly Queue<float[]> availablePools = new Queue<float[]>(PoolCount);
-
-            // Initialize all pools
-            static FloatPool()
-            {
-                for (int i = 0; i < PoolCount; i++)
-                {
-                    availablePools.Enqueue(new float[PoolSize]);
-                }
-            }
-
-            /// <summary>
-            /// Get a float[95] from the pool
-            /// </summary>
-            public static float[] Get()
-            {
-                if (availablePools.Count > 0)
-                {
-                    return availablePools.Dequeue();
-                }
-
-                // All pools are in use; create a new one if needed
-                return new float[PoolSize];
-            }
-
-            /// <summary>
-            /// Return a float[95] to the pool
-            /// </summary>
-            public static void Return(float[] array)
-            {
-                if (array == null || array.Length != PoolSize)
-                {
-                    throw new System.ArgumentException($"Returned array must be of length {PoolSize}");
-                }
-
-                if (availablePools.Count < 1024)//max connections we can sustain
-                {
-                    availablePools.Enqueue(array);
-                }
-            }
-        }
         public static void DecompressAndProcessAvatar(BasisNetworkReceiver baseReceiver, ServerSideSyncPlayerMessage syncMessage)
         {
             if (syncMessage.avatarSerialization.array == null)
@@ -112,24 +65,22 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             var position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset);
             var rotation = BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, BasisNetworkPlayer.RotationCompression, ref offset);
-            float[] Data = FloatPool.Get();
-            DecompressAvatarMuscles_NoLoop(data, ref Data, ref offset);
-            float scale = MuscleDecompress(BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset), MinimumValueSupported, MaximumValueSupported);
-
-            return new BasisAvatarBuffer
-            {
-                Position = position,
-                rotation = rotation,
-                Muscles = Data,
-                Scale = scale,
-                SecondsInterval = SecondsInterval
-            };
+           BasisAvatarBuffer Buffer = BasisAvatarBufferPool.Get();
+            DecompressAvatarMuscles_NoLoop(data, ref Buffer.Muscles, ref offset);
+            Buffer.Scale = MuscleDecompress(BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset), MinimumValueSupported, MaximumValueSupported);
+            Buffer.rotation = rotation;
+            Buffer.Position = position;
+            Buffer.SecondsInterval = SecondsInterval;
+            return Buffer;
         }
 
         public static void DecompressAvatarMuscles_NoLoop(byte[] data, ref float[] floatArray, ref int offset)
         {
             int dataPos = offset;
-
+            if (floatArray == null || floatArray.Length != 95)
+            {
+                floatArray = new float[95];
+            }
             void ReadCompressed(int index, bool AsByte,ref float[] floatArray)
             {
                 float normalized;

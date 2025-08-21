@@ -417,9 +417,9 @@ public static partial class BasisRemoteNetworkDriver
             int requiredPlayers = _activePlayers.Count + _pendingAdd.Count;
             GrowIfNeeded(requiredPlayers);
 
-            for (int i = 0; i < _pendingAdd.Count; i++)
+            for (int Index = 0; Index < _pendingAdd.Count; Index++)
             {
-                var p = _pendingAdd[i];
+                var p = _pendingAdd[Index];
                 if (_indexMap.ContainsKey(p)) continue;
 
                 int idx = _freeIndices.Count > 0 ? _freeIndices.Pop() : _activePlayers.Count;

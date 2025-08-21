@@ -103,11 +103,11 @@ namespace Basis.Scripts.BasisSdk.Players
                 {
                     return;
                 }
-                if (NetworkReceiver.First == null)
+                if (NetworkReceiver.First.Equals(default))
                 {
                     return;
                 }
-                if (NetworkReceiver.Last == null)
+                if (NetworkReceiver.Last.Equals(default))
                 {
                     return;
                 }
