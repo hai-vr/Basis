@@ -183,12 +183,14 @@ namespace Basis.Scripts.Drivers
             JiggleCreatorHelper(Mapping.LeftMiddle);
             JiggleCreatorHelper(Mapping.LeftRing);
             JiggleCreatorHelper(Mapping.LeftLittle);
+            JiggleCreatorHelper(Mapping.leftHand);
 
             JiggleCreatorHelper(Mapping.RightThumb);
             JiggleCreatorHelper(Mapping.RightIndex);
             JiggleCreatorHelper(Mapping.RightMiddle);
             JiggleCreatorHelper(Mapping.RightRing);
             JiggleCreatorHelper(Mapping.RightLittle);
+            JiggleCreatorHelper(Mapping.rightHand);
             foreach (JiggleColliderSerializable Jiggle in JiggleColliders)
             {
                 JigglePhysics.AddJiggleCollider(Jiggle);

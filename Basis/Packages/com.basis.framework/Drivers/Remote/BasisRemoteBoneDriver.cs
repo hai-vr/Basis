@@ -64,14 +64,8 @@ namespace Basis.Scripts.Drivers
 
             FindBone(out Head, BasisBoneTrackedRole.Head);
             FindBone(out Hips, BasisBoneTrackedRole.Hips);
-            if (Head != null)
-            {
-                Head.HasTracked = BasisHasTracked.HasTracker;
-            }
-            if (Hips != null)
-            {
-                Hips.HasTracked = BasisHasTracked.HasTracker;
-            }
+            Head.HasTracked = BasisHasTracked.HasTracker;
+            Hips.HasTracked = BasisHasTracked.HasTracker;
             FindBone(out Mouth, BasisBoneTrackedRole.Mouth);
         }
 
@@ -81,7 +75,7 @@ namespace Basis.Scripts.Drivers
             RemotePlayer = remotePlayer;
 
             // Cache transform for repeated use
-            RemotePlayerTransform = RemotePlayer != null ? RemotePlayer.transform : null;
+            RemotePlayerTransform = RemotePlayer.transform;
 
             var animator = RemotePlayer?.BasisAvatar?.Animator;
             HeadAvatar = animator != null ? animator.GetBoneTransform(HumanBodyBones.Head) : null;
@@ -199,33 +193,9 @@ namespace Basis.Scripts.Drivers
         #endregion
 
         #region Runtime / Simulation
-
-        public void CalculateBoneData()
-        {
-            if (RemotePlayerTransform == null) return;
-
-            Vector3 rrt = RemotePlayerTransform.position;
-
-            if (Head != null && Head.HasBone && HasHead && HeadAvatar != null)
-            {
-                HeadAvatar.GetPositionAndRotation(out Vector3 pos, out Quaternion rot);
-                Head.IncomingData.position = pos - rrt;
-                Head.IncomingData.rotation = rot;
-            }
-
-            if (Hips != null && Hips.HasBone && HasHips && HipsAvatar != null)
-            {
-                HipsAvatar.GetPositionAndRotation(out Vector3 pos, out Quaternion rot);
-                Hips.IncomingData.position = pos - rrt;
-                Hips.IncomingData.rotation = rot;
-            }
-        }
-
         public void SimulateAndApplyRemote(Vector3 nowScale)
         {
-            var driver = RemotePlayer?.RemoteAvatarDriver;
-            if (driver == null) return;
-
+            var driver = RemotePlayer.RemoteAvatarDriver;//now will never be null.
             Vector3 initialScale = driver.AvatarInitalScale;
 
             // Only rescale T-pose locals if scale changed (avoid per-frame work)
@@ -234,9 +204,9 @@ namespace Basis.Scripts.Drivers
                 _lastInitialScale = initialScale;
                 _lastScale = nowScale;
 
-                for (int i = 0; i < ControlsLength; i++)
+                for (int Index = 0; Index < ControlsLength; Index++)
                 {
-                    BasisRemoteBoneControl control = Controls[i];
+                    BasisRemoteBoneControl control = Controls[Index];
                     if (control == null) continue;
 
                     // Apply relative scale to T-pose local position
@@ -246,12 +216,6 @@ namespace Basis.Scripts.Drivers
 
             RemotePlayer.OnPreSimulateBones?.Invoke();
 
-            SimulateRemote();
-            CalculateBoneData();
-        }
-
-        public void SimulateRemote()
-        {
             // Sequence devices
             for (int i = 0; i < ControlsLength; i++)
             {
@@ -263,8 +227,16 @@ namespace Basis.Scripts.Drivers
             {
                 DrawGizmos();
             }
-        }
+            Vector3 rrt = RemotePlayerTransform.position;
 
+            HeadAvatar.GetPositionAndRotation(out Vector3 Headpos, out Quaternion Headrot);
+            Head.IncomingData.position = Headpos - rrt;
+            Head.IncomingData.rotation = Headrot;
+
+            HipsAvatar.GetPositionAndRotation(out Vector3 Hipspos, out Quaternion Hipsrot);
+            Hips.IncomingData.position = Hipspos - rrt;
+            Hips.IncomingData.rotation = Hipsrot;
+        }
         #endregion
 
         #region Gizmos
