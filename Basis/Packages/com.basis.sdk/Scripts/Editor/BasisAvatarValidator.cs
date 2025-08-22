@@ -344,12 +344,12 @@ public class BasisAvatarValidator
             }
 
             Shader shader = mat.shader;
-            int propertyCount = ShaderUtil.GetPropertyCount(shader);
+            int propertyCount = shader.GetPropertyCount();
             for (int Index = 0; Index < propertyCount; Index++)
             {
-                if (ShaderUtil.GetPropertyType(shader, Index) == ShaderUtil.ShaderPropertyType.TexEnv)
+                if (shader.GetPropertyType(Index) ==  UnityEngine.Rendering.ShaderPropertyType.Texture)
                 {
-                    string propName = ShaderUtil.GetPropertyName(shader, Index);
+                    string propName = shader.GetPropertyName(Index);
                     if (mat.HasProperty(propName))
                     {
                         Texture tex = mat.GetTexture(propName);
