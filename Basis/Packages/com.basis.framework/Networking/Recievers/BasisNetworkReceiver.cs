@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.UIElements;
 using static SerializableBasis;
 
 namespace Basis.Scripts.Networking.Receivers
@@ -169,7 +170,8 @@ namespace Basis.Scripts.Networking.Receivers
             if (AudioReceiverModule.HasTransform)
             {
                 var outgoing = RemotePlayer.RemoteBoneDriver.Mouth.OutGoingData;
-                AudioReceiverModule.AudioSourceTransform.SetPositionAndRotation(outgoing.position, outgoing.rotation);
+               //AudioReceiverModule.AudioSourceTransform.SetPositionAndRotation(outgoing.position, outgoing.rotation);
+                BasisAudioTransformDriver.EnqueueSet(AudioReceiverModule.AudioSourceTransform, outgoing.position, outgoing.rotation);
             }
 
             if (RemotePlayer.HasRemoteNamePlate)
@@ -216,6 +218,7 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public override void DeInitialize()
         {
+
             BufferHolder.ClearAndRelease();
             if (_staged != null)
             {

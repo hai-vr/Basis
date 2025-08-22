@@ -152,6 +152,7 @@ namespace Basis.Scripts.Networking
                 HasDisconnectReason = false;
                 LastDisconnectInfo = default;
             }
+            BasisAudioTransformDriver.Initialize(1024);
             BasisAudioRemoteSource.Initalize();
             instantiationParameters = new InstantiationParameters(Vector3.zero, Quaternion.identity, BasisDeviceManagement.Instance.transform);
             BasisMuscleRange.Initalize();
@@ -217,7 +218,7 @@ namespace Basis.Scripts.Networking
             BasisNetworkPlayer.OnLocalPlayerLeft = null;
             BasisNetworkPlayer.OnRemotePlayerLeft = null;
             OnEnableInstanceCreate = null;
-
+            BasisAudioTransformDriver.Shutdown();
             // Reset instance fields
             Instance = null;
             OwnershipPairing.Clear();
@@ -260,6 +261,8 @@ namespace Basis.Scripts.Networking
                         ReceiversSnapshot[Index].Apply();
                     }
                 }
+                BasisAudioTransformDriver.BeginFrame();
+                BasisAudioTransformDriver.EndFrame();
             }
         }
         public static bool TryGetLocalPlayerID(out ushort LocalID)

@@ -74,6 +74,7 @@ namespace Basis.Scripts.Networking.Receivers
             }
             if (AudioSourceTransform != null)
             {
+                BasisAudioTransformDriver.RequestRemove(AudioSourceTransform);
                 BasisAudioRemoteSource.Return(AudioSourceTransform.gameObject);
                 AudioSourceTransform = null;
                 HasTransform = false;
