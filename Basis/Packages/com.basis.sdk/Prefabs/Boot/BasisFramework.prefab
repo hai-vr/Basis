@@ -46,7 +46,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4ea7f8ee05ae1754488a389ba53893fb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Ip: basis.jinxxy.com
+  Ip: server1.basisvr.org
   Port: 4296
   Password: default_password
   IsHostMode: 0
@@ -54,6 +54,7 @@ MonoBehaviour:
     LastLinkedAvatarIndex: 0
     Player: {fileID: 0}
     hasID: 0
+    playerId: 0
     NetworkBehaviourCount: 0
     NetworkBehaviours: []
     HasEvents: 0
@@ -112,97 +113,6 @@ MonoBehaviour:
         buffer: 
         TotalLength: 0
         LengthUsed: 0
-    storedAvatarData:
-      FloatArray:
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
-      - 0
     IndexLength: 0
     MicrophoneRangeIndex: 
     LastMicrophoneRangeIndex: 
@@ -885,9 +795,6 @@ MonoBehaviour:
     ActiveOnModes:
     - OpenVRLoader
     - OpenXRLoader
-    initialLoaders:
-    - {fileID: 11400000, guid: 3bc3c9a960a936342a72833e45544032, type: 2}
-    - {fileID: 11400000, guid: 7892f170cc4e84f4cbde6ca6d077400b, type: 2}
   BaseTypes:
   - {fileID: -1434852531052301144}
   - {fileID: 508802122937325065}
