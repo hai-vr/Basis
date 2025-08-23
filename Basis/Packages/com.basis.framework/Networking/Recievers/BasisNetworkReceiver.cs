@@ -217,7 +217,8 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public override void DeInitialize()
         {
-            BasisRemoteNetworkDriver.ResetIndex(playerId);
+          //no need we pump data always before requesting so its not a necessary step
+          //BasisRemoteNetworkDriver.ResetIndex(playerId);
             BufferHolder.ClearAndRelease();
             if (_staged != null)
             {
