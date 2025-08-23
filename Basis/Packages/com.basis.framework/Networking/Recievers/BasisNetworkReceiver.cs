@@ -214,6 +214,60 @@ namespace Basis.Scripts.Networking.Receivers
         {
             Player.BasisAvatar.AnimatorHumanScale = Vector3.one / Player.BasisAvatar.Animator.humanScale;
             AudioReceiverModule.AvatarChanged(this);
+            // Track which keys got successfully sent
+            List<byte> keysToRemove = new List<byte>();
+
+            foreach (KeyValuePair<byte, ServerAvatarDataMessageQueue> message in NextMessages)
+            {
+                ServerAvatarDataMessage avatarMessage = message.Value.ServerAvatarDataMessage;
+                RemoteAvatarDataMessage Remote = avatarMessage.avatarDataMessage;
+                PlayerIdMessage playerIdMessage = avatarMessage.playerIdMessage;
+
+                bool isSameAvatar = Remote.AvatarLinkIndex == LastLinkedAvatarIndex;
+
+                if (isSameAvatar)
+                {
+                    // Send the message now
+                    NetworkBehaviours[message.Key].OnNetworkMessageReceived(
+                        playerIdMessage.playerID,
+                        Remote.payload,
+                        message.Value.Method,
+                        false
+                    );
+
+                    // mark this message as successfully sent
+                    keysToRemove.Add(message.Key);
+                }
+                else
+                {
+                    // Check if this message is from a *past* avatar index
+                    bool isPastMessage = IsPastAvatar(Remote.AvatarLinkIndex, LastLinkedAvatarIndex);
+                    if (isPastMessage)
+                    {
+                        // Discard old/past messages
+                        BasisDebug.Log($"Discarding stale message with AvatarLinkIndex {Remote.AvatarLinkIndex}");
+                        keysToRemove.Add(message.Key);
+                    }
+                }
+            }
+
+            // remove all that were either sent or expired
+            foreach (byte key in keysToRemove)
+            {
+                NextMessages.Remove(key);
+            }
+        }
+        /// <summary>
+        /// Determines if a given avatar index is "in the past" relative to the current.
+        /// Handles wrap-around since AvatarLinkIndex is a byte (0-255).
+        /// </summary>
+        private bool IsPastAvatar(byte messageIndex, byte currentIndex)
+        {
+            // Compute difference modulo 256
+            int diff = (currentIndex - messageIndex + 256) % 256;
+
+            // If diff is between 1 and 127, then it's behind (old)
+            return diff > 0 && diff < 128;
         }
         public override void DeInitialize()
         {

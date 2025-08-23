@@ -11,6 +11,7 @@ using Basis.Scripts.TransformBinders.BoneControl;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -58,6 +59,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
         }
         public ushort playerId;
+        public Dictionary<byte, ServerAvatarDataMessageQueue> NextMessages = new Dictionary<byte, ServerAvatarDataMessageQueue>();
+        public struct ServerAvatarDataMessageQueue
+        {
+            public ServerAvatarDataMessage ServerAvatarDataMessage;
+            public LiteNetLib.DeliveryMethod Method;
+        }
         public abstract void Initialize();
         public abstract void DeInitialize();
         public void OnAvatarCalibrationLocal()
