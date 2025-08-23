@@ -356,6 +356,111 @@ public partial class BasisAvatarSDKInspector : Editor
             }
         }
     }
+#if UNITY_6000_2_OR_NEWER
+    /// <summary>
+    /// Generate Mesh LODs via ModelImporter for all SkinnedMeshRenderers under the given root.
+    /// Requires Unity 6000.2+ where ModelImporter.generateMeshLods exists.
+    /// </summary>
+    /// <param name="root">Root GameObject (e.g., your avatar/prefab in the scene or a prefab asset loaded in memory).</param>
+    /// <param name="lodLimit">
+    /// Maximum mesh LOD to generate. Use -1 to leave the current importer value unchanged.
+    /// </param>
+    public void GenerateMeshLODs(int lodLimit = -1)
+    {
+        var smrs = Avatar.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        if (smrs == null || smrs.Length == 0)
+        {
+            Debug.LogWarning($"GenerateMeshLODs: No SkinnedMeshRenderer found under.");
+        }
+
+        // Collect unique importer asset paths (FBX/OBJ). Multiple meshes often come from the same file.
+        var pathsNeedingReimport = new HashSet<string>();
+
+        foreach (var smr in smrs)
+        {
+            if (smr == null || smr.sharedMesh == null)
+                continue;
+
+            // Get the asset path for the mesh; for model sub-assets this is the FBX/OBJ path.
+            string meshPath = AssetDatabase.GetAssetPath(smr.sharedMesh);
+            if (string.IsNullOrEmpty(meshPath))
+                continue;
+
+            var importer = AssetImporter.GetAtPath(meshPath) as ModelImporter;
+            if (importer == null)
+                continue; // Not a model-imported mesh (e.g., .asset mesh), skip.
+
+            // Set importer flags
+            bool changed = false;
+
+            if (!importer.generateMeshLods)
+            {
+                importer.generateMeshLods = true;
+                changed = true;
+            }
+
+            if (lodLimit >= 0 && importer.maximumMeshLod != lodLimit)
+            {
+                importer.maximumMeshLod = lodLimit;
+                changed = true;
+            }
+
+            if (changed)
+                pathsNeedingReimport.Add(meshPath);
+
+            // Component-level preferences (do not require reimport)
+            smr.meshLodSelectionBias = 0f;
+            smr.forceMeshLod = -1;
+        }
+
+        if (pathsNeedingReimport.Count == 0)
+        {
+            Debug.Log("GenerateMeshLODs: No importer changes detected.");
+            return;
+        }
+
+        try
+        {
+            AssetDatabase.StartAssetEditing();
+
+            int i = 0;
+            int total = pathsNeedingReimport.Count;
+            foreach (var path in pathsNeedingReimport)
+            {
+                if (EditorUtility.DisplayCancelableProgressBar(
+                        "Reimporting Models (LODs)",
+                        $"{i + 1}/{total}: {path}",
+                        (float)i / total))
+                {
+                    Debug.LogWarning("GenerateMeshLODs: Canceled by user.");
+                    break;
+                }
+
+                var importer = AssetImporter.GetAtPath(path) as ModelImporter;
+                if (importer != null)
+                {
+                    // Write settings and reimport this asset immediately.
+                    // Either approach works; SaveAndReimport is the simplest.
+                    importer.SaveAndReimport();
+                    // Alternatively:
+                    // AssetDatabase.WriteImportSettingsIfDirty(path);
+                    // AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                }
+
+                i++;
+            }
+        }
+        finally
+        {
+            EditorUtility.ClearProgressBar();
+            AssetDatabase.StopAssetEditing();
+            AssetDatabase.SaveAssets();
+            // No need for AssetDatabase.Refresh(); reimports were explicit.
+        }
+
+        Debug.Log($"GenerateMeshLODs: Reimported {pathsNeedingReimport.Count} model asset(s).");
+    }
+#endif
     public void AvatarTestInEditorClickFunction()
     {
         if (!Application.isPlaying)
@@ -443,26 +548,4 @@ public partial class BasisAvatarSDKInspector : Editor
         EditorUtility.SetDirty(Avatar);
         AssetDatabase.Refresh();
     }
-#if UNITY_6000_2_OR_NEWER
-    public void GenerateMeshLODs(int lodLimit = -1)
-    {
-        var skinnedRenders = Avatar.GetComponentsInChildren<SkinnedMeshRenderer>();
-        foreach (SkinnedMeshRenderer smr in skinnedRenders)
-        {
-            smr.meshLodSelectionBias = 0;
-            smr.forceMeshLod = -1;
-            var mesh = smr.sharedMesh;
-            if (mesh == null)
-            {
-                continue;
-            }
-
-            // Use default flags or specify MeshLodUtility.LodGenerationFlags
-            MeshLodUtility.GenerateMeshLods(mesh, lodLimit);
-
-            BasisDebug.Log($"Generated up to {lodLimit} LOD(s) for mesh: {mesh.name}");
-        }
-        AssetDatabase.Refresh();
-    }
-#endif
 }

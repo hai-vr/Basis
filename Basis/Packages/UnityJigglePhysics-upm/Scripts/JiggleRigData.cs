@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using UnityEngine;
+using UnityEngine.UIElements;
+
 #if UNITY_EDITOR
 using UnityEditor;
-#endif
-#if UNITY_EDITOR
 using UnityEditor.UIElements;
-using UnityEngine.UIElements;
 #endif
-using UnityEngine;
+
 namespace GatorDragonGames.JigglePhysics {
 
 [Serializable]
@@ -20,7 +19,6 @@ public struct JiggleTransformCachedData {
 
 [Serializable]
 public struct JiggleRigData {
-    [SerializeField] public bool foldout;
     [SerializeField] public bool hasSerializedData;
     [SerializeField] public string serializedVersion;
     [SerializeField] public Transform rootBone;
@@ -46,7 +44,13 @@ public struct JiggleRigData {
     }
 
     public bool GetIsExcluded(Transform t) {
-        return excludedTransforms.Contains(t);
+        var count = excludedTransforms.Length;
+        for (int i = 0; i < count; i++) {
+            if (excludedTransforms[i] == t) {
+                return true;
+            }
+        }
+        return false;
     }
     
     public void GetJiggleColliders(List<JiggleCollider> colliders) {
@@ -64,6 +68,7 @@ public struct JiggleRigData {
     }
 
     public void OnValidate() {
+        jiggleTreeInputParameters.OnValidate();
         excludedTransforms ??= Array.Empty<Transform>();
         ValidateCurve(ref jiggleTreeInputParameters.stiffness.curve);
         ValidateCurve(ref jiggleTreeInputParameters.angleLimit.curve);
@@ -282,7 +287,9 @@ public struct JiggleRigData {
             serializedProperty,
             "CollisionRadiusControl",
             nameof(JiggleTreeInputParameters.collisionRadius),
-            "Collision Radius", "The radius used in collisions in meters. This is in world space, but will adjust in runtime if bones are scaled at runtime.");
+            "Collision Radius",
+            "The radius used in collisions in meters. This is in world space, but will adjust in runtime if bones are scaled at runtime.",
+            0f);
 
         var advancedToggleElement = visualElement.Q<Toggle>("AdvancedToggle");
         advancedToggleElement.BindProperty(
@@ -344,7 +351,7 @@ public struct JiggleRigData {
         });
     }
 
-    void SetCurvableFloat(VisualElement visualElement, SerializedProperty serializedProperty, string id, string curvableFloatParameter, string propertyName, string tooltip) {
+    void SetCurvableFloat(VisualElement visualElement, SerializedProperty serializedProperty, string id, string curvableFloatParameter, string propertyName, string tooltip, float? min = null, float? max = null) {
         var curvableFloatProperty = serializedProperty.FindPropertyRelative(curvableFloatParameter);
         var floatProperty = curvableFloatProperty.FindPropertyRelative(nameof(JiggleTreeCurvedFloat.value));
         var toggleProperty = curvableFloatProperty.FindPropertyRelative(nameof(JiggleTreeCurvedFloat.curveEnabled));
@@ -355,7 +362,20 @@ public struct JiggleRigData {
         curvableFloat.BindProperty(floatProperty);
         curvableFloat.tooltip = tooltip;
         curvableFloat.Q<Label>().text = propertyName;
-        
+        if (min != null || max != null) {
+            curvableFloat.RegisterValueChangedCallback(evt => {
+                float value = evt.newValue;
+                if (min != null) {
+                    value = Mathf.Max(value, min.Value);
+                }
+
+                if (max != null) {
+                    value = Mathf.Max(value, max.Value);
+                }
+
+                curvableFloat.SetValueWithoutNotify(value);
+            });
+        }
         var stiffnessCurveElement = sliderElement.Q<CurveField>("CurvableCurve");
         stiffnessCurveElement.BindProperty(curveProperty);
         
