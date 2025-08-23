@@ -311,7 +311,7 @@ public static partial class BasisRemoteNetworkDriver
         }
     }
     // Parameters for Euro filter
-    public static float MinCutoff = 1.0f;
+    public static float MinCutoff = 0.05f;
     public static float Beta = 0.01f;
     public static float DerivativeCutoff = 1.0f;
     /// <summary>
