@@ -59,7 +59,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
         }
 
-        private static BasisAvatarBuffer CreateAvatarBuffer(byte[] data, ref int offset,double SecondsInterval)
+        private static BasisAvatarBuffer CreateAvatarBuffer(byte[] data, ref int offset, double SecondsInterval)
         {
             BasisAvatarBuffer Buffer = BasisAvatarBufferPool.Get();
             Buffer.Position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset);
@@ -73,148 +73,207 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public static void DecompressAvatarMuscles_NoLoop(byte[] data, ref float[] floatArray, ref int offset)
         {
             int dataPos = offset;
-            void ReadCompressed(int index, bool AsByte,ref float[] floatArray)
-            {
-                float normalized;
-                if (AsByte)
-                {
-                    byte compressed = data[dataPos];
-                    normalized = compressed / 255f;
-                    dataPos += 1;
-                }
-                else
-                {
-                    ushort compressed = (ushort)(data[dataPos] | (data[dataPos + 1] << 8));
-                    normalized = compressed / 65535f;
-                    dataPos += 2;
-                }
 
-                float value = BasisMuscleRange.MinMuscle[index] + normalized * BasisMuscleRange.RangeMuscle[index];
-                floatArray[index] = math.clamp(value, BasisMuscleRange.MinMuscle[index], BasisMuscleRange.MaxMuscle[index]);
-            }
-            ReadCompressed(0, false,ref floatArray);// Spine Front-Back: Range 80
-            ReadCompressed(1, false, ref floatArray);// Spine Left-Right: Range 80
-            ReadCompressed(2, false, ref floatArray);// Spine Twist Left-Right: Range 80
-            ReadCompressed(3, false, ref floatArray);// Chest Front-Back: Range 80
-            ReadCompressed(4, false, ref floatArray);// Chest Left-Right: Range 80
-            ReadCompressed(5, false, ref floatArray); // Chest Twist Left-Right: Range 80
-            ReadCompressed(6, false, ref floatArray); // UpperChest Front-Back: Range 40
-            ReadCompressed(7, false, ref floatArray);// UpperChest Left-Right: Range 40
-            ReadCompressed(8, false, ref floatArray); // UpperChest Twist Left-Right: Range 40
-            ReadCompressed(9, false, ref floatArray);// Neck Nod Down-Up: Range 80
-            ReadCompressed(10, false, ref floatArray);// Neck Tilt Left-Right: Range 80
-            ReadCompressed(11, false, ref floatArray);// Neck Turn Left-Right: Range 80
-            ReadCompressed(12, false, ref floatArray);// Head Nod Down-Up: Range 80
-            ReadCompressed(13, false, ref floatArray);// Head Tilt Left-Right: Range 80
-            ReadCompressed(14, false, ref floatArray); // Head Turn Left-Right: Range 80
+            // Sections in the same order as the original method
+            DecompressSpineChestHead(data, ref dataPos, floatArray);
 
             // no need to put this data on the network! 6 in total (saves between 6 and 16 bytes)
-            // ReadCompressed(ref floatArray, 15, true); // Left Eye Down-Up: Range 25 byteable
-            // ReadCompressed(ref floatArray, 16, true); // Left Eye In-Out: Range 40 byteable
-            // ReadCompressed(ref floatArray, 17, true); // Right Eye Down-Up: Range 25 byteable
-            // ReadCompressed(ref floatArray, 18, true); // Right Eye In-Out: Range 40 byteable
-            // ReadCompressed(ref floatArray, 19, true); // Jaw Close: Range 20 byteable
-            // ReadCompressed(ref floatArray, 20, true); // Jaw Left-Right: Range 20 byteable
+            //DecompressEyesJaw(data, ref dataPos, floatArray); // (intentionally skipped as in original)
 
-            // Left Leg
-            ReadCompressed(21, false, ref floatArray);// Left Upper Leg Front-Back: Range 140
-            ReadCompressed(22, false, ref floatArray);// Left Upper Leg In-Out: Range 120
-            ReadCompressed(23, false, ref floatArray);// Left Upper Leg Twist In-Out: Range 120
-            ReadCompressed(24, false, ref floatArray);// Left Lower Leg Stretch: Range 160
-            ReadCompressed(25, false, ref floatArray);// Left Lower Leg Twist In-Out: Range 180
-            ReadCompressed(26, false, ref floatArray);// Left Foot Up-Down: Range 100
-
-            ReadCompressed(27, false, ref floatArray);// Left Foot Twist In-Out: Range 60 byteable
-            ReadCompressed(28, false, ref floatArray);// Left Toes Up-Down: Range 100 byteable
-
-            // Right Leg
-            ReadCompressed(29, false, ref floatArray);// Right Upper Leg Front-Back: Range 140
-            ReadCompressed(30, false, ref floatArray); // Right Upper Leg In-Out: Range 120
-            ReadCompressed(31, false, ref floatArray);// Right Upper Leg Twist In-Out: Range 120
-            ReadCompressed(32, false, ref floatArray);// Right Lower Leg Stretch: Range 160
-            ReadCompressed(33, false, ref floatArray);// Right Lower Leg Twist In-Out: Range 180
-            ReadCompressed(34, false, ref floatArray);// Right Foot Up-Down: Range 100
-
-            ReadCompressed(35, false, ref floatArray);// Right Foot Twist In-Out: Range 60 byteable
-            ReadCompressed(36, false, ref floatArray);// Right Toes Up-Down: Range 100 byteable
-
-            // Left Arm
-            ReadCompressed(37, false, ref floatArray);// Left Shoulder Down-Up: Range 45 byteable
-            ReadCompressed(38, false, ref floatArray); // Left Shoulder Front-Back: Range 30 byteable
-
-            ReadCompressed(39, false, ref floatArray);// Left Arm Down-Up: Range 160
-            ReadCompressed(40, false, ref floatArray);// Left Arm Front-Back: Range 200
-            ReadCompressed(41, false, ref floatArray);// Left Arm Twist In-Out: Range 180
-            ReadCompressed(42, false, ref floatArray);// Left Forearm Stretch: Range 160
-            ReadCompressed(43, false, ref floatArray);// Left Forearm Twist In-Out: Range 180
-            ReadCompressed(44, false, ref floatArray);// Left Hand Down-Up: Range 160
-            ReadCompressed(45, false, ref floatArray);// Left Hand In-Out: Range 80
-
-            // Right Arm
-            ReadCompressed(46, false, ref floatArray);// Right Shoulder Down-Up: Range 45 byteable
-            ReadCompressed(47, false, ref floatArray);// Right Shoulder Front-Back: Range 30 byteable
-
-            ReadCompressed(48, false, ref floatArray);// Right Arm Down-Up: Range 160
-            ReadCompressed(49, false, ref floatArray);// Right Arm Front-Back: Range 200
-            ReadCompressed(50, false, ref floatArray);// Right Arm Twist In-Out: Range 180
-            ReadCompressed(51, false, ref floatArray);// Right Forearm Stretch: Range 160
-            ReadCompressed(52, false, ref floatArray);// Right Forearm Twist In-Out: Range 180
-            ReadCompressed(53, false, ref floatArray);// Right Hand Down-Up: Range 160
-            ReadCompressed(54, false, ref floatArray);// Right Hand In-Out: Range 80
-
-            // Left Hand Fingers
-            ReadCompressed(55, true, ref floatArray);// Left Thumb 1 Stretched: Range 40 byteable
-            ReadCompressed(56, true, ref floatArray);// Left Thumb Spread: Range 50 byteable
-            ReadCompressed(57, false, ref floatArray);// Left Thumb 2 Stretched: Range 75 byteable
-            ReadCompressed(58, true, ref floatArray);// Left Thumb 3 Stretched: Range 75 byteable
-
-            ReadCompressed(59, true, ref floatArray);// Left Index 1 Stretched: Range 100 byteable
-            ReadCompressed(60, true, ref floatArray);// Left Index Spread: Range 40 byteable
-            ReadCompressed(61, true, ref floatArray);// Left Index 2 Stretched: Range 90 byteable
-            ReadCompressed(62, true, ref floatArray);// Left Index 3 Stretched: Range 90 byteable
-
-            ReadCompressed(63, true, ref floatArray);// Left Middle 1 Stretched: Range 100 byteable
-            ReadCompressed(64, true, ref floatArray);// Left Middle Spread: Range 15 byteable
-            ReadCompressed(65, true, ref floatArray);// Left Middle 2 Stretched: Range 90 byteable
-            ReadCompressed(66, true, ref floatArray);// Left Middle 3 Stretched: Range 90 byteable
-
-            ReadCompressed(67, true, ref floatArray); // Left Ring 1 Stretched: Range 100 byteable
-            ReadCompressed(68, true, ref floatArray);// Left Ring Spread: Range 15 byteable
-            ReadCompressed(69, true, ref floatArray);// Left Ring 2 Stretched: Range 90 byteable
-            ReadCompressed(70, true, ref floatArray); // Left Ring 3 Stretched: Range 90 byteable
-
-            ReadCompressed(71, true, ref floatArray);// Left Little 1 Stretched: Range 100 byteable
-            ReadCompressed(72, true, ref floatArray);// Left Little Spread: Range 40 byteable
-            ReadCompressed(73, true, ref floatArray);// Left Little 2 Stretched: Range 90 byteable
-            ReadCompressed(74, true, ref floatArray);// Left Little 3 Stretched: Range 90 byteable
-
-            // Right Hand Fingers
-            ReadCompressed(75, true, ref floatArray);// Right Thumb 1 Stretched: Range 40 byteable
-            ReadCompressed(76, true, ref floatArray);// Right Thumb Spread: Range 50 byteable
-            ReadCompressed(77, false, ref floatArray);// Right Thumb 2 Stretched: Range 75 byteable
-            ReadCompressed(78, true, ref floatArray);// Right Thumb 3 Stretched: Range 75 byteable
-
-            ReadCompressed(79, true, ref floatArray);// Right Index 1 Stretched: Range 100 byteable
-            ReadCompressed(80, true, ref floatArray);// Right Index Spread: Range 40 byteable
-            ReadCompressed(81, true, ref floatArray);// Right Index 2 Stretched: Range 90 byteable
-            ReadCompressed(82, true, ref floatArray);// Right Index 3 Stretched: Range 90 byteable
-
-            ReadCompressed(83, true, ref floatArray);// Right Middle 1 Stretched: Range 100 byteable
-            ReadCompressed(84, true, ref floatArray);// Right Middle Spread: Range 15 byteable
-            ReadCompressed(85, true, ref floatArray);// Right Middle 2 Stretched: Range 90 byteable
-            ReadCompressed(86, true, ref floatArray);// Right Middle 3 Stretched: Range 90 byteable
-
-            ReadCompressed(87, true, ref floatArray);// Right Ring 1 Stretched: Range 100 byteable
-            ReadCompressed(88, true, ref floatArray);// Right Ring Spread: Range 15 byteable
-            ReadCompressed(89, true, ref floatArray); // Right Ring 2 Stretched: Range 90 byteable
-            ReadCompressed(90, true, ref floatArray);// Right Ring 3 Stretched: Range 90 byteable
-
-            ReadCompressed(91, true, ref floatArray);// Right Little 1 Stretched: Range 100 byteable
-            ReadCompressed(92, true, ref floatArray);// Right Little Spread: Range 40 byteable
-            ReadCompressed(93, true, ref floatArray);// Right Little 2 Stretched: Range 90 byteable
-            ReadCompressed(94, true, ref floatArray); // Right Little 3 Stretched: Range 90 byteable
+            DecompressLeftLeg(data, ref dataPos, floatArray);
+            DecompressRightLeg(data, ref dataPos, floatArray);
+            DecompressLeftArm(data, ref dataPos, floatArray);
+            DecompressRightArm(data, ref dataPos, floatArray);
+            DecompressLeftHandFingers(data, ref dataPos, floatArray);
+            DecompressRightHandFingers(data, ref dataPos, floatArray);
 
             offset = dataPos;
+        }
+
+        // ----------------------
+        // Section: Spine/Chest/Head
+        // ----------------------
+        private static void DecompressSpineChestHead(byte[] data, ref int dataPos, float[] floatArray)
+        {
+            ReadCompressed(data, ref dataPos, 0, false, floatArray); // Spine Front-Back: Range 80
+            ReadCompressed(data, ref dataPos, 1, false, floatArray); // Spine Left-Right: Range 80
+            ReadCompressed(data, ref dataPos, 2, false, floatArray); // Spine Twist Left-Right: Range 80
+            ReadCompressed(data, ref dataPos, 3, false, floatArray); // Chest Front-Back: Range 80
+            ReadCompressed(data, ref dataPos, 4, false, floatArray); // Chest Left-Right: Range 80
+            ReadCompressed(data, ref dataPos, 5, false, floatArray); // Chest Twist Left-Right: Range 80
+            ReadCompressed(data, ref dataPos, 6, true, floatArray); // UpperChest Front-Back: Range 40
+            ReadCompressed(data, ref dataPos, 7, true, floatArray); // UpperChest Left-Right: Range 40
+            ReadCompressed(data, ref dataPos, 8, true, floatArray); // UpperChest Twist Left-Right: Range 40
+            ReadCompressed(data, ref dataPos, 9, false, floatArray); // Neck Nod Down-Up: Range 80
+            ReadCompressed(data, ref dataPos, 10, false, floatArray); // Neck Tilt Left-Right: Range 80
+            ReadCompressed(data, ref dataPos, 11, false, floatArray); // Neck Turn Left-Right: Range 80
+            ReadCompressed(data, ref dataPos, 12, false, floatArray); // Head Nod Down-Up: Range 80
+            ReadCompressed(data, ref dataPos, 13, false, floatArray); // Head Tilt Left-Right: Range 80
+            ReadCompressed(data, ref dataPos, 14, false, floatArray); // Head Turn Left-Right: Range 80
+        }
+
+        // ----------------------
+        // Section: Eyes/Jaw (Skipped like original)
+        // ----------------------
+        private static void DecompressEyesJaw(byte[] data, ref int dataPos, float[] floatArray)
+        {
+            // no need to put this data on the network! 6 in total (saves between 6 and 16 bytes)
+            // ReadCompressed(data, ref dataPos, 15, true,  floatArray); // Left Eye Down-Up: Range 25 byteable
+            // ReadCompressed(data, ref dataPos, 16, true,  floatArray); // Left Eye In-Out: Range 40 byteable
+            // ReadCompressed(data, ref dataPos, 17, true,  floatArray); // Right Eye Down-Up: Range 25 byteable
+            // ReadCompressed(data, ref dataPos, 18, true,  floatArray); // Right Eye In-Out: Range 40 byteable
+            // ReadCompressed(data, ref dataPos, 19, true,  floatArray); // Jaw Close: Range 20 byteable
+            // ReadCompressed(data, ref dataPos, 20, true,  floatArray); // Jaw Left-Right: Range 20 byteable
+        }
+
+        // ----------------------
+        // Section: Left Leg
+        // ----------------------
+        private static void DecompressLeftLeg(byte[] data, ref int dataPos, float[] floatArray)
+        {
+            ReadCompressed(data, ref dataPos, 21, false, floatArray); // Left Upper Leg Front-Back: Range 140
+            ReadCompressed(data, ref dataPos, 22, false, floatArray); // Left Upper Leg In-Out: Range 120
+            ReadCompressed(data, ref dataPos, 23, false, floatArray); // Left Upper Leg Twist In-Out: Range 120
+            ReadCompressed(data, ref dataPos, 24, false, floatArray); // Left Lower Leg Stretch: Range 160
+            ReadCompressed(data, ref dataPos, 25, false, floatArray); // Left Lower Leg Twist In-Out: Range 180
+            ReadCompressed(data, ref dataPos, 26, false, floatArray); // Left Foot Up-Down: Range 100
+            ReadCompressed(data, ref dataPos, 27, true, floatArray); // Left Foot Twist In-Out: Range 60 byteable
+            ReadCompressed(data, ref dataPos, 28, false, floatArray); // Left Toes Up-Down: Range 100 byteable
+        }
+
+        // ----------------------
+        // Section: Right Leg
+        // ----------------------
+        private static void DecompressRightLeg(byte[] data, ref int dataPos, float[] floatArray)
+        {
+            ReadCompressed(data, ref dataPos, 29, false, floatArray); // Right Upper Leg Front-Back: Range 140
+            ReadCompressed(data, ref dataPos, 30, false, floatArray); // Right Upper Leg In-Out: Range 120
+            ReadCompressed(data, ref dataPos, 31, false, floatArray); // Right Upper Leg Twist In-Out: Range 120
+            ReadCompressed(data, ref dataPos, 32, false, floatArray); // Right Lower Leg Stretch: Range 160
+            ReadCompressed(data, ref dataPos, 33, false, floatArray); // Right Lower Leg Twist In-Out: Range 180
+            ReadCompressed(data, ref dataPos, 34, false, floatArray); // Right Foot Up-Down: Range 100
+            ReadCompressed(data, ref dataPos, 35, true, floatArray); // Right Foot Twist In-Out: Range 60 byteable
+            ReadCompressed(data, ref dataPos, 36, false, floatArray); // Right Toes Up-Down: Range 100 byteable
+        }
+
+        // ----------------------
+        // Section: Left Arm
+        // ----------------------
+        private static void DecompressLeftArm(byte[] data, ref int dataPos, float[] floatArray)
+        {
+            ReadCompressed(data, ref dataPos, 37, false, floatArray); // Left Shoulder Down-Up: Range 45 byteable
+            ReadCompressed(data, ref dataPos, 38, false, floatArray); // Left Shoulder Front-Back: Range 30 byteable
+            ReadCompressed(data, ref dataPos, 39, false, floatArray); // Left Arm Down-Up: Range 160
+            ReadCompressed(data, ref dataPos, 40, false, floatArray); // Left Arm Front-Back: Range 200
+            ReadCompressed(data, ref dataPos, 41, false, floatArray); // Left Arm Twist In-Out: Range 180
+            ReadCompressed(data, ref dataPos, 42, false, floatArray); // Left Forearm Stretch: Range 160
+            ReadCompressed(data, ref dataPos, 43, false, floatArray); // Left Forearm Twist In-Out: Range 180
+            ReadCompressed(data, ref dataPos, 44, false, floatArray); // Left Hand Down-Up: Range 160
+            ReadCompressed(data, ref dataPos, 45, false, floatArray); // Left Hand In-Out: Range 80
+        }
+
+        // ----------------------
+        // Section: Right Arm
+        // ----------------------
+        private static void DecompressRightArm(byte[] data, ref int dataPos, float[] floatArray)
+        {
+            ReadCompressed(data, ref dataPos, 46, false, floatArray); // Right Shoulder Down-Up: Range 45 byteable
+            ReadCompressed(data, ref dataPos, 47, false, floatArray); // Right Shoulder Front-Back: Range 30 byteable
+            ReadCompressed(data, ref dataPos, 48, false, floatArray); // Right Arm Down-Up: Range 160
+            ReadCompressed(data, ref dataPos, 49, false, floatArray); // Right Arm Front-Back: Range 200
+            ReadCompressed(data, ref dataPos, 50, false, floatArray); // Right Arm Twist In-Out: Range 180
+            ReadCompressed(data, ref dataPos, 51, false, floatArray); // Right Forearm Stretch: Range 160
+            ReadCompressed(data, ref dataPos, 52, false, floatArray); // Right Forearm Twist In-Out: Range 180
+            ReadCompressed(data, ref dataPos, 53, false, floatArray); // Right Hand Down-Up: Range 160
+            ReadCompressed(data, ref dataPos, 54, false, floatArray); // Right Hand In-Out: Range 80
+        }
+
+        // ----------------------
+        // Section: Left Hand Fingers
+        // ----------------------
+        private static void DecompressLeftHandFingers(byte[] data, ref int dataPos, float[] floatArray)
+        {
+            ReadCompressed(data, ref dataPos, 55, false, floatArray); // Left Thumb 1 Stretched: Range 40 byteable
+            ReadCompressed(data, ref dataPos, 56, false, floatArray); // Left Thumb Spread: Range 50 byteable
+            ReadCompressed(data, ref dataPos, 57, true, floatArray); // Left Thumb 2 Stretched: Range 75 byteable
+            ReadCompressed(data, ref dataPos, 58, true, floatArray); // Left Thumb 3 Stretched: Range 75 byteable
+
+            ReadCompressed(data, ref dataPos, 59, false, floatArray); // Left Index 1 Stretched: Range 100 byteable
+            ReadCompressed(data, ref dataPos, 60, true, floatArray); // Left Index Spread: Range 40 byteable
+            ReadCompressed(data, ref dataPos, 61, true, floatArray); // Left Index 2 Stretched: Range 90 byteable
+            ReadCompressed(data, ref dataPos, 62, true, floatArray); // Left Index 3 Stretched: Range 90 byteable
+
+            ReadCompressed(data, ref dataPos, 63, false, floatArray); // Left Middle 1 Stretched: Range 100 byteable
+            ReadCompressed(data, ref dataPos, 64, true, floatArray); // Left Middle Spread: Range 15 byteable
+            ReadCompressed(data, ref dataPos, 65, true, floatArray); // Left Middle 2 Stretched: Range 90 byteable
+            ReadCompressed(data, ref dataPos, 66, true, floatArray); // Left Middle 3 Stretched: Range 90 byteable
+
+            ReadCompressed(data, ref dataPos, 67, false, floatArray); // Left Ring 1 Stretched: Range 100 byteable
+            ReadCompressed(data, ref dataPos, 68, true, floatArray); // Left Ring Spread: Range 15 byteable
+            ReadCompressed(data, ref dataPos, 69, true, floatArray); // Left Ring 2 Stretched: Range 90 byteable
+            ReadCompressed(data, ref dataPos, 70, true, floatArray); // Left Ring 3 Stretched: Range 90 byteable
+
+            ReadCompressed(data, ref dataPos, 71, false, floatArray); // Left Little 1 Stretched: Range 100 byteable
+            ReadCompressed(data, ref dataPos, 72, true, floatArray); // Left Little Spread: Range 40 byteable
+            ReadCompressed(data, ref dataPos, 73, true, floatArray); // Left Little 2 Stretched: Range 90 byteable
+            ReadCompressed(data, ref dataPos, 74, true, floatArray); // Left Little 3 Stretched: Range 90 byteable
+        }
+
+        // ----------------------
+        // Section: Right Hand Fingers
+        // ----------------------
+        private static void DecompressRightHandFingers(byte[] data, ref int dataPos, float[] floatArray)
+        {
+            ReadCompressed(data, ref dataPos, 75, false, floatArray); // Right Thumb 1 Stretched: Range 40 byteable
+            ReadCompressed(data, ref dataPos, 76, false, floatArray); // Right Thumb Spread: Range 50 byteable
+            ReadCompressed(data, ref dataPos, 77, true, floatArray); // Right Thumb 2 Stretched: Range 75 byteable
+            ReadCompressed(data, ref dataPos, 78, true, floatArray); // Right Thumb 3 Stretched: Range 75 byteable
+
+            ReadCompressed(data, ref dataPos, 79, false, floatArray); // Right Index 1 Stretched: Range 100 byteable
+            ReadCompressed(data, ref dataPos, 80, true, floatArray); // Right Index Spread: Range 40 byteable
+            ReadCompressed(data, ref dataPos, 81, true, floatArray); // Right Index 2 Stretched: Range 90 byteable
+            ReadCompressed(data, ref dataPos, 82, true, floatArray); // Right Index 3 Stretched: Range 90 byteable
+
+            ReadCompressed(data, ref dataPos, 83, false, floatArray); // Right Middle 1 Stretched: Range 100 byteable
+            ReadCompressed(data, ref dataPos, 84, true, floatArray); // Right Middle Spread: Range 15 byteable
+            ReadCompressed(data, ref dataPos, 85, true, floatArray); // Right Middle 2 Stretched: Range 90 byteable
+            ReadCompressed(data, ref dataPos, 86, true, floatArray); // Right Middle 3 Stretched: Range 90 byteable
+
+            ReadCompressed(data, ref dataPos, 87, false, floatArray); // Right Ring 1 Stretched: Range 100 byteable
+            ReadCompressed(data, ref dataPos, 88, true, floatArray); // Right Ring Spread: Range 15 byteable
+            ReadCompressed(data, ref dataPos, 89, true, floatArray); // Right Ring 2 Stretched: Range 90 byteable
+            ReadCompressed(data, ref dataPos, 90, true, floatArray); // Right Ring 3 Stretched: Range 90 byteable
+
+            ReadCompressed(data, ref dataPos, 91, false, floatArray); // Right Little 1 Stretched: Range 100 byteable
+            ReadCompressed(data, ref dataPos, 92, true, floatArray); // Right Little Spread: Range 40 byteable
+            ReadCompressed(data, ref dataPos, 93, true, floatArray); // Right Little 2 Stretched: Range 90 byteable
+            ReadCompressed(data, ref dataPos, 94, true, floatArray); // Right Little 3 Stretched: Range 90 byteable
+        }
+        private static void ReadCompressed(byte[] data, ref int dataPos, int index, bool asByte, float[] floatArray)
+        {
+            float normalized;
+            if (asByte)
+            {
+                byte compressed = data[dataPos];
+                normalized = compressed / 255f;
+                dataPos += 1;
+            }
+            else
+            {
+                // Little-endian ushort from two bytes
+                int lo = data[dataPos];
+                int hi = data[dataPos + 1];
+                ushort compressed = (ushort)(lo | (hi << 8));
+                normalized = compressed / 65535f;
+                dataPos += 2;
+            }
+
+            float min = BasisMuscleRange.MinMuscle[index];
+            float range = BasisMuscleRange.RangeMuscle[index];
+            float max = BasisMuscleRange.MaxMuscle[index];
+
+            float value = min + normalized * range;
+            floatArray[index] = math.clamp(value, min, max);
         }
         public static float MuscleDecompress(ushort value, float minValue, float maxValue)
         {
