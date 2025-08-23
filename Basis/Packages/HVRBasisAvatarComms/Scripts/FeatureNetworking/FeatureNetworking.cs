@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using Basis.Scripts.BasisSdk;
-using Basis.Scripts.Behaviour;
 using LiteNetLib;
 using UnityEngine;
 
@@ -11,6 +8,10 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/Feature Networking")]
     public class FeatureNetworking : MonoBehaviour
     {
+        public const byte NewNet_RemoteRequestsInitialization = 2;
+        public const byte NewNet_WearerReady = 1;
+        public const byte NewNet_WearerData = 0;
+
         public const byte NegotiationPacket = 255;
         public const byte ReservedPacket = 254;
 
@@ -21,17 +22,15 @@ namespace HVR.Basis.Comms
         public delegate void ResyncRequested(ushort[] whoAsked);
         public delegate void ResyncEveryoneRequested();
 
-        [SerializeField] private FeatureNetPairing[] netPairings = new FeatureNetPairing[0]; // Unsafe: May contain malformed GUIDs, or null components, or non-networkable components.
+        // Unused field since the migration to AvatarMonoBehaviour
+        [Obsolete] [SerializeField] private FeatureNetPairing[] netPairings = new FeatureNetPairing[0]; // Unsafe: May contain malformed GUIDs, or null components, or non-networkable components.
         [HideInInspector][SerializeField] private BasisAvatar avatar;
 
-        private Dictionary<Guid, ICommsNetworkable> _guidToNetworkable;
-        private Guid[] _orderedGuids;
-        private byte[] _negotiationPacket;
-
-        private IFeatureReceiver[] _featureHandles; // May contain null values if the corresponding Feature fails to initialize. Iterate defensively
         private GameObject _holder;
         private bool _isWearer;
         private byte[] _remoteRequestsInitializationPacket;
+
+        private int index;
 
         private void Awake()
         {
@@ -41,62 +40,13 @@ namespace HVR.Basis.Comms
                 avatar.gameObject.AddComponent<HVRAvatarComms>();
             }
 
-            var rand = new System.Random();
-            var safeNetPairings = netPairings
-                .Where(pairing => Guid.TryParse(pairing.guid, out _))
-                .Where(pairing => pairing.component != null)
-                .Select(pairing =>
-                {
-                    if (pairing.component is ICommsNetworkable) return pairing;
-
-                    // Be lenient if the user has dragged the Transform into this.
-                    var lookingForNetworkable = pairing.component.GetComponents<Component>();
-                    foreach (var candidate in lookingForNetworkable)
-                    {
-                        if (candidate is ICommsNetworkable)
-                        {
-                            return new FeatureNetPairing
-                            {
-                                guid = pairing.guid,
-                                component = candidate
-                            };
-                        }
-                    }
-
-                    return pairing; // Will not go through the following .Where predicate
-                })
-                .Where(pairing => pairing.component is ICommsNetworkable)
-                // Shuffling the array makes sure we catch implementation mistakes early.
-                // The order of the list of pairings should not matter between clients because of the Negotiation packet.
-                .OrderBy(_ => rand.Next())
-                .ToArray();
-
-            _guidToNetworkable = safeNetPairings.ToDictionary(pairing => new Guid(pairing.guid), pairing => (ICommsNetworkable)pairing.component);
-            _orderedGuids = safeNetPairings.Select(pairing => new Guid(pairing.guid)).ToArray();
-            _negotiationPacket = new[] { NegotiationPacket }
-                .Concat(safeNetPairings.SelectMany(pairing => new Guid(pairing.guid).ToByteArray()))
-                .ToArray();
             _remoteRequestsInitializationPacket = new[] { ReservedPacket, ReservedPacket_RemoteRequestsInitializationMessage };
-
-            _featureHandles = new IFeatureReceiver[safeNetPairings.Length];
         }
 
-        public void OnPacketReceived(int guidIndex, ArraySegment<byte> arraySegment)
+        public FeatureInterpolator NewInterpolator(int count, InterpolatedDataChanged interpolatedDataChanged)
         {
-            var handleOptional = _featureHandles[guidIndex];
-            if (handleOptional != null)
-            {
-                handleOptional.OnPacketReceived(arraySegment);
-            }
-        }
-
-        public Guid[] GetOrderedGuids()
-        {
-            return _orderedGuids;
-        }
-
-        public FeatureInterpolator NewInterpolator(int guidIndex, int count, InterpolatedDataChanged interpolatedDataChanged)
-        {
+            var guidIndex = index;
+            index++;
             _holder = new GameObject($"Streamed-{guidIndex}")
             {
                 transform = { parent = transform }
@@ -110,7 +60,6 @@ namespace HVR.Basis.Comms
             var handle = new FeatureInterpolator(this, guidIndex, streamed, interpolatedDataChanged);
             streamed.OnInterpolatedDataChanged += handle.OnInterpolatedDataChanged;
             streamed.SetEncodingInfo(_isWearer, (byte)guidIndex); // TODO: Make sure upstream that guidIndex is within limits
-            _featureHandles[guidIndex] = handle;
             return handle;
         }
 
@@ -120,7 +69,6 @@ namespace HVR.Basis.Comms
             if (HVRAvatarComms != null)
             {
                 var handle = new FeatureEvent(HVRAvatarComms, this, guidIndex, eventReceived, resyncRequested, resyncEveryoneRequested);
-                _featureHandles[guidIndex] = handle;
                 return handle;
             }
             else
@@ -130,72 +78,9 @@ namespace HVR.Basis.Comms
             }
         }
 
-        internal void Unregister(int guidIndex)
-        {
-            _featureHandles[guidIndex] = null;
-            Destroy(_holder);
-        }
-
-        public byte[] GetNegotiationPacket()
-        {
-            return _negotiationPacket;
-        }
-
         public byte[] GetRemoteRequestsInitializationPacket()
         {
             return _remoteRequestsInitializationPacket;
-        }
-
-        public void AssignGuids(bool isWearer)
-        {
-            _isWearer = isWearer;
-            for (var index = 0; index < _orderedGuids.Length; index++)
-            {
-                var guid = _orderedGuids[index];
-                var networkable = _guidToNetworkable[guid];
-
-                networkable.OnGuidAssigned(index, guid);
-            }
-        }
-
-        public bool TryAddPairingIfNotExists(Component networkable)
-        {
-            if (netPairings.All(pairing => pairing.component != networkable))
-            {
-                netPairings = netPairings.Concat(new[]
-                {
-                    new FeatureNetPairing
-                    {
-                        guid = Guid.NewGuid().ToString(),
-                        component = networkable
-                    }
-                }).ToArray();
-                return true;
-            }
-
-            return false;
-        }
-
-        public void TryResyncEveryone()
-        {
-            foreach (var featureReceiver in _featureHandles)
-            {
-                if (featureReceiver != null)
-                {
-                    featureReceiver.OnResyncEveryoneRequested();
-                }
-            }
-        }
-
-        public void TryResyncSome(ushort[] whoAsked)
-        {
-            foreach (var featureReceiver in _featureHandles)
-            {
-                if (featureReceiver != null)
-                {
-                    featureReceiver.OnResyncRequested(whoAsked);
-                }
-            }
         }
     }
 
@@ -204,7 +89,6 @@ namespace HVR.Basis.Comms
         private DeliveryMethod DeliveryMethod = DeliveryMethod.Sequenced;
 
         private readonly FeatureNetworking _featureNetworking;
-        private readonly int _guidIndex;
         private readonly FeatureNetworking.EventReceived _eventReceived;
         private readonly FeatureNetworking.ResyncRequested _resyncRequested;
         private readonly FeatureNetworking.ResyncEveryoneRequested _resyncEveryoneRequested;
@@ -213,15 +97,10 @@ namespace HVR.Basis.Comms
         public FeatureEvent(HVRAvatarComms MonoBehaviour,FeatureNetworking featureNetworking, int guidIndex, FeatureNetworking.EventReceived eventReceived, FeatureNetworking.ResyncRequested resyncRequested, FeatureNetworking.ResyncEveryoneRequested resyncEveryoneRequested)
         {
             _featureNetworking = featureNetworking;
-            _guidIndex = guidIndex;
             _eventReceived = eventReceived;
             _resyncRequested = resyncRequested;
             _resyncEveryoneRequested = resyncEveryoneRequested;
             _basisAvatarMonoBehaviour = MonoBehaviour;
-        }
-        public void Unregister()
-        {
-            _featureNetworking.Unregister(_guidIndex);
         }
 
         public void OnPacketReceived(ArraySegment<byte> data)
@@ -255,7 +134,7 @@ namespace HVR.Basis.Comms
         private void SubmitInternal(ArraySegment<byte> currentState, ushort[] whoAskedNullable)
         {
             var buffer = new byte[1 + currentState.Count];
-            buffer[0] = (byte)_guidIndex;
+            buffer[0] = (byte)0; // Formerly bytes. This class needs to be shelved, really.
 
             currentState.CopyTo(buffer, 1);
 
@@ -270,6 +149,7 @@ namespace HVR.Basis.Comms
             }
         }
     }
+
     public class FeatureInterpolator : IFeatureReceiver
     {
         private readonly FeatureNetworking _featureNetworking;
@@ -288,11 +168,6 @@ namespace HVR.Basis.Comms
         public void Store(int value, float streamed01)
         {
             _streamed.Store(value, streamed01);
-        }
-
-        public void Unregister()
-        {
-            _featureNetworking.Unregister(_guidIndex);
         }
 
         public void OnPacketReceived(ArraySegment<byte> data)

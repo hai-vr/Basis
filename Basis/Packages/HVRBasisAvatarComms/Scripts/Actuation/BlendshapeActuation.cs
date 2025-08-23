@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Basis.Scripts.BasisSdk;
+using Basis.Scripts.Behaviour;
+using LiteNetLib;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
     [AddComponentMenu("HVR.Basis/Comms/Blendshape Actuation")]
-    public class BlendshapeActuation : MonoBehaviour, ICommsNetworkable
+    public class BlendshapeActuation : BasisAvatarMonoBehaviour, ICommsNetworkable
     {
         private const int MaxAddresses = 256;
         private const float BlendshapeAtFullStrength = 100f;
@@ -15,26 +17,25 @@ namespace HVR.Basis.Comms
         [SerializeField] private SkinnedMeshRenderer[] renderers = Array.Empty<SkinnedMeshRenderer>();
         [SerializeField] private BlendshapeActuationDefinitionFile[] definitionFiles = Array.Empty<BlendshapeActuationDefinitionFile>();
         [SerializeField] private BlendshapeActuationDefinition[] definitions = Array.Empty<BlendshapeActuationDefinition>();
-        
+
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private FeatureNetworking featureNetworking;
         [HideInInspector] [SerializeField] private AcquisitionService acquisition;
-        
+
         private Dictionary<string, int> _addressBase = new Dictionary<string, int>();
         private ComputedActuator[] _computedActuators;
         private ComputedActuator[][] _addressBaseIndexToActuators;
-        
-#region NetworkingFields
-        private int _guidIndex;
+
+        #region NetworkingFields
         // Can be null due to:
         // - Application with no network, or
         // - Network late initialization.
         // Nullability is needed for local tests without initialization scene.
         // - Becomes non-null after HVRAvatarComms.OnAvatarNetworkReady is successfully invoked
         private FeatureInterpolator _featureInterpolator;
-        private bool _avatarReady;
+        private ushort _wearerNetId;
+        private bool _isWearer;
         private bool _networkReady;
-        private bool _dualInitialized;
 
         #endregion
 
@@ -64,12 +65,12 @@ namespace HVR.Basis.Comms
         private void OnAddressUpdated(string address, float inRange)
         {
             if (!_addressBase.TryGetValue(address, out var index)) return;
-            
+
             // TODO: Might need to queue and delay this change so that it executes on the Update loop.
 
             var actuatorsForThisAddress = _addressBaseIndexToActuators[index];
             if (actuatorsForThisAddress == null) return; // There may be no actuator for an address when it does not exist in the renderers.
-            
+
             var lower = 0f;
             var upper = 0f;
             foreach (var actuator in actuatorsForThisAddress)
@@ -78,7 +79,7 @@ namespace HVR.Basis.Comms
                 lower = actuator.StreamedLower;
                 upper = actuator.StreamedUpper;
             }
-            
+
             if (_featureInterpolator != null)
             {
                 var streamed01 = Mathf.InverseLerp(lower, upper, inRange);
@@ -92,7 +93,7 @@ namespace HVR.Basis.Comms
             {
                 var streamed01 = current[actuator.AddressIndex];
                 var inRange = Mathf.Lerp(actuator.StreamedLower, actuator.StreamedUpper, streamed01);
-                
+
                 Actuate(actuator, inRange);
             }
         }
@@ -107,7 +108,7 @@ namespace HVR.Basis.Comms
             var outputWild = Mathf.Lerp(actuator.OutStart, actuator.OutEnd, intermediate01);
             var output01 = Mathf.Clamp01(outputWild);
             var output0100 = output01 * BlendshapeAtFullStrength;
-                
+
             foreach (var target in actuator.Targets)
             {
                 foreach (var blendshapeIndex in target.BlendshapeIndices)
@@ -123,7 +124,7 @@ namespace HVR.Basis.Comms
                 .Concat(definitionFiles.SelectMany(file => file.definitions))
                 .ToArray();
             _addressBase = MakeIndexDictionary(allDefinitions.Select(definition => definition.address).Distinct().ToArray());
-            
+
             if (_addressBase.Count > MaxAddresses)
             {
                 Debug.LogError($"Exceeded max {MaxAddresses} addresses allowed in an actuator.");
@@ -154,7 +155,7 @@ namespace HVR.Basis.Comms
                         .ToArray();
                     return (inValuesForThisAddress.Min(), inValuesForThisAddress.Max());
                 });
-            
+
             _computedActuators = allDefinitions.Select(definition =>
                 {
                     var actuatorTargets = ComputeTargets(smrToBlendshapeNames, definition.blendshapes, definition.onlyFirstMatch);
@@ -189,45 +190,79 @@ namespace HVR.Basis.Comms
             {
                 _addressBaseIndexToActuators[computedActuator.Key] = computedActuator.ToArray();
             }
-            
+
             if (isWearer)
             {
                 acquisition.RegisterAddresses(_addressBase.Keys.ToArray(), OnAddressUpdated);
             }
-
-            _avatarReady = true;
-            TryOnAvatarIsNetworkable();
         }
 
-        public void OnGuidAssigned(int guidIndex, Guid guid)
-        {
-            _guidIndex = guidIndex;
-            
-            _networkReady = true;
-            TryOnAvatarIsNetworkable();
-        }
-
-        private void TryOnAvatarIsNetworkable()
-        {
-            // HACK: Work around an issue where remote and local avatars trigger
-            // OnAvatarReady and OnAvatarNetworkReady in a different order.
-
-            if (_avatarReady && _networkReady && !_dualInitialized)
-            {
-                _dualInitialized = true;
-                OnAvatarFullyNetworkable();
-            }
-        }
-
-        private void OnAvatarFullyNetworkable()
+        public override void OnNetworkReady(bool IsLocallyOwned)
         {
             // FIXME: We should be using the computed actuators instead of the address base, assuming that
             // the list of blendshapes is the same local and remote (no local-only or remote-only blendshapes).
-            _featureInterpolator = featureNetworking.NewInterpolator(_guidIndex, _addressBase.Count, OnInterpolatedDataChanged);
-            
+            _featureInterpolator = featureNetworking.NewInterpolator(_addressBase.Count, OnInterpolatedDataChanged);
+
             // FIXME: Add default values in the blendshape actuation file
             if (_addressBase.TryGetValue("FT/v2/EyeLidLeft", out var indexLeft)) _featureInterpolator.Store(indexLeft, 0.8f);
             if (_addressBase.TryGetValue("FT/v2/EyeLidRight", out var indexRight)) _featureInterpolator.Store(indexRight, 0.8f);
+
+            _isWearer = IsLocallyOwned;
+            avatar.TryGetLinkedPlayer(out _wearerNetId);
+
+            _networkReady = true;
+
+            if (IsLocallyOwned) NetworkMessageSend(new[] { FeatureNetworking.NewNet_WearerReady });
+            else NetworkMessageSend(new[] { FeatureNetworking.NewNet_RemoteRequestsInitialization });
+        }
+
+        public override void OnNetworkMessageReceived(ushort RemoteUser, byte[] buffer, DeliveryMethod DeliveryMethod, bool IsADifferentAvatarLocally)
+        {
+            if (!_networkReady) return;
+            if (IsADifferentAvatarLocally) return;
+            if (buffer.Length == 0) { HVRAvatarComms.ProtocolError("Buffer was 0 bytes."); return; }
+            if (!_isWearer && RemoteUser != _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
+
+            var packetId = buffer[0];
+            switch (packetId)
+            {
+                case FeatureNetworking.NewNet_WearerReady:
+                {
+                    if (_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
+                    if (RemoteUser != _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
+                    if (buffer.Length != 1) { HVRAvatarComms.ProtocolError("Illegal buffer length."); return; }
+                    HVROnReceivedWearerReady();
+                    break;
+                }
+                case FeatureNetworking.NewNet_RemoteRequestsInitialization:
+                {
+                    if (!_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
+                    if (RemoteUser == _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
+                    if (buffer.Length != 1) { HVRAvatarComms.ProtocolError("Illegal buffer length."); return; }
+                    HVROnReceivedRemoteRequestsInitialization();
+                    break;
+                }
+                case FeatureNetworking.NewNet_WearerData:
+                {
+                    if (_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
+                    if (RemoteUser != _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
+                    _featureInterpolator.OnPacketReceived(HVRAvatarComms.SubBuffer(buffer));
+                    break;
+                }
+                default:
+                {
+                    HVRAvatarComms.ProtocolError("Illegal message.");
+                    break;
+                }
+            }
+        }
+
+        private void HVROnReceivedWearerReady()
+        {
+        }
+
+        private void HVROnReceivedRemoteRequestsInitialization()
+        {
         }
 
         private Dictionary<string, int> MakeIndexDictionary(string[] addressBase)
@@ -253,14 +288,8 @@ namespace HVR.Basis.Comms
         private void OnDestroy()
         {
             avatar.OnAvatarReady -= OnAvatarReady;
-            
-            acquisition.UnregisterAddresses(_addressBase.Keys.ToArray(), OnAddressUpdated);
 
-            if (_featureInterpolator != null)
-            {
-                _featureInterpolator.Unregister();
-                _featureInterpolator = null;
-            }
+            acquisition.UnregisterAddresses(_addressBase.Keys.ToArray(), OnAddressUpdated);
         }
 
         private void ResetAllBlendshapesToZero()
@@ -295,7 +324,7 @@ namespace HVR.Basis.Comms
                     .Select(toFind => pair.Value.IndexOf(toFind))
                     .Where(i => i >= 0)
                     .ToArray();
-            
+
                 if (indices.Length > 0)
                 {
                     if (onlyFirstMatch)

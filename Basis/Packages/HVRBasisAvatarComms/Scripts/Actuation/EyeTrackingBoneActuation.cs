@@ -192,7 +192,7 @@ namespace HVR.Basis.Comms
         public void OnGuidAssigned(int guidIndex, Guid guid)
         {
             _guidIndex = guidIndex;
-            _featureInterpolator = featureNetworking.NewInterpolator(_guidIndex, 3, OnInterpolatedDataChanged);
+            _featureInterpolator = featureNetworking.NewInterpolator(3, OnInterpolatedDataChanged);
         }
 
         private void OnInterpolatedDataChanged(float[] current)
