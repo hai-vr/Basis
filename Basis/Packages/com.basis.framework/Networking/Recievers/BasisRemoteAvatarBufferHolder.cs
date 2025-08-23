@@ -4,29 +4,26 @@ using UnityEngine;
 
 namespace Basis.Scripts.Networking.Receivers
 {
-    public partial class BasisNetworkReceiver
+    [Serializable]
+    public class BasisRemoteAvatarBufferHolder
     {
-        [Serializable]
-        public class BasisRemoteAvatarBufferHolder
+        public bool HasFirst = false;
+        public bool HasLast = false;
+
+        [SerializeField] public BasisAvatarBuffer First;
+        [SerializeField] public BasisAvatarBuffer Last;
+
+        public void ClearAndRelease()
         {
-            public bool HasFirst = false;
-            public bool HasLast = false;
-
-            [SerializeField] public BasisAvatarBuffer First;
-            [SerializeField] public BasisAvatarBuffer Last;
-
-            public void ClearAndRelease()
+            if (HasFirst)
             {
-                if (HasFirst)
-                {
-                    BasisAvatarBufferPool.Release(ref First);
-                    HasFirst = false;
-                }
-                if (HasLast)
-                {
-                    BasisAvatarBufferPool.Release(ref Last);
-                    HasLast = false;
-                }
+                BasisAvatarBufferPool.Release(ref First);
+                HasFirst = false;
+            }
+            if (HasLast)
+            {
+                BasisAvatarBufferPool.Release(ref Last);
+                HasLast = false;
             }
         }
     }

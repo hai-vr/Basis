@@ -7,14 +7,13 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.UIElements;
 using static SerializableBasis;
 
 namespace Basis.Scripts.Networking.Receivers
 {
     [DefaultExecutionOrder(15001)]
     [System.Serializable]
-    public partial class BasisNetworkReceiver : BasisNetworkPlayer
+    public class BasisNetworkReceiver : BasisNetworkPlayer
     {
         private const int EyesAndMouthOffset = 15; // starting muscle index for eyes/mouth
         private const int EyesAndMouthCount = 6;  // number of floats to copy
@@ -218,7 +217,7 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public override void DeInitialize()
         {
-
+            BasisRemoteNetworkDriver.ResetIndex(playerId);
             BufferHolder.ClearAndRelease();
             if (_staged != null)
             {
@@ -241,7 +240,6 @@ namespace Basis.Scripts.Networking.Receivers
                 RemotePlayer.RemoteAvatarDriver.CalibrationComplete -= OnCalibration;
                 HasEvents = false;
             }
-
             AudioReceiverModule?.OnDestroy();
 
             HasAvatarQueue = false;

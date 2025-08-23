@@ -1,4 +1,4 @@
-using Basis.Scripts.Networking.Receivers;
+using Basis.Scripts.Networking;
 using System;
 using Unity.Collections;
 using Unity.Jobs;
@@ -45,11 +45,6 @@ public static partial class BasisRemoteNetworkDriver
     static NativeArray<float> euroValuesOutput;   // filtered output
     static NativeArray<float2> positionFilters;   // per-channel state
     static NativeArray<float2> derivativeFilters; // per-channel state
-
-    // Parameters for Euro filter
-    static float MinCutoff = 1.0f;
-    static float Beta = 0.01f;
-    static float DerivativeCutoff = 1.0f;
 
     // State
     static int _muscleCount;
@@ -113,6 +108,9 @@ public static partial class BasisRemoteNetworkDriver
     {
         if (!_initialized) return;
 
+        // Make sure no jobs are still using our arrays
+        if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
+
         DisposeAll();
         _activeCount = 0;
         _muscleCount = 0;
@@ -168,6 +166,9 @@ public static partial class BasisRemoteNetworkDriver
         if ((uint)index >= FixedCapacity)
             throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
 
+        // Make sure no jobs are still reading/writing these buffers
+        if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
+
         _prevPositions[index] = default;
         _targetPositions[index] = default;
         _prevScales[index] = new float3(1, 1, 1);
@@ -193,8 +194,6 @@ public static partial class BasisRemoteNetworkDriver
         if (index == _activeCount - 1)
         {
             int newCount = index;
-            // Walk backwards to find last non-zero time OR simply collapse to first index with any usage.
-            // Cheap approach: just decrement; users may call ResetIndex on many tails in a row.
             _activeCount = newCount;
         }
     }
@@ -233,7 +232,6 @@ public static partial class BasisRemoteNetworkDriver
             OutputMuscles = _outMuscles,
             MuscleCountPerAvatar = _muscleCount
         }.Schedule(num * _muscleCount, 128, avatarJob);
-
         // 1€ filter: read interpolated muscles, write filtered output
         oneEuroJob = new BasisOneEuroFilterParallelJob
         {
@@ -282,6 +280,80 @@ public static partial class BasisRemoteNetworkDriver
         int baseOffset = index * _muscleCount;
         NativeArray<float>.Copy(euroValuesOutput, baseOffset, outMuscles, 0, _muscleCount);
         return true;
+    }
+    /// <summary>
+    /// Update the One Euro filter parameters on the shared network singleton and (optionally)
+    /// reset the filter internal state so it "forgets" previous history and re-converges
+    /// from the current inputs.
+    /// </summary>
+    /// <param name="minCutoff">New MinCutoff (Hz).</param>
+    /// <param name="beta">New Beta (cutoff slope vs speed).</param>
+    /// <param name="derivativeCutoff">New DerivativeCutoff (Hz).</param>
+    /// <param name="resetState">
+    /// If true, clears PositionFilters, DerivativeFilters, and euroValuesOutput.
+    /// Do this when you want motion to be recalculated fresh with the new settings.
+    /// </param>
+    public static void UpdateOneEuroParameters(float minCutoff, float beta, float derivativeCutoff, bool resetState = true)
+    {
+        EnsureInitialized();
+
+        // Ensure no jobs are currently touching the buffers.
+        if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
+
+        // Push values to the source of truth used in Compute()
+        MinCutoff = minCutoff;
+        Beta = beta;
+        DerivativeCutoff = derivativeCutoff;
+
+        if (resetState)
+        {
+            ResetFilterStateAll();
+        }
+    }
+    // Parameters for Euro filter
+    public static float MinCutoff = 1.0f;
+    public static float Beta = 0.01f;
+    public static float DerivativeCutoff = 1.0f;
+    /// <summary>
+    /// Resets the filter state for ALL avatars/muscles.
+    /// This clears the internal history so the next Compute() uses only fresh samples.
+    /// </summary>
+    public static void ResetFilterStateAll()
+    {
+        EnsureInitialized();
+
+        if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
+
+        int flat = FixedCapacity * _muscleCount;
+        for (int i = 0; i < flat; i++)
+        {
+            positionFilters[i] = float2.zero;   // previous raw (x) and filtered (y)
+            derivativeFilters[i] = float2.zero; // previous derivative raw (x) and filtered (y)
+            euroValuesOutput[i] = 0f;           // clear last filtered output
+        }
+    }
+
+    /// <summary>
+    /// Resets the filter state for a single avatar index (0..FixedCapacity-1).
+    /// Useful if you only want one rig to "reboot" its smoothing after a parameter tweak
+    /// or a teleport/desync.
+    /// </summary>
+    public static void ResetFilterStateForIndex(int index)
+    {
+        EnsureInitialized();
+        if ((uint)index >= FixedCapacity)
+            throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
+
+        if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
+
+        int baseOffset = index * _muscleCount;
+        for (int m = 0; m < _muscleCount; m++)
+        {
+            int flat = baseOffset + m;
+            positionFilters[flat] = float2.zero;
+            derivativeFilters[flat] = float2.zero;
+            euroValuesOutput[flat] = 0f;
+        }
     }
 
     // ---------------- internal allocation helpers ----------------

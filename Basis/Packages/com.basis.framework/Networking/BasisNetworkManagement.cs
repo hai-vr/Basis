@@ -13,7 +13,6 @@ using BasisNetworkClient;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,7 +22,6 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.SceneManagement;
-using static Basis.Scripts.Networking.Receivers.BasisNetworkReceiver;
 using static SerializableBasis;
 namespace Basis.Scripts.Networking
 {

@@ -4,7 +4,6 @@ using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
 using LiteNetLib;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using Unity.Burst;
 using Unity.Mathematics;
