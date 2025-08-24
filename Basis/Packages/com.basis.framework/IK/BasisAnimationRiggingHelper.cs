@@ -2,6 +2,7 @@ using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
+using System;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
 
@@ -140,4 +141,53 @@ public static class BasisAnimationRiggingHelper
         newObject.transform.SetParent(parent);
         return newObject;
     }
+    public static void CreateSpine(BasisLocalPlayer player, GameObject parent, Transform hips, Transform[] spineJoints, Transform head, BasisBoneTrackedRole hipRole, out BasisSpineIKConstraint SpineIKConstraint, float chainWeight = 1.0f, bool maintainSpineLength = true)
+    {
+        player.LocalBoneDriver.FindBone(out BasisLocalBoneControl hipControl, hipRole);
+
+        var boneRole = CreateAndSetParent(parent.transform, $"Bone Role {hipRole.ToString()}");
+        SpineIKConstraint = BasisHelpers.GetOrAddComponent<BasisSpineIKConstraint>(boneRole);
+
+        // Set the transform references FIRST
+        SpineIKConstraint.data.hips = hips;
+        SpineIKConstraint.data.spineJoints = spineJoints;
+        SpineIKConstraint.data.head = head;
+
+        // Set control parameters
+        SpineIKConstraint.data.chainWeight = chainWeight;
+        SpineIKConstraint.data.maintainSpineLength = maintainSpineLength;
+
+        // IMPORTANT: Manually calibrate the original distances after setting transforms
+        CalibrateSpineDistances(ref SpineIKConstraint.data, hips, spineJoints);
+
+        // Set target to head position/rotation
+        SpineIKConstraint.data.headTargetPosition = head.position;
+        SpineIKConstraint.data.headTargetRotation = head.rotation.eulerAngles;
+        SpineIKConstraint.data.hipsTargetPosition = hips.position;
+        SpineIKConstraint.data.hipsTargetRotation = hips.rotation.eulerAngles;
+
+        GeneratedRequiredTransforms(player, head);
+    }
+
+    // Helper method to manually calibrate distances
+    private static void CalibrateSpineDistances(ref BasisSpineIKConstraintData data, Transform hips, Transform[] spineJoints)
+    {
+        if (spineJoints == null || spineJoints.Length == 0) return;
+
+        int jointCount = spineJoints.Length + 1;
+        data.m_OriginalDistances = new Vector3[jointCount];
+        data.m_OriginalDistances[0] = Vector3.zero;
+
+        Transform prev = hips;
+        for (int i = 0; i < spineJoints.Length; i++)
+        {
+            if (spineJoints[i] != null)
+            {
+                float distance = Vector3.Distance(spineJoints[i].position, prev.position);
+                data.m_OriginalDistances[i + 1] = new Vector3(distance, 0, 0); // Store distance in x component
+                prev = spineJoints[i];
+            }
+        }
+    }
+
 }
