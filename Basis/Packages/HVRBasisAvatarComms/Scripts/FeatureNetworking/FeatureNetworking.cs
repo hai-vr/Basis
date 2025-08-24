@@ -54,14 +54,12 @@ namespace HVR.Basis.Comms
             };
             _holder.SetActive(false);
             StreamedAvatarFeature streamed = _holder.AddComponent<StreamedAvatarFeature>();
-            streamed.avatar = avatar;
             streamed.valueArraySize = (byte)count; // TODO: Sanitize count to be within bounds
             streamed.transmitter = transmitter;
             _holder.SetActive(true);
 
-            var handle = new FeatureInterpolator(this, guidIndex, streamed, interpolatedDataChanged);
+            var handle = new FeatureInterpolator(streamed, interpolatedDataChanged);
             streamed.OnInterpolatedDataChanged += handle.OnInterpolatedDataChanged;
-            streamed.SetEncodingInfo(_isWearer, (byte)guidIndex); // TODO: Make sure upstream that guidIndex is within limits
             return handle;
         }
 
@@ -145,15 +143,11 @@ namespace HVR.Basis.Comms
 
     public class FeatureInterpolator : IFeatureReceiver
     {
-        private readonly FeatureNetworking _featureNetworking;
-        private readonly int _guidIndex;
         private readonly StreamedAvatarFeature _streamed;
         private readonly FeatureNetworking.InterpolatedDataChanged _interpolatedDataChanged;
 
-        internal FeatureInterpolator(FeatureNetworking featureNetworking, int guidIndex, StreamedAvatarFeature streamed, FeatureNetworking.InterpolatedDataChanged interpolatedDataChanged)
+        internal FeatureInterpolator(StreamedAvatarFeature streamed, FeatureNetworking.InterpolatedDataChanged interpolatedDataChanged)
         {
-            _featureNetworking = featureNetworking;
-            _guidIndex = guidIndex;
             _streamed = streamed;
             _interpolatedDataChanged = interpolatedDataChanged;
         }

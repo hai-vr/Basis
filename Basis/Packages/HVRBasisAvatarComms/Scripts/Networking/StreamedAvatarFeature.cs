@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Behaviour;
 using LiteNetLib;
 using UnityEngine;
@@ -22,8 +21,8 @@ namespace HVR.Basis.Comms
         public DeliveryMethod DeliveryMethod = DeliveryMethod.Unreliable;
         private const float TransmissionDeltaSeconds = 0.1f;
 
-        internal BasisAvatar avatar;
-        [SerializeField] public byte valueArraySize = 8; // Must not change after first enabled.
+        [NonSerialized] public byte valueArraySize = 8; // Must not change after first enabled.
+        [NonSerialized] public BasisAvatarMonoBehaviour transmitter;
 
         private readonly Queue<StreamedAvatarFeaturePayload> _queue = new();
         private float[] current;
@@ -34,11 +33,9 @@ namespace HVR.Basis.Comms
         private bool _isOutOfTape;
         private bool _writtenThisFrame;
         private bool _isWearer;
-        private byte _scopedIndex;
 
         public event InterpolatedDataChanged OnInterpolatedDataChanged;
         public delegate void InterpolatedDataChanged(float[] current);
-        public BasisAvatarMonoBehaviour transmitter;
 
         private void Awake()
         {
@@ -87,7 +84,7 @@ namespace HVR.Basis.Comms
                     FloatValues = current // Not copied: Process this message immediately
                 };
 
-                EncodeAndSubmit(toSend, null, transmitter);
+                EncodeAndSubmit(toSend, null);
 
                 _timeLeft = 0;
             }
@@ -150,12 +147,6 @@ namespace HVR.Basis.Comms
             }
         }
 
-        public void SetEncodingInfo(bool isWearer, byte scopedIndex)
-        {
-            _isWearer = isWearer;
-            _scopedIndex = scopedIndex;
-        }
-
         #region Network Payload
 
         public void OnPacketReceived(ArraySegment<byte> subBuffer)
@@ -174,10 +165,10 @@ namespace HVR.Basis.Comms
         //   - Delta Time (1 byte)
         //   - Float Values (valueArraySize bytes)
 
-        private void EncodeAndSubmit(StreamedAvatarFeaturePayload message, ushort[] recipientsNullable, BasisAvatarMonoBehaviour transmitter)
+        private void EncodeAndSubmit(StreamedAvatarFeaturePayload message, ushort[] recipientsNullable)
         {
             var buffer = new byte[HeaderBytes + valueArraySize];
-            buffer[0] = _scopedIndex;
+            buffer[0] = FeatureNetworking.NewNet_WearerData;
             buffer[1] = (byte)(message.DeltaTime / DeltaLocalIntToSeconds);
 
             for (var i = 0; i < current.Length; i++)
@@ -222,7 +213,7 @@ namespace HVR.Basis.Comms
             {
                 DeltaTime = DeltaTimeUsedForResyncs,
                 FloatValues = current
-            }, null, transmitter);
+            }, null);
         }
 
         public void OnResyncRequested(ushort[] whoAsked)
@@ -231,7 +222,7 @@ namespace HVR.Basis.Comms
             {
                 DeltaTime = DeltaTimeUsedForResyncs,
                 FloatValues = current
-            }, whoAsked, transmitter);
+            }, whoAsked);
         }
     }
     public class StreamedAvatarFeaturePayload
