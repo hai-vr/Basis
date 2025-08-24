@@ -6,7 +6,7 @@ using UnityEngine;
 namespace HVR.Basis.Comms
 {
     [CustomEditor(typeof(BlendshapeActuationDefinitionFile))]
-    public class BlendshapeActuationDefinitionFileEditor : Editor
+    public class BlendshapeActuationDefinitionFileEditor : UnityEditor.Editor
     {
         private string _addressPrefix = "FT/";
         private string _address = "";

@@ -3,7 +3,6 @@ using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Behaviour;
 using Basis.Scripts.Eye_Follow;
-using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Receivers;
 using LiteNetLib;
 using Unity.Mathematics;

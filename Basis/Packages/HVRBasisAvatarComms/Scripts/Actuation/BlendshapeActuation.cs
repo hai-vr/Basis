@@ -5,7 +5,6 @@ using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Behaviour;
 using LiteNetLib;
 using UnityEngine;
-using UnityEngine.tvOS;
 
 namespace HVR.Basis.Comms
 {

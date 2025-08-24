@@ -35,7 +35,7 @@ namespace HVR.Basis.Comms
         public static T[] SlowSanitizeEndUserProvidedObjectArray<T>(T[] objectsNullable) where T : Object
         {
             if (objectsNullable == null) return Array.Empty<T>();
-            
+
             return objectsNullable.Where(t => t).ToArray();
         }
 
@@ -44,7 +44,7 @@ namespace HVR.Basis.Comms
         public static T[] SlowSanitizeEndUserProvidedStructArray<T>(T[] structuresNullable) where T : struct
         {
             if (structuresNullable == null) return Array.Empty<T>();
-            
+
             return structuresNullable;
         }
     }
