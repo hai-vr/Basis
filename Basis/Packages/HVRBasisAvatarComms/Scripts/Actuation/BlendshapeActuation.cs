@@ -37,6 +37,8 @@ namespace HVR.Basis.Comms
         private bool _networkReady;
         private AvatarMessageProcessing _network;
 
+        public string[] debugAddresses;
+
         #endregion
 
         private void Awake()
@@ -71,18 +73,15 @@ namespace HVR.Basis.Comms
             var actuatorsForThisAddress = _addressBaseIndexToActuators[index];
             if (actuatorsForThisAddress == null) return; // There may be no actuator for an address when it does not exist in the renderers.
 
-            var lower = 0f;
-            var upper = 0f;
             foreach (var actuator in actuatorsForThisAddress)
             {
                 Actuate(actuator, inRange);
-                lower = actuator.StreamedLower;
-                upper = actuator.StreamedUpper;
             }
 
             if (_featureInterpolator != null)
             {
-                var streamed01 = Mathf.InverseLerp(lower, upper, inRange);
+                var firstActuator = actuatorsForThisAddress[0];
+                var streamed01 = Mathf.InverseLerp(firstActuator.StreamedLower, firstActuator.StreamedUpper, inRange);
                 _featureInterpolator.Store(index, streamed01);
             }
         }
@@ -123,14 +122,6 @@ namespace HVR.Basis.Comms
             var allDefinitions = definitions
                 .Concat(definitionFiles.SelectMany(file => file.definitions))
                 .ToArray();
-            _addressBase = MakeIndexDictionary(allDefinitions.Select(definition => definition.address).Distinct().ToArray());
-
-            if (_addressBase.Count > MaxAddresses)
-            {
-                Debug.LogError($"Exceeded max {MaxAddresses} addresses allowed in an actuator.");
-                enabled = false;
-                return;
-            }
 
             var smrToBlendshapeNames = new Dictionary<SkinnedMeshRenderer, List<string>>();
             foreach (var smr in renderers)
@@ -164,7 +155,7 @@ namespace HVR.Basis.Comms
                     var (lower, upper) = addressToStreamedLowerUpper[definition.address];
                     return new ComputedActuator
                     {
-                        AddressIndex = _addressBase[definition.address],
+                        // The AddressIndex field is filled later.
                         InStart = definition.inStart,
                         InEnd = definition.inEnd,
                         OutStart = definition.outStart,
@@ -184,6 +175,25 @@ namespace HVR.Basis.Comms
                 })
                 .Where(actuator => actuator != null)
                 .ToArray();
+
+            var allAddressesThatAreEffectivelyActuated = _computedActuators
+                .Select(actuator => actuator.RequestedFeature.identifier)
+                .Distinct()
+                .ToArray();
+            debugAddresses = allAddressesThatAreEffectivelyActuated;
+
+            _addressBase = MakeIndexDictionary(allAddressesThatAreEffectivelyActuated);
+            if (_addressBase.Count > MaxAddresses)
+            {
+                Debug.LogError($"Exceeded max {MaxAddresses} addresses allowed in an actuator.");
+                enabled = false;
+                return;
+            }
+
+            foreach (var computedActuator in _computedActuators)
+            {
+                computedActuator.AddressIndex = _addressBase[computedActuator.RequestedFeature.identifier];
+            }
 
             _addressBaseIndexToActuators = new ComputedActuator[_addressBase.Count][];
             foreach (var computedActuator in _computedActuators.GroupBy(actuator => actuator.AddressIndex, actuator => actuator))
