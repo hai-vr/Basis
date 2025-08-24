@@ -9,14 +9,9 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/Feature Networking")]
     public class FeatureNetworking : MonoBehaviour
     {
-        public const byte NewNet_RemoteRequestsInitialization = 2;
-        public const byte NewNet_WearerReady = 1;
         public const byte NewNet_WearerData = 0;
-
-        public const byte NegotiationPacket = 255;
-        public const byte ReservedPacket = 254;
-
-        public const byte ReservedPacket_RemoteRequestsInitializationMessage = 0;
+        public const byte NewNet_WearerReady = 1;
+        public const byte NewNet_RemoteRequestsInitialization = 2;
 
         public delegate void InterpolatedDataChanged(float[] current);
         public delegate void EventReceived(ArraySegment<byte> subBuffer);
@@ -29,7 +24,6 @@ namespace HVR.Basis.Comms
 
         private GameObject _holder;
         private bool _isWearer;
-        private byte[] _remoteRequestsInitializationPacket;
 
         private int index;
 
@@ -40,8 +34,6 @@ namespace HVR.Basis.Comms
             {
                 avatar.gameObject.AddComponent<HVRAvatarComms>();
             }
-
-            _remoteRequestsInitializationPacket = new[] { ReservedPacket, ReservedPacket_RemoteRequestsInitializationMessage };
         }
 
         public FeatureInterpolator NewInterpolator(int count, InterpolatedDataChanged interpolatedDataChanged, BasisAvatarMonoBehaviour transmitter)
@@ -67,11 +59,6 @@ namespace HVR.Basis.Comms
         {
             var handle = new FeatureEvent(this, eventReceived, resyncRequested, resyncEveryoneRequested, transmitter);
             return handle;
-        }
-
-        public byte[] GetRemoteRequestsInitializationPacket()
-        {
-            return _remoteRequestsInitializationPacket;
         }
     }
 
