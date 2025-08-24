@@ -2595,7 +2595,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
     blendshapes:
-    - TongueDown
+    - TongueRoll
     onlyFirstMatch: 0
   - address: FT/v2/TongueArchY
     inStart: 0
