@@ -48,17 +48,24 @@ namespace HVR.Basis.Comms
             if (avatar == null) avatar = CommsUtil.GetAvatar(this);
             if (featureNetworking == null) featureNetworking = CommsUtil.FeatureNetworkingFromAvatar(avatar);
             if (acquisition == null) acquisition = AcquisitionService.SceneInstance;
-        }
-        public override void OnNetworkReady(bool isLocallyOwned)
-        {
-            IsLocal = isLocallyOwned;
 
-            if (IsLocal)
+            avatar.OnAvatarReady += OnAvatarReady;
+        }
+
+        private void OnAvatarReady(bool isOwner)
+        {
+            if (isOwner)
             {
                 acquisition.RegisterAddresses(OurAddresses, OnAddressUpdated);
                 _eyeFollowDriverLateInit = BasisLocalPlayer.Instance.LocalEyeDriver;
             }
-            else
+        }
+
+        public override void OnNetworkReady(bool isLocallyOwned)
+        {
+            IsLocal = isLocallyOwned;
+
+            if (!IsLocal)
             {
                 Receiver = NetworkedPlayer as BasisNetworkReceiver;
             }
@@ -89,6 +96,7 @@ namespace HVR.Basis.Comms
 
         private void OnDestroy()
         {
+            avatar.OnAvatarReady -= OnAvatarReady;
             if (IsLocal)
             {
                 acquisition.UnregisterAddresses(OurAddresses, OnAddressUpdated);
@@ -100,6 +108,10 @@ namespace HVR.Basis.Comms
             // FIXME: Temp fix, we'll need to hook to NetworkReady instead.
             // This is a quick fix so that we don't need to reupload the avatar.
             _anyAddressUpdated = _anyAddressUpdated || value != 0f;
+            if (_anyAddressUpdated && _eyeFollowDriverLateInit != null)
+            {
+                _eyeFollowDriverLateInit.IsEnabled = false;
+            }
 
             switch (address)
             {
@@ -145,7 +157,7 @@ namespace HVR.Basis.Comms
         }
         private void SetEyeRotation(float x, float y, EyeSide side)
         {
-            if (_eyeFollowDriverLateInit != null && _eyeFollowDriverLateInit.IsEnabled)
+            if (_eyeFollowDriverLateInit != null)
             {
                 var xDeg = Mathf.Asin(x) * Mathf.Rad2Deg * multiplyX;
                 var yDeg = Mathf.Asin(-y) * Mathf.Rad2Deg * multiplyY;
