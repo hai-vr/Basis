@@ -1,14 +1,12 @@
 using Basis.Scripts.BasisSdk;
-using Basis.Scripts.Behaviour;
 using System;
+using Basis.Scripts.Behaviour;
 using UnityEngine;
 namespace HVR.Basis.Comms
 {
     [AddComponentMenu("HVR.Basis/Comms/Internal/Avatar Comms")]
     public class HVRAvatarComms : BasisAvatarMonoBehaviour
     {
-        private const int BytesPerGuid = 16;
-
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private FeatureNetworking featureNetworking;
 

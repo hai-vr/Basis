@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Basis.Scripts.BasisSdk;
+using Basis.Scripts.Behaviour;
 using LiteNetLib;
 using UnityEngine;
 
@@ -37,14 +38,13 @@ namespace HVR.Basis.Comms
 
         public event InterpolatedDataChanged OnInterpolatedDataChanged;
         public delegate void InterpolatedDataChanged(float[] current);
-        public HVRAvatarComms HVRAvatarComms;
+        public BasisAvatarMonoBehaviour transmitter;
 
         private void Awake()
         {
             previous ??= new float[valueArraySize];
             target ??= new float[valueArraySize];
             current ??= new float[valueArraySize];
-            HVRAvatarComms = this.gameObject.GetComponentInParent<HVRAvatarComms>();
         }
 
         private void OnDisable()
@@ -87,7 +87,7 @@ namespace HVR.Basis.Comms
                     FloatValues = current // Not copied: Process this message immediately
                 };
 
-                EncodeAndSubmit(toSend, null);
+                EncodeAndSubmit(toSend, null, transmitter);
 
                 _timeLeft = 0;
             }
@@ -174,7 +174,7 @@ namespace HVR.Basis.Comms
         //   - Delta Time (1 byte)
         //   - Float Values (valueArraySize bytes)
 
-        private void EncodeAndSubmit(StreamedAvatarFeaturePayload message, ushort[] recipientsNullable)
+        private void EncodeAndSubmit(StreamedAvatarFeaturePayload message, ushort[] recipientsNullable, BasisAvatarMonoBehaviour transmitter)
         {
             var buffer = new byte[HeaderBytes + valueArraySize];
             buffer[0] = _scopedIndex;
@@ -186,11 +186,11 @@ namespace HVR.Basis.Comms
             }
             if (recipientsNullable == null || recipientsNullable.Length == 0)
             {
-                HVRAvatarComms.ServerReductionSystemMessageSend(buffer);
+                transmitter.ServerReductionSystemMessageSend(buffer);
             }
             else
             {
-                HVRAvatarComms.NetworkMessageSend(buffer, DeliveryMethod, recipientsNullable);
+                transmitter.NetworkMessageSend(buffer, DeliveryMethod, recipientsNullable);
             }
         }
         private bool TryDecode(ArraySegment<byte> subBuffer, out StreamedAvatarFeaturePayload result)
@@ -222,7 +222,7 @@ namespace HVR.Basis.Comms
             {
                 DeltaTime = DeltaTimeUsedForResyncs,
                 FloatValues = current
-            }, null);
+            }, null, transmitter);
         }
 
         public void OnResyncRequested(ushort[] whoAsked)
@@ -231,7 +231,7 @@ namespace HVR.Basis.Comms
             {
                 DeltaTime = DeltaTimeUsedForResyncs,
                 FloatValues = current
-            }, whoAsked);
+            }, whoAsked, transmitter);
         }
     }
     public class StreamedAvatarFeaturePayload

@@ -1,5 +1,6 @@
 using System;
 using Basis.Scripts.BasisSdk;
+using Basis.Scripts.Behaviour;
 using LiteNetLib;
 using UnityEngine;
 
@@ -43,7 +44,7 @@ namespace HVR.Basis.Comms
             _remoteRequestsInitializationPacket = new[] { ReservedPacket, ReservedPacket_RemoteRequestsInitializationMessage };
         }
 
-        public FeatureInterpolator NewInterpolator(int count, InterpolatedDataChanged interpolatedDataChanged)
+        public FeatureInterpolator NewInterpolator(int count, InterpolatedDataChanged interpolatedDataChanged, BasisAvatarMonoBehaviour transmitter)
         {
             var guidIndex = index;
             index++;
@@ -55,6 +56,7 @@ namespace HVR.Basis.Comms
             StreamedAvatarFeature streamed = _holder.AddComponent<StreamedAvatarFeature>();
             streamed.avatar = avatar;
             streamed.valueArraySize = (byte)count; // TODO: Sanitize count to be within bounds
+            streamed.transmitter = transmitter;
             _holder.SetActive(true);
 
             var handle = new FeatureInterpolator(this, guidIndex, streamed, interpolatedDataChanged);
@@ -63,19 +65,10 @@ namespace HVR.Basis.Comms
             return handle;
         }
 
-        public FeatureEvent NewEventDriven(int guidIndex, EventReceived eventReceived, ResyncRequested resyncRequested, ResyncEveryoneRequested resyncEveryoneRequested)
+        public FeatureEvent NewEventDriven(EventReceived eventReceived, ResyncRequested resyncRequested, ResyncEveryoneRequested resyncEveryoneRequested, BasisAvatarMonoBehaviour transmitter)
         {
-            HVRAvatarComms HVRAvatarComms = this.gameObject.GetComponentInParent<HVRAvatarComms>();
-            if (HVRAvatarComms != null)
-            {
-                var handle = new FeatureEvent(HVRAvatarComms, this, guidIndex, eventReceived, resyncRequested, resyncEveryoneRequested);
-                return handle;
-            }
-            else
-            {
-                BasisDebug.LogError("Missing HVR Avatar Comms");
-                return null;
-            }
+            var handle = new FeatureEvent(this, eventReceived, resyncRequested, resyncEveryoneRequested, transmitter);
+            return handle;
         }
 
         public byte[] GetRemoteRequestsInitializationPacket()
@@ -92,15 +85,15 @@ namespace HVR.Basis.Comms
         private readonly FeatureNetworking.EventReceived _eventReceived;
         private readonly FeatureNetworking.ResyncRequested _resyncRequested;
         private readonly FeatureNetworking.ResyncEveryoneRequested _resyncEveryoneRequested;
-        private readonly HVRAvatarComms _basisAvatarMonoBehaviour;
+        private readonly BasisAvatarMonoBehaviour _transmitter;
 
-        public FeatureEvent(HVRAvatarComms MonoBehaviour,FeatureNetworking featureNetworking, int guidIndex, FeatureNetworking.EventReceived eventReceived, FeatureNetworking.ResyncRequested resyncRequested, FeatureNetworking.ResyncEveryoneRequested resyncEveryoneRequested)
+        public FeatureEvent(FeatureNetworking featureNetworking, FeatureNetworking.EventReceived eventReceived, FeatureNetworking.ResyncRequested resyncRequested, FeatureNetworking.ResyncEveryoneRequested resyncEveryoneRequested, BasisAvatarMonoBehaviour transmitter)
         {
             _featureNetworking = featureNetworking;
             _eventReceived = eventReceived;
             _resyncRequested = resyncRequested;
             _resyncEveryoneRequested = resyncEveryoneRequested;
-            _basisAvatarMonoBehaviour = MonoBehaviour;
+            _transmitter = transmitter;
         }
 
         public void OnPacketReceived(ArraySegment<byte> data)
@@ -141,11 +134,11 @@ namespace HVR.Basis.Comms
 
             if (whoAskedNullable == null || whoAskedNullable.Length == 0)
             {
-                _basisAvatarMonoBehaviour.ServerReductionSystemMessageSend(buffer);
+                _transmitter.ServerReductionSystemMessageSend(buffer);
             }
             else
             {
-                _basisAvatarMonoBehaviour.NetworkMessageSend(buffer, DeliveryMethod, whoAskedNullable);
+                _transmitter.NetworkMessageSend(buffer, DeliveryMethod, whoAskedNullable);
             }
         }
     }

@@ -5,6 +5,7 @@ using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Behaviour;
 using LiteNetLib;
 using UnityEngine;
+using UnityEngine.tvOS;
 
 namespace HVR.Basis.Comms
 {
@@ -22,7 +23,7 @@ namespace HVR.Basis.Comms
         [HideInInspector] [SerializeField] private FeatureNetworking featureNetworking;
         [HideInInspector] [SerializeField] private AcquisitionService acquisition;
 
-        private Dictionary<string, int> _addressBase = new Dictionary<string, int>();
+        private Dictionary<string, int> _addressBase = new();
         private ComputedActuator[] _computedActuators;
         private ComputedActuator[][] _addressBaseIndexToActuators;
 
@@ -33,9 +34,8 @@ namespace HVR.Basis.Comms
         // Nullability is needed for local tests without initialization scene.
         // - Becomes non-null after HVRAvatarComms.OnAvatarNetworkReady is successfully invoked
         private FeatureInterpolator _featureInterpolator;
-        private ushort _wearerNetId;
-        private bool _isWearer;
         private bool _networkReady;
+        private AvatarMessageProcessing _network;
 
         #endregion
 
@@ -197,72 +197,27 @@ namespace HVR.Basis.Comms
             }
         }
 
-        public override void OnNetworkReady(bool IsLocallyOwned)
+        public override void OnNetworkReady(bool isLocallyOwned)
         {
             // FIXME: We should be using the computed actuators instead of the address base, assuming that
             // the list of blendshapes is the same local and remote (no local-only or remote-only blendshapes).
-            _featureInterpolator = featureNetworking.NewInterpolator(_addressBase.Count, OnInterpolatedDataChanged);
+            _featureInterpolator = featureNetworking.NewInterpolator(_addressBase.Count, OnInterpolatedDataChanged, this);
 
             // FIXME: Add default values in the blendshape actuation file
             if (_addressBase.TryGetValue("FT/v2/EyeLidLeft", out var indexLeft)) _featureInterpolator.Store(indexLeft, 0.8f);
             if (_addressBase.TryGetValue("FT/v2/EyeLidRight", out var indexRight)) _featureInterpolator.Store(indexRight, 0.8f);
 
-            _isWearer = IsLocallyOwned;
-            avatar.TryGetLinkedPlayer(out _wearerNetId);
-
+            _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, avatar.LinkedPlayerID, _featureInterpolator);
             _networkReady = true;
 
-            if (IsLocallyOwned) NetworkMessageSend(new[] { FeatureNetworking.NewNet_WearerReady });
-            else NetworkMessageSend(new[] { FeatureNetworking.NewNet_RemoteRequestsInitialization });
+            _network.SendInitialPacket();
         }
 
-        public override void OnNetworkMessageReceived(ushort RemoteUser, byte[] buffer, DeliveryMethod DeliveryMethod, bool IsADifferentAvatarLocally)
+        public override void OnNetworkMessageReceived(ushort remoteUser, byte[] buffer, DeliveryMethod deliveryMethod, bool isADifferentAvatarLocally)
         {
             if (!_networkReady) return;
-            if (IsADifferentAvatarLocally) return;
-            if (buffer.Length == 0) { HVRAvatarComms.ProtocolError("Buffer was 0 bytes."); return; }
-            if (!_isWearer && RemoteUser != _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
 
-            var packetId = buffer[0];
-            switch (packetId)
-            {
-                case FeatureNetworking.NewNet_WearerReady:
-                {
-                    if (_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
-                    if (RemoteUser != _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
-                    if (buffer.Length != 1) { HVRAvatarComms.ProtocolError("Illegal buffer length."); return; }
-                    HVROnReceivedWearerReady();
-                    break;
-                }
-                case FeatureNetworking.NewNet_RemoteRequestsInitialization:
-                {
-                    if (!_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
-                    if (RemoteUser == _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
-                    if (buffer.Length != 1) { HVRAvatarComms.ProtocolError("Illegal buffer length."); return; }
-                    HVROnReceivedRemoteRequestsInitialization();
-                    break;
-                }
-                case FeatureNetworking.NewNet_WearerData:
-                {
-                    if (_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
-                    if (RemoteUser != _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
-                    _featureInterpolator.OnPacketReceived(HVRAvatarComms.SubBuffer(buffer));
-                    break;
-                }
-                default:
-                {
-                    HVRAvatarComms.ProtocolError("Illegal message.");
-                    break;
-                }
-            }
-        }
-
-        private void HVROnReceivedWearerReady()
-        {
-        }
-
-        private void HVROnReceivedRemoteRequestsInitialization()
-        {
+            _network.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod, isADifferentAvatarLocally);
         }
 
         private Dictionary<string, int> MakeIndexDictionary(string[] addressBase)
@@ -294,21 +249,15 @@ namespace HVR.Basis.Comms
 
         private void ResetAllBlendshapesToZero()
         {
-            foreach (ComputedActuator computedActuator in _computedActuators)
+            foreach (var computedActuator in _computedActuators)
             {
-                if (computedActuator != null)
+                foreach (var target in computedActuator.Targets)
                 {
-                    foreach (ComputedActuatorTarget target in computedActuator.Targets)
+                    foreach (var blendshapeIndex in target.BlendshapeIndices)
                     {
-                        if (target != null)
+                        if (null != target.Renderer)
                         {
-                            foreach (int blendshapeIndex in target.BlendshapeIndices)
-                            {
-                                if (target.Renderer != null)
-                                {
-                                    target.Renderer.SetBlendShapeWeight(blendshapeIndex, 0);
-                                }
-                            }
+                            target.Renderer.SetBlendShapeWeight(blendshapeIndex, 0);
                         }
                     }
                 }

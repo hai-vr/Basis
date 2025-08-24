@@ -19,20 +19,19 @@ namespace HVR.Basis.Comms
         private const string EyeRightX = "FT/v2/EyeRightX";
         private const string EyeY = "FT/v2/EyeY";
         private static readonly string[] OurAddresses = { EyeLeftX, EyeRightX, EyeY };
-        
+
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private FeatureNetworking featureNetworking;
         [HideInInspector] [SerializeField] private AcquisitionService acquisition;
         [SerializeField] private float multiplyX = 1f;
         [SerializeField] private float multiplyY = 1f;
-        
+
         public float _fEyeLeftX;
         public float _fEyeRightX;
         public float _fEyeY;
         public bool _anyAddressUpdated;
         public bool IsLocal;
         #region NetworkingFields
-        public int _guidIndex;
         // Can be null due to:
         // - Application with no network, or
         // - Network late initialization.
@@ -42,16 +41,18 @@ namespace HVR.Basis.Comms
         public BasisLocalEyeDriver _eyeFollowDriverLateInit;
         #endregion
         public BasisNetworkReceiver Receiver = null;
+        private AvatarMessageProcessing _network;
+        private bool _networkReady;
+
         private void Awake()
         {
             if (avatar == null) avatar = CommsUtil.GetAvatar(this);
             if (featureNetworking == null) featureNetworking = CommsUtil.FeatureNetworkingFromAvatar(avatar);
             if (acquisition == null) acquisition = AcquisitionService.SceneInstance;
         }
-        public override void OnNetworkReady(bool IsLocallyOwned)
+        public override void OnNetworkReady(bool isLocallyOwned)
         {
-
-            IsLocal = IsLocallyOwned;
+            IsLocal = isLocallyOwned;
 
             if (IsLocal)
             {
@@ -62,7 +63,21 @@ namespace HVR.Basis.Comms
             {
                 Receiver = NetworkedPlayer as BasisNetworkReceiver;
             }
+
+            _featureInterpolator = featureNetworking.NewInterpolator(3, OnInterpolatedDataChanged, this);
+            _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, avatar.LinkedPlayerID, _featureInterpolator);
+            _networkReady = true;
+
+            _network.SendInitialPacket();
         }
+
+        public override void OnNetworkMessageReceived(ushort remoteUser, byte[] buffer, DeliveryMethod deliveryMethod, bool isADifferentAvatarLocally)
+        {
+            if (!_networkReady) return;
+
+            _network.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod, isADifferentAvatarLocally);
+        }
+
         private void OnEnable()
         {
             SetBuiltInEyeFollowDriverOverriden(true);
@@ -86,7 +101,7 @@ namespace HVR.Basis.Comms
             // FIXME: Temp fix, we'll need to hook to NetworkReady instead.
             // This is a quick fix so that we don't need to reupload the avatar.
             _anyAddressUpdated = _anyAddressUpdated || value != 0f;
-            
+
             switch (address)
             {
                 case EyeLeftX:
@@ -98,7 +113,7 @@ namespace HVR.Basis.Comms
                 case EyeRightX:
                 {
                     _fEyeRightX = value;
-                    if (_featureInterpolator != null) _featureInterpolator.Store(1, (value + 1) / 2f); 
+                    if (_featureInterpolator != null) _featureInterpolator.Store(1, (value + 1) / 2f);
                     break;
                 }
                 case EyeY:
@@ -189,12 +204,6 @@ namespace HVR.Basis.Comms
         }
 
 #region NetworkingMethods
-        public void OnGuidAssigned(int guidIndex, Guid guid)
-        {
-            _guidIndex = guidIndex;
-            _featureInterpolator = featureNetworking.NewInterpolator(3, OnInterpolatedDataChanged);
-        }
-
         private void OnInterpolatedDataChanged(float[] current)
         {
             _fEyeLeftX = current[0] * 2 - 1;
