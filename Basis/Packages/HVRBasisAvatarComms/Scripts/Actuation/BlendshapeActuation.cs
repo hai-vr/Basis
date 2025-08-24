@@ -17,6 +17,7 @@ namespace HVR.Basis.Comms
         [SerializeField] private SkinnedMeshRenderer[] renderers = Array.Empty<SkinnedMeshRenderer>();
         [SerializeField] private BlendshapeActuationDefinitionFile[] definitionFiles = Array.Empty<BlendshapeActuationDefinitionFile>();
         [SerializeField] private BlendshapeActuationDefinition[] definitions = Array.Empty<BlendshapeActuationDefinition>();
+        [SerializeField] private AddressOverride[] addressOverrides = Array.Empty<AddressOverride>();
 
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private FeatureNetworking featureNetworking;
@@ -202,9 +203,22 @@ namespace HVR.Basis.Comms
             // the list of blendshapes is the same local and remote (no local-only or remote-only blendshapes).
             _featureInterpolator = featureNetworking.NewInterpolator(_addressBase.Count, OnInterpolatedDataChanged, this);
 
-            // FIXME: Add default values in the blendshape actuation file
-            if (_addressBase.TryGetValue("FT/v2/EyeLidLeft", out var indexLeft)) _featureInterpolator.Store(indexLeft, 0.8f);
-            if (_addressBase.TryGetValue("FT/v2/EyeLidRight", out var indexRight)) _featureInterpolator.Store(indexRight, 0.8f);
+            var overrides = definitionFiles
+                .SelectMany(file => file.addressOverrides)
+                .Concat(addressOverrides)
+                .Where(it => it.overrideDefaultValue)
+                .ToArray();
+            foreach (var addressOverride in overrides)
+            {
+                if (_addressBase.TryGetValue(addressOverride.address, out var v)) _featureInterpolator.Store(v, addressOverride.defaultValue);
+            }
+
+            // Handle older avatars that were uploaded with a previous face tracking definition file. Internal version would be 1 by default.
+            if (definitionFiles.Length > 0 && definitionFiles.All(file => file.internalVersion < 2))
+            {
+                if (_addressBase.TryGetValue("FT/v2/EyeLidLeft", out var indexLeft)) _featureInterpolator.Store(indexLeft, 0.8f);
+                if (_addressBase.TryGetValue("FT/v2/EyeLidRight", out var indexRight)) _featureInterpolator.Store(indexRight, 0.8f);
+            }
 
             _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, avatar.LinkedPlayerID, _featureInterpolator);
             _networkReady = true;

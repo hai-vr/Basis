@@ -19,4 +19,13 @@ namespace HVR.Basis.Comms
         // and several exist, we don't want to actuate all of them. In this case, use onlyFirstMatch = true
         public bool onlyFirstMatch;
     }
+
+    [Serializable]
+    public struct AddressOverride
+    {
+        public string address;
+
+        public bool overrideDefaultValue;
+        public float defaultValue;
+    }
 }
