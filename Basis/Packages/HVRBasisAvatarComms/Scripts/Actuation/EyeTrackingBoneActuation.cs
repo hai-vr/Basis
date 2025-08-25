@@ -43,6 +43,12 @@ namespace HVR.Basis.Comms
         private AvatarMessageProcessing _network;
         private bool _networkReady;
         private bool _eyeFollowDriverApplicable;
+        private readonly Nethack _nethack;
+
+        public EyeTrackingBoneActuation()
+        {
+            _nethack = new Nethack(OnReadyBothAvatarAndNetwork);
+        }
 
         private void Awake()
         {
@@ -61,9 +67,16 @@ namespace HVR.Basis.Comms
                 _eyeFollowDriverApplicable = true;
                 _eyeFollowDriverLateInit = BasisLocalPlayer.Instance.LocalEyeDriver;
             }
+
+            _nethack.AfterAvatarReady();
         }
 
         public override void OnNetworkReady(bool isLocallyOwned)
+        {
+            _nethack.AfterNetworkReady(isLocallyOwned);
+        }
+
+        private void OnReadyBothAvatarAndNetwork(bool isLocallyOwned)
         {
             IsLocal = isLocallyOwned;
 

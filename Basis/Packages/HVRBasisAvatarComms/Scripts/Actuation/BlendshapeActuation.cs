@@ -36,10 +36,16 @@ namespace HVR.Basis.Comms
         private FeatureInterpolator _featureInterpolator;
         private bool _networkReady;
         private AvatarMessageProcessing _network;
+        private readonly Nethack _nethack;
 
         public string[] debugAddresses;
 
         #endregion
+
+        public BlendshapeActuation()
+        {
+            _nethack = new Nethack(OnReadyBothAvatarAndNetwork);
+        }
 
         private void Awake()
         {
@@ -205,9 +211,16 @@ namespace HVR.Basis.Comms
             {
                 acquisition.RegisterAddresses(_addressBase.Keys.ToArray(), OnAddressUpdated);
             }
+
+            _nethack.AfterAvatarReady();
         }
 
         public override void OnNetworkReady(bool isLocallyOwned)
+        {
+            _nethack.AfterNetworkReady(isLocallyOwned);
+        }
+
+        private void OnReadyBothAvatarAndNetwork(bool isLocallyOwned)
         {
             // FIXME: We should be using the computed actuators instead of the address base, assuming that
             // the list of blendshapes is the same local and remote (no local-only or remote-only blendshapes).
