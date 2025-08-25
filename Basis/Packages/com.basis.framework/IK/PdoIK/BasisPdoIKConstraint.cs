@@ -227,7 +227,7 @@ namespace UnityEngine.Animations.Rigging
         private void SetHips(AnimationStream stream, Vector3 hipsTargetPos, Quaternion hipsTargetRot)
         {
             hips.SetPosition(stream, hipsTargetPos);
-            // hips.SetRotation(stream, hipsTargetRot);
+            hips.SetRotation(stream, hipsTargetRot);
         }
 
         private void SetSpine(AnimationStream stream)

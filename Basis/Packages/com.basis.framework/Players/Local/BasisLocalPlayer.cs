@@ -249,12 +249,12 @@ namespace Basis.Scripts.BasisSdk.Players
             LocalBoneDriver.SimulateAndApply(this, DeltaTime);
 
             //moves Avatar Hip Transform to where it belongs
-            Quaternion Rotation = LocalAvatarDriver.MoveAvatar(BasisAvatar);
+            //   LocalAvatarDriver.MoveAvatar(BasisAvatar);
 
             //Simulate Final Destination of IK
             //then
             //process Animator and IK processes.
-            LocalRigDriver.SimulateIKDestinations(Rotation, DeltaTime);
+            LocalRigDriver.SimulateIKDestinations(DeltaTime);
 
             //we move the player at the very end after everything has been processed.
             LocalCharacterDriver.SimulateMovement(DeltaTime, this.transform);

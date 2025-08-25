@@ -66,7 +66,7 @@ namespace Basis.Scripts.Drivers
 			this.player = player;
 			this.references = references;
 		}
-        public void SimulateIKDestinations(Quaternion Rotation, float DeltaTime)
+        public void SimulateIKDestinations(float DeltaTime)
 		{
             // --- IK Target ---
             //ApplyBoneIKTarget(SpineIK, BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position, BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation);
@@ -79,7 +79,10 @@ namespace Basis.Scripts.Drivers
 			ApplyBoneIKTarget(LeftToeConstraint, BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData.position, BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData.rotation);
 			ApplyBoneIKTarget(RightToeConstraint, BasisLocalBoneDriver.RightToeControl.OutgoingWorldData.position, BasisLocalBoneDriver.RightToeControl.OutgoingWorldData.rotation);
 
-			Vector3 Direction = Rotation * Vector3.right;
+
+            Quaternion Rotation = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation;
+
+           Vector3 Direction = Rotation * Vector3.right;
 			// --- IK Hint ---
 			//ApplyBoneIKHint(SpineIK, BasisLocalBoneDriver.ChestControl.OutgoingWorldData.position, BasisLocalBoneDriver.ChestControl.OutgoingWorldData.rotation, Direction);
 
