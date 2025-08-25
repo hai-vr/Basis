@@ -37,11 +37,12 @@ namespace HVR.Basis.Comms
         // Nullability is needed for local tests without initialization scene.
         // - Becomes non-null after HVRAvatarComms.OnAvatarNetworkReady is successfully invoked
         public FeatureInterpolator _featureInterpolator;
-        public BasisLocalEyeDriver _eyeFollowDriverLateInit;
+        [NonSerialized] public BasisLocalEyeDriver _eyeFollowDriverLateInit;
         #endregion
         public BasisNetworkReceiver Receiver = null;
         private AvatarMessageProcessing _network;
         private bool _networkReady;
+        private bool _eyeFollowDriverApplicable;
 
         private void Awake()
         {
@@ -57,6 +58,7 @@ namespace HVR.Basis.Comms
             if (isOwner)
             {
                 acquisition.RegisterAddresses(OurAddresses, OnAddressUpdated);
+                _eyeFollowDriverApplicable = true;
                 _eyeFollowDriverLateInit = BasisLocalPlayer.Instance.LocalEyeDriver;
             }
         }
@@ -157,7 +159,7 @@ namespace HVR.Basis.Comms
         }
         private void SetEyeRotation(float x, float y, EyeSide side)
         {
-            if (_eyeFollowDriverLateInit != null)
+            if (_eyeFollowDriverApplicable)
             {
                 var xDeg = Mathf.Asin(x) * Mathf.Rad2Deg * multiplyX;
                 var yDeg = Mathf.Asin(-y) * Mathf.Rad2Deg * multiplyY;
