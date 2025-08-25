@@ -154,8 +154,9 @@ public static class BasisAnimationRiggingHelper
         SpineIKConstraint.data.head = head;
 
         // Set control parameters
-        SpineIKConstraint.data.chainWeight = chainWeight;
-        SpineIKConstraint.data.maintainSpineLength = maintainSpineLength;
+        SpineIKConstraint.data.tolerance = 1;
+        SpineIKConstraint.data.MaxReach = 1;
+        SpineIKConstraint.data.MaxIterations = 16;
 
         // IMPORTANT: Manually calibrate the original distances after setting transforms
         CalibrateSpineDistances(ref SpineIKConstraint.data, hips, spineJoints);

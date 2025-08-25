@@ -22,37 +22,52 @@ namespace UnityEngine.Animations.Rigging
         public Vector3 hipsTargetRotation;
 
         [SyncSceneToStream, SerializeField]
-        public float ChainWeight;
-
+        public float tolerance;
         [SyncSceneToStream, SerializeField]
-        public bool MaintainSpineLength;
+        public float maxReach;
+        [SyncSceneToStream, SerializeField]
+        public int maxIterations;
+
 
         // Interface implementation using head-specific naming
         Vector3 BasisISpineIKConstraintData.headTargetPosition => headTargetPosition;
         Vector3 BasisISpineIKConstraintData.headTargetRotation => headTargetRotation;
         Vector3 BasisISpineIKConstraintData.hipsTargetPosition => hipsTargetPosition;
         Vector3 BasisISpineIKConstraintData.hipsTargetRotation => hipsTargetRotation;
-        float BasisISpineIKConstraintData.chainWeight => ChainWeight;
         Vector3[] BasisISpineIKConstraintData.originalDistances => m_OriginalDistances;
         Quaternion[] BasisISpineIKConstraintData.originalRelativeRotations => m_OriginalRelativeRotations;
 
         public Transform hips { get => m_Hips; set => m_Hips = value; }
         public Transform[] spineJoints { get => m_SpineJoints; set => m_SpineJoints = value; }
         public Transform head { get => m_Head; set => m_Head = value; }
-        public float chainWeight { get => ChainWeight; set => ChainWeight = value; }
-        public bool maintainSpineLength { get => MaintainSpineLength; set => MaintainSpineLength = value; }
+        public float Tolerance { get => tolerance; set => tolerance = value; }
+
+        public float MaxReach { get => maxReach; set => maxReach = value; }
+
+        public int MaxIterations { get => maxIterations; set => maxIterations = value; }
 
         string BasisISpineIKConstraintData.hipsTargetPositionVector3Property => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(hipsTargetPosition));
         string BasisISpineIKConstraintData.hipsTargetRotationVector3Property => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(hipsTargetRotation));
-        string BasisISpineIKConstraintData.chainWeightFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChainWeight));
         string BasisISpineIKConstraintData.headTargetPositionVector3Property => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(headTargetPosition));
         string BasisISpineIKConstraintData.headTargetRotationVector3Property => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(headTargetRotation));
+
+
+        string BasisISpineIKConstraintData.toleranceProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(tolerance));
+        string BasisISpineIKConstraintData.maxReachProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(maxReach));
+        string BasisISpineIKConstraintData.maxIterationsProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(maxIterations));
+
 
         [SerializeField] public Vector3[] m_OriginalDistances;           // length == (hips + joints + head) => debugCount
         [SerializeField] public Quaternion[] m_OriginalRelativeRotations; // length == (segments) => debugCount - 1
 
         public Vector3[] originalDistances => m_OriginalDistances;
         public Quaternion[] originalRelativeRotations => m_OriginalRelativeRotations;
+
+        float BasisISpineIKConstraintData.tolerance => tolerance;
+
+        float BasisISpineIKConstraintData.maxReach => maxReach;
+
+        int BasisISpineIKConstraintData.maxIterations => maxIterations;
 
         bool IAnimationJobData.IsValid() =>
             (m_Hips != null &&
@@ -92,8 +107,10 @@ namespace UnityEngine.Animations.Rigging
             m_Hips = null;
             m_SpineJoints = new Transform[0];
             m_Head = null;
-            ChainWeight = 1.0f;
-            MaintainSpineLength = true;
+
+            tolerance = 1;
+            MaxReach = 1;
+            MaxIterations = 16;
 
             if (m_SpineJoints != null && m_SpineJoints.Length > 0)
             {
@@ -162,19 +179,21 @@ namespace UnityEngine.Animations.Rigging
         public Vector3Property headTargetRotation;
         public Vector3Property hipsTargetPosition;
         public Vector3Property hipsTargetRotation;
-
-        public FloatProperty chainWeight;
         public FloatProperty jobWeight { get; set; }
+
+
+        public FloatProperty tolerance;
+        public FloatProperty maxReach;
+        public IntProperty maxIterations;
 
         // Distance-based optimization variables
         public NativeArray<Vector3> originalDistances;          // length == debugCount
         public NativeArray<Vector3> currentDistances;           // length == debugCount
         public NativeArray<Quaternion> originalRelativeRotations; // length == debugCount - 1
-        public bool maintainSpineLength;
 
         // Debug export buffers (shared with the component)
-        public NativeArray<Vector3> debugPositions;
-        public NativeArray<float> debugLengths;
+        public NativeArray<Vector3> linkPositions;
+        public NativeArray<float> linkLengths;
 
         public void ProcessRootMotion(AnimationStream stream) { }
 
@@ -192,9 +211,7 @@ namespace UnityEngine.Animations.Rigging
                 Vector3 hipsTargetPos = hipsTargetPosition.Get(stream);
                 Quaternion hipsTargetRot = Quaternion.Euler(hipsTargetRotation.Get(stream));
 
-                float weight = chainWeight.Get(stream);
-
-                SolveSpineIKWithDistanceOptimization(stream, headTargetPos, headTargetRot, hipsTargetPos, hipsTargetRot, weight * w);
+                SolveSpineIKWithDistanceOptimization(stream, headTargetPos, headTargetRot, hipsTargetPos, hipsTargetRot);
 
                 WriteDebugBuffer(stream);
             }
@@ -211,11 +228,33 @@ namespace UnityEngine.Animations.Rigging
             }
         }
 
-        private void SolveSpineIKWithDistanceOptimization(AnimationStream stream, Vector3 headTargetPos, Quaternion headTargetRot, Vector3 hipsTargetPos, Quaternion hipsTargetRot, float weight)
+        private void SolveSpineIKWithDistanceOptimization(AnimationStream stream, Vector3 headTargetPos, Quaternion headTargetRot, Vector3 hipsTargetPos, Quaternion hipsTargetRot)
         {
             SetHips(stream, hipsTargetPos, hipsTargetRot);
             SetHead(stream, headTargetPos, headTargetRot);
-            SetSpine(stream);
+
+            for (int i = 0; i < spineJoints.Length; ++i)
+            {
+                var handle = spineJoints[i];
+                linkPositions[i] = handle.GetPosition(stream);
+                spineJoints[i] = handle;
+            }
+
+            //                float weight = chainWeight.Get(stream);
+
+            int tipIndex = spineJoints.Length - 1;
+            if (AnimationRuntimeUtils.SolveFABRIK(ref linkPositions, ref linkLengths, headTargetPos, tolerance.Get(stream), maxReach.Get(stream), maxIterations.Get(stream)))
+            {
+                for (int i = 0; i < tipIndex; ++i)
+                {
+                    var prevDir = spineJoints[i + 1].GetPosition(stream) - spineJoints[i].GetPosition(stream);
+                    var newDir = linkPositions[i + 1] - linkPositions[i];
+                    var rot = spineJoints[i].GetRotation(stream);
+                    spineJoints[i].SetRotation(stream, rot);
+                }
+            }
+
+            spineJoints[tipIndex].SetRotation(stream,headTargetRot);
         }
 
         private void SetHead(AnimationStream stream, Vector3 headTargetPos, Quaternion headTargetRot)
@@ -230,27 +269,22 @@ namespace UnityEngine.Animations.Rigging
             hips.SetRotation(stream, hipsTargetRot);
         }
 
-        private void SetSpine(AnimationStream stream)
-        {
-            // TODO: implement spine segment solving
-        }
-
         private void WriteDebugBuffer(AnimationStream stream)
         {
-            if (!debugPositions.IsCreated || !debugLengths.IsCreated)
+            if (!linkPositions.IsCreated || !linkLengths.IsCreated)
                 return;
 
             int count = spineJoints.Length + 2; // hips + joints + head
-            if (debugPositions.Length < count || debugLengths.Length < count - 1)
+            if (linkPositions.Length < count || linkLengths.Length < count - 1)
                 return;
 
-            debugPositions[0] = hips.GetPosition(stream);
+            linkPositions[0] = hips.GetPosition(stream);
             for (int i = 0; i < spineJoints.Length; i++)
-                debugPositions[i + 1] = spineJoints[i].GetPosition(stream);
-            debugPositions[count - 1] = head.GetPosition(stream);
+                linkPositions[i + 1] = spineJoints[i].GetPosition(stream);
+            linkPositions[count - 1] = head.GetPosition(stream);
 
             for (int i = 0; i < count - 1; i++)
-                debugLengths[i] = Vector3.Distance(debugPositions[i], debugPositions[i + 1]);
+                linkLengths[i] = Vector3.Distance(linkPositions[i], linkPositions[i + 1]);
         }
     }
 
@@ -264,18 +298,22 @@ namespace UnityEngine.Animations.Rigging
         Vector3 headTargetRotation { get; }
         Vector3 hipsTargetPosition { get; }
         Vector3 hipsTargetRotation { get; }
-        float chainWeight { get; }
-
         Vector3[] originalDistances { get; }
         Quaternion[] originalRelativeRotations { get; }
 
-        string chainWeightFloatProperty { get; }
+        float tolerance { get; }
+        float maxReach { get; }
+        int maxIterations { get; }
+
         string headTargetPositionVector3Property { get; }
         string headTargetRotationVector3Property { get; }
         string hipsTargetPositionVector3Property { get; }
         string hipsTargetRotationVector3Property { get; }
-    }
 
+        string toleranceProperty { get; }
+        string maxReachProperty { get; }
+        string maxIterationsProperty { get; }
+    }
     public class BasisSpineIKConstraintJobBinder<T> : AnimationJobBinder<BasisSpineIKConstraintJob, T>
         where T : struct, IAnimationJobData, BasisISpineIKConstraintData
     {
@@ -319,17 +357,20 @@ namespace UnityEngine.Animations.Rigging
 
                 headTargetPosition = Vector3Property.Bind(animator, component, data.headTargetPositionVector3Property),
                 headTargetRotation = Vector3Property.Bind(animator, component, data.headTargetRotationVector3Property),
+
                 hipsTargetPosition = Vector3Property.Bind(animator, component, data.hipsTargetPositionVector3Property),
                 hipsTargetRotation = Vector3Property.Bind(animator, component, data.hipsTargetRotationVector3Property),
-                chainWeight = FloatProperty.Bind(animator, component, data.chainWeightFloatProperty),
+
+                maxIterations = IntProperty.Bind(animator, component, data.maxIterationsProperty),
+                maxReach = FloatProperty.Bind(animator, component, data.maxReachProperty),
+                tolerance = FloatProperty.Bind(animator, component, data.toleranceProperty),
 
                 originalDistances = originalDistArray,
                 currentDistances = currentDistArray,
                 originalRelativeRotations = originalRotArray,
-                maintainSpineLength = true,
 
-                debugPositions = debugPositions,
-                debugLengths = debugLengths
+                linkPositions = debugPositions,
+                linkLengths = debugLengths
             };
 
             return job;
@@ -347,10 +388,10 @@ namespace UnityEngine.Animations.Rigging
             if (job.originalRelativeRotations.IsCreated)
                 job.originalRelativeRotations.Dispose();
 
-            if (job.debugPositions.IsCreated)
-                job.debugPositions.Dispose();
-            if (job.debugLengths.IsCreated)
-                job.debugLengths.Dispose();
+            if (job.linkPositions.IsCreated)
+                job.linkPositions.Dispose();
+            if (job.linkLengths.IsCreated)
+                job.linkLengths.Dispose();
         }
     }
     [DisallowMultipleComponent, AddComponentMenu("Animation Rigging/Spine IK Constraint")]
@@ -387,7 +428,9 @@ namespace UnityEngine.Animations.Rigging
         protected override void OnValidate()
         {
             base.OnValidate();
-            m_Data.chainWeight = Mathf.Clamp01(m_Data.chainWeight);
+           // m_Data.Tolerance = Mathf.Clamp01(m_Data.chainWeight);
+           // m_Data.MaxReach = Mathf.Clamp01(m_Data.chainWeight);
+           // m_Data.MaxIterations = Mathf.Clamp01(m_Data.chainWeight);
             m_JointSphereSize = Mathf.Max(0.0f, m_JointSphereSize);
             m_ArrowSize = Mathf.Max(0.0f, m_ArrowSize);
             m_AxisSize = Mathf.Max(0.0f, m_AxisSize);
@@ -533,8 +576,7 @@ namespace UnityEngine.Animations.Rigging
                         var at = debugPositions[0] + Vector3.up * (m_JointSphereSize * 4f);
                         UnityEditor.Handles.color = Color.white;
                         UnityEditor.Handles.Label(at,
-                            $"Total L: curr {currentTotal:0.000} m / orig {originalTotal:0.000} m\n" +
-                            $"MaintainLen: {m_Data.maintainSpineLength}\nChain Weight: {m_Data.chainWeight:0.00}");
+                            $"Total L: curr {currentTotal:0.000} m / orig {originalTotal:0.000} m\n");
                     }
 
                     UnityEditor.Handles.color = Color.white;
