@@ -29,13 +29,13 @@ namespace UnityEngine.Animations.Rigging
         public bool MaintainSpineLength;
 
         // Interface implementation using head-specific naming
-        Vector3 BasisISpineIKConstraintData.headTargetPosition { get => headTargetPosition; }
-        Vector3 BasisISpineIKConstraintData.headTargetRotation { get => headTargetRotation; }
-        Vector3 BasisISpineIKConstraintData.hipsTargetPosition { get => hipsTargetPosition; }
-        Vector3 BasisISpineIKConstraintData.hipsTargetRotation { get => hipsTargetRotation; }
-        float BasisISpineIKConstraintData.chainWeight { get => ChainWeight; }
-        Vector3[] BasisISpineIKConstraintData.originalDistances { get => m_OriginalDistances; }
-        Quaternion[] BasisISpineIKConstraintData.originalRelativeRotations { get => m_OriginalRelativeRotations; }
+        Vector3 BasisISpineIKConstraintData.headTargetPosition => headTargetPosition;
+        Vector3 BasisISpineIKConstraintData.headTargetRotation => headTargetRotation;
+        Vector3 BasisISpineIKConstraintData.hipsTargetPosition => hipsTargetPosition;
+        Vector3 BasisISpineIKConstraintData.hipsTargetRotation => hipsTargetRotation;
+        float BasisISpineIKConstraintData.chainWeight => ChainWeight;
+        Vector3[] BasisISpineIKConstraintData.originalDistances => m_OriginalDistances;
+        Quaternion[] BasisISpineIKConstraintData.originalRelativeRotations => m_OriginalRelativeRotations;
 
         public Transform hips { get => m_Hips; set => m_Hips = value; }
         public Transform[] spineJoints { get => m_SpineJoints; set => m_SpineJoints = value; }
@@ -49,14 +49,18 @@ namespace UnityEngine.Animations.Rigging
         string BasisISpineIKConstraintData.headTargetPositionVector3Property => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(headTargetPosition));
         string BasisISpineIKConstraintData.headTargetRotationVector3Property => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(headTargetRotation));
 
-        [SerializeField] public Vector3[] m_OriginalDistances;
-        [SerializeField] public Quaternion[] m_OriginalRelativeRotations;
+        [SerializeField] public Vector3[] m_OriginalDistances;           // length == (hips + joints + head) => debugCount
+        [SerializeField] public Quaternion[] m_OriginalRelativeRotations; // length == (segments) => debugCount - 1
 
         public Vector3[] originalDistances => m_OriginalDistances;
         public Quaternion[] originalRelativeRotations => m_OriginalRelativeRotations;
 
         bool IAnimationJobData.IsValid() =>
-            (m_Hips != null && m_Head != null && m_SpineJoints != null && m_SpineJoints.Length > 0 && IsValidSpineChain());
+            (m_Hips != null &&
+             m_Head != null &&
+             m_SpineJoints != null &&
+             m_SpineJoints.Length > 0 &&
+             IsValidSpineChain());
 
         private bool IsValidSpineChain()
         {
@@ -98,33 +102,51 @@ namespace UnityEngine.Animations.Rigging
             }
         }
 
+        /// <summary>
+        /// Calibrates original distances INCLUDING the final segment from last spine joint to head.
+        /// Layout:
+        /// - m_OriginalDistances[0] = Vector3.zero (root padding)
+        /// - For each segment k (hips->spine0, spine0->spine1, ..., spineN-1->spineN, spineN->head):
+        ///     m_OriginalDistances[k+1] = next.position - prev.position
+        /// Thus, m_OriginalDistances.Length == (hips + spineCount + head) = debugCount
+        /// and there are (debugCount - 1) segments total.
+        /// m_OriginalRelativeRotations mirrors the segments count (debugCount - 1).
+        /// </summary>
         private void CalibrateOriginalDistances()
         {
-            if (m_SpineJoints == null || m_SpineJoints.Length == 0) return;
+            if (m_SpineJoints == null || m_SpineJoints.Length == 0 || m_Hips == null || m_Head == null)
+                return;
 
-            int jointCount = m_SpineJoints.Length + 1; // Include root
-            m_OriginalDistances = new Vector3[jointCount];
-            m_OriginalRelativeRotations = new Quaternion[m_SpineJoints.Length];
+            // Build the full transform chain: hips, each spine joint, head
+            int spineCount = m_SpineJoints.Length;
+            int nodeCount = spineCount + 2; // hips + spineJoints + head
+            Transform[] chain = new Transform[nodeCount];
+            chain[0] = m_Hips;
+            for (int i = 0; i < spineCount; i++)
+                chain[i + 1] = m_SpineJoints[i];
+            chain[nodeCount - 1] = m_Head;
 
-            m_OriginalDistances[0] = Vector3.zero; // Root has no previous joint
+            // Distances: root padding + one per segment => length == nodeCount
+            m_OriginalDistances = new Vector3[nodeCount];
+            m_OriginalDistances[0] = Vector3.zero;
 
-            Transform prev = m_Hips;
-            for (int i = 0; i < m_SpineJoints.Length; i++)
+            // Relative rotations: one per segment => length == nodeCount - 1
+            m_OriginalRelativeRotations = new Quaternion[nodeCount - 1];
+
+            for (int seg = 0; seg < nodeCount - 1; seg++)
             {
-                if (m_SpineJoints[i] != null)
-                {
-                    Vector3 offset = m_SpineJoints[i].position - prev.position;
-                    m_OriginalDistances[i + 1] = offset;
+                Transform prev = chain[seg];
+                Transform next = chain[seg + 1];
 
-                    Vector3 parentForward = prev.rotation * Vector3.forward;
-                    Vector3 jointDirection = (m_SpineJoints[i].position - prev.position).normalized;
+                Vector3 offset = next.position - prev.position;
+                m_OriginalDistances[seg + 1] = offset;
 
-                    m_OriginalRelativeRotations[i] = (jointDirection.sqrMagnitude > 0.001f)
-                        ? Quaternion.FromToRotation(parentForward, jointDirection)
-                        : Quaternion.identity;
+                Vector3 parentForward = prev.rotation * Vector3.forward;
+                Vector3 jointDirection = offset.normalized;
 
-                    prev = m_SpineJoints[i];
-                }
+                m_OriginalRelativeRotations[seg] = (jointDirection.sqrMagnitude > 0.001f)
+                    ? Quaternion.FromToRotation(parentForward, jointDirection)
+                    : Quaternion.identity;
             }
         }
     }
@@ -136,19 +158,37 @@ namespace UnityEngine.Animations.Rigging
         // ===== Gizmo/Debug state shared with the job (allocated in the binder) =====
         // Layout: [0]=hips, [1..N]=spine joints, [last]=head
         internal NativeArray<Vector3> debugPositions;   // size = spineCount + 2
-        internal NativeArray<float> debugLengths;      // size = spineCount + 1
+        internal NativeArray<float> debugLengths;       // size = spineCount + 1
         internal int debugCount;
 
         // ===== Gizmo options =====
+        [Header("Gizmos")]
         [SerializeField] bool m_DrawGizmos = true;
         [SerializeField] float m_JointSphereSize = 0.02f;
         [SerializeField] bool m_DrawLengths = true;
         [SerializeField] bool m_DrawLabels = true;
 
+        [Header("Directions / Axes")]
+        [SerializeField] bool m_DrawSegmentArrows = true;
+        [SerializeField] float m_ArrowSize = 0.06f;
+        [SerializeField] bool m_DrawLocalAxes = true;
+        [SerializeField] float m_AxisSize = 0.05f;
+
+        [Header("Original vs Current")]
+        [SerializeField] bool m_DrawOriginalDirections = true;
+        [SerializeField] bool m_DrawLengthError = true;
+        [SerializeField] bool m_DrawTotalLength = true;
+
+        [Header("Misc")]
+        [SerializeField] bool m_DrawCenterOfMass = false;
+
         protected override void OnValidate()
         {
             base.OnValidate();
             m_Data.chainWeight = Mathf.Clamp01(m_Data.chainWeight);
+            m_JointSphereSize = Mathf.Max(0.0f, m_JointSphereSize);
+            m_ArrowSize = Mathf.Max(0.0f, m_ArrowSize);
+            m_AxisSize = Mathf.Max(0.0f, m_AxisSize);
         }
 
         void OnDestroy()
@@ -217,29 +257,154 @@ namespace UnityEngine.Animations.Rigging
 
             Gizmos.matrix = Matrix4x4.identity;
 
+            // Draw joints as spheres + labels
             for (int i = 0; i < debugCount; i++)
             {
                 Vector3 p = debugPositions[i];
                 Gizmos.DrawSphere(p, m_JointSphereSize);
 #if UNITY_EDITOR
-				if (m_DrawLabels)
-					UnityEditor.Handles.Label(p, i == 0 ? "Hips" : (i == debugCount - 1 ? "Head" : $"Spine[{i - 1}]"));
+                if (m_DrawLabels)
+                    UnityEditor.Handles.Label(p, i == 0 ? "Hips" : (i == debugCount - 1 ? "Head" : $"Spine[{i - 1}]"));
 #endif
             }
 
+            // Draw bone lines + (optionally) length labels
             for (int i = 0; i < debugCount - 1; i++)
             {
                 Vector3 a = debugPositions[i];
                 Vector3 b = debugPositions[i + 1];
                 Gizmos.DrawLine(a, b);
 #if UNITY_EDITOR
-				if (m_DrawLengths)
-				{
-					var mid = (a + b) * 0.5f;
-					UnityEditor.Handles.Label(mid, $"{debugLengths[i]:F3}m");
-				}
+                if (m_DrawLengths)
+                {
+                    var mid = (a + b) * 0.5f;
+                    UnityEditor.Handles.Label(mid, $"{debugLengths[i]:F3}m");
+                }
 #endif
             }
+
+#if UNITY_EDITOR
+            // === Editor-only arrows/axes/labels ===
+            using (new UnityEditor.Handles.DrawingScope(Matrix4x4.identity))
+            {
+                // Segment direction arrows (current)
+                if (m_DrawSegmentArrows)
+                {
+                    for (int i = 0; i < debugCount - 1; i++)
+                    {
+                        Vector3 a = debugPositions[i];
+                        Vector3 b = debugPositions[i + 1];
+                        Vector3 dir = (b - a);
+                        if (dir.sqrMagnitude > 1e-8f)
+                        {
+                            dir.Normalize();
+                            UnityEditor.Handles.ArrowHandleCap(0, a, Quaternion.LookRotation(dir), m_ArrowSize, EventType.Repaint);
+                        }
+                    }
+                }
+
+                // Local axes on each joint (from live transforms)
+                if (m_DrawLocalAxes)
+                {
+                    for (int i = 0; i < debugCount; i++)
+                    {
+                        Transform t = null;
+                        if (i == 0) t = m_Data.hips;
+                        else if (i == debugCount - 1) t = m_Data.head;
+                        else if (m_Data.spineJoints != null) t = m_Data.spineJoints[i - 1];
+
+                        if (t == null) continue;
+
+                        Vector3 p = t.position;
+                        // X axis
+                        UnityEditor.Handles.color = Color.red;
+                        UnityEditor.Handles.DrawLine(p, p + t.right * m_AxisSize);
+                        UnityEditor.Handles.ArrowHandleCap(0, p + t.right * m_AxisSize, Quaternion.LookRotation(t.right), m_AxisSize * 0.6f, EventType.Repaint);
+
+                        // Y axis
+                        UnityEditor.Handles.color = Color.green;
+                        UnityEditor.Handles.DrawLine(p, p + t.up * m_AxisSize);
+                        UnityEditor.Handles.ArrowHandleCap(0, p + t.up * m_AxisSize, Quaternion.LookRotation(t.up), m_AxisSize * 0.6f, EventType.Repaint);
+
+                        // Z axis
+                        UnityEditor.Handles.color = Color.blue;
+                        UnityEditor.Handles.DrawLine(p, p + t.forward * m_AxisSize);
+                        UnityEditor.Handles.ArrowHandleCap(0, p + t.forward * m_AxisSize, Quaternion.LookRotation(t.forward), m_AxisSize * 0.6f, EventType.Repaint);
+                    }
+
+                    UnityEditor.Handles.color = Color.white; // reset
+                }
+
+                // Original vs current comparisons + errors
+                // With head included, originalDistances.Length == debugCount.
+                if (m_Data.originalDistances != null && m_Data.originalDistances.Length == debugCount)
+                {
+                    float originalTotal = 0f;
+                    float currentTotal = 0f;
+
+                    for (int i = 0; i < debugCount - 1; i++)
+                    {
+                        Vector3 a = debugPositions[i];
+                        Vector3 b = debugPositions[i + 1];
+                        Vector3 curr = (b - a);
+                        float currLen = curr.magnitude;
+                        currentTotal += currLen;
+
+                        Vector3 orig = m_Data.originalDistances[i + 1]; // index+1 due to root padding
+                        float origLen = orig.magnitude;
+                        originalTotal += origLen;
+
+                        if (m_DrawOriginalDirections && origLen > 1e-5f)
+                        {
+                            Vector3 origDir = (orig / origLen);
+                            UnityEditor.Handles.color = new Color(1f, 0.5f, 0f); // orange
+                            UnityEditor.Handles.ArrowHandleCap(0, a, Quaternion.LookRotation(origDir), m_ArrowSize * 0.9f, EventType.Repaint);
+                        }
+
+                        if (m_DrawLengthError && (origLen > 1e-5f))
+                        {
+                            float err = currLen - origLen;
+                            var mid = (a + b) * 0.5f;
+                            UnityEditor.Handles.color = (Mathf.Abs(err) < 0.0025f) ? Color.gray : (err > 0f ? Color.magenta : Color.cyan);
+                            UnityEditor.Handles.Label(mid + Vector3.up * (m_JointSphereSize * 2f),
+                                $"ΔL: {err:+0.000;-0.000;0.000} m");
+                        }
+                    }
+
+                    if (m_DrawTotalLength)
+                    {
+                        var at = debugPositions[0] + Vector3.up * (m_JointSphereSize * 4f);
+                        UnityEditor.Handles.color = Color.white;
+                        UnityEditor.Handles.Label(at,
+                            $"Total L: curr {currentTotal:0.000} m / orig {originalTotal:0.000} m\n" +
+                            $"MaintainLen: {m_Data.maintainSpineLength}\nChain Weight: {m_Data.chainWeight:0.00}");
+                    }
+
+                    UnityEditor.Handles.color = Color.white;
+                }
+                else
+                {
+                    // Optional: warn once in editor if calibration doesn't match runtime chain.
+                    // UnityEditor.Handles.Label(debugPositions[0] + Vector3.up * (m_JointSphereSize * 6f), "CalibrateSpine() to see orig vs current.");
+                }
+
+                // Simple "center of mass" (average of points)
+                if (m_DrawCenterOfMass && debugCount > 0)
+                {
+                    Vector3 com = Vector3.zero;
+                    for (int i = 0; i < debugCount; i++) com += debugPositions[i];
+                    com /= debugCount;
+
+                    UnityEditor.Handles.color = Color.yellow;
+                    float r = m_JointSphereSize * 1.5f;
+                    UnityEditor.Handles.DrawWireDisc(com, Vector3.up, r);
+                    UnityEditor.Handles.DrawWireDisc(com, Vector3.right, r);
+                    UnityEditor.Handles.DrawWireDisc(com, Vector3.forward, r);
+                    UnityEditor.Handles.Label(com + Vector3.up * (r * 0.5f), "COM");
+                    UnityEditor.Handles.color = Color.white;
+                }
+            }
+#endif
         }
     }
 
@@ -247,7 +412,7 @@ namespace UnityEngine.Animations.Rigging
     public struct BasisSpineIKConstraintJob : IWeightedAnimationJob
     {
         public ReadWriteTransformHandle hips;
-        // FIX: NativeArray instead of managed array for Burst
+        // NativeArray for Burst
         public NativeArray<ReadWriteTransformHandle> spineJoints;
         public ReadWriteTransformHandle head;
 
@@ -260,9 +425,9 @@ namespace UnityEngine.Animations.Rigging
         public FloatProperty jobWeight { get; set; }
 
         // Distance-based optimization variables
-        public NativeArray<Vector3> originalDistances;
-        public NativeArray<Vector3> currentDistances;
-        public NativeArray<Quaternion> originalRelativeRotations;
+        public NativeArray<Vector3> originalDistances;          // length == debugCount
+        public NativeArray<Vector3> currentDistances;           // length == debugCount
+        public NativeArray<Quaternion> originalRelativeRotations; // length == debugCount - 1
         public bool maintainSpineLength;
 
         // Debug export buffers (shared with the component)
@@ -273,7 +438,6 @@ namespace UnityEngine.Animations.Rigging
 
         public void ProcessAnimation(AnimationStream stream)
         {
-            // Guard: Burst-safe checks
             if (!spineJoints.IsCreated || spineJoints.Length == 0)
                 return;
 
@@ -284,11 +448,10 @@ namespace UnityEngine.Animations.Rigging
                 Quaternion headTargetRot = Quaternion.Euler(headTargetRotation.Get(stream));
 
                 Vector3 hipsTargetPos = hipsTargetPosition.Get(stream);
-                Quaternion hipsTargetRot = Quaternion.Euler(hipsTargetRotation.Get(stream)); // bugfix
+                Quaternion hipsTargetRot = Quaternion.Euler(hipsTargetRotation.Get(stream));
 
                 float weight = chainWeight.Get(stream);
 
-                // No managed allocations in Burst: removed curvature new[]
                 SolveSpineIKWithDistanceOptimization(stream, headTargetPos, headTargetRot, hipsTargetPos, hipsTargetRot, weight * w);
 
                 WriteDebugBuffer(stream);
@@ -374,7 +537,7 @@ namespace UnityEngine.Animations.Rigging
     {
         public override BasisSpineIKConstraintJob Create(Animator animator, ref T data, Component component)
         {
-            // FIX: use NativeArray for handles
+            // Bind handles
             var spineHandles = new NativeArray<ReadWriteTransformHandle>(data.spineJoints.Length, Allocator.Persistent);
             for (int i = 0; i < data.spineJoints.Length; i++)
                 spineHandles[i] = ReadWriteTransformHandle.Bind(animator, data.spineJoints[i]);
