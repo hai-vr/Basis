@@ -1,5 +1,4 @@
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 
 namespace UnityEngine.Animations.Rigging
 {
@@ -151,6 +150,209 @@ namespace UnityEngine.Animations.Rigging
         }
     }
 
+    [Unity.Burst.BurstCompile]
+    public struct BasisSpineIKConstraintJob : IWeightedAnimationJob
+    {
+        public ReadWriteTransformHandle hips;
+        // NativeArray for Burst
+        public NativeArray<ReadWriteTransformHandle> spineJoints;
+        public ReadWriteTransformHandle head;
+
+        public Vector3Property headTargetPosition;
+        public Vector3Property headTargetRotation;
+        public Vector3Property hipsTargetPosition;
+        public Vector3Property hipsTargetRotation;
+
+        public FloatProperty chainWeight;
+        public FloatProperty jobWeight { get; set; }
+
+        // Distance-based optimization variables
+        public NativeArray<Vector3> originalDistances;          // length == debugCount
+        public NativeArray<Vector3> currentDistances;           // length == debugCount
+        public NativeArray<Quaternion> originalRelativeRotations; // length == debugCount - 1
+        public bool maintainSpineLength;
+
+        // Debug export buffers (shared with the component)
+        public NativeArray<Vector3> debugPositions;
+        public NativeArray<float> debugLengths;
+
+        public void ProcessRootMotion(AnimationStream stream) { }
+
+        public void ProcessAnimation(AnimationStream stream)
+        {
+            if (!spineJoints.IsCreated || spineJoints.Length == 0)
+                return;
+
+            float w = jobWeight.Get(stream);
+            if (w > 0f)
+            {
+                Vector3 headTargetPos = headTargetPosition.Get(stream);
+                Quaternion headTargetRot = Quaternion.Euler(headTargetRotation.Get(stream));
+
+                Vector3 hipsTargetPos = hipsTargetPosition.Get(stream);
+                Quaternion hipsTargetRot = Quaternion.Euler(hipsTargetRotation.Get(stream));
+
+                float weight = chainWeight.Get(stream);
+
+                SolveSpineIKWithDistanceOptimization(stream, headTargetPos, headTargetRot, hipsTargetPos, hipsTargetRot, weight * w);
+
+                WriteDebugBuffer(stream);
+            }
+            else
+            {
+                BasisAnimationRuntimeUtils.PassThrough(stream, hips);
+                for (int i = 0; i < spineJoints.Length; i++)
+                {
+                    BasisAnimationRuntimeUtils.PassThrough(stream, spineJoints[i]);
+                }
+                BasisAnimationRuntimeUtils.PassThrough(stream, head);
+
+                WriteDebugBuffer(stream);
+            }
+        }
+
+        private void SolveSpineIKWithDistanceOptimization(AnimationStream stream, Vector3 headTargetPos, Quaternion headTargetRot, Vector3 hipsTargetPos, Quaternion hipsTargetRot, float weight)
+        {
+            SetHips(stream, hipsTargetPos, hipsTargetRot);
+            SetHead(stream, headTargetPos, headTargetRot);
+            SetSpine(stream);
+        }
+
+        private void SetHead(AnimationStream stream, Vector3 headTargetPos, Quaternion headTargetRot)
+        {
+            head.SetPosition(stream, headTargetPos);
+            head.SetRotation(stream, headTargetRot);
+        }
+
+        private void SetHips(AnimationStream stream, Vector3 hipsTargetPos, Quaternion hipsTargetRot)
+        {
+            hips.SetPosition(stream, hipsTargetPos);
+            // hips.SetRotation(stream, hipsTargetRot);
+        }
+
+        private void SetSpine(AnimationStream stream)
+        {
+            // TODO: implement spine segment solving
+        }
+
+        private void WriteDebugBuffer(AnimationStream stream)
+        {
+            if (!debugPositions.IsCreated || !debugLengths.IsCreated)
+                return;
+
+            int count = spineJoints.Length + 2; // hips + joints + head
+            if (debugPositions.Length < count || debugLengths.Length < count - 1)
+                return;
+
+            debugPositions[0] = hips.GetPosition(stream);
+            for (int i = 0; i < spineJoints.Length; i++)
+                debugPositions[i + 1] = spineJoints[i].GetPosition(stream);
+            debugPositions[count - 1] = head.GetPosition(stream);
+
+            for (int i = 0; i < count - 1; i++)
+                debugLengths[i] = Vector3.Distance(debugPositions[i], debugPositions[i + 1]);
+        }
+    }
+
+    public interface BasisISpineIKConstraintData
+    {
+        Transform hips { get; }
+        Transform[] spineJoints { get; }
+        Transform head { get; }
+
+        Vector3 headTargetPosition { get; }
+        Vector3 headTargetRotation { get; }
+        Vector3 hipsTargetPosition { get; }
+        Vector3 hipsTargetRotation { get; }
+        float chainWeight { get; }
+
+        Vector3[] originalDistances { get; }
+        Quaternion[] originalRelativeRotations { get; }
+
+        string chainWeightFloatProperty { get; }
+        string headTargetPositionVector3Property { get; }
+        string headTargetRotationVector3Property { get; }
+        string hipsTargetPositionVector3Property { get; }
+        string hipsTargetRotationVector3Property { get; }
+    }
+
+    public class BasisSpineIKConstraintJobBinder<T> : AnimationJobBinder<BasisSpineIKConstraintJob, T>
+        where T : struct, IAnimationJobData, BasisISpineIKConstraintData
+    {
+        public override BasisSpineIKConstraintJob Create(Animator animator, ref T data, Component component)
+        {
+            // Bind handles
+            var spineHandles = new NativeArray<ReadWriteTransformHandle>(data.spineJoints.Length, Allocator.Persistent);
+            for (int i = 0; i < data.spineJoints.Length; i++)
+                spineHandles[i] = ReadWriteTransformHandle.Bind(animator, data.spineJoints[i]);
+
+            // Distance optimization buffers
+            var originalDistArray = new NativeArray<Vector3>(data.originalDistances.Length, Allocator.Persistent);
+            var currentDistArray = new NativeArray<Vector3>(data.originalDistances.Length, Allocator.Persistent);
+            var originalRotArray = new NativeArray<Quaternion>(data.originalRelativeRotations?.Length ?? 0, Allocator.Persistent);
+
+            for (int i = 0; i < data.originalDistances.Length; i++)
+                originalDistArray[i] = data.originalDistances[i];
+
+            if (data.originalRelativeRotations != null)
+                for (int i = 0; i < data.originalRelativeRotations.Length; i++)
+                    originalRotArray[i] = data.originalRelativeRotations[i];
+
+            // Debug export buffers
+            int debugCount = data.spineJoints.Length + 2; // hips + joints + head
+            var debugPositions = new NativeArray<Vector3>(debugCount, Allocator.Persistent);
+            var debugLengths = new NativeArray<float>(debugCount - 1, Allocator.Persistent);
+
+            // Share with component
+            if (component is BasisSpineIKConstraint constraintComponent)
+            {
+                constraintComponent.debugPositions = debugPositions;
+                constraintComponent.debugLengths = debugLengths;
+                constraintComponent.debugCount = debugCount;
+            }
+
+            BasisSpineIKConstraintJob job = new BasisSpineIKConstraintJob
+            {
+                hips = ReadWriteTransformHandle.Bind(animator, data.hips),
+                spineJoints = spineHandles,
+                head = ReadWriteTransformHandle.Bind(animator, data.head),
+
+                headTargetPosition = Vector3Property.Bind(animator, component, data.headTargetPositionVector3Property),
+                headTargetRotation = Vector3Property.Bind(animator, component, data.headTargetRotationVector3Property),
+                hipsTargetPosition = Vector3Property.Bind(animator, component, data.hipsTargetPositionVector3Property),
+                hipsTargetRotation = Vector3Property.Bind(animator, component, data.hipsTargetRotationVector3Property),
+                chainWeight = FloatProperty.Bind(animator, component, data.chainWeightFloatProperty),
+
+                originalDistances = originalDistArray,
+                currentDistances = currentDistArray,
+                originalRelativeRotations = originalRotArray,
+                maintainSpineLength = true,
+
+                debugPositions = debugPositions,
+                debugLengths = debugLengths
+            };
+
+            return job;
+        }
+
+        public override void Destroy(BasisSpineIKConstraintJob job)
+        {
+            if (job.spineJoints.IsCreated)
+                job.spineJoints.Dispose();
+
+            if (job.originalDistances.IsCreated)
+                job.originalDistances.Dispose();
+            if (job.currentDistances.IsCreated)
+                job.currentDistances.Dispose();
+            if (job.originalRelativeRotations.IsCreated)
+                job.originalRelativeRotations.Dispose();
+
+            if (job.debugPositions.IsCreated)
+                job.debugPositions.Dispose();
+            if (job.debugLengths.IsCreated)
+                job.debugLengths.Dispose();
+        }
+    }
     [DisallowMultipleComponent, AddComponentMenu("Animation Rigging/Spine IK Constraint")]
     [HelpURL("https://docs.unity3d.com/Packages/com.unity.animation.rigging@1.3/manual/constraints/SpineIKConstraint.html")]
     public class BasisSpineIKConstraint : RigConstraint<BasisSpineIKConstraintJob, BasisSpineIKConstraintData, BasisSpineIKConstraintJobBinder<BasisSpineIKConstraintData>>
@@ -199,51 +401,6 @@ namespace UnityEngine.Animations.Rigging
                 debugPositions = default;
                 debugLengths = default;
                 debugCount = 0;
-            }
-        }
-
-        public void CalibrateSpine()
-        {
-            if (m_Data.spineJoints != null && m_Data.spineJoints.Length > 0)
-            {
-                ((IAnimationJobData)m_Data).SetDefaultValues();
-            }
-        }
-
-        [ContextMenu("Debug Spine Setup")]
-        public void DebugSpineSetup()
-        {
-            Debug.Log("=== SPINE DEBUG SETUP ===");
-            Debug.Log($"Hips: {(m_Data.hips ? m_Data.hips.name : "NULL")}");
-            Debug.Log($"Head: {(m_Data.head ? m_Data.head.name : "NULL")}");
-            Debug.Log($"Spine joints count: {(m_Data.spineJoints?.Length ?? 0)}");
-
-            if (m_Data.spineJoints != null)
-            {
-                for (int i = 0; i < m_Data.spineJoints.Length; i++)
-                {
-                    if (m_Data.spineJoints[i] != null)
-                        Debug.Log($"Spine[{i}]: {m_Data.spineJoints[i].name} at {m_Data.spineJoints[i].position}");
-                    else
-                        Debug.Log($"Spine[{i}]: NULL");
-                }
-            }
-
-            Debug.Log($"Original distances count: {(m_Data.originalDistances?.Length ?? 0)}");
-            if (m_Data.originalDistances != null)
-            {
-                for (int i = 0; i < m_Data.originalDistances.Length; i++)
-                    Debug.Log($"OriginalDistance[{i}]: {m_Data.originalDistances[i]} (magnitude: {m_Data.originalDistances[i].magnitude:F4})");
-            }
-
-            Debug.Log($"Original relative rotations count: {(m_Data.originalRelativeRotations?.Length ?? 0)}");
-            if (m_Data.originalRelativeRotations != null)
-            {
-                for (int i = 0; i < m_Data.originalRelativeRotations.Length; i++)
-                {
-                    Vector3 eulerAngles = m_Data.originalRelativeRotations[i].eulerAngles;
-                    Debug.Log($"OriginalRelativeRotation[{i}]: {m_Data.originalRelativeRotations[i]} (euler: {eulerAngles})");
-                }
             }
         }
 
@@ -405,208 +562,6 @@ namespace UnityEngine.Animations.Rigging
                 }
             }
 #endif
-        }
-    }
-
-    [Unity.Burst.BurstCompile]
-    public struct BasisSpineIKConstraintJob : IWeightedAnimationJob
-    {
-        public ReadWriteTransformHandle hips;
-        // NativeArray for Burst
-        public NativeArray<ReadWriteTransformHandle> spineJoints;
-        public ReadWriteTransformHandle head;
-
-        public Vector3Property headTargetPosition;
-        public Vector3Property headTargetRotation;
-        public Vector3Property hipsTargetPosition;
-        public Vector3Property hipsTargetRotation;
-
-        public FloatProperty chainWeight;
-        public FloatProperty jobWeight { get; set; }
-
-        // Distance-based optimization variables
-        public NativeArray<Vector3> originalDistances;          // length == debugCount
-        public NativeArray<Vector3> currentDistances;           // length == debugCount
-        public NativeArray<Quaternion> originalRelativeRotations; // length == debugCount - 1
-        public bool maintainSpineLength;
-
-        // Debug export buffers (shared with the component)
-        public NativeArray<Vector3> debugPositions;
-        public NativeArray<float> debugLengths;
-
-        public void ProcessRootMotion(AnimationStream stream) { }
-
-        public void ProcessAnimation(AnimationStream stream)
-        {
-            if (!spineJoints.IsCreated || spineJoints.Length == 0)
-                return;
-
-            float w = jobWeight.Get(stream);
-            if (w > 0f)
-            {
-                Vector3 headTargetPos = headTargetPosition.Get(stream);
-                Quaternion headTargetRot = Quaternion.Euler(headTargetRotation.Get(stream));
-
-                Vector3 hipsTargetPos = hipsTargetPosition.Get(stream);
-                Quaternion hipsTargetRot = Quaternion.Euler(hipsTargetRotation.Get(stream));
-
-                float weight = chainWeight.Get(stream);
-
-                SolveSpineIKWithDistanceOptimization(stream, headTargetPos, headTargetRot, hipsTargetPos, hipsTargetRot, weight * w);
-
-                WriteDebugBuffer(stream);
-            }
-            else
-            {
-                BasisAnimationRuntimeUtils.PassThrough(stream, hips);
-                for (int i = 0; i < spineJoints.Length; i++)
-                    BasisAnimationRuntimeUtils.PassThrough(stream, spineJoints[i]);
-                BasisAnimationRuntimeUtils.PassThrough(stream, head);
-
-                WriteDebugBuffer(stream);
-            }
-        }
-
-        private void SolveSpineIKWithDistanceOptimization(AnimationStream stream, Vector3 headTargetPos, Quaternion headTargetRot, Vector3 hipsTargetPos, Quaternion hipsTargetRot, float weight)
-        {
-            SetHips(stream, hipsTargetPos, hipsTargetRot);
-            SetHead(stream, headTargetPos, headTargetRot);
-            SetSpine(stream);
-        }
-
-        private void SetHead(AnimationStream stream, Vector3 headTargetPos, Quaternion headTargetRot)
-        {
-            head.SetPosition(stream, headTargetPos);
-            head.SetRotation(stream, headTargetRot);
-        }
-
-        private void SetHips(AnimationStream stream, Vector3 hipsTargetPos, Quaternion hipsTargetRot)
-        {
-            hips.SetPosition(stream, hipsTargetPos);
-            // hips.SetRotation(stream, hipsTargetRot);
-        }
-
-        private void SetSpine(AnimationStream stream)
-        {
-            // TODO: implement spine segment solving
-        }
-
-        private void WriteDebugBuffer(AnimationStream stream)
-        {
-            if (!debugPositions.IsCreated || !debugLengths.IsCreated)
-                return;
-
-            int count = spineJoints.Length + 2; // hips + joints + head
-            if (debugPositions.Length < count || debugLengths.Length < count - 1)
-                return;
-
-            debugPositions[0] = hips.GetPosition(stream);
-            for (int i = 0; i < spineJoints.Length; i++)
-                debugPositions[i + 1] = spineJoints[i].GetPosition(stream);
-            debugPositions[count - 1] = head.GetPosition(stream);
-
-            for (int i = 0; i < count - 1; i++)
-                debugLengths[i] = Vector3.Distance(debugPositions[i], debugPositions[i + 1]);
-        }
-    }
-
-    public interface BasisISpineIKConstraintData
-    {
-        Transform hips { get; }
-        Transform[] spineJoints { get; }
-        Transform head { get; }
-
-        Vector3 headTargetPosition { get; }
-        Vector3 headTargetRotation { get; }
-        Vector3 hipsTargetPosition { get; }
-        Vector3 hipsTargetRotation { get; }
-        float chainWeight { get; }
-
-        Vector3[] originalDistances { get; }
-        Quaternion[] originalRelativeRotations { get; }
-
-        string chainWeightFloatProperty { get; }
-        string headTargetPositionVector3Property { get; }
-        string headTargetRotationVector3Property { get; }
-        string hipsTargetPositionVector3Property { get; }
-        string hipsTargetRotationVector3Property { get; }
-    }
-
-    public class BasisSpineIKConstraintJobBinder<T> : AnimationJobBinder<BasisSpineIKConstraintJob, T>
-        where T : struct, IAnimationJobData, BasisISpineIKConstraintData
-    {
-        public override BasisSpineIKConstraintJob Create(Animator animator, ref T data, Component component)
-        {
-            // Bind handles
-            var spineHandles = new NativeArray<ReadWriteTransformHandle>(data.spineJoints.Length, Allocator.Persistent);
-            for (int i = 0; i < data.spineJoints.Length; i++)
-                spineHandles[i] = ReadWriteTransformHandle.Bind(animator, data.spineJoints[i]);
-
-            // Distance optimization buffers
-            var originalDistArray = new NativeArray<Vector3>(data.originalDistances.Length, Allocator.Persistent);
-            var currentDistArray = new NativeArray<Vector3>(data.originalDistances.Length, Allocator.Persistent);
-            var originalRotArray = new NativeArray<Quaternion>(data.originalRelativeRotations?.Length ?? 0, Allocator.Persistent);
-
-            for (int i = 0; i < data.originalDistances.Length; i++)
-                originalDistArray[i] = data.originalDistances[i];
-
-            if (data.originalRelativeRotations != null)
-                for (int i = 0; i < data.originalRelativeRotations.Length; i++)
-                    originalRotArray[i] = data.originalRelativeRotations[i];
-
-            // Debug export buffers
-            int debugCount = data.spineJoints.Length + 2; // hips + joints + head
-            var debugPositions = new NativeArray<Vector3>(debugCount, Allocator.Persistent);
-            var debugLengths = new NativeArray<float>(debugCount - 1, Allocator.Persistent);
-
-            // Share with component
-            if (component is BasisSpineIKConstraint constraintComponent)
-            {
-                constraintComponent.debugPositions = debugPositions;
-                constraintComponent.debugLengths = debugLengths;
-                constraintComponent.debugCount = debugCount;
-            }
-
-            BasisSpineIKConstraintJob job = new BasisSpineIKConstraintJob
-            {
-                hips = ReadWriteTransformHandle.Bind(animator, data.hips),
-                spineJoints = spineHandles,
-                head = ReadWriteTransformHandle.Bind(animator, data.head),
-
-                headTargetPosition = Vector3Property.Bind(animator, component, data.headTargetPositionVector3Property),
-                headTargetRotation = Vector3Property.Bind(animator, component, data.headTargetRotationVector3Property),
-                hipsTargetPosition = Vector3Property.Bind(animator, component, data.hipsTargetPositionVector3Property),
-                hipsTargetRotation = Vector3Property.Bind(animator, component, data.hipsTargetRotationVector3Property),
-                chainWeight = FloatProperty.Bind(animator, component, data.chainWeightFloatProperty),
-
-                originalDistances = originalDistArray,
-                currentDistances = currentDistArray,
-                originalRelativeRotations = originalRotArray,
-                maintainSpineLength = true,
-
-                debugPositions = debugPositions,
-                debugLengths = debugLengths
-            };
-
-            return job;
-        }
-
-        public override void Destroy(BasisSpineIKConstraintJob job)
-        {
-            if (job.spineJoints.IsCreated)
-                job.spineJoints.Dispose();
-
-            if (job.originalDistances.IsCreated)
-                job.originalDistances.Dispose();
-            if (job.currentDistances.IsCreated)
-                job.currentDistances.Dispose();
-            if (job.originalRelativeRotations.IsCreated)
-                job.originalRelativeRotations.Dispose();
-
-            if (job.debugPositions.IsCreated)
-                job.debugPositions.Dispose();
-            if (job.debugLengths.IsCreated)
-                job.debugLengths.Dispose();
         }
     }
 }
