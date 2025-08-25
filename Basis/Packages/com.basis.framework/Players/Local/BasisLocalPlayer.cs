@@ -248,8 +248,22 @@ namespace Basis.Scripts.BasisSdk.Players
             //moves all bones to where they belong
             LocalBoneDriver.SimulateAndApply(this, DeltaTime);
 
-            //moves Avatar Hip Transform to where it belongs
-            //   LocalAvatarDriver.MoveAvatar(BasisAvatar);
+            //moves Avatar Hip Transform to where it belongs in tpose.
+            if (BasisLocalAvatarDriver.CurrentlyTposing)
+            {
+                Vector3 headPosition = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
+                Vector3 hipsPosition = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
+                Quaternion parentWorldRotation = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation;
+
+                // XZ blend between hips and head, grounded at hips Y for stability
+                Vector3 blendedXZ = Vector3.Lerp(hipsPosition, headPosition, 0.5f);
+                blendedXZ.y = hipsPosition.y;
+
+                // Place child at blendedXZ plus rotated local offset
+                Vector3 childWorldPosition = blendedXZ + parentWorldRotation * -BasisLocalBoneDriver.HipsControl.TposeLocalScaled.position;
+
+                AvatarTransform.SetPositionAndRotation(childWorldPosition, parentWorldRotation);
+            }
 
             //Simulate Final Destination of IK
             //then
