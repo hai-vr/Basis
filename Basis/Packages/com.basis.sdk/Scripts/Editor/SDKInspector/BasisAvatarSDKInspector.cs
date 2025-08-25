@@ -302,6 +302,7 @@ public partial class BasisAvatarSDKInspector : Editor
 #if UNITY_6000_2_OR_NEWER
         GenerateMeshLODs(3);
 #endif
+        CheckTranslation(Avatar);
 
         if (BasisAvatarValidator.ValidateAvatar(out List<BasisValidationIssue> Errors, out List<BasisValidationIssue> Warnings, out List<string> Passes))
         {
