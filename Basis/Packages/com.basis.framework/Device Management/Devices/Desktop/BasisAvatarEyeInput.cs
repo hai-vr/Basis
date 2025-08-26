@@ -49,8 +49,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             if (HasEyeEvents == false)
             {
                 BasisLocalPlayer.OnLocalAvatarChanged += PlayerInitialized;
-                BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnPlayersHeightChanged;
-                OnPlayersHeightChanged();
                 BasisCursorManagement.OnCursorStateChange += OnCursorStateChange;
                 BasisPointRaycaster.UseWorldPosition = false;
                 BasisVirtualSpine.Initialize();
@@ -75,16 +73,11 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             if (HasEyeEvents)
             {
                 BasisLocalPlayer.OnLocalAvatarChanged -= PlayerInitialized;
-                BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnPlayersHeightChanged;
                 BasisCursorManagement.OnCursorStateChange -= OnCursorStateChange;
                 HasEyeEvents = false;
                 BasisVirtualSpine.DeInitialize();
             }
             base.OnDestroy();
-        }
-        private void OnPlayersHeightChanged()
-        {
-            BasisLocalPlayer.Instance.CurrentHeight.PlayerEyeHeight = BasisLocalPlayer.Instance.CurrentHeight.AvatarEyeHeight;
         }
         public void PlayerInitialized()
         {
@@ -138,7 +131,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 rotationY = Mathf.Clamp(rotationY, minimumY, maximumY);
 
                 UnscaledDeviceCoord.rotation = Quaternion.Euler(rotationY, rotationX, InjectedZRot);
-                UnscaledDeviceCoord.position = new Vector3(InjectedX, BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerHeight, InjectedZ);
+                //since we are in desktop we just grab the height from the selected avatar.
+                UnscaledDeviceCoord.position = new Vector3(InjectedX, BasisLocalPlayer.Instance.LocalAvatarDriver.ActiveAvatarEyeHeight(), InjectedZ);
                 if (!CrouchingLock)
                 {
                     // adjustment is 0-1 interpolated between configurable normalized minimum and the max avatar height

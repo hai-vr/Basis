@@ -50,10 +50,8 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
             if (!HasEyeEvents)
             {
                 BasisLocalPlayer.OnLocalAvatarChanged += PlayerInitialized;
-                BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnPlayersHeightChanged;
                 BasisPointRaycaster.UseWorldPosition = false;
                 BasisVirtualSpine.Initialize();
-                OnPlayersHeightChanged();
                 HasEyeEvents = true;
                 StartCoroutine(RespawnRoutine());
             }
@@ -65,18 +63,11 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
             if (HasEyeEvents)
             {
                 BasisLocalPlayer.OnLocalAvatarChanged -= PlayerInitialized;
-                BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnPlayersHeightChanged;
                 HasEyeEvents = false;
                 BasisVirtualSpine.DeInitialize();
             }
             base.OnDestroy();
         }
-
-        private void OnPlayersHeightChanged()
-        {
-            BasisLocalPlayer.Instance.CurrentHeight.PlayerEyeHeight = BasisLocalPlayer.Instance.CurrentHeight.AvatarEyeHeight;
-        }
-
         public void PlayerInitialized()
         {
             AvatarDriver = BasisLocalPlayer.Instance.LocalAvatarDriver;

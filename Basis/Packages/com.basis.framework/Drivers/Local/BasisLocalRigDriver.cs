@@ -18,11 +18,14 @@ namespace Basis.Scripts.Drivers
         // === PUBLIC FILTER SETTINGS (tweak in Inspector) ===
         [Header("Smoothing (One Euro Filter)")]
         [Tooltip("Lower = more smoothing; Higher = more responsive.")]
-        [Range(0.01f, 10f)] public float MinCutoff = 1.2f;
+        [Range(0.01f, 10f)]
+        public float MinCutoff = 5.5f;
         [Tooltip("How much to raise cutoff when motion is fast (reduces lag during quick moves).")]
-        [Range(0f, 10f)] public float Beta = 0.3f;
+        [Range(0f, 10f)]
+        public float Beta = 3.25f;
         [Tooltip("Cutoff for derivative smoothing.")]
-        [Range(0.01f, 10f)] public float DerivativeCutoff = 1.5f;
+        [Range(0.01f, 10f)]
+        public float DerivativeCutoff = 3f;
 
         // === IK Constraints ===
         public BasisHipsHeadIKConstraint SpineIK;

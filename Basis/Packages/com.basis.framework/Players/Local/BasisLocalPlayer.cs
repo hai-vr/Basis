@@ -74,7 +74,6 @@ namespace Basis.Scripts.BasisSdk.Players
         public BasisAudioAndVisemeDriver LocalVisemeDriver = new BasisAudioAndVisemeDriver();
         [Header("Height Information")]
         public BasisLocalHeightInformation CurrentHeight = new BasisLocalHeightInformation();
-        public BasisLocalHeightInformation LastHeight = new BasisLocalHeightInformation();
         public async Task LocalInitialize()
         {
             if (BasisHelpers.CheckInstance(Instance))
@@ -268,15 +267,15 @@ namespace Basis.Scripts.BasisSdk.Players
             //process Animator and IK processes.
             LocalRigDriver.SimulateIKDestinations(DeltaTime);
 
-            //we move the player at the very end after everything has been processed.
+            //now lets move the local player position.
             LocalCharacterDriver.SimulateMovement(DeltaTime, this.transform);
-
-            //Apply Animator Weights
-            LocalAnimatorDriver.SimulateAnimator(DeltaTime);
 
             //now that everything has been processed lets update WorldPosition in BoneDriver.
             //this is so AfterFinalMove can use world position coords. (stops Laggy pickups)
             LocalBoneDriver.SimulateWorldDestinations(transform.localToWorldMatrix);
+
+            //Apply Animator Weights using most current data and outside movement effectors.
+            LocalAnimatorDriver.SimulateAnimator(DeltaTime);
 
             //handles fingers
             LocalHandDriver.UpdateFingers(BasisLocalAvatarDriver.References);
