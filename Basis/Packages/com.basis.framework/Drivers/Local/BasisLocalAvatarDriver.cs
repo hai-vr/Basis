@@ -111,8 +111,6 @@ namespace Basis.Scripts.Drivers
 			ComputeOffsets(player.LocalBoneDriver);
 
 			player.LocalHandDriver.ReInitialize(player.BasisAvatar.Animator);
-
-			CalibrationComplete?.Invoke();
 			player.LocalAnimatorDriver.Initialize(player);
 			//stop Tpose
 			ResetAvatarAnimator();
@@ -135,7 +133,10 @@ namespace Basis.Scripts.Drivers
 			MaxExtendedDistance = Vector3.Distance(BasisLocalBoneDriver.HeadControl.TposeLocal.position, BasisLocalBoneDriver.HipsControl.TposeLocal.position);
 			player.LocalRigDriver.BuildBuilder();
 			IsNormalHead = true;
-		}
+
+            RemoveJiggleRigs();
+            AddJiggleRigs(BasisLocalAvatarDriver.References);
+        }
 
 		public static void ScaleHeadToNormal()
 		{
@@ -271,7 +272,8 @@ namespace Basis.Scripts.Drivers
 		public void Calibration(BasisAvatar Avatar)
 		{
 			FindSkinnedMeshRenders();
-			BasisTransformMapping.AutoDetectReferences(BasisLocalPlayer.Instance.BasisAvatar.Animator, Avatar.transform, ref References);
+            SetupAvatarLayers(BasisLocalPlayer.Instance, BasisLayerMapper.LocalAvatarLayer);
+            BasisTransformMapping.AutoDetectReferences(BasisLocalPlayer.Instance.BasisAvatar.Animator, Avatar.transform, ref References);
 			References.RecordPoses(BasisLocalPlayer.Instance.BasisAvatar.Animator);
             BasisLocalPlayer.Instance.FaceIsVisible = false;
 			if (Avatar == null)
@@ -477,7 +479,7 @@ namespace Basis.Scripts.Drivers
 		{
 			SkinnedMeshRenderer = BasisLocalPlayer.Instance.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true);
 			SkinnedMeshRendererLength = SkinnedMeshRenderer.Length;
-		}
+        }
 
 		public void SetAllMatrixRecalculation(bool State)
 		{
