@@ -93,7 +93,7 @@ public static class BasisAnimationRiggingHelper
         GeneratedRequiredTransforms(player, tip);
     }
 
-    public static void CreateTwoBoneHand(BasisLocalPlayer player, GameObject Parent, Transform root, Transform mid, Transform tip, BasisBoneTrackedRole TargetRole, BasisBoneTrackedRole BendRole, bool UseBoneRole, out BasisTwoBoneIKConstraintHand TwoBoneIKConstraint, bool maintainTargetPositionOffset, bool maintainTargetRotationOffset)
+    public static void CreateTwoBoneHand(BasisLocalPlayer player, GameObject Parent, Transform ChestStart, Transform ChestEnd, Transform root, Transform mid, Transform tip, BasisBoneTrackedRole TargetRole, BasisBoneTrackedRole BendRole, bool UseBoneRole, out BasisTwoBoneIKConstraintHand TwoBoneIKConstraint, bool maintainTargetPositionOffset, bool maintainTargetRotationOffset)
     {
         player.LocalBoneDriver.FindBone(out BasisLocalBoneControl TargetControl, TargetRole);
 
@@ -114,7 +114,21 @@ public static class BasisAnimationRiggingHelper
         TwoBoneIKConstraint.data.root = root;
         TwoBoneIKConstraint.data.mid = mid;
         TwoBoneIKConstraint.data.tip = tip;
+        TwoBoneIKConstraint.data.collisionsEnabled = true;
+        TwoBoneIKConstraint.data.chestCapsuleEnd = ChestEnd;
+        TwoBoneIKConstraint.data.chestCapsuleStart = ChestStart;
+        TwoBoneIKConstraint.data.useHandCapsule = true;
+        TwoBoneIKConstraint.data.protectElbow = true;
+        SetHandCollisionScale(TwoBoneIKConstraint, player.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
         GeneratedRequiredTransforms(player, tip);
+    }
+    public static void SetHandCollisionScale(BasisTwoBoneIKConstraintHand TwoBoneIKConstraint,float Scale)
+    {
+        //1.6m is the default values for below.
+        TwoBoneIKConstraint.data.collisionSkin = 0.05f* Scale;
+        TwoBoneIKConstraint.data.handRadius = 0.01f * Scale;
+        TwoBoneIKConstraint.data.handSkin = 0.03f * Scale;
+        TwoBoneIKConstraint.data.chestRadius = 0.07f * Scale;
     }
     public static void GeneratedRequiredTransforms(BasisLocalPlayer player, Transform BaseLevel)
     {

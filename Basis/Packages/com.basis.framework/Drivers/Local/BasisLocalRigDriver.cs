@@ -109,10 +109,11 @@ namespace Basis.Scripts.Drivers
             var hipsCoords = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
 
             var hipsPos = GetPosFilter(BasisBoneTrackedRole.Hips).Filter(hipsCoords.position, _timeAccumulator);
-          //  var hipsRot = GetRotFilter(BasisBoneTrackedRole.Hips).Filter(hipsCoords.rotation, _timeAccumulator);
+            //  var hipsRot = GetRotFilter(BasisBoneTrackedRole.Hips).Filter(hipsCoords.rotation, _timeAccumulator);
 
             ApplySpineIKTarget(headCoords,
-                new BasisCalibratedCoords {
+                new BasisCalibratedCoords
+                {
                     position = hipsPos,
                     rotation = hipsCoords.rotation
                 }
@@ -144,6 +145,9 @@ namespace Basis.Scripts.Drivers
 
             FilterAndApplyHint(LeftHandTwoBoneIK, BasisBoneTrackedRole.LeftLowerArm);
             FilterAndApplyHint(RightHandTwoBoneIK, BasisBoneTrackedRole.RightLowerArm);
+
+            BasisAnimationRiggingHelper.SetHandCollisionScale(LeftHandTwoBoneIK, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
+            BasisAnimationRiggingHelper.SetHandCollisionScale(RightHandTwoBoneIK, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
 
             if (Builder != null)
             {
@@ -437,7 +441,7 @@ namespace Basis.Scripts.Drivers
                 controls.Add(LeftLowerArm);
             }
             WriteUpEvents(controls, LeftHandLayer);
-            BasisAnimationRiggingHelper.CreateTwoBoneHand(localPlayer, Hands, references.leftUpperArm, references.leftLowerArm, references.leftHand, BasisBoneTrackedRole.LeftHand, BasisBoneTrackedRole.LeftLowerArm, true, out LeftHandTwoBoneIK, false, false);
+            BasisAnimationRiggingHelper.CreateTwoBoneHand(localPlayer, Hands, references.Hips, references.chest, references.leftUpperArm, references.leftLowerArm, references.leftHand, BasisBoneTrackedRole.LeftHand, BasisBoneTrackedRole.LeftLowerArm, true, out LeftHandTwoBoneIK, false, false);
         }
 
         public void RightHand(BasisLocalBoneDriver driver)
@@ -453,7 +457,7 @@ namespace Basis.Scripts.Drivers
                 controls.Add(RightLowerArm);
             }
             WriteUpEvents(controls, RightHandLayer);
-            BasisAnimationRiggingHelper.CreateTwoBoneHand(localPlayer, Hands, references.RightUpperArm, references.RightLowerArm, references.rightHand, BasisBoneTrackedRole.RightHand, BasisBoneTrackedRole.RightLowerArm, true, out RightHandTwoBoneIK, false, false);
+            BasisAnimationRiggingHelper.CreateTwoBoneHand(localPlayer, Hands, references.Hips, references.chest, references.RightUpperArm, references.RightLowerArm, references.rightHand, BasisBoneTrackedRole.RightHand, BasisBoneTrackedRole.RightLowerArm, true, out RightHandTwoBoneIK, false, false);
         }
 
         public void LeftFoot(BasisLocalBoneDriver driver)
