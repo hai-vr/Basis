@@ -63,8 +63,6 @@ namespace Basis.Scripts.Drivers
         public RigBuilder Builder;
         public List<RigTransform> AdditionalTransforms = new List<RigTransform>();
         public PlayableGraph PlayableGraph;
-
-        private BasisPlayer player;
         private BasisLocalPlayer localPlayer;
         private BasisTransformMapping references;
         private BasisTwoBoneIKConstraint HeadTwoBoneIK;
@@ -105,10 +103,9 @@ namespace Basis.Scripts.Drivers
             return f;
         }
 
-        public void Initialize(BasisLocalPlayer localPlayer, BasisPlayer player, BasisTransformMapping references)
+        public void Initialize(BasisLocalPlayer localPlayer, BasisTransformMapping references)
         {
             this.localPlayer = localPlayer;
-            this.player = player;
             this.references = references;
             _timeAccumulator = 0f;
         }
@@ -123,10 +120,13 @@ namespace Basis.Scripts.Drivers
             var hipsCoords = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
 
             var hipsPos = GetPosFilter(BasisBoneTrackedRole.Hips).Filter(hipsCoords.position, _timeAccumulator);
-            var hipsRot = GetRotFilter(BasisBoneTrackedRole.Hips).Filter(hipsCoords.rotation, _timeAccumulator);
+          //  var hipsRot = GetRotFilter(BasisBoneTrackedRole.Hips).Filter(hipsCoords.rotation, _timeAccumulator);
 
             ApplySpineIKTarget(headCoords,
-                new BasisCalibratedCoords { position = hipsPos, rotation = hipsRot }
+                new BasisCalibratedCoords {
+                    position = hipsPos,
+                    rotation = hipsCoords.rotation
+                }
             );
 
             // Head chain IK (two-bone)
@@ -188,15 +188,10 @@ namespace Basis.Scripts.Drivers
             ApplyBoneIKTarget(constraint, data.position, data.rotation);
         }
 
-        private void FilterAndApplyHint(BasisTwoBoneIKConstraint constraint, BasisBoneTrackedRole role, Vector3? customDirection = null)
+        private void FilterAndApplyHint(BasisTwoBoneIKConstraint constraint, BasisBoneTrackedRole role, Vector3 customDirection)
         {
             var data = GetCoordsForRole(role);
-          //  data.position = GetPosFilter(role).Filter(data.position, _timeAccumulator);
-          //  data.rotation = GetRotFilter(role).Filter(data.rotation, _timeAccumulator);
-            if (customDirection.HasValue)
-                ApplyBoneIKHint(constraint, data.position, data.rotation, customDirection.Value);
-            else
-                ApplyBoneIKHint(constraint, data.position, data.rotation, Vector3.zero);
+            ApplyBoneIKHint(constraint, data.position, data.rotation, customDirection);
         }
         private void FilterAndApplyHint(BasisTwoBoneIKConstraintHand constraint, BasisBoneTrackedRole role)
         {
@@ -242,45 +237,45 @@ namespace Basis.Scripts.Drivers
         public void ApplySpineIKTarget(BasisCalibratedCoords head, BasisCalibratedCoords hip)
         {
             SpineIK.data.hipsTargetPosition = hip.position;
-            SpineIK.data.hipsTargetRotationEuler = hip.rotation.eulerAngles;
+            SpineIK.data.hipsTargetRotationEuler = hip.rotation;
 
             SpineIK.data.headTargetPosition = head.position;
-            SpineIK.data.headTargetRotationEuler = head.rotation.eulerAngles;
+            SpineIK.data.headTargetRotationEuler = head.rotation;
         }
         public void ApplyBoneIKHint(BasisTwoBoneIKConstraint Constraint, Vector3 Position, Quaternion Rotation, Vector3 Direction)
         {
             Constraint.data.HintPosition = Position;
-            Constraint.data.HintRotation = Rotation.eulerAngles;
+            Constraint.data.HintRotation = Rotation;
             Constraint.data.m_HintDirection = Direction;
         }
 
         public void ApplyHandBoneIKHint(BasisTwoBoneIKConstraintHand Constraint, Vector3 Position, Quaternion Rotation)
         {
             Constraint.data.HintPosition = Position;
-            Constraint.data.HintRotation = Rotation.eulerAngles;
+            Constraint.data.HintRotation = Rotation;
         }
 
         public void ApplyBoneIKTarget(BasisTwoBoneIKConstraint Constraint, Vector3 Position, Quaternion Rotation)
         {
             Constraint.data.TargetPosition = Position;
-            Constraint.data.TargetRotation = Rotation.eulerAngles;
+            Constraint.data.TargetRotation = Rotation;
         }
 
         public void ApplyBoneIKTarget(BasisApplyTranslation basisDamped, Vector3 Position, Quaternion Rotation)
         {
             basisDamped.data.TargetPosition = Position;
-            basisDamped.data.TargetRotation = Rotation.eulerAngles;
+            basisDamped.data.TargetRotation = Rotation;
         }
 
         public void ApplyBoneIKTarget(BasisTwoBoneIKConstraintHand Constraint, Vector3 Position, Quaternion Rotation)
         {
             Constraint.data.TargetPosition = Position;
-            Constraint.data.TargetRotation = Rotation.eulerAngles;
+            Constraint.data.TargetRotation = Rotation;
         }
 
         public void BuildBuilder()
         {
-            PlayableGraph = player.BasisAvatar.Animator.playableGraph;
+            PlayableGraph = localPlayer.BasisAvatar.Animator.playableGraph;
             PlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
             Builder.Build(PlayableGraph);
         }
@@ -615,7 +610,7 @@ namespace Basis.Scripts.Drivers
                     return Layer.rig.gameObject;
                 }
             }
-            GameObject RigGameobject = BasisAnimationRiggingHelper.CreateAndSetParent(player.BasisAvatar.Animator.transform, $"Rig {Role}");
+            GameObject RigGameobject = BasisAnimationRiggingHelper.CreateAndSetParent(localPlayer.BasisAvatar.Animator.transform, $"Rig {Role}");
             Rig = BasisHelpers.GetOrAddComponent<Rig>(RigGameobject);
             Rigs.Add(Rig);
             RigLayer = new RigLayer(Rig, Enabled);

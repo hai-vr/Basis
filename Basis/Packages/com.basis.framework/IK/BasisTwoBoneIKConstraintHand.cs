@@ -12,18 +12,18 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField]
         public Vector3 TargetPosition;
         [SyncSceneToStream, SerializeField]
-        public Vector3 TargetRotation;
+        public Quaternion TargetRotation;
         [SyncSceneToStream, SerializeField]
         public Vector3 HintPosition;
         [SyncSceneToStream, SerializeField]
-        public Vector3 HintRotation;
+        public Quaternion HintRotation;
 
         Vector3 BasisITwoBoneIKConstraintHandData.targetPosition { get => TargetPosition; }
 
-        Vector3 BasisITwoBoneIKConstraintHandData.targetRotation { get => TargetRotation; }
+        Quaternion BasisITwoBoneIKConstraintHandData.targetRotation { get => TargetRotation; }
 
         Vector3 BasisITwoBoneIKConstraintHandData.hintPosition { get => HintPosition; }
-        Vector3 BasisITwoBoneIKConstraintHandData.HintRotation { get => HintRotation; }
+        Quaternion BasisITwoBoneIKConstraintHandData.HintRotation { get => HintRotation; }
         [SyncSceneToStream, SerializeField]
         bool m_HintWeight;
         /// <inheritdoc />
@@ -49,7 +49,7 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField]
         public Vector3 M_CalibratedOffset;
         [SyncSceneToStream, SerializeField]
-        public Vector3 M_CalibratedRotation;
+        public Quaternion M_CalibratedRotation;
 
         public Vector3 CalibratedOffset
         {
@@ -59,14 +59,13 @@ namespace UnityEngine.Animations.Rigging
             }
         }
 
-        public Vector3 CalibratedRotation
+        public Quaternion CalibratedRotation
         {
             get
             {
                 return M_CalibratedRotation;
             }
         }
-
         /// <inheritdoc />
         bool IAnimationJobData.IsValid() => (m_Tip != null && m_Mid != null && m_Root != null && m_Tip.IsChildOf(m_Mid) && m_Mid.IsChildOf(m_Root));
 
@@ -114,9 +113,9 @@ namespace UnityEngine.Animations.Rigging
         public Vector3Property targetPosition;
 
         /// <summary>The transform handle for the hint transform.</summary>
-        public Vector3Property hintRotation;
+        public Vector4Property hintRotation;
         /// <summary>The transform handle for the target transform.</summary>
-        public Vector3Property targetRotation;
+        public Vector4Property targetRotation;
 
         /// <summary>The offset applied to the target transform if maintainTargetPositionOffset or maintainTargetRotationOffset is enabled.</summary>
         public AffineTransform targetOffset;
@@ -141,8 +140,10 @@ namespace UnityEngine.Animations.Rigging
             if (w > 0f)
             {
                 // BasisDebug.Log("Value is " + targetPosition);
-                AffineTransform target = new AffineTransform(targetPosition.Get(stream), Quaternion.Euler(targetRotation.Get(stream)));
-                AffineTransform hint = new AffineTransform(hintPosition.Get(stream), Quaternion.Euler(hintRotation.Get(stream)));
+
+
+                AffineTransform target = new AffineTransform(targetPosition.Get(stream), Vector4ToRotation(targetRotation.Get(stream)));
+                AffineTransform hint = new AffineTransform(hintPosition.Get(stream), Vector4ToRotation(hintRotation.Get(stream)));
                 //   BasisDebug.Log("Output Normal is " + BendNormalOutput);
                 BasisAnimationRuntimeUtils.SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hintWeight.Get(stream), targetOffset);
             }
@@ -153,6 +154,13 @@ namespace UnityEngine.Animations.Rigging
                 BasisAnimationRuntimeUtils.PassThrough(stream, tip);
             }
         }
+        public Quaternion Vector4ToRotation(Vector4 Rotation)
+        {
+
+            Quaternion hipsRot = new Quaternion(Rotation.x, Rotation.y, Rotation.z, Rotation.w);
+            return hipsRot;
+        }
+
     }
 
     /// <summary>
@@ -167,12 +175,12 @@ namespace UnityEngine.Animations.Rigging
         /// <summary>The tip transform of the two bones hierarchy.</summary>
         Transform tip { get; }
         public Vector3 targetPosition { get; }
-        public Vector3 targetRotation { get; }
+        public Quaternion targetRotation { get; }
         public Vector3 hintPosition { get; }
-        public Vector3 HintRotation { get; }
+        public Quaternion HintRotation { get; }
 
         public Vector3 CalibratedOffset { get; }
-        public Vector3 CalibratedRotation { get; }
+        public Quaternion CalibratedRotation { get; }
         /// <summary>The path to the hint weight property in the constraint component.</summary>
         string hintWeightFloatProperty { get; }
 
@@ -209,15 +217,15 @@ namespace UnityEngine.Animations.Rigging
                 mid = ReadWriteTransformHandle.Bind(animator, data.mid),
                 tip = ReadWriteTransformHandle.Bind(animator, data.tip),
                 targetPosition = Vector3Property.Bind(animator, component, data.TargetpositionVector3Property),
-                targetRotation = Vector3Property.Bind(animator, component, data.TargetrotationVector3Property),
+                targetRotation = Vector4Property.Bind(animator, component, data.TargetrotationVector3Property),
 
                 hintPosition = Vector3Property.Bind(animator, component, data.HintpositionVector3Property),
-                hintRotation = Vector3Property.Bind(animator, component, data.HintrotationVector3Property),
+                hintRotation = Vector4Property.Bind(animator, component, data.HintrotationVector3Property),
 
                 targetOffset = AffineTransform.identity,
             };
             job.targetOffset.translation = data.CalibratedOffset;
-            job.targetOffset.rotation = Quaternion.Euler(data.CalibratedRotation);
+            job.targetOffset.rotation = data.CalibratedRotation;
             job.hintWeight = BoolProperty.Bind(animator, component, data.hintWeightFloatProperty);
 
             return job;

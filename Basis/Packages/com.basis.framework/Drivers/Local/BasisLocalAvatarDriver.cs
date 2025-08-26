@@ -1,5 +1,4 @@
 using Basis.Scripts.Avatar;
-using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
@@ -22,7 +21,6 @@ namespace Basis.Scripts.Drivers
 		public static Vector3 HeadScale = Vector3.one;
 		public static Vector3 HeadScaledDown = Vector3.zero;
 		public static bool HasTPoseEvent = false;
-		public static float MaxExtendedDistance;
 		public static BasisLocalAvatarDriver Instance;
 		public static bool IsNormalHead;
 		public static bool CurrentlyTposing = false;
@@ -57,13 +55,7 @@ namespace Basis.Scripts.Drivers
 				BasisDebug.LogError("Unable to Calibrate Local Avatar Missing Core Requirement (Animator,LocalPlayer Or Driver)");
 				return;
 			}
-
-			// Initialize the rig driver
-			if (player.LocalRigDriver == null)
-			{
-				player.LocalRigDriver = new BasisLocalRigDriver();
-			}
-			player.LocalRigDriver.Initialize(player, BasisLocalPlayer.Instance, References);
+			player.LocalRigDriver.Initialize(player, References);
 
 			player.LocalRigDriver.CleanupBeforeContinue();
 			player.LocalRigDriver.AdditionalTransforms.Clear();
@@ -85,9 +77,9 @@ namespace Basis.Scripts.Drivers
 
 			player.LocalRigDriver.Builder = BasisHelpers.GetOrAddComponent<RigBuilder>(AvatarAnimatorParent);
 			player.LocalRigDriver.Builder.enabled = false;
-			Calibration(player.BasisAvatar);
-			BasisLocalPlayer.Instance.LocalBoneDriver.RemoveAllListeners();
-			BasisLocalPlayer.Instance.LocalEyeDriver.Initalize(this, player);
+			Calibration(player);
+            player.LocalBoneDriver.RemoveAllListeners();
+            player.LocalEyeDriver.Initalize(this, player);
 			SetMatrixOverride();
 			UpdateWhenOffscreen(true);
 			if (References.Hashead)
@@ -110,27 +102,26 @@ namespace Basis.Scripts.Drivers
 			//stop Tpose
 			ResetAvatarAnimator();
 			BasisAvatarIKStageCalibration.HasFBIKTrackers = false;
-			if (BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out BasisLocalBoneControl Head, BasisBoneTrackedRole.Head))
+			if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl Head, BasisBoneTrackedRole.Head))
 			{
 				Head.HasRigLayer = BasisHasRigLayer.HasRigLayer;
 			}
-			if (BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out BasisLocalBoneControl Hips, BasisBoneTrackedRole.Hips))
+			if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl Hips, BasisBoneTrackedRole.Hips))
 			{
 				Hips.HasRigLayer = BasisHasRigLayer.HasRigLayer;
 			}
-			if (BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out BasisLocalBoneControl Spine, BasisBoneTrackedRole.Spine))
+			if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl Spine, BasisBoneTrackedRole.Spine))
 			{
 				Spine.HasRigLayer = BasisHasRigLayer.HasRigLayer;
 			}
 			StoredRolesTransforms = BasisAvatarIKStageCalibration.GetAllRolesAsTransform();
 			player.AvatarTransform.parent = player.transform;
 			player.AvatarTransform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-			MaxExtendedDistance = Vector3.Distance(BasisLocalBoneDriver.HeadControl.TposeLocal.position, BasisLocalBoneDriver.HipsControl.TposeLocal.position);
 			player.LocalRigDriver.BuildBuilder();
 			IsNormalHead = true;
 
             RemoveJiggleRigs();
-            AddJiggleRigs(BasisLocalAvatarDriver.References);
+            AddJiggleRigs(References);
         }
 
 		public static void ScaleHeadToNormal()
@@ -211,11 +202,6 @@ namespace Basis.Scripts.Drivers
 			}
 			return true;
 		}
-
-		public void CalculateMaxExtended()
-		{
-			MaxExtendedDistance = Vector3.Distance(BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position, BasisLocalBoneDriver.HipsControl.TposeLocalScaled.position);
-		}
 		public float ActiveAvatarEyeHeight()
 		{
 			if (BasisLocalPlayer.Instance.BasisAvatar != null)
@@ -264,32 +250,33 @@ namespace Basis.Scripts.Drivers
 #endif
 		}
 
-		public void Calibration(BasisAvatar Avatar)
+		public void Calibration(BasisLocalPlayer LocalPlayer)
 		{
-			FindSkinnedMeshRenders();
-            SetupAvatarLayers(BasisLocalPlayer.Instance, BasisLayerMapper.LocalAvatarLayer);
-            BasisTransformMapping.AutoDetectReferences(BasisLocalPlayer.Instance.BasisAvatar.Animator, Avatar.transform, ref References);
-			References.RecordPoses(BasisLocalPlayer.Instance.BasisAvatar.Animator);
-			BasisLocalPlayer.Instance.FaceIsVisible = false;
+			var Avatar = LocalPlayer.BasisAvatar;
+            FindSkinnedMeshRenders(LocalPlayer);
+            SetupAvatarLayers(LocalPlayer, BasisLayerMapper.LocalAvatarLayer);
+            BasisTransformMapping.AutoDetectReferences(LocalPlayer.BasisAvatar.Animator, Avatar.transform, ref References);
+			References.RecordPoses(LocalPlayer.BasisAvatar.Animator);
+			LocalPlayer.FaceIsVisible = false;
 			if (Avatar == null)
 			{
 				BasisDebug.LogError("Missing Avatar");
 			}
 			if (Avatar.FaceVisemeMesh == null)
 			{
-				BasisDebug.Log("Missing Face for " + BasisLocalPlayer.Instance.DisplayName, BasisDebug.LogTag.Avatar);
+				BasisDebug.Log("Missing Face for " + LocalPlayer.DisplayName, BasisDebug.LogTag.Avatar);
 			}
-			BasisLocalPlayer.Instance.UpdateFaceVisibility(Avatar.FaceVisemeMesh.isVisible);
-			if (BasisLocalPlayer.Instance.FaceRenderer != null)
+			LocalPlayer.UpdateFaceVisibility(Avatar.FaceVisemeMesh.isVisible);
+			if (LocalPlayer.FaceRenderer != null)
 			{
-				GameObject.Destroy(BasisLocalPlayer.Instance.FaceRenderer);
+				GameObject.Destroy(LocalPlayer.FaceRenderer);
 			}
-			BasisLocalPlayer.Instance.FaceRenderer = BasisHelpers.GetOrAddComponent<BasisMeshRendererCheck>(Avatar.FaceVisemeMesh.gameObject);
-			BasisLocalPlayer.Instance.FaceRenderer.Check += BasisLocalPlayer.Instance.UpdateFaceVisibility;
+			LocalPlayer.FaceRenderer = BasisHelpers.GetOrAddComponent<BasisMeshRendererCheck>(Avatar.FaceVisemeMesh.gameObject);
+			LocalPlayer.FaceRenderer.Check += LocalPlayer.UpdateFaceVisibility;
 
 			if (BasisFacialBlinkDriver.MeetsRequirements(Avatar))
 			{
-				BasisLocalPlayer.Instance.FacialBlinkDriver.Initialize(BasisLocalPlayer.Instance, Avatar);
+				LocalPlayer.FacialBlinkDriver.Initialize(LocalPlayer, Avatar);
 			}
 		}
 
@@ -470,9 +457,9 @@ namespace Basis.Scripts.Drivers
 			BaseBoneDriver.CreateRotationalLock(AssignedToAddToBone, LockToBone);
 		}
 
-		public void FindSkinnedMeshRenders()
+		public void FindSkinnedMeshRenders(BasisLocalPlayer LocalPlayer)
 		{
-			SkinnedMeshRenderer = BasisLocalPlayer.Instance.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+			SkinnedMeshRenderer = LocalPlayer.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true);
 			SkinnedMeshRendererLength = SkinnedMeshRenderer.Length;
         }
 

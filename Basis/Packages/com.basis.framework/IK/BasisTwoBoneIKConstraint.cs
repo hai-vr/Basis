@@ -1,3 +1,5 @@
+using Unity.Mathematics;
+
 namespace UnityEngine.Animations.Rigging
 {
     /// <summary>
@@ -13,17 +15,17 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField]
         public Vector3 TargetPosition;
         [SyncSceneToStream, SerializeField]
-        public Vector3 TargetRotation;
+        public Quaternion TargetRotation;
         [SyncSceneToStream, SerializeField]
         public Vector3 HintPosition;
         [SyncSceneToStream, SerializeField]
-        public Vector3 HintRotation;
+        public Quaternion HintRotation;
 
         Vector3 BasisITwoBoneIKConstraintData.targetPosition { get => TargetPosition; }
-        Vector3 BasisITwoBoneIKConstraintData.targetRotation { get => TargetRotation; }
+        Quaternion BasisITwoBoneIKConstraintData.targetRotation { get => TargetRotation; }
 
         Vector3 BasisITwoBoneIKConstraintData.hintPosition { get => HintPosition; }
-        Vector3 BasisITwoBoneIKConstraintData.HintRotation { get => HintRotation; }
+        Quaternion BasisITwoBoneIKConstraintData.HintRotation { get => HintRotation; }
 
         [SyncSceneToStream, SerializeField]
         bool m_HintWeight;
@@ -105,8 +107,9 @@ namespace UnityEngine.Animations.Rigging
         public Vector3Property hintPosition;
         public Vector3Property targetPosition;
 
-        public Vector3Property hintRotation;
-        public Vector3Property targetRotation;
+        public Vector4Property hintRotation;
+        public Vector4Property targetRotation;
+
         public AffineTransform targetOffset;
         public BoolProperty hintWeight;
         public FloatProperty jobWeight { get; set; }
@@ -119,9 +122,8 @@ namespace UnityEngine.Animations.Rigging
             float w = jobWeight.Get(stream);
             if (w > 0f)
             {
-                // BasisDebug.Log("Value is " + targetPosition);
-                AffineTransform target = new AffineTransform(targetPosition.Get(stream), Quaternion.Euler(targetRotation.Get(stream)));
-                AffineTransform hint = new AffineTransform(hintPosition.Get(stream), Quaternion.Euler(hintRotation.Get(stream)));
+                AffineTransform target = new AffineTransform(targetPosition.Get(stream), Vector4ToRotation(targetRotation.Get(stream)));
+                AffineTransform hint = new AffineTransform(hintPosition.Get(stream), Vector4ToRotation(hintRotation.Get(stream)));
                 Vector3 BendNormalOutput = BendNormal.Get(stream);
                 //   BasisDebug.Log("Output Normal is " + BendNormalOutput);
                 BasisAnimationRuntimeUtils.SolveTwoBoneIKLegsAndTorso(stream, root, mid, tip, target, hint, hintWeight.Get(stream), targetOffset, BendNormalOutput);
@@ -133,6 +135,12 @@ namespace UnityEngine.Animations.Rigging
                 BasisAnimationRuntimeUtils.PassThrough(stream, tip);
             }
         }
+        public Quaternion Vector4ToRotation(Vector4 Rotation)
+        {
+
+            Quaternion hipsRot = new Quaternion(Rotation.x, Rotation.y, Rotation.z, Rotation.w);
+            return hipsRot;
+        }
     }
 
     public interface BasisITwoBoneIKConstraintData
@@ -142,9 +150,9 @@ namespace UnityEngine.Animations.Rigging
         Transform tip { get; }
 
         public Vector3 targetPosition { get; }
-        public Vector3 targetRotation { get; }
+        public Quaternion targetRotation { get; }
         public Vector3 hintPosition { get; }
-        public Vector3 HintRotation { get; }
+        public Quaternion HintRotation { get; }
 
         public Vector3 CalibratedOffset { get; }
         public Vector3 CalibratedRotation { get; }
@@ -171,10 +179,10 @@ namespace UnityEngine.Animations.Rigging
                 mid = ReadWriteTransformHandle.Bind(animator, data.mid),
                 tip = ReadWriteTransformHandle.Bind(animator, data.tip),
                 targetPosition = Vector3Property.Bind(animator, component, data.TargetpositionVector3Property),
-                targetRotation = Vector3Property.Bind(animator, component, data.TargetrotationVector3Property),
+                targetRotation = Vector4Property.Bind(animator, component, data.TargetrotationVector3Property),
 
                 hintPosition = Vector3Property.Bind(animator, component, data.HintpositionVector3Property),
-                hintRotation = Vector3Property.Bind(animator, component, data.HintrotationVector3Property),
+                hintRotation = Vector4Property.Bind(animator, component, data.HintrotationVector3Property),
 
                 targetOffset = AffineTransform.identity,
             };

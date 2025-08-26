@@ -158,8 +158,6 @@ public static class BasisHeightDriver
             control.TposeLocalScaled.rotation = control.TposeLocal.rotation;
             control.ScaledOffset = heightScaleFactor * control.Offset;
         }
-
-        localAvatarDriver.CalculateMaxExtended();
         player.ExecuteNextFrame((BasisLocalPlayer.NextFrameAction)(() =>
         {
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame?.Invoke();

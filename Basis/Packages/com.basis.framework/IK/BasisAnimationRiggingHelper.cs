@@ -77,14 +77,14 @@ public static class BasisAnimationRiggingHelper
         EnableTwoBoneIk(TwoBoneIKConstraint, PositionOffset, RotationOffset.eulerAngles);
         Quaternion Rotation = TargetControl.OutgoingWorldData.rotation;
         TwoBoneIKConstraint.data.TargetPosition = TargetControl.OutgoingWorldData.position;
-        TwoBoneIKConstraint.data.TargetRotation = Rotation.eulerAngles;
+        TwoBoneIKConstraint.data.TargetRotation = Rotation;
         if (UseBoneRole)
         {
             if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl HintControl, BendRole))
             {
                 Quaternion HintRotation = HintControl.OutgoingWorldData.rotation;
                 TwoBoneIKConstraint.data.HintPosition = HintControl.OutgoingWorldData.position;
-                TwoBoneIKConstraint.data.HintRotation = HintRotation.eulerAngles;
+                TwoBoneIKConstraint.data.HintRotation = HintRotation;
             }
         }
         TwoBoneIKConstraint.data.root = root;
@@ -100,15 +100,15 @@ public static class BasisAnimationRiggingHelper
         GameObject BoneRole = CreateAndSetParent(Parent.transform, $"Bone Role {TargetRole.ToString()}");
         TwoBoneIKConstraint = BasisHelpers.GetOrAddComponent<BasisTwoBoneIKConstraintHand>(BoneRole);
         TwoBoneIKConstraint.data.M_CalibratedOffset = new Vector3(0, 0, 0);
-        TwoBoneIKConstraint.data.M_CalibratedRotation = tip.rotation.eulerAngles;
+        TwoBoneIKConstraint.data.M_CalibratedRotation = tip.rotation;
         TwoBoneIKConstraint.data.TargetPosition = TargetControl.OutgoingWorldData.position;
-        TwoBoneIKConstraint.data.TargetRotation = TargetControl.OutgoingWorldData.rotation.eulerAngles;
+        TwoBoneIKConstraint.data.TargetRotation = TargetControl.OutgoingWorldData.rotation;
 
         if (UseBoneRole && player.LocalBoneDriver.FindBone(out BasisLocalBoneControl HintControl, BendRole))
         {
             Quaternion HintRotation = HintControl.OutgoingWorldData.rotation;
             TwoBoneIKConstraint.data.HintPosition = HintControl.OutgoingWorldData.position;
-            TwoBoneIKConstraint.data.HintRotation = HintRotation.eulerAngles;
+            TwoBoneIKConstraint.data.HintRotation = HintRotation;
         }
   
         TwoBoneIKConstraint.data.root = root;

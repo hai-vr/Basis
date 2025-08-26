@@ -1,6 +1,3 @@
-using Unity.Collections;
-using UnityEngine;
-
 namespace UnityEngine.Animations.Rigging
 {
     /// <summary>
@@ -14,10 +11,10 @@ namespace UnityEngine.Animations.Rigging
         [SerializeField] Transform m_Head;
 
         [SyncSceneToStream, SerializeField] public Vector3 hipsTargetPosition;
-        [SyncSceneToStream, SerializeField] public Vector3 hipsTargetRotationEuler; // degrees
+        [SyncSceneToStream, SerializeField] public Quaternion hipsTargetRotationEuler; // degrees
 
         [SyncSceneToStream, SerializeField] public Vector3 headTargetPosition;
-        [SyncSceneToStream, SerializeField] public Vector3 headTargetRotationEuler; // degrees
+        [SyncSceneToStream, SerializeField] public Quaternion headTargetRotationEuler; // degrees
 
         public Transform hips { get => m_Hips; set => m_Hips = value; }
         public Transform head { get => m_Head; set => m_Head = value; }
@@ -42,10 +39,10 @@ namespace UnityEngine.Animations.Rigging
             m_Head = null;
 
             hipsTargetPosition = Vector3.zero;
-            hipsTargetRotationEuler = Vector3.zero;
+            hipsTargetRotationEuler = Quaternion.identity;
 
             headTargetPosition = Vector3.zero;
-            headTargetRotationEuler = Vector3.zero;
+            headTargetRotationEuler = Quaternion.identity;
         }
     }
 
@@ -68,10 +65,10 @@ namespace UnityEngine.Animations.Rigging
         public ReadWriteTransformHandle head;
 
         public Vector3Property hipsTargetPosition;
-        public Vector3Property hipsTargetRotationEuler;
+        public Vector4Property hipsTargetRotation;
 
         public Vector3Property headTargetPosition;
-        public Vector3Property headTargetRotationEuler;
+        public Vector4Property headTargetRotation;
 
         public FloatProperty jobWeight { get; set; }
 
@@ -89,12 +86,14 @@ namespace UnityEngine.Animations.Rigging
 
             // Read targets
             Vector3 hipsPos = hipsTargetPosition.Get(stream);
-            Vector3 hipsRotEuler = hipsTargetRotationEuler.Get(stream);
-            Quaternion hipsRot = Quaternion.Euler(hipsRotEuler);
+            Vector4 hipsRotEuler = hipsTargetRotation.Get(stream);
+            Quaternion hipsRot = Vector4ToRotation(hipsRotEuler);
 
             Vector3 headPos = headTargetPosition.Get(stream);
-            Vector3 headRotEuler = headTargetRotationEuler.Get(stream);
-            Quaternion headRot = Quaternion.Euler(headRotEuler);
+
+            Vector4 Vector = headTargetRotation.Get(stream);
+
+            Quaternion headRot = Vector4ToRotation(Vector);
 
             // Apply directly
             hips.SetPosition(stream, hipsPos);
@@ -102,6 +101,12 @@ namespace UnityEngine.Animations.Rigging
 
             head.SetPosition(stream, headPos);
             head.SetRotation(stream, headRot);
+        }
+        public Quaternion Vector4ToRotation(Vector4 Rotation)
+        {
+
+            Quaternion hipsRot = new Quaternion(Rotation.x, Rotation.y, Rotation.z, Rotation.w);
+            return hipsRot;
         }
     }
 
@@ -118,12 +123,12 @@ namespace UnityEngine.Animations.Rigging
 
                 hipsTargetPosition = Vector3Property.Bind(
                     animator, component, data.hipsTargetPositionVector3Property),
-                hipsTargetRotationEuler = Vector3Property.Bind(
+                hipsTargetRotation = Vector4Property.Bind(
                     animator, component, data.hipsTargetRotationVector3Property),
 
                 headTargetPosition = Vector3Property.Bind(
                     animator, component, data.headTargetPositionVector3Property),
-                headTargetRotationEuler = Vector3Property.Bind(
+                headTargetRotation = Vector4Property.Bind(
                     animator, component, data.headTargetRotationVector3Property),
             };
 
