@@ -161,7 +161,7 @@ public static class BasisAnimationRiggingHelper
         newObject.transform.SetParent(parent);
         return newObject;
     }
-    public static void CreateSpine(BasisLocalPlayer player, GameObject parent, Transform hips, Transform[] spineJoints, Transform head, BasisBoneTrackedRole hipRole, out BasisHipsHeadIKConstraint SpineIKConstraint)
+    public static void CreateSpine(BasisLocalPlayer player, GameObject parent, Transform hips, Transform head, BasisBoneTrackedRole hipRole, out BasisHipsHeadIKConstraint SpineIKConstraint)
     {
         player.LocalBoneDriver.FindBone(out BasisLocalBoneControl hipControl, hipRole);
 
