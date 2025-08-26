@@ -290,28 +290,18 @@ namespace Basis.Scripts.Avatar
         public static void SetupRemoteAvatar(BasisRemotePlayer Player)
         {
             Player.RemoteAvatarDriver.RemoteCalibration(Player);
-            SetupAvatar(Player, BasisLayerMapper.RemoteAvatarLayer);
+
             Player.BasisAvatar.OnAvatarReady?.Invoke(false);
 
-            Player.RemoteAvatarDriver.RemoveJiggleRigs();
-            Player.RemoteAvatarDriver.AddJiggleRigs(Player.RemoteAvatarDriver.References);
+            Player.RemoteAvatarDriver.CalibrationComplete?.Invoke();
         }
         public static void SetupLocalAvatar(BasisLocalPlayer Player)
         {
             Player.LocalAvatarDriver.InitialLocalCalibration(Player);
-            SetupAvatar(Player, BasisLayerMapper.LocalAvatarLayer);
+
             Player.BasisAvatar.OnAvatarReady?.Invoke(true);
 
-            Player.LocalAvatarDriver.RemoveJiggleRigs();
-            Player.LocalAvatarDriver.AddJiggleRigs(BasisLocalAvatarDriver.References);
-        }
-        public static void SetupAvatar(BasisPlayer Player, int Layer)
-        {
-            int RenderCount = Player.BasisAvatar.Renders.Length;
-            for (int Index = 0; Index < RenderCount; Index++)
-            {
-                Player.BasisAvatar.Renders[Index].gameObject.layer = Layer;
-            }
+            BasisLocalAvatarDriver.CalibrationComplete?.Invoke();
         }
     }
 }

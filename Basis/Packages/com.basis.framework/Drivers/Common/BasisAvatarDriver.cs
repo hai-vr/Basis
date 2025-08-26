@@ -1,3 +1,4 @@
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.TransformBinders.BoneControl;
 using GatorDragonGames.JigglePhysics;
@@ -226,6 +227,13 @@ namespace Basis.Scripts.Drivers
             }
             JiggleColliders.Clear();
         }
-
+        public static void SetupAvatarLayers(BasisPlayer Player, int Layer)
+        {
+            int RenderCount = Player.BasisAvatar.Renders.Length;
+            for (int Index = 0; Index < RenderCount; Index++)
+            {
+                Player.BasisAvatar.Renders[Index].gameObject.layer = Layer;
+            }
+        }
     }
 }

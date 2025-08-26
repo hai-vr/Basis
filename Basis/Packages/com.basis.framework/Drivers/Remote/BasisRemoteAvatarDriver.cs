@@ -32,6 +32,9 @@ namespace Basis.Scripts.Drivers
             }
             SkinnedMeshRenderer = Player.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             SkinnedMeshRendererLength = SkinnedMeshRenderer.Length;
+            SetupAvatarLayers(Player, BasisLayerMapper.RemoteAvatarLayer);
+
+
             AvatarInitalScale = Player.BasisAvatar.transform.localScale;
             BasisTransformMapping.AutoDetectReferences(Player.BasisAvatar.Animator, remotePlayer.BasisAvatar.transform, ref References);
             References.RecordPoses(Player.BasisAvatar.Animator);
@@ -66,7 +69,9 @@ namespace Basis.Scripts.Drivers
             CalculateTransformPositions(remotePlayer, remotePlayer.RemoteBoneDriver);
             ComputeOffsets(remotePlayer.RemoteBoneDriver);
             remotePlayer.BasisAvatar.Animator.enabled = false;
-            CalibrationComplete?.Invoke();
+
+           RemoveJiggleRigs();
+           AddJiggleRigs(References);
         }
         public void ComputeOffsets(BasisRemoteBoneDriver BBD)
         {
