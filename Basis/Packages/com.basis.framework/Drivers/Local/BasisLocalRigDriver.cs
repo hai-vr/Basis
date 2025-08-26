@@ -89,20 +89,6 @@ namespace Basis.Scripts.Drivers
             }
             return f;
         }
-        private OneEuroFilterQuaternion GetRotFilter(BasisBoneTrackedRole role)
-        {
-            if (!rotFilters.TryGetValue(role, out var f))
-            {
-                f = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
-                rotFilters[role] = f;
-            }
-            else
-            {
-                f.minCutoff = MinCutoff; f.beta = Beta; f.dCutoff = DerivativeCutoff;
-            }
-            return f;
-        }
-
         public void Initialize(BasisLocalPlayer localPlayer, BasisTransformMapping references)
         {
             this.localPlayer = localPlayer;
@@ -163,8 +149,6 @@ namespace Basis.Scripts.Drivers
                 PlayableGraph.Evaluate(DeltaTime);
             }
         }
-
-        #region Filtering + Apply Helpers
 
         private void FilterAndApplyTarget(BasisTwoBoneIKConstraint constraint, BasisBoneTrackedRole role)
         {
@@ -231,8 +215,6 @@ namespace Basis.Scripts.Drivers
                     return new BasisCalibratedCoords { position = Vector3.zero, rotation = Quaternion.identity };
             }
         }
-
-        #endregion
 
         public void ApplySpineIKTarget(BasisCalibratedCoords head, BasisCalibratedCoords hip)
         {

@@ -155,7 +155,6 @@ namespace Basis.Scripts.BasisSdk.Players
 
         public void Teleport(Vector3 position, Quaternion rotation)
         {
-          //here  BasisAvatarStrainJiggleDriver.PrepareTeleport();
             BasisDebug.Log("Teleporting");
             LocalCharacterDriver.IsEnabled = false;
             this.transform.SetPositionAndRotation(position, rotation);
@@ -164,7 +163,6 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 LocalAnimatorDriver.HandleTeleport();
             }
-            //here     BasisAvatarStrainJiggleDriver.FinishTeleport();
             OnSpawnedEvent?.Invoke();
         }
 

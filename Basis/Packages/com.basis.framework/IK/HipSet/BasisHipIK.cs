@@ -99,8 +99,8 @@ namespace UnityEngine.Animations.Rigging
             hips.SetPosition(stream, hipsPos);
             hips.SetRotation(stream, hipsRot);
 
-            head.SetPosition(stream, headPos);
-            head.SetRotation(stream, headRot);
+          //  head.SetPosition(stream, headPos);
+         //   head.SetRotation(stream, headRot);
         }
         public Quaternion Vector4ToRotation(Vector4 Rotation)
         {
