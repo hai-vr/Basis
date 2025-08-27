@@ -173,6 +173,12 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             // --- SCALE-AWARE PIVOT OFFSET ---
             // Scale the local-space pivot offset by the avatar's lossyScale so the arc length matches avatar size.
             float avatarLossy = Player.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
+
+            PivotFromEye = BasisHelpers.AvatarPositionConversion(Player.BasisAvatar.AvatarEyePosition);
+            PivotFromEye.y = 0;//new Vector3(0f, -0.12f, -0.08f);
+            PivotFromEye.z = -PivotFromEye.z;
+
+            Player.LocalAvatarDriver.ActiveAvatarEyeHeight();
             Vector3 scaledPivotFromEye = new Vector3(
                 PivotFromEye.x * avatarLossy,
                 PivotFromEye.y * avatarLossy,

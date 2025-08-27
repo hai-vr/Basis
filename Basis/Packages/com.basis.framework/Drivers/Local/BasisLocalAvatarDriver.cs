@@ -318,7 +318,7 @@ namespace Basis.Scripts.Drivers
 				var role = driver.trackedRoles[Index];
 
 				switch (role)
-				{
+				{ 
 					case BasisBoneTrackedRole.CenterEye:
 						{
 							// Convert avatar-local eye position to world and apply
