@@ -40,7 +40,6 @@ namespace HVR.Basis.Comms
 
         public void OnNetworkMessageReceived(ushort remoteUser, byte[] buffer, DeliveryMethod _, bool isADifferentAvatarLocally)
         {
-            HVRAvatarComms.ProtocolDebug($"Receiving message AvatarMessageProcessing (buffer length: {buffer.Length}, byte0: {(buffer.Length > 0 ? buffer[0] : 0)})");
             if (isADifferentAvatarLocally) return;
             if (buffer.Length == 0) { HVRAvatarComms.ProtocolError("Buffer was 0 bytes."); return; }
             if (!_isWearer && remoteUser != _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
@@ -53,7 +52,6 @@ namespace HVR.Basis.Comms
                     if (_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
                     if (remoteUser != _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
                     if (buffer.Length != 1) { HVRAvatarComms.ProtocolError("Illegal buffer length."); return; }
-                    HVRAvatarComms.ProtocolDebug("Identified AvatarMessageProcessing is acceptable NewNet_WearerReady");
                     // Do nothing
                     break;
                 }
@@ -62,7 +60,6 @@ namespace HVR.Basis.Comms
                     if (!_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
                     if (remoteUser == _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
                     if (buffer.Length != 1) { HVRAvatarComms.ProtocolError("Illegal buffer length."); return; }
-                    HVRAvatarComms.ProtocolDebug("Identified AvatarMessageProcessing is acceptable NewNet_RemoteRequestsInitialization");
                     _onResyncRequested.Invoke(remoteUser);
                     break;
                 }
@@ -71,7 +68,6 @@ namespace HVR.Basis.Comms
                     // This can be received without the server reduction system after we requested initialization.
                     if (_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
                     if (remoteUser != _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
-                    HVRAvatarComms.ProtocolDebug("Identified AvatarMessageProcessing is acceptable NewNet_WearerData");
                     _onPacketReceived.Invoke(HVRAvatarComms.SubBuffer(buffer));
                     break;
                 }
@@ -87,21 +83,18 @@ namespace HVR.Basis.Comms
         {
             if (_isWearer)
             {
-                HVRAvatarComms.ProtocolDebug("Sending AvatarMessageProcessing NewNet_WearerReady message (NetworkMessageSend)");
                 _transmitter.NetworkMessageSend(new[] { FeatureNetworking.NewNet_WearerReady });
                 _onResyncEveryoneRequested.Invoke();
             }
             else
             {
 
-                HVRAvatarComms.ProtocolDebug("Sending AvatarMessageProcessing NewNet_RemoteRequestsInitialization message (NetworkMessageSend)");
                 _transmitter.NetworkMessageSend(new[] { FeatureNetworking.NewNet_RemoteRequestsInitialization });
             }
         }
 
         public void OnNetworkMessageServerReductionSystem(byte[] buffer, bool isADifferentAvatarLocally)
         {
-            HVRAvatarComms.ProtocolDebug($"Receiving message AvatarMessageProcessing (buffer length: {buffer.Length}, byte0: {(buffer.Length > 0 ? buffer[0] : 0)})");
             if (isADifferentAvatarLocally) return;
             if (buffer.Length == 0) { HVRAvatarComms.ProtocolError("Buffer was 0 bytes."); return; }
 
@@ -121,7 +114,6 @@ namespace HVR.Basis.Comms
                 case FeatureNetworking.NewNet_WearerData:
                 {
                     if (_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
-                    HVRAvatarComms.ProtocolDebug("Identified AvatarMessageProcessing is acceptable NewNet_WearerData through reduction system");
                     _onPacketReceived.Invoke(HVRAvatarComms.SubBuffer(buffer));
                     break;
                 }

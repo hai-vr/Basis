@@ -178,12 +178,10 @@ namespace HVR.Basis.Comms
             }
             if (recipientsNullable == null || recipientsNullable.Length == 0)
             {
-                HVRAvatarComms.ProtocolDebug("Sending StreamedAvatarFeature message (ServerReductionSystemMessageSend)");
                 transmitter.ServerReductionSystemMessageSend(buffer);
             }
             else
             {
-                HVRAvatarComms.ProtocolDebug("Sending StreamedAvatarFeature message (NetworkMessageSend)");
                 transmitter.NetworkMessageSend(buffer, DeliveryMethod, recipientsNullable);
             }
         }

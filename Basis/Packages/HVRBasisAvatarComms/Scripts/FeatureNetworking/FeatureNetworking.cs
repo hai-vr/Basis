@@ -119,12 +119,10 @@ namespace HVR.Basis.Comms
 
             if (whoAskedNullable == null || whoAskedNullable.Length == 0)
             {
-                HVRAvatarComms.ProtocolDebug("Sending FeatureNetworking message (ServerReductionSystemMessageSend)");
                 _transmitter.ServerReductionSystemMessageSend(buffer);
             }
             else
             {
-                HVRAvatarComms.ProtocolDebug("Sending FeatureNetworking message (NetworkMessageSend)");
                 _transmitter.NetworkMessageSend(buffer, DeliveryMethod, whoAskedNullable);
             }
         }
