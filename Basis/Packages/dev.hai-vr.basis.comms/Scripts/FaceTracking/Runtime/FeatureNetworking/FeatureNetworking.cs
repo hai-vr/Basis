@@ -1,60 +1,18 @@
 using System;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Behaviour;
+using HVR.Basis.Comms.HVRUtility;
 using LiteNetLib;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
-    [AddComponentMenu("HVR.Basis/Comms/Feature Networking")]
+    [AddComponentMenu("/")]
     public class FeatureNetworking : MonoBehaviour
     {
-        public delegate void InterpolatedDataChanged(float[] current);
-        public delegate void EventReceived(ArraySegment<byte> subBuffer);
-        public delegate void ResyncRequested(ushort[] whoAsked);
-        public delegate void ResyncEveryoneRequested();
-
-        // Unused field since the migration to AvatarMonoBehaviour
-        [Obsolete] [SerializeField] private FeatureNetPairing[] netPairings = new FeatureNetPairing[0]; // Unsafe: May contain malformed GUIDs, or null components, or non-networkable components.
-        [HideInInspector][SerializeField] private BasisAvatar avatar;
-
-        private GameObject _holder;
-
-        private int index;
-
         private void Awake()
         {
-            if (avatar == null) avatar = CommsUtil.GetAvatar(this);
-            if (avatar.GetComponentInChildren<HVRAvatarComms>(true) == null)
-            {
-                avatar.gameObject.AddComponent<HVRAvatarComms>();
-            }
-        }
-
-        public FeatureInterpolator NewInterpolator(int count, InterpolatedDataChanged interpolatedDataChanged, BasisAvatarMonoBehaviour transmitter, bool isWearer)
-        {
-            var guidIndex = index;
-            index++;
-            _holder = new GameObject($"Streamed-{guidIndex}")
-            {
-                transform = { parent = transform }
-            };
-            _holder.SetActive(false);
-            StreamedAvatarFeature streamed = _holder.AddComponent<StreamedAvatarFeature>();
-            streamed.valueArraySize = (byte)count; // TODO: Sanitize count to be within bounds
-            streamed.transmitter = transmitter;
-            streamed.isWearer = isWearer;
-            _holder.SetActive(true);
-
-            var handle = new FeatureInterpolator(streamed, interpolatedDataChanged);
-            streamed.OnInterpolatedDataChanged += handle.OnInterpolatedDataChanged;
-            return handle;
-        }
-
-        public FeatureEvent NewEventDriven(EventReceived eventReceived, ResyncRequested resyncRequested, ResyncEveryoneRequested resyncEveryoneRequested, BasisAvatarMonoBehaviour transmitter)
-        {
-            var handle = new FeatureEvent(this, eventReceived, resyncRequested, resyncEveryoneRequested, transmitter);
-            return handle;
+            Destroy(this);
         }
     }
 
@@ -62,22 +20,20 @@ namespace HVR.Basis.Comms
     {
         private DeliveryMethod DeliveryMethod = DeliveryMethod.Sequenced;
 
-        private readonly FeatureNetworking _featureNetworking;
-        private readonly FeatureNetworking.EventReceived _eventReceived;
-        private readonly FeatureNetworking.ResyncRequested _resyncRequested;
-        private readonly FeatureNetworking.ResyncEveryoneRequested _resyncEveryoneRequested;
-        private readonly BasisAvatarMonoBehaviour _transmitter;
+        private readonly CommsNetworking.EventReceived _eventReceived;
+        private readonly CommsNetworking.ResyncRequested _resyncRequested;
+        private readonly CommsNetworking.ResyncEveryoneRequested _resyncEveryoneRequested;
+        private readonly ITransmitter _transmitter;
 
-        public FeatureEvent(FeatureNetworking featureNetworking, FeatureNetworking.EventReceived eventReceived, FeatureNetworking.ResyncRequested resyncRequested, FeatureNetworking.ResyncEveryoneRequested resyncEveryoneRequested, BasisAvatarMonoBehaviour transmitter)
+        public FeatureEvent(CommsNetworking.EventReceived eventReceived, CommsNetworking.ResyncRequested resyncRequested, CommsNetworking.ResyncEveryoneRequested resyncEveryoneRequested, ITransmitter transmitter)
         {
-            _featureNetworking = featureNetworking;
             _eventReceived = eventReceived;
             _resyncRequested = resyncRequested;
             _resyncEveryoneRequested = resyncEveryoneRequested;
             _transmitter = transmitter;
         }
 
-        public void OnPacketReceived(ArraySegment<byte> data)
+        public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data)
         {
             _eventReceived.Invoke(data);
         }
@@ -127,9 +83,9 @@ namespace HVR.Basis.Comms
     public class FeatureInterpolator : IFeatureReceiver
     {
         private readonly StreamedAvatarFeature _streamed;
-        private readonly FeatureNetworking.InterpolatedDataChanged _interpolatedDataChanged;
+        private readonly CommsNetworking.InterpolatedDataChanged _interpolatedDataChanged;
 
-        internal FeatureInterpolator(StreamedAvatarFeature streamed, FeatureNetworking.InterpolatedDataChanged interpolatedDataChanged)
+        internal FeatureInterpolator(StreamedAvatarFeature streamed, CommsNetworking.InterpolatedDataChanged interpolatedDataChanged)
         {
             _streamed = streamed;
             _interpolatedDataChanged = interpolatedDataChanged;
@@ -140,8 +96,12 @@ namespace HVR.Basis.Comms
             _streamed.Store(value, streamed01);
         }
 
-        public void OnPacketReceived(ArraySegment<byte> data)
+        public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data)
         {
+            HVRLogging.ProtocolDebug($"OnPacketReceived called on FeatureInterpolator. Local identifier is {localIdentifier}. Streamed local identifier is {_streamed.localIdentifier}");
+            if (_streamed.localIdentifier != localIdentifier) return;
+            HVRLogging.ProtocolDebug($"Pass!");
+
             _streamed.OnPacketReceived(data);
         }
 
@@ -159,13 +119,6 @@ namespace HVR.Basis.Comms
         {
             _interpolatedDataChanged.Invoke(current);
         }
-    }
-
-    [Serializable]
-    public class FeatureNetPairing
-    {
-        public Component component;
-        public string guid;
     }
 
     public class RequestedFeature

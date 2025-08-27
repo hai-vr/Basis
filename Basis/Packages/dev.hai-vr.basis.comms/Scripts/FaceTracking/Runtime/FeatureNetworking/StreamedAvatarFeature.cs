@@ -9,7 +9,7 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/Internal/Streamed Avatar Feature")]
     public class StreamedAvatarFeature : MonoBehaviour
     {
-        private const int HeaderBytes = 2;
+        private const int HeaderBytes = 3;
         // 1/60 makes for a maximum encoded delta time of 4.25 seconds.
         private const float DeltaLocalIntToSeconds = 1 / 60f;
         private const float DeltaTimeUsedForResyncs = 1 / 29f; // 29 is just a random number I picked. It really doesn't matter what value we're using for resyncs.
@@ -21,8 +21,9 @@ namespace HVR.Basis.Comms
         private const float TransmissionDeltaSeconds = 0.1f;
 
         [NonSerialized] public byte valueArraySize = 8; // Must not change after first enabled.
-        [NonSerialized] public BasisAvatarMonoBehaviour transmitter;
+        [NonSerialized] public ITransmitter transmitter;
         [NonSerialized] public bool isWearer;
+        [NonSerialized] public byte localIdentifier;
 
         private readonly Queue<StreamedAvatarFeaturePayload> _queue = new();
         private float[] current;
@@ -169,7 +170,8 @@ namespace HVR.Basis.Comms
         {
             var buffer = new byte[HeaderBytes + valueArraySize];
             buffer[0] = AvatarMessageProcessing.NewNet_WearerData;
-            buffer[1] = (byte)(message.DeltaTime / DeltaLocalIntToSeconds);
+            buffer[1] = localIdentifier;
+            buffer[2] = (byte)(message.DeltaTime / DeltaLocalIntToSeconds);
 
             for (var i = 0; i < current.Length; i++)
             {
@@ -184,6 +186,7 @@ namespace HVR.Basis.Comms
                 transmitter.NetworkMessageSend(buffer, DeliveryMethod, recipientsNullable);
             }
         }
+
         private bool TryDecode(ArraySegment<byte> subBuffer, out StreamedAvatarFeaturePayload result)
         {
             var dataStart = 1;

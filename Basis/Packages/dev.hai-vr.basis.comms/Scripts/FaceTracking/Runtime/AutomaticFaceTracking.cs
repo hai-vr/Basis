@@ -4,15 +4,16 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Behaviour;
+using HVR.Basis.Comms.HVRUtility;
+using LiteNetLib;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
-using UnityEngine.Serialization;
 
 [assembly: InternalsVisibleTo("HVR.Basis.Comms.Editor")]
 namespace HVR.Basis.Comms
 {
-    [AddComponentMenu("HVR.Basis/Comms/Automatic Face Tracking")]
-    public class AutomaticFaceTracking : BasisAvatarMonoBehaviour
+    [AddComponentMenu("HVR.Basis/Automatic Face Tracking")]
+    public class AutomaticFaceTracking : BasisAvatarMonoBehaviour, ITransmitter
     {
         [SerializeField] internal bool useCustomMultiplier;
         [SerializeField] internal float eyeTrackingMultiplyX = 1f;
@@ -39,6 +40,7 @@ namespace HVR.Basis.Comms
         [NonSerialized] internal EyeTrackingBoneActuation eyeTrackingBoneActuation;
 
         private AvatarMessageProcessing _network;
+        private bool _isWearer;
 
         public AutomaticFaceTracking()
         {
@@ -58,8 +60,14 @@ namespace HVR.Basis.Comms
 
             _ueHandle ??= Addressables.LoadAssetAsync<BlendshapeActuationDefinitionFile>("HVR.Basis.Comms.FaceTracking.DefaultUnifiedExpressionsDefinitionFile").WaitForCompletion();
             _arKitHandle ??= Addressables.LoadAssetAsync<BlendshapeActuationDefinitionFile>("HVR.Basis.Comms.FaceTracking.DefaultARKitDefinitionFile").WaitForCompletion();
+        }
 
+        private void OnAvatarReady(bool isWearer)
+        {
+            _isWearer = true;
             Discover();
+
+            _nethack.AfterAvatarReady();
         }
 
         private void Discover()
@@ -111,23 +119,22 @@ namespace HVR.Basis.Comms
             enabled = false;
         }
 
-        private void SetupFaceTracking(BlendshapeActuationDefinitionFile definitionFile, List<SkinnedMeshRenderer> smrs)
-        {
-            SetupFaceTracking(new []{ definitionFile }, smrs);
-        }
-
         private void SetupFaceTracking(BlendshapeActuationDefinitionFile[] definitionFiles, List<SkinnedMeshRenderer> smrs)
         {
             renderers = smrs;
-            oscAcquisition = CreateOSCAcquisitionIfNotExists();
+            if (_isWearer)
+            {
+                oscAcquisition = CreateOSCAcquisitionIfNotExists();
+            }
 
             blendshapeActuation = CreateGameObject(nameof(BlendshapeActuation), false)
                 .AddComponent<BlendshapeActuation>();
-            blendshapeActuation.AutoDefine(definitionFiles, smrs);
+            blendshapeActuation.AutoDefine(this, definitionFiles, smrs);
             blendshapeActuation.gameObject.SetActive(true);
 
             eyeTrackingBoneActuation = CreateGameObject(nameof(EyeTrackingBoneActuation), false)
                 .AddComponent<EyeTrackingBoneActuation>();
+            eyeTrackingBoneActuation.AutoDefine(this);
             if (useCustomMultiplier)
             {
                 eyeTrackingBoneActuation.multiplyX = eyeTrackingMultiplyX;
@@ -146,6 +153,7 @@ namespace HVR.Basis.Comms
                 var acquisitionGo = CreateGameObject(nameof(OSCAcquisition));
 
                 acquisition = acquisitionGo.AddComponent<OSCAcquisition>();
+                acquisition.OnAvatarReady(_isWearer);
             }
 
             return acquisition;
@@ -241,11 +249,6 @@ namespace HVR.Basis.Comms
             return false;
         }
 
-        private void OnAvatarReady(bool isWearer)
-        {
-            _nethack.AfterAvatarReady();
-        }
-
         public override void OnNetworkReady(bool isLocallyOwned)
         {
             _nethack.AfterNetworkReady(isLocallyOwned);
@@ -253,23 +256,57 @@ namespace HVR.Basis.Comms
 
         private void OnReadyBothAvatarAndNetwork(bool isLocallyOwned)
         {
-            _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, _avatar.LinkedPlayerID, new AutoReceiver());
+            _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, _avatar.LinkedPlayerID, new AutoReceiver(this));
+
+            blendshapeActuation.OnAvatarReady(isLocallyOwned);
+            eyeTrackingBoneActuation.OnAvatarReady(isLocallyOwned);
+            blendshapeActuation.OnNetworkReady(isLocallyOwned);
+            eyeTrackingBoneActuation.OnNetworkReady(isLocallyOwned);
+
             _network.SendInitialPacket();
+        }
+
+        public override void OnNetworkMessageReceived(ushort remoteUser, byte[] buffer, DeliveryMethod deliveryMethod, bool isADifferentAvatarLocally)
+        {
+            if (_network == null) return;
+
+            _network.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod, isADifferentAvatarLocally);
+        }
+
+        public override void OnNetworkMessageServerReductionSystem(byte[] buffer, bool isADifferentAvatarLocally)
+        {
+            if (_network == null) return;
+
+            _network.OnNetworkMessageServerReductionSystem(buffer, isADifferentAvatarLocally);
         }
     }
 
     internal class AutoReceiver : IFeatureReceiver
     {
-        public void OnPacketReceived(ArraySegment<byte> data)
+        private readonly AutomaticFaceTracking _automaticFaceTracking;
+
+        public AutoReceiver(AutomaticFaceTracking automaticFaceTracking)
         {
+            _automaticFaceTracking = automaticFaceTracking;
+        }
+
+        public void OnPacketReceived(byte localIdentifier, ArraySegment<byte> data)
+        {
+            HVRLogging.ProtocolDebug($"OnPacketReceived called, local identifier is {localIdentifier}");
+            if (localIdentifier == 1) _automaticFaceTracking.blendshapeActuation.featureInterpolator.OnPacketReceived(localIdentifier, data);
+            else if (localIdentifier == 2) _automaticFaceTracking.eyeTrackingBoneActuation.featureInterpolator.OnPacketReceived(localIdentifier, data);
         }
 
         public void OnResyncEveryoneRequested()
         {
+            _automaticFaceTracking.blendshapeActuation.featureInterpolator.OnResyncEveryoneRequested();
+            _automaticFaceTracking.eyeTrackingBoneActuation.featureInterpolator.OnResyncEveryoneRequested();
         }
 
         public void OnResyncRequested(ushort[] whoAsked)
         {
+            _automaticFaceTracking.blendshapeActuation.featureInterpolator.OnResyncRequested(whoAsked);
+            _automaticFaceTracking.eyeTrackingBoneActuation.featureInterpolator.OnResyncRequested(whoAsked);
         }
     }
 }

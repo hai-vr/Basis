@@ -121,9 +121,10 @@ namespace HVR.Basis.Comms
 
         public override void OnNetworkReady(bool isLocallyOwned)
         {
-            _featureEvent = featureNetworking.NewEventDriven(OnEventReceived, OnResyncRequested, OnResyncEveryoneRequested, this);
+            var transmitter = new Transmitter(this);
+            _featureEvent = CommsNetworking.NewEventDriven(OnEventReceived, OnResyncRequested, OnResyncEveryoneRequested, transmitter);
 
-            _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, avatar.LinkedPlayerID, _featureEvent);
+            _network = AvatarMessageProcessing.ForFeature(transmitter, isLocallyOwned, avatar.LinkedPlayerID, _featureEvent);
             _networkReady = true;
 
             _network.SendInitialPacket();

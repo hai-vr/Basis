@@ -16,7 +16,7 @@ namespace HVR.Basis.Comms
         public const byte NewNet_WearerReady = 1;
         public const byte NewNet_RemoteRequestsInitialization = 2;
 
-        private readonly BasisAvatarMonoBehaviour _transmitter;
+        private readonly ITransmitter _transmitter;
         private readonly bool _isWearer;
         private readonly ushort _wearerNetId;
         private readonly ResyncEveryoneRequestedDelegate _onResyncEveryoneRequested;
@@ -25,15 +25,14 @@ namespace HVR.Basis.Comms
 
         public delegate void ResyncEveryoneRequestedDelegate();
         public delegate void ResyncRequestedDelegate(ushort remoteUser);
-        public delegate void PacketReceivedDelegate(ArraySegment<byte> subBuffer);
+        public delegate void PacketReceivedDelegate(byte localIdentifier, ArraySegment<byte> subBuffer);
 
-
-        public static AvatarMessageProcessing ForFeature(BasisAvatarMonoBehaviour transmitter, bool isWearer, ushort wearerNetId, IFeatureReceiver receiver)
+        public static AvatarMessageProcessing ForFeature(ITransmitter transmitter, bool isWearer, ushort wearerNetId, IFeatureReceiver receiver)
         {
             return new AvatarMessageProcessing(transmitter, isWearer, wearerNetId, receiver.OnResyncEveryoneRequested, remoteUser => receiver.OnResyncRequested(new[] { remoteUser }), receiver.OnPacketReceived);
         }
 
-        public AvatarMessageProcessing(BasisAvatarMonoBehaviour transmitter, bool isWearer, ushort wearerNetId, ResyncEveryoneRequestedDelegate onResyncEveryoneRequested, ResyncRequestedDelegate onResyncRequested, PacketReceivedDelegate onPacketReceived)
+        public AvatarMessageProcessing(ITransmitter transmitter, bool isWearer, ushort wearerNetId, ResyncEveryoneRequestedDelegate onResyncEveryoneRequested, ResyncRequestedDelegate onResyncRequested, PacketReceivedDelegate onPacketReceived)
         {
             _transmitter = transmitter;
             _isWearer = isWearer;
@@ -73,7 +72,9 @@ namespace HVR.Basis.Comms
                     // This can be received without the server reduction system after we requested initialization.
                     if (_isWearer) { HVRLogging.ProtocolError("Illegal recipient."); return; }
                     if (remoteUser != _wearerNetId) { HVRLogging.ProtocolError("Illegal sender."); return; }
-                    _onPacketReceived.Invoke(SubBuffer(buffer));
+                    if (buffer.Length < 2) { HVRLogging.ProtocolError("Illegal buffer length."); return; }
+                    var localIdentifier = buffer[1];
+                    _onPacketReceived.Invoke(localIdentifier, SubBuffer(buffer));
                     break;
                 }
                 default:
@@ -119,7 +120,9 @@ namespace HVR.Basis.Comms
                 case NewNet_WearerData:
                 {
                     if (_isWearer) { HVRLogging.ProtocolError("Illegal recipient."); return; }
-                    _onPacketReceived.Invoke(SubBuffer(buffer));
+                    if (buffer.Length < 2) { HVRLogging.ProtocolError("Illegal buffer length."); return; }
+                    var localIdentifier = buffer[1];
+                    _onPacketReceived.Invoke(localIdentifier, SubBuffer(buffer));
                     break;
                 }
                 default:
@@ -132,7 +135,7 @@ namespace HVR.Basis.Comms
 
         internal static ArraySegment<byte> SubBuffer(byte[] unsafeBuffer)
         {
-            return new ArraySegment<byte>(unsafeBuffer, 1, unsafeBuffer.Length - 1);
+            return new ArraySegment<byte>(unsafeBuffer, 2, unsafeBuffer.Length - 2);
         }
     }
 }

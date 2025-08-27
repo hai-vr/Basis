@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Behaviour;
+using HVR.Basis.Comms.HVRUtility;
 using LiteNetLib;
 using UnityEngine;
 
@@ -33,12 +34,14 @@ namespace HVR.Basis.Comms
         // - Network late initialization.
         // Nullability is needed for local tests without initialization scene.
         // - Becomes non-null after HVRAvatarComms.OnAvatarNetworkReady is successfully invoked
-        private FeatureInterpolator _featureInterpolator;
+        [NonSerialized] internal FeatureInterpolator featureInterpolator;
         private bool _networkReady;
         private AvatarMessageProcessing _network;
         private readonly Nethack _nethack;
 
         public string[] debugAddresses;
+
+        private ITransmitter _autoTransmitterNullable;
 
         #endregion
 
@@ -47,8 +50,9 @@ namespace HVR.Basis.Comms
             _nethack = new Nethack(OnReadyBothAvatarAndNetwork);
         }
 
-        public void AutoDefine(BlendshapeActuationDefinitionFile[] providedDefinitionFiles, List<SkinnedMeshRenderer> providedSmrs)
+        public void AutoDefine(ITransmitter transmitter, BlendshapeActuationDefinitionFile[] providedDefinitionFiles, List<SkinnedMeshRenderer> providedSmrs)
         {
+            _autoTransmitterNullable = transmitter;
             definitionFiles = providedDefinitionFiles;
             renderers = providedSmrs.ToArray();
         }
@@ -90,11 +94,11 @@ namespace HVR.Basis.Comms
                 Actuate(actuator, inRange);
             }
 
-            if (_featureInterpolator != null)
+            if (featureInterpolator != null)
             {
                 var firstActuator = actuatorsForThisAddress[0];
                 var streamed01 = Mathf.InverseLerp(firstActuator.StreamedLower, firstActuator.StreamedUpper, inRange);
-                _featureInterpolator.Store(index, streamed01);
+                featureInterpolator.Store(index, streamed01);
             }
         }
 
@@ -129,7 +133,7 @@ namespace HVR.Basis.Comms
             }
         }
 
-        private void OnAvatarReady(bool isWearer)
+        internal void OnAvatarReady(bool isWearer)
         {
             var allDefinitions = definitions
                 .Concat(definitionFiles.SelectMany(file => file.definitions))
@@ -223,14 +227,17 @@ namespace HVR.Basis.Comms
 
         public override void OnNetworkReady(bool isLocallyOwned)
         {
+            HVRLogging.ProtocolDebug("OnNetworkReady called on BlendshapeActuation.");
             _nethack.AfterNetworkReady(isLocallyOwned);
         }
 
         private void OnReadyBothAvatarAndNetwork(bool isLocallyOwned)
         {
+            HVRLogging.ProtocolDebug("OnReadyBothAvatarAndNetwork called on BlendshapeActuation.");
             // FIXME: We should be using the computed actuators instead of the address base, assuming that
             // the list of blendshapes is the same local and remote (no local-only or remote-only blendshapes).
-            _featureInterpolator = featureNetworking.NewInterpolator(_addressBase.Count, OnInterpolatedDataChanged, this, isLocallyOwned);
+            var transmitter = _autoTransmitterNullable != null ? _autoTransmitterNullable : new Transmitter(this);
+            featureInterpolator = CommsNetworking.NewInterpolator(avatar, _addressBase.Count, OnInterpolatedDataChanged, transmitter, isLocallyOwned, 1);
 
             var overrides = definitionFiles
                 .SelectMany(file => file.addressOverrides)
@@ -239,17 +246,17 @@ namespace HVR.Basis.Comms
                 .ToArray();
             foreach (var addressOverride in overrides)
             {
-                if (_addressBase.TryGetValue(addressOverride.address, out var v)) _featureInterpolator.Store(v, addressOverride.defaultValue);
+                if (_addressBase.TryGetValue(addressOverride.address, out var v)) featureInterpolator.Store(v, addressOverride.defaultValue);
             }
 
             // Handle older avatars that were uploaded with a previous face tracking definition file. Internal version would be 1 by default.
             if (definitionFiles.Length > 0 && definitionFiles.All(file => file.internalVersion < 2))
             {
-                if (_addressBase.TryGetValue("FT/v2/EyeLidLeft", out var indexLeft)) _featureInterpolator.Store(indexLeft, 0.8f);
-                if (_addressBase.TryGetValue("FT/v2/EyeLidRight", out var indexRight)) _featureInterpolator.Store(indexRight, 0.8f);
+                if (_addressBase.TryGetValue("FT/v2/EyeLidLeft", out var indexLeft)) featureInterpolator.Store(indexLeft, 0.8f);
+                if (_addressBase.TryGetValue("FT/v2/EyeLidRight", out var indexRight)) featureInterpolator.Store(indexRight, 0.8f);
             }
 
-            _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, avatar.LinkedPlayerID, _featureInterpolator);
+            _network = AvatarMessageProcessing.ForFeature(transmitter, isLocallyOwned, avatar.LinkedPlayerID, featureInterpolator);
             _networkReady = true;
 
             _network.SendInitialPacket();

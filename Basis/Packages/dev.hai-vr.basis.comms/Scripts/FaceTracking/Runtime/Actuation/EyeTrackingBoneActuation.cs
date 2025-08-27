@@ -4,6 +4,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Behaviour;
 using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking.Receivers;
+using HVR.Basis.Comms.HVRUtility;
 using LiteNetLib;
 using Unity.Mathematics;
 using UnityEngine;
@@ -36,7 +37,7 @@ namespace HVR.Basis.Comms
         // - Network late initialization.
         // Nullability is needed for local tests without initialization scene.
         // - Becomes non-null after HVRAvatarComms.OnAvatarNetworkReady is successfully invoked
-        public FeatureInterpolator _featureInterpolator;
+        [NonSerialized] internal FeatureInterpolator featureInterpolator;
         [NonSerialized] public BasisLocalEyeDriver _eyeFollowDriverLateInit;
         #endregion
         public BasisNetworkReceiver Receiver = null;
@@ -45,9 +46,16 @@ namespace HVR.Basis.Comms
         private bool _eyeFollowDriverApplicable;
         private readonly Nethack _nethack;
 
+        private ITransmitter _autoTransmitterNullable;
+
         public EyeTrackingBoneActuation()
         {
             _nethack = new Nethack(OnReadyBothAvatarAndNetwork);
+        }
+
+        public void AutoDefine(ITransmitter transmitter)
+        {
+            _autoTransmitterNullable = transmitter;
         }
 
         private void Awake()
@@ -59,7 +67,7 @@ namespace HVR.Basis.Comms
             avatar.OnAvatarReady += OnAvatarReady;
         }
 
-        private void OnAvatarReady(bool isOwner)
+        internal void OnAvatarReady(bool isOwner)
         {
             if (isOwner)
             {
@@ -73,11 +81,13 @@ namespace HVR.Basis.Comms
 
         public override void OnNetworkReady(bool isLocallyOwned)
         {
+            HVRLogging.ProtocolDebug("OnNetworkReady called on EyeTrackingBoneActuation.");
             _nethack.AfterNetworkReady(isLocallyOwned);
         }
 
         private void OnReadyBothAvatarAndNetwork(bool isLocallyOwned)
         {
+            HVRLogging.ProtocolDebug("OnReadyBothAvatarAndNetwork called on BlendshapeActuation.");
             IsLocal = isLocallyOwned;
 
             if (!IsLocal)
@@ -85,8 +95,9 @@ namespace HVR.Basis.Comms
                 Receiver = NetworkedPlayer as BasisNetworkReceiver;
             }
 
-            _featureInterpolator = featureNetworking.NewInterpolator(3, OnInterpolatedDataChanged, this, isLocallyOwned);
-            _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, avatar.LinkedPlayerID, _featureInterpolator);
+            var transmitter = _autoTransmitterNullable != null ? _autoTransmitterNullable : new Transmitter(this);
+            featureInterpolator = CommsNetworking.NewInterpolator(avatar, 3, OnInterpolatedDataChanged, transmitter, isLocallyOwned, 2);
+            _network = AvatarMessageProcessing.ForFeature(transmitter, isLocallyOwned, avatar.LinkedPlayerID, featureInterpolator);
             _networkReady = true;
 
             _network.SendInitialPacket();
@@ -140,19 +151,19 @@ namespace HVR.Basis.Comms
                 case EyeLeftX:
                 {
                     _fEyeLeftX = value;
-                    if (_featureInterpolator != null) _featureInterpolator.Store(0, (value + 1) / 2f);
+                    if (featureInterpolator != null) featureInterpolator.Store(0, (value + 1) / 2f);
                     break;
                 }
                 case EyeRightX:
                 {
                     _fEyeRightX = value;
-                    if (_featureInterpolator != null) _featureInterpolator.Store(1, (value + 1) / 2f);
+                    if (featureInterpolator != null) featureInterpolator.Store(1, (value + 1) / 2f);
                     break;
                 }
                 case EyeY:
                 {
                     _fEyeY = value;
-                    if (_featureInterpolator != null) _featureInterpolator.Store(2, (value + 1) / 2f);
+                    if (featureInterpolator != null) featureInterpolator.Store(2, (value + 1) / 2f);
                     break;
                 }
             }
