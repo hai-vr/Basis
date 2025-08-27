@@ -85,7 +85,7 @@ namespace HVR.Basis.Comms
                 Receiver = NetworkedPlayer as BasisNetworkReceiver;
             }
 
-            _featureInterpolator = featureNetworking.NewInterpolator(3, OnInterpolatedDataChanged, this);
+            _featureInterpolator = featureNetworking.NewInterpolator(3, OnInterpolatedDataChanged, this, isLocallyOwned);
             _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, avatar.LinkedPlayerID, _featureInterpolator);
             _networkReady = true;
 

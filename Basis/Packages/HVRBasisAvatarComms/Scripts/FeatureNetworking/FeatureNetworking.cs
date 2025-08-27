@@ -23,7 +23,6 @@ namespace HVR.Basis.Comms
         [HideInInspector][SerializeField] private BasisAvatar avatar;
 
         private GameObject _holder;
-        private bool _isWearer;
 
         private int index;
 
@@ -36,7 +35,7 @@ namespace HVR.Basis.Comms
             }
         }
 
-        public FeatureInterpolator NewInterpolator(int count, InterpolatedDataChanged interpolatedDataChanged, BasisAvatarMonoBehaviour transmitter)
+        public FeatureInterpolator NewInterpolator(int count, InterpolatedDataChanged interpolatedDataChanged, BasisAvatarMonoBehaviour transmitter, bool isWearer)
         {
             var guidIndex = index;
             index++;
@@ -48,7 +47,7 @@ namespace HVR.Basis.Comms
             StreamedAvatarFeature streamed = _holder.AddComponent<StreamedAvatarFeature>();
             streamed.valueArraySize = (byte)count; // TODO: Sanitize count to be within bounds
             streamed.transmitter = transmitter;
-            streamed.isWearer = _isWearer;
+            streamed.isWearer = isWearer;
             _holder.SetActive(true);
 
             var handle = new FeatureInterpolator(streamed, interpolatedDataChanged);

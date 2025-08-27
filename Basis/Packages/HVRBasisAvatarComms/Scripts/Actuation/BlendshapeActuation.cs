@@ -224,7 +224,7 @@ namespace HVR.Basis.Comms
         {
             // FIXME: We should be using the computed actuators instead of the address base, assuming that
             // the list of blendshapes is the same local and remote (no local-only or remote-only blendshapes).
-            _featureInterpolator = featureNetworking.NewInterpolator(_addressBase.Count, OnInterpolatedDataChanged, this);
+            _featureInterpolator = featureNetworking.NewInterpolator(_addressBase.Count, OnInterpolatedDataChanged, this, isLocallyOwned);
 
             var overrides = definitionFiles
                 .SelectMany(file => file.addressOverrides)
