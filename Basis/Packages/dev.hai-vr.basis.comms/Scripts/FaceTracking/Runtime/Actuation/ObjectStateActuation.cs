@@ -2,6 +2,7 @@
 using System.Collections;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Behaviour;
+using HVR.Basis.Comms.HVRUtility;
 using LiteNetLib;
 using UnityEngine;
 
@@ -170,10 +171,10 @@ namespace HVR.Basis.Comms
 
         private void OnEventReceived(ArraySegment<byte> subBuffer)
         {
-            if (subBuffer.Count != 1) { HVRAvatarComms.ProtocolError("Protocol error (in ObjectStateActuation): Unexpected length."); return; }
+            if (subBuffer.Count != 1) { HVRLogging.ProtocolError("Protocol error (in ObjectStateActuation): Unexpected length."); return; }
 
             var item = subBuffer.get_Item(0);
-            if (item > 1) { HVRAvatarComms.ProtocolError("Protocol error (in ObjectStateActuation): Unexpected value."); return; }
+            if (item > 1) { HVRLogging.ProtocolError("Protocol error (in ObjectStateActuation): Unexpected value."); return; }
 
             var state = item == 1;
             if (_currentTargetState != state)

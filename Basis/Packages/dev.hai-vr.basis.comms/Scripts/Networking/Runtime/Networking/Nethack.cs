@@ -8,7 +8,7 @@ namespace HVR.Basis.Comms
     // This inconsistency makes it annoying to build an avatar that initializes correctly for no-network singleplayer use.
     //
     // This class creates a new event called once after both OnAvatarReady and OnNetworkReady are called.
-    internal class Nethack
+    public class Nethack
     {
         private readonly Action<bool> _onReadyBothAvatarAndNetwork;
 

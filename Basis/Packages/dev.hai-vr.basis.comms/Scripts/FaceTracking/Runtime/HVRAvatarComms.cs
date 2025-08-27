@@ -25,15 +25,5 @@ namespace HVR.Basis.Comms
                 throw new InvalidOperationException("Broke assumption: Avatar and/or FeatureNetworking cannot be found.");
             }
         }
-
-        internal static ArraySegment<byte> SubBuffer(byte[] unsafeBuffer)
-        {
-            return new ArraySegment<byte>(unsafeBuffer, 1, unsafeBuffer.Length - 1);
-        }
-
-        internal static void ProtocolError(string message) => BasisDebug.LogError(message, BasisDebug.LogTag.Avatar);
-        internal static void ProtocolWarning(string message) => BasisDebug.LogWarning(message, BasisDebug.LogTag.Avatar);
-        internal static void ProtocolAssetMismatch(string message) => BasisDebug.LogError(message, BasisDebug.LogTag.Avatar);
-        internal static void ProtocolDebug(string message) => BasisDebug.Log(message, BasisDebug.LogTag.Avatar);
     }
 }

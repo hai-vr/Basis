@@ -9,10 +9,6 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/Feature Networking")]
     public class FeatureNetworking : MonoBehaviour
     {
-        public const byte NewNet_WearerData = 0;
-        public const byte NewNet_WearerReady = 1;
-        public const byte NewNet_RemoteRequestsInitialization = 2;
-
         public delegate void InterpolatedDataChanged(float[] current);
         public delegate void EventReceived(ArraySegment<byte> subBuffer);
         public delegate void ResyncRequested(ushort[] whoAsked);

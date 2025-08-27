@@ -6,7 +6,9 @@
         "Unity.Mathematics",
         "LiteNetLib",
         "Basis Framework",
-        "BasisDebug"
+        "BasisDebug",
+        "HVR.Basis.Comms.HVRUtility",
+        "HVR.Basis.Comms.Networking"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

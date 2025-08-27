@@ -10,7 +10,6 @@ namespace HVR.Basis.Comms
     public class StreamedAvatarFeature : MonoBehaviour
     {
         private const int HeaderBytes = 2;
-        private const int SubHeaderBytes = HeaderBytes - 1;
         // 1/60 makes for a maximum encoded delta time of 4.25 seconds.
         private const float DeltaLocalIntToSeconds = 1 / 60f;
         private const float DeltaTimeUsedForResyncs = 1 / 29f; // 29 is just a random number I picked. It really doesn't matter what value we're using for resyncs.
@@ -169,7 +168,7 @@ namespace HVR.Basis.Comms
         private void EncodeAndSubmit(StreamedAvatarFeaturePayload message, ushort[] recipientsNullable)
         {
             var buffer = new byte[HeaderBytes + valueArraySize];
-            buffer[0] = FeatureNetworking.NewNet_WearerData;
+            buffer[0] = AvatarMessageProcessing.NewNet_WearerData;
             buffer[1] = (byte)(message.DeltaTime / DeltaLocalIntToSeconds);
 
             for (var i = 0; i < current.Length; i++)
