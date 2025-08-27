@@ -5,7 +5,7 @@ using UnityEngine;
 namespace HVR.Basis.Comms
 {
     [CustomEditor(typeof(StreamedAvatarFeatureAssist))]
-    public class StreamedAvatarFeatureAssistEditor : Editor
+    public class StreamedAvatarFeatureAssistEditor : UnityEditor.Editor
     {
         public override void OnInspectorGUI()
         {

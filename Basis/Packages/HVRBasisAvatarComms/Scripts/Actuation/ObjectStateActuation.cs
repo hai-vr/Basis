@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections;
 using Basis.Scripts.BasisSdk;
+using Basis.Scripts.Behaviour;
+using LiteNetLib;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
     [AddComponentMenu("HVR.Basis/Comms/Object State Actuation")]
-    public class ObjectStateActuation : MonoBehaviour, ICommsNetworkable
+    public class ObjectStateActuation : BasisAvatarMonoBehaviour, ICommsNetworkable
     {
         public ActivationSource activationSource;
         public string address;
@@ -40,7 +42,10 @@ namespace HVR.Basis.Comms
         private FeatureEvent _featureEvent;
         private byte[] _msg;
         private bool _isWearer;
-#endregion
+        private AvatarMessageProcessing _network;
+        private bool _networkReady;
+
+        #endregion
 
         private void Awake()
         {
@@ -113,9 +118,21 @@ namespace HVR.Basis.Comms
             else if (component is Behaviour behaviour) behaviour.enabled = shouldBecome;
         }
 
-        public void OnGuidAssigned(int guidIndex, Guid guid)
+        public override void OnNetworkReady(bool isLocallyOwned)
         {
-            _featureEvent = featureNetworking.NewEventDriven(guidIndex, OnEventReceived, OnResyncRequested, OnResyncEveryoneRequested);
+            _featureEvent = featureNetworking.NewEventDriven(OnEventReceived, OnResyncRequested, OnResyncEveryoneRequested, this);
+
+            _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, avatar.LinkedPlayerID, _featureEvent);
+            _networkReady = true;
+
+            _network.SendInitialPacket();
+        }
+
+        public override void OnNetworkMessageReceived(ushort remoteUser, byte[] buffer, DeliveryMethod deliveryMethod, bool isADifferentAvatarLocally)
+        {
+            if (!_networkReady) return;
+
+            _network.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod, isADifferentAvatarLocally);
         }
 
         private void OnResyncRequested(ushort[] whoAsked)

@@ -5,7 +5,7 @@ using UnityEngine;
 namespace HVR.Basis.Comms
 {
     [CustomEditor(typeof(AcquisitionAssist))]
-    public class AcquisitionAssistEditor : Editor
+    public class AcquisitionAssistEditor : UnityEditor.Editor
     {
         public override void OnInspectorGUI()
         {

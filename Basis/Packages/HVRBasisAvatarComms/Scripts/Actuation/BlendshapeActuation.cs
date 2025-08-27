@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Basis.Scripts.BasisSdk;
+using Basis.Scripts.Behaviour;
+using LiteNetLib;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
     [AddComponentMenu("HVR.Basis/Comms/Blendshape Actuation")]
-    public class BlendshapeActuation : MonoBehaviour, ICommsNetworkable
+    public class BlendshapeActuation : BasisAvatarMonoBehaviour, ICommsNetworkable
     {
         private const int MaxAddresses = 256;
         private const float BlendshapeAtFullStrength = 100f;
@@ -15,28 +17,35 @@ namespace HVR.Basis.Comms
         [SerializeField] private SkinnedMeshRenderer[] renderers = Array.Empty<SkinnedMeshRenderer>();
         [SerializeField] private BlendshapeActuationDefinitionFile[] definitionFiles = Array.Empty<BlendshapeActuationDefinitionFile>();
         [SerializeField] private BlendshapeActuationDefinition[] definitions = Array.Empty<BlendshapeActuationDefinition>();
-        
+        [SerializeField] private AddressOverride[] addressOverrides = Array.Empty<AddressOverride>();
+
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private FeatureNetworking featureNetworking;
         [HideInInspector] [SerializeField] private AcquisitionService acquisition;
-        
-        private Dictionary<string, int> _addressBase = new Dictionary<string, int>();
+
+        private Dictionary<string, int> _addressBase = new();
         private ComputedActuator[] _computedActuators;
         private ComputedActuator[][] _addressBaseIndexToActuators;
-        
-#region NetworkingFields
-        private int _guidIndex;
+
+        #region NetworkingFields
         // Can be null due to:
         // - Application with no network, or
         // - Network late initialization.
         // Nullability is needed for local tests without initialization scene.
         // - Becomes non-null after HVRAvatarComms.OnAvatarNetworkReady is successfully invoked
         private FeatureInterpolator _featureInterpolator;
-        private bool _avatarReady;
         private bool _networkReady;
-        private bool _dualInitialized;
+        private AvatarMessageProcessing _network;
+        private readonly Nethack _nethack;
+
+        public string[] debugAddresses;
 
         #endregion
+
+        public BlendshapeActuation()
+        {
+            _nethack = new Nethack(OnReadyBothAvatarAndNetwork);
+        }
 
         private void Awake()
         {
@@ -64,24 +73,21 @@ namespace HVR.Basis.Comms
         private void OnAddressUpdated(string address, float inRange)
         {
             if (!_addressBase.TryGetValue(address, out var index)) return;
-            
+
             // TODO: Might need to queue and delay this change so that it executes on the Update loop.
 
             var actuatorsForThisAddress = _addressBaseIndexToActuators[index];
             if (actuatorsForThisAddress == null) return; // There may be no actuator for an address when it does not exist in the renderers.
-            
-            var lower = 0f;
-            var upper = 0f;
+
             foreach (var actuator in actuatorsForThisAddress)
             {
                 Actuate(actuator, inRange);
-                lower = actuator.StreamedLower;
-                upper = actuator.StreamedUpper;
             }
-            
+
             if (_featureInterpolator != null)
             {
-                var streamed01 = Mathf.InverseLerp(lower, upper, inRange);
+                var firstActuator = actuatorsForThisAddress[0];
+                var streamed01 = Mathf.InverseLerp(firstActuator.StreamedLower, firstActuator.StreamedUpper, inRange);
                 _featureInterpolator.Store(index, streamed01);
             }
         }
@@ -92,7 +98,7 @@ namespace HVR.Basis.Comms
             {
                 var streamed01 = current[actuator.AddressIndex];
                 var inRange = Mathf.Lerp(actuator.StreamedLower, actuator.StreamedUpper, streamed01);
-                
+
                 Actuate(actuator, inRange);
             }
         }
@@ -107,7 +113,7 @@ namespace HVR.Basis.Comms
             var outputWild = Mathf.Lerp(actuator.OutStart, actuator.OutEnd, intermediate01);
             var output01 = Mathf.Clamp01(outputWild);
             var output0100 = output01 * BlendshapeAtFullStrength;
-                
+
             foreach (var target in actuator.Targets)
             {
                 foreach (var blendshapeIndex in target.BlendshapeIndices)
@@ -122,14 +128,6 @@ namespace HVR.Basis.Comms
             var allDefinitions = definitions
                 .Concat(definitionFiles.SelectMany(file => file.definitions))
                 .ToArray();
-            _addressBase = MakeIndexDictionary(allDefinitions.Select(definition => definition.address).Distinct().ToArray());
-            
-            if (_addressBase.Count > MaxAddresses)
-            {
-                Debug.LogError($"Exceeded max {MaxAddresses} addresses allowed in an actuator.");
-                enabled = false;
-                return;
-            }
 
             var smrToBlendshapeNames = new Dictionary<SkinnedMeshRenderer, List<string>>();
             foreach (var smr in renderers)
@@ -154,7 +152,7 @@ namespace HVR.Basis.Comms
                         .ToArray();
                     return (inValuesForThisAddress.Min(), inValuesForThisAddress.Max());
                 });
-            
+
             _computedActuators = allDefinitions.Select(definition =>
                 {
                     var actuatorTargets = ComputeTargets(smrToBlendshapeNames, definition.blendshapes, definition.onlyFirstMatch);
@@ -163,7 +161,7 @@ namespace HVR.Basis.Comms
                     var (lower, upper) = addressToStreamedLowerUpper[definition.address];
                     return new ComputedActuator
                     {
-                        AddressIndex = _addressBase[definition.address],
+                        // The AddressIndex field is filled later.
                         InStart = definition.inStart,
                         InEnd = definition.inEnd,
                         OutStart = definition.outStart,
@@ -184,50 +182,85 @@ namespace HVR.Basis.Comms
                 .Where(actuator => actuator != null)
                 .ToArray();
 
+            var allAddressesThatAreEffectivelyActuated = _computedActuators
+                .Select(actuator => actuator.RequestedFeature.identifier)
+                .Distinct()
+                .ToArray();
+            debugAddresses = allAddressesThatAreEffectivelyActuated;
+
+            _addressBase = MakeIndexDictionary(allAddressesThatAreEffectivelyActuated);
+            if (_addressBase.Count > MaxAddresses)
+            {
+                Debug.LogError($"Exceeded max {MaxAddresses} addresses allowed in an actuator.");
+                enabled = false;
+                return;
+            }
+
+            foreach (var computedActuator in _computedActuators)
+            {
+                computedActuator.AddressIndex = _addressBase[computedActuator.RequestedFeature.identifier];
+            }
+
             _addressBaseIndexToActuators = new ComputedActuator[_addressBase.Count][];
             foreach (var computedActuator in _computedActuators.GroupBy(actuator => actuator.AddressIndex, actuator => actuator))
             {
                 _addressBaseIndexToActuators[computedActuator.Key] = computedActuator.ToArray();
             }
-            
+
             if (isWearer)
             {
                 acquisition.RegisterAddresses(_addressBase.Keys.ToArray(), OnAddressUpdated);
             }
 
-            _avatarReady = true;
-            TryOnAvatarIsNetworkable();
+            _nethack.AfterAvatarReady();
         }
 
-        public void OnGuidAssigned(int guidIndex, Guid guid)
+        public override void OnNetworkReady(bool isLocallyOwned)
         {
-            _guidIndex = guidIndex;
-            
-            _networkReady = true;
-            TryOnAvatarIsNetworkable();
+            _nethack.AfterNetworkReady(isLocallyOwned);
         }
 
-        private void TryOnAvatarIsNetworkable()
-        {
-            // HACK: Work around an issue where remote and local avatars trigger
-            // OnAvatarReady and OnAvatarNetworkReady in a different order.
-
-            if (_avatarReady && _networkReady && !_dualInitialized)
-            {
-                _dualInitialized = true;
-                OnAvatarFullyNetworkable();
-            }
-        }
-
-        private void OnAvatarFullyNetworkable()
+        private void OnReadyBothAvatarAndNetwork(bool isLocallyOwned)
         {
             // FIXME: We should be using the computed actuators instead of the address base, assuming that
             // the list of blendshapes is the same local and remote (no local-only or remote-only blendshapes).
-            _featureInterpolator = featureNetworking.NewInterpolator(_guidIndex, _addressBase.Count, OnInterpolatedDataChanged);
-            
-            // FIXME: Add default values in the blendshape actuation file
-            if (_addressBase.TryGetValue("FT/v2/EyeLidLeft", out var indexLeft)) _featureInterpolator.Store(indexLeft, 0.8f);
-            if (_addressBase.TryGetValue("FT/v2/EyeLidRight", out var indexRight)) _featureInterpolator.Store(indexRight, 0.8f);
+            _featureInterpolator = featureNetworking.NewInterpolator(_addressBase.Count, OnInterpolatedDataChanged, this, isLocallyOwned);
+
+            var overrides = definitionFiles
+                .SelectMany(file => file.addressOverrides)
+                .Concat(addressOverrides)
+                .Where(it => it.overrideDefaultValue)
+                .ToArray();
+            foreach (var addressOverride in overrides)
+            {
+                if (_addressBase.TryGetValue(addressOverride.address, out var v)) _featureInterpolator.Store(v, addressOverride.defaultValue);
+            }
+
+            // Handle older avatars that were uploaded with a previous face tracking definition file. Internal version would be 1 by default.
+            if (definitionFiles.Length > 0 && definitionFiles.All(file => file.internalVersion < 2))
+            {
+                if (_addressBase.TryGetValue("FT/v2/EyeLidLeft", out var indexLeft)) _featureInterpolator.Store(indexLeft, 0.8f);
+                if (_addressBase.TryGetValue("FT/v2/EyeLidRight", out var indexRight)) _featureInterpolator.Store(indexRight, 0.8f);
+            }
+
+            _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, avatar.LinkedPlayerID, _featureInterpolator);
+            _networkReady = true;
+
+            _network.SendInitialPacket();
+        }
+
+        public override void OnNetworkMessageReceived(ushort remoteUser, byte[] buffer, DeliveryMethod deliveryMethod, bool isADifferentAvatarLocally)
+        {
+            if (!_networkReady) return;
+
+            _network.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod, isADifferentAvatarLocally);
+        }
+
+        public override void OnNetworkMessageServerReductionSystem(byte[] buffer, bool isADifferentAvatarLocally)
+        {
+            if (!_networkReady) return;
+
+            _network.OnNetworkMessageServerReductionSystem(buffer, isADifferentAvatarLocally);
         }
 
         private Dictionary<string, int> MakeIndexDictionary(string[] addressBase)
@@ -253,33 +286,21 @@ namespace HVR.Basis.Comms
         private void OnDestroy()
         {
             avatar.OnAvatarReady -= OnAvatarReady;
-            
-            acquisition.UnregisterAddresses(_addressBase.Keys.ToArray(), OnAddressUpdated);
 
-            if (_featureInterpolator != null)
-            {
-                _featureInterpolator.Unregister();
-                _featureInterpolator = null;
-            }
+            acquisition.UnregisterAddresses(_addressBase.Keys.ToArray(), OnAddressUpdated);
         }
 
         private void ResetAllBlendshapesToZero()
         {
-            foreach (ComputedActuator computedActuator in _computedActuators)
+            foreach (var computedActuator in _computedActuators)
             {
-                if (computedActuator != null)
+                foreach (var target in computedActuator.Targets)
                 {
-                    foreach (ComputedActuatorTarget target in computedActuator.Targets)
+                    foreach (var blendshapeIndex in target.BlendshapeIndices)
                     {
-                        if (target != null)
+                        if (null != target.Renderer)
                         {
-                            foreach (int blendshapeIndex in target.BlendshapeIndices)
-                            {
-                                if (target.Renderer != null)
-                                {
-                                    target.Renderer.SetBlendShapeWeight(blendshapeIndex, 0);
-                                }
-                            }
+                            target.Renderer.SetBlendShapeWeight(blendshapeIndex, 0);
                         }
                     }
                 }
@@ -295,7 +316,7 @@ namespace HVR.Basis.Comms
                     .Select(toFind => pair.Value.IndexOf(toFind))
                     .Where(i => i >= 0)
                     .ToArray();
-            
+
                 if (indices.Length > 0)
                 {
                     if (onlyFirstMatch)

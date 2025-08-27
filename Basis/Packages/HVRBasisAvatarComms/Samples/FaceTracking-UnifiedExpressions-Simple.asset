@@ -2595,7 +2595,7 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
     blendshapes:
-    - TongueDown
+    - TongueRoll
     onlyFirstMatch: 0
   - address: FT/v2/TongueArchY
     inStart: 0
@@ -3059,3 +3059,11 @@ MonoBehaviour:
     blendshapes:
     - BrowDownLeft
     onlyFirstMatch: 0
+  addressOverrides:
+  - address: FT/v2/EyeLidLeft
+    overrideDefaultValue: 1
+    defaultValue: 0.8
+  - address: FT/v2/EyeLidRight
+    overrideDefaultValue: 1
+    defaultValue: 0.8
+  internalVersion: 2

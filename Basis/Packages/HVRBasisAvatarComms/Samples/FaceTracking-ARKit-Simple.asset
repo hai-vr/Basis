@@ -1603,3 +1603,11 @@ MonoBehaviour:
     blendshapes:
     - tongueOut
     onlyFirstMatch: 0
+  addressOverrides:
+  - address: FT/v2/EyeLidLeft
+    overrideDefaultValue: 1
+    defaultValue: 0.8
+  - address: FT/v2/EyeLidRight
+    overrideDefaultValue: 1
+    defaultValue: 0.8
+  internalVersion: 2

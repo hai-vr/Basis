@@ -3,7 +3,6 @@ using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Behaviour;
 using Basis.Scripts.Eye_Follow;
-using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Receivers;
 using LiteNetLib;
 using Unity.Mathematics;
@@ -19,50 +18,94 @@ namespace HVR.Basis.Comms
         private const string EyeRightX = "FT/v2/EyeRightX";
         private const string EyeY = "FT/v2/EyeY";
         private static readonly string[] OurAddresses = { EyeLeftX, EyeRightX, EyeY };
-        
+
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private FeatureNetworking featureNetworking;
         [HideInInspector] [SerializeField] private AcquisitionService acquisition;
         [SerializeField] private float multiplyX = 1f;
         [SerializeField] private float multiplyY = 1f;
-        
+
         public float _fEyeLeftX;
         public float _fEyeRightX;
         public float _fEyeY;
         public bool _anyAddressUpdated;
         public bool IsLocal;
         #region NetworkingFields
-        public int _guidIndex;
         // Can be null due to:
         // - Application with no network, or
         // - Network late initialization.
         // Nullability is needed for local tests without initialization scene.
         // - Becomes non-null after HVRAvatarComms.OnAvatarNetworkReady is successfully invoked
         public FeatureInterpolator _featureInterpolator;
-        public BasisLocalEyeDriver _eyeFollowDriverLateInit;
+        [NonSerialized] public BasisLocalEyeDriver _eyeFollowDriverLateInit;
         #endregion
         public BasisNetworkReceiver Receiver = null;
+        private AvatarMessageProcessing _network;
+        private bool _networkReady;
+        private bool _eyeFollowDriverApplicable;
+        private readonly Nethack _nethack;
+
+        public EyeTrackingBoneActuation()
+        {
+            _nethack = new Nethack(OnReadyBothAvatarAndNetwork);
+        }
+
         private void Awake()
         {
             if (avatar == null) avatar = CommsUtil.GetAvatar(this);
             if (featureNetworking == null) featureNetworking = CommsUtil.FeatureNetworkingFromAvatar(avatar);
             if (acquisition == null) acquisition = AcquisitionService.SceneInstance;
+
+            avatar.OnAvatarReady += OnAvatarReady;
         }
-        public override void OnNetworkReady(bool IsLocallyOwned)
+
+        private void OnAvatarReady(bool isOwner)
         {
-
-            IsLocal = IsLocallyOwned;
-
-            if (IsLocal)
+            if (isOwner)
             {
                 acquisition.RegisterAddresses(OurAddresses, OnAddressUpdated);
+                _eyeFollowDriverApplicable = true;
                 _eyeFollowDriverLateInit = BasisLocalPlayer.Instance.LocalEyeDriver;
             }
-            else
+
+            _nethack.AfterAvatarReady();
+        }
+
+        public override void OnNetworkReady(bool isLocallyOwned)
+        {
+            _nethack.AfterNetworkReady(isLocallyOwned);
+        }
+
+        private void OnReadyBothAvatarAndNetwork(bool isLocallyOwned)
+        {
+            IsLocal = isLocallyOwned;
+
+            if (!IsLocal)
             {
                 Receiver = NetworkedPlayer as BasisNetworkReceiver;
             }
+
+            _featureInterpolator = featureNetworking.NewInterpolator(3, OnInterpolatedDataChanged, this, isLocallyOwned);
+            _network = AvatarMessageProcessing.ForFeature(this, isLocallyOwned, avatar.LinkedPlayerID, _featureInterpolator);
+            _networkReady = true;
+
+            _network.SendInitialPacket();
         }
+
+        public override void OnNetworkMessageReceived(ushort remoteUser, byte[] buffer, DeliveryMethod deliveryMethod, bool isADifferentAvatarLocally)
+        {
+            if (!_networkReady) return;
+
+            _network.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod, isADifferentAvatarLocally);
+        }
+
+        public override void OnNetworkMessageServerReductionSystem(byte[] buffer, bool isADifferentAvatarLocally)
+        {
+            if (!_networkReady) return;
+
+            _network.OnNetworkMessageServerReductionSystem(buffer, isADifferentAvatarLocally);
+        }
+
         private void OnEnable()
         {
             SetBuiltInEyeFollowDriverOverriden(true);
@@ -75,6 +118,7 @@ namespace HVR.Basis.Comms
 
         private void OnDestroy()
         {
+            avatar.OnAvatarReady -= OnAvatarReady;
             if (IsLocal)
             {
                 acquisition.UnregisterAddresses(OurAddresses, OnAddressUpdated);
@@ -86,7 +130,11 @@ namespace HVR.Basis.Comms
             // FIXME: Temp fix, we'll need to hook to NetworkReady instead.
             // This is a quick fix so that we don't need to reupload the avatar.
             _anyAddressUpdated = _anyAddressUpdated || value != 0f;
-            
+            if (_anyAddressUpdated && _eyeFollowDriverLateInit != null)
+            {
+                _eyeFollowDriverLateInit.IsEnabled = false;
+            }
+
             switch (address)
             {
                 case EyeLeftX:
@@ -98,7 +146,7 @@ namespace HVR.Basis.Comms
                 case EyeRightX:
                 {
                     _fEyeRightX = value;
-                    if (_featureInterpolator != null) _featureInterpolator.Store(1, (value + 1) / 2f); 
+                    if (_featureInterpolator != null) _featureInterpolator.Store(1, (value + 1) / 2f);
                     break;
                 }
                 case EyeY:
@@ -131,7 +179,7 @@ namespace HVR.Basis.Comms
         }
         private void SetEyeRotation(float x, float y, EyeSide side)
         {
-            if (_eyeFollowDriverLateInit != null && _eyeFollowDriverLateInit.IsEnabled)
+            if (_eyeFollowDriverApplicable)
             {
                 var xDeg = Mathf.Asin(x) * Mathf.Rad2Deg * multiplyX;
                 var yDeg = Mathf.Asin(-y) * Mathf.Rad2Deg * multiplyY;
@@ -189,12 +237,6 @@ namespace HVR.Basis.Comms
         }
 
 #region NetworkingMethods
-        public void OnGuidAssigned(int guidIndex, Guid guid)
-        {
-            _guidIndex = guidIndex;
-            _featureInterpolator = featureNetworking.NewInterpolator(_guidIndex, 3, OnInterpolatedDataChanged);
-        }
-
         private void OnInterpolatedDataChanged(float[] current)
         {
             _fEyeLeftX = current[0] * 2 - 1;

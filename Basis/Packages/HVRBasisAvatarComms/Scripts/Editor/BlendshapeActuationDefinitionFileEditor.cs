@@ -6,7 +6,7 @@ using UnityEngine;
 namespace HVR.Basis.Comms
 {
     [CustomEditor(typeof(BlendshapeActuationDefinitionFile))]
-    public class BlendshapeActuationDefinitionFileEditor : Editor
+    public class BlendshapeActuationDefinitionFileEditor : UnityEditor.Editor
     {
         private string _addressPrefix = "FT/";
         private string _address = "";
@@ -41,6 +41,15 @@ namespace HVR.Basis.Comms
             {
                 var blendShape = !string.IsNullOrWhiteSpace(_blendshape) ? _blendshape : address.Substring(address.LastIndexOf("/", StringComparison.Ordinal) + 1);
                 Add(address, blendShape);
+            }
+
+            foreach (var definition in ((BlendshapeActuationDefinitionFile)target).definitions)
+            {
+                EditorGUILayout.BeginHorizontal();
+                var isUnusual = definition.inStart != 0 || definition.inEnd != 1;
+                EditorGUILayout.LabelField($"{definition.address} [{definition.inStart}, {definition.inEnd}]", isUnusual ? EditorStyles.boldLabel : EditorStyles.label);;
+                EditorGUILayout.LabelField($"-> {string.Join(", ", definition.blendshapes)} [{definition.outStart}, {definition.outEnd}]");
+                EditorGUILayout.EndHorizontal();
             }
         }
 
