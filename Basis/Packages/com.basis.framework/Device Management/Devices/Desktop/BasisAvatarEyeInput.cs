@@ -29,11 +29,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         [Header("Mouse/Look")]
         public Vector2 LookRotationVector = Vector2.zero;
 
-        [Header("Neck Pivot (from Eye -> Neck, local avatar space, meters)")]
-        // This offset is defined in the avatar's local space and will be scaled by the avatar's lossyScale.
-        // Typical values: y ~ -0.09 .. -0.16 (down), z ~ -0.05 .. -0.12 (back).
-        public Vector3 PivotFromEye = new Vector3(0f, -0.12f, -0.08f);
-
         private readonly BasisLocks.LockContext CrouchingLock = BasisLocks.GetContext(BasisLocks.Crouching);
         private readonly BasisLocks.LockContext LookRotationLock = BasisLocks.GetContext(BasisLocks.LookRotation);
 
@@ -170,35 +165,16 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             float baseEyeHeight = Player.LocalAvatarDriver.ActiveAvatarEyeHeight();
             Vector3 baseEyeWorld = new Vector3(InjectedX, baseEyeHeight, InjectedZ);
 
-            // --- SCALE-AWARE PIVOT OFFSET ---
-            // Scale the local-space pivot offset by the avatar's lossyScale so the arc length matches avatar size.
-            float avatarLossy = Player.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
-
-            PivotFromEye = BasisHelpers.AvatarPositionConversion(Player.BasisAvatar.AvatarEyePosition);
-            PivotFromEye.y = 0;//new Vector3(0f, -0.12f, -0.08f);
-            PivotFromEye.z = -PivotFromEye.z;
-
-            Player.LocalAvatarDriver.ActiveAvatarEyeHeight();
-            Vector3 scaledPivotFromEye = new Vector3(
-                PivotFromEye.x * avatarLossy,
-                PivotFromEye.y * avatarLossy,
-                PivotFromEye.z * avatarLossy
-            );
-
-            // Rotate around pivot: Eye' = Pivot + R * (EyeBase - Pivot), with Pivot = EyeBase + scaledPivotFromEye
-            Vector3 pivotWorld = baseEyeWorld + scaledPivotFromEye;
-            Vector3 rotatedEyeWorld = pivotWorld + (targetRot * (-scaledPivotFromEye));
-
             // Apply crouch vertical adjustment after rotation so crouch affects final eye height consistently
             if (!CrouchingLock)
             {
                 var crouchMinimum = Player.LocalCharacterDriver.MinimumCrouchPercent;
                 float heightAdjustment = (1 - crouchMinimum) * Player.LocalCharacterDriver.CrouchBlend + crouchMinimum;
-                rotatedEyeWorld.y -= Control.TposeLocalScaled.position.y * (1 - heightAdjustment);
+                baseEyeWorld.y -= Control.TposeLocalScaled.position.y * (1 - heightAdjustment);
             }
 
             // Write out unscaled (tracker space) coords
-            UnscaledDeviceCoord.position = rotatedEyeWorld;
+            UnscaledDeviceCoord.position = baseEyeWorld;
             UnscaledDeviceCoord.rotation = targetRot;
 
             // Mirror to scaled
