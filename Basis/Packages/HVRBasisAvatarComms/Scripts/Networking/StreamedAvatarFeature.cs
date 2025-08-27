@@ -151,7 +151,8 @@ namespace HVR.Basis.Comms
 
         public void OnPacketReceived(ArraySegment<byte> subBuffer)
         {
-            if (!isActiveAndEnabled) return;
+            // FIXME: there's something I fundamentally don't get, this code doesn't work if the following line isn't commended out
+            // if (!isActiveAndEnabled) return;
 
             if (TryDecode(subBuffer, out var result))
             {
@@ -188,20 +189,24 @@ namespace HVR.Basis.Comms
         }
         private bool TryDecode(ArraySegment<byte> subBuffer, out StreamedAvatarFeaturePayload result)
         {
-            if (subBuffer.Count != SubHeaderBytes + valueArraySize)
+            var dataStart = 1;
+            if (subBuffer.Count != dataStart + valueArraySize)
             {
                 result = default;
                 return false;
             }
-            var floatValues = new float[subBuffer.Count - SubHeaderBytes];
-            for (var i = SubHeaderBytes; i < subBuffer.Count; i++)
+
+            var deltaTimeInFractions = subBuffer.get_Item(0);
+
+            var floatValues = new float[subBuffer.Count]; // FIXME: Wasteful alloc
+            for (var dataIndex = 0; dataIndex < valueArraySize; dataIndex++)
             {
-                floatValues[i - SubHeaderBytes] = subBuffer.get_Item(i) / EncodingRange;
+                floatValues[dataIndex] = subBuffer.get_Item(dataStart + dataIndex) / EncodingRange;
             }
 
             result = new StreamedAvatarFeaturePayload
             {
-                DeltaTime = subBuffer.get_Item(0) * DeltaLocalIntToSeconds,
+                DeltaTime = deltaTimeInFractions * DeltaLocalIntToSeconds,
                 FloatValues = floatValues
             };
 
