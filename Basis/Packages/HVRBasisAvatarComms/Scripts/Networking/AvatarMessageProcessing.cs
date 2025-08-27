@@ -97,5 +97,39 @@ namespace HVR.Basis.Comms
                 _transmitter.NetworkMessageSend(new[] { FeatureNetworking.NewNet_RemoteRequestsInitialization });
             }
         }
+
+        public void OnNetworkMessageServerReductionSystem(byte[] buffer, bool isADifferentAvatarLocally)
+        {
+            HVRAvatarComms.ProtocolDebug($"Receiving message AvatarMessageProcessing (buffer length: {buffer.Length}, byte0: {(buffer.Length > 0 ? buffer[0] : 0)})");
+            if (isADifferentAvatarLocally) return;
+            if (buffer.Length == 0) { HVRAvatarComms.ProtocolError("Buffer was 0 bytes."); return; }
+
+            var packetId = buffer[0];
+            switch (packetId)
+            {
+                case FeatureNetworking.NewNet_WearerReady:
+                {
+                    HVRAvatarComms.ProtocolError("Illegal message must not be received by reduction system (NewNet_WearerReady).");
+                    break;
+                }
+                case FeatureNetworking.NewNet_RemoteRequestsInitialization:
+                {
+                    HVRAvatarComms.ProtocolError("Illegal message must not be received by reduction system (NewNet_RemoteRequestsInitialization).");
+                    break;
+                }
+                case FeatureNetworking.NewNet_WearerData:
+                {
+                    if (_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
+                    HVRAvatarComms.ProtocolDebug("Identified AvatarMessageProcessing is acceptable NewNet_WearerData through reduction system");
+                    _onPacketReceived.Invoke(HVRAvatarComms.SubBuffer(buffer));
+                    break;
+                }
+                default:
+                {
+                    HVRAvatarComms.ProtocolError("Illegal message.");
+                    break;
+                }
+            }
+        }
     }
 }

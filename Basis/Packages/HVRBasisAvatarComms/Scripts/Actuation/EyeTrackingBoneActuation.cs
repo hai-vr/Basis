@@ -99,6 +99,13 @@ namespace HVR.Basis.Comms
             _network.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod, isADifferentAvatarLocally);
         }
 
+        public override void OnNetworkMessageServerReductionSystem(byte[] buffer, bool isADifferentAvatarLocally)
+        {
+            if (!_networkReady) return;
+
+            _network.OnNetworkMessageServerReductionSystem(buffer, isADifferentAvatarLocally);
+        }
+
         private void OnEnable()
         {
             SetBuiltInEyeFollowDriverOverriden(true);
