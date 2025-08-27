@@ -22,8 +22,8 @@ namespace HVR.Basis.Comms
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private FeatureNetworking featureNetworking;
         [HideInInspector] [SerializeField] private AcquisitionService acquisition;
-        [SerializeField] private float multiplyX = 1f;
-        [SerializeField] private float multiplyY = 1f;
+        [SerializeField] internal float multiplyX = 1f;
+        [SerializeField] internal float multiplyY = 1f;
 
         public float _fEyeLeftX;
         public float _fEyeRightX;

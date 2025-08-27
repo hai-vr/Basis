@@ -8,7 +8,9 @@
         "Basis Framework",
         "BasisDebug",
         "HVR.Basis.Comms.HVRUtility",
-        "HVR.Basis.Comms.Networking"
+        "HVR.Basis.Comms.Networking",
+        "Unity.Addressables",
+        "Unity.ResourceManager"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

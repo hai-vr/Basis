@@ -47,6 +47,12 @@ namespace HVR.Basis.Comms
             _nethack = new Nethack(OnReadyBothAvatarAndNetwork);
         }
 
+        public void AutoDefine(BlendshapeActuationDefinitionFile[] providedDefinitionFiles, List<SkinnedMeshRenderer> providedSmrs)
+        {
+            definitionFiles = providedDefinitionFiles;
+            renderers = providedSmrs.ToArray();
+        }
+
         private void Awake()
         {
             if (avatar == null)
