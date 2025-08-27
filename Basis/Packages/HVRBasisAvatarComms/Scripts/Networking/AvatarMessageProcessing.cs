@@ -68,6 +68,7 @@ namespace HVR.Basis.Comms
                 }
                 case FeatureNetworking.NewNet_WearerData:
                 {
+                    // This can be received without the server reduction system after we requested initialization.
                     if (_isWearer) { HVRAvatarComms.ProtocolError("Illegal recipient."); return; }
                     if (remoteUser != _wearerNetId) { HVRAvatarComms.ProtocolError("Illegal sender."); return; }
                     HVRAvatarComms.ProtocolDebug("Identified AvatarMessageProcessing is acceptable NewNet_WearerData");
