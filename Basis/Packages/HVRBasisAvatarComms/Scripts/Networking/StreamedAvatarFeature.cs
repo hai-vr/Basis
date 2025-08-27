@@ -23,6 +23,7 @@ namespace HVR.Basis.Comms
 
         [NonSerialized] public byte valueArraySize = 8; // Must not change after first enabled.
         [NonSerialized] public BasisAvatarMonoBehaviour transmitter;
+        [NonSerialized] public bool isWearer;
 
         private readonly Queue<StreamedAvatarFeaturePayload> _queue = new();
         private float[] current;
@@ -32,7 +33,6 @@ namespace HVR.Basis.Comms
         private float _timeLeft;
         private bool _isOutOfTape;
         private bool _writtenThisFrame;
-        private bool _isWearer;
 
         public event InterpolatedDataChanged OnInterpolatedDataChanged;
         public delegate void InterpolatedDataChanged(float[] current);
@@ -62,7 +62,7 @@ namespace HVR.Basis.Comms
 
         private void Update()
         {
-            if (_isWearer)
+            if (isWearer)
             {
                 OnSender();
             }

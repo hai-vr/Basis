@@ -48,6 +48,7 @@ namespace HVR.Basis.Comms
             StreamedAvatarFeature streamed = _holder.AddComponent<StreamedAvatarFeature>();
             streamed.valueArraySize = (byte)count; // TODO: Sanitize count to be within bounds
             streamed.transmitter = transmitter;
+            streamed.isWearer = _isWearer;
             _holder.SetActive(true);
 
             var handle = new FeatureInterpolator(streamed, interpolatedDataChanged);
