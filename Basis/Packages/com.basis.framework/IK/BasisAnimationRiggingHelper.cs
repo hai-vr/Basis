@@ -90,6 +90,11 @@ public static class BasisAnimationRiggingHelper
         TwoBoneIKConstraint.data.root = root;
         TwoBoneIKConstraint.data.mid = mid;
         TwoBoneIKConstraint.data.tip = tip;
+        TwoBoneIKConstraint.data.TrackerBlend = 0.75f;
+        TwoBoneIKConstraint.data.MaxMidDeltaDeg = 25f;
+        TwoBoneIKConstraint.data.MinAxisSqrMag = 1e-6f;
+        TwoBoneIKConstraint.data.TrackerForward = Vector3.forward;
+
         GeneratedRequiredTransforms(player, tip);
     }
 

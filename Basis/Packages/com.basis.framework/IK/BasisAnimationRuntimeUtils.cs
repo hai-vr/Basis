@@ -2,11 +2,12 @@ using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Animations.Rigging;
+
 public static class BasisAnimationRuntimeUtils
 {
     const float k_SqrEpsilon = 1e-8f;
 
-    // ------------------------ TWO-BONE IK (ARMS) ------------------------
+    // ---------- ARMS (unchanged) ----------
     public static void SolveTwoBoneIKArms(
         AnimationStream stream,
         ReadWriteTransformHandle root,
@@ -89,8 +90,17 @@ public static class BasisAnimationRuntimeUtils
         tip.SetRotation(stream, tRotation);
     }
 
-    // ------------------------ TWO-BONE IK (LEGS/TORSO) ------------------------
-    public static void SolveTwoBoneIKLegsAndTorso(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool HasHint, AffineTransform targetOffset, Vector3 BendNormal)
+    // ---------- LEGS/TORSO (STABILIZED FOR TRACKER) ----------
+    public static void SolveTwoBoneIKLegsAndTorso_Stabilized(
+        AnimationStream stream,
+        ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
+        AffineTransform target, AffineTransform hint, bool hasHint, AffineTransform targetOffset,
+        Vector3 bendNormalPrev,                 // previous/seed normal (input from property)
+        Vector3 trackerForwardWorld,            // physical tracker forward (world)
+        float trackerBlend,                     // 0..1
+        float minAxisSqrMag,                    // epsilon
+        float maxMidDeltaDeg                    // per-eval clamp
+    )
     {
         Vector3 aPosition = root.GetPosition(stream);
         Vector3 bPosition = mid.GetPosition(stream);
@@ -114,28 +124,74 @@ public static class BasisAnimationRuntimeUtils
 
         float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
         float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
-        Vector3 axis;
-        if (HasHint)
+
+        // 1) Build a robust bend axis ----------------------------
+        // Base candidates
+        Vector3 axisFromHint = hasHint ? Vector3.Cross(hint.translation - aPosition, bc) : Vector3.zero;
+        Vector3 axisFromTarget = Vector3.Cross(at, bc);
+
+        // Tracker-derived pole: project tracker forward into plane orthogonal to AC, then cross with BC
+        Vector3 trackerFwd = trackerForwardWorld;
+        if (trackerFwd.sqrMagnitude < k_SqrEpsilon) trackerFwd = Vector3.forward;
+
+        Vector3 acNorm = ac.sqrMagnitude > k_SqrEpsilon ? ac.normalized : Vector3.up;
+        Vector3 trackerFwdProj = trackerFwd - acNorm * Vector3.Dot(trackerFwd, acNorm);
+        if (trackerFwdProj.sqrMagnitude < k_SqrEpsilon)
         {
-            axis = Vector3.Cross(hint.translation - aPosition, bc);
-            if (axis.sqrMagnitude < k_SqrEpsilon) axis = Vector3.Cross(at, bc);
-            if (axis.sqrMagnitude < k_SqrEpsilon) axis = BendNormal;
+            // if forward is parallel to AC, try tracker right using world-up
+            Vector3 alt = Vector3.Cross(acNorm, Vector3.up);
+            if (alt.sqrMagnitude < k_SqrEpsilon) alt = Vector3.Cross(acNorm, Vector3.right);
+            trackerFwdProj = alt.normalized;
         }
-        else axis = BendNormal;
+        else trackerFwdProj.Normalize();
 
-        axis = Vector3.Normalize(axis);
+        Vector3 axisFromTracker = Vector3.Cross(trackerFwdProj, bc);
 
+        // Blend & fallback
+        Vector3 axisCandidate = Vector3.zero;
+
+        // Priority: tracker orientation (stable), then hint, then target
+        axisCandidate += trackerBlend * axisFromTracker;
+        axisCandidate += (1f - trackerBlend) * (hasHint ? axisFromHint : axisFromTarget);
+
+        if (axisCandidate.sqrMagnitude < minAxisSqrMag)
+        {
+            axisCandidate = hasHint ? axisFromHint : axisFromTarget;
+            if (axisCandidate.sqrMagnitude < minAxisSqrMag)
+                axisCandidate = Vector3.Cross(ab, bc); // current pose plane
+            if (axisCandidate.sqrMagnitude < minAxisSqrMag)
+                axisCandidate = Vector3.up;            // ultimate fallback
+        }
+
+        // Stabilize sign by nudging toward previous bend normal
+        if (bendNormalPrev.sqrMagnitude > k_SqrEpsilon)
+        {
+            if (Vector3.Dot(axisCandidate, bendNormalPrev) < 0f)
+                axisCandidate = -axisCandidate;
+            // mild slerp for continuity
+            axisCandidate = Vector3.Slerp(bendNormalPrev.normalized, axisCandidate.normalized, 0.5f);
+        }
+
+        Vector3 axis = axisCandidate.normalized;
+
+        // 2) Rotate mid around axis with delta clamp --------------
         float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
-        float sin = Mathf.Sin(halfAngle);
-        float cos = Mathf.Cos(halfAngle);
+        float halfAngleDeg = halfAngle * Mathf.Rad2Deg;
+        float clampedHalfDeg = Mathf.Clamp(halfAngleDeg, -maxMidDeltaDeg, maxMidDeltaDeg);
+        float clampedHalfRad = clampedHalfDeg * Mathf.Deg2Rad;
+
+        float sin = Mathf.Sin(clampedHalfRad);
+        float cos = Mathf.Cos(clampedHalfRad);
         Quaternion deltaR = new Quaternion(axis.x * sin, axis.y * sin, axis.z * sin, cos);
         mid.SetRotation(stream, deltaR * mid.GetRotation(stream));
 
+        // 3) Aim AC toward AT at root -----------------------------
         cPosition = tip.GetPosition(stream);
         ac = cPosition - aPosition;
         root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
 
-        if (HasHint)
+        // 4) Optional pole alignment using hint position ----------
+        if (hasHint)
         {
             float acSqrMag = ac.sqrMagnitude;
             if (acSqrMag > 0f)
@@ -145,10 +201,10 @@ public static class BasisAnimationRuntimeUtils
                 ab = bPosition - aPosition;
                 ac = cPosition - aPosition;
 
-                Vector3 acNorm = ac / Mathf.Sqrt(acSqrMag);
+                Vector3 acN = ac / Mathf.Sqrt(acSqrMag);
                 Vector3 ah = hint.translation - aPosition;
-                Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
-                Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
+                Vector3 abProj = ab - acN * Vector3.Dot(ab, acN);
+                Vector3 ahProj = ah - acN * Vector3.Dot(ah, acN);
 
                 float maxReach = abLen + bcLen;
                 if (abProj.sqrMagnitude > (maxReach * maxReach * 0.001f) && ahProj.sqrMagnitude > 0f)
@@ -163,7 +219,7 @@ public static class BasisAnimationRuntimeUtils
         tip.SetRotation(stream, tRotation);
     }
 
-    // ------------------------ INVERSE SETUP HELPERS ------------------------
+    // ---------- Helpers, inverse, misc ----------
     public static void InverseSolveTwoBoneIK(
         AnimationStream stream,
         ReadOnlyTransformHandle root,
@@ -228,7 +284,6 @@ public static class BasisAnimationRuntimeUtils
         }
     }
 
-    // ------------------------ COLLISION MATH ------------------------
     public static Vector3 ClosestPointOnSegment(Vector3 p, Vector3 a, Vector3 b)
     {
         Vector3 ab = b - a;
@@ -238,60 +293,44 @@ public static class BasisAnimationRuntimeUtils
         return a + ab * t;
     }
 
-    /// <summary>Find closest points between two line segments P1Q1 and P2Q2 (returns s,t in [0..1] and the points).</summary>
     public static void SegmentSegmentClosestPoints(
         Vector3 p1, Vector3 q1, Vector3 p2, Vector3 q2,
         out float s, out float t,
         out Vector3 c1, out Vector3 c2)
     {
-        Vector3 d1 = q1 - p1; // Direction vector of segment S1
-        Vector3 d2 = q2 - p2; // Direction vector of segment S2
+        Vector3 d1 = q1 - p1;
+        Vector3 d2 = q2 - p2;
         Vector3 r = p1 - p2;
-        float a = Vector3.Dot(d1, d1); // Squared length of segment S1, always nonnegative
-        float e = Vector3.Dot(d2, d2); // Squared length of segment S2, always nonnegative
+        float a = Vector3.Dot(d1, d1);
+        float e = Vector3.Dot(d2, d2);
         float f = Vector3.Dot(d2, r);
 
         if (a <= k_SqrEpsilon && e <= k_SqrEpsilon)
         {
-            s = t = 0.0f;
-            c1 = p1;
-            c2 = p2;
-            return;
+            s = t = 0.0f; c1 = p1; c2 = p2; return;
         }
         if (a <= k_SqrEpsilon)
         {
-            s = 0.0f;
-            t = Mathf.Clamp01(f / e);
+            s = 0.0f; t = Mathf.Clamp01(f / e);
         }
         else
         {
             float c = Vector3.Dot(d1, r);
             if (e <= k_SqrEpsilon)
             {
-                t = 0.0f;
-                s = Mathf.Clamp01(-c / a);
+                t = 0.0f; s = Mathf.Clamp01(-c / a);
             }
             else
             {
                 float b = Vector3.Dot(d1, d2);
                 float denom = a * e - b * b;
 
-                if (denom != 0.0f)
-                    s = Mathf.Clamp01((b * f - c * e) / denom);
-                else
-                    s = 0.0f;
+                if (denom != 0.0f) s = Mathf.Clamp01((b * f - c * e) / denom);
+                else s = 0.0f;
 
                 t = (b * s + f) / e;
-                if (t < 0.0f)
-                {
-                    t = 0.0f;
-                    s = Mathf.Clamp01(-c / a);
-                }
-                else if (t > 1.0f)
-                {
-                    t = 1.0f;
-                    s = Mathf.Clamp01((b - c) / a);
-                }
+                if (t < 0.0f) { t = 0.0f; s = Mathf.Clamp01(-c / a); }
+                else if (t > 1.0f) { t = 1.0f; s = Mathf.Clamp01((b - c) / a); }
             }
         }
 
@@ -299,33 +338,23 @@ public static class BasisAnimationRuntimeUtils
         c2 = p2 + d2 * t;
     }
 
-    /// <summary>
-    /// Resolve capsule-vs-capsule penetration by returning a translation to apply to the FIRST capsule (p1,q1,r1)
-    /// that separates them minimally. If not intersecting, returns Vector3.zero.
-    /// </summary>
-    public static Vector3 CapsuleCapsuleResolve(
-        Vector3 p1, Vector3 q1, float r1,
-        Vector3 p2, Vector3 q2, float r2)
+    public static Vector3 CapsuleCapsuleResolve(Vector3 p1, Vector3 q1, float r1, Vector3 p2, Vector3 q2, float r2)
     {
         SegmentSegmentClosestPoints(p1, q1, p2, q2, out _, out _, out var c1, out var c2);
         Vector3 n = c1 - c2;
         float dSqr = Vector3.Dot(n, n);
         float rSum = r1 + r2;
 
-        if (dSqr >= rSum * rSum) return Vector3.zero; // no penetration
+        if (dSqr >= rSum * rSum) return Vector3.zero;
 
-        // build a stable normal
         Vector3 normal;
         if (dSqr > k_SqrEpsilon) normal = n / Mathf.Sqrt(dSqr);
         else
         {
-            // segments almost overlapping perfectly; pick any normal orthogonal to the chest axis
             Vector3 axis = (q2 - p2);
             normal = Vector3.Normalize(Vector3.Cross(axis, Vector3.up));
-            if (normal.sqrMagnitude < 1e-6f)
-                normal = Vector3.Normalize(Vector3.Cross(axis, Vector3.right));
-            if (normal.sqrMagnitude < 1e-6f)
-                normal = Vector3.up;
+            if (normal.sqrMagnitude < 1e-6f) normal = Vector3.Normalize(Vector3.Cross(axis, Vector3.right));
+            if (normal.sqrMagnitude < 1e-6f) normal = Vector3.up;
         }
 
         float d = Mathf.Sqrt(Mathf.Max(dSqr, 0f));
@@ -333,16 +362,7 @@ public static class BasisAnimationRuntimeUtils
         return normal * penetration;
     }
 
-    /// <summary>
-    /// Rotate chain around AC (root→tip) to move elbow B towards desired pushed point B*. Keeps A and C fixed (pre-solve re-run recommended).
-    /// </summary>
-    public static void SwingElbowAroundAC(
-        AnimationStream stream,
-        ReadWriteTransformHandle root,
-        ReadWriteTransformHandle mid,
-        ReadWriteTransformHandle tip,
-        Vector3 desiredB
-    )
+    public static void SwingElbowAroundAC(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3 desiredB)
     {
         Vector3 A = root.GetPosition(stream);
         Vector3 C = tip.GetPosition(stream);
@@ -352,8 +372,7 @@ public static class BasisAnimationRuntimeUtils
         float acSqr = Vector3.Dot(AC, AC);
         if (acSqr <= k_SqrEpsilon) return;
 
-        Vector3 n = AC / Mathf.Sqrt(acSqr); // axis
-        // project B-A and desiredB-A onto plane orthogonal to AC
+        Vector3 n = AC / Mathf.Sqrt(acSqr);
         Vector3 v1 = B - A; v1 -= n * Vector3.Dot(v1, n);
         Vector3 v2 = desiredB - A; v2 -= n * Vector3.Dot(v2, n);
 
@@ -373,7 +392,6 @@ public static class BasisAnimationRuntimeUtils
         root.SetRotation(stream, swing * root.GetRotation(stream));
     }
 
-    // ------------------------ MISC UTILS ------------------------
     static float TriangleAngle(float aLen, float aLen1, float aLen2)
     {
         float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (aLen1 * aLen2) / 2.0f, -1.0f, 1.0f);
@@ -402,19 +420,15 @@ public static class BasisAnimationRuntimeUtils
         handle.GetLocalTRS(stream, out Vector3 position, out Quaternion rotation, out Vector3 scale);
         handle.SetLocalTRS(stream, position, rotation, scale);
     }
+
     public static Vector3 PushOutFromCapsule(Vector3 p, Vector3 a, Vector3 b, float radiusWithSkin)
     {
-        // Closest point on segment AB to p
         Vector3 q = ClosestPointOnSegment(p, a, b);
         Vector3 qp = p - q;
         float dSqr = Vector3.Dot(qp, qp);
-
-        // outside -> no change
         if (dSqr >= radiusWithSkin * radiusWithSkin) return p;
-
-        // inside -> push out to the surface along normal
         float d = Mathf.Sqrt(Mathf.Max(dSqr, k_SqrEpsilon));
-        Vector3 n = (d > 0f) ? (qp / d) : Vector3.up; // fallback normal if exactly centered
+        Vector3 n = (d > 0f) ? (qp / d) : Vector3.up;
         return q + n * radiusWithSkin;
     }
 }
