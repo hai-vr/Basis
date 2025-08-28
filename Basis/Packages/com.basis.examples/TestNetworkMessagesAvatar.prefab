@@ -154,12 +154,10 @@ MonoBehaviour:
   FaceVisemeMovement: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   BlinkViseme: ffffffffffffffff
   laughterBlendTarget: -1
-  Behaviours: []
+  AnimatorHumanScale: {x: 1, y: 1, z: 1}
   IsOwnedLocally: 0
   Renders:
   - {fileID: 5332160820655396527}
-  JiggleStrains: []
-  HasSendEvent: 0
 --- !u!95 &3394121841743186029
 Animator:
   serializedVersion: 7
@@ -196,12 +194,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   IsInitalized: 0
   MessageIndex: 0
-  Avatar: {fileID: 0}
-  IsLocallyOwned: 0
-  Recipients: 010002000300040005000600
   BasisPlayer: {fileID: 0}
   Isready: 0
-  Buffer: 00
   Method: 0
 --- !u!1 &1296995252794619015
 GameObject:
@@ -1088,6 +1082,8 @@ SkinnedMeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -1109,6 +1105,7 @@ SkinnedMeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
