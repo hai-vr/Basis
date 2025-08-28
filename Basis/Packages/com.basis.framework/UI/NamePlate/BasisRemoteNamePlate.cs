@@ -5,7 +5,6 @@ using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.TransformBinders.BoneControl;
-using BattlePhaze.SettingsManager.Intergrations;
 using System.Collections;
 using TMPro;
 using Unity.Mathematics;

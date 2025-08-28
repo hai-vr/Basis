@@ -4,7 +4,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
-using BattlePhaze.SettingsManager.Intergrations;
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
