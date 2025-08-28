@@ -169,7 +169,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
 
         public override void ShowTrackedVisual()
         {
-            if (BasisVisualTracker != null || LoadedDeviceRequest != null) return;
+            if (BasisVisualTracker != null) return;
 
             DeviceSupportInformation match = BasisDeviceManagement.Instance.BasisDeviceNameMatcher.GetAssociatedDeviceMatchableNames(CommonDeviceIdentifier);
             if (match.CanDisplayPhysicalTracker)

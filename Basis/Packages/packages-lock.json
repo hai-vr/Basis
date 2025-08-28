@@ -6,12 +6,6 @@
       "source": "embedded",
       "dependencies": {}
     },
-    "com.basis.addressables": {
-      "version": "file:com.basis.addressables",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {}
-    },
     "com.basis.bundlemanagement": {
       "version": "file:com.basis.bundlemanagement",
       "depth": 0,

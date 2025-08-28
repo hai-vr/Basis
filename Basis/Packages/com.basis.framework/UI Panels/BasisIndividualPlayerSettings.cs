@@ -1,5 +1,4 @@
 using Basis.Scripts.Addressable_Driver;
-using Basis.Scripts.Addressable_Driver.Enums;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.UI.UI_Panels;
 using System.Threading.Tasks;
@@ -36,8 +35,7 @@ public class BasisIndividualPlayerSettings : BasisUIBase
     public static async void OpenPlayerSettings(BasisRemotePlayer RemotePlayer)
     {
         BasisUIManagement.CloseAllMenus();
-        AddressableGenericResource resource = new AddressableGenericResource(Path, AddressableExpectedResult.SingleItem);
-        BasisUIBase Base = OpenMenuNow(resource);
+        BasisUIBase Base = OpenMenuNow(Path);
         BasisIndividualPlayerSettings PlayerSettings = (BasisIndividualPlayerSettings)Base;
         await PlayerSettings.Initalize(RemotePlayer);
     }

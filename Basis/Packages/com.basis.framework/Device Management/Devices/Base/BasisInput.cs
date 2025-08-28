@@ -1,5 +1,3 @@
-using Basis.Scripts.Addressable_Driver;
-using Basis.Scripts.Addressable_Driver.Factory;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
@@ -33,7 +31,6 @@ namespace Basis.Scripts.Device_Management.Devices
         public BasisVisualTracker BasisVisualTracker;
         public BasisPointRaycaster BasisPointRaycaster;//used to raycast against things like UI
         public BasisUIRaycast BasisUIRaycast;
-        public AddressableGenericResource LoadedDeviceRequest;
         public event SimulationHandler AfterControlApply;
         public DeviceSupportInformation DeviceMatchSettings;
         [SerializeField]
@@ -408,11 +405,6 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 BasisDebug.Log("Found and removing  HideTrackedVisual", BasisDebug.LogTag.Input);
                 GameObject.Destroy(BasisVisualTracker.gameObject);
-            }
-            if (LoadedDeviceRequest != null)
-            {
-                BasisDebug.Log("Released Memory", BasisDebug.LogTag.Input);
-                AddressableLoadFactory.ReleaseResource(LoadedDeviceRequest);
             }
         }
         public void CreateRayCaster(BasisInput BaseInput)

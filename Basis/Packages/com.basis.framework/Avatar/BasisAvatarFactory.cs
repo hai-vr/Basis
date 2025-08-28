@@ -69,16 +69,7 @@ namespace Basis.Scripts.Avatar
                         BasisDebug.Log("Requested Avatar was a Addressable Avatar " + BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, BasisDebug.LogTag.Avatar);
                         InstantiationParameters Para = InstantiationParameters(Player, Position, Rotation);
                         ChecksRequired Required = new ChecksRequired(true, false, true);
-                        (List<GameObject> GameObjects, AddressableGenericResource resource) = await AddressableResourceProcess.LoadAsGameObjectsAsync(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, Para, Required, BundledContentHolder.Selector.Avatar);
-                        if (GameObjects.Count > 0)
-                        {
-                            BasisDebug.Log("Found Avatar for " + BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, BasisDebug.LogTag.Avatar);
-                            Output = GameObjects[0];
-                        }
-                        else
-                        {
-                            BasisDebug.LogError("Cant Find Local Avatar for " + BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, BasisDebug.LogTag.Avatar);
-                        }
+                        Output = await AddressableResourceProcess.LoadAsGameObjectsAsync(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, Para, Required, BundledContentHolder.Selector.Avatar);
                         break;
                     case 2:
                         Output = BasisLoadableBundle.LoadableGameobject.InSceneItem;
@@ -123,17 +114,7 @@ namespace Basis.Scripts.Avatar
                            //  BasisDebug.Log("Requested Avatar was a Addressable Avatar " + BasisLoadableBundle.BasisRemoteBundleEncrypted.CombinedURL, BasisDebug.LogTag.Avatar);
                         ChecksRequired Required = new ChecksRequired(false, false, true);
                         InstantiationParameters Para = InstantiationParameters(Player, Position, Rotation);
-                        (List<GameObject> GameObjects, AddressableGenericResource resource) = await AddressableResourceProcess.LoadAsGameObjectsAsync(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, Para, Required, BundledContentHolder.Selector.Avatar);
-
-                        if (GameObjects.Count > 0)
-                        {
-                            //  BasisDebug.Log("Found Avatar for " + BasisLoadableBundle.BasisRemoteBundleEncrypted.CombinedURL, BasisDebug.LogTag.Avatar);
-                            Output = GameObjects[0];
-                        }
-                        else
-                        {
-                            BasisDebug.LogError("Cant Find Local Avatar for " + BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, BasisDebug.LogTag.Avatar);
-                        }
+                        Output = await AddressableResourceProcess.LoadAsGameObjectsAsync(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, Para, Required, BundledContentHolder.Selector.Avatar);
                         break;
                     case 2:
                         Output = BasisLoadableBundle.LoadableGameobject.InSceneItem;
@@ -230,12 +211,8 @@ namespace Basis.Scripts.Avatar
             {
                 ChecksRequired Required = new ChecksRequired(false, false, true);
                 InstantiationParameters Para = InstantiationParameters(Player, Position, Rotation);
-                (List<GameObject> GameObjects, AddressableGenericResource resource) = await AddressableResourceProcess.LoadAsGameObjectsAsync(LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation, Para, Required, BundledContentHolder.Selector.Avatar);
-
-                if (GameObjects.Count != 0)
-                {
-                    InitializePlayerAvatar(Player, GameObjects[0]);
-                }
+                GameObject data  = await AddressableResourceProcess.LoadAsGameObjectsAsync(LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation, Para, Required, BundledContentHolder.Selector.Avatar);
+                InitializePlayerAvatar(Player, data);
                 Player.AvatarMetaData = BasisAvatarFactory.LoadingAvatar;
                 Player.AvatarLoadMode = 1;
                 Player.AvatarSwitched();
@@ -263,7 +240,7 @@ namespace Basis.Scripts.Avatar
             {
                 if (Player.IsConsideredFallBackAvatar)
                 {
-                    GameObject.Destroy(Player.BasisAvatar.gameObject);
+                    AddressableResourceProcess.ReleaseGameobject(Player.BasisAvatar.gameObject);
                 }
                 else
                 {

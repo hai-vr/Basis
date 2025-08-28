@@ -175,7 +175,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         #endregion
         public override void ShowTrackedVisual()
         {
-            if (BasisVisualTracker == null && LoadedDeviceRequest == null)
+            if (BasisVisualTracker == null)
             {
                 DeviceSupportInformation Match = BasisDeviceManagement.Instance.BasisDeviceNameMatcher.GetAssociatedDeviceMatchableNames(CommonDeviceIdentifier);
                 if (Match.CanDisplayPhysicalTracker)
