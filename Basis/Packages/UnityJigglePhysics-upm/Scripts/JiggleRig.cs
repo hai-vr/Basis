@@ -26,12 +26,12 @@ public class JiggleRig : MonoBehaviour {
         jiggleRigData.OnValidate();
     }
 
-#if UNITY_EDITOR
-    public void OnSceneGUI() {
-        var cam = SceneView.lastActiveSceneView.camera;
-        jiggleRigData.OnSceneGUI(cam);
+    private void OnDrawGizmos() {
+        if (!isActiveAndEnabled) {
+            return;
+        }
+        jiggleRigData.OnDrawGizmos();
     }
-#endif
 
 }
 
