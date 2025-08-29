@@ -7,22 +7,28 @@ namespace GatorDragonGames.JigglePhysics {
 
 [BurstCompile]
 public struct JiggleJobBulkTransformReset : IJobParallelForTransform {
+    [ReadOnly]
+    public NativeArray<JiggleTransform> simulateInputPoses;
+
     public NativeArray<JiggleTransform> restPoseTransforms;
 
     [ReadOnly] public NativeArray<JiggleTransform> previousLocalTransforms;
 
     public JiggleJobBulkTransformReset(JiggleMemoryBus bus) {
+        simulateInputPoses = bus.simulateInputPoses;
         restPoseTransforms = bus.restPoseTransforms;
         previousLocalTransforms = bus.previousLocalRestPoseTransforms;
     }
 
     public void UpdateArrays(JiggleMemoryBus bus) {
+        simulateInputPoses = bus.simulateInputPoses;
         restPoseTransforms = bus.restPoseTransforms;
         previousLocalTransforms = bus.previousLocalRestPoseTransforms;
     }
 
     public void Execute(int index, TransformAccess transform) {
-        if (!transform.isValid) {
+        var jiggleTransform = simulateInputPoses[index];
+        if (!transform.isValid || jiggleTransform.isVirtual) {
             return;
         }
 

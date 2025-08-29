@@ -14,6 +14,14 @@ public class JiggleRigEditor : Editor {
         InspectorElement.FillDefaultInspector(element, serializedObject, this);
         return element;
     }
+    public void OnSceneGUI() {
+        var script = (JiggleRig)target;
+        if (Application.isPlaying) {
+            return;
+        }
+        script.OnSceneGUI();
+    }
+
 }
 
 }

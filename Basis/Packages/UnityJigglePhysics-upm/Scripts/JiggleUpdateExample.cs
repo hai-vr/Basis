@@ -1,16 +1,11 @@
-using System;
 using UnityEngine;
 
 namespace GatorDragonGames.JigglePhysics {
 
 public class JiggleUpdateExample : MonoBehaviour {
-    private void FixedUpdate() {
-        JigglePhysics.ScheduleSimulate(Time.timeAsDouble, Time.fixedTimeAsDouble, Time.fixedDeltaTime);
-    }
-
     private void LateUpdate() {
-        JigglePhysics.SchedulePose(Time.timeAsDouble);
-        JigglePhysics.CompletePose();
+        JigglePhysics.ScheduleUpdate(Time.timeAsDouble);
+        JigglePhysics.CompleteUpdate();
     }
 
     void OnApplicationQuit() {
