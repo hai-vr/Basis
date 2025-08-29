@@ -248,18 +248,7 @@ namespace Basis.Scripts.BasisSdk.Players
             //moves Avatar Hip Transform to where it belongs in tpose.
             if (BasisLocalAvatarDriver.CurrentlyTposing)
             {
-                Vector3 headPosition = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
-                Vector3 hipsPosition = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
-                Quaternion parentWorldRotation = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation;
-
-                // XZ blend between hips and head, grounded at hips Y for stability
-                Vector3 blendedXZ = Vector3.Lerp(hipsPosition, headPosition, 0.5f);
-                blendedXZ.y = hipsPosition.y;
-
-                // Place child at blendedXZ plus rotated local offset
-                Vector3 childWorldPosition = blendedXZ + parentWorldRotation * -BasisLocalBoneDriver.HipsControl.TposeLocalScaled.position;
-
-                AvatarTransform.SetPositionAndRotation(childWorldPosition, parentWorldRotation);
+                DriveTpose();
             }
 
             //Simulate Final Destination of IK
@@ -283,7 +272,25 @@ namespace Basis.Scripts.BasisSdk.Players
             //now other things can move like UI and NON-CHILDREN OF BASISLOCALPLAYER.
             AfterFinalMove?.Invoke();
         }
+        public void DriveTpose()
+        {
+            // World-space inputs
+            Vector3 headPosWS = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
+            Quaternion headRotWS = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;
 
+            // Flatten head forward onto the XZ plane to get yaw-only orientation
+            Vector3 flatFwd = Vector3.ProjectOnPlane(headRotWS * Vector3.forward, Vector3.up);
+            if (flatFwd.sqrMagnitude < 1e-6f) flatFwd = Vector3.forward; // fallback
+            Quaternion desiredRotWS = Quaternion.LookRotation(flatFwd.normalized, Vector3.up);
+
+            // Full T-pose local offset from hips/root to head (already scaled)
+            Vector3 headTposeLocal = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position;
+
+            // Place avatar so that (hips + desiredRot * headTposeLocal) == headPosWS
+            Vector3 avatarWorldPos = headPosWS - (desiredRotWS * headTposeLocal);
+
+            AvatarTransform.SetPositionAndRotation(avatarWorldPos, desiredRotWS);
+        }
         // Define the delegate type
         public delegate void NextFrameAction();
 

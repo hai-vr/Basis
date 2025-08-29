@@ -42,6 +42,8 @@ namespace Basis.Scripts.Device_Management.Devices
         public GameObject BasisPointRaycasterRef;
         public bool HasRaycaster = false;
         public BasisCalibratedCoords RaycastCoord;
+        [SerializeField]
+        public BasisInverseOffsetFromBoneData BasisInverseOffsetData = new BasisInverseOffsetFromBoneData();
         /// <summary>
         /// initalize the tracking of this input
         /// </summary>
@@ -74,7 +76,6 @@ namespace Basis.Scripts.Device_Management.Devices
             if (HasEvents == false)
             {
                 BasisLocalPlayer.Instance.OnPreSimulateBones += PollData;
-                BasisLocalPlayer.Instance.OnAvatarSwitched += UnAssignFullBodyTrackers;
                 BasisLocalPlayer.AfterFinalMove.AddAction(98, ApplyFinalMovement);
                 HasEvents = true;
             }
@@ -123,14 +124,7 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 if (BasisBoneTrackedRoleCommonCheck.CheckItsFBTracker(trackedRole))//we dont want to offset these ones
                 {
-                    BasisInverseOffsetData = new BasisInverseOffsetFromBoneData();
-                    transform.GetPositionAndRotation(out BasisInverseOffsetData.TrackerPosition, out BasisInverseOffsetData.TrackerRotation);
-                    BasisInverseOffsetData.InitialInverseTrackRotation = Quaternion.Inverse(BasisInverseOffsetData.TrackerRotation);
-                    BasisInverseOffsetData.InitialControlRotation = Control.OutgoingWorldData.rotation;
-                    //this looks sus
-                    Control.InverseOffsetFromBone.position = BasisInverseOffsetData.InitialInverseTrackRotation * (Control.OutgoingWorldData.position - BasisInverseOffsetData.TrackerPosition);
-                    Control.InverseOffsetFromBone.rotation = BasisInverseOffsetData.InitialInverseTrackRotation * BasisInverseOffsetData.InitialControlRotation;
-                    Control.UseInverseOffset = true;
+                    CalculateOffset();
                 }
                 SetRealTrackers(BasisHasTracked.HasTracker, BasisHasRigLayer.HasRigLayer);
             }
@@ -139,9 +133,20 @@ namespace Basis.Scripts.Device_Management.Devices
                 BasisDebug.LogError("Attempted to find " + Role + " but it did not exist", BasisDebug.LogTag.Input);
             }
         }
-        [SerializeField]
-        public BasisInverseOffsetFromBoneData BasisInverseOffsetData = new BasisInverseOffsetFromBoneData();
+        public void CalculateOffset()
+        {
+            BasisInverseOffsetData = new BasisInverseOffsetFromBoneData();
 
+            //get the trackers position in space.
+            transform.GetPositionAndRotation(out BasisInverseOffsetData.TrackerPosition, out BasisInverseOffsetData.TrackerRotation);
+            BasisInverseOffsetData.InitialInverseTrackRotation = Quaternion.Inverse(BasisInverseOffsetData.TrackerRotation);
+            BasisInverseOffsetData.InitialControlRotation = Control.OutgoingWorldData.rotation;
+
+            Vector3 Offset = Control.OutgoingWorldData.position - BasisInverseOffsetData.TrackerPosition;
+            Control.InverseOffsetFromBone.position = BasisInverseOffsetData.InitialInverseTrackRotation * (Offset);
+            Control.InverseOffsetFromBone.rotation = BasisInverseOffsetData.InitialInverseTrackRotation * BasisInverseOffsetData.InitialControlRotation;
+            Control.UseInverseOffset = true;
+        }        
         public void UnAssignRoleAndTracker()
         {
             if (Control != null)
@@ -227,7 +232,6 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 //deassign
                 BasisLocalPlayer.Instance.OnPreSimulateBones -= PollData;
-                BasisLocalPlayer.Instance.OnAvatarSwitched -= UnAssignFullBodyTrackers;
                 BasisLocalPlayer.AfterFinalMove.RemoveAction(98, ApplyFinalMovement);
                 HasEvents = false;
             }
