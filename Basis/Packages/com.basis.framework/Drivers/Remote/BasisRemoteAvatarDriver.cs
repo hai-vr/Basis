@@ -70,8 +70,16 @@ namespace Basis.Scripts.Drivers
             ComputeOffsets(remotePlayer.RemoteBoneDriver);
             remotePlayer.BasisAvatar.Animator.enabled = false;
 
-           RemoveJiggleRigs();
-           AddJiggleRigs(References);
+            SetupAvatarJiggleColliders();
+        }
+        public async void SetupAvatarJiggleColliders()
+        {
+            RemoveJiggleRigColliders();
+            BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(Player.UUID);
+            if (BasisPlayerSettingsData.AvatarInteraction)
+            {
+                AddJiggleRigColliders(References);
+            }
         }
         public void ComputeOffsets(BasisRemoteBoneDriver BBD)
         {

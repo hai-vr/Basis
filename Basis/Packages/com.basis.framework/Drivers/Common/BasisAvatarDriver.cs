@@ -174,7 +174,7 @@ namespace Basis.Scripts.Drivers
             return false;
         }
         public List<JiggleColliderSerializable> JiggleColliders;
-        public void AddJiggleRigs(BasisTransformMapping Mapping)
+        public void AddJiggleRigColliders(BasisTransformMapping Mapping)
         {
             JiggleCreatorHelper(Mapping.leftFoot);
             JiggleCreatorHelper(Mapping.rightFoot);
@@ -219,7 +219,7 @@ namespace Basis.Scripts.Drivers
                 JiggleColliders.Add(jiggleColliderSerializable);
             }
         }
-        public void RemoveJiggleRigs()
+        public void RemoveJiggleRigColliders()
         {
             foreach (JiggleColliderSerializable Jiggle in JiggleColliders)
             {

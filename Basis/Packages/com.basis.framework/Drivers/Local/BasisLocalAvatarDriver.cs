@@ -119,9 +119,9 @@ namespace Basis.Scripts.Drivers
 			player.AvatarTransform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
 			player.LocalRigDriver.BuildBuilder();
 			IsNormalHead = true;
+            RemoveJiggleRigColliders();
+            AddJiggleRigColliders(References);
 
-            RemoveJiggleRigs();
-            AddJiggleRigs(References);
         }
 
 		public static void ScaleHeadToNormal()

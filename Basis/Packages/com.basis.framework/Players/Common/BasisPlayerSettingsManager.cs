@@ -8,7 +8,7 @@ public static class BasisPlayerSettingsManager
 {
     private static readonly string settingsDirectory = Path.Combine(Application.persistentDataPath, "PlayerSettings");
 
-    private const int CacheSizeLimit = 200;
+    private const int CacheSizeLimit = 1024;
 
     // In-memory cache for recently accessed player settings
     private static readonly Dictionary<string, BasisPlayerSettingsData> settingsCache = new Dictionary<string, BasisPlayerSettingsData>();
@@ -72,7 +72,7 @@ public static class BasisPlayerSettingsManager
         }
 
         // Create default settings and save
-        BasisPlayerSettingsData defaultData = new BasisPlayerSettingsData(uuid, 1.0f, true);
+        BasisPlayerSettingsData defaultData = new BasisPlayerSettingsData(uuid, 1.0f, true, true);
         await SetPlayerSettings(defaultData);
         return defaultData;
     }

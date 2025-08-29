@@ -1,4 +1,3 @@
-using Basis.Scripts.Addressable_Driver;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.UI.UI_Panels;
 using System.Threading.Tasks;
@@ -12,6 +11,7 @@ public class BasisIndividualPlayerSettings : BasisUIBase
     public static string CursorRequest = "PlayerSelectionPanel";
     public Slider UserVolumeOverride;
     public Button ToggleAvatar;
+    public Button ToggleAvatarInteraction;
 
     public TextMeshProUGUI AvatarVisibleText;
     public TextMeshProUGUI SliderVolumePercentage;
@@ -57,9 +57,10 @@ public class BasisIndividualPlayerSettings : BasisUIBase
         UserVolumeOverride.value = settings.VolumeLevel;
         SliderVolumePercentage.text = Mathf.RoundToInt(settings.VolumeLevel * 100) + "%";
         AvatarVisibleText.text = settings.AvatarVisible ? "Hide Avatar" : "Show Avatar";
-
+        AvatarVisibleText.text = settings.AvatarVisible ? "Disable Interactions" : "Enable Interactions";
         // Event Listeners
         ToggleAvatar.onClick.AddListener(() => ToggleAvatarPressed(playerUUID));
+        ToggleAvatarInteraction.onClick.AddListener(() => ToggleAvatarInteractions(playerUUID));
 
         RequestAvatarClone.onClick.AddListener(() => ToggleAvatarPressed(playerUUID));
 
@@ -68,6 +69,17 @@ public class BasisIndividualPlayerSettings : BasisUIBase
     float SnapValue(float value)
     {
         return Mathf.Round(value / step) * step;
+    }
+    public async void ToggleAvatarInteractions(string playerUUID)
+    {
+        BasisPlayerSettingsData settings = await BasisPlayerSettingsManager.RequestPlayerSettings(playerUUID);
+        settings.AvatarInteraction = !settings.AvatarInteraction;
+        await BasisPlayerSettingsManager.SetPlayerSettings(settings);
+        AvatarVisibleText.text = settings.AvatarVisible ? "Disable Interactions" : "Enable Interactions";
+        if (RemotePlayer != null)
+        {
+            RemotePlayer.ReloadAvatar();
+        }
     }
     public async void ToggleAvatarPressed(string playerUUID)
     {
