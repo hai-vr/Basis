@@ -2561,6 +2561,7 @@ MonoBehaviour:
   ToggleAvatar: {fileID: 8753921348700991057}
   ToggleAvatarInteraction: {fileID: 6239213909282466577}
   AvatarVisibleText: {fileID: 4588865874792497191}
+  AvatarInteractionsText: {fileID: 1409361127309871772}
   SliderVolumePercentage: {fileID: 8575683124576048691}
   PlayerName: {fileID: 842940024557486882}
   PlayerUUID: {fileID: 855598547334294540}
