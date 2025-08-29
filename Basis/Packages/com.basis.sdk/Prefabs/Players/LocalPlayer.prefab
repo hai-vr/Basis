@@ -321,6 +321,9 @@ MonoBehaviour:
   SpriteMicrophoneOn: {fileID: 21300000, guid: df4c5b7b152475f48adb88ead5775eb0, type: 3}
   SpriteMicrophoneOff: {fileID: 21300000, guid: f184b79ab72cc224e94720390fb038c2, type: 3}
   DesktopMicrophoneViewportPosition: {x: 0.2, y: 0.15, z: 1}
+  DepthFromCamera: 1
+  ScreenHeightFraction: 0.06
+  ViewportMargin: 0.03
   VRMicrophoneOffset: {x: -0.0001, y: -0.00025, z: 1}
   MuteSound: {fileID: 8300000, guid: 5b9ed5013ea1941499840ac97ad2b8e9, type: 3}
   UnMuteSound: {fileID: 8300000, guid: fbd61add38ba2d04baedb52b69c6e1b3, type: 3}
