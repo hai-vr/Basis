@@ -190,7 +190,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
         public override void OnInteractStart(BasisInput input)
         {
-            input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume / 80);
             // TODO: request net ownership
 
             // clean up interacting ourselves (system wont do this for us)
@@ -205,7 +204,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 {
                     Vector3 inPos = wrapper.BoneControl.OutgoingWorldData.position;
                     Quaternion inRot = wrapper.BoneControl.OutgoingWorldData.rotation;
-
+                    input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume / 80);
                     if (RigidRef != null)
                     {
                         if (KinematicWhileInteracting)

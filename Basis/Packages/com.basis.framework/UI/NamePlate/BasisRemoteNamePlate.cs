@@ -249,13 +249,12 @@ namespace Basis.Scripts.UI.NamePlate
         }
         public override void OnInteractStart(BasisInput input)
         {
-            input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume / 80);
             if (input.TryGetRole(out BasisBoneTrackedRole role) && Inputs.TryGetByRole(role, out BasisInputWrapper wrapper))
             {
                 // same input that was highlighting previously
                 if (wrapper.GetState() == BasisInteractInputState.Hovering)
                 {
-                    WasPressed();
+                    WasPressed(input);
                     OnInteractStartEvent?.Invoke(input);
                 }
                 else
@@ -276,8 +275,6 @@ namespace Basis.Scripts.UI.NamePlate
                 if (wrapper.GetState() == BasisInteractInputState.Interacting)
                 {
                     Inputs.ChangeStateByRole(wrapper.Role, BasisInteractInputState.Ignored);
-
-                    WasPressed();
                     OnInteractEndEvent?.Invoke(input);
                 }
             }
@@ -286,10 +283,11 @@ namespace Basis.Scripts.UI.NamePlate
         {
 
         }
-        public void WasPressed()
+        public void WasPressed(BasisInput input)
         {
             if (BasisRemotePlayer != null)
             {
+                input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume / 80);
                 BasisIndividualPlayerSettings.OpenPlayerSettings(BasisRemotePlayer);
             }
         }
