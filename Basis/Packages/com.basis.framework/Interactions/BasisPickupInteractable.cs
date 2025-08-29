@@ -204,7 +204,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 {
                     Vector3 inPos = wrapper.BoneControl.OutgoingWorldData.position;
                     Quaternion inRot = wrapper.BoneControl.OutgoingWorldData.rotation;
-                    input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume / 80);
+                    input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume);
                     if (RigidRef != null)
                     {
                         if (KinematicWhileInteracting)

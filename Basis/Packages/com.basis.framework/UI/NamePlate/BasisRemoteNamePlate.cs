@@ -287,7 +287,7 @@ namespace Basis.Scripts.UI.NamePlate
         {
             if (BasisRemotePlayer != null)
             {
-                input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume / 80);
+                input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume);
                 BasisIndividualPlayerSettings.OpenPlayerSettings(BasisRemotePlayer);
             }
         }
