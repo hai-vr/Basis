@@ -74,7 +74,7 @@ namespace Basis.Scripts.Device_Management.Devices
             if (HasEvents == false)
             {
                 BasisLocalPlayer.Instance.OnPreSimulateBones += PollData;
-               // BasisLocalPlayer.Instance.OnAvatarSwitched += UnAssignFullBodyTrackers;
+                BasisLocalPlayer.Instance.OnAvatarSwitched += UnAssignFullBodyTrackers;
                 BasisLocalPlayer.AfterFinalMove.AddAction(98, ApplyFinalMovement);
                 HasEvents = true;
             }
@@ -116,28 +116,22 @@ namespace Basis.Scripts.Device_Management.Devices
                     }
                 }
             }
-
             hasRoleAssigned = true;
             trackedRole = Role;
             HasControl = BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out Control, trackedRole);
             if (HasControl)
             {
-                // For full-body trackers you previously built a one-off inverse from the *current* pose.
-                // We replace that with "load saved, else compute+save" so it survives avatar swaps.
-                if (BasisBoneTrackedRoleCommonCheck.CheckItsFBTracker(trackedRole))
+                if (BasisBoneTrackedRoleCommonCheck.CheckItsFBTracker(trackedRole))//we dont want to offset these ones
                 {
-                    // First-time: compute from current alignment and persist
-                    var ofs = ComputeCurrentTrackerToBoneOffset();
-                    ApplySavedOffsetToControl(ofs);
-                    BasisDebug.Log($"Computed & saved initial calibration for {UniqueDeviceIdentifier}:{trackedRole}", BasisDebug.LogTag.Input);
+                    BasisInverseOffsetData = new BasisInverseOffsetFromBoneData();
+                    transform.GetPositionAndRotation(out BasisInverseOffsetData.TrackerPosition, out BasisInverseOffsetData.TrackerRotation);
+                    BasisInverseOffsetData.InitialInverseTrackRotation = Quaternion.Inverse(BasisInverseOffsetData.TrackerRotation);
+                    BasisInverseOffsetData.InitialControlRotation = Control.OutgoingWorldData.rotation;
+                    //this looks sus
+                    Control.InverseOffsetFromBone.position = BasisInverseOffsetData.InitialInverseTrackRotation * (Control.OutgoingWorldData.position - BasisInverseOffsetData.TrackerPosition);
+                    Control.InverseOffsetFromBone.rotation = BasisInverseOffsetData.InitialInverseTrackRotation * BasisInverseOffsetData.InitialControlRotation;
+                    Control.UseInverseOffset = true;
                 }
-                else
-                {
-                    Control.InverseOffsetFromBone.position = Vector3.zero;
-                    Control.InverseOffsetFromBone.rotation = Quaternion.identity;
-                    Control.UseInverseOffset = false; // or true with identity, your choice
-                }
-
                 SetRealTrackers(BasisHasTracked.HasTracker, BasisHasRigLayer.HasRigLayer);
             }
             else
@@ -208,10 +202,9 @@ namespace Basis.Scripts.Device_Management.Devices
                 if (HasControl)
                 {
                     BasisDebug.Log("UnAssigning Tracker " + Control.name, BasisDebug.LogTag.Input);
-                    // DO NOT zero the saved calibration; just stop using it while detached.
-                    Control.UseInverseOffset = false;
                     Control.InverseOffsetFromBone.position = Vector3.zero;
                     Control.InverseOffsetFromBone.rotation = Quaternion.identity;
+                    Control.UseInverseOffset = false;
                 }
                 UnAssignRoleAndTracker();
             }
@@ -234,7 +227,7 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 //deassign
                 BasisLocalPlayer.Instance.OnPreSimulateBones -= PollData;
-              //  BasisLocalPlayer.Instance.OnAvatarSwitched -= UnAssignFullBodyTrackers;
+                BasisLocalPlayer.Instance.OnAvatarSwitched -= UnAssignFullBodyTrackers;
                 BasisLocalPlayer.AfterFinalMove.RemoveAction(98, ApplyFinalMovement);
                 HasEvents = false;
             }
@@ -488,58 +481,5 @@ namespace Basis.Scripts.Device_Management.Devices
         public abstract void ShowTrackedVisual();
         public abstract void PlayHaptic(float duration = 0.25f, float amplitude = 0.5f, float frequency = 0.5f);
         public abstract void PlaySoundEffect(string SoundEffectName, float Volume);
-
-        private void ApplySavedOffsetToControl(in BasisCalibratedCoords ofs)
-        {
-            if (Control == null) return;
-
-            Control.InverseOffsetFromBone.position = ofs.position;
-            Control.InverseOffsetFromBone.rotation = ofs.rotation;
-            Control.UseInverseOffset = true;
-        }
-        // NEW: compute inv(tracker) * bone at this instant, return as offset in tracker space
-        private BasisCalibratedCoords ComputeCurrentTrackerToBoneOffset()
-        {
-            // tracker world
-            transform.GetPositionAndRotation(out var tPos, out var tRot);
-
-            // bone world (current outgoing)
-            var bPos = Control.OutgoingWorldData.position;
-            var bRot = Control.OutgoingWorldData.rotation;
-
-            Relative(
-                aPos: tPos, aRot: tRot,
-                bPos: bPos, bRot: bRot,
-                out var relPos, out var relRot);
-
-            return new BasisCalibratedCoords { position = relPos, rotation = relRot };
-        }
-
-        // Compose: A * B (tracker * offset) -> world pose
-        public static void Compose(in Vector3 aPos, in Quaternion aRot,
-                                   in Vector3 bPos, in Quaternion bRot,
-                                   out Vector3 outPos, out Quaternion outRot)
-        {
-            outRot = aRot * bRot;
-            outPos = aPos + aRot * bPos;
-        }
-
-        // Inverse rigid transform: inv(T)
-        public static void Inverse(in Vector3 inPos, in Quaternion inRot,
-                                   out Vector3 outPos, out Quaternion outRot)
-        {
-            outRot = Quaternion.Inverse(inRot);
-            outPos = outRot * (-inPos);
-        }
-
-        // Relative(B wrt A): inv(A) * B
-        public static void Relative(in Vector3 aPos, in Quaternion aRot,
-                                    in Vector3 bPos, in Quaternion bRot,
-                                    out Vector3 outPos, out Quaternion outRot)
-        {
-            Inverse(inPos: aPos, inRot: aRot, out outPos, out outRot); // outPos/outRot = inv(A)
-            // Compose inv(A) with B
-            Compose(outPos, outRot, bPos, bRot, out outPos, out outRot);
-        }
     }
 }

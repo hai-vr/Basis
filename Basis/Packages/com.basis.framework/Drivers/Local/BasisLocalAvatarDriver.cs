@@ -292,7 +292,7 @@ namespace Basis.Scripts.Drivers
 			RuntimeAnimatorController RAC = op.WaitForCompletion();
 			BasisLocalPlayer.Instance.BasisAvatar.Animator.runtimeAnimatorController = RAC;
 			ForceUpdateAnimator(BasisLocalPlayer.Instance.BasisAvatar.Animator);
-			//BasisDeviceManagement.UnassignFBTrackers();
+			BasisDeviceManagement.UnassignFBTrackers();
 			TposeStateChange?.Invoke();
 		}
 
