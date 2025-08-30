@@ -12,22 +12,19 @@ public class BasisLocalVirtualSpineDriver
     public float SpineRotationSpeed = 30f;
     public float HipsRotationSpeed = 20f;
 
-    [Header("Torso Position Locking")]
-    [Tooltip("If true, lock torso Y to its baseline height to avoid pitch-injected vertical drift.")]
-    public bool LockTorsoYToBaseline = true;
-    [Tooltip("If true, also lock torso XZ to baseline (NOT recommended with VR trackers).")]
-    public bool LockTorsoXZToBaseline = false;
-
     private bool _initialized;
 
-    // Baselines captured once (local space, T-pose by default or current target when requested)
-    private float _chestBaseY;
-    private float _spineBaseY;
-    private float _hipsBaseY;
+    // === Baseline vertical separations (world-space Y) captured on Initialize ===
+    private float _baseHeadNeckSepY;
+    private float _baseNeckChestSepY;
+    private float _baseChestSpineSepY;
+    private float _baseSpineHipsSepY;
 
-    private Vector2 _chestBaseXZ;
-    private Vector2 _spineBaseXZ;
-    private Vector2 _hipsBaseXZ;
+    // Small helper to guard nulls
+    private static void TrySetOverride(BasisLocalBoneControl control, bool enabled)
+    {
+        if (control != null) control.HasVirtualOverride = enabled;
+    }
 
     public void Initialize()
     {
@@ -39,14 +36,10 @@ public class BasisLocalVirtualSpineDriver
         TrySetOverride(BasisLocalBoneDriver.SpineControl, true);
         TrySetOverride(BasisLocalBoneDriver.HipsControl, true);
 
-        // Capture baselines ONCE from T-pose so we have reference heights.
-        CaptureBaselines();
-
-
-
         BasisLocalPlayer.Instance.OnPreSimulateBones += OnSimulateHead;
         _initialized = true;
     }
+
     public void DeInitialize()
     {
         if (!_initialized) return;
@@ -61,32 +54,23 @@ public class BasisLocalVirtualSpineDriver
         _initialized = false;
     }
 
-    /// <summary>
-    /// Call this if you want to recenter baseline heights/XZ (e.g., after recalibration).
-    /// If fromTPose=false, uses the CURRENT TARGET local pose instead of T-pose.
-    /// </summary>
-    public void CaptureBaselines()
+    private void CacheBaselineSeps()
     {
+        var head = BasisLocalBoneDriver.HeadControl;
+        var neck = BasisLocalBoneDriver.NeckControl;
         var chest = BasisLocalBoneDriver.ChestControl;
         var spine = BasisLocalBoneDriver.SpineControl;
         var hips = BasisLocalBoneDriver.HipsControl;
 
-        Vector3 ChestL = chest.TposeLocalScaled.position;
-        Vector3 SpineL = spine.TposeLocalScaled.position;
-        Vector3 HipsL = hips.TposeLocalScaled.position;
-
-        _chestBaseY = ChestL.y;
-        _spineBaseY = SpineL.y;
-        _hipsBaseY = HipsL.y;
-
-        _chestBaseXZ = new Vector2(ChestL.x, ChestL.z);
-        _spineBaseXZ = new Vector2(SpineL.x, SpineL.z);
-        _hipsBaseXZ = new Vector2(HipsL.x, HipsL.z);
+        _baseHeadNeckSepY = CaculateYDif(head, neck);
+        _baseNeckChestSepY = CaculateYDif(neck, chest);
+        _baseChestSpineSepY = CaculateYDif(chest, spine);
+        _baseSpineHipsSepY = CaculateYDif(spine, hips);
     }
 
-    private static void TrySetOverride(BasisLocalBoneControl control, bool enabled)
+    private static float CaculateYDif(BasisLocalBoneControl a, BasisLocalBoneControl b)
     {
-        if (control != null) control.HasVirtualOverride = enabled;
+        return a.Target.TposeLocalScaled.position.y - b.Target.TposeLocalScaled.position.y;
     }
 
     public void OnSimulateHead()
@@ -100,98 +84,103 @@ public class BasisLocalVirtualSpineDriver
 
         float dt = Time.deltaTime;
 
-        // Rotations
+        // --- Rotations ---
         head.OutGoingData.rotation = eye.OutGoingData.rotation;
-        neck.OutGoingData.rotation = SmoothSlerp(neck.OutGoingData.rotation, head.OutGoingData.rotation, NeckRotationSpeed, dt);
 
-        Quaternion targetChest = SmoothSlerp(chest.OutGoingData.rotation, neck.OutGoingData.rotation, ChestRotationSpeed, dt);
-        chest.OutGoingData.rotation = ExtractYawRotation(targetChest);
+        if (neck != null)
+            neck.OutGoingData.rotation = SmoothSlerp(neck.OutGoingData.rotation, head.OutGoingData.rotation, NeckRotationSpeed, dt);
 
-        Quaternion targetSpine = SmoothSlerp(spine.OutGoingData.rotation, chest.OutGoingData.rotation, SpineRotationSpeed, dt);
-        spine.OutGoingData.rotation = ExtractYawRotation(targetSpine);
+        if (chest != null && neck != null)
+        {
+            Quaternion targetChest = SmoothSlerp(chest.OutGoingData.rotation, neck.OutGoingData.rotation, ChestRotationSpeed, dt);
+            chest.OutGoingData.rotation = ExtractYawRotation(targetChest);
+        }
 
-        Quaternion targetHips = SmoothSlerp(hips.OutGoingData.rotation, spine.OutGoingData.rotation, HipsRotationSpeed, dt);
-        hips.OutGoingData.rotation = ExtractYawRotation(targetHips);
+        if (spine != null && chest != null)
+        {
+            Quaternion targetSpine = SmoothSlerp(spine.OutGoingData.rotation, chest.OutGoingData.rotation, SpineRotationSpeed, dt);
+            spine.OutGoingData.rotation = ExtractYawRotation(targetSpine);
+        }
+
+        if (hips != null && spine != null)
+        {
+            Quaternion targetHips = SmoothSlerp(hips.OutGoingData.rotation, spine.OutGoingData.rotation, HipsRotationSpeed, dt);
+            hips.OutGoingData.rotation = ExtractYawRotation(targetHips);
+        }
+
+        // Capture baselines immediately using current TARGET (tracker-driven) positions.
+        CacheBaselineSeps();
+        // --- Per-link vertical deltas (world Y), compared to baseline separations ---
+        // If head drops toward neck, dHN < 0, and we propagate that downward.
+        float dHN = (neck != null) ? (head.Target.OutGoingData.position.y - neck.Target.OutGoingData.position.y) - _baseHeadNeckSepY : 0f;
+        float dNC = (chest != null && neck != null) ? (neck.Target.OutGoingData.position.y - chest.Target.OutGoingData.position.y) - _baseNeckChestSepY : 0f;
+        float dCS = (spine != null && chest != null) ? (chest.Target.OutGoingData.position.y - spine.Target.OutGoingData.position.y) - _baseChestSpineSepY : 0f;
+        float dSH = (hips != null && spine != null) ? (spine.Target.OutGoingData.position.y - hips.Target.OutGoingData.position.y) - _baseSpineHipsSepY : 0f;
+
+        // Cumulative downstream offsets:
+        // - neck inherits dHN
+        // - chest inherits dHN + dNC
+        // - spine inherits dHN + dNC + dCS
+        // - hips inherits  dHN + dNC + dCS + dSH
+        float offNeck = dHN;
+        float offChest = dHN + dNC;
+        float offSpine = dHN + dNC + dCS;
+        float offHips = dHN + dNC + dCS + dSH;
 
         // World matrices for finalization
         Matrix4x4 parentMatrix = BasisLocalPlayer.Instance.transform.localToWorldMatrix;
 
-        // Positions:
-        // Head/Neck: full rotation offsets so eyes/head co-locate.
-        ApplyPositionControl(head, parentMatrix, TorsoLock.None);
-        ApplyPositionControl(neck, parentMatrix, TorsoLock.None);
+        // --- Positions ---
+        // Head/Neck follow eye/head fully (no torso lock); others as configured.
+        ApplyPositionControl(head, parentMatrix, torsoLock: false, extraY: 0f);
 
-        // Torso: follow tracker XZ; optionally lock Y to baseline. (Optionally XZ too, if you really want the old behavior.)
-        ApplyPositionControl(chest, parentMatrix, SelectLock());
-        ApplyPositionControl(spine, parentMatrix, SelectLock());
-        ApplyPositionControl(hips, parentMatrix, SelectLock());
+        if (neck != null)
+            ApplyPositionControl(neck, parentMatrix, torsoLock: false, extraY: offNeck);
+
+        if (chest != null)
+            ApplyPositionControl(chest, parentMatrix, torsoLock: true, extraY: offChest);
+
+        if (spine != null)
+            ApplyPositionControl(spine, parentMatrix, torsoLock: false, extraY: offSpine);
+
+        if (hips != null)
+            ApplyPositionControl(hips, parentMatrix, torsoLock: false, extraY: offHips);
     }
 
-    private enum TorsoSegment { Chest, Spine, Hips }
-    private enum TorsoLock { None, LockY, LockXZ_Y }
-
-    private TorsoLock SelectLock()
+    private void ApplyPositionControl(BasisLocalBoneControl boneControl, Matrix4x4 parentMatrix, bool torsoLock, float extraY)
     {
-        if (LockTorsoXZToBaseline) return TorsoLock.LockXZ_Y;
-        if (LockTorsoYToBaseline) return TorsoLock.LockY;
-        return TorsoLock.None;
-    }
+        if (boneControl == null) return;
 
-    private void ApplyPositionControl(BasisLocalBoneControl boneControl, Matrix4x4 parentMatrix,TorsoLock torsoLock)
-    {
-        Quaternion targetRotFull = boneControl.Target.OutGoingData.rotation;
-        Quaternion targetRotYaw = ExtractYawRotation(targetRotFull);
+        Quaternion targetRot = boneControl.Target.OutGoingData.rotation;
+        if (torsoLock)
+        {
+            // yaw-only for torso stability
+            targetRot = ExtractYawRotation(targetRot);
+        }
 
-        bool isTorso = (torsoLock != TorsoLock.None);
-
-        // For torso offsets, use yaw-only so pitch doesn't inject forward/back offsets.
-        Quaternion rotForOffset = isTorso ? targetRotYaw : targetRotFull;
-
-        // Choose which offset to use (you can wire these per-bone if desired)
+        // Per-bone local offset (already scaled)
         Vector3 localOffset = boneControl.ScaledOffset;
 
-        // Torso stability: ignore the vertical component of the offset so head pitch won't add/subtract height
-        if (isTorso) localOffset.y = 0f;
+        // Torso stability: ignore vertical component of the offset so head pitch won't add/subtract height
+        if (torsoLock)
+        {
+            localOffset.y = 0f;
+        }
 
-        Vector3 offset = rotForOffset * localOffset;
+        Vector3 offset = targetRot * localOffset;
 
-        // Start from the TARGET (tracker-driven) position so we FOLLOW trackers in XZ by default.
+        // Start from TARGET (tracker-driven) position so we FOLLOW trackers in XZ by default.
         Vector3 desired = boneControl.Target.OutGoingData.position + offset;
 
-        // Apply locks against captured baselines (local space)
-        if (isTorso)
+        if (torsoLock)
         {
-            switch (torsoLock)
-            {
-                case TorsoLock.LockY:
-                    // Lock only Y, keep live XZ from the tracker
-                    if (boneControl == BasisLocalBoneDriver.ChestControl) desired.y = _chestBaseY;
-                    else if (boneControl == BasisLocalBoneDriver.SpineControl) desired.y = _spineBaseY;
-                    else if (boneControl == BasisLocalBoneDriver.HipsControl) desired.y = _hipsBaseY;
-                    break;
-
-                case TorsoLock.LockXZ_Y:
-                    // Old behavior (NOT recommended with trackers): lock full planar position to baseline
-                    if (boneControl == BasisLocalBoneDriver.ChestControl)
-                    {
-                        desired.y = _chestBaseY;
-                        desired.x = _chestBaseXZ.x;
-                        desired.z = _chestBaseXZ.y;
-                    }
-                    else if (boneControl == BasisLocalBoneDriver.SpineControl)
-                    {
-                        desired.y = _spineBaseY;
-                        desired.x = _spineBaseXZ.x;
-                        desired.z = _spineBaseXZ.y;
-                    }
-                    else if (boneControl == BasisLocalBoneDriver.HipsControl)
-                    {
-                        desired.y = _hipsBaseY;
-                        desired.x = _hipsBaseXZ.x;
-                        desired.z = _hipsBaseXZ.y;
-                    }
-                    break;
-            }
+            // Keep torso height anchored to its baseline, but add the propagated per-link compression/extension.
+            desired.y = boneControl.TposeLocalScaled.position.y + extraY;
+        }
+        else
+        {
+            // Non-torso-locked bones: add the propagated extraY on top of the target+offset result.
+            desired.y += extraY;
         }
 
         boneControl.OutGoingData.position = desired;
