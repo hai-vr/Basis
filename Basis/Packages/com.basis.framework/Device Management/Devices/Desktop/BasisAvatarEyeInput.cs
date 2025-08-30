@@ -144,9 +144,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             {
                 BasisLocalInputActions.Instance.InputState.CopyTo(CurrentInputState);
             }
-
-            var Player = BasisLocalPlayer.Instance;
-
             // World eye (SDK helper already returns world)
             Vector3 tposeEyeWorld = BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position;
 
@@ -166,6 +163,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             // Apply crouch at pivot (use head local Y scale)
             if (!CrouchingLock)
             {
+                BasisLocalPlayer Player = BasisLocalPlayer.Instance;
+
                 var crouchMinimum = Player.LocalCharacterDriver.MinimumCrouchPercent;
                 float heightAdj = (1 - crouchMinimum) * Player.LocalCharacterDriver.CrouchBlend + crouchMinimum;
                 float headLocalY = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position.y;

@@ -41,7 +41,9 @@ public class BasisLocalVirtualSpineDriver
 
         // Capture baselines ONCE from T-pose so we have reference heights.
         CaptureBaselines();
-       // BasisLocalPlayer.Instance.OnAvatarSwitched += CaptureBaseLine();
+
+
+
         BasisLocalPlayer.Instance.OnPreSimulateBones += OnSimulateHead;
         _initialized = true;
     }
@@ -198,7 +200,7 @@ public class BasisLocalVirtualSpineDriver
         }
 
         boneControl.OutGoingData.position = desired;
-        boneControl.ApplyWorldAndLast(parentMatrix, rootRotation);
+        boneControl.ApplyWorldAndLast(parentMatrix);
     }
 
     private static Quaternion SmoothSlerp(Quaternion current, Quaternion target, float speed, float dt)
