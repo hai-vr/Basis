@@ -65,7 +65,6 @@ public class BasisLocalVirtualSpineDriver
 
     public void OnSimulateHead()
     {
-        var player = BasisLocalPlayer.Instance;
         var eye = BasisLocalBoneDriver.EyeControl;
         var head = BasisLocalBoneDriver.HeadControl;
         var neck = BasisLocalBoneDriver.NeckControl;
@@ -103,9 +102,8 @@ public class BasisLocalVirtualSpineDriver
         }
 
         // World matrices for finalization
-        Transform rootTransform = player.transform;
-        Matrix4x4 parentMatrix = rootTransform.localToWorldMatrix;
-        Quaternion rootRotation = rootTransform.rotation;
+        Matrix4x4 parentMatrix = BasisLocalPlayer.Instance.transform.localToWorldMatrix;
+        Quaternion rootRotation = parentMatrix.rotation;
 
         // Positions:
         // Head/Neck: full offsets (include pitch) -> keep eyes/head co-located
