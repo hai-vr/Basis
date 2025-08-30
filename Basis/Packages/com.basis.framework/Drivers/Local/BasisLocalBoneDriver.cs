@@ -222,12 +222,12 @@ namespace Basis.Scripts.Drivers
                     Vector3 BonePosition = Control.OutgoingWorldData.position;
                     if (Control.HasTarget)
                     {
-                        if (BasisGizmoManager.CreateLineGizmo(out Control.LineDrawIndex, BonePosition, Control.Target.OutgoingWorldData.position, 0.05f * Size, Control.Color))
+                        if (BasisGizmoManager.CreateLineGizmo(trackedRoles[Index].ToString(),out Control.LineDrawIndex, BonePosition, Control.Target.OutgoingWorldData.position, 0.05f * Size, Control.Color))
                         {
                             Control.HasLineDraw = true;
                         }
                     }
-                    if (BasisGizmoManager.CreateSphereGizmo(out Control.GizmoReference, BonePosition, DefaultGizmoSize * Size, Control.Color))
+                    if (BasisGizmoManager.CreateSphereGizmo(trackedRoles[Index].ToString(), out Control.GizmoReference, BonePosition, DefaultGizmoSize * Size, Control.Color))
                     {
                         Control.HasGizmo = true;
                     }
@@ -303,7 +303,7 @@ namespace Basis.Scripts.Drivers
                         }
                         else
                         {
-                            if (BasisGizmoManager.CreateSphereGizmo(out Control.TposeGizmoReference, BonePosition, BasisAvatarIKStageCalibration.MaxDistanceBeforeMax(role) * Size, Control.Color))
+                            if (BasisGizmoManager.CreateSphereGizmo(role.ToString(), out Control.TposeGizmoReference, BonePosition, BasisAvatarIKStageCalibration.MaxDistanceBeforeMax(role) * Size, Control.Color))
                             {
                                 Control.TposeHasGizmo = true;
                             }

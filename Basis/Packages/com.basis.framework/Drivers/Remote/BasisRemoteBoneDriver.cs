@@ -285,13 +285,13 @@ namespace Basis.Scripts.Drivers
 
                     if (control.HasTarget)
                     {
-                        if (BasisGizmoManager.CreateLineGizmo(out control.LineDrawIndex, bonePos, control.Target.OutGoingData.position, 0.03f * scale, control.Color))
+                        if (BasisGizmoManager.CreateLineGizmo(role.ToString(), out control.LineDrawIndex, bonePos, control.Target.OutGoingData.position, 0.03f * scale, control.Color))
                         {
                             control.HasLineDraw = true;
                         }
                     }
 
-                    if (BasisGizmoManager.CreateSphereGizmo(out control.GizmoReference, bonePos, DefaultGizmoSize * scale, control.Color))
+                    if (BasisGizmoManager.CreateSphereGizmo(role.ToString(),out control.GizmoReference, bonePos, DefaultGizmoSize * scale, control.Color))
                     {
                         control.HasGizmo = true;
                     }

@@ -108,8 +108,8 @@ public class BasisLocalVirtualSpineDriver
         // Positions:
         // Head/Neck: full offsets (include pitch) -> keep eyes/head co-located
         // Torso (Chest/Spine/Hips): lock Y and XZ to baseline -> eliminates back/forward creep from head pitch
-        ApplyPositionControl(head, parentMatrix, rootRotation, LockPlanar.None);
-        ApplyPositionControl(neck, parentMatrix, rootRotation, LockPlanar.None);
+        ApplyPositionControl(head, parentMatrix, rootRotation, LockPlanar.None);//head
+        ApplyPositionControl(neck, parentMatrix, rootRotation, LockPlanar.None);//neck
 
         ApplyPositionControl(chest, parentMatrix, rootRotation, LockPlanar.ChestXZ_Y);
         ApplyPositionControl(spine, parentMatrix, rootRotation, LockPlanar.SpineXZ_Y);
