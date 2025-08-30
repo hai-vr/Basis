@@ -101,7 +101,6 @@ namespace Basis.Scripts.Drivers
 			player.LocalAnimatorDriver.Initialize(player);
 			//stop Tpose
 			ResetAvatarAnimator();
-			BasisAvatarIKStageCalibration.HasFBIKTrackers = false;
 			if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl Head, BasisBoneTrackedRole.Head))
 			{
 				Head.HasRigLayer = BasisHasRigLayer.HasRigLayer;

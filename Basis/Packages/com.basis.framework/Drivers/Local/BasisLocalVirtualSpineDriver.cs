@@ -99,7 +99,10 @@ public class BasisLocalVirtualSpineDriver
         // ===========================================
         // Determine a stable "up" for the character in world space
         Vector3 worldUp = parentMatrix.MultiplyVector(Vector3.up).normalized;
-        if (worldUp.sqrMagnitude < 1e-6f) worldUp = Vector3.up;
+        if (worldUp.sqrMagnitude < 1e-6f)
+        {
+            worldUp = Vector3.up;
+        }
 
         // Preserve the total T-pose length neck→hips along the spine axis (approx. vertical)
         Vector3 idealHips = neckPosWorld - worldUp * _lenTotal;
@@ -120,9 +123,7 @@ public class BasisLocalVirtualSpineDriver
 
         // Hips rotation: follow head yaw, damped
         Quaternion hipsYawTarget = headYaw;
-        hips.OutGoingData.rotation = ExtractYawRotation(
-            SmoothSlerp(hips.OutGoingData.rotation, hipsYawTarget, HipsRotationSpeed, dt)
-        );
+        hips.OutGoingData.rotation = ExtractYawRotation(SmoothSlerp(hips.OutGoingData.rotation, hipsYawTarget, HipsRotationSpeed, dt));
         hips.OutGoingData.position = blendedHips;
         hips.ApplyWorldAndLast(parentMatrix);
 
@@ -136,7 +137,6 @@ public class BasisLocalVirtualSpineDriver
         // Direction neck→hips (straight chain)
         Vector3 neckToHips = hips.OutGoingData.position - neck.OutGoingData.position;
         float distNeckToHips = neckToHips.magnitude;
-        Vector3 dirNeckToHips = distNeckToHips > 1e-6f ? neckToHips / distNeckToHips : -worldUp;
 
         // Guard: if neck and hips nearly same spot, keep previous positions
         if (distNeckToHips < 1e-5f)
@@ -175,9 +175,6 @@ public class BasisLocalVirtualSpineDriver
         head.ApplyWorldAndLast(parentMatrix);
         neck.ApplyWorldAndLast(parentMatrix);
     }
-
-    // === Position helpers ===
-
     private void ApplyPositionControl(BasisLocalBoneControl boneControl, Matrix4x4 parentMatrix, bool torsoLock)
     {
         Quaternion rot = boneControl.Target.OutGoingData.rotation;
@@ -216,9 +213,6 @@ public class BasisLocalVirtualSpineDriver
         boneControl.OutGoingData.position = desired;
         boneControl.ApplyWorldAndLast(parentMatrix);
     }
-
-    // === Math helpers ===
-
     private static Quaternion SmoothSlerp(Quaternion current, Quaternion target, float speed, float dt)
     {
         float t = Mathf.Clamp01(dt * Mathf.Max(0f, speed));
