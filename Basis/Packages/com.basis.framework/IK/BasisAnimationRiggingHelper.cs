@@ -7,7 +7,7 @@ using UnityEngine.Animations.Rigging;
 
 public static class BasisAnimationRiggingHelper
 {
-    public static void EnableTwoBoneIk(BasisTwoBoneIKConstraint Constraint, Vector3 TargetPositionOffset, Vector3 TargetRotationOffset)
+    public static void EnableTwoBoneIk(BasisTwoBoneIKConstraint Constraint, Vector3 TargetPositionOffset, Quaternion TargetRotationOffset)
     {
         Constraint.data.M_CalibratedOffset = TargetPositionOffset;
         Constraint.data.M_CalibratedRotation = TargetRotationOffset;
@@ -74,7 +74,7 @@ public static class BasisAnimationRiggingHelper
         Vector3 PositionOffset = new Vector3(0, 0, 0);
 
         Quaternion RotationOffset =  tip.rotation;//Quaternion.Inverse(TargetControl.OutgoingWorldData.rotation) *
-        EnableTwoBoneIk(TwoBoneIKConstraint, PositionOffset, RotationOffset.eulerAngles);
+        EnableTwoBoneIk(TwoBoneIKConstraint, PositionOffset, RotationOffset);
         Quaternion Rotation = TargetControl.OutgoingWorldData.rotation;
         TwoBoneIKConstraint.data.TargetPosition = TargetControl.OutgoingWorldData.position;
         TwoBoneIKConstraint.data.TargetRotation = Rotation;
@@ -90,10 +90,6 @@ public static class BasisAnimationRiggingHelper
         TwoBoneIKConstraint.data.root = root;
         TwoBoneIKConstraint.data.mid = mid;
         TwoBoneIKConstraint.data.tip = tip;
-        TwoBoneIKConstraint.data.TrackerBlend = 0.75f;
-        TwoBoneIKConstraint.data.MaxMidDeltaDeg = 25f;
-        TwoBoneIKConstraint.data.MinAxisSqrMag = 1e-6f;
-        TwoBoneIKConstraint.data.TrackerForward = Vector3.forward;
 
         GeneratedRequiredTransforms(player, tip);
     }

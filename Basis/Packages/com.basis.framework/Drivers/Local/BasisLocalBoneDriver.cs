@@ -12,7 +12,9 @@ namespace Basis.Scripts.Drivers
     [System.Serializable]
     public class BasisLocalBoneDriver
     {
+        public static BasisLocalBoneControl NeckControl;
         public static BasisLocalBoneControl HeadControl;
+        public static BasisLocalBoneControl SpineControl;
         public static BasisLocalBoneControl HipsControl;
         public static BasisLocalBoneControl EyeControl;
         public static BasisLocalBoneControl MouthControl;
@@ -41,6 +43,8 @@ namespace Basis.Scripts.Drivers
         public void Initialize()
         {
             HasEye = FindBone(out EyeControl, BasisBoneTrackedRole.CenterEye);
+            FindBone(out SpineControl, BasisBoneTrackedRole.Spine);
+            FindBone(out NeckControl, BasisBoneTrackedRole.Neck);
             FindBone(out HeadControl, BasisBoneTrackedRole.Head);
             FindBone(out HipsControl, BasisBoneTrackedRole.Hips);
             FindBone(out MouthControl, BasisBoneTrackedRole.Mouth);
