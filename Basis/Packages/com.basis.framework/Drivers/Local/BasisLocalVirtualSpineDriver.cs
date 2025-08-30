@@ -31,13 +31,11 @@ public class BasisLocalVirtualSpineDriver
     {
         if (_initialized) return;
 
-        TrySetOverride(BasisLocalBoneDriver.HeadControl, true);
-        TrySetOverride(BasisLocalBoneDriver.NeckControl, true);
-        TrySetOverride(BasisLocalBoneDriver.ChestControl, true);
-        TrySetOverride(BasisLocalBoneDriver.SpineControl, true);
-        TrySetOverride(BasisLocalBoneDriver.HipsControl, true);
-
-        CacheSegmentLengths();
+        BasisLocalBoneDriver.HeadControl.HasVirtualOverride = true;
+        BasisLocalBoneDriver.NeckControl.HasVirtualOverride = true;
+        BasisLocalBoneDriver.ChestControl.HasVirtualOverride = true;
+        BasisLocalBoneDriver.SpineControl.HasVirtualOverride = true;
+        BasisLocalBoneDriver.HipsControl.HasVirtualOverride = true;
 
         BasisLocalPlayer.Instance.OnPreSimulateBones += OnSimulate;
         _initialized = true;
@@ -47,40 +45,17 @@ public class BasisLocalVirtualSpineDriver
     {
         if (!_initialized) return;
 
-        TrySetOverride(BasisLocalBoneDriver.HeadControl, false);
-        TrySetOverride(BasisLocalBoneDriver.NeckControl, false);
-        TrySetOverride(BasisLocalBoneDriver.ChestControl, false);
-        TrySetOverride(BasisLocalBoneDriver.SpineControl, false);
-        TrySetOverride(BasisLocalBoneDriver.HipsControl, false);
+        BasisLocalBoneDriver.HeadControl.HasVirtualOverride = false;
+        BasisLocalBoneDriver.NeckControl.HasVirtualOverride = false;
+        BasisLocalBoneDriver.ChestControl.HasVirtualOverride = false;
+        BasisLocalBoneDriver.SpineControl.HasVirtualOverride = false;
+        BasisLocalBoneDriver.HipsControl.HasVirtualOverride = false;
 
         BasisLocalPlayer.Instance.OnPreSimulateBones -= OnSimulate;
         _initialized = false;
     }
-
-    private static void TrySetOverride(BasisLocalBoneControl control, bool enabled)
-    {
-        if (control != null) control.HasVirtualOverride = enabled;
-    }
-
-    private void CacheSegmentLengths()
-    {
-        var neck = BasisLocalBoneDriver.NeckControl;
-        var chest = BasisLocalBoneDriver.ChestControl;
-        var spine = BasisLocalBoneDriver.SpineControl;
-        var hips = BasisLocalBoneDriver.HipsControl;
-
-        // Use scaled local positions from captured T-pose to get robust lengths
-        // (All calls guarded to avoid NaNs if any control is missing.)
-        _lenNeckToChest = SafeDistance(neck, chest);
-        _lenChestToSpine = SafeDistance(chest, spine);
-        _lenSpineToHips = SafeDistance(spine, hips);
-
-        _lenTotal = Mathf.Max(1e-4f, _lenNeckToChest + _lenChestToSpine + _lenSpineToHips);
-    }
-
     private static float SafeDistance(BasisLocalBoneControl a, BasisLocalBoneControl b)
     {
-        if (a == null || b == null) return 0f;
         return Vector3.Distance(a.TposeLocalScaled.position, b.TposeLocalScaled.position);
     }
 
@@ -93,8 +68,13 @@ public class BasisLocalVirtualSpineDriver
         var spine = BasisLocalBoneDriver.SpineControl;
         var hips = BasisLocalBoneDriver.HipsControl;
 
-        if (eye == null || head == null || neck == null || chest == null || spine == null || hips == null)
-            return;
+        // Use scaled local positions from captured T-pose to get robust lengths
+        // (All calls guarded to avoid NaNs if any control is missing.)
+        _lenNeckToChest = SafeDistance(neck, chest);
+        _lenChestToSpine = SafeDistance(chest, spine);
+        _lenSpineToHips = SafeDistance(spine, hips);
+
+        _lenTotal = Mathf.Max(1e-4f, _lenNeckToChest + _lenChestToSpine + _lenSpineToHips);
 
         float dt = Time.deltaTime;
         var parent = BasisLocalPlayer.Instance.transform;
@@ -127,7 +107,7 @@ public class BasisLocalVirtualSpineDriver
         // Small forward bias so pelvis isn't stacked directly under neck (helps stability)
         // Use head's yaw-only forward as the bias direction
         Quaternion headYaw = ExtractYawRotation(head.OutGoingData.rotation);
-        idealHips += (headYaw * Vector3.forward) * HipsForwardBias;
+        idealHips += (headYaw * Vector3.forward) *  (HipsForwardBias * BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
 
         // Optionally blend XZ toward tracked hips to keep some authority
         Vector3 trackedHips = hips.Target.OutGoingData.position;
