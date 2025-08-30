@@ -32,9 +32,6 @@ public class BasisLocalVirtualSpineDriver
     private Vector2 _chestBaseXZ;
     private Vector2 _spineBaseXZ;
     private Vector2 _hipsBaseXZ;
-
-    private Transform _root;
-
     public void Initialize()
     {
         if (_initialized) return;
@@ -44,37 +41,7 @@ public class BasisLocalVirtualSpineDriver
         TrySetOverride(BasisLocalBoneDriver.ChestControl, true);
         TrySetOverride(BasisLocalBoneDriver.SpineControl, true);
         TrySetOverride(BasisLocalBoneDriver.HipsControl, true);
-
-        if (BasisLocalPlayer.Instance != null)
-        {
-            BasisLocalPlayer.Instance.OnPreSimulateBones += OnSimulateHead;
-            _root = BasisLocalPlayer.Instance.transform;
-
-            // Capture torso baselines in world
-            var chest = BasisLocalBoneDriver.ChestControl;
-            var spine = BasisLocalBoneDriver.SpineControl;
-            var hips = BasisLocalBoneDriver.HipsControl;
-
-            if (chest != null)
-            {
-                Vector3 w = LocalTposeToWorld(chest);
-                _chestBaseY = w.y;
-                _chestBaseXZ = new Vector2(w.x, w.z);
-            }
-            if (spine != null)
-            {
-                Vector3 w = LocalTposeToWorld(spine);
-                _spineBaseY = w.y;
-                _spineBaseXZ = new Vector2(w.x, w.z);
-            }
-            if (hips != null)
-            {
-                Vector3 w = LocalTposeToWorld(hips);
-                _hipsBaseY = w.y;
-                _hipsBaseXZ = new Vector2(w.x, w.z);
-            }
-        }
-
+        BasisLocalPlayer.Instance.OnPreSimulateBones += OnSimulateHead;
         _initialized = true;
     }
 
@@ -87,12 +54,7 @@ public class BasisLocalVirtualSpineDriver
         TrySetOverride(BasisLocalBoneDriver.ChestControl, false);
         TrySetOverride(BasisLocalBoneDriver.SpineControl, false);
         TrySetOverride(BasisLocalBoneDriver.HipsControl, false);
-
-        if (BasisLocalPlayer.Instance != null)
-        {
-            BasisLocalPlayer.Instance.OnPreSimulateBones -= OnSimulateHead;
-        }
-
+        BasisLocalPlayer.Instance.OnPreSimulateBones -= OnSimulateHead;
         _initialized = false;
     }
 
@@ -104,8 +66,6 @@ public class BasisLocalVirtualSpineDriver
     public void OnSimulateHead()
     {
         var player = BasisLocalPlayer.Instance;
-        if (player == null) return;
-
         var eye = BasisLocalBoneDriver.EyeControl;
         var head = BasisLocalBoneDriver.HeadControl;
         var neck = BasisLocalBoneDriver.NeckControl;
@@ -113,10 +73,17 @@ public class BasisLocalVirtualSpineDriver
         var spine = BasisLocalBoneDriver.SpineControl;
         var hips = BasisLocalBoneDriver.HipsControl;
 
-        if (eye == null || head == null || neck == null || chest == null || spine == null || hips == null)
-            return;
-
         float dt = Time.deltaTime;
+
+        Vector3 ChestT = chest.TposeLocalScaled.position;
+        _chestBaseY = ChestT.y;
+        _chestBaseXZ = new Vector2(ChestT.x, ChestT.z);
+        Vector3 SpineT = spine.TposeLocalScaled.position;
+        _spineBaseY = SpineT.y;
+        _spineBaseXZ = new Vector2(SpineT.x, SpineT.z);
+        Vector3 HipsT = hips.TposeLocalScaled.position;
+        _hipsBaseY = HipsT.y;
+        _hipsBaseXZ = new Vector2(HipsT.x, HipsT.z);
 
         // Rotations
         head.OutGoingData.rotation = eye.OutGoingData.rotation;
@@ -150,14 +117,10 @@ public class BasisLocalVirtualSpineDriver
         ApplyPositionControl(spine, parentMatrix, rootRotation, LockPlanar.SpineXZ_Y);
         ApplyPositionControl(hips, parentMatrix, rootRotation, LockPlanar.HipsXZ_Y);
     }
-
     private enum LockPlanar { None, ChestXZ_Y, SpineXZ_Y, HipsXZ_Y }
 
     private void ApplyPositionControl(BasisLocalBoneControl boneControl, Matrix4x4 parentMatrix, Quaternion rootRotation, LockPlanar lockPlanar)
     {
-        if (boneControl == null || boneControl.Target == null)
-            return;
-
         // For head/neck we want FULL rotation (pitch+roll+yaw) so the eye and head align.
         // For torso we still compute offset from the target's YAW so pitch doesn't push them.
         Quaternion targetRotFull = boneControl.Target.OutGoingData.rotation;
@@ -197,12 +160,6 @@ public class BasisLocalVirtualSpineDriver
 
         boneControl.OutGoingData.position = pos;
         boneControl.ApplyWorldAndLast(parentMatrix, rootRotation);
-    }
-
-    private Vector3 LocalTposeToWorld(BasisLocalBoneControl control)
-    {
-        if (_root == null || control == null) return Vector3.zero;
-        return _root.localToWorldMatrix.MultiplyPoint3x4(control.TposeLocalScaled.position);
     }
 
     private static Quaternion SmoothSlerp(Quaternion current, Quaternion target, float speed, float dt)
