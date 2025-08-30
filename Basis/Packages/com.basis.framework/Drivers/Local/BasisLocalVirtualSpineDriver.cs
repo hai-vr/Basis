@@ -85,11 +85,11 @@ public class BasisLocalVirtualSpineDriver
     }
     private void ApplyPositionControl(BasisLocalBoneControl boneControl, Matrix4x4 parentMatrix,bool torsoLock)
     {
-        Quaternion targetRotFull = boneControl.Target.OutGoingData.rotation;
-        Quaternion targetRotYaw = ExtractYawRotation(targetRotFull);
-
-        // For torso offsets, use yaw-only so pitch doesn't inject forward/back offsets.
-        Quaternion rotForOffset = torsoLock ? targetRotYaw : targetRotFull;
+        Quaternion Rot = boneControl.Target.OutGoingData.rotation;
+        if (torsoLock)
+        {
+            Rot = ExtractYawRotation(Rot);
+        }
 
         // Choose which offset to use (you can wire these per-bone if desired)
         Vector3 localOffset = boneControl.ScaledOffset;
@@ -97,7 +97,7 @@ public class BasisLocalVirtualSpineDriver
         // Torso stability: ignore the vertical component of the offset so head pitch won't add/subtract height
         if (torsoLock) localOffset.y = 0f;
 
-        Vector3 offset = rotForOffset * localOffset;
+        Vector3 offset = Rot * localOffset;
 
         // Start from the TARGET (tracker-driven) position so we FOLLOW trackers in XZ by default.
         Vector3 desired = boneControl.Target.OutGoingData.position + offset;

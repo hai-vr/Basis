@@ -19,7 +19,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public float rotationY; // pitch (X euler)
         public float rotationX; // yaw   (Y euler)
         public float minimumY = -89f;
-        public float maximumY = 50f;
+        public float maximumY = 65f;
 
         [Header("Mouse/Look")]
         public Vector2 LookRotationVector = Vector2.zero;
