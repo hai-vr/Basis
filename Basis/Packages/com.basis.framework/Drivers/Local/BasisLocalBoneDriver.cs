@@ -222,7 +222,7 @@ namespace Basis.Scripts.Drivers
                     Vector3 BonePosition = Control.OutgoingWorldData.position;
                     if (Control.HasTarget)
                     {
-                        if (BasisGizmoManager.CreateLineGizmo(out Control.LineDrawIndex, BonePosition, Control.Target.OutgoingWorldData.position, 0.1f * Size, Control.Color))
+                        if (BasisGizmoManager.CreateLineGizmo(out Control.LineDrawIndex, BonePosition, Control.Target.OutgoingWorldData.position, 0.05f * Size, Control.Color))
                         {
                             Control.HasLineDraw = true;
                         }

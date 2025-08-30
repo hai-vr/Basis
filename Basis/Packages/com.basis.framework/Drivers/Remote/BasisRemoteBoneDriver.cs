@@ -285,7 +285,7 @@ namespace Basis.Scripts.Drivers
 
                     if (control.HasTarget)
                     {
-                        if (BasisGizmoManager.CreateLineGizmo(out control.LineDrawIndex, bonePos, control.Target.OutGoingData.position, 0.03f, control.Color))
+                        if (BasisGizmoManager.CreateLineGizmo(out control.LineDrawIndex, bonePos, control.Target.OutGoingData.position, 0.03f * scale, control.Color))
                         {
                             control.HasLineDraw = true;
                         }

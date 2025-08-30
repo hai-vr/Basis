@@ -21,11 +21,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public float minimumY = -89f;
         public float maximumY = 50f;
 
-        [Header("Injected Offsets")]
-        public float InjectedX = 0;
-        public float InjectedZ = 0;
-        public float InjectedZRot = 0;
-
         [Header("Mouse/Look")]
         public Vector2 LookRotationVector = Vector2.zero;
 
@@ -36,6 +31,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
         public bool HasEyeEvents = false;
 
+        private Transform _root;
+
         public void Initialize(string ID = "Desktop Eye", string subSystems = "BasisDesktopManagement")
         {
             BasisDebug.Log("Initializing Avatar Eye", BasisDebug.LogTag.Input);
@@ -43,12 +40,12 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             if (BasisLocalPlayer.Instance.LocalAvatarDriver != null)
             {
                 BasisDebug.Log("Using Configured Height " + BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerHeight, BasisDebug.LogTag.Input);
-                ScaledDeviceCoord.position = new Vector3(InjectedX, BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerHeight, InjectedZ);
+                ScaledDeviceCoord.position = new Vector3(0, BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerHeight, 0);
             }
             else
             {
                 BasisDebug.Log("Using Fallback Height " + BasisLocalPlayer.FallbackSize, BasisDebug.LogTag.Input);
-                ScaledDeviceCoord.position = new Vector3(InjectedX, BasisLocalPlayer.FallbackSize, InjectedZ);
+                ScaledDeviceCoord.position = new Vector3(0, BasisLocalPlayer.FallbackSize, 0);
             }
 
             ScaledDeviceCoord.rotation = Quaternion.identity;
@@ -102,6 +99,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             BasisLocalInputActions.Instance.AvatarEyeInput = this;
             AvatarDriver = BasisLocalPlayer.Instance.LocalAvatarDriver;
             Camera = BasisLocalCameraDriver.Instance.Camera;
+            _root = BasisLocalPlayer.Instance.transform;
 
             BasisDeviceManagement Device = BasisDeviceManagement.Instance;
             int count = Device.BasisLockToInputs.Count;
@@ -131,16 +129,13 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 return;
             }
 
-            // Yaw
-            rotationX += lookVector.x * rotationSpeed;
-            // Pitch (invert mouse Y as usual)
-            rotationY -= lookVector.y * rotationSpeed;
+            rotationX += lookVector.x * rotationSpeed; // yaw
+            rotationY -= lookVector.y * rotationSpeed; // pitch (invert Y)
         }
 
         public override void DoPollData()
         {
-            if (!hasRoleAssigned)
-                return;
+            if (!hasRoleAssigned) return;
 
             if (!LookRotationVector.Equals(Vector2.zero))
             {
@@ -151,33 +146,44 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             {
                 BasisLocalInputActions.Instance.InputState.CopyTo(CurrentInputState);
             }
-            var Player = BasisLocalPlayer.Instance;
-            // keep yaw tidy; let it wrap to avoid float growth
-            rotationX = Mathf.Repeat(rotationX, 360f);
 
-            // clamp pitch (do NOT modulo pitch; that breaks clamping)
+            var Player = BasisLocalPlayer.Instance;
+
+            // World eye (SDK helper already returns world)
+            Vector3 tposeEyeWorld = BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position;
+
+            // Use HEAD as pivot (prevents big backward arc when looking up)
+            Vector3 tposeHeadWorld = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position;
+
+            // Eye relative to HEAD (short lever)
+            Vector3 neutralEyeFromHead = tposeEyeWorld - tposeHeadWorld;
+            Vector3 tposePivotWorld = tposeHeadWorld;
+
+            // yaw wrap
+            rotationX = Mathf.Repeat(rotationX, 360f);
+            // pitch clamp
             rotationY = Mathf.Clamp(rotationY, minimumY, maximumY);
 
-            // Build target rotation (pitch around X, yaw around Y)
-            Quaternion targetRot = Quaternion.Euler(rotationY, rotationX, InjectedZRot);
+            Quaternion targetRot = Quaternion.Euler(rotationY, rotationX, 0);
 
-            // Base eye position at rest (before rotation pivot)
-            float baseEyeHeight = Player.LocalAvatarDriver.ActiveAvatarEyeHeight();
-            Vector3 baseEyeWorld = new Vector3(InjectedX, baseEyeHeight, InjectedZ);
-
-            // Apply crouch vertical adjustment after rotation so crouch affects final eye height consistently
+            // Apply crouch at pivot (use head local Y scale)
             if (!CrouchingLock)
             {
                 var crouchMinimum = Player.LocalCharacterDriver.MinimumCrouchPercent;
-                float heightAdjustment = (1 - crouchMinimum) * Player.LocalCharacterDriver.CrouchBlend + crouchMinimum;
-                baseEyeWorld.y -= Control.TposeLocalScaled.position.y * (1 - heightAdjustment);
+                float heightAdj = (1 - crouchMinimum) * Player.LocalCharacterDriver.CrouchBlend + crouchMinimum;
+                float headLocalY = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position.y;
+                float crouchDelta = headLocalY * (1 - heightAdj);
+                tposePivotWorld.y -= crouchDelta;
             }
 
-            // Write out unscaled (tracker space) coords
-            UnscaledDeviceCoord.position = baseEyeWorld;
+            // Rotate small head->eye vector
+            Vector3 rotatedEyeOffset = targetRot * neutralEyeFromHead;
+            Vector3 eyeWorld = tposePivotWorld + rotatedEyeOffset;
+
+            // Output
+            UnscaledDeviceCoord.position = eyeWorld;
             UnscaledDeviceCoord.rotation = targetRot;
 
-            // Mirror to scaled
             ScaledDeviceCoord.position = UnscaledDeviceCoord.position;
             ScaledDeviceCoord.rotation = UnscaledDeviceCoord.rotation;
 
