@@ -157,6 +157,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
             // Eye relative to HEAD (short lever)
             Vector3 neutralEyeFromHead = tposeEyeWorld - tposeHeadWorld;
+            Vector3 tposePivotWorld = tposeHeadWorld;
 
             // yaw wrap
             rotationX = Mathf.Repeat(rotationX, 360f);
@@ -172,12 +173,12 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 float heightAdj = (1 - crouchMinimum) * Player.LocalCharacterDriver.CrouchBlend + crouchMinimum;
                 float headLocalY = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position.y;
                 float crouchDelta = headLocalY * (1 - heightAdj);
-                tposeHeadWorld.y -= crouchDelta;
+                tposePivotWorld.y -= crouchDelta;
             }
 
             // Rotate small head->eye vector
             Vector3 rotatedEyeOffset = targetRot * neutralEyeFromHead;
-            Vector3 eyeWorld = tposeHeadWorld + rotatedEyeOffset;
+            Vector3 eyeWorld = tposePivotWorld + rotatedEyeOffset;
 
             // Output
             UnscaledDeviceCoord.position = eyeWorld;
