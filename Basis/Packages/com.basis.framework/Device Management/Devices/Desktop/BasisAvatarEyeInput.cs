@@ -30,9 +30,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public BasisLocalVirtualSpineDriver BasisVirtualSpine = new BasisLocalVirtualSpineDriver();
 
         public bool HasEyeEvents = false;
-
-        private Transform _root;
-
+        public float X;
+        public float Z;
         public void Initialize(string ID = "Desktop Eye", string subSystems = "BasisDesktopManagement")
         {
             BasisDebug.Log("Initializing Avatar Eye", BasisDebug.LogTag.Input);
@@ -40,12 +39,12 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             if (BasisLocalPlayer.Instance.LocalAvatarDriver != null)
             {
                 BasisDebug.Log("Using Configured Height " + BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerHeight, BasisDebug.LogTag.Input);
-                ScaledDeviceCoord.position = new Vector3(0, BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerHeight, 0);
+                ScaledDeviceCoord.position = new Vector3(X, BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerHeight, Z);
             }
             else
             {
                 BasisDebug.Log("Using Fallback Height " + BasisLocalPlayer.FallbackSize, BasisDebug.LogTag.Input);
-                ScaledDeviceCoord.position = new Vector3(0, BasisLocalPlayer.FallbackSize, 0);
+                ScaledDeviceCoord.position = new Vector3(X, BasisLocalPlayer.FallbackSize, Z);
             }
 
             ScaledDeviceCoord.rotation = Quaternion.identity;
@@ -99,7 +98,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             BasisLocalInputActions.Instance.AvatarEyeInput = this;
             AvatarDriver = BasisLocalPlayer.Instance.LocalAvatarDriver;
             Camera = BasisLocalCameraDriver.Instance.Camera;
-            _root = BasisLocalPlayer.Instance.transform;
 
             BasisDeviceManagement Device = BasisDeviceManagement.Instance;
             int count = Device.BasisLockToInputs.Count;

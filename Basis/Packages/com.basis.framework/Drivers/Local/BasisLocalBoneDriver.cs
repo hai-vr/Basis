@@ -67,10 +67,9 @@ namespace Basis.Scripts.Drivers
         {
             // sequence all other devices to run at the same time
             Matrix4x4 parentMatrix = transform.localToWorldMatrix;
-            Quaternion Rotation = transform.rotation;
             for (int Index = 0; Index < ControlsLength; Index++)
             {
-                Controls[Index].ComputeMovementLocal(parentMatrix, Rotation, deltaTime);
+                Controls[Index].ComputeMovementLocal(parentMatrix, deltaTime);
             }
             if (BasisGizmoManager.UseGizmos)
             {
@@ -82,12 +81,11 @@ namespace Basis.Scripts.Drivers
             // sequence all other devices to run at the same time
             float DeltaTime = Time.deltaTime;
             Matrix4x4 parentMatrix = transform.localToWorldMatrix;
-            Quaternion Rotation = transform.rotation;
             for (int Index = 0; Index < ControlsLength; Index++)
             {
                 Controls[Index].LastRunData.position = Controls[Index].OutGoingData.position;
                 Controls[Index].LastRunData.rotation = Controls[Index].OutGoingData.rotation;
-                Controls[Index].ComputeMovementLocal(parentMatrix, Rotation, DeltaTime);
+                Controls[Index].ComputeMovementLocal(parentMatrix, DeltaTime);
             }
             if (BasisGizmoManager.UseGizmos)
             {
