@@ -104,45 +104,40 @@ public class BasisLocalVirtualSpineDriver
         head.OutGoingData.rotation = eye.OutGoingData.rotation;
         neck.OutGoingData.rotation = SmoothSlerp(neck.OutGoingData.rotation, head.OutGoingData.rotation, NeckRotationSpeed, dt);
 
-        {
-            Quaternion targetChest = SmoothSlerp(chest.OutGoingData.rotation, neck.OutGoingData.rotation, ChestRotationSpeed, dt);
-            chest.OutGoingData.rotation = ExtractYawRotation(targetChest);
-        }
-        {
-            Quaternion targetSpine = SmoothSlerp(spine.OutGoingData.rotation, chest.OutGoingData.rotation, SpineRotationSpeed, dt);
-            spine.OutGoingData.rotation = ExtractYawRotation(targetSpine);
-        }
-        {
-            Quaternion targetHips = SmoothSlerp(hips.OutGoingData.rotation, spine.OutGoingData.rotation, HipsRotationSpeed, dt);
-            hips.OutGoingData.rotation = ExtractYawRotation(targetHips);
-        }
+        Quaternion targetChest = SmoothSlerp(chest.OutGoingData.rotation, neck.OutGoingData.rotation, ChestRotationSpeed, dt);
+        chest.OutGoingData.rotation = ExtractYawRotation(targetChest);
+
+        Quaternion targetSpine = SmoothSlerp(spine.OutGoingData.rotation, chest.OutGoingData.rotation, SpineRotationSpeed, dt);
+        spine.OutGoingData.rotation = ExtractYawRotation(targetSpine);
+
+        Quaternion targetHips = SmoothSlerp(hips.OutGoingData.rotation, spine.OutGoingData.rotation, HipsRotationSpeed, dt);
+        hips.OutGoingData.rotation = ExtractYawRotation(targetHips);
 
         // World matrices for finalization
         Matrix4x4 parentMatrix = BasisLocalPlayer.Instance.transform.localToWorldMatrix;
-        Quaternion rootRotation = parentMatrix.rotation;
 
         // Positions:
         // Head/Neck: full rotation offsets so eyes/head co-locate.
-        ApplyPositionControl(head, parentMatrix, rootRotation, TorsoLock.None);
-        ApplyPositionControl(neck, parentMatrix, rootRotation, TorsoLock.None);
+        ApplyPositionControl(head, parentMatrix, TorsoLock.None);
+        ApplyPositionControl(neck, parentMatrix, TorsoLock.None);
 
         // Torso: follow tracker XZ; optionally lock Y to baseline. (Optionally XZ too, if you really want the old behavior.)
-        ApplyPositionControl(chest, parentMatrix, rootRotation, SelectLock(TorsoSegment.Chest));
-        ApplyPositionControl(spine, parentMatrix, rootRotation, SelectLock(TorsoSegment.Spine));
-        ApplyPositionControl(hips, parentMatrix, rootRotation, SelectLock(TorsoSegment.Hips));
+        ApplyPositionControl(chest, parentMatrix, SelectLock());
+        ApplyPositionControl(spine, parentMatrix, SelectLock());
+        ApplyPositionControl(hips, parentMatrix, SelectLock());
     }
 
     private enum TorsoSegment { Chest, Spine, Hips }
     private enum TorsoLock { None, LockY, LockXZ_Y }
 
-    private TorsoLock SelectLock(TorsoSegment seg)
+    private TorsoLock SelectLock()
     {
         if (LockTorsoXZToBaseline) return TorsoLock.LockXZ_Y;
         if (LockTorsoYToBaseline) return TorsoLock.LockY;
         return TorsoLock.None;
     }
 
-    private void ApplyPositionControl(BasisLocalBoneControl boneControl, Matrix4x4 parentMatrix, Quaternion rootRotation, TorsoLock torsoLock)
+    private void ApplyPositionControl(BasisLocalBoneControl boneControl, Matrix4x4 parentMatrix,TorsoLock torsoLock)
     {
         Quaternion targetRotFull = boneControl.Target.OutGoingData.rotation;
         Quaternion targetRotYaw = ExtractYawRotation(targetRotFull);
