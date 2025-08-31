@@ -57,8 +57,10 @@ public static class BasisAnimationRiggingHelper
 
         GameObject BoneRole = CreateAndSetParent(Parent.transform, $"Bone Role {TargetRole.ToString()}");
         TwoBoneIKConstraint = BasisHelpers.GetOrAddComponent<BasisTwoBoneIKConstraintHand>(BoneRole);
+
         TwoBoneIKConstraint.data.M_CalibratedOffset = new Vector3(0, 0, 0);
         TwoBoneIKConstraint.data.M_CalibratedRotation = tip.rotation;
+
         TwoBoneIKConstraint.data.TargetPosition = TargetControl.OutgoingWorldData.position;
         TwoBoneIKConstraint.data.TargetRotation = TargetControl.OutgoingWorldData.rotation;
 
@@ -142,8 +144,8 @@ public static class BasisAnimationRiggingHelper
 
         // Set the transform references FIRST
         SpineIKConstraint.data.hips = hips;
-        SpineIKConstraint.data.hipsOffsetRotation = Quaternion.identity;
-     //   SpineIKConstraint.data.hipsOffsetRotation = hips.rotation;
+        //SpineIKConstraint.data.hipsOffsetRotation = Quaternion.identity;
+        SpineIKConstraint.data.hipsOffsetRotation = hips.rotation;
         GeneratedRequiredTransforms(player, head);
     }
 }
