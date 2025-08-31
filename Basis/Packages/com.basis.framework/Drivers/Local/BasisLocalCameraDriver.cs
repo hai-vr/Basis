@@ -9,8 +9,6 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.XR;
 using Vector3 = UnityEngine.Vector3;
-using BattlePhaze.SettingsManager;
-
 namespace Basis.Scripts.Drivers
 {
     public class BasisLocalCameraDriver : MonoBehaviour
