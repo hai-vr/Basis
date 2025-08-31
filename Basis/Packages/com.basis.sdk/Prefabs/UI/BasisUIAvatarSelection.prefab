@@ -643,53 +643,64 @@ MonoBehaviour:
     BasisRemoteBundleEncrypted:
       RemoteBeeFileLocation: LoadingAvatar
     BasisLocalEncryptedBundle:
-      DownloadedBeeFileLocation: LoadingAvatar
+      DownloadedBeeFileLocation: 
     BasisBundleConnector:
       UniqueVersion: LoadingAvatar
       BasisBundleDescription:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
-  - UnlockPassword: e5765edd8311b503ad1a6aac515c15af570390168a3b4753d0b1a0de0fbf2568
+  - UnlockPassword: 40cf646ab38123ddca3cdb54077bc7bd030ad2c4c7bd7387b3acf5dbf91651f3
     BasisRemoteBundleEncrypted:
-      RemoteBeeFileLocation: https://basisframework.b-cdn.net/Avatars/BEE/BEE/Aurellia/91902582235a4825b972ccdcd6a9f16620250713.BEE
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Yun/2b8c84cd12ea4899ab196e17f664db1f20250831.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
-      UniqueVersion: 
+      UniqueVersion: LoadingAvatar
       BasisBundleDescription:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
-  - UnlockPassword: ad6dd4aad8e0a8900368d5113fa0354786eebcae2c522312ada3ec07d4ea099b
+  - UnlockPassword: 987e4f7a8d0c483408b181b09896513b45b098af51892596877b8b828dd82016
     BasisRemoteBundleEncrypted:
-      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Avatars/BEE/BEE/Yun/3688ac9f556e4855ba75e148bea5296920250713.BEE
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/bunbum/e9f7dbaf8b454c6b94923a5c8f441fd420250831.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
-      UniqueVersion: 
+      UniqueVersion: LoadingAvatar
       BasisBundleDescription:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
-  - UnlockPassword: 56111b7c8a373d7d66095eebf71a11c1e766380289afad16082364ed3dcd0f13
+  - UnlockPassword: 2ddf45d646410d5d5d851c62222d9dca7f461837769881cb4e54d34c02a557dd
     BasisRemoteBundleEncrypted:
-      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Avatars/DX11/ThirdParty/Mako/1fa16808bbaf4881b681336848402dbb20250720.BEE
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Aurellia/2f31776fc2e243ab982769b397cd3b3e20250831.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
-      UniqueVersion: 
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+  - UnlockPassword: 085ac70800a4fb35437a0cba471e78c7e2f865e97097f2d910012a1f91829a96
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Mako/e4997037845841a792912a3afb5f695320250831.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
       BasisBundleDescription:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
   - UnlockPassword: 8e778e7cc87e38db7f683c9bd0744f89d32dc777e51745065f7602af88bc412e
     BasisRemoteBundleEncrypted:
-      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Avatars/BEE/BEE/Yun/bc861cc734754d5786f6ad127b7fa05f20250730.BEE
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/ezavatars/bc861cc734754d5786f6ad127b7fa05f20250730.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
-      UniqueVersion: 
+      UniqueVersion: LoadingAvatar
       BasisBundleDescription:
         AssetBundleName: 
         AssetBundleDescription: 

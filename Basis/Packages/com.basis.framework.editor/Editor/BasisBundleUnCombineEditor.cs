@@ -75,8 +75,10 @@ public class BasisBundleUnCombineEditor : EditorWindow
         {
             EditorUtility.DisplayProgressBar("Loading", "Preparing to read BEE file...", 0.1f);
 
-            BasisTrackedBundleWrapper bundleWrapper = new BasisTrackedBundleWrapper();
-            bundleWrapper.LoadableBundle = new BasisLoadableBundle();
+            BasisTrackedBundleWrapper bundleWrapper = new BasisTrackedBundleWrapper
+            {
+                LoadableBundle = new BasisLoadableBundle()
+            };
             bundleWrapper.LoadableBundle.BasisLocalEncryptedBundle.DownloadedBeeFileLocation = LocalFile;
             bundleWrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation = LocalFile;
 
