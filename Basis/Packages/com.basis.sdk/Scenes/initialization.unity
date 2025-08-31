@@ -167,10 +167,6 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 2964141905449137060, guid: f84144c055f881f4797d59bd2802d4a4, type: 3}
-      propertyPath: Position.z
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 6945557231596396514, guid: f84144c055f881f4797d59bd2802d4a4, type: 3}
       propertyPath: m_Name
       value: BasisOnSceneLoadCleanup
