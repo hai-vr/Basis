@@ -295,7 +295,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   LoadRequest: UserNamePanel
-  Selector: 2
+  Selector: 1
   Result: {fileID: 0}
   Position: {x: 0, y: 0, z: 1}
   Rotation: {x: 0, y: 0, z: 0, w: 1}
