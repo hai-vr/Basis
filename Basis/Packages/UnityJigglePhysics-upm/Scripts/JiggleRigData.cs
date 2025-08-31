@@ -32,6 +32,9 @@ public struct JiggleRigData {
     private JiggleTreeSegment segment;
 
     public void OnEnable() {
+        if (rootBone == null) {
+            throw new UnityException("Jiggle Rig enabled without a root bone assigned!");
+        }
         segment ??= new JiggleTreeSegment(rootBone, this);
         segment.SetDirty();
         JigglePhysics.AddJiggleTreeSegment(segment);
@@ -78,6 +81,10 @@ public struct JiggleRigData {
         ValidateCurve(ref jiggleTreeInputParameters.gravity.curve);
         ValidateCurve(ref jiggleTreeInputParameters.collisionRadius.curve);
         BuildNormalizedDistanceFromRootList();
+        if (jiggleColliders is { Length: > 32 }) {
+            Debug.LogWarning("JigglePhysics: Maximum of 32 personal Jiggle Colliders are supported per tree. Extra colliders will be dropped.");
+            Array.Resize(ref jiggleColliders, 32);
+        }
     }
     public void BuildNormalizedDistanceFromRootList() {
         if (!rootBone) {
@@ -93,14 +100,14 @@ public struct JiggleRigData {
         if (GetIsExcluded(t)) {
             return;
         }
-        currentLength += Vector3.Distance(lastPosition, t.position);
+        var validChildrenCount = GetValidChildrenCount(t);
         var scale = t.lossyScale;
+        currentLength += Vector3.Distance(lastPosition, t.position);
         data.Add(new JiggleTransformCachedData() {
             bone = t,
             normalizedDistanceFromRoot = currentLength / totalLength,
             lossyScale = (scale.x + scale.y + scale.x)/3f,
         });
-        var validChildrenCount = GetValidChildrenCount(t);
         for (int i = 0; i < validChildrenCount; i++) {
             var child = GetValidChild(t, i);
             VisitAndSetCacheData(data, child, t.position, currentLength, totalLength);
@@ -151,6 +158,32 @@ public struct JiggleRigData {
         }
         return 0f;
     }
+
+    /// <summary>
+    /// Sends updated parameters to the jiggle tree on the jobs side. Uses the provided list to prevent allocations.
+    /// </summary>
+    /// <param name="parameters">empty list purely used to prevent allocations</param>
+    public void UpdateParameters(List<JigglePointParameters> parameters) {
+        if (segment == null || segment.jiggleTree == null) {
+            return;
+        }
+        
+        parameters.Clear();
+        var bones = segment?.jiggleTree.bones;
+        if (bones == null) {
+            return;
+        }
+        var boneCount = bones.Length;
+        for (int i = 0; i < boneCount; i++) {
+            var bone = bones[i];
+            var normalizedDistanceFromRoot = GetNormalizedDistanceFromRoot(bone);
+            var cachedScale = GetCachedLossyScale(bone);
+            var lossySample = bone.lossyScale;
+            var lossyRealScale = (lossySample.x + lossySample.y + lossySample.z)/3f;
+            parameters.Add(GetJiggleBoneParameter(normalizedDistanceFromRoot, cachedScale, lossyRealScale));
+        }
+        segment?.jiggleTree.SetParameters(parameters);
+    }
     
     public float GetCachedLossyScale(Transform t) {
         var count = transformCachedData.Length;
@@ -184,6 +217,62 @@ public struct JiggleRigData {
             jiggleColliders = Array.Empty<JiggleColliderSerializable>() 
         };
     }
+
+    public void OnDrawGizmos() {
+        if (jiggleColliders != null) {
+            var count = jiggleColliders.Length;
+            for(int i=0;i<count;i++) {
+                jiggleColliders[i].OnDrawGizmos();
+            }
+        }
+        
+        if (!rootBone) return;
+        Gizmos.color = Color.whiteSmoke;
+        var jiggleTree = JigglePhysics.CreateJiggleTree(this, null);
+        var points = jiggleTree.points;
+        var parameters = jiggleTree.parameters;
+        var pointCount = points.Length;
+        var cam = Camera.current;
+        for (var index = 0; index < pointCount; index++) {
+            var simulatedPoint = points[index];
+            if (simulatedPoint.parentIndex == -1) continue;
+            if (!points[simulatedPoint.parentIndex].hasTransform) continue;
+            DrawBone(points[simulatedPoint.parentIndex].position, simulatedPoint.position, jiggleTree.bones[index].lossyScale, parameters[simulatedPoint.parentIndex], cam);
+        }
+    }
+    
+    private static void DrawWireDisc(Vector3 center, Vector3 normal, float radius, int segmentCount = 32) {
+        normal.Normalize();
+        Vector3 up = normal;
+        Vector3 forward = Vector3.Slerp(up, -up, 0.5f);
+        Vector3 right = Vector3.Cross(up, forward).normalized * radius;
+
+        float angleStep = 360f / segmentCount;
+        Vector3 prevPoint = center + right;
+        for (int i = 1; i <= segmentCount; i++) {
+            float angle = angleStep * i;
+            Quaternion rot = Quaternion.AngleAxis(angle, up);
+            Vector3 nextPoint = center + rot * right;
+            Gizmos.DrawLine(prevPoint, nextPoint);
+            prevPoint = nextPoint;
+        }
+    }
+    
+    private void DrawBone(Vector3 boneHead, Vector3 boneTail, Vector3 boneScale, JigglePointParameters jigglePointParameters, Camera cam) {
+        var camForward = cam.transform.forward;
+        var fixedScreenSize = 0.01f;
+        var toCam = cam.transform.position - boneHead;
+        var distance = toCam.magnitude;
+        var scale = distance * fixedScreenSize;
+        scale = jigglePointParameters.collisionRadius * (boneScale.x + boneScale.y + boneScale.z)/3f;
+        DrawWireDisc(boneHead, camForward, scale);
+        Gizmos.DrawLine(boneHead, boneTail);
+        var boneDirection = (boneTail - boneHead).normalized;
+        var angleLimitScale = 0.05f;
+        DrawWireDisc(boneHead + boneDirection * (angleLimitScale * Mathf.Cos(jigglePointParameters.angleLimit * Mathf.Deg2Rad)),
+            boneDirection,
+            angleLimitScale * Mathf.Sin(jigglePointParameters.angleLimit * Mathf.Deg2Rad));
+    }
 #if UNITY_EDITOR
     public VisualElement GetInspectorVisualElement(SerializedProperty serializedProperty) {
         var visualElement = new VisualElement();
@@ -195,7 +284,7 @@ public struct JiggleRigData {
             "StiffnessControl",
             nameof(JiggleTreeInputParameters.stiffness),
             "Stiffness",
-            0.3f,
+            0.2f,
             1f,
             "Stiffness controls how strongly the bone returns to its rest pose. A value of 1 makes it immovable, while a value of 0 makes it fall freely."
         );
@@ -235,6 +324,14 @@ public struct JiggleRigData {
             nameof(JiggleTreeInputParameters.soften),
             "Soften",
             "Weakens the stiffness of the bone when it's closer to the target pose. Prevents large deformations, while still looking very soft."
+        );
+        SetSlider(
+            visualElement,
+            serializedProperty,
+            "IgnoreRootMotionSlider",
+            nameof(JiggleTreeInputParameters.ignoreRootMotion),
+            "Ignore Root Motion",
+            "Prevents movement from root transform accelleration."
         );
         SetSlider(
             visualElement,
@@ -385,33 +482,6 @@ public struct JiggleRigData {
         toggle.RegisterValueChangedCallback(evt => {
             stiffnessCurveElement.style.display = evt.newValue ? DisplayStyle.Flex : DisplayStyle.None;
         });
-    }
-    
-    private void DrawBone(Vector3 boneHead, Vector3 boneTail, Vector3 boneScale, JigglePointParameters jigglePointParameters, Camera cam) {
-        var camForward = cam.transform.forward;
-        var fixedScreenSize = 0.01f;
-        var toCam = cam.transform.position - boneHead;
-        var distance = toCam.magnitude;
-        var scale = distance * fixedScreenSize;
-        scale = jigglePointParameters.collisionRadius * (boneScale.x + boneScale.y + boneScale.z)/3f;
-        Handles.DrawWireDisc(boneHead, camForward, scale);
-        Handles.DrawLine(boneHead, boneTail);
-        var boneDirection = (boneTail - boneHead).normalized;
-        var angleLimitScale = 0.05f;
-        Handles.DrawWireDisc(
-            boneHead + boneDirection * (angleLimitScale * Mathf.Cos(jigglePointParameters.angleLimit * Mathf.Deg2Rad)),
-            boneDirection, angleLimitScale * Mathf.Sin(jigglePointParameters.angleLimit * Mathf.Deg2Rad));
-    }
-    public void OnSceneGUI(Camera cam) {
-        if (!rootBone) return;
-        var jiggleTree = JigglePhysics.CreateJiggleTree(this, null);
-        var points = jiggleTree.points;
-        for (var index = 0; index < points.Length; index++) {
-            var simulatedPoint = points[index];
-            if (simulatedPoint.parentIndex == -1) continue;
-            if (!points[simulatedPoint.parentIndex].hasTransform) continue;
-            DrawBone(points[simulatedPoint.parentIndex].position, simulatedPoint.position, jiggleTree.bones[index].lossyScale, points[simulatedPoint.parentIndex].parameters, cam);
-        }
     }
 #endif
 }

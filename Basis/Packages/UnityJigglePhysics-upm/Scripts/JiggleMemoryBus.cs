@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Jobs;
@@ -67,10 +68,10 @@ public class JiggleMemoryBus {
     public JiggleDoubleBufferTransformAccessArray doubleBufferSceneColliderTransformAccessArray;
 
     private List<JiggleTree> pendingAddTrees;
-    private List<int> pendingRemoveTrees;
+    private List<JiggleTree> pendingRemoveTrees;
 
     private List<JiggleTree> pendingProcessingAdds;
-    private List<int> pendingProcessingRemoves;
+    private List<JiggleTree> pendingProcessingRemoves;
 
     private JiggleMemoryFragmenter preMemoryFragmenter;
     private JiggleMemoryFragmenter memoryFragmenter;
@@ -109,6 +110,18 @@ public class JiggleMemoryBus {
         } else {
             dummyTransforms = new List<Transform>();
         }
+    }
+
+    public void GetResults(JobHandle interpolationJobHandle, JobHandle simulateJobHandle, out JiggleTransform[] poses, out JiggleTreeJobData[] treeJobData, out int poseCount, out int treeCount) {
+        interpolationJobHandle.Complete();
+        simulateJobHandle.Complete();
+        
+        ReadIn(interpolationOutputPoses, interpolationOutputPosesArray, transformCount);
+        ReadIn(jiggleTreeStructs, jiggleTreeStructsArray, this.treeCount);
+        poseCount = transformCount;
+        treeCount = this.treeCount;
+        poses = interpolationOutputPosesArray;
+        treeJobData = jiggleTreeStructsArray;
     }
 
     public static Transform GetDummyTransform(int index) {
@@ -399,13 +412,13 @@ public class JiggleMemoryBus {
         #region AddColliders
 
         if (jiggleTreeJobData.colliderCount > 0) {
-            var success =
-                personalColliderMemoryFragmenter.TryAllocate((int)jiggleTreeJobData.colliderCount, out var colliderStartIndex);
+            var success = personalColliderMemoryFragmenter.TryAllocate((int)jiggleTreeJobData.colliderCount, out var colliderStartIndex);
             if (!success) {
                 ResizePersonalColliderCapacity(personalColliderCapacity * 2);
                 personalColliderMemoryFragmenter.TryAllocate((int)jiggleTreeJobData.colliderCount, out colliderStartIndex);
             }
 
+            jiggleTree.SetColliderIndexOffset(colliderStartIndex);
             jiggleTreeJobData.colliderIndexOffset = (uint)colliderStartIndex;
             while (personalColliderTransformAccessList.Count < colliderStartIndex + (int)jiggleTreeJobData.colliderCount) {
                 personalColliderTransformAccessList.Add(jiggleTree.bones[0]);
@@ -442,6 +455,7 @@ public class JiggleMemoryBus {
     }
 
     private void AddTreeToSlice(int index, JiggleTree jiggleTree, JiggleTreeJobData jiggleTreeJobData) {
+        jiggleTree.SetTransformIndexOffset(index);
         jiggleTreeJobData.transformIndexOffset = (uint)index;
         
         if (treeCount + 1 > treeCapacity) {
@@ -566,7 +580,7 @@ public class JiggleMemoryBus {
             preTransformCount = transformCount;
 
             for (int i = 0; i < pendingRemoveCount; i++) {
-                var currentRemoveID = pendingRemoveTrees[i];
+                var currentRemoveID = pendingRemoveTrees[i].rootID;
                 PreRemoveTree(currentRemoveID);
             }
 
@@ -613,8 +627,10 @@ public class JiggleMemoryBus {
 
             Profiler.BeginSample("JiggleMemoryBus.Commit.Remove");
             for (int i = 0; i < processingPendingRemoveCount; i++) {
-                var currentRemoveID = pendingProcessingRemoves[i];
+                var tree = pendingProcessingRemoves[i];
+                var currentRemoveID = pendingProcessingRemoves[i].rootID;
                 RemoveTree(currentRemoveID);
+                tree.Dispose();
             }
 
             pendingProcessingRemoves.Clear();
@@ -685,16 +701,16 @@ public class JiggleMemoryBus {
         pendingAddTrees.Add(jiggleTree);
     }
 
-    public void Remove(int rootBoneInstanceID) {
+    public void Remove(JiggleTree jiggleTree) {
         var count = pendingAddTrees.Count;
         for (int i = 0; i < count; i++) {
-            if (pendingAddTrees[i].rootID == rootBoneInstanceID) {
+            if (pendingAddTrees[i].rootID == jiggleTree.rootID) {
                 pendingAddTrees.RemoveAt(i);
                 return;
             }
         }
 
-        pendingRemoveTrees.Add(rootBoneInstanceID);
+        pendingRemoveTrees.Add(jiggleTree);
     }
 
     public void Dispose() {

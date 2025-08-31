@@ -50,18 +50,23 @@ public class JiggleJobs {
     public JiggleJobTransformWrite jobTransformWrite;
 
 
-    public JiggleJobs() {
+    public JiggleJobs(double timeAsDouble, float fixedDeltaTime) {
         _memoryBus = new JiggleMemoryBus();
-        jobSimulate = new JiggleJobSimulate(_memoryBus);
+        jobSimulate = new JiggleJobSimulate(_memoryBus, fixedDeltaTime);
         jobBulkTransformRead = new JiggleJobBulkTransformRead(_memoryBus);
         jobBulkTransformReset = new JiggleJobBulkTransformReset(_memoryBus);
         jobBulkReadRoots = new JiggleJobBulkReadRoots(_memoryBus);
-        jobInterpolation = new JiggleJobInterpolation(_memoryBus, Time.timeAsDouble);
+        jobInterpolation = new JiggleJobInterpolation(_memoryBus, timeAsDouble, fixedDeltaTime);
         jobBulkPersonalColliderTransformRead = new JiggleJobBulkColliderTransformRead(_memoryBus.personalColliders);
         jobBulkSceneColliderTransformRead = new JiggleJobBulkColliderTransformRead(_memoryBus.sceneColliders);
         jobTransformWrite = new JiggleJobTransformWrite(_memoryBus);
         jobBroadPhase = new JiggleJobBroadPhase(_memoryBus);
         jobBroadPhaseClear = new JiggleJobBroadPhaseClear(_memoryBus);
+    }
+    
+    public void SetFixedDeltaTime(float fixedDeltaTime) {
+        jobSimulate.SetFixedDeltaTime(fixedDeltaTime);
+        jobInterpolation.SetFixedDeltaTime(fixedDeltaTime);
     }
 
     public void Dispose() {
@@ -73,6 +78,8 @@ public class JiggleJobs {
         if (hasHandleInterpolate) handleInterpolate.Complete();
         if (hasHandlePersonalColliderRead) handlePersonalColliderRead.Complete();
         if (hasHandleSceneColliderRead) handleSceneColliderRead.Complete();
+        if (hasHandleBroadPhase) handleBroadPhase.Complete();
+        if (hasHandleBroadPhaseClear) handleBroadPhaseClear.Complete();
         _memoryBus.Dispose();
     }
 
@@ -82,8 +89,13 @@ public class JiggleJobs {
         }
         jobBulkTransformReset.UpdateArrays(_memoryBus);
         // TODO: This technically only needs to happen for root bones, as their positions are used for posing. Instead just doing a full reset because I'm lazy.
-        handleBulkReset = jobBulkTransformReset.Schedule(_memoryBus.GetTransformAccessArray());
+        if (hasHandleBulkReset) {
+            handleBulkReset = jobBulkTransformReset.Schedule(_memoryBus.GetTransformAccessArray(), handleBulkReset);
+        } else {
+            handleBulkReset = jobBulkTransformReset.Schedule(_memoryBus.GetTransformAccessArray());
+        }
         hasHandleBulkReset = true;
+
         return SchedulePoses(handleBulkReset, timeAsDouble);
     }
 
@@ -101,6 +113,7 @@ public class JiggleJobs {
 
         jobInterpolation.currentTime = timeAsDouble;
         handleInterpolate = jobInterpolation.ScheduleParallel(_memoryBus.transformCount, 128, handleRootRead);
+        hasHandleInterpolate = true;
 
         if (hasHandleBulkRead) {
             handleTransformWrite = jobTransformWrite.Schedule(_memoryBus.GetTransformAccessArray(),
@@ -156,30 +169,28 @@ public class JiggleJobs {
         jobBulkSceneColliderTransformRead.UpdateArrays(_memoryBus.sceneColliders);
         jobBroadPhase.UpdateArrays(_memoryBus);
         jobBroadPhaseClear.UpdateArrays(_memoryBus);
+
+        handlePersonalColliderRead = jobBulkPersonalColliderTransformRead.ScheduleReadOnly( _memoryBus.GetPersonalColliderTransformAccessArray(), 128);
+        handleSceneColliderRead = jobBulkSceneColliderTransformRead.ScheduleReadOnly(_memoryBus.GetSceneColliderTransformAccessArray(), 128);
+        hasHandlePersonalColliderRead = true;
+        hasHandleSceneColliderRead = true;
         
-        handleBulkReset = jobBulkTransformReset.Schedule(_memoryBus.GetTransformAccessArray());
+        var colliderHandles = JobHandle.CombineDependencies(handlePersonalColliderRead, handleSceneColliderRead);
+        
+        handleBroadPhaseClear = jobBroadPhaseClear.Schedule();
+        hasHandleBroadPhaseClear = true;
+        handleBroadPhase = jobBroadPhase.Schedule(JobHandle.CombineDependencies(colliderHandles, handleBroadPhaseClear));
+        hasHandleBroadPhase = true;
+        
+        handleBulkReset = jobBulkTransformReset.Schedule(_memoryBus.GetTransformAccessArray(), colliderHandles);
         hasHandleBulkReset = true;
 
         handleBulkRead = jobBulkTransformRead.ScheduleReadOnly(_memoryBus.GetTransformAccessArray(), 128, handleBulkReset);
         hasHandleBulkRead = true;
 
-        handlePersonalColliderRead = jobBulkPersonalColliderTransformRead.ScheduleReadOnly(_memoryBus.GetPersonalColliderTransformAccessArray(), 128);
-        hasHandlePersonalColliderRead = true;
-        
-        handleSceneColliderRead = jobBulkSceneColliderTransformRead.ScheduleReadOnly(_memoryBus.GetSceneColliderTransformAccessArray(), 128);
-        hasHandleSceneColliderRead = true;
-
-        var handle = SchedulePoses(handleBulkReset, realTime);
-        
-        var colliderHandles = JobHandle.CombineDependencies(handlePersonalColliderRead, handleSceneColliderRead);
-        
-        var broadPhaseClearHandle = jobBroadPhaseClear.Schedule();
-        var broadPhaseHandle = jobBroadPhase.Schedule(JobHandle.CombineDependencies(colliderHandles, broadPhaseClearHandle));
-
         jobSimulate.gravity = gravity;
         jobSimulate.timeStamp = simulateTime;
-        handleSimulate = jobSimulate.ScheduleParallel(_memoryBus.treeCount, 1,
-            JobHandle.CombineDependencies(broadPhaseHandle, colliderHandles, handle));
+        handleSimulate = jobSimulate.ScheduleParallel(_memoryBus.treeCount, 1, JobHandle.CombineDependencies(handleBroadPhase, handleBulkRead));
         hasHandleSimulate = true;
     }
 
@@ -188,7 +199,7 @@ public class JiggleJobs {
     }
 
     public void Remove(JiggleTree tree) {
-        _memoryBus.Remove(tree.rootID);
+        _memoryBus.Remove(tree);
     }
     
     public void Add(JiggleColliderSerializable collider) {
@@ -200,12 +211,41 @@ public class JiggleJobs {
     }
 
     public void OnDrawGizmos() {
-        if (!hasHandleSimulate || !Application.isEditor) return;
-        handleSimulate.Complete();
-        jobSimulate.jiggleTrees.CopyTo(_memoryBus.jiggleTreeStructs);
-        for (int i = 0; i < _memoryBus.treeCount; i++) {
-            var tree = _memoryBus.jiggleTreeStructs[i];
-            tree.OnGizmoDraw();
+        if (!hasHandleInterpolate || !hasHandleSimulate || !Application.isEditor) {
+            return;
+        }
+
+        _memoryBus.GetResults(handleInterpolate, handleSimulate, out var poses, out var trees, out var poseCount, out var treeCount);
+        for (int i = 0; i < treeCount; i++) {
+            var tree = trees[i];
+            for (int o = 0; o < tree.pointCount; o++) {
+                unsafe {
+                    var pose = poses[o+tree.transformIndexOffset];
+                    var point = tree.points[o];
+                    if (!pose.isVirtual) {
+                        Gizmos.color = Color.cyan;
+                        Gizmos.DrawWireSphere(pose.position, point.worldRadius);
+                    } else {
+                        //Gizmos.color = point.parentIndex == -1 ? Color.crimson : Color.magenta;
+                        //Gizmos.DrawWireSphere(point.position, 0.025f);
+                    }
+
+
+                    if (point.childenCount != 0) {
+                        for (int j = 0; j < point.childenCount; j++) {
+                            var childPoint = tree.points[point.childrenIndices[j]];
+                            var childPose = poses[point.childrenIndices[j] + tree.transformIndexOffset];
+                            if (!childPose.isVirtual) {
+                                Gizmos.color = Color.cyan;
+                                Gizmos.DrawLine(pose.position, childPose.position);
+                            } else {
+                                //Gizmos.color = Color.magenta;
+                                //Gizmos.DrawLine(point.position, childPoint.position);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
