@@ -2495,7 +2495,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 0
+  m_PresetInfoIsWorld: 1
 --- !u!114 &6077037468796798871
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2560,6 +2560,7 @@ MonoBehaviour:
   UserVolumeOverride: {fileID: 5896608750906000183}
   ToggleAvatar: {fileID: 8753921348700991057}
   ToggleAvatarInteraction: {fileID: 6239213909282466577}
+  RequestAvatarClone: {fileID: 7229101000435601265}
   AvatarVisibleText: {fileID: 4588865874792497191}
   AvatarInteractionsText: {fileID: 1409361127309871772}
   SliderVolumePercentage: {fileID: 8575683124576048691}
@@ -2567,7 +2568,6 @@ MonoBehaviour:
   PlayerUUID: {fileID: 855598547334294540}
   RemotePlayer: {fileID: 0}
   BasisUIVolumeSampler: {fileID: 4347707213697488483}
-  RequestAvatarClone: {fileID: 7229101000435601265}
   step: 0.05
 --- !u!1 &5448616847506779544
 GameObject:

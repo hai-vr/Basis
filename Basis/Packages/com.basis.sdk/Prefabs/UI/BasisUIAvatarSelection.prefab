@@ -597,7 +597,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 0
+  m_PresetInfoIsWorld: 1
 --- !u!114 &3843996678262047675
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -653,6 +653,50 @@ MonoBehaviour:
   - UnlockPassword: 8e778e7cc87e38db7f683c9bd0744f89d32dc777e51745065f7602af88bc412e
     BasisRemoteBundleEncrypted:
       RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/ezavatars/bc861cc734754d5786f6ad127b7fa05f20250730.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+  - UnlockPassword: 36e3307d767ca569e2c451dc4765a752f77239a5964ddf7227b1baa1c5dc2859
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/bunbum/1ab5101ff2684157bed25796ff1853fe20250831.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+  - UnlockPassword: 21475eea7d2d986074310b4f86aedfc6f2bbe0c67e292a4cc8447ce0fc815560
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Yun/96c152945202418a94bdc710929999c020250831.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+  - UnlockPassword: c914274e0763e2cc5483e0f45d6f17bea6a6d22ffdf4c478f593a3370f0bc495
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Aurellia/ddd7a5b8b6f34afdae17a65d795b329620250831.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+  - UnlockPassword: 113332d5fee840829a0f2ee318dfcfb6e18b10a305c148729a5fa09f22a0a6bb
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Mako/49543a7895164b1f871c531ac9382ebe20250831.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
