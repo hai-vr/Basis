@@ -111,7 +111,7 @@ namespace Basis.Scripts.Drivers
             var hipsPos = GetPosFilter(BasisBoneTrackedRole.Hips).Filter(hipsCoords.position, _timeAccumulator);
             //  var hipsRot = GetRotFilter(BasisBoneTrackedRole.Hips).Filter(hipsCoords.rotation, _timeAccumulator);
 
-            ApplySpineIKTarget(headCoords,
+            ApplySpineIKTarget(
                 new BasisCalibratedCoords
                 {
                     position = hipsPos,
@@ -223,13 +223,10 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        public void ApplySpineIKTarget(BasisCalibratedCoords head, BasisCalibratedCoords hip)
+        public void ApplySpineIKTarget(BasisCalibratedCoords hip)
         {
             SpineIK.data.hipsTargetPosition = hip.position;
             SpineIK.data.hipsTargetRotationEuler = hip.rotation;
-
-            SpineIK.data.headTargetPosition = head.position;
-            SpineIK.data.headTargetRotationEuler = head.rotation;
         }
         public void ApplyBoneIKHint(BasisTwoBoneIKConstraint Constraint, Vector3 Position, Quaternion Rotation, Vector3 Direction)
         {
