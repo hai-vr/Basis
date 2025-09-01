@@ -21,6 +21,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
         public void Initialize(OpenVRDevice device, string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, SteamVR_Input_Sources SteamVR_Input_Sources)
         {
+            HandBiasSplay = -0.8f;
             leftHandToIKRotationOffset = new Vector3(180, 0, -120);
             rightHandToIKRotationOffset = new Vector3(180, 0, 120);
 
@@ -121,11 +122,11 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             float littleSplay01 = ringPinky;
 
             // Map to your rig space [-1..1] and assign to the splay channel [1]
-            hand.ThumbPercentage[1] = SplayRemap01ToMinus1To1(thumbSplay01);
-            hand.IndexPercentage[1] = SplayRemap01ToMinus1To1(indexSplay01);
-            hand.MiddlePercentage[1] = SplayRemap01ToMinus1To1(middleSplay01);
-            hand.RingPercentage[1] = SplayRemap01ToMinus1To1(ringSplay01);
-            hand.LittlePercentage[1] = SplayRemap01ToMinus1To1(littleSplay01);
+            hand.ThumbPercentage[1] = SplayConversion(thumbSplay01);
+            hand.IndexPercentage[1] = SplayConversion(indexSplay01);
+            hand.MiddlePercentage[1] = SplayConversion(middleSplay01);
+            hand.RingPercentage[1] = SplayConversion(ringSplay01);
+            hand.LittlePercentage[1] = SplayConversion(littleSplay01);
         }
         private void SteamVR_Behavior_Pose_OnUpdate(SteamVR_Action_Pose fromAction, SteamVR_Input_Sources fromSource)
         {

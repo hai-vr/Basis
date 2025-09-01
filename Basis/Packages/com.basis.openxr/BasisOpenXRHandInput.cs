@@ -26,6 +26,7 @@ public class BasisOpenXRHandInput : BasisInputController
     public InputActionProperty PalmPoseActionRotation;
     public void Initialize(string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole)
     {
+        HandBiasSplay = 0;
         leftHandToIKRotationOffset = new Vector3(0, 90, -30);
         rightHandToIKRotationOffset = new Vector3(0, -90,30);
 
@@ -195,19 +196,12 @@ public class BasisOpenXRHandInput : BasisInputController
         float LittlePercentage = RemapSplayFingerValue(hand, XRHandFingerID.Little);
 
 
-        // Distribute pairwise -> per-finger
-        float thumbSplay01 = ThumbPercentage;
-        float indexSplay01 = IndexPercentage;
-        float middleSplay01 = MiddlePercentage;
-        float ringSplay01 = RingPercentage;
-        float littleSplay01 = LittlePercentage;
-
         // Map to your rig space [-1..1] and assign to the splay channel [1]
-        fingerPose.ThumbPercentage[1] = SplayRemap01ToMinus1To1(thumbSplay01);
-        fingerPose.IndexPercentage[1] = SplayRemap01ToMinus1To1(indexSplay01);
-        fingerPose.MiddlePercentage[1] = SplayRemap01ToMinus1To1(middleSplay01);
-        fingerPose.RingPercentage[1] = SplayRemap01ToMinus1To1(ringSplay01);
-        fingerPose.LittlePercentage[1] = SplayRemap01ToMinus1To1(littleSplay01);
+        fingerPose.ThumbPercentage[1] = ThumbPercentage;
+        fingerPose.IndexPercentage[1] = IndexPercentage;
+        fingerPose.MiddlePercentage[1] = MiddlePercentage;
+        fingerPose.RingPercentage[1] = RingPercentage;
+        fingerPose.LittlePercentage[1] = LittlePercentage;
     }
     private float RemapFingerValue(XRHand hand, XRHandFingerID fingerID)
     {
@@ -221,7 +215,7 @@ public class BasisOpenXRHandInput : BasisInputController
     {
         if (TryGetShapePercentage(hand, fingerID, XRFingerShapeTypes.Spread, XRFingerShapeType.Spread, out float value))
         {
-            return SplayRemap01ToMinus1To1(value);
+            return SplayConversion(value);
         }
         return 0f;
     }
