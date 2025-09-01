@@ -4,6 +4,7 @@ using Basis.Scripts.TransformBinders.BoneControl;
 using Unity.Mathematics;
 using UnityEngine;
 using Valve.VR;
+
 namespace Basis.Scripts.Device_Management.Devices.OpenVR
 {
     [DefaultExecutionOrder(15001)]
@@ -11,13 +12,19 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
     {
         public OpenVRDevice Device;
         public SteamVR_Input_Sources inputSource;
+
         public SteamVR_Action_Pose DeviceposeAction = SteamVR_Input.GetAction<SteamVR_Action_Pose>("Pose");
         public bool HasOnUpdate = false;
-        public Vector3[] BonePositions;
-        public Quaternion[] BoneRotations;
 
-        public float3 HandWristPosition;
-        public quaternion HandWristRotation;
+        // Raw skeleton (local-to-skeleton) data from SteamVR
+        public Vector3[] BonePositions;      // local positions relative to skeleton root (meters)
+        public Quaternion[] BoneRotations;   // local rotations relative to skeleton root
+
+        // Device pose (controller) from compositor
+        public TrackedDevicePose_t devicePose = new TrackedDevicePose_t();
+        public TrackedDevicePose_t deviceGamePose = new TrackedDevicePose_t();
+        public SteamVR_Utils.RigidTransform DeviceLocalSpace;
+        public EVRCompositorError result;
 
         public void Initialize(OpenVRDevice device, string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, SteamVR_Input_Sources SteamVR_Input_Sources)
         {
@@ -26,172 +33,157 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             rightHandToIKRotationOffset = new Vector3(180, 0, 120);
 
             LeftRaycastRotationOffset = new Vector3(30, -90, 0);
-            RightRaycastRotationOffset = new Vector3(150,-90,0);
+            RightRaycastRotationOffset = new Vector3(150, -90, 0);
 
             if (HasOnUpdate && DeviceposeAction != null)
             {
-                DeviceposeAction[inputSource].onUpdate -= SteamVR_Behavior_Pose_OnUpdate;
                 HasOnUpdate = false;
             }
+
             inputSource = SteamVR_Input_Sources;
             Device = device;
+
             InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole);
-            if (DeviceposeAction != null)
+
+            if (DeviceposeAction != null && HasOnUpdate == false)
             {
-                if (HasOnUpdate == false)
-                {
-                    DeviceposeAction[inputSource].onUpdate += SteamVR_Behavior_Pose_OnUpdate;
-                    HasOnUpdate = true;
-                }
+                HasOnUpdate = true;
             }
+
             BasisDebug.Log("set Controller to inputSource " + inputSource + " bone role " + basisBoneTrackedRole);
         }
+
         public new void OnDestroy()
         {
             if (DeviceposeAction != null)
             {
-                DeviceposeAction[inputSource].onUpdate -= SteamVR_Behavior_Pose_OnUpdate;
                 HasOnUpdate = false;
             }
-            historyBuffer.Clear();
             base.OnDestroy();
         }
+
         public override void DoPollData()
         {
-            if (SteamVR.active)
+            if (!SteamVR.active)
+                return;
+
+            // Buttons / axes
+            CurrentInputState.GripButton = SteamVR_Actions._default.Grip.GetState(inputSource);
+            CurrentInputState.SystemOrMenuButton = SteamVR_Actions._default.System.GetState(inputSource);
+            CurrentInputState.PrimaryButtonGetState = SteamVR_Actions._default.A_Button.GetState(inputSource);
+            CurrentInputState.SecondaryButtonGetState = SteamVR_Actions._default.B_Button.GetState(inputSource);
+            CurrentInputState.Primary2DAxisClick = SteamVR_Actions._default.JoyStickClick.GetState(inputSource);
+            CurrentInputState.Primary2DAxis = SteamVR_Actions._default.Joystick.GetAxis(inputSource);
+            CurrentInputState.Trigger = SteamVR_Actions._default.Trigger.GetAxis(inputSource);
+            CurrentInputState.SecondaryTrigger = SteamVR_Actions._default.HandTrigger.GetAxis(inputSource);
+            CurrentInputState.Secondary2DAxis = SteamVR_Actions._default.TrackPad.GetAxis(inputSource);
+            CurrentInputState.Secondary2DAxisClick = SteamVR_Actions._default.TrackPadTouched.GetState(inputSource);
+
+            // Update hand (left/right)
+            switch (inputSource)
             {
-                CurrentInputState.GripButton = SteamVR_Actions._default.Grip.GetState(inputSource);
-                CurrentInputState.SystemOrMenuButton = SteamVR_Actions._default.System.GetState(inputSource);
-                CurrentInputState.PrimaryButtonGetState = SteamVR_Actions._default.A_Button.GetState(inputSource);
-                CurrentInputState.SecondaryButtonGetState = SteamVR_Actions._default.B_Button.GetState(inputSource);
-                CurrentInputState.Primary2DAxisClick = SteamVR_Actions._default.JoyStickClick.GetState(inputSource);
-                CurrentInputState.Primary2DAxis = SteamVR_Actions._default.Joystick.GetAxis(inputSource);
-                CurrentInputState.Trigger = SteamVR_Actions._default.Trigger.GetAxis(inputSource);
-                CurrentInputState.SecondaryTrigger = SteamVR_Actions._default.HandTrigger.GetAxis(inputSource);
-                CurrentInputState.Secondary2DAxis = SteamVR_Actions._default.TrackPad.GetAxis(inputSource);
-                CurrentInputState.Secondary2DAxisClick = SteamVR_Actions._default.TrackPadTouched.GetState(inputSource);
-                switch (inputSource)
-                {
-                    case SteamVR_Input_Sources.LeftHand:
-                        {
-                            SteamVR_Action_Skeleton LeftHand = SteamVR_Actions.default_SkeletonLeftHand;
-                            UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, LeftHand);
-                            break;
-                        }
-
-                    case SteamVR_Input_Sources.RightHand:
-                        {
-                            SteamVR_Action_Skeleton RightHand = SteamVR_Actions.default_SkeletonRightHand;
-                            UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.RightHand, RightHand);
-                            break;
-                        }
-                }
-                UpdatePlayerControl();
+                case SteamVR_Input_Sources.LeftHand:
+                    {
+                        SteamVR_Action_Skeleton leftHand = SteamVR_Actions.default_SkeletonLeftHand;
+                        bool isLeft = (inputSource == SteamVR_Input_Sources.LeftHand);
+                        UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, leftHand, isLeft);
+                        break;
+                    }
+                case SteamVR_Input_Sources.RightHand:
+                    {
+                        SteamVR_Action_Skeleton rightHand = SteamVR_Actions.default_SkeletonRightHand;
+                        bool isLeft = (inputSource == SteamVR_Input_Sources.LeftHand);
+                        UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.RightHand, rightHand, isLeft);
+                        break;
+                    }
             }
+
+            UpdatePlayerControl();
         }
-        private void UpdateHandPose(BasisFingerPose hand, SteamVR_Action_Skeleton skeletonAction)
+
+        private void UpdateHandPose(BasisFingerPose hand, SteamVR_Action_Skeleton skeletonAction, bool isLeft)
         {
-            // Bones (unchanged)
-            BonePositions = skeletonAction.bonePositions;
-            BoneRotations = skeletonAction.boneRotations;
+            // ------- CURLS (0..1 from SteamVR) -> [-1..1] rig values
+            float[] curls = skeletonAction.GetFingerCurls();
 
-            // ---- CURLS (0..1 coming from SteamVR) -> your [-1..1] rig values
-            float[] Curls = skeletonAction.GetFingerCurls();
+            hand.ThumbPercentage[0] = Remap01ToMinus1To1(curls[0]);
+            hand.IndexPercentage[0] = Remap01ToMinus1To1(curls[1]);
+            hand.MiddlePercentage[0] = Remap01ToMinus1To1(curls[2]);
+            hand.RingPercentage[0] = Remap01ToMinus1To1(curls[3]);
+            hand.LittlePercentage[0] = Remap01ToMinus1To1(curls[4]);
 
-            hand.ThumbPercentage[0] = Remap01ToMinus1To1(Curls[0]);
-            hand.IndexPercentage[0] = Remap01ToMinus1To1(Curls[1]);
-            hand.MiddlePercentage[0] = Remap01ToMinus1To1(Curls[2]);
-            hand.RingPercentage[0] = Remap01ToMinus1To1(Curls[3]);
-            hand.LittlePercentage[0] = Remap01ToMinus1To1(Curls[4]);
-
-            // ---- SPLAY conversion: SteamVR gives 4 pairwise splays (0..1)
-            // 0 = Thumb-Index, 1 = Index-Middle, 2 = Middle-Ring, 3 = Ring-Pinky
+            // ------- SPLAY (pairwise 0..1) -> per-finger [-1..1] with your bias
             float[] pairSplays = skeletonAction.GetFingerSplays();
 
-            // Prepare per-finger 0..1 splay (Thumb..Pinky)
             float thumbIndex = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.thumbIndex];
             float indexMiddle = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.indexMiddle];
             float middleRing = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.middleRing];
             float ringPinky = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.ringPinky];
 
-            // Distribute pairwise -> per-finger
             float thumbSplay01 = thumbIndex;
             float indexSplay01 = 0.5f * (thumbIndex + indexMiddle);
             float middleSplay01 = 0.5f * (indexMiddle + middleRing);
             float ringSplay01 = 0.5f * (middleRing + ringPinky);
             float littleSplay01 = ringPinky;
 
-            // Map to your rig space [-1..1] and assign to the splay channel [1]
             hand.ThumbPercentage[1] = SplayConversion(thumbSplay01);
             hand.IndexPercentage[1] = SplayConversion(indexSplay01);
             hand.MiddlePercentage[1] = SplayConversion(middleSplay01);
             hand.RingPercentage[1] = SplayConversion(ringSplay01);
             hand.LittlePercentage[1] = SplayConversion(littleSplay01);
-        }
-        private void SteamVR_Behavior_Pose_OnUpdate(SteamVR_Action_Pose fromAction, SteamVR_Input_Sources fromSource)
-        {
-            UpdateHistoryBuffer();
 
-            // Bone data
-            if (BonePositions != null)
+            // ------- raw bone arrays (local to skeleton root)
+            BonePositions = skeletonAction.bonePositions;
+            BoneRotations = skeletonAction.boneRotations;
+
+            // Latest compositor-space device pose
+            result = SteamVR.instance.compositor.GetLastPoseForTrackedDeviceIndex(Device.deviceIndex, ref devicePose, ref deviceGamePose);
+            if (result == EVRCompositorError.None && deviceGamePose.bPoseIsValid)
             {
-                HandWristPosition = BonePositions[1];
+                DeviceLocalSpace = new SteamVR_Utils.RigidTransform(deviceGamePose.mDeviceToAbsoluteTracking);
             }
-            if(BoneRotations != null)
-            { 
-                HandWristRotation = BoneRotations[1];
-            }
-            // Get controller pose
-            UnscaledDeviceCoord.rotation = DeviceposeAction[inputSource].localRotation;
-            UnscaledDeviceCoord.position = DeviceposeAction[inputSource].localPosition;
 
-            float AvatarScale = BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
+            UnscaledDeviceCoord.position = DeviceLocalSpace.pos;
+            UnscaledDeviceCoord.rotation = DeviceLocalSpace.rot;
 
-            ScaledDeviceCoord.position = UnscaledDeviceCoord.position * AvatarScale;
+            // ------- Compute world-space wrist & root (for IK)
+            // scale from the avatar currently selected to the avatar's "default" rig size
+            float avatarScale = BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
 
-            // Calculate final hand position in scaled space
-            Vector3 ScaledwristOffset = (UnscaledDeviceCoord.rotation * HandWristPosition) * AvatarScale;
-            // Final hand rotation = controller rotation * offset from wrist
-            HandFinal.rotation = UnscaledDeviceCoord.rotation * HandleHandFinalRotation(HandWristRotation);
-            HandFinal.position = ScaledDeviceCoord.position - ScaledwristOffset;
+            int idxWrist = SteamVR_Skeleton_JointIndexes.wrist;
+
+            Vector3 wristLocalPos = BonePositions[idxWrist];
+            Quaternion wristLocalRot = BoneRotations[idxWrist];
+
+            // --- NEW: Resolve which hand & pull the configured offsets
+            Quaternion rotOffset = Quaternion.Euler(isLeft ? leftHandToIKRotationOffset : rightHandToIKRotationOffset);
+
+            // Scale-sensitive bits
+            Vector3 ScaledLocalPose = UnscaledDeviceCoord.position * avatarScale;
+            Vector3 WristLocalPose = wristLocalPos * avatarScale;
+
+            // Core composition (your original math)
+            // Position: move from the device pose back to the wrist by the wrist's local offset
+            Vector3 wristWorldPos = ScaledLocalPose - (UnscaledDeviceCoord.rotation * WristLocalPose);
+
+            // Rotation: either deviceRot * wristLocalRot (standard) OR deviceRot * Inverse(wristLocalRot) (alt path)
+            Quaternion baseWristWorldRot = UnscaledDeviceCoord.rotation * wristLocalRot;
+                // UnscaledDeviceCoord.rotation * Quaternion.Inverse(wristLocalRot)
+
+            // --- NEW: apply rotation offset AFTER composing base rot
+            Quaternion wristWorldRot = baseWristWorldRot * rotOffset;
+
+            // Push results where you already were pushing them
+            ScaledDeviceCoord.position = wristWorldPos;
+            ScaledDeviceCoord.rotation = wristWorldRot;
+
+            HandFinal.rotation = wristWorldRot;
+            HandFinal.position = wristWorldPos;
 
             UpdateRaycastOffset();
             ControlOnlyAsHand();
             ComputeRaycastDirection();
         }
-        #region Mostly Unused Steam
-        protected SteamVR_HistoryBuffer historyBuffer = new SteamVR_HistoryBuffer(30);
-        protected int lastFrameUpdated;
-        protected void UpdateHistoryBuffer()
-        {
-            int currentFrame = Time.frameCount;
-            if (lastFrameUpdated != currentFrame)
-            {
-                historyBuffer.Update(DeviceposeAction[inputSource].localPosition, DeviceposeAction[inputSource].localRotation, DeviceposeAction[inputSource].velocity, DeviceposeAction[inputSource].angularVelocity);
-                lastFrameUpdated = currentFrame;
-            }
-        }
-        public Vector3 GetVelocity()
-        {
-            return DeviceposeAction[inputSource].velocity;
-        }
-        public Vector3 GetAngularVelocity()
-        {
-            return DeviceposeAction[inputSource].angularVelocity;
-        }
-        public bool GetVelocitiesAtTimeOffset(float secondsFromNow, out Vector3 velocity, out Vector3 angularVelocity)
-        {
-            return DeviceposeAction[inputSource].GetVelocitiesAtTimeOffset(secondsFromNow, out velocity, out angularVelocity);
-        }
-        public void GetEstimatedPeakVelocities(out Vector3 velocity, out Vector3 angularVelocity)
-        {
-            int top = historyBuffer.GetTopVelocity(10, 1);
-
-            historyBuffer.GetAverageVelocities(out velocity, out angularVelocity, 2, top);
-        }
-        public bool isValid { get { return DeviceposeAction[inputSource].poseIsValid; } }
-        public bool isActive { get { return DeviceposeAction[inputSource].active; } }
-        #endregion
         public override void ShowTrackedVisual()
         {
             if (BasisVisualTracker == null)
@@ -210,10 +202,12 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 }
             }
         }
+
         public override void PlayHaptic(float duration = 0.25F, float amplitude = 0.5F, float frequency = 0.5F)
         {
             SteamVR_Actions.default_Haptic.Execute(0, duration, frequency, amplitude, inputSource);
         }
+
         public override void PlaySoundEffect(string SoundEffectName, float Volume)
         {
             PlaySoundEffectDefaultImplementation(SoundEffectName, Volume);
