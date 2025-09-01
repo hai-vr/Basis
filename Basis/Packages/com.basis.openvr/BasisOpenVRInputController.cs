@@ -85,15 +85,13 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 case SteamVR_Input_Sources.LeftHand:
                     {
                         SteamVR_Action_Skeleton leftHand = SteamVR_Actions.default_SkeletonLeftHand;
-                        bool isLeft = (inputSource == SteamVR_Input_Sources.LeftHand);
-                        UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, leftHand, isLeft);
+                        UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, leftHand, isLeft : true);
                         break;
                     }
                 case SteamVR_Input_Sources.RightHand:
                     {
                         SteamVR_Action_Skeleton rightHand = SteamVR_Actions.default_SkeletonRightHand;
-                        bool isLeft = (inputSource == SteamVR_Input_Sources.LeftHand);
-                        UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.RightHand, rightHand, isLeft);
+                        UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.RightHand, rightHand, isLeft : false);
                         break;
                     }
             }
@@ -103,45 +101,55 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
         private void UpdateHandPose(BasisFingerPose hand, SteamVR_Action_Skeleton skeletonAction, bool isLeft)
         {
+
+            // Latest compositor-space device pose
+            result = SteamVR.instance.compositor.GetLastPoseForTrackedDeviceIndex(Device.deviceIndex, ref devicePose, ref deviceGamePose);
+            if (result != EVRCompositorError.None)
+            {
+                return;
+            }
+            if(deviceGamePose.bPoseIsValid == false)
+            {
+                return;
+            }
+            DeviceLocalSpace = new SteamVR_Utils.RigidTransform(deviceGamePose.mDeviceToAbsoluteTracking);
+
             // ------- CURLS (0..1 from SteamVR) -> [-1..1] rig values
             float[] curls = skeletonAction.GetFingerCurls();
-
-            hand.ThumbPercentage[0] = Remap01ToMinus1To1(curls[0]);
-            hand.IndexPercentage[0] = Remap01ToMinus1To1(curls[1]);
-            hand.MiddlePercentage[0] = Remap01ToMinus1To1(curls[2]);
-            hand.RingPercentage[0] = Remap01ToMinus1To1(curls[3]);
-            hand.LittlePercentage[0] = Remap01ToMinus1To1(curls[4]);
 
             // ------- SPLAY (pairwise 0..1) -> per-finger [-1..1] with your bias
             float[] pairSplays = skeletonAction.GetFingerSplays();
 
-            float thumbIndex = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.thumbIndex];
-            float indexMiddle = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.indexMiddle];
-            float middleRing = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.middleRing];
-            float ringPinky = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.ringPinky];
+            if (pairSplays != null && pairSplays.Length == SteamVR_Skeleton_FingerSplayIndexes.enumArray.Length && curls != null && curls.Length == SteamVR_Skeleton_FingerIndexes.enumArray.Length)
+            {
+                float thumbIndex = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.thumbIndex];
+                float indexMiddle = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.indexMiddle];
+                float middleRing = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.middleRing];
+                float ringPinky = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.ringPinky];
 
-            float thumbSplay01 = thumbIndex;
-            float indexSplay01 = 0.5f * (thumbIndex + indexMiddle);
-            float middleSplay01 = 0.5f * (indexMiddle + middleRing);
-            float ringSplay01 = 0.5f * (middleRing + ringPinky);
-            float littleSplay01 = ringPinky;
+                float thumbSplay01 = thumbIndex;
+                float indexSplay01 = 0.5f * (thumbIndex + indexMiddle);
+                float middleSplay01 = 0.5f * (indexMiddle + middleRing);
+                float ringSplay01 = 0.5f * (middleRing + ringPinky);
+                float littleSplay01 = ringPinky;
 
-            hand.ThumbPercentage[1] = SplayConversion(thumbSplay01);
-            hand.IndexPercentage[1] = SplayConversion(indexSplay01);
-            hand.MiddlePercentage[1] = SplayConversion(middleSplay01);
-            hand.RingPercentage[1] = SplayConversion(ringSplay01);
-            hand.LittlePercentage[1] = SplayConversion(littleSplay01);
+
+                hand.ThumbPercentage[0] = Remap01ToMinus1To1(curls[0]);
+                hand.IndexPercentage[0] = Remap01ToMinus1To1(curls[1]);
+                hand.MiddlePercentage[0] = Remap01ToMinus1To1(curls[2]);
+                hand.RingPercentage[0] = Remap01ToMinus1To1(curls[3]);
+                hand.LittlePercentage[0] = Remap01ToMinus1To1(curls[4]);
+                hand.ThumbPercentage[1] = SplayConversion(thumbSplay01);
+                hand.IndexPercentage[1] = SplayConversion(indexSplay01);
+                hand.MiddlePercentage[1] = SplayConversion(middleSplay01);
+                hand.RingPercentage[1] = SplayConversion(ringSplay01);
+                hand.LittlePercentage[1] = SplayConversion(littleSplay01);
+            }
 
             // ------- raw bone arrays (local to skeleton root)
             BonePositions = skeletonAction.bonePositions;
             BoneRotations = skeletonAction.boneRotations;
 
-            // Latest compositor-space device pose
-            result = SteamVR.instance.compositor.GetLastPoseForTrackedDeviceIndex(Device.deviceIndex, ref devicePose, ref deviceGamePose);
-            if (result == EVRCompositorError.None && deviceGamePose.bPoseIsValid)
-            {
-                DeviceLocalSpace = new SteamVR_Utils.RigidTransform(deviceGamePose.mDeviceToAbsoluteTracking);
-            }
 
             UnscaledDeviceCoord.position = DeviceLocalSpace.pos;
             UnscaledDeviceCoord.rotation = DeviceLocalSpace.rot;
@@ -168,7 +176,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             // Rotation: either deviceRot * wristLocalRot (standard) OR deviceRot * Inverse(wristLocalRot) (alt path)
             Quaternion baseWristWorldRot = UnscaledDeviceCoord.rotation * wristLocalRot;
-                // UnscaledDeviceCoord.rotation * Quaternion.Inverse(wristLocalRot)
+            // UnscaledDeviceCoord.rotation * Quaternion.Inverse(wristLocalRot)
 
             // --- NEW: apply rotation offset AFTER composing base rot
             Quaternion wristWorldRot = baseWristWorldRot * rotOffset;
