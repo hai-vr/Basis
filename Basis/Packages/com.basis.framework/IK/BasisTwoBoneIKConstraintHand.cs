@@ -113,9 +113,11 @@ namespace UnityEngine.Animations.Rigging
         [Header("Visualization")]
         [SerializeField] bool m_DrawGizmos = true;
         [SerializeField] bool m_DrawWhenUnselected = false;
+        #if UNITY_EDITOR
         [SerializeField] Color m_InnerColor = new Color(0.2f, 0.8f, 1f, 0.9f);   // chest inner
         [SerializeField] Color m_SkinColor = new Color(1f, 0.6f, 0.2f, 0.9f);    // chest skin
         [SerializeField] Color m_HandColor = new Color(0.6f, 1f, 0.6f, 0.9f);    // hand capsule
+#endif
         [SerializeField, Range(2, 12)] int m_CircleSlices = 6;
 
         protected override void OnValidate()

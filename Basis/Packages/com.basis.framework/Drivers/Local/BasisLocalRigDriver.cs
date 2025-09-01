@@ -105,7 +105,6 @@ namespace Basis.Scripts.Drivers
 
             // --- IK Target ---
             // Spine (hips + head targets come from calibrated coords)
-            var headCoords = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
             var hipsCoords = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
 
             var hipsPos = GetPosFilter(BasisBoneTrackedRole.Hips).Filter(hipsCoords.position, _timeAccumulator);
