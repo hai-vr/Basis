@@ -141,7 +141,6 @@ namespace Basis.Scripts.Avatar
             string UniqueID = BasisGenerateUniqueID.GenerateUniqueID();
             GameObject Output = await BasisLoadHandler.LoadGameObjectBundle(BasisLoadableBundle, true, BasisPlayer.ProgressReportAvatarLoad, new CancellationToken(), Position, Rotation, Vector3.one, false, BundledContentHolder.Selector.Avatar, BasisPlayer.transform, true);
             BasisPlayer.ProgressReportAvatarLoad.ReportProgress(UniqueID, 100, "Setting Position");
-            // Output.transform.SetPositionAndRotation(Position,Rotation);//BasisPlayer.transform.position, Quaternion.identity);
             return Output;
         }
         /// <summary>
@@ -153,7 +152,7 @@ namespace Basis.Scripts.Avatar
         {
             var op = Addressables.LoadAssetAsync<GameObject>(LoadingAvatarToUse);
             var loadingAvatar = op.WaitForCompletion();
-            var inSceneLoadingAvatar = GameObject.Instantiate(loadingAvatar, Position, Rotation, Player.transform);// Player.transform.position, Quaternion.identity,
+            var inSceneLoadingAvatar = GameObject.Instantiate(loadingAvatar, Position, Rotation, Player.transform);
 
             if (inSceneLoadingAvatar.TryGetComponent(out BasisAvatar avatar))
             {
