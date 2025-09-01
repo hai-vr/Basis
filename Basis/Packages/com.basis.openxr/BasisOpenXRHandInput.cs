@@ -187,12 +187,41 @@ public class BasisOpenXRHandInput : BasisInputController
         fingerPose.MiddlePercentage[0] = RemapFingerValue(hand, XRHandFingerID.Middle);
         fingerPose.RingPercentage[0] = RemapFingerValue(hand, XRHandFingerID.Ring);
         fingerPose.LittlePercentage[0] = RemapFingerValue(hand, XRHandFingerID.Little);
+
+        float ThumbPercentage = RemapSplayFingerValue(hand, XRHandFingerID.Thumb);
+        float IndexPercentage = RemapSplayFingerValue(hand, XRHandFingerID.Index);
+        float MiddlePercentage = RemapSplayFingerValue(hand, XRHandFingerID.Middle);
+        float RingPercentage = RemapSplayFingerValue(hand, XRHandFingerID.Ring);
+        float LittlePercentage = RemapSplayFingerValue(hand, XRHandFingerID.Little);
+
+
+        // Distribute pairwise -> per-finger
+        float thumbSplay01 = ThumbPercentage;
+        float indexSplay01 = IndexPercentage;
+        float middleSplay01 = MiddlePercentage;
+        float ringSplay01 = RingPercentage;
+        float littleSplay01 = LittlePercentage;
+
+        // Map to your rig space [-1..1] and assign to the splay channel [1]
+        fingerPose.ThumbPercentage[1] = SplayRemap01ToMinus1To1(thumbSplay01);
+        fingerPose.IndexPercentage[1] = SplayRemap01ToMinus1To1(indexSplay01);
+        fingerPose.MiddlePercentage[1] = SplayRemap01ToMinus1To1(middleSplay01);
+        fingerPose.RingPercentage[1] = SplayRemap01ToMinus1To1(ringSplay01);
+        fingerPose.LittlePercentage[1] = SplayRemap01ToMinus1To1(littleSplay01);
     }
     private float RemapFingerValue(XRHand hand, XRHandFingerID fingerID)
     {
         if (TryGetShapePercentage(hand, fingerID, XRFingerShapeTypes.FullCurl, XRFingerShapeType.FullCurl, out float value))
         {
             return Remap01ToMinus1To1(value);
+        }
+        return 0f;
+    }
+    private float RemapSplayFingerValue(XRHand hand, XRHandFingerID fingerID)
+    {
+        if (TryGetShapePercentage(hand, fingerID, XRFingerShapeTypes.Spread, XRFingerShapeType.Spread, out float value))
+        {
+            return SplayRemap01ToMinus1To1(value);
         }
         return 0f;
     }

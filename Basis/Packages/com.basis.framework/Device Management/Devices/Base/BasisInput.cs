@@ -426,9 +426,14 @@ namespace Basis.Scripts.Device_Management.Devices
             BasisUIRaycast.Initialize(BaseInput, BasisPointRaycaster);
             HasRaycaster = true;
         }
+        public float HandBias = -0.8f;
         public float Remap01ToMinus1To1(float value)
         {
             return (0.75f - value) * 2f - 0.75f;
+        }
+        public float SplayRemap01ToMinus1To1(float value)
+        {
+            return value * 2f - 1f + HandBias;
         }
         public void LoadModelWithKey(string key)
         {

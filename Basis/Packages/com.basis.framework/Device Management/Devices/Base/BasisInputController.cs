@@ -17,20 +17,19 @@ public abstract class BasisInputController : BasisInput
     public Quaternion ActiveRaycastOffset;
     public quaternion HandleHandFinalRotation(quaternion IncomingRotation)
     {
-        quaternion outgoingRotation = IncomingRotation;
         if (TryGetRole(out BasisBoneTrackedRole AssignedRole))
         {
             switch (AssignedRole)
             {
                 case BasisBoneTrackedRole.LeftHand:
-                    outgoingRotation = IncomingRotation * Quaternion.Euler(leftHandToIKRotationOffset);
+                    IncomingRotation = IncomingRotation * Quaternion.Euler(leftHandToIKRotationOffset);
                     break;
                 case BasisBoneTrackedRole.RightHand:
-                    outgoingRotation = IncomingRotation * Quaternion.Euler(rightHandToIKRotationOffset);
+                    IncomingRotation = IncomingRotation * Quaternion.Euler(rightHandToIKRotationOffset);
                     break;
             }
         }
-        return outgoingRotation;
+        return IncomingRotation;
     }
     public void UpdateRaycastOffset()
     {

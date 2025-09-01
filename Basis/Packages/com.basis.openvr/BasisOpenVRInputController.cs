@@ -74,26 +74,28 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                     case SteamVR_Input_Sources.LeftHand:
                         {
                             SteamVR_Action_Skeleton LeftHand = SteamVR_Actions.default_SkeletonLeftHand;
-                            UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, LeftHand, inputSource);
+                            UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, LeftHand);
                             break;
                         }
 
                     case SteamVR_Input_Sources.RightHand:
                         {
                             SteamVR_Action_Skeleton RightHand = SteamVR_Actions.default_SkeletonRightHand;
-                            UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.RightHand, RightHand, inputSource);
+                            UpdateHandPose(BasisLocalPlayer.Instance.LocalHandDriver.RightHand, RightHand);
                             break;
                         }
                 }
                 UpdatePlayerControl();
             }
         }
-        private void UpdateHandPose(BasisFingerPose hand, SteamVR_Action_Skeleton skeletonAction, SteamVR_Input_Sources SteamVR_Input_Sources)
+        private void UpdateHandPose(BasisFingerPose hand, SteamVR_Action_Skeleton skeletonAction)
         {
+            // Bones (unchanged)
             BonePositions = skeletonAction.bonePositions;
             BoneRotations = skeletonAction.boneRotations;
+
+            // ---- CURLS (0..1 coming from SteamVR) -> your [-1..1] rig values
             float[] Curls = skeletonAction.GetFingerCurls();
-            // float[] Splays = skeletonAction.GetFingerSplays();
 
             hand.ThumbPercentage[0] = Remap01ToMinus1To1(Curls[0]);
             hand.IndexPercentage[0] = Remap01ToMinus1To1(Curls[1]);
@@ -101,13 +103,29 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             hand.RingPercentage[0] = Remap01ToMinus1To1(Curls[3]);
             hand.LittlePercentage[0] = Remap01ToMinus1To1(Curls[4]);
 
-            //someone else can solve this
-            //its Distance between each finger.
-            hand.ThumbPercentage[1] = 0;
-            hand.IndexPercentage[1] = 0;// Remap01ToMinus1To1(Splays[0]);
-            hand.MiddlePercentage[1] = 0;// Remap01ToMinus1To1(Splays[1]);
-            hand.RingPercentage[1] = 0;// Remap01ToMinus1To1(Splays[2]);
-            hand.LittlePercentage[1] = 0;// Remap01ToMinus1To1(Splays[3]);
+            // ---- SPLAY conversion: SteamVR gives 4 pairwise splays (0..1)
+            // 0 = Thumb-Index, 1 = Index-Middle, 2 = Middle-Ring, 3 = Ring-Pinky
+            float[] pairSplays = skeletonAction.GetFingerSplays();
+
+            // Prepare per-finger 0..1 splay (Thumb..Pinky)
+            float thumbIndex = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.thumbIndex];
+            float indexMiddle = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.indexMiddle];
+            float middleRing = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.middleRing];
+            float ringPinky = pairSplays[SteamVR_Skeleton_FingerSplayIndexes.ringPinky];
+
+            // Distribute pairwise -> per-finger
+            float thumbSplay01 = thumbIndex;
+            float indexSplay01 = 0.5f * (thumbIndex + indexMiddle);
+            float middleSplay01 = 0.5f * (indexMiddle + middleRing);
+            float ringSplay01 = 0.5f * (middleRing + ringPinky);
+            float littleSplay01 = ringPinky;
+
+            // Map to your rig space [-1..1] and assign to the splay channel [1]
+            hand.ThumbPercentage[1] = SplayRemap01ToMinus1To1(thumbSplay01);
+            hand.IndexPercentage[1] = SplayRemap01ToMinus1To1(indexSplay01);
+            hand.MiddlePercentage[1] = SplayRemap01ToMinus1To1(middleSplay01);
+            hand.RingPercentage[1] = SplayRemap01ToMinus1To1(ringSplay01);
+            hand.LittlePercentage[1] = SplayRemap01ToMinus1To1(littleSplay01);
         }
         private void SteamVR_Behavior_Pose_OnUpdate(SteamVR_Action_Pose fromAction, SteamVR_Input_Sources fromSource)
         {
