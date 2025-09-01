@@ -15,6 +15,8 @@ public abstract class BasisInputController : BasisInput
     public Vector3 LeftRaycastRotationOffset;
     public Vector3 RightRaycastRotationOffset;
     public Quaternion ActiveRaycastOffset;
+    public Vector3 leftHandToIKPositionOffset = Vector3.zero;
+    public Vector3 rightHandToIKPositionOffset = Vector3.zero;
     public quaternion HandleHandFinalRotation(quaternion IncomingRotation)
     {
         if (TryGetRole(out BasisBoneTrackedRole AssignedRole))
