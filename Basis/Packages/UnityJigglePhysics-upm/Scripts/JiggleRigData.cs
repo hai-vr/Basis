@@ -30,14 +30,25 @@ public struct JiggleRigData {
 
     [NonSerialized]
     private JiggleTreeSegment segment;
+    
+    /// <summary>
+    /// Immediately resamples the rest pose of the bones in the tree. This can be useful if you have modified the bones' transforms on initialization and want to control when the rest pose is sampled.
+    /// </summary>
+    public void ResampleRestPose() {
+        OnDisable();
+        OnEnable();
+    }
 
     public void OnEnable() {
         if (rootBone == null) {
             throw new UnityException("Jiggle Rig enabled without a root bone assigned!");
         }
-        segment ??= new JiggleTreeSegment(rootBone, this);
-        segment.SetDirty();
-        JigglePhysics.AddJiggleTreeSegment(segment);
+
+        if (segment == null) {
+            segment = new JiggleTreeSegment(rootBone, this);
+            segment.SetDirty();
+            JigglePhysics.AddJiggleTreeSegment(segment);
+        }
     }
     public void OnDisable() {
         if (segment != null) {
@@ -435,16 +446,17 @@ public struct JiggleRigData {
         sliderElementSlider.tooltip = tooltip;
         sliderElementSlider.Q<Label>().text = propertyName;
         
-        var stiffnessCurveElement = sliderElement.Q<CurveField>("CurvableCurve");
-        stiffnessCurveElement.tooltip = tooltip;
-        stiffnessCurveElement.BindProperty(curveProperty);
+        var curveElement = sliderElement.Q<CurveField>("CurvableCurve");
+        curveElement.tooltip = tooltip;
+        curveElement.ranges = new Rect(0f, 0f, 1f, 1f);
+        curveElement.BindProperty(curveProperty);
         
         var toggle = sliderElement.Q<Toggle>("CurvableToggle");
         toggle.BindProperty(toggleProperty);
         toggle.tooltip = "Enable or disable curve sampling for this value based on the normalized distance from the root.";
-        stiffnessCurveElement.style.display = toggleProperty.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
+        curveElement.style.display = toggleProperty.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
         toggle.RegisterValueChangedCallback(evt => {
-            stiffnessCurveElement.style.display = evt.newValue ? DisplayStyle.Flex : DisplayStyle.None;
+            curveElement.style.display = evt.newValue ? DisplayStyle.Flex : DisplayStyle.None;
         });
     }
 
@@ -473,14 +485,15 @@ public struct JiggleRigData {
                 curvableFloat.SetValueWithoutNotify(value);
             });
         }
-        var stiffnessCurveElement = sliderElement.Q<CurveField>("CurvableCurve");
-        stiffnessCurveElement.BindProperty(curveProperty);
+        var curveElement = sliderElement.Q<CurveField>("CurvableCurve");
+        curveElement.ranges = new Rect(0f, 0f, 1f, 1f);
+        curveElement.BindProperty(curveProperty);
         
         var toggle = sliderElement.Q<Toggle>("CurvableToggle");
         toggle.BindProperty(toggleProperty);
-        stiffnessCurveElement.style.display = toggleProperty.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
+        curveElement.style.display = toggleProperty.boolValue ? DisplayStyle.Flex : DisplayStyle.None;
         toggle.RegisterValueChangedCallback(evt => {
-            stiffnessCurveElement.style.display = evt.newValue ? DisplayStyle.Flex : DisplayStyle.None;
+            curveElement.style.display = evt.newValue ? DisplayStyle.Flex : DisplayStyle.None;
         });
     }
 #endif

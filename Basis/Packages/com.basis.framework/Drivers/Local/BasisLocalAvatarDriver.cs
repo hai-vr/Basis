@@ -4,6 +4,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
+using GatorDragonGames.JigglePhysics;
 using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
@@ -78,8 +79,8 @@ namespace Basis.Scripts.Drivers
 			player.LocalRigDriver.Builder = BasisHelpers.GetOrAddComponent<RigBuilder>(AvatarAnimatorParent);
 			player.LocalRigDriver.Builder.enabled = false;
 			Calibration(player);
-            player.LocalBoneDriver.RemoveAllListeners();
-            player.LocalEyeDriver.Initalize(this, player);
+			player.LocalBoneDriver.RemoveAllListeners();
+			player.LocalEyeDriver.Initalize(this, player);
 			SetMatrixOverride();
 			UpdateWhenOffscreen(true);
 			if (References.Hashead)
@@ -118,10 +119,16 @@ namespace Basis.Scripts.Drivers
 			player.AvatarTransform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
 			player.LocalRigDriver.BuildBuilder();
 			IsNormalHead = true;
-            RemoveJiggleRigColliders();
-            AddJiggleRigColliders(References);
 
-        }
+			var JiggleRigs = player.BasisAvatar.GetComponentsInChildren<JiggleRig>();
+
+			foreach (JiggleRig Rig in JiggleRigs)
+			{
+				Rig.ResampleRestPose();
+			}
+			RemoveJiggleRigColliders();
+			AddJiggleRigColliders(References);
+		}
 
 		public static void ScaleHeadToNormal()
 		{

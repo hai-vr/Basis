@@ -8,15 +8,13 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using static BundledContentHolder;
-
 public static class BasisLoadHandler
 {
-    public static Dictionary<string, BasisTrackedBundleWrapper> LoadedBundles = new Dictionary<string, BasisTrackedBundleWrapper>();
-    public static ConcurrentDictionary<string, BasisOnDiscInformation> OnDiscData = new ConcurrentDictionary<string, BasisOnDiscInformation>();
     public static bool IsInitialized = false;
-
-    private static readonly object _discInfoLock = new object();
-    private static SemaphoreSlim _initSemaphore = new SemaphoreSlim(1, 1);
+    public static ConcurrentDictionary<string, BasisTrackedBundleWrapper> LoadedBundles = new ConcurrentDictionary<string, BasisTrackedBundleWrapper>();
+    public static ConcurrentDictionary<string, BasisOnDiscInformation> OnDiscData = new ConcurrentDictionary<string, BasisOnDiscInformation>();
+    public static readonly object _discInfoLock = new object();
+    public static SemaphoreSlim _initSemaphore = new SemaphoreSlim(1, 1);
     public static int TimeUntilMemoryRemoval = 30;
     public const string LoadingAvatar = "LoadingAvatar";
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -26,14 +24,13 @@ public static class BasisLoadHandler
         await EnsureInitializationComplete();
         SceneManager.sceneUnloaded += SceneUnloaded;
     }
-
     private static async void SceneUnloaded(Scene UnloadedScene)
     {
         if (LoadedBundles == null || string.IsNullOrEmpty(UnloadedScene.path))
+        {
             return;
-
+        }
         List<string> keysToRemove = new List<string>();
-
         foreach (KeyValuePair<string, BasisTrackedBundleWrapper> kvp in LoadedBundles)
         {
             var bundle = kvp.Value;
@@ -64,7 +61,7 @@ public static class BasisLoadHandler
 
         foreach (string key in keysToRemove)
         {
-            LoadedBundles.Remove(key);
+            LoadedBundles.TryRemove(key,out var data);
         }
     }
     /// <summary>
@@ -82,7 +79,7 @@ public static class BasisLoadHandler
             bool State = await Wrapper.UnloadIfReady();
             if (State)
             {
-                LoadedBundles.Remove(CombinedURL);
+                LoadedBundles.Remove(CombinedURL,out var data);
                 return;
             }
         }
@@ -108,7 +105,7 @@ public static class BasisLoadHandler
             catch (Exception ex)
             {
                 BasisDebug.LogError($"Failed to load content: {ex}");
-                LoadedBundles.Remove(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+                LoadedBundles.Remove(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out var data);
                 return null;
             }
         }
@@ -118,7 +115,7 @@ public static class BasisLoadHandler
 
     public static async Task<Scene> LoadSceneBundle(bool makeActiveScene, BasisLoadableBundle loadableBundle, BasisProgressReport report, CancellationToken cancellationToken)
     {
-        await EnsureInitializationComplete();
+        await EnsureInitializationComplete(); 
 
         if (LoadedBundles.TryGetValue(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out BasisTrackedBundleWrapper wrapper))
         {
@@ -167,7 +164,7 @@ public static class BasisLoadHandler
         catch (Exception ex)
         {
             BasisDebug.LogError($"{ex.Message} {ex.StackTrace}");
-            LoadedBundles.Remove(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+            LoadedBundles.Remove(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out var data);
             CleanupFiles(loadableBundle.BasisLocalEncryptedBundle);
             OnDiscData.TryRemove(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out _);
             return null;
@@ -242,6 +239,47 @@ public static class BasisLoadHandler
             await AddDiscInfo(newDiscInfo);
         }
     }
+
+    public static async Task HandleMetaLoading(BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken, bool JustLoadMetaData = false)
+    {
+        bool IsMetaOnDisc = IsMetaDataOnDisc(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out BasisOnDiscInformation MetaInfo);
+
+        (BasisBundleConnector Connector,string ErrorMessage) output;
+        if (IsMetaOnDisc)
+        {
+            BasisDebug.Log("Process On Disc Meta Data Async", BasisDebug.LogTag.Event);
+            output = await BasisBundleManagement.ProcessOnDiscConnectorOnlyAsync(wrapper, MetaInfo.StoredLocal, report, cancellationToken);
+        }
+        else
+        {
+            BasisDebug.Log("Download Store Meta And Bundle", BasisDebug.LogTag.Event);
+            output = await BasisBundleManagement.DownloadConnectorOnly(wrapper, report, cancellationToken);
+        }
+        if (output.Item1 == null)
+        {
+            new Exception("missing Bundle Bytes Array Error Message ");
+        }
+        if (JustLoadMetaData)
+        {
+            return;
+        }
+        if (output.Item2 == null)
+        {
+            BasisDebug.LogError("Missing BundleArray");
+            return;
+        }
+        if (IsMetaOnDisc == false)
+        {
+            BasisOnDiscInformation newDiscInfo = new BasisOnDiscInformation
+            {
+                StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted,
+                StoredLocal = wrapper.LoadableBundle.BasisLocalEncryptedBundle,
+                UniqueVersion = wrapper.LoadableBundle.BasisBundleConnector.UniqueVersion,
+            };
+
+            await AddDiscInfo(newDiscInfo);
+        }
+    }
     public static bool IsMetaDataOnDisc(string MetaURL, out BasisOnDiscInformation info)
     {
         lock (_discInfoLock)
@@ -251,9 +289,21 @@ public static class BasisLoadHandler
                 if (discInfo.StoredRemote.RemoteBeeFileLocation == MetaURL)
                 {
                     info = discInfo;
-                    if (File.Exists(discInfo.StoredLocal.DownloadedBeeFileLocation))
+
+                    if (discInfo.StoredLocal.DownloadedBeeFileLocation == string.Empty)
                     {
-                        return true;
+                        string BEEPath = BasisIOManagement.GenerateFilePath($"{info.UniqueVersion}{BasisBundleManagement.BasisEncryptedExtension}", BasisBundleManagement.AssetBundlesFolder);
+                        if (File.Exists(BEEPath))
+                        {
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        if (File.Exists(discInfo.StoredLocal.DownloadedBeeFileLocation))
+                        {
+                            return true;
+                        }
                     }
                 }
             }

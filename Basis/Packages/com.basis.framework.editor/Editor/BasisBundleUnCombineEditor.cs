@@ -89,8 +89,8 @@ public class BasisBundleUnCombineEditor : EditorWindow
             CancellationToken cancellationToken = new CancellationToken();
 
             EditorUtility.DisplayProgressBar("Reading", "Reading BEE file...", 0.3f);
-            (BasisBundleConnector, byte[]) value = await BasisIOManagement.ReadBEEFile(LocalFile, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
-            bundleWrapper.LoadableBundle.BasisBundleConnector = value.Item1;
+            BasisIOManagement.Result<BasisIOManagement.BeeReadResult> value = await BasisIOManagement.ReadBEEFileEx(LocalFile, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
+            bundleWrapper.LoadableBundle.BasisBundleConnector = value.Value.Connector;
 
             var BasisPassword = new BasisEncryptionWrapper.BasisPassword
             {
@@ -100,7 +100,7 @@ public class BasisBundleUnCombineEditor : EditorWindow
             string UniqueID = BasisGenerateUniqueID.GenerateUniqueID();
 
             EditorUtility.DisplayProgressBar("Decrypting", "Decrypting bundle...", 0.6f);
-            byte[] LoadedBundleData = await BasisEncryptionWrapper.DecryptFromBytesAsync(UniqueID, BasisPassword, value.Item2, progressCallback);
+            byte[] LoadedBundleData = await BasisEncryptionWrapper.DecryptFromBytesAsync(UniqueID, BasisPassword, value.Value.SectionData, progressCallback);
 
             string SafeFolder = SanitizePath(FolderToSaveTo, Path.GetInvalidPathChars());
             string FileName = SanitizePath(Path.GetFileNameWithoutExtension(LocalFile), Path.GetInvalidFileNameChars());

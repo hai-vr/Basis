@@ -37,6 +37,8 @@ namespace Basis.Scripts.UI.UI_Panels
         public TMP_InputField AvatarPassword;
         public TextMeshProUGUI Name;
         public TextMeshProUGUI Description;
+        public TextMeshProUGUI UniqueVersion;
+        public TextMeshProUGUI SupportedPlatformsText;
         private async void Start()
         {
             BasisDataStoreAvatarKeys.DisplayKeys();
@@ -85,9 +87,9 @@ namespace Basis.Scripts.UI.UI_Panels
             await BasisDataStoreAvatarKeys.LoadKeys();
 
             int preloadedCount = preLoadedBundles.Count;
-            for (int i = 0; i < preloadedCount; i++)
+            for (int Index = 0; Index < preloadedCount; Index++)
             {
-                BasisLoadableBundle loadableBundle = preLoadedBundles[i];
+                BasisLoadableBundle loadableBundle = preLoadedBundles[Index];
                 var key = new BasisDataStoreAvatarKeys.AvatarKey
                 {
                     Pass = loadableBundle.UnlockPassword,
@@ -231,8 +233,6 @@ namespace Basis.Scripts.UI.UI_Panels
             AvatarSelectionPanel.SetActive(false);
             AvatarInformationPanel.SetActive(true);
         }
-        public TextMeshProUGUI UniqueVersion;
-        public TextMeshProUGUI SupportedPlatformsText;
         private void ShowInformation(BasisLoadableBundle avatarLoadRequest)
         {
             if (BasisLocalPlayer.Instance != null)
