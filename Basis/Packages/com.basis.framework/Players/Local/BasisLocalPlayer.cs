@@ -30,7 +30,6 @@ namespace Basis.Scripts.BasisSdk.Players
         public static string LoadFileNameAndExtension = "LastUsedAvatar.BAS";
         public static bool HasEvents = false;
         public static bool SpawnPlayerOnSceneLoad = true;
-        public const string DefaultAvatar = "LoadingAvatar";
         public static bool HasCalibrationEvents = false;
 
         public static Action OnLocalPlayerCreatedAndReady;
@@ -96,7 +95,7 @@ namespace Basis.Scripts.BasisSdk.Players
                 SceneManager.sceneLoaded += OnSceneLoadedCallback;
                 HasEvents = true;
             }
-            bool LoadedState = BasisDataStore.LoadAvatar(LoadFileNameAndExtension, DefaultAvatar, LoadModeLocal, out BasisDataStore.BasisSavedAvatar LastUsedAvatar);
+            bool LoadedState = BasisDataStore.LoadAvatar(LoadFileNameAndExtension,BasisLoadHandler.DefaultAvatar, LoadModeLocal, out BasisDataStore.BasisSavedAvatar LastUsedAvatar);
             if (LoadedState)
             {
                 await LoadInitialAvatar(LastUsedAvatar);

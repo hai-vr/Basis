@@ -20,8 +20,8 @@ namespace Basis.Scripts.Avatar
             {
                 BasisBundleDescription = new BasisBundleDescription()
                 {
-                    AssetBundleDescription = BasisLocalPlayer.DefaultAvatar,
-                    AssetBundleName = BasisLocalPlayer.DefaultAvatar
+                    AssetBundleDescription = BasisLoadHandler.DefaultAvatar,
+                    AssetBundleName = BasisLoadHandler.DefaultAvatar
                 },
                 BasisBundleGenerated = new BasisBundleGenerated[]
                  {
@@ -31,11 +31,11 @@ namespace Basis.Scripts.Avatar
             UnlockPassword = "N/A",
             BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle()
             {
-                RemoteBeeFileLocation = BasisLocalPlayer.DefaultAvatar,
+                RemoteBeeFileLocation = BasisLoadHandler.DefaultAvatar,
             },
             BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle()
             {
-                DownloadedBeeFileLocation = BasisLocalPlayer.DefaultAvatar,
+                DownloadedBeeFileLocation = BasisLoadHandler.DefaultAvatar,
             },
         };
         public static bool IsLoadingAvatar(BasisLoadableBundle BasisLoadableBundle)

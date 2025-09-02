@@ -16,9 +16,9 @@ public static class BasisLoadHandler
     public static readonly object _discInfoLock = new object();
     public static SemaphoreSlim _initSemaphore = new SemaphoreSlim(1, 1);
     public static int TimeUntilMemoryRemoval = 30;
-    public const string LoadingAvatar = "LoadingAvatar";
+    public const string DefaultAvatar = "LoadingAvatar";
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static async Task OnGameStart()
+    private static async void Initialization()
     {
         BasisDebug.Log("Game has started after scene load.", BasisDebug.LogTag.Event);
         await EnsureInitializationComplete();
@@ -85,7 +85,7 @@ public static class BasisLoadHandler
         }
         else
         {
-            if (CombinedURL.ToLower() != LoadingAvatar.ToLower())
+            if (CombinedURL.ToLower() != DefaultAvatar.ToLower())
             {
                 BasisDebug.LogError($"tried to find Loaded Key {CombinedURL} but could not find it!");
             }
