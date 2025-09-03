@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.Jobs;
@@ -49,6 +53,9 @@ public class JiggleJobs {
 
     public JiggleJobTransformWrite jobTransformWrite;
 
+    public List<IntPtr> freePointers;
+
+    public JiggleMemoryBus GetMemoryBus() => _memoryBus;
 
     public JiggleJobs(double timeAsDouble, float fixedDeltaTime) {
         _memoryBus = new JiggleMemoryBus();
@@ -62,6 +69,7 @@ public class JiggleJobs {
         jobTransformWrite = new JiggleJobTransformWrite(_memoryBus);
         jobBroadPhase = new JiggleJobBroadPhase(_memoryBus);
         jobBroadPhaseClear = new JiggleJobBroadPhaseClear(_memoryBus);
+        freePointers = new List<IntPtr>();
     }
     
     public void SetFixedDeltaTime(float fixedDeltaTime) {
@@ -80,6 +88,7 @@ public class JiggleJobs {
         if (hasHandleSceneColliderRead) handleSceneColliderRead.Complete();
         if (hasHandleBroadPhase) handleBroadPhase.Complete();
         if (hasHandleBroadPhaseClear) handleBroadPhaseClear.Complete();
+        Free();
         _memoryBus.Dispose();
     }
 
@@ -132,6 +141,20 @@ public class JiggleJobs {
         }
     }
 
+    public void FreeOnComplete(IntPtr pointer) {
+        freePointers.Add(pointer);
+    }
+
+    private void Free() {
+        var freePointerCount = freePointers.Count;
+        for (int i = 0; i < freePointerCount; i++) {
+            unsafe {
+                UnsafeUtility.Free((void*)freePointers[i], Allocator.Persistent);
+            }
+        }
+        freePointers.Clear();
+    }
+
     public void Simulate(double simulateTime, double realTime) {
         if (_memoryBus.transformCount == 0) {
             _memoryBus.CommitTrees();
@@ -152,6 +175,7 @@ public class JiggleJobs {
         var gravity = Physics.gravity;
         if (hasHandleSimulate) {
             handleSimulate.Complete();
+            Free();
         }
 
         jobInterpolation.previousTimeStamp = jobInterpolation.timeStamp;
@@ -170,8 +194,14 @@ public class JiggleJobs {
         jobBroadPhase.UpdateArrays(_memoryBus);
         jobBroadPhaseClear.UpdateArrays(_memoryBus);
 
-        handlePersonalColliderRead = jobBulkPersonalColliderTransformRead.ScheduleReadOnly( _memoryBus.GetPersonalColliderTransformAccessArray(), 128);
-        handleSceneColliderRead = jobBulkSceneColliderTransformRead.ScheduleReadOnly(_memoryBus.GetSceneColliderTransformAccessArray(), 128);
+        if (hasHandleSimulate) {
+            handlePersonalColliderRead = jobBulkPersonalColliderTransformRead.ScheduleReadOnly( _memoryBus.GetPersonalColliderTransformAccessArray(), 128, handleSimulate);
+            handleSceneColliderRead = jobBulkSceneColliderTransformRead.ScheduleReadOnly(_memoryBus.GetSceneColliderTransformAccessArray(), 128, handleSimulate);
+        } else {
+            handlePersonalColliderRead = jobBulkPersonalColliderTransformRead.ScheduleReadOnly( _memoryBus.GetPersonalColliderTransformAccessArray(), 128);
+            handleSceneColliderRead = jobBulkSceneColliderTransformRead.ScheduleReadOnly(_memoryBus.GetSceneColliderTransformAccessArray(), 128);
+        }
+
         hasHandlePersonalColliderRead = true;
         hasHandleSceneColliderRead = true;
         
@@ -208,6 +238,10 @@ public class JiggleJobs {
 
     public void Remove(JiggleColliderSerializable collider) {
         _memoryBus.Remove(collider);
+    }
+
+    public void GetColliders(out JiggleCollider[] personalColliders, out JiggleCollider[] sceneColliders, out int personalColliderCount, out int sceneColliderCount) {
+        _memoryBus.GetColliders(out personalColliders, out sceneColliders, out personalColliderCount, out sceneColliderCount);
     }
 
     public void OnDrawGizmos() {

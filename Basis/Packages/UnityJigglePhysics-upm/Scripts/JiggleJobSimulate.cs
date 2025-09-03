@@ -1,3 +1,4 @@
+using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
@@ -18,8 +19,8 @@ public struct JiggleJobSimulate : IJobFor {
     public NativeArray<JiggleTransform> inputPoses;
 
     [NativeDisableParallelForRestriction] public NativeArray<PoseData> outputPoses;
-    [NativeDisableParallelForRestriction] public NativeArray<JiggleCollider> personalColliders;
-    [NativeDisableParallelForRestriction] public NativeArray<JiggleCollider> sceneColliders;
+    [ReadOnly,NativeDisableParallelForRestriction] public NativeArray<JiggleCollider> personalColliders;
+    [ReadOnly,NativeDisableParallelForRestriction] public NativeArray<JiggleCollider> sceneColliders;
     
     [ReadOnly]
     public NativeHashMap<int2,JiggleGridCell> broadPhaseMap;
@@ -114,41 +115,43 @@ public struct JiggleJobSimulate : IJobFor {
         var rootDelta = rootPosition - rootLastPosition;
         
         for (int i = 0; i < tree.pointCount; i++) {
-            var point = tree.points+i;
+            var point = tree.points[i];
             var parameters = tree.parameters + i;
-            if (point->parentIndex == -1) {
+            if (point.parentIndex == -1) {
                 continue;
             }
-            point->lastPosition += rootDelta * parameters->ignoreRootMotion;
-            point->position += rootDelta * parameters->ignoreRootMotion;
+            point.lastPosition += rootDelta * parameters->ignoreRootMotion;
+            point.position += rootDelta * parameters->ignoreRootMotion;
+            tree.points[i] = point;
         }
         
         for (int i = 0; i < tree.pointCount; i++) {
-            var point = tree.points+i;
-            if (point->parentIndex == -1) {
+            var point = tree.points[i];
+            if (point.parentIndex == -1) {
                 continue;
             }
-            var parent = tree.points+point->parentIndex;
+            var parent = tree.points[point.parentIndex];
 
             //point->debug = pointLocalPosition;
 
-            var delta = point->position - point->lastPosition;
-            var parentDelta = parent->position - parent->lastPosition;
+            var delta = point.position - point.lastPosition;
+            var parentDelta = parent.position - parent.lastPosition;
             var localSpaceVelocity = delta - parentDelta;
             var velocity = delta - localSpaceVelocity;
-            if (parent->parentIndex != -1) {
-                var parentParameters = tree.parameters+point->parentIndex;
-                point->workingPosition = point->position
+            if (parent.parentIndex != -1) {
+                var parentParameters = tree.parameters+point.parentIndex;
+                point.workingPosition = point.position
                                          + velocity * (1f - parentParameters->airDrag)
                                          +localSpaceVelocity * (1f - parentParameters->drag)
                                          + gravity * parentParameters->gravityMultiplier * deltaTimeSquared;
             } else {
                 var parameters = tree.parameters + i;
-                point->workingPosition = point->position
+                point.workingPosition = point.position
                                          + velocity * (1f - parameters->airDrag)
                                          +localSpaceVelocity * (1f - parameters->drag)
                                          + gravity * parameters->gravityMultiplier * deltaTimeSquared;
             }
+            tree.points[i] = point;
         }
     }
 
@@ -172,28 +175,46 @@ public struct JiggleJobSimulate : IJobFor {
         }
         switch (collider.type) {
             case JiggleCollider.JiggleColliderType.Sphere:
+                var hardness = 1f;
                 var colliderPosition = collider.localToWorldMatrix.c3.xyz;
+                var pointPosition = point->workingPosition;
+                var otherPosition = otherPoint->workingPosition;
+                var pointRadius = point->worldRadius;
+                var colliderRadius = collider.worldRadius;
+                var combinedRadius = pointRadius + colliderRadius;
                 var boneClosestPoint = GetClosestPointOnLineSegment(
                         colliderPosition,
-                        point->workingPosition,
-                        otherPoint->workingPosition,
+                        pointPosition,
+                        otherPosition,
                         out var tValue
                         );
                 var sphere_diff = boneClosestPoint - colliderPosition;
                 var sphere_distance = math.length(sphere_diff);
-                var depenetrationMagnitude = (collider.worldRadius + point->worldRadius) - sphere_distance;
+                var depenetrationMagnitude = combinedRadius - sphere_distance;
                 if (depenetrationMagnitude <= 0f) {
-                    return new float3(0f, 0f, 0f);
+                    return float3.zero;
                 }
                 var depenetrationDir = math.normalizesafe(sphere_diff, new float3(0, 0, 1));
                 var depenetrationVector = depenetrationDir * depenetrationMagnitude;
-                // TODO: find decent rigidbody solve instead of just pushing them both naively
-                var hardness = 1f;
                 var pValue = math.clamp(2f - tValue * 2f, 0f, 1f);
+                depenetrationVector *= hardness * pValue;
+                // TODO: find decent rigidbody solve instead of just pushing them both naively
+                sphere_diff = pointPosition - colliderPosition;
+                sphere_distance = math.length(sphere_diff);
+                depenetrationMagnitude = combinedRadius - sphere_distance;
+                if (depenetrationMagnitude > 0f) {
+                    depenetrationDir = math.normalizesafe(sphere_diff, new float3(0, 0, 1));
+                    var depenetrationVector2 = depenetrationDir * depenetrationMagnitude;
+                    depenetrationVector2 *= hardness;
+                    var mag1 = math.length(depenetrationVector);
+                    var mag2 = math.length(depenetrationVector2);
+                    depenetrationVector = (depenetrationVector+depenetrationVector2)*0.5f;
+                    depenetrationVector = math.normalizesafe(depenetrationVector, new float3(0,0,1)) * math.max(mag1, mag2);
+                }
                 if (!(otherPointParameters->angleElasticity == 1f
                       && otherPointParameters->rootElasticity == 1f
                       && otherPointParameters->lengthElasticity == 1f)) {
-                    return depenetrationVector * hardness * pValue;
+                    return depenetrationVector;
                 }
                 break;
         }
@@ -475,9 +496,21 @@ public struct JiggleJobSimulate : IJobFor {
         }
     }
 
+    private bool Validate(JiggleTreeJobData tree) {
+        if (!tree.GetIsValid(out string failReason)) {
+            throw new Exception(failReason);
+        }
+
+        return true;
+    }
 
     public void Execute(int index) {
         var tree = jiggleTrees[index];
+        #if UNITY_EDITOR
+        if (!Validate(tree)) {
+            return;
+        }
+        #endif
         Cache(tree);
         VerletIntegrate(tree);
         Constrain(tree);

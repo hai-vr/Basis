@@ -28,7 +28,20 @@ public class JiggleRig : MonoBehaviour {
         jiggleRigData.OnDisable();
     }
 
+    /// <summary>
+    /// Immediately resamples the rest pose of the bones in the tree. This can be useful if you have modified the bones' transforms on initialization and want to control when the rest pose is sampled.
+    /// </summary>
+    public void ResampleRestPose() {
+        jiggleRigData.ResampleRestPose();
+    }
+
+    #if !JIGGLEPHYSICS_DISABLE_ANIMATED_PARAMETER_UPDATE
     private void LateUpdate() {
+        UpdateParameters();
+    }
+    #endif
+
+    public void UpdateParameters() {
         if (animatedParameters) {
             jiggleRigData.UpdateParameters(parametersCache);
         }
@@ -43,11 +56,11 @@ public class JiggleRig : MonoBehaviour {
         jiggleRigData.UpdateParameters(parametersCache);
     }
 
-    private void OnDrawGizmos() {
+    private void OnDrawGizmosSelected() {
         if (!isActiveAndEnabled) {
             return;
         }
-        jiggleRigData.OnDrawGizmos();
+        jiggleRigData.OnDrawGizmosSelected();
     }
 
 }

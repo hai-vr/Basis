@@ -81,6 +81,8 @@ public class JiggleMemoryBus {
     
     private List<JiggleColliderSerializable> pendingSceneColliderAdd;
     private List<JiggleColliderSerializable> pendingSceneColliderRemove;
+
+    private bool hasWrittenData = false;
     
     private int preTransformCount;
 
@@ -112,12 +114,26 @@ public class JiggleMemoryBus {
         }
     }
 
+    public void GetColliders(out JiggleCollider[] personalColliders, out JiggleCollider[] sceneColliders, out int personalColliderCount, out int sceneColliderCount) {
+        if (commitSceneColliderState == CommitState.Idle) { // FIXME: dont reuse arrays here
+            ReadIn(this.personalColliders, personalColliderArray, this.personalColliderCount);
+            ReadIn(this.sceneColliders, sceneColliderArray, this.sceneColliderCount);
+        }
+        personalColliders = personalColliderArray;
+        sceneColliders = sceneColliderArray;
+        personalColliderCount = this.personalColliderCount;
+        sceneColliderCount = this.sceneColliderCount;
+    }
+
     public void GetResults(JobHandle interpolationJobHandle, JobHandle simulateJobHandle, out JiggleTransform[] poses, out JiggleTreeJobData[] treeJobData, out int poseCount, out int treeCount) {
         interpolationJobHandle.Complete();
         simulateJobHandle.Complete();
-        
-        ReadIn(interpolationOutputPoses, interpolationOutputPosesArray, transformCount);
-        ReadIn(jiggleTreeStructs, jiggleTreeStructsArray, this.treeCount);
+
+        if (commitTreeState == CommitState.Idle) { // FIXME: don't reuse Arrays here, 
+            ReadIn(interpolationOutputPoses, interpolationOutputPosesArray, transformCount);
+            ReadIn(jiggleTreeStructs, jiggleTreeStructsArray, this.treeCount);
+        }
+
         poseCount = transformCount;
         treeCount = this.treeCount;
         poses = interpolationOutputPosesArray;
@@ -291,6 +307,8 @@ public class JiggleMemoryBus {
 
         transformCount = 0;
         treeCount = 0;
+        sceneColliderCount = 0;
+        personalColliderCount = 0;
         broadPhaseMap = new NativeHashMap<int2, JiggleGridCell>(128, Allocator.Persistent);
     }
 
@@ -315,10 +333,54 @@ public class JiggleMemoryBus {
         ReadIn(simulationOutputPoseData, simulationOutputPoseDataArray, transformCount);
         ReadIn(interpolationCurrentPoseData, interpolationCurrentPoseDataArray, transformCount);
         ReadIn(interpolationPreviousPoseData, interpolationPreviousPoseDataArray, transformCount);
+        ReadIn(personalColliders, personalColliderArray, personalColliderCount);
         Profiler.EndSample();
     }
 
+    private bool GetIsValid(out string failReason) {
+        for (int i = 0; i < treeCount; i++) {
+            var tree = jiggleTreeStructsArray[i];
+            if (!tree.GetIsValid(out failReason)) {
+                return false;
+            }
+            for (int o=0;o<tree.pointCount;o++) {
+                if (!memoryFragmenter.GetIsAllocated(o + (int)tree.transformIndexOffset)) {
+                    failReason = $"Transform index {o + tree.transformIndexOffset} in tree {i} is not allocated, invalid access!";
+                    return false;
+                }
+            }
+        }
+
+        for (int i = 0; i < sceneColliderCount; i++) {
+            var collider = sceneColliderArray[i];
+            if (collider.enabled) {
+                if (!sceneColliderMemoryFragmenter.GetIsAllocated(i)) {
+                    failReason = $"Scene collider index {i} is not allocated, invalid access!";
+                    return false;
+                }
+            }
+        }
+
+        for (int i = 0; i < transformCount; i++) {
+            var transformInfo = simulationOutputPoseDataArray[i];
+            if (!transformInfo.pose.isVirtual) {
+                if (!memoryFragmenter.GetIsAllocated(i)) {
+                    failReason = $"Transform index {i} is not allocated, invalid access!";
+                    return false;
+                }
+            }
+        }
+
+        failReason = "All good!";
+        return true;
+    }
+
     private void WriteOut() {
+        #if UNITY_EDITOR
+        if (!GetIsValid(out var failReason)) {
+            Debug.LogError(failReason);
+        }
+        #endif
         Profiler.BeginSample("JiggleMemoryBus.WriteOut");
         NativeArray<JiggleTreeJobData>.Copy(jiggleTreeStructsArray, jiggleTreeStructs, treeCount);
         NativeArray<JiggleTransform>.Copy(simulateInputPosesArray, simulateInputPoses, transformCount);
@@ -343,7 +405,8 @@ public class JiggleMemoryBus {
         }
     }
 
-    private void RemoveTree(int id) {
+    private void RemoveTree(JiggleTree tree) {
+        int id = tree.rootID;
         Profiler.BeginSample("JiggleMemoryBus.RemoveTree");
         for (int i = 0; i < treeCount; i++) {
             var removedTree = jiggleTreeStructsArray[i];
@@ -480,7 +543,6 @@ public class JiggleMemoryBus {
                     bone = GetDummyTransform(index + o);
                 }
                 bone.GetPositionAndRotation(out var pos, out var rot);
-                bone.GetLocalPositionAndRotation(out var lpos, out var lrot);
                 var pose = new JiggleTransform() {
                     isVirtual = !point.hasTransform,
                     position = pos,
@@ -488,8 +550,8 @@ public class JiggleMemoryBus {
                 };
                 var localPose = new JiggleTransform() {
                     isVirtual = !point.hasTransform,
-                    position = lpos,
-                    rotation = lrot,
+                    position = jiggleTree.restPositions[o],
+                    rotation = jiggleTree.restRotations[o],
                 };
                 simulateInputPosesArray[index + o] = pose;
                 restPoseTransformsArray[index + o] = localPose;
@@ -628,8 +690,7 @@ public class JiggleMemoryBus {
             Profiler.BeginSample("JiggleMemoryBus.Commit.Remove");
             for (int i = 0; i < processingPendingRemoveCount; i++) {
                 var tree = pendingProcessingRemoves[i];
-                var currentRemoveID = pendingProcessingRemoves[i].rootID;
-                RemoveTree(currentRemoveID);
+                RemoveTree(tree);
                 tree.Dispose();
             }
 

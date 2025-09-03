@@ -6,7 +6,6 @@ using UnityEngine.Profiling;
 namespace GatorDragonGames.JigglePhysics {
 
 public static class JigglePhysics {
-    private static HashSet<JiggleTreeSegment> jiggleTreeSegments;
     private static Dictionary<Transform, JiggleTreeSegment> jiggleRootLookup;
     private static bool _globalDirty = true;
     private static HashSet<JiggleTree> jiggleTrees;
@@ -52,7 +51,6 @@ public static class JigglePhysics {
     
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void Initialize() {
-        jiggleTreeSegments = new HashSet<JiggleTreeSegment>();
         rootJiggleTreeSegments = new List<JiggleTreeSegment>();
         jiggleRootLookup = new Dictionary<Transform, JiggleTreeSegment>();
         jiggleTrees = new HashSet<JiggleTree>();
@@ -63,12 +61,16 @@ public static class JigglePhysics {
 
     public static void Dispose() {
         jobs?.Dispose();
-        jiggleTreeSegments = new HashSet<JiggleTreeSegment>();
+        JiggleRenderer.Dispose();
         rootJiggleTreeSegments = new List<JiggleTreeSegment>();
         jiggleRootLookup = new Dictionary<Transform, JiggleTreeSegment>();
         jiggleTrees = new HashSet<JiggleTree>();
         _globalDirty = true;
         jobs = null;
+    }
+
+    public static void Render(Material proceduralMaterial, Mesh sphere) {
+        JiggleRenderer.Render(jobs, proceduralMaterial, sphere);
     }
     
     public static void SetGlobalDirty() => _globalDirty = true;
@@ -80,12 +82,17 @@ public static class JigglePhysics {
     public static void RemoveJiggleCollider(JiggleColliderSerializable collider) {
         jobs?.Remove(collider);
     }
+    public static void FreeOnComplete(IntPtr pointer) {
+        jobs.FreeOnComplete(pointer);
+    }
     
     public static void AddJiggleTreeSegment(JiggleTreeSegment jiggleTreeSegment) {
-        jiggleTreeSegments.Add(jiggleTreeSegment);
-        if (TryAddRootJiggleTreeSegment(jiggleTreeSegment)) {
-            jiggleRootLookup.Add(jiggleTreeSegment.transform, jiggleTreeSegment);
+        if (!jiggleRootLookup.TryAdd(jiggleTreeSegment.transform, jiggleTreeSegment)) {
+            Debug.LogError("Multiple Jiggle trees detected targeting the same root transform, Jiggle Physics doesn't support this.", jiggleTreeSegment.transform);
+            return;
         }
+        RemoveAddChildren(jiggleTreeSegment.transform);
+        TryAddRootJiggleTreeSegment(jiggleTreeSegment);
         _globalDirty = true;
     }
     
@@ -120,6 +127,16 @@ public static class JigglePhysics {
         } else {
             rootJiggleTreeSegments.Add(jiggleTreeSegment);
             return true;
+        }
+    }
+
+    private static void RemoveAddChildren(Transform t) {
+        foreach (Transform child in t) {
+            if (jiggleRootLookup.TryGetValue(child, out var jiggleRootSegment)) {
+                rootJiggleTreeSegments.Remove(jiggleRootSegment);
+                TryAddRootJiggleTreeSegment(jiggleRootSegment);
+            }
+            RemoveAddChildren(child);
         }
     }
     
@@ -332,10 +349,6 @@ public static class JigglePhysics {
 
         jiggleRootLookup.Remove(jiggleTreeSegment.transform);
 
-        if (jiggleTreeSegments.Contains(jiggleTreeSegment)) {
-            jiggleTreeSegments.Remove(jiggleTreeSegment);
-        }
-        
         if (jiggleTreeSegment.jiggleTree != null) {
             if (jiggleTrees.Contains(jiggleTreeSegment.jiggleTree)) {
                 jiggleTrees.Remove(jiggleTreeSegment.jiggleTree);
