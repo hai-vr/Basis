@@ -28,7 +28,7 @@ public static class BasisMenuItemsEditor
     [MenuItem("Basis/Avatar/ReloadAvatar")]
     public static async Task ReloadAvatar()
     {
-        if (BasisDataStore.LoadAvatar(BasisLocalPlayer.LoadFileNameAndExtension, BasisLocalPlayer.DefaultAvatar, BasisPlayer.LoadModeLocal, out BasisDataStore.BasisSavedAvatar LastSavedAvatar))
+        if (BasisDataStore.LoadAvatar(BasisLocalPlayer.LoadFileNameAndExtension, BasisLoadHandler.DefaultAvatar, BasisPlayer.LoadModeLocal, out BasisDataStore.BasisSavedAvatar LastSavedAvatar))
         {
             await BasisLocalPlayer.Instance.LoadInitialAvatar(LastSavedAvatar);
         }
