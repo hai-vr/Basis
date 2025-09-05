@@ -192,6 +192,7 @@ namespace Basis.Scripts.Drivers
             JiggleCreatorHelper(Mapping.RightRing);
             JiggleCreatorHelper(Mapping.RightLittle);
             JiggleCreatorHelper(Mapping.rightHand);
+            BasisDebug.Log("Creating Collider Rigs");
             foreach (JiggleColliderSerializable Jiggle in JiggleColliders)
             {
                 JigglePhysics.AddJiggleCollider(Jiggle);
@@ -211,9 +212,13 @@ namespace Basis.Scripts.Drivers
                 JiggleColliderSerializable jiggleColliderSerializable = new JiggleColliderSerializable
                 {
                     collider = new JiggleCollider()
+                    {
+                        type = JiggleCollider.JiggleColliderType.Sphere,
+                        localToWorldMatrix = Parent.localToWorldMatrix,
+                        radius = 0.1f
+                    }
                 };
                 jiggleColliderSerializable.collider.type = JiggleCollider.JiggleColliderType.Sphere;
-                jiggleColliderSerializable.collider.worldRadius = 0.1f;
                 jiggleColliderSerializable.transform = Parent;
 
                 JiggleColliders.Add(jiggleColliderSerializable);
@@ -221,6 +226,7 @@ namespace Basis.Scripts.Drivers
         }
         public void RemoveJiggleRigColliders()
         {
+            BasisDebug.Log("Removed Collider Rigs");
             foreach (JiggleColliderSerializable Jiggle in JiggleColliders)
             {
                 JigglePhysics.RemoveJiggleCollider(Jiggle);
