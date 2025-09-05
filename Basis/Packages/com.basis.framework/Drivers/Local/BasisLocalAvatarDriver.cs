@@ -76,6 +76,13 @@ namespace Basis.Scripts.Drivers
 			//tpose
 			PutAvatarIntoTPose();
 
+			var JiggleRigs = player.BasisAvatar.GetComponentsInChildren<JiggleRig>();
+
+			foreach (JiggleRig Rig in JiggleRigs)
+			{
+				Rig.ResampleRestPose();
+			}
+
 			player.LocalRigDriver.Builder = BasisHelpers.GetOrAddComponent<RigBuilder>(AvatarAnimatorParent);
 			player.LocalRigDriver.Builder.enabled = false;
 			Calibration(player);
@@ -119,13 +126,6 @@ namespace Basis.Scripts.Drivers
 			player.AvatarTransform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
 			player.LocalRigDriver.BuildBuilder();
 			IsNormalHead = true;
-
-			var JiggleRigs = player.BasisAvatar.GetComponentsInChildren<JiggleRig>();
-
-			foreach (JiggleRig Rig in JiggleRigs)
-			{
-				Rig.ResampleRestPose();
-			}
 			RemoveJiggleRigColliders();
 			AddJiggleRigColliders(References);
 		}
@@ -259,9 +259,9 @@ namespace Basis.Scripts.Drivers
 		public void Calibration(BasisLocalPlayer LocalPlayer)
 		{
 			var Avatar = LocalPlayer.BasisAvatar;
-            FindSkinnedMeshRenders(LocalPlayer);
-            SetupAvatarLayers(LocalPlayer, BasisLayerMapper.LocalAvatarLayer);
-            BasisTransformMapping.AutoDetectReferences(LocalPlayer.BasisAvatar.Animator, Avatar.transform, ref References);
+			FindSkinnedMeshRenders(LocalPlayer);
+			SetupAvatarLayers(LocalPlayer, BasisLayerMapper.LocalAvatarLayer);
+			BasisTransformMapping.AutoDetectReferences(LocalPlayer.BasisAvatar.Animator, Avatar.transform, ref References);
 			References.RecordPoses(LocalPlayer.BasisAvatar.Animator);
 			LocalPlayer.FaceIsVisible = false;
 			if (Avatar == null)
@@ -324,7 +324,7 @@ namespace Basis.Scripts.Drivers
 				var role = driver.trackedRoles[Index];
 
 				switch (role)
-				{ 
+				{
 					case BasisBoneTrackedRole.CenterEye:
 						{
 							// Convert avatar-local eye position to world and apply
@@ -467,7 +467,7 @@ namespace Basis.Scripts.Drivers
 		{
 			SkinnedMeshRenderer = LocalPlayer.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true);
 			SkinnedMeshRendererLength = SkinnedMeshRenderer.Length;
-        }
+		}
 
 		public void SetAllMatrixRecalculation(bool State)
 		{
@@ -492,5 +492,5 @@ namespace Basis.Scripts.Drivers
 				}
 			}
 		}
-    }
+	}
 }
