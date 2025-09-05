@@ -20,7 +20,7 @@ public static class BasisBundleManagement
             return (null, null, "Cancelled before starting.");
         }
         BasisDebug.Log("Starting download process for " + url);
-        Result<BeeDownloadResult> result = await BasisIOManagement.DownloadBEEEx(url, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
+        BeeResult<BeeDownloadResult> result = await BasisIOManagement.DownloadBEEEx(url, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
 
         if (!result.IsSuccess || result.Value is null)
         {
@@ -89,7 +89,7 @@ public static class BasisBundleManagement
             return (null, null, "Cancelled before starting.");
         }
         BasisDebug.Log("Processing on-disk meta at " + storedBundle.DownloadedBeeFileLocation);
-        Result<BeeReadResult> result = await BasisIOManagement.ReadBEEFileEx(storedBundle.DownloadedBeeFileLocation, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken);
+        BeeResult<BeeReadResult> result = await BasisIOManagement.ReadBEEFileEx(storedBundle.DownloadedBeeFileLocation, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken);
 
         if (!result.IsSuccess || result.Value is null)
         {
@@ -138,7 +138,7 @@ public static class BasisBundleManagement
             return (null, "Cancelled before starting.");
         }
         BasisDebug.Log("Reading BEE (connector-only) from disk: " + storedBundle.DownloadedBeeFileLocation);
-        Result<BeeReadResult> result = await BasisIOManagement.ReadBEEConnectorFileEx(storedBundle.DownloadedBeeFileLocation, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
+        BeeResult<BeeReadResult> result = await BasisIOManagement.ReadBEEConnectorFileEx(storedBundle.DownloadedBeeFileLocation, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
 
         if (!result.IsSuccess || result.Value is null)
         {
@@ -173,7 +173,7 @@ public static class BasisBundleManagement
             return (null, "Cancelled before starting.");
         }
         BasisDebug.Log("Downloading BEE (connector-only) from " + url);
-        Result<(BasisBundleConnector, string)> result = await BasisIOManagement.DownloadConnectorOnlyEx(url, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken);
+        BeeResult<(BasisBundleConnector, string)> result = await BasisIOManagement.DownloadConnectorOnlyEx(url, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken);
 
         if (!result.IsSuccess || result.Value.Item1 is null)
         {

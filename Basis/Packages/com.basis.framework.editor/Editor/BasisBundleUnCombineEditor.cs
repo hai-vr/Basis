@@ -89,7 +89,7 @@ public class BasisBundleUnCombineEditor : EditorWindow
             CancellationToken cancellationToken = new CancellationToken();
 
             EditorUtility.DisplayProgressBar("Reading", "Reading BEE file...", 0.3f);
-            Result<BasisIOManagement.BeeReadResult> value = await BasisIOManagement.ReadBEEFileEx(LocalFile, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
+            BeeResult<BasisIOManagement.BeeReadResult> value = await BasisIOManagement.ReadBEEFileEx(LocalFile, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
             bundleWrapper.LoadableBundle.BasisBundleConnector = value.Value.Connector;
 
             var BasisPassword = new BasisEncryptionWrapper.BasisPassword

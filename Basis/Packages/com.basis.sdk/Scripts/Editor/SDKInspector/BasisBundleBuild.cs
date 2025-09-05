@@ -12,7 +12,7 @@ public static class BasisBundleBuild
 {
     public static event Func<BasisContentBase, List<BuildTarget>, Task> PreBuildBundleEvents;
 
-    public static async Task<(bool, string)> GameObjectBundleBuild(BasisContentBase BasisContentBase, List<BuildTarget> Targets, bool useProvidedPassword = false, string OverridenPassword = "")
+    public static async Task<(bool, string)> GameObjectBundleBuild(BasisContentBase BasisContentBase, List<BuildTarget> Targets,bool useProvidedPassword = false, string OverridenPassword = "")
     {
         int TargetCount = Targets.Count;
         for (int Index = 0; Index < TargetCount; Index++)
@@ -33,7 +33,7 @@ public static class BasisBundleBuild
         Debug.Log($"{target.ToString()} Build Target Installed: {isSupported}");
         return isSupported;
     }
-    public static async Task<(bool, string)> SceneBundleBuild(BasisContentBase BasisContentBase, List<BuildTarget> Targets, bool useProvidedPassword = false, string OverridenPassword = "")
+    public static async Task<(bool, string)> SceneBundleBuild(BasisContentBase BasisContentBase, List<BuildTarget> Targets,bool useProvidedPassword = false, string OverridenPassword = "")
     {
         int TargetCount = Targets.Count;
         for (int Index = 0; Index < TargetCount; Index++)

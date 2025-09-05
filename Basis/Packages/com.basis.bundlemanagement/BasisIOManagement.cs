@@ -44,30 +44,30 @@ public static class BasisIOManagement
     /// downloads the platform-matching section, writes a local .bee file (4-byte Int32 header),
     /// and returns all artifacts.
     /// </summary>
-    public static async Task<Result<BeeDownloadResult>> DownloadBEEEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
+    public static async Task<BeeResult<BeeDownloadResult>> DownloadBEEEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
     {
         // Validate inputs with actionable messages
         if (!ValidateUrl(url, out var urlErr))
-            return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: {urlErr}");
+            return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: {urlErr}");
 
         if (string.IsNullOrWhiteSpace(vp))
-            return Result<BeeDownloadResult>.Fail("DownloadBEEEx: VP is null or empty.");
+            return BeeResult<BeeDownloadResult>.Fail("DownloadBEEEx: VP is null or empty.");
 
         // 1) Read 8-byte remote header (Int64)
         var headerRes = await DownloadRangeInternal(url, startByte: 0, endByteInclusive: BasisBeeConstants.RemoteHeaderSize - 1, toFilePath: null, progressCallback, cancellationToken);
 
         if (!headerRes.IsSuccess || headerRes.Value?.Data == null)
-            return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to read remote header. {headerRes.Error ?? "No data"}", headerRes.ResponseCode);
+            return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to read remote header. {headerRes.Error ?? "No data"}", headerRes.ResponseCode);
 
         if (headerRes.Value.Data.Length != BasisBeeConstants.RemoteHeaderSize)
-            return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Remote header size mismatch. Expected {BasisBeeConstants.RemoteHeaderSize} bytes, got {headerRes.Value.Data.Length}.", headerRes.ResponseCode);
+            return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Remote header size mismatch. Expected {BasisBeeConstants.RemoteHeaderSize} bytes, got {headerRes.Value.Data.Length}.", headerRes.ResponseCode);
 
         long connectorLength = ReadInt64LittleEndian(headerRes.Value.Data);
         if (connectorLength <= 0)
-            return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Invalid connector length {connectorLength}. Remote file may be corrupt or not a BEE.");
+            return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Invalid connector length {connectorLength}. Remote file may be corrupt or not a BEE.");
 
         if (connectorLength > BasisBeeConstants.MaxConnectorBytes)
-            return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Connector length {connectorLength} exceeds max allowed {BasisBeeConstants.MaxConnectorBytes}.");
+            return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Connector length {connectorLength} exceeds max allowed {BasisBeeConstants.MaxConnectorBytes}.");
 
         // 2) Download connector bytes (immediately after header)
         long connectorStart = BasisBeeConstants.RemoteHeaderSize;
@@ -76,10 +76,10 @@ public static class BasisIOManagement
         var connectorRes = await DownloadRangeInternal(url, connectorStart, connectorEndInclusive, toFilePath: null, progressCallback, cancellationToken);
 
         if (!connectorRes.IsSuccess || connectorRes.Value.Data == null)
-            return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to download connector block. {connectorRes.Error ?? "No data"}", connectorRes.ResponseCode);
+            return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to download connector block. {connectorRes.Error ?? "No data"}", connectorRes.ResponseCode);
 
         if (connectorRes.Value.Data.LongLength != connectorLength)
-            return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Expected {connectorLength} connector bytes, got {connectorRes.Value.Data.LongLength}.", connectorRes.ResponseCode);
+            return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Expected {connectorLength} connector bytes, got {connectorRes.Value.Data.LongLength}.", connectorRes.ResponseCode);
 
         var connectorBytes = connectorRes.Value.Data;
         BasisDebug.Log("Downloaded Connector block size: " + connectorBytes.Length);
@@ -89,10 +89,10 @@ public static class BasisIOManagement
         BasisDebug.Log("GenerateMetaFromBytes", BasisDebug.LogTag.Event);
 
         if (connector == null)
-            return Result<BeeDownloadResult>.Fail("DownloadBEEEx: Failed to parse connector metadata (null).");
+            return BeeResult<BeeDownloadResult>.Fail("DownloadBEEEx: Failed to parse connector metadata (null).");
 
         if (connector.BasisBundleGenerated == null || connector.BasisBundleGenerated.Length == 0)
-            return Result<BeeDownloadResult>.Fail("DownloadBEEEx: Connector contains no sections.");
+            return BeeResult<BeeDownloadResult>.Fail("DownloadBEEEx: Connector contains no sections.");
 
         // 4) Walk sections, compute ranges, download only the platform-matching section
         long previousEnd = connectorEndInclusive; // End of connector region in the remote file
@@ -104,7 +104,7 @@ public static class BasisIOManagement
             if (entry == null)
             {
                 BasisDebug.LogError($"DownloadBEEEx: Null section entry at index {index}.");
-                return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Null section entry at index {index}.");
+                return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Null section entry at index {index}.");
             }
 
             long start = previousEnd + 1;
@@ -113,11 +113,11 @@ public static class BasisIOManagement
             if (sectionLength <= 0)
             {
                 BasisDebug.LogError($"DownloadBEEEx: Invalid section length at index {index}: {sectionLength}.");
-                return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Invalid section length at index {index}: {sectionLength}.");
+                return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Invalid section length at index {index}: {sectionLength}.");
             }
 
             if (sectionLength > BasisBeeConstants.MaxSectionBytes)
-                return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Section length {sectionLength} at index {index} exceeds max allowed {BasisBeeConstants.MaxSectionBytes}.");
+                return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Section length {sectionLength} at index {index} exceeds max allowed {BasisBeeConstants.MaxSectionBytes}.");
 
             long end = start + sectionLength - 1;
 
@@ -128,7 +128,7 @@ public static class BasisIOManagement
             }
             catch (Exception ex)
             {
-                return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Exception while checking platform for section {index}: {ex.Message}");
+                return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Exception while checking platform for section {index}: {ex.Message}");
             }
 
             if (isPlatform)
@@ -137,10 +137,10 @@ public static class BasisIOManagement
                 var sectRes = await DownloadRangeInternal(url, start, end, toFilePath: null, progressCallback, cancellationToken);
 
                 if (!sectRes.IsSuccess || sectRes.Value?.Data == null)
-                    return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to download platform section at index {index}. {sectRes.Error ?? "No data"}", sectRes.ResponseCode);
+                    return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to download platform section at index {index}. {sectRes.Error ?? "No data"}", sectRes.ResponseCode);
 
                 if (sectRes.Value.Data.LongLength != sectionLength)
-                    return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Expected section length {sectionLength}, got {sectRes.Value.Data.LongLength}.", sectRes.ResponseCode);
+                    return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Expected section length {sectionLength}, got {sectRes.Value.Data.LongLength}.", sectRes.ResponseCode);
 
                 platformSectionData = sectRes.Value.Data;
                 BasisDebug.Log("Platform section length: " + platformSectionData.LongLength);
@@ -151,12 +151,12 @@ public static class BasisIOManagement
         }
 
         if (platformSectionData == null || platformSectionData.Length == 0)
-            return Result<BeeDownloadResult>.Fail("DownloadBEEEx: No platform-matching section found in connector.");
+            return BeeResult<BeeDownloadResult>.Fail("DownloadBEEEx: No platform-matching section found in connector.");
 
         // 5) Write local .bee (Int32 header + connector + section)
         string fileName = $"{connector.UniqueVersion}{BasisBeeConstants.BasisEncryptedExtension}";
         if (string.IsNullOrWhiteSpace(fileName))
-            return Result<BeeDownloadResult>.Fail("DownloadBEEEx: Connector has no UniqueVersion / file extension.");
+            return BeeResult<BeeDownloadResult>.Fail("DownloadBEEEx: Connector has no UniqueVersion / file extension.");
 
         string localPath;
         try
@@ -165,40 +165,40 @@ public static class BasisIOManagement
         }
         catch (Exception ex)
         {
-            return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to generate local file path: {ex.Message}");
+            return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to generate local file path: {ex.Message}");
         }
 
         var writeRes = await WriteBeeFileAsync(localPath, connectorBytes, platformSectionData, false);
         if (!writeRes.IsSuccess)
-            return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: {writeRes.Error}");
+            return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: {writeRes.Error}");
 
-        return Result<BeeDownloadResult>.Ok(new BeeDownloadResult(connector, localPath, platformSectionData));
+        return BeeResult<BeeDownloadResult>.Ok(new BeeDownloadResult(connector, localPath, platformSectionData));
     }
     /// <summary>
     /// Downloads only the connector bytes from the remote BEE (8-byte Int64 header) and parses them.
     /// </summary>
-    public static async Task<Result<(BasisBundleConnector, string)>> DownloadConnectorOnlyEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
+    public static async Task<BeeResult<(BasisBundleConnector, string)>> DownloadConnectorOnlyEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
     {
         if (!ValidateUrl(url, out var urlErr))
-            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: {urlErr}");
+            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: {urlErr}");
 
         if (string.IsNullOrWhiteSpace(vp))
-            return Result<(BasisBundleConnector, string)>.Fail("DownloadConnectorOnlyEx: VP is null or empty.");
+            return BeeResult<(BasisBundleConnector, string)>.Fail("DownloadConnectorOnlyEx: VP is null or empty.");
 
         // Header
         var headerRes = await DownloadRangeInternal(url, 0, BasisBeeConstants.RemoteHeaderSize - 1, null, progressCallback, cancellationToken);
         if (!headerRes.IsSuccess || headerRes.Value?.Data == null)
-            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read header. {headerRes.Error ?? "No data"}", headerRes.ResponseCode);
+            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read header. {headerRes.Error ?? "No data"}", headerRes.ResponseCode);
 
         if (headerRes.Value.Data.Length != BasisBeeConstants.RemoteHeaderSize)
-            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Header size mismatch. Expected {BasisBeeConstants.RemoteHeaderSize}, got {headerRes.Value.Data.Length}.", headerRes.ResponseCode);
+            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Header size mismatch. Expected {BasisBeeConstants.RemoteHeaderSize}, got {headerRes.Value.Data.Length}.", headerRes.ResponseCode);
 
         long connectorLength = ReadInt64LittleEndian(headerRes.Value.Data);
         if (connectorLength <= 0)
-            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Invalid connector length {connectorLength}.");
+            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Invalid connector length {connectorLength}.");
 
         if (connectorLength > BasisBeeConstants.MaxConnectorBytes)
-            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Connector length {connectorLength} exceeds max allowed {BasisBeeConstants.MaxConnectorBytes}.");
+            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Connector length {connectorLength} exceeds max allowed {BasisBeeConstants.MaxConnectorBytes}.");
 
         // Connector bytes
         long start = BasisBeeConstants.RemoteHeaderSize;
@@ -206,23 +206,23 @@ public static class BasisIOManagement
 
         var connectorRes = await DownloadRangeInternal(url, start, end, null, progressCallback, cancellationToken);
         if (!connectorRes.IsSuccess || connectorRes.Value?.Data == null)
-            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read connector bytes. {connectorRes.Error ?? "No data"}", connectorRes.ResponseCode);
+            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read connector bytes. {connectorRes.Error ?? "No data"}", connectorRes.ResponseCode);
 
         if (connectorRes.Value.Data.LongLength != connectorLength)
-            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Expected {connectorLength} bytes, got {connectorRes.Value.Data.LongLength}.", connectorRes.ResponseCode);
+            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Expected {connectorLength} bytes, got {connectorRes.Value.Data.LongLength}.", connectorRes.ResponseCode);
 
         var connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorRes.Value.Data, progressCallback);
         BasisDebug.Log("GenerateMetaFromBytes", BasisDebug.LogTag.Event);
         if (connector == null)
         {
-            return Result<(BasisBundleConnector, string)>.Fail("DownloadConnectorOnlyEx: Failed to parse connector metadata (null).");
+            return BeeResult<(BasisBundleConnector, string)>.Fail("DownloadConnectorOnlyEx: Failed to parse connector metadata (null).");
         }
 
         // 5) Write local .bee (Int32 header + connector + section)
         string fileName = $"{connector.UniqueVersion}{BasisBeeConstants.BasisEncryptedExtension}";
         if (string.IsNullOrWhiteSpace(fileName))
         {
-            return Result<(BasisBundleConnector, string)>.Fail("DownloadBEEEx: Connector has no UniqueVersion / file extension.");
+            return BeeResult<(BasisBundleConnector, string)>.Fail("DownloadBEEEx: Connector has no UniqueVersion / file extension.");
 
         }
         string localPath = GenerateFilePath(fileName, BasisBeeConstants.AssetBundlesFolder);
@@ -232,52 +232,52 @@ public static class BasisIOManagement
 
         if (!writeRes.IsSuccess)
         {
-            return Result<(BasisBundleConnector, string)>.Fail($"DownloadBEEEx: {writeRes.Error}");
+            return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadBEEEx: {writeRes.Error}");
         }
         (BasisBundleConnector, string) Data = new(connector, localPath);
 
-        return Result<(BasisBundleConnector, string)>.Ok(Data);
+        return BeeResult<(BasisBundleConnector, string)>.Ok(Data);
     }
 
     /// <summary>
     /// Reads a local .bee file (4-byte Int32 header), regenerates the connector, and returns the remaining section data.
     /// </summary>
-    public static async Task<Result<BeeReadResult>> ReadBEEFileEx(string filePath, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
+    public static async Task<BeeResult<BeeReadResult>> ReadBEEFileEx(string filePath, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(filePath))
-            return Result<BeeReadResult>.Fail("ReadBEEFileEx: File path is null or empty.");
+            return BeeResult<BeeReadResult>.Fail("ReadBEEFileEx: File path is null or empty.");
 
         if (!File.Exists(filePath))
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: File not found: {filePath}");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: File not found: {filePath}");
 
         if (string.IsNullOrWhiteSpace(vp))
-            return Result<BeeReadResult>.Fail("ReadBEEFileEx: VP is null or empty.");
+            return BeeResult<BeeReadResult>.Fail("ReadBEEFileEx: VP is null or empty.");
 
         using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 96 * 1024, useAsync: true);
 
         if (fs.Length < BasisBeeConstants.DiskHeaderSize)
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: File too small to contain header. Size={fs.Length} bytes.");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: File too small to contain header. Size={fs.Length} bytes.");
 
         // Read Int32 connector size (little-endian)
         byte[] sizeBytes = await ReadExactAsync(fs, BasisBeeConstants.DiskHeaderSize, cancellationToken);
         if (sizeBytes.Length != BasisBeeConstants.DiskHeaderSize)
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read connector size (header). Got {sizeBytes.Length} bytes.");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read connector size (header). Got {sizeBytes.Length} bytes.");
 
         int connectorSize = ReadInt32LittleEndian(sizeBytes);
         long remainingPossible = fs.Length - fs.Position;
         if (connectorSize <= 0 || connectorSize > remainingPossible)
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Invalid connector size {connectorSize}. Remaining file bytes: {remainingPossible}. File may be corrupt.");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Invalid connector size {connectorSize}. Remaining file bytes: {remainingPossible}. File may be corrupt.");
 
         // Read connector bytes
         byte[] connectorBytes = await ReadExactAsync(fs, connectorSize, cancellationToken);
         if (connectorBytes.Length != connectorSize)
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full connector block. Expected {connectorSize}, got {connectorBytes.Length}.");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full connector block. Expected {connectorSize}, got {connectorBytes.Length}.");
 
         BasisBundleConnector connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorBytes, progressCallback);
         BasisDebug.Log("GenerateMetaFromBytes", BasisDebug.LogTag.Event);
 
         if (connector == null)
-            return Result<BeeReadResult>.Fail("ReadBEEFileEx: Failed to regenerate connector metadata (null).");
+            return BeeResult<BeeReadResult>.Fail("ReadBEEFileEx: Failed to regenerate connector metadata (null).");
 
         // Remaining is section data
         long remaining = fs.Length - fs.Position;
@@ -286,56 +286,56 @@ public static class BasisIOManagement
         byte[] sectionData = remaining == 0 ? null : await ReadExactAsync(fs, checked((int)remaining), cancellationToken);
         if(sectionData == null)
         {
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full section data. Expected {remaining}, got {null}.");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full section data. Expected {remaining}, got {null}.");
         }
         if (sectionData.LongLength != remaining)
         {
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full section data. Expected {remaining}, got {sectionData.LongLength}.");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full section data. Expected {remaining}, got {sectionData.LongLength}.");
         }
 
-        return Result<BeeReadResult>.Ok(new BeeReadResult(connector, sectionData));
+        return BeeResult<BeeReadResult>.Ok(new BeeReadResult(connector, sectionData));
     }
     /// <summary>
     /// Reads a local .bee file (4-byte Int32 header), regenerates the connector, and returns the remaining section data.
     /// </summary>
-    public static async Task<Result<BeeReadResult>> ReadBEEConnectorFileEx(string filePath, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
+    public static async Task<BeeResult<BeeReadResult>> ReadBEEConnectorFileEx(string filePath, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(filePath))
-            return Result<BeeReadResult>.Fail("ReadBEEFileEx: File path is null or empty.");
+            return BeeResult<BeeReadResult>.Fail("ReadBEEFileEx: File path is null or empty.");
 
         if (!File.Exists(filePath))
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: File not found: {filePath}");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: File not found: {filePath}");
 
         if (string.IsNullOrWhiteSpace(vp))
-            return Result<BeeReadResult>.Fail("ReadBEEFileEx: VP is null or empty.");
+            return BeeResult<BeeReadResult>.Fail("ReadBEEFileEx: VP is null or empty.");
 
         using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 96 * 1024, useAsync: true);
 
         if (fs.Length < BasisBeeConstants.DiskHeaderSize)
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: File too small to contain header. Size={fs.Length} bytes.");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: File too small to contain header. Size={fs.Length} bytes.");
 
         // Read Int32 connector size (little-endian)
         byte[] sizeBytes = await ReadExactAsync(fs, BasisBeeConstants.DiskHeaderSize, cancellationToken);
         if (sizeBytes.Length != BasisBeeConstants.DiskHeaderSize)
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read connector size (header). Got {sizeBytes.Length} bytes.");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read connector size (header). Got {sizeBytes.Length} bytes.");
 
         int connectorSize = ReadInt32LittleEndian(sizeBytes);
         long remainingPossible = fs.Length - fs.Position;
         if (connectorSize <= 0 || connectorSize > remainingPossible)
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Invalid connector size {connectorSize}. Remaining file bytes: {remainingPossible}. File may be corrupt.");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Invalid connector size {connectorSize}. Remaining file bytes: {remainingPossible}. File may be corrupt.");
 
         // Read connector bytes
         byte[] connectorBytes = await ReadExactAsync(fs, connectorSize, cancellationToken);
         if (connectorBytes.Length != connectorSize)
-            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full connector block. Expected {connectorSize}, got {connectorBytes.Length}.");
+            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full connector block. Expected {connectorSize}, got {connectorBytes.Length}.");
 
         BasisBundleConnector connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorBytes, progressCallback);
         BasisDebug.Log("GenerateMetaFromBytes", BasisDebug.LogTag.Event);
 
         if (connector == null)
-            return Result<BeeReadResult>.Fail("ReadBEEFileEx: Failed to regenerate connector metadata (null).");
+            return BeeResult<BeeReadResult>.Fail("ReadBEEFileEx: Failed to regenerate connector metadata (null).");
 
-        return Result<BeeReadResult>.Ok(new BeeReadResult(connector, null));
+        return BeeResult<BeeReadResult>.Ok(new BeeReadResult(connector, null));
     }
 
     public static string GenerateFilePath(string fileName, string subFolder)
@@ -367,16 +367,16 @@ public static class BasisIOManagement
         return folderPath;
     }
 
-    private static async Task<Result<DownloadPayload>> DownloadRangeInternal(string url, long startByte, long? endByteInclusive, string toFilePath, BasisProgressReport progress, CancellationToken ct)
+    private static async Task<BeeResult<DownloadPayload>> DownloadRangeInternal(string url, long startByte, long? endByteInclusive, string toFilePath, BasisProgressReport progress, CancellationToken ct)
     {
         if (!ValidateUrl(url, out var urlErr))
-            return Result<DownloadPayload>.Fail(urlErr);
+            return BeeResult<DownloadPayload>.Fail(urlErr);
 
         if (startByte < 0)
-            return Result<DownloadPayload>.Fail($"Invalid start byte: {startByte}");
+            return BeeResult<DownloadPayload>.Fail($"Invalid start byte: {startByte}");
 
         if (endByteInclusive.HasValue && endByteInclusive.Value < startByte)
-            return Result<DownloadPayload>.Fail($"Invalid byte range: {startByte}-{endByteInclusive.Value}");
+            return BeeResult<DownloadPayload>.Fail($"Invalid byte range: {startByte}-{endByteInclusive.Value}");
 
         string requestId = BasisGenerateUniqueID.GenerateUniqueID();
 
@@ -411,7 +411,7 @@ public static class BasisIOManagement
             {
                 BasisDebug.Log("Download cancelled.");
                 req.Abort();
-                return Result<DownloadPayload>.Fail("Cancelled");
+                return BeeResult<DownloadPayload>.Fail("Cancelled");
             }
 
             float p = req.downloadProgress * 100f;
@@ -431,7 +431,7 @@ public static class BasisIOManagement
         {
             progress?.ReportProgress(requestId, 100, "Downloading Complete");
             var errDetail = BuildNetworkErrorDetail(req);
-            return Result<DownloadPayload>.Fail($"Network error: {req.error}. {errDetail}", code);
+            return BeeResult<DownloadPayload>.Fail($"Network error: {req.error}. {errDetail}", code);
         }
 
         // Enforce partial content semantics and provide actionable reasons
@@ -446,23 +446,23 @@ public static class BasisIOManagement
                     if (!contentRange.StartsWith("bytes ", StringComparison.OrdinalIgnoreCase))
                     {
                         progress?.ReportProgress(requestId, 100, $"Error! {code}");
-                        return Result<DownloadPayload>.Fail($"Unexpected Content-Range header: {contentRange}", code);
+                        return BeeResult<DownloadPayload>.Fail($"Unexpected Content-Range header: {contentRange}", code);
                     }
                 }
                 break;
 
             case 200:
                 progress?.ReportProgress(requestId, 100, $"Error! {code}");
-                return Result<DownloadPayload>.Fail("Server returned 200 (full file). Host must support HTTP range requests (206).", code);
+                return BeeResult<DownloadPayload>.Fail("Server returned 200 (full file). Host must support HTTP range requests (206).", code);
 
             case 416:
                 progress?.ReportProgress(requestId, 100, $"Error! {code}");
-                return Result<DownloadPayload>.Fail($"Requested Range {startByte}-{(endByteInclusive?.ToString() ?? "end")} not satisfiable. The requested range may exceed the file size.", code);
+                return BeeResult<DownloadPayload>.Fail($"Requested Range {startByte}-{(endByteInclusive?.ToString() ?? "end")} not satisfiable. The requested range may exceed the file size.", code);
 
             default:
                 progress?.ReportProgress(requestId, 100, $"Error! {code}");
                 var details = BuildNetworkErrorDetail(req);
-                return Result<DownloadPayload>.Fail($"Unexpected response code: {code}. {details}", code);
+                return BeeResult<DownloadPayload>.Fail($"Unexpected response code: {code}. {details}", code);
         }
 
         var payload = new DownloadPayload();
@@ -470,13 +470,13 @@ public static class BasisIOManagement
         {
             var data = req.downloadHandler.data;
             if (data == null)
-                return Result<DownloadPayload>.Fail("No payload returned (buffer was null).", code);
+                return BeeResult<DownloadPayload>.Fail("No payload returned (buffer was null).", code);
 
             // Optional: verify Content-Length when present
             var contentLengthHeader = req.GetResponseHeader("Content-Length");
             if (long.TryParse(contentLengthHeader, out var contentLen) && contentLen >= 0 && data.LongLength != contentLen)
             {
-                return Result<DownloadPayload>.Fail($"Content-Length mismatch. Header={contentLen}, Received={data.LongLength}.", code);
+                return BeeResult<DownloadPayload>.Fail($"Content-Length mismatch. Header={contentLen}, Received={data.LongLength}.", code);
             }
 
             payload.Data = data;
@@ -484,29 +484,29 @@ public static class BasisIOManagement
         else
         {
             if (!File.Exists(toFilePath))
-                return Result<DownloadPayload>.Fail($"Download handler reported success but file was not created: {toFilePath}", code);
+                return BeeResult<DownloadPayload>.Fail($"Download handler reported success but file was not created: {toFilePath}", code);
 
             payload.Path = toFilePath;
         }
 
-        return Result<DownloadPayload>.Ok(payload);
+        return BeeResult<DownloadPayload>.Ok(payload);
     }
 
     /// <summary>
     /// Writes local .bee with 4-byte little-endian Int32 header (connector size) + connector [+ optional section].
     /// If <paramref name="IgnoreSectionBytes"/> is true, the section is not written even if provided.
     /// </summary>
-    private static async Task<Result<bool>> WriteBeeFileAsync(string path, byte[] connectorBytes, byte[] sectionBytes, bool IgnoreSectionBytes)
+    private static async Task<BeeResult<bool>> WriteBeeFileAsync(string path, byte[] connectorBytes, byte[] sectionBytes, bool IgnoreSectionBytes)
     {
         if (string.IsNullOrWhiteSpace(path))
-            return Result<bool>.Fail("WriteBeeFileAsync: Output path is null or empty.");
+            return BeeResult<bool>.Fail("WriteBeeFileAsync: Output path is null or empty.");
 
         if (connectorBytes == null || connectorBytes.Length == 0)
-            return Result<bool>.Fail("WriteBeeFileAsync: Connector bytes are empty.");
+            return BeeResult<bool>.Fail("WriteBeeFileAsync: Connector bytes are empty.");
 
         // If we are not ignoring the section, it must be non-null (zero-length is allowed)
         if (!IgnoreSectionBytes && sectionBytes == null)
-            return Result<bool>.Fail("WriteBeeFileAsync: Section bytes are null.");
+            return BeeResult<bool>.Fail("WriteBeeFileAsync: Section bytes are null.");
 
         // Prepare directory
         string dir = Path.GetDirectoryName(path);
@@ -544,10 +544,10 @@ public static class BasisIOManagement
         if (totalSize != actual)
         {
             BasisDebug.LogError("File size does not match expected size!");
-            return Result<bool>.Fail($"WriteBeeFileAsync: Size mismatch after write. Expected {totalSize}, actual {actual}.");
+            return BeeResult<bool>.Fail($"WriteBeeFileAsync: Size mismatch after write. Expected {totalSize}, actual {actual}.");
         }
 
-        return Result<bool>.Ok(true);
+        return BeeResult<bool>.Ok(true);
     }
 
     private static bool ValidateUrl(string url, out string error)

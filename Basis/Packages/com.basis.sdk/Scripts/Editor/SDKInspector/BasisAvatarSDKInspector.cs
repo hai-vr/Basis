@@ -302,7 +302,7 @@ public partial class BasisAvatarSDKInspector : Editor
 #if UNITY_6000_2_OR_NEWER
         GenerateMeshLODs(3);
 #endif
-       // CheckTranslation(Avatar);
+        // CheckTranslation(Avatar);
 
         if (BasisAvatarValidator.ValidateAvatar(out List<BasisValidationIssue> Errors, out List<BasisValidationIssue> Warnings, out List<string> Passes))
         {
@@ -317,7 +317,8 @@ public partial class BasisAvatarSDKInspector : Editor
                     AssetDatabase.SaveAssetIfDirty(Avatar);
                 }
             }
-
+            Texture2D Image = AssetPreview.GetAssetPreview(Avatar.gameObject);
+            byte[] ImageBytes = BasisTextureCompression.ToPngBytes(Image);
             Debug.Log($"Building Gameobject Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
             (bool success, string message) = await BasisBundleBuild.GameObjectBundleBuild(Avatar, targets);
             EditorUtility.ClearProgressBar();

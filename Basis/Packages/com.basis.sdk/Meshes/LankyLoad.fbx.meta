@@ -58,7 +58,7 @@ ModelImporter:
     optimizeBones: 1
     generateMeshLods: 1
     meshLodGenerationFlags: 0
-    maximumMeshLod: -1
+    maximumMeshLod: 3
     meshOptimizationFlags: -1
     indexFormat: 0
     secondaryUVAngleDistortion: 8
@@ -867,7 +867,7 @@ ModelImporter:
     feetSpacing: 0
     globalScale: 1
     rootMotionBoneName: 
-    hasTranslationDoF: 1
+    hasTranslationDoF: 0
     hasExtraRoot: 1
     skeletonHasParents: 1
   lastHumanDescriptionAvatarSource: {instanceID: 0}

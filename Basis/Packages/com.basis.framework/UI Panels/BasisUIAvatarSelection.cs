@@ -39,6 +39,9 @@ namespace Basis.Scripts.UI.UI_Panels
         public TextMeshProUGUI Description;
         public TextMeshProUGUI UniqueVersion;
         public TextMeshProUGUI SupportedPlatformsText;
+        public RawImage AvatarBigImage;
+        public Texture FallbackImage;
+        public List<Texture> AvatarImages = new List<Texture>();
         private async void Start()
         {
             BasisDataStoreAvatarKeys.DisplayKeys();
@@ -50,6 +53,14 @@ namespace Basis.Scripts.UI.UI_Panels
             ShowAvatarSelectionPanel();
             AvatarPassword.gameObject.SetActive(false);
             await Initialize();
+        }
+        public void OnDestroy()
+        {
+            foreach (Texture image in AvatarImages)
+            {
+                Destroy(image);
+            }
+            AvatarImages.Clear();
         }
         public async void SelectedDeleteAvatar()
         {
@@ -203,6 +214,11 @@ namespace Basis.Scripts.UI.UI_Panels
                         {
                             await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, Report, CancellationToken);
                             SelectionButton.Text.text = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName;
+                            if(wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription.Image != null)
+                            {
+                                AvatarBigImage.texture = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription.Image;
+                                AvatarImages.Add(AvatarBigImage.texture);
+                            }
                         }
                     }
                     catch (Exception E)
@@ -249,6 +265,15 @@ namespace Basis.Scripts.UI.UI_Panels
                 string SupportedPlatforms = string.Join(", ", SelectedBundle.BasisBundleConnector.BasisBundleGenerated.Select(pair => pair.Platform));
                 SupportedPlatformsText.text = "Supported Platforms : " + SupportedPlatforms;
 
+                if (avatarLoadRequest.BasisBundleConnector.BasisBundleDescription.Image != null)
+                {
+                    AvatarBigImage.texture = avatarLoadRequest.BasisBundleConnector.BasisBundleDescription.Image;
+                    AvatarImages.Add(AvatarBigImage.texture);
+                }
+                else
+                {
+                    AvatarBigImage.texture = FallbackImage;
+                }
                 ShowInformationPanel();
             }
             else
