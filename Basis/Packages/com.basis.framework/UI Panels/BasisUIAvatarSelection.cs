@@ -214,10 +214,14 @@ namespace Basis.Scripts.UI.UI_Panels
                         {
                             await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, Report, CancellationToken);
                             SelectionButton.Text.text = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName;
-                            if(wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription.Image != null)
+                            if (wrapper.LoadableBundle.BasisBundleConnector.ImageBytes != null)
                             {
-                                AvatarBigImage.texture = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription.Image;
+                                SelectionButton.Image.texture = BasisTextureCompression.FromPngBytes(wrapper.LoadableBundle.BasisBundleConnector.ImageBytes);
                                 AvatarImages.Add(AvatarBigImage.texture);
+                            }
+                            else
+                            {
+                                SelectionButton.Image.texture = FallbackImage;
                             }
                         }
                     }
@@ -264,16 +268,17 @@ namespace Basis.Scripts.UI.UI_Panels
 
                 string SupportedPlatforms = string.Join(", ", SelectedBundle.BasisBundleConnector.BasisBundleGenerated.Select(pair => pair.Platform));
                 SupportedPlatformsText.text = "Supported Platforms : " + SupportedPlatforms;
-
-                if (avatarLoadRequest.BasisBundleConnector.BasisBundleDescription.Image != null)
+                if (avatarLoadRequest.BasisBundleConnector.ImageBytes != null)
                 {
-                    AvatarBigImage.texture = avatarLoadRequest.BasisBundleConnector.BasisBundleDescription.Image;
+                    AvatarBigImage.texture = BasisTextureCompression.FromPngBytes(avatarLoadRequest.BasisBundleConnector.ImageBytes);
                     AvatarImages.Add(AvatarBigImage.texture);
                 }
                 else
                 {
                     AvatarBigImage.texture = FallbackImage;
                 }
+
+
                 ShowInformationPanel();
             }
             else

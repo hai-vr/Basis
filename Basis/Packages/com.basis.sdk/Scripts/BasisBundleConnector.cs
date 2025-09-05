@@ -9,8 +9,8 @@ public class BasisBundleConnector
     public string UniqueVersion;
     public BasisBundleDescription BasisBundleDescription;
     public BasisBundleGenerated[] BasisBundleGenerated;
-
-    public BasisBundleConnector(string version, BasisBundleDescription basisBundleDescription, BasisBundleGenerated[] basisBundleGenerated)
+    public byte[] ImageBytes;
+    public BasisBundleConnector(string version, BasisBundleDescription basisBundleDescription, BasisBundleGenerated[] basisBundleGenerated, byte[] imageBytes)
     {
         UniqueVersion = version ?? throw new ArgumentNullException(nameof(version));
         BasisBundleDescription = basisBundleDescription ?? throw new ArgumentNullException(nameof(basisBundleDescription));
@@ -74,17 +74,14 @@ public class BasisBundleDescription
 {
     public string AssetBundleName;//user friendly name of this asset.
     public string AssetBundleDescription;//the description of this asset
-    [SerializeField]
-    public Texture2D Image;
     public BasisBundleDescription()
     {
 
     }
-    public BasisBundleDescription(string assetBundleName, string assetBundleDescription, Texture2D image)
+    public BasisBundleDescription(string assetBundleName, string assetBundleDescription)
     {
         AssetBundleName = assetBundleName ?? throw new ArgumentNullException(nameof(assetBundleName));
         AssetBundleDescription = assetBundleDescription ?? throw new ArgumentNullException(nameof(assetBundleDescription));
-        Image = image;
     }
 }
 [System.Serializable]
@@ -98,7 +95,6 @@ public class BasisBundleGenerated
     public string Password;//this unlocks the bundle
     public string Platform;//Deployed Platform
     public long EndByte;
-
     public BasisBundleGenerated()
     {
     }
