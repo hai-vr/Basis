@@ -113,7 +113,7 @@ namespace Basis.Scripts.UI.UI_Panels
                 {
                     switch (key.Url)
                     {
-                        case BasisLoadHandler.DefaultAvatar:
+                        case BasisBeeConstants.DefaultAvatar:
                             break;
                         default:
                             if (string.IsNullOrEmpty(key.Url))
@@ -195,9 +195,9 @@ namespace Basis.Scripts.UI.UI_Panels
                     };
                     try
                     {
-                        if (bundle.UnlockPassword == BasisLoadHandler.DefaultAvatar)
+                        if (bundle.UnlockPassword == BasisBeeConstants.DefaultAvatar)
                         {
-                            SelectionButton.Text.text = BasisLoadHandler.DefaultAvatar;
+                            SelectionButton.Text.text = BasisBeeConstants.DefaultAvatar;
                         }
                         else
                         {
@@ -268,7 +268,7 @@ namespace Basis.Scripts.UI.UI_Panels
                 }
                 else
                 {
-                    if (avatarLoadRequest.UnlockPassword == BasisLoadHandler.DefaultAvatar)
+                    if (avatarLoadRequest.UnlockPassword == BasisBeeConstants.DefaultAvatar)
                     {
                         await BasisLocalPlayer.Instance.CreateAvatar(1, avatarLoadRequest);
                     }

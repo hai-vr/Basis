@@ -4,7 +4,6 @@ using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -20,8 +19,8 @@ namespace Basis.Scripts.Avatar
             {
                 BasisBundleDescription = new BasisBundleDescription()
                 {
-                    AssetBundleDescription = BasisLoadHandler.DefaultAvatar,
-                    AssetBundleName = BasisLoadHandler.DefaultAvatar
+                    AssetBundleDescription = BasisBeeConstants.DefaultAvatar,
+                    AssetBundleName = BasisBeeConstants.DefaultAvatar
                 },
                 BasisBundleGenerated = new BasisBundleGenerated[]
                  {
@@ -31,11 +30,11 @@ namespace Basis.Scripts.Avatar
             UnlockPassword = "N/A",
             BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle()
             {
-                RemoteBeeFileLocation = BasisLoadHandler.DefaultAvatar,
+                RemoteBeeFileLocation = BasisBeeConstants.DefaultAvatar,
             },
             BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle()
             {
-                DownloadedBeeFileLocation = BasisLoadHandler.DefaultAvatar,
+                DownloadedBeeFileLocation = BasisBeeConstants.DefaultAvatar,
             },
         };
         public static bool IsLoadingAvatar(BasisLoadableBundle BasisLoadableBundle)

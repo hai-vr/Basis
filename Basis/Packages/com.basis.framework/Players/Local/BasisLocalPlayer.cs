@@ -95,7 +95,7 @@ namespace Basis.Scripts.BasisSdk.Players
                 SceneManager.sceneLoaded += OnSceneLoadedCallback;
                 HasEvents = true;
             }
-            bool LoadedState = BasisDataStore.LoadAvatar(LoadFileNameAndExtension,BasisLoadHandler.DefaultAvatar, LoadModeLocal, out BasisDataStore.BasisSavedAvatar LastUsedAvatar);
+            bool LoadedState = BasisDataStore.LoadAvatar(LoadFileNameAndExtension, BasisBeeConstants.DefaultAvatar, LoadModeLocal, out BasisDataStore.BasisSavedAvatar LastUsedAvatar);
             if (LoadedState)
             {
                 await LoadInitialAvatar(LastUsedAvatar);

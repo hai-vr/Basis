@@ -15,8 +15,6 @@ public static class BasisLoadHandler
     public static ConcurrentDictionary<string, BasisBEEExtensionMeta> OnDiscData = new ConcurrentDictionary<string, BasisBEEExtensionMeta>();
     public static readonly object _discInfoLock = new object();
     public static SemaphoreSlim _initSemaphore = new SemaphoreSlim(1, 1);
-    public static int TimeUntilMemoryRemoval = 30;
-    public const string DefaultAvatar = "LoadingAvatar";
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static async void Initialization()
     {
@@ -85,7 +83,7 @@ public static class BasisLoadHandler
         }
         else
         {
-            if (CombinedURL.ToLower() != DefaultAvatar.ToLower())
+            if (CombinedURL.ToLower() != BasisBeeConstants.DefaultAvatar.ToLower())
             {
                 BasisDebug.LogError($"tried to find Loaded Key {CombinedURL} but could not find it!");
             }
@@ -182,7 +180,7 @@ public static class BasisLoadHandler
 
                     if (discInfo.StoredLocal.DownloadedBeeFileLocation == string.Empty)
                     {
-                        string BEEPath = BasisIOManagement.GenerateFilePath($"{info.UniqueVersion}{BasisBeeFormat.BasisEncryptedExtension}", BasisBeeFormat.AssetBundlesFolder);
+                        string BEEPath = BasisIOManagement.GenerateFilePath($"{info.UniqueVersion}{BasisBeeConstants.BasisEncryptedExtension}", BasisBeeConstants.AssetBundlesFolder);
                         if (File.Exists(BEEPath))
                         {
                             return true;
@@ -213,7 +211,7 @@ public static class BasisLoadHandler
             OnDiscData[discInfo.StoredRemote.RemoteBeeFileLocation] = discInfo;
             BasisDebug.Log("Disc info updated.", BasisDebug.LogTag.Event);
         }
-        string filePath = BasisIOManagement.GenerateFilePath($"{discInfo.UniqueVersion}{BasisBeeFormat.BasisMetaExtension}", BasisBeeFormat.AssetBundlesFolder);
+        string filePath = BasisIOManagement.GenerateFilePath($"{discInfo.UniqueVersion}{BasisBeeConstants.BasisMetaExtension}", BasisBeeConstants.AssetBundlesFolder);
         byte[] serializedData = SerializationUtility.SerializeValue(discInfo, DataFormat.Binary);
 
         try
@@ -235,7 +233,7 @@ public static class BasisLoadHandler
     {
         if (OnDiscData.TryRemove(metaUrl, out _))
         {
-            string filePath = BasisIOManagement.GenerateFilePath($"{metaUrl}{BasisBeeFormat.BasisEncryptedExtension}", BasisBeeFormat.AssetBundlesFolder);
+            string filePath = BasisIOManagement.GenerateFilePath($"{metaUrl}{BasisBeeConstants.BasisEncryptedExtension}", BasisBeeConstants.AssetBundlesFolder);
 
             if (File.Exists(filePath))
             {
@@ -276,8 +274,8 @@ public static class BasisLoadHandler
     private static async Task LoadAllDiscData()
     {
         BasisDebug.Log("Loading all disc data...", BasisDebug.LogTag.Event);
-        string path = BasisIOManagement.GenerateFolderPath(BasisBeeFormat.AssetBundlesFolder);
-        string[] files = Directory.GetFiles(path, $"*{BasisBeeFormat.BasisMetaExtension}");
+        string path = BasisIOManagement.GenerateFolderPath(BasisBeeConstants.AssetBundlesFolder);
+        string[] files = Directory.GetFiles(path, $"*{BasisBeeConstants.BasisMetaExtension}");
 
         List<Task> loadTasks = new List<Task>();
 

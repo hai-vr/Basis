@@ -16,7 +16,7 @@ public static class BasisBeeManagement
     {
         bool IsMetaOnDisc = BasisLoadHandler.IsMetaDataOnDisc(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out BasisBEEExtensionMeta MetaInfo);
 
-        (BasisBundleGenerated, byte[], string) output = new(null, null, string.Empty);
+        (BasisBundleGenerated, byte[], string) output;
         if (IsMetaOnDisc)
         {
             BasisDebug.Log("Process On Disc Meta Data Async", BasisDebug.LogTag.Event);

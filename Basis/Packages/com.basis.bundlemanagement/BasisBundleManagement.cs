@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
+using static BasisIOManagement;
 public static class BasisBundleManagement
 {
     /// <summary>
@@ -18,55 +19,42 @@ public static class BasisBundleManagement
         {
             return (null, null, "Cancelled before starting.");
         }
+        BasisDebug.Log("Starting download process for " + url);
+        Result<BeeDownloadResult> result = await BasisIOManagement.DownloadBEEEx(url, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
 
-        try
+        if (!result.IsSuccess || result.Value is null)
         {
-            BasisDebug.Log("Starting download process for " + url);
-            BasisIOManagement.Result<BasisIOManagement.BeeDownloadResult> result = await BasisIOManagement.DownloadBEEEx(url, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
-
-            if (!result.IsSuccess || result.Value is null)
-            {
-                return (null, null, BasisBeeValidator.BuildResultError("DownloadBEEEx failed", string.IsNullOrEmpty(result.Error), result.ResponseCode != -1 && result.ResponseCode != 0, result.Error, result.ResponseCode));
-            }
-
-            BasisIOManagement.BeeDownloadResult bee = result.Value;
-
-            if (string.IsNullOrWhiteSpace(bee.LocalPath))
-            {
-                return (null, null, "Download completed but local file path is empty.");
-            }
-
-            if (bee.Connector is null)
-            {
-                return (null, null, "Connector is null after download.");
-            }
-
-            if (bee.SectionData is null || bee.SectionData.Length == 0)
-            {
-                return (null, null, "Section data is missing after download.");
-            }
-
-            // persist references to wrapper
-            bundleWrapper.LoadableBundle.BasisBundleConnector = bee.Connector;
-            bundleWrapper.LoadableBundle.BasisLocalEncryptedBundle.DownloadedBeeFileLocation = bee.LocalPath;
-
-            BasisDebug.Log("Parsing downloaded connector & resolving platform bundle from " + url);
-            if (!TryGetPlatform(bundleWrapper.LoadableBundle.BasisBundleConnector, out BasisBundleGenerated generated, out string pfErr))
-            {
-                return (null, null, "Connector loaded, but " + pfErr + " (platform=" + Application.platform + ").");
-            }
-
-            return (generated, bee.SectionData, string.Empty);
+            return (null, null, BasisBeeValidator.BuildResultError("DownloadBEEEx failed", string.IsNullOrEmpty(result.Error), result.ResponseCode != -1 && result.ResponseCode != 0, result.Error, result.ResponseCode));
         }
-        catch (OperationCanceledException)
+
+        BasisIOManagement.BeeDownloadResult bee = result.Value;
+
+        if (string.IsNullOrWhiteSpace(bee.LocalPath))
         {
-            return (null, null, "Cancelled by token.");
+            return (null, null, "Download completed but local file path is empty.");
         }
-        catch (Exception ex)
+
+        if (bee.Connector is null)
         {
-            string parse = BasisBeeValidator.FormatException("Error during download and processing of meta", ex);
-            return (null, null, parse);
+            return (null, null, "Connector is null after download.");
         }
+
+        if (bee.SectionData is null || bee.SectionData.Length == 0)
+        {
+            return (null, null, "Section data is missing after download.");
+        }
+
+        // persist references to wrapper
+        bundleWrapper.LoadableBundle.BasisBundleConnector = bee.Connector;
+        bundleWrapper.LoadableBundle.BasisLocalEncryptedBundle.DownloadedBeeFileLocation = bee.LocalPath;
+
+        BasisDebug.Log("Parsing downloaded connector & resolving platform bundle from " + url);
+        if (!TryGetPlatform(bundleWrapper.LoadableBundle.BasisBundleConnector, out BasisBundleGenerated generated, out string pfErr))
+        {
+            return (null, null, "Connector loaded, but " + pfErr + " (platform=" + Application.platform + ").");
+        }
+
+        return (generated, bee.SectionData, string.Empty);
     }
 
     /// <summary>
@@ -100,42 +88,29 @@ public static class BasisBundleManagement
         {
             return (null, null, "Cancelled before starting.");
         }
+        BasisDebug.Log("Processing on-disk meta at " + storedBundle.DownloadedBeeFileLocation);
+        Result<BeeReadResult> result = await BasisIOManagement.ReadBEEFileEx(storedBundle.DownloadedBeeFileLocation, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken);
 
-        try
+        if (!result.IsSuccess || result.Value is null)
         {
-            BasisDebug.Log("Processing on-disk meta at " + storedBundle.DownloadedBeeFileLocation);
-            BasisIOManagement.Result<BasisIOManagement.BeeReadResult> result = await BasisIOManagement.ReadBEEFileEx(storedBundle.DownloadedBeeFileLocation, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken);
-
-            if (!result.IsSuccess || result.Value is null)
-            {
-                return (null, null, "ReadBEEFileEx failed. " + (result.Error ?? "No details."));
-            }
-
-            BasisIOManagement.BeeReadResult data = result.Value;
-            bundleWrapper.LoadableBundle.BasisBundleConnector = data.Connector;
-
-            if (!BasisBeeValidator.IsValidConnector(data.Connector, out string connErr))
-            {
-                return (null!, null!, connErr);
-            }
-
-            BasisDebug.Log("Successfully processed the Connector and related files.");
-            if (!TryGetPlatform(bundleWrapper.LoadableBundle.BasisBundleConnector, out BasisBundleGenerated generated, out string pfErr))
-            {
-                return (null!, null!, "Was able to load connector but " + pfErr + " (platform=" + Application.platform + ").");
-            }
-
-            return (generated, data.SectionData, string.Empty);
+            return (null, null, "ReadBEEFileEx failed. " + (result.Error ?? "No details."));
         }
-        catch (OperationCanceledException)
+
+        BeeReadResult data = result.Value;
+        bundleWrapper.LoadableBundle.BasisBundleConnector = data.Connector;
+
+        if (!BasisBeeValidator.IsValidConnector(data.Connector, out string connErr))
         {
-            return (null, null, "Cancelled by token.");
+            return (null!, null!, connErr);
         }
-        catch (Exception ex)
+
+        BasisDebug.Log("Successfully processed the Connector and related files.");
+        if (!TryGetPlatform(bundleWrapper.LoadableBundle.BasisBundleConnector, out BasisBundleGenerated generated, out string pfErr))
         {
-            string parse = BasisBeeValidator.FormatException("Error during on-disk meta processing", ex);
-            return (null, null, parse);
+            return (null!, null!, "Was able to load connector but " + pfErr + " (platform=" + Application.platform + ").");
         }
+
+        return (generated, data.SectionData, string.Empty);
     }
 
     /// <summary>
@@ -162,38 +137,25 @@ public static class BasisBundleManagement
         {
             return (null, "Cancelled before starting.");
         }
+        BasisDebug.Log("Reading BEE (connector-only) from disk: " + storedBundle.DownloadedBeeFileLocation);
+        Result<BeeReadResult> result = await BasisIOManagement.ReadBEEConnectorFileEx(storedBundle.DownloadedBeeFileLocation, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
 
-        try
+        if (!result.IsSuccess || result.Value is null)
         {
-            BasisDebug.Log("Reading BEE (connector-only) from disk: " + storedBundle.DownloadedBeeFileLocation);
-            BasisIOManagement.Result<BasisIOManagement.BeeReadResult> result = await BasisIOManagement.ReadBEEConnectorFileEx(storedBundle.DownloadedBeeFileLocation, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
-
-            if (!result.IsSuccess || result.Value is null)
-            {
-                return (null, "ReadBEEFileEx failed. " + (result.Error ?? "No details."));
-            }
-
-            BasisIOManagement.BeeReadResult data = result.Value;
-            bundleWrapper.LoadableBundle.BasisBundleConnector = data.Connector;
-
-            if (!BasisBeeValidator.IsValidConnector(data.Connector, out string connErr))
-            {
-                return (null, connErr);
-            }
-
-
-            BasisDebug.Log("Successfully recovered connector from disk (connector-only).");
-            return (data.Connector, string.Empty);
+            return (null, "ReadBEEFileEx failed. " + (result.Error ?? "No details."));
         }
-        catch (OperationCanceledException)
+
+        BasisIOManagement.BeeReadResult data = result.Value;
+        bundleWrapper.LoadableBundle.BasisBundleConnector = data.Connector;
+
+        if (!BasisBeeValidator.IsValidConnector(data.Connector, out string connErr))
         {
-            return (null, "Cancelled by token.");
+            return (null, connErr);
         }
-        catch (Exception ex)
-        {
-            string parse = BasisBeeValidator.FormatException("Error during on-disk connector-only processing", ex);
-            return (null, parse);
-        }
+
+
+        BasisDebug.Log("Successfully recovered connector from disk (connector-only).");
+        return (data.Connector, string.Empty);
     }
 
     /// <summary>
@@ -210,37 +172,24 @@ public static class BasisBundleManagement
         {
             return (null, "Cancelled before starting.");
         }
+        BasisDebug.Log("Downloading BEE (connector-only) from " + url);
+        Result<(BasisBundleConnector, string)> result = await BasisIOManagement.DownloadConnectorOnlyEx(url, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken);
 
-        try
+        if (!result.IsSuccess || result.Value.Item1 is null)
         {
-            BasisDebug.Log("Downloading BEE (connector-only) from " + url);
-            BasisIOManagement.Result<(BasisBundleConnector, string)> result = await BasisIOManagement.DownloadConnectorOnlyEx(url, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken);
-
-            if (!result.IsSuccess || result.Value.Item1 is null)
-            {
-                return (null, BasisBeeValidator.BuildResultError("DownloadConnectorOnlyEx failed", !string.IsNullOrEmpty(result.Error), result.ResponseCode != -1 && result.ResponseCode != 0, result.Error, result.ResponseCode));
-            }
-
-            bundleWrapper.LoadableBundle.BasisBundleConnector = result.Value.Item1;
-            bundleWrapper.LoadableBundle.BasisLocalEncryptedBundle.DownloadedBeeFileLocation = result.Value.Item2;
-
-            if (!BasisBeeValidator.IsValidConnector(result.Value.Item1, out string connErr))
-            {
-                return (null, connErr);
-            }
-
-            BasisDebug.Log("Successfully obtained connector (connector-only).");
-            return (result.Value.Item1, string.Empty);
+            return (null, BasisBeeValidator.BuildResultError("DownloadConnectorOnlyEx failed", !string.IsNullOrEmpty(result.Error), result.ResponseCode != -1 && result.ResponseCode != 0, result.Error, result.ResponseCode));
         }
-        catch (OperationCanceledException)
+
+        bundleWrapper.LoadableBundle.BasisBundleConnector = result.Value.Item1;
+        bundleWrapper.LoadableBundle.BasisLocalEncryptedBundle.DownloadedBeeFileLocation = result.Value.Item2;
+
+        if (!BasisBeeValidator.IsValidConnector(result.Value.Item1, out string connErr))
         {
-            return (null, "Cancelled by token.");
+            return (null, connErr);
         }
-        catch (Exception ex)
-        {
-            string parse = BasisBeeValidator.FormatException("Error during connector-only download", ex);
-            return (null, parse);
-        }
+
+        BasisDebug.Log("Successfully obtained connector (connector-only).");
+        return (result.Value.Item1, string.Empty);
     }
 
     private static bool TryGetPlatform(BasisBundleConnector connector, out BasisBundleGenerated generated, out string error)
