@@ -7,7 +7,6 @@ using UnityEngine;
 
 namespace GatorDragonGames.JigglePhysics {
 
-[BurstCompile]
 public struct JiggleJobSimulate : IJobFor {
     // TODO: doubles are strictly a bad way to track time, probably should be ints or longs.
     public double timeStamp;
@@ -498,7 +497,7 @@ public struct JiggleJobSimulate : IJobFor {
 
     private bool Validate(JiggleTreeJobData tree) {
         if (!tree.GetIsValid(out string failReason)) {
-            throw new Exception(failReason);
+            throw new UnityException(failReason);
         }
 
         return true;

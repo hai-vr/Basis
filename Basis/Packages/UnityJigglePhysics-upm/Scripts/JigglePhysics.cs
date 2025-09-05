@@ -8,13 +8,13 @@ namespace GatorDragonGames.JigglePhysics {
 public static class JigglePhysics {
     private static Dictionary<Transform, JiggleTreeSegment> jiggleRootLookup;
     private static bool _globalDirty = true;
-    private static HashSet<JiggleTree> jiggleTrees;
     private static readonly List<Transform> tempTransforms = new List<Transform>();
     private static readonly List<JiggleSimulatedPoint> tempPoints = new List<JiggleSimulatedPoint>();
     private static readonly List<JigglePointParameters> tempParameters = new List<JigglePointParameters>();
     private static readonly List<JiggleCollider> tempColliders = new List<JiggleCollider>();
     private static readonly List<Transform> tempColliderTransforms = new List<Transform>();
     private static List<JiggleTreeSegment> rootJiggleTreeSegments;
+    private static bool initializedRendering = false;
 
     private static double lastFixedCurrentTime = 0f;
     public const float MERGE_DISTANCE = 0.001f;
@@ -53,7 +53,7 @@ public static class JigglePhysics {
     private static void Initialize() {
         rootJiggleTreeSegments = new List<JiggleTreeSegment>();
         jiggleRootLookup = new Dictionary<Transform, JiggleTreeSegment>();
-        jiggleTrees = new HashSet<JiggleTree>();
+        initializedRendering = false;
         _globalDirty = true;
         jobs?.Dispose();
         jobs = new JiggleJobs(Time.timeAsDouble, Time.fixedDeltaTime);
@@ -64,23 +64,35 @@ public static class JigglePhysics {
         JiggleRenderer.Dispose();
         rootJiggleTreeSegments = new List<JiggleTreeSegment>();
         jiggleRootLookup = new Dictionary<Transform, JiggleTreeSegment>();
-        jiggleTrees = new HashSet<JiggleTree>();
         _globalDirty = true;
         jobs = null;
     }
 
-    public static void Render(Material proceduralMaterial, Mesh sphere) {
-        JiggleRenderer.Render(jobs, proceduralMaterial, sphere);
+    public static void ScheduleRender() {
+        if (!initializedRendering) {
+            JiggleRenderer.OnEnable(jobs);
+            initializedRendering = true;
+        }
+        JiggleRenderer.PrepareRender(jobs);
+    }
+
+    public static void CompleteRender(Material proceduralMaterial, Mesh sphere) {
+        if (!initializedRendering) {
+            JiggleRenderer.OnEnable(jobs);
+            initializedRendering = true;
+        }
+
+        JiggleRenderer.FinishRender(proceduralMaterial, sphere);
     }
     
     public static void SetGlobalDirty() => _globalDirty = true;
 
     public static void AddJiggleCollider(JiggleColliderSerializable collider) {
-        jobs.Add(collider);
+        jobs.ScheduleAdd(collider);
     }
 
     public static void RemoveJiggleCollider(JiggleColliderSerializable collider) {
-        jobs?.Remove(collider);
+        jobs?.ScheduleRemove(collider);
     }
     public static void FreeOnComplete(IntPtr pointer) {
         jobs.FreeOnComplete(pointer);
@@ -156,14 +168,13 @@ public static class JigglePhysics {
         // TODO: Cleanup previous trees, or reuse them.
         foreach (var rootJiggleTreeSegment in rootJiggleTreeSegments) {
             var currentTree = rootJiggleTreeSegment.jiggleTree;
-            if (currentTree != null && jiggleTrees.Contains(currentTree) && !currentTree.dirty) {
+            if (currentTree != null && !currentTree.dirty) {
                 continue;
             }
             if (currentTree == null || currentTree.dirty) {
                 CreateJiggleTree(rootJiggleTreeSegment.rig, rootJiggleTreeSegment);
             }
-            jiggleTrees.Add(rootJiggleTreeSegment.jiggleTree);
-            jobs.Add(rootJiggleTreeSegment.jiggleTree);
+            jobs.ScheduleAdd(rootJiggleTreeSegment.jiggleTree);
         }
         Profiler.EndSample();
     }
@@ -342,20 +353,19 @@ public static class JigglePhysics {
         point.childenCount++;
     }
     
+    public static void ScheduleRemoveJiggleTree(JiggleTree jiggleTree) {
+        jobs?.ScheduleRemove(jiggleTree);
+    }
+    
     public static void RemoveJiggleTreeSegment(JiggleTreeSegment jiggleTreeSegment) {
         if (rootJiggleTreeSegments.Contains(jiggleTreeSegment)) {
             rootJiggleTreeSegments.Remove(jiggleTreeSegment);
         }
 
         jiggleRootLookup.Remove(jiggleTreeSegment.transform);
-
-        if (jiggleTreeSegment.jiggleTree != null) {
-            if (jiggleTrees.Contains(jiggleTreeSegment.jiggleTree)) {
-                jiggleTrees.Remove(jiggleTreeSegment.jiggleTree);
-                jobs.Remove(jiggleTreeSegment.jiggleTree);
-            }
-        }
-
+        
+        jiggleTreeSegment.SetDirty();
+        
         if (jiggleTreeSegment.parent != null) {
             jiggleTreeSegment.parent.SetDirty();
             jiggleTreeSegment.SetParent(null);

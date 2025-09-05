@@ -7,15 +7,23 @@ public class JiggleUpdateExample : MonoBehaviour {
     [SerializeField] private bool debugDraw = false;
     [SerializeField] private Material proceduralMaterial;
     [SerializeField] private Mesh sphereMesh;
+
     private void FixedUpdate() {
         JigglePhysics.ScheduleSimulate(Time.timeAsDouble, Time.fixedTimeAsDouble, Time.fixedDeltaTime);
     }
 
     private void LateUpdate() {
-        JigglePhysics.SchedulePose(Time.timeAsDouble);
+        var time = Time.timeAsDouble;
+        var fixedTime = Time.fixedDeltaTime;
+        
+        JigglePhysics.SchedulePose(time);
+        if (debugDraw) {
+            JigglePhysics.ScheduleRender();
+        }
+        
         JigglePhysics.CompletePose();
         if (debugDraw) {
-            JigglePhysics.Render(proceduralMaterial, sphereMesh);
+            JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
         }
     }
 

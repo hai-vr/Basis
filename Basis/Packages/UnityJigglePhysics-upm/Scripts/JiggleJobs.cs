@@ -55,7 +55,8 @@ public class JiggleJobs {
 
     public List<IntPtr> freePointers;
 
-    public JiggleMemoryBus GetMemoryBus() => _memoryBus;
+    public delegate void JiggleFinishSimulateAction(JiggleJobs job, double currentTime, double simulatedTime);
+    public event JiggleFinishSimulateAction OnFinishSimulate;
 
     public JiggleJobs(double timeAsDouble, float fixedDeltaTime) {
         _memoryBus = new JiggleMemoryBus();
@@ -176,6 +177,7 @@ public class JiggleJobs {
         if (hasHandleSimulate) {
             handleSimulate.Complete();
             Free();
+            OnFinishSimulate?.Invoke(this, realTime, simulateTime);
         }
 
         jobInterpolation.previousTimeStamp = jobInterpolation.timeStamp;
@@ -224,24 +226,74 @@ public class JiggleJobs {
         hasHandleSimulate = true;
     }
 
-    public void Add(JiggleTree tree) {
-        _memoryBus.Add(tree);
+    public void ScheduleAdd(JiggleTree tree) {
+        _memoryBus.ScheduleAdd(tree);
     }
 
-    public void Remove(JiggleTree tree) {
-        _memoryBus.Remove(tree);
+    public void ScheduleRemove(JiggleTree tree) {
+        _memoryBus.ScheduleRemove(tree);
     }
     
-    public void Add(JiggleColliderSerializable collider) {
-        _memoryBus.Add(collider);
+    public void ScheduleAdd(JiggleColliderSerializable collider) {
+        _memoryBus.ScheduleAdd(collider);
     }
 
-    public void Remove(JiggleColliderSerializable collider) {
-        _memoryBus.Remove(collider);
+    public void ScheduleRemove(JiggleColliderSerializable collider) {
+        _memoryBus.ScheduleRemove(collider);
     }
-
+    
     public void GetColliders(out JiggleCollider[] personalColliders, out JiggleCollider[] sceneColliders, out int personalColliderCount, out int sceneColliderCount) {
         _memoryBus.GetColliders(out personalColliders, out sceneColliders, out personalColliderCount, out sceneColliderCount);
+    }
+    
+    public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] trees, out int poseCount, out int treeCount) {
+        if (hasHandleSimulate) {
+            handleSimulate.Complete();
+        }
+
+        if (hasHandleInterpolate) {
+            handleInterpolate.Complete();
+        }
+        _memoryBus.GetResults(out poses, out trees, out poseCount, out treeCount);
+    }
+    
+    public NativeArray<JiggleCollider> GetPersonalColliders(out int personalColliderCount) {
+        return _memoryBus.GetPersonalColliders(out personalColliderCount);
+    }
+
+    public NativeArray<JiggleCollider> GetSceneColliders(out int sceneColliderCount) {
+        return _memoryBus.GetSceneColliders(out sceneColliderCount);
+    }
+
+    public NativeArray<JiggleTransform> GetInterpolatedOutputPoses(out int poseCount) {
+        return _memoryBus.GetInterpolatedOutputPoses(out poseCount);
+    }
+
+    public NativeArray<JiggleTreeJobData> GetTrees(out int treeCount) {
+        return _memoryBus.GetTrees(out treeCount);
+    }
+    
+    public int GetTransformCapcity() {
+        return _memoryBus.transformCapacity;
+    }
+    public int GetTransformCount() {
+        return _memoryBus.transformCount;
+    }
+
+    public int GetPersonalColliderCapacity() {
+        return _memoryBus.personalColliderCapacity;
+    }
+    
+    public int GetSceneColliderCapacity() {
+        return _memoryBus.personalColliderCapacity;
+    }
+    
+    public int GetPersonalColliderCount() {
+        return _memoryBus.personalColliderCount;
+    }
+    
+    public int GetSceneColliderCount() {
+        return _memoryBus.personalColliderCount;
     }
 
     public void OnDrawGizmos() {
@@ -249,7 +301,9 @@ public class JiggleJobs {
             return;
         }
 
-        _memoryBus.GetResults(handleInterpolate, handleSimulate, out var poses, out var trees, out var poseCount, out var treeCount);
+        handleInterpolate.Complete();
+        handleSimulate.Complete();
+        _memoryBus.GetResults(out var poses, out var trees, out var poseCount, out var treeCount);
         for (int i = 0; i < treeCount; i++) {
             var tree = trees[i];
             for (int o = 0; o < tree.pointCount; o++) {

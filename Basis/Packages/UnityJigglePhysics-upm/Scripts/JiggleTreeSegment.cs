@@ -24,7 +24,10 @@ public class JiggleTreeSegment {
     }
 
     public void SetDirty() {
-        jiggleTree?.SetDirty();
+        if (jiggleTree is { dirty: false }) {
+            JigglePhysics.ScheduleRemoveJiggleTree(jiggleTree);
+            jiggleTree.SetDirty();
+        }
         parent?.SetDirty();
         JigglePhysics.SetGlobalDirty();
     }

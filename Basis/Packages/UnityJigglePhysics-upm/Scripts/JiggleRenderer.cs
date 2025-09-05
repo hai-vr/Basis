@@ -1,81 +1,95 @@
+using System;
 using System.Runtime.InteropServices;
 using GatorDragonGames.JigglePhysics;
+using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 
 namespace GatorDragonGames.JigglePhysics {
 public static class JiggleRenderer {
-    private static MaterialPropertyBlock materialPropertyBlock;
-    private static GraphicsBuffer chunkBuffer;
-    private static GPUChunk[] chunks;
-    private static Bounds bounds;
-    private static readonly int JiggleChunks = Shader.PropertyToID("_JiggleChunks");
-    private static int bufferCapacity;
-    private static int bufferCount;
+    private static NativeArray<JiggleRenderInstancer.GPUChunk> sphereChunks;
+    private static Bounds colliderBounds;
+    private static int colliderCount;
 
-    private struct GPUChunk {
-        public float4x4 matrix;
+    private static bool hasHandleRender;
+    private static JobHandle handleRender;
+    private static JiggleJobPrepareRender jobPrepareRender;
+    private static JiggleRenderInstancer sphereInstancer;
+    private static JiggleRenderInstancer planeInstancer;
+
+    public static void OnEnable(JiggleJobs job) {
+        sphereInstancer = new JiggleRenderInstancer();
+        planeInstancer = new JiggleRenderInstancer();
+        job.OnFinishSimulate += FlipData;
+        jobPrepareRender = new JiggleJobPrepareRender() {
+            personalColliders = job.GetPersonalColliders(out var _),
+            sceneColliders = job.GetSceneColliders(out var _),
+            outputPoses = job.GetInterpolatedOutputPoses(out var _),
+            trees = job.GetTrees(out var _),
+            sphereChunks = sphereChunks,
+            sphereBounds = new NativeReference<Bounds>(Allocator.Persistent),
+            sphereCount = new NativeReference<int>(Allocator.Persistent),
+        };
     }
-
-    private static void GenerateChunks(JiggleJobs job) {
-        var bus = job.GetMemoryBus();
-        int desiredChunkCount = bus.sceneColliderCapacity + bus.personalColliderCapacity;
+    
+    private static float4 ColorToFloat4(Color color) {
+        return new float4(color.r, color.g, color.b, color.a);
+    }
+    
+    private static void FlipData(JiggleJobs job, double realTime, double simulatedTime) {
+        var sceneColliderCapacity = job.GetSceneColliderCapacity();
+        var personalColliderCapacity = job.GetSceneColliderCapacity();
+        var transformCapacity = job.GetTransformCapcity();
+        
+        int desiredChunkCount = sceneColliderCapacity + personalColliderCapacity + transformCapacity;
         if (desiredChunkCount == 0) {
             return;
         }
 
-        job.GetColliders(out var personalColliders, out var sceneColliders, out var personalColliderCount, out var sceneColliderCount);
-        if (chunkBuffer == null || bufferCapacity != desiredChunkCount) {
-            chunkBuffer?.Release();
-            chunkBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, desiredChunkCount, Marshal.SizeOf<GPUChunk>());
-            chunks = new GPUChunk[desiredChunkCount];
-            bufferCapacity = desiredChunkCount;
+        if (!sphereChunks.IsCreated || sphereChunks.Length != desiredChunkCount) {
+            var newSphereChunks = new NativeArray<JiggleRenderInstancer.GPUChunk>(desiredChunkCount, Allocator.Persistent);
+            if (sphereChunks.IsCreated) {
+                var oldLength = sphereChunks.Length;
+                sphereChunks.Dispose();
+                NativeArray<JiggleRenderInstancer.GPUChunk>.Copy(sphereChunks, newSphereChunks, oldLength);
+            }
+            sphereChunks = newSphereChunks;
         }
-
-        bufferCount = personalColliderCount + sceneColliderCount;
-
-        Vector3 min = Vector3.one * 10000f;
-        Vector3 max = Vector3.one * -10000f;
-
-        for (int i = 0; i < personalColliderCount; i++) {
-            min = Vector3.Min(min, personalColliders[i].localToWorldMatrix.c3.xyz - personalColliders[i].worldRadius);
-            max = Vector3.Max(max, personalColliders[i].localToWorldMatrix.c3.xyz + personalColliders[i].worldRadius);
-            GPUChunk chunk = new GPUChunk() {
-                matrix = personalColliders[i].localToWorldMatrix,
-            };
-            chunks[i] = chunk;
-        }
-
-        for (int i = 0; i < sceneColliderCount; i++) {
-            min = Vector3.Min(min, sceneColliders[i].localToWorldMatrix.c3.xyz - sceneColliders[i].worldRadius);
-            max = Vector3.Max(max, sceneColliders[i].localToWorldMatrix.c3.xyz + sceneColliders[i].worldRadius);
-            GPUChunk chunk = new GPUChunk() {
-                matrix = sceneColliders[i].localToWorldMatrix,
-            };
-            chunks[i + personalColliderCount] = chunk;
-        }
-
-        bounds = new Bounds(Vector3.zero, max - min);
-        chunkBuffer.SetData(chunks);
     }
 
-    public static void Render(JiggleJobs jobs, Material gpuInstanceMaterial, Mesh sphere) {
-        GenerateChunks(jobs);
-        if (chunkBuffer == null) {
+    public static void PrepareRender(JiggleJobs job) {
+        if (!sphereChunks.IsCreated) {
             return;
         }
-        materialPropertyBlock ??= new MaterialPropertyBlock();
-        materialPropertyBlock.SetBuffer(JiggleChunks, chunkBuffer);
-        var renderParams = new RenderParams(gpuInstanceMaterial) {
-            worldBounds = bounds,
-            matProps = materialPropertyBlock,
-        };
-        Graphics.RenderMeshPrimitives(renderParams, sphere, 0, bufferCount);
+        jobPrepareRender.sphereChunks = sphereChunks;
+        jobPrepareRender.personalColliders = job.GetPersonalColliders(out jobPrepareRender.personalColliderCount);
+        jobPrepareRender.sceneColliders = job.GetSceneColliders(out jobPrepareRender.sceneColliderCount);
+        jobPrepareRender.outputPoses = job.GetInterpolatedOutputPoses(out jobPrepareRender.transformCount);
+        jobPrepareRender.trees = job.GetTrees(out jobPrepareRender.treeCount);
+        if (job.hasHandleSimulate && job.hasHandleInterpolate) {
+            handleRender = jobPrepareRender.Schedule(JobHandle.CombineDependencies(job.handleSimulate, job.handleInterpolate));
+            hasHandleRender = true;
+        }
+    }
+
+    public static void FinishRender(Material gpuInstanceMaterial, Mesh sphere) {
+        if (!sphereChunks.IsCreated || !hasHandleRender) {
+            return;
+        }
+        handleRender.Complete();
+        sphereInstancer.Render(jobPrepareRender.sphereBounds.Value, sphere, gpuInstanceMaterial, sphereChunks, jobPrepareRender.sphereCount.Value);
     }
 
     public static void Dispose() {
-        chunkBuffer?.Release();
-        chunkBuffer = null;
+        sphereInstancer?.Dispose();
+        sphereInstancer = null;
+        planeInstancer?.Dispose();
+        planeInstancer = null;
+        jobPrepareRender.Dispose();
+        if (sphereChunks.IsCreated) {
+            sphereChunks.Dispose();
+        }
     }
 }
 
