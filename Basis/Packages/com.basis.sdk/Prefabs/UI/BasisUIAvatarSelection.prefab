@@ -597,7 +597,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 0
+  m_PresetInfoIsWorld: 1
 --- !u!114 &3843996678262047675
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -650,9 +650,9 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
-  - UnlockPassword: 8e778e7cc87e38db7f683c9bd0744f89d32dc777e51745065f7602af88bc412e
+  - UnlockPassword: e2f6596a0f3035b8527923b2508918ece024dac526fa71ace5554cd5b5a136ba
     BasisRemoteBundleEncrypted:
-      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/ezavatars/bc861cc734754d5786f6ad127b7fa05f20250730.BEE
+      RemoteBeeFileLocation: https://cdn.yewnyx.net/gymcat/1/ceb68d2a38204e7c8f76ec5af7fc4ef220250831.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
@@ -697,6 +697,17 @@ MonoBehaviour:
   - UnlockPassword: 113332d5fee840829a0f2ee318dfcfb6e18b10a305c148729a5fa09f22a0a6bb
     BasisRemoteBundleEncrypted:
       RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Mako/49543a7895164b1f871c531ac9382ebe20250831.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+  - UnlockPassword: d868debc29f4429dcbd20320fa3c0eeb9998892f191d11e8ac04ef87600f464f
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://cdn.yewnyx.net/brush/2/0b25b0638ba342e4a75dc210619cfdac20250831.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
