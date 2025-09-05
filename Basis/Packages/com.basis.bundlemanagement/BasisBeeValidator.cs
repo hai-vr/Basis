@@ -118,21 +118,4 @@ public static class BasisBeeValidator
 
         return true;
     }
-
-    /// <summary>
-    /// Logs an error and returns the tuple typed value. Single-line call sites to minimize verbosity & GC.
-    /// </summary>
-    public static T ReturnError<T>(params object[] parts)
-    {
-        string msg = parts.Length > 0 ? parts[parts.Length - 1] as string ?? "Unknown error." : "Unknown error.";
-        BasisDebug.LogError(msg);
-        // Caller ensures tuple layout matches.
-        return (T)(object)(parts.Length switch
-        {
-            1 => (msg),
-            2 => (parts[0], msg),
-            3 => (parts[0], parts[1], msg),
-            _ => (msg)
-        });
-    }
 }
