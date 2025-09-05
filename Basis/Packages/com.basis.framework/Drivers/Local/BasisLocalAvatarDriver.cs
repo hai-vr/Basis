@@ -80,7 +80,7 @@ namespace Basis.Scripts.Drivers
 
 			foreach (JiggleRig Rig in JiggleRigs)
 			{
-				Rig.ResampleRestPose();
+				Rig.OnInitialize();
 			}
 
 			player.LocalRigDriver.Builder = BasisHelpers.GetOrAddComponent<RigBuilder>(AvatarAnimatorParent);
