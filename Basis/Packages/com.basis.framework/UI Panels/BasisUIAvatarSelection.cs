@@ -41,6 +41,8 @@ namespace Basis.Scripts.UI.UI_Panels
         public TextMeshProUGUI SupportedPlatformsText;
         public RawImage AvatarBigImage;
         public Texture FallbackImage;
+        public RectTransform Content;
+        public GridLayoutGroup gridLayout;
         public List<Texture> AvatarImages = new List<Texture>();
         private async void Start()
         {
@@ -170,6 +172,92 @@ namespace Basis.Scripts.UI.UI_Panels
             }
 
             await CreateAvatarButtons();
+            UpdateHeight();
+        }
+        /// <summary>
+        /// Call this if you already know the item count.
+        /// </summary>
+        public void UpdateHeight()
+        {
+            // Guard: no items -> just keep padding height.
+            int count = createdCopies.Count;
+            int rows, columns;
+            GetGridDimensions(count, out rows, out columns);
+
+            float cellH = gridLayout.cellSize.y;
+            float spacingY = gridLayout.spacing.y;
+            int padTop = gridLayout.padding.top;
+            int padBot = gridLayout.padding.bottom;
+
+            float totalHeight =
+                (rows > 0 ? rows * cellH + (rows - 1) * spacingY : 0f) +
+                padTop + padBot;
+
+            // Use SetSizeWithCurrentAnchors so it behaves correctly even if the Content is vertically stretched.
+            Content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, totalHeight);
+        }
+        /// <summary>
+        /// Determines rows/columns based on GridLayoutGroup settings and item count.
+        /// Handles FixedColumnCount, FixedRowCount, and Flexible.
+        /// </summary>
+        private void GetGridDimensions(int count, out int rows, out int columns)
+        {
+            rows = 0;
+            columns = 0;
+
+            if (count <= 0)
+            {
+                rows = 0;
+                columns = 0;
+                return;
+            }
+
+            switch (gridLayout.constraint)
+            {
+                case GridLayoutGroup.Constraint.FixedColumnCount:
+                    {
+                        columns = Mathf.Max(1, gridLayout.constraintCount);
+                        rows = Mathf.CeilToInt((float)count / columns);
+                        break;
+                    }
+                case GridLayoutGroup.Constraint.FixedRowCount:
+                    {
+                        rows = Mathf.Max(1, gridLayout.constraintCount);
+                        columns = Mathf.CeilToInt((float)count / rows);
+                        break;
+                    }
+                case GridLayoutGroup.Constraint.Flexible:
+                default:
+                    {
+                        // Infer columns from available width if filling horizontally,
+                        // otherwise fall back to 1 column.
+                        bool fillHorizontal = gridLayout.startAxis == GridLayoutGroup.Axis.Horizontal;
+
+                        if (fillHorizontal)
+                        {
+                            float availableWidth =
+                                Content.rect.width
+                                - gridLayout.padding.left
+                                - gridLayout.padding.right;
+
+                            float stepX = gridLayout.cellSize.x + gridLayout.spacing.x;
+                            // columns = how many cells fit; add spacing back to allow exact fits
+                            columns = Mathf.Max(1, Mathf.FloorToInt((availableWidth + gridLayout.spacing.x) / stepX));
+                            rows = Mathf.CeilToInt((float)count / columns);
+                        }
+                        else
+                        {
+                            // Vertical fill + Flexible height is underdetermined without a target height,
+                            // so default to one column.
+                            columns = 1;
+                            rows = count;
+#if UNITY_EDITOR
+                            Debug.LogWarning("[GridContentResizer] startAxis=Vertical with Flexible constraint: defaulting to 1 column. Consider using FixedColumnCount.");
+#endif
+                        }
+                        break;
+                    }
+            }
         }
         private async Task CreateAvatarButtons()
         {
@@ -217,7 +305,7 @@ namespace Basis.Scripts.UI.UI_Panels
                             if (wrapper.LoadableBundle.BasisBundleConnector.ImageBytes != null)
                             {
                                 SelectionButton.Image.texture = BasisTextureCompression.FromPngBytes(wrapper.LoadableBundle.BasisBundleConnector.ImageBytes);
-                                AvatarImages.Add(AvatarBigImage.texture);
+                                AvatarImages.Add(SelectionButton.Image.texture);
                             }
                             else
                             {

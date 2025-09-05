@@ -34,9 +34,9 @@ RectTransform:
   - {fileID: 4974552287117946997}
   m_Father: {fileID: 322826358141040038}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 240, y: -20}
   m_SizeDelta: {x: 80, y: 40}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7862317009869806518
@@ -136,7 +136,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &6442294392087117391
 RectTransform:
   m_ObjectHideFlags: 0
@@ -651,6 +651,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
+      ImageBytes: 
   - UnlockPassword: e2f6596a0f3035b8527923b2508918ece024dac526fa71ace5554cd5b5a136ba
     BasisRemoteBundleEncrypted:
       RemoteBeeFileLocation: https://cdn.yewnyx.net/gymcat/1/ceb68d2a38204e7c8f76ec5af7fc4ef220250831.BEE
@@ -662,6 +663,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
+      ImageBytes: 
   - UnlockPassword: 36e3307d767ca569e2c451dc4765a752f77239a5964ddf7227b1baa1c5dc2859
     BasisRemoteBundleEncrypted:
       RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/bunbum/1ab5101ff2684157bed25796ff1853fe20250831.BEE
@@ -673,6 +675,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
+      ImageBytes: 
   - UnlockPassword: 21475eea7d2d986074310b4f86aedfc6f2bbe0c67e292a4cc8447ce0fc815560
     BasisRemoteBundleEncrypted:
       RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Yun/96c152945202418a94bdc710929999c020250831.BEE
@@ -684,6 +687,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
+      ImageBytes: 
   - UnlockPassword: c914274e0763e2cc5483e0f45d6f17bea6a6d22ffdf4c478f593a3370f0bc495
     BasisRemoteBundleEncrypted:
       RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Aurellia/ddd7a5b8b6f34afdae17a65d795b329620250831.BEE
@@ -695,6 +699,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
+      ImageBytes: 
   - UnlockPassword: 113332d5fee840829a0f2ee318dfcfb6e18b10a305c148729a5fa09f22a0a6bb
     BasisRemoteBundleEncrypted:
       RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Mako/49543a7895164b1f871c531ac9382ebe20250831.BEE
@@ -706,6 +711,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
+      ImageBytes: 
   - UnlockPassword: d868debc29f4429dcbd20320fa3c0eeb9998892f191d11e8ac04ef87600f464f
     BasisRemoteBundleEncrypted:
       RemoteBeeFileLocation: https://cdn.yewnyx.net/brush/2/0b25b0638ba342e4a75dc210619cfdac20250831.BEE
@@ -717,6 +723,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
+      ImageBytes: 
   ParentedAvatarButtons: {fileID: 4009804357683877728}
   ButtonPrefab: {fileID: 5504761427362873086}
   AddAvatarApply: {fileID: 2085562167410064864}
@@ -740,6 +747,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
+      ImageBytes: 
   AvatarPassword: {fileID: 2947968320631099232}
   Name: {fileID: 5108156845375360599}
   Description: {fileID: 647760496302242275}
@@ -747,6 +755,8 @@ MonoBehaviour:
   SupportedPlatformsText: {fileID: 2454581352312249876}
   AvatarBigImage: {fileID: 4844642909831289072}
   FallbackImage: {fileID: 2800000, guid: 1de64c0896704184697d1c4bd1af9b41, type: 3}
+  Content: {fileID: 4009804357683877728}
+  gridLayout: {fileID: 3699476113465757032}
   AvatarImages: []
 --- !u!114 &4016401586506571100
 MonoBehaviour:
@@ -1206,8 +1216,8 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 2988781890967050556}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.000014841557}
-  m_AnchorMax: {x: 1, y: 1}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 20, y: 20}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -2103,10 +2113,10 @@ MonoBehaviour:
     m_SelectOnRight: {fileID: 0}
   m_Transition: 1
   m_Colors:
-    m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
-    m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
-    m_PressedColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 1}
-    m_SelectedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
+    m_NormalColor: {r: 0.33962262, g: 0.33962262, b: 0.33962262, a: 1}
+    m_HighlightedColor: {r: 0.7830189, g: 0.7830189, b: 0.7830189, a: 1}
+    m_PressedColor: {r: 0.6509434, g: 0.6509434, b: 0.6509434, a: 1}
+    m_SelectedColor: {r: 0.8584906, g: 0.8584906, b: 0.8584906, a: 1}
     m_DisabledColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 0.5019608}
     m_ColorMultiplier: 1
     m_FadeDuration: 0.1
@@ -2125,7 +2135,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 4919914895056347356}
   m_HandleRect: {fileID: 5790322259063101348}
   m_Direction: 2
-  m_Value: 1
+  m_Value: 0
   m_Size: 0.99998516
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -2768,9 +2778,9 @@ RectTransform:
   - {fileID: 6365649140058728723}
   m_Father: {fileID: 322826358141040038}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 40, y: -20}
   m_SizeDelta: {x: 80, y: 40}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3060355616934987156
@@ -3070,9 +3080,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Content: {fileID: 4009804357683877728}
-  m_Horizontal: 1
+  m_Horizontal: 0
   m_Vertical: 1
-  m_MovementType: 1
+  m_MovementType: 2
   m_Elasticity: 0.1
   m_Inertia: 1
   m_DecelerationRate: 0.135
@@ -3223,7 +3233,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &196032807829159062
 RectTransform:
   m_ObjectHideFlags: 0
@@ -3279,9 +3289,9 @@ RectTransform:
   - {fileID: 1201467668231241168}
   m_Father: {fileID: 322826358141040038}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 140, y: -20}
   m_SizeDelta: {x: 80, y: 40}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &432016058635523186
@@ -3519,10 +3529,10 @@ RectTransform:
   - {fileID: 5616818333025904}
   m_Father: {fileID: 1451497454801812391}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.004581293, y: -0.0065312707}
-  m_SizeDelta: {x: 0, y: 300}
+  m_AnchoredPosition: {x: -0.009639806, y: -0.010864258}
+  m_SizeDelta: {x: 0, y: -277}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &3699476113465757032
 MonoBehaviour:
