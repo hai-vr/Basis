@@ -62,13 +62,11 @@ public static class BasisBundleManagement
         }
         catch (OperationCanceledException)
         {
-            BasisDebug.LogWarning("DownloadStoreMetaAndBundle cancelled by token.");
             return (null, null, "Cancelled by token.");
         }
         catch (Exception ex)
         {
             string parse = BasisBeeValidator.FormatException("Error during download and processing of meta", ex);
-            BasisDebug.LogError(parse);
             return (null, null, parse);
         }
     }
@@ -133,13 +131,11 @@ public static class BasisBundleManagement
         }
         catch (OperationCanceledException)
         {
-            BasisDebug.LogWarning("ProcessOnDiscMetaDataAsync cancelled by token.");
             return (null, null, "Cancelled by token.");
         }
         catch (Exception ex)
         {
             string parse = BasisBeeValidator.FormatException("Error during on-disk meta processing", ex);
-            BasisDebug.LogError(parse);
             return (null, null, parse);
         }
     }
@@ -193,13 +189,11 @@ public static class BasisBundleManagement
         }
         catch (OperationCanceledException)
         {
-            BasisDebug.LogWarning("ProcessOnDiscConnectorOnlyAsync cancelled by token.");
             return (null, "Cancelled by token.");
         }
         catch (Exception ex)
         {
             string parse = BasisBeeValidator.FormatException("Error during on-disk connector-only processing", ex);
-            BasisDebug.LogError(parse);
             return (null, parse);
         }
     }
@@ -242,13 +236,11 @@ public static class BasisBundleManagement
         }
         catch (OperationCanceledException)
         {
-            BasisDebug.LogWarning("DownloadConnectorOnly cancelled by token.");
             return (null, "Cancelled by token.");
         }
         catch (Exception ex)
         {
             string parse = BasisBeeValidator.FormatException("Error during connector-only download", ex);
-            BasisDebug.LogError(parse);
             return (null, parse);
         }
     }

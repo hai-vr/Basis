@@ -60,7 +60,7 @@ public class BasisTrackedBundleWrapper
             {
                 if (AssetBundle == null)
                 {
-                    BasisDebug.LogError("Already Unloaded this bundle, check logic");
+                    BasisDebug.LogError("Already Unloaded this bundle, check logic could be ok if you loaded this a few times and unloaded it quickly aswell.");
                     return false;
                 }
 
