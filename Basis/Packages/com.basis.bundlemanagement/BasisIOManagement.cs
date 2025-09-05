@@ -60,8 +60,8 @@ public static class BasisIOManagement
 
         public BeeReadResult(BasisBundleConnector connector, byte[] sectionData)
         {
-            Connector = connector ?? throw new ArgumentNullException(nameof(connector));
-            SectionData = sectionData ?? throw new ArgumentNullException(nameof(sectionData));
+            Connector = connector;
+            SectionData = sectionData;
         }
     }
 
@@ -193,25 +193,96 @@ public static class BasisIOManagement
             return Result<BeeDownloadResult>.Fail("DownloadBEEEx: No platform-matching section found in connector.");
 
         // 5) Write local .bee (Int32 header + connector + section)
-        string fileName = $"{connector.UniqueVersion}{BasisBundleManagement.BasisEncryptedExtension}";
+        string fileName = $"{connector.UniqueVersion}{BasisBeeFormat.BasisEncryptedExtension}";
         if (string.IsNullOrWhiteSpace(fileName))
             return Result<BeeDownloadResult>.Fail("DownloadBEEEx: Connector has no UniqueVersion / file extension.");
 
         string localPath;
         try
         {
-            localPath = GenerateFilePath(fileName, BasisBundleManagement.AssetBundlesFolder);
+            localPath = GenerateFilePath(fileName, BasisBeeFormat.AssetBundlesFolder);
         }
         catch (Exception ex)
         {
             return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to generate local file path: {ex.Message}");
         }
 
-        var writeRes = await WriteBeeFileAsync(localPath, connectorBytes, platformSectionData);
+        var writeRes = await WriteBeeFileAsync(localPath, connectorBytes, platformSectionData,false);
         if (!writeRes.IsSuccess)
             return Result<BeeDownloadResult>.Fail($"DownloadBEEEx: {writeRes.Error}");
 
         return Result<BeeDownloadResult>.Ok(new BeeDownloadResult(connector, localPath, platformSectionData));
+    }
+    /// <summary>
+    /// Downloads only the connector bytes from the remote BEE (8-byte Int64 header) and parses them.
+    /// </summary>
+    public static async Task<Result<(BasisBundleConnector, string)>> DownloadConnectorOnlyEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
+    {
+        if (!ValidateUrl(url, out var urlErr))
+            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: {urlErr}");
+
+        if (string.IsNullOrWhiteSpace(vp))
+            return Result<(BasisBundleConnector, string)>.Fail("DownloadConnectorOnlyEx: VP is null or empty.");
+
+        // Header
+        var headerRes = await DownloadRangeInternal(url, 0, RemoteHeaderSize - 1, null, progressCallback, cancellationToken);
+        if (!headerRes.IsSuccess || headerRes.Value?.Data == null)
+            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read header. {headerRes.Error ?? "No data"}", headerRes.ResponseCode);
+
+        if (headerRes.Value.Data.Length != RemoteHeaderSize)
+            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Header size mismatch. Expected {RemoteHeaderSize}, got {headerRes.Value.Data.Length}.", headerRes.ResponseCode);
+
+        long connectorLength = ReadInt64LittleEndian(headerRes.Value.Data);
+        if (connectorLength <= 0)
+            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Invalid connector length {connectorLength}.");
+
+        if (connectorLength > MaxConnectorBytes)
+            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Connector length {connectorLength} exceeds max allowed {MaxConnectorBytes}.");
+
+        // Connector bytes
+        long start = RemoteHeaderSize;
+        long end = RemoteHeaderSize + connectorLength - 1;
+
+        var connectorRes = await DownloadRangeInternal(url, start, end, null, progressCallback, cancellationToken);
+        if (!connectorRes.IsSuccess || connectorRes.Value?.Data == null)
+            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read connector bytes. {connectorRes.Error ?? "No data"}", connectorRes.ResponseCode);
+
+        if (connectorRes.Value.Data.LongLength != connectorLength)
+            return Result<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Expected {connectorLength} bytes, got {connectorRes.Value.Data.LongLength}.", connectorRes.ResponseCode);
+
+        var connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorRes.Value.Data, progressCallback);
+        if (connector == null)
+        {
+            return Result<(BasisBundleConnector, string)>.Fail("DownloadConnectorOnlyEx: Failed to parse connector metadata (null).");
+        }
+
+        // 5) Write local .bee (Int32 header + connector + section)
+        string fileName = $"{connector.UniqueVersion}{BasisBeeFormat.BasisEncryptedExtension}";
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return Result<(BasisBundleConnector, string)>.Fail("DownloadBEEEx: Connector has no UniqueVersion / file extension.");
+
+        }
+        string localPath;
+        try
+        {
+            localPath = GenerateFilePath(fileName, BasisBeeFormat.AssetBundlesFolder);
+        }
+        catch (Exception ex)
+        {
+            return Result<(BasisBundleConnector, string)>.Fail($"DownloadBEEEx: Failed to generate local file path: {ex.Message}");
+        }
+        var connectorBytes = connectorRes.Value.Data;
+
+        var writeRes = await WriteBeeFileAsync(localPath, connectorBytes, null, true);
+
+        if (!writeRes.IsSuccess)
+        {
+            return Result<(BasisBundleConnector, string)>.Fail($"DownloadBEEEx: {writeRes.Error}");
+        }
+        (BasisBundleConnector, string) Data = new(connector, localPath);
+
+        return Result<(BasisBundleConnector, string)>.Ok(Data);
     }
 
     /// <summary>
@@ -267,9 +338,7 @@ public static class BasisIOManagement
             long remaining = fs.Length - fs.Position;
             if (remaining < 0) remaining = 0;
 
-            byte[] sectionData = remaining == 0
-                ? Array.Empty<byte>()
-                : await ReadExactAsync(fs, checked((int)remaining), cancellationToken);
+            byte[] sectionData = remaining == 0 ? null: await ReadExactAsync(fs, checked((int)remaining), cancellationToken);
 
             if (sectionData.LongLength != remaining)
                 return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full section data. Expected {remaining}, got {sectionData.LongLength}.");
@@ -285,55 +354,64 @@ public static class BasisIOManagement
             return Result<BeeReadResult>.Fail($"ReadBEEFileEx: {ex.GetType().Name}: {ex.Message}");
         }
     }
-
     /// <summary>
-    /// Downloads only the connector bytes from the remote BEE (8-byte Int64 header) and parses them.
+    /// Reads a local .bee file (4-byte Int32 header), regenerates the connector, and returns the remaining section data.
     /// </summary>
-    public static async Task<Result<BasisBundleConnector>> DownloadConnectorOnlyEx( string url, string vp,BasisProgressReport progressCallback,CancellationToken cancellationToken = default)
+    public static async Task<Result<BeeReadResult>> ReadBEEConnectorFileEx(string filePath, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
     {
-        if (!ValidateUrl(url, out var urlErr))
-            return Result<BasisBundleConnector>.Fail($"DownloadConnectorOnlyEx: {urlErr}");
+        if (string.IsNullOrWhiteSpace(filePath))
+            return Result<BeeReadResult>.Fail("ReadBEEFileEx: File path is null or empty.");
+
+        if (!File.Exists(filePath))
+            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: File not found: {filePath}");
 
         if (string.IsNullOrWhiteSpace(vp))
-            return Result<BasisBundleConnector>.Fail("DownloadConnectorOnlyEx: VP is null or empty.");
-
-        // Header
-        var headerRes = await DownloadRangeInternal(url, 0, RemoteHeaderSize - 1, null, progressCallback, cancellationToken);
-        if (!headerRes.IsSuccess || headerRes.Value?.Data == null)
-            return Result<BasisBundleConnector>.Fail($"DownloadConnectorOnlyEx: Failed to read header. {headerRes.Error ?? "No data"}", headerRes.ResponseCode);
-
-        if (headerRes.Value.Data.Length != RemoteHeaderSize)
-            return Result<BasisBundleConnector>.Fail($"DownloadConnectorOnlyEx: Header size mismatch. Expected {RemoteHeaderSize}, got {headerRes.Value.Data.Length}.", headerRes.ResponseCode);
-
-        long connectorLength = ReadInt64LittleEndian(headerRes.Value.Data);
-        if (connectorLength <= 0)
-            return Result<BasisBundleConnector>.Fail($"DownloadConnectorOnlyEx: Invalid connector length {connectorLength}.");
-
-        if (connectorLength > MaxConnectorBytes)
-            return Result<BasisBundleConnector>.Fail($"DownloadConnectorOnlyEx: Connector length {connectorLength} exceeds max allowed {MaxConnectorBytes}.");
-
-        // Connector bytes
-        long start = RemoteHeaderSize;
-        long end = RemoteHeaderSize + connectorLength - 1;
-
-        var connectorRes = await DownloadRangeInternal(url, start, end, null, progressCallback, cancellationToken);
-        if (!connectorRes.IsSuccess || connectorRes.Value?.Data == null)
-            return Result<BasisBundleConnector>.Fail($"DownloadConnectorOnlyEx: Failed to read connector bytes. {connectorRes.Error ?? "No data"}", connectorRes.ResponseCode);
-
-        if (connectorRes.Value.Data.LongLength != connectorLength)
-            return Result<BasisBundleConnector>.Fail($"DownloadConnectorOnlyEx: Expected {connectorLength} bytes, got {connectorRes.Value.Data.LongLength}.", connectorRes.ResponseCode);
+            return Result<BeeReadResult>.Fail("ReadBEEFileEx: VP is null or empty.");
 
         try
         {
-            var connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorRes.Value.Data, progressCallback);
-            if (connector == null)
-                return Result<BasisBundleConnector>.Fail("DownloadConnectorOnlyEx: Failed to parse connector metadata (null).");
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 96 * 1024, useAsync: true);
 
-            return Result<BasisBundleConnector>.Ok(connector);
+            if (fs.Length < DiskHeaderSize)
+                return Result<BeeReadResult>.Fail($"ReadBEEFileEx: File too small to contain header. Size={fs.Length} bytes.");
+
+            // Read Int32 connector size (little-endian)
+            byte[] sizeBytes = await ReadExactAsync(fs, DiskHeaderSize, cancellationToken);
+            if (sizeBytes.Length != DiskHeaderSize)
+                return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read connector size (header). Got {sizeBytes.Length} bytes.");
+
+            int connectorSize = ReadInt32LittleEndian(sizeBytes);
+            long remainingPossible = fs.Length - fs.Position;
+            if (connectorSize <= 0 || connectorSize > remainingPossible)
+                return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Invalid connector size {connectorSize}. Remaining file bytes: {remainingPossible}. File may be corrupt.");
+
+            // Read connector bytes
+            byte[] connectorBytes = await ReadExactAsync(fs, connectorSize, cancellationToken);
+            if (connectorBytes.Length != connectorSize)
+                return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full connector block. Expected {connectorSize}, got {connectorBytes.Length}.");
+
+            BasisBundleConnector connector;
+            try
+            {
+                connector = await BasisEncryptionToData.GenerateMetaFromBytes(vp, connectorBytes, progressCallback);
+            }
+            catch (Exception ex)
+            {
+                return Result<BeeReadResult>.Fail($"ReadBEEFileEx: Exception while regenerating connector metadata: {ex.Message}");
+            }
+
+            if (connector == null)
+                return Result<BeeReadResult>.Fail("ReadBEEFileEx: Failed to regenerate connector metadata (null).");
+
+            return Result<BeeReadResult>.Ok(new BeeReadResult(connector, null));
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<BeeReadResult>.Fail("ReadBEEFileEx: Cancelled by token.");
         }
         catch (Exception ex)
         {
-            return Result<BasisBundleConnector>.Fail($"DownloadConnectorOnlyEx: Exception while parsing connector metadata: {ex.Message}");
+            return Result<BeeReadResult>.Fail($"ReadBEEFileEx: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -505,9 +583,10 @@ public static class BasisIOManagement
     }
 
     /// <summary>
-    /// Writes local .bee with 4-byte little-endian Int32 header (connector size) + connector + section.
+    /// Writes local .bee with 4-byte little-endian Int32 header (connector size) + connector [+ optional section].
+    /// If <paramref name="IgnoreSectionBytes"/> is true, the section is not written even if provided.
     /// </summary>
-    private static async Task<Result<bool>> WriteBeeFileAsync(string path, byte[] connectorBytes, byte[] sectionBytes)
+    private static async Task<Result<bool>> WriteBeeFileAsync(string path, byte[] connectorBytes, byte[] sectionBytes, bool IgnoreSectionBytes)
     {
         try
         {
@@ -517,7 +596,8 @@ public static class BasisIOManagement
             if (connectorBytes == null || connectorBytes.Length == 0)
                 return Result<bool>.Fail("WriteBeeFileAsync: Connector bytes are empty.");
 
-            if (sectionBytes == null)
+            // If we are not ignoring the section, it must be non-null (zero-length is allowed)
+            if (!IgnoreSectionBytes && sectionBytes == null)
                 return Result<bool>.Fail("WriteBeeFileAsync: Section bytes are null.");
 
             // Prepare directory
@@ -525,18 +605,28 @@ public static class BasisIOManagement
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 Directory.CreateDirectory(dir);
 
+            // Header: little-endian Int32 of connector size
             byte[] sizeLE = GetBytesInt32LE(connectorBytes.Length);
 
-            long totalSize = sizeLE.Length + connectorBytes.Length + sectionBytes.Length;
+            // Decide whether we'll actually write the section
+            bool writeSection = !IgnoreSectionBytes && (sectionBytes?.Length ?? 0) > 0;
+
+            // Compute total size we expect to write
+            long totalSize =  sizeLE.Length + connectorBytes.Length + (writeSection ? sectionBytes.Length : 0);
 
             // Auto-tune buffer: min 32KB, max 1MB
             int buffer = Clamp((int)(totalSize / 8), 32 * 1024, 1 * 1024 * 1024);
 
+            // Write file
             using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, buffer, useAsync: true))
             {
-                await fs.WriteAsync(sizeLE, 0, sizeLE.Length);
-                await fs.WriteAsync(connectorBytes, 0, connectorBytes.Length);
-                await fs.WriteAsync(sectionBytes, 0, sectionBytes.Length);
+                await fs.WriteAsync(sizeLE, 0, sizeLE.Length).ConfigureAwait(false);
+                await fs.WriteAsync(connectorBytes, 0, connectorBytes.Length).ConfigureAwait(false);
+
+                if (writeSection)
+                {
+                    await fs.WriteAsync(sectionBytes, 0, sectionBytes.Length).ConfigureAwait(false);
+                }
             }
 
             long actual = new FileInfo(path).Length;

@@ -201,7 +201,7 @@ namespace Basis.Scripts.UI.UI_Panels
                         }
                         else
                         {
-                            await BasisLoadHandler.HandleBundleAndMetaLoading(wrapper, Report, CancellationToken,true);
+                            await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, Report, CancellationToken);
                             SelectionButton.Text.text = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName;
                         }
                     }
@@ -239,18 +239,16 @@ namespace Basis.Scripts.UI.UI_Panels
             {
                 ChangeIntoAvatar.onClick.RemoveAllListeners();
                 SelectedBundle = avatarLoadRequest;
-                ChangeIntoAvatar.onClick.AddListener(async () => await LoadAvatar(avatarLoadRequest)); // Fix: Use lambda
 
-                if (SelectedBundle.BasisBundleConnector.GetPlatform(out BasisBundleGenerated platformBundle))
-                {
-                    string assetMode = platformBundle.AssetMode;
-                }
+                ChangeIntoAvatar.onClick.AddListener(async () => await LoadAvatar(avatarLoadRequest));
+
                 Name.text = $"Avatar Name: {SelectedBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}";
                 Description.text = $"Avatar Description: {SelectedBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleDescription}";
                 UniqueVersion.text = $"Version ID: {SelectedBundle.BasisBundleConnector.UniqueVersion}";
-                string SupportedPlatforms = string.Join(", ", SelectedBundle.BasisBundleConnector.BasisBundleGenerated
-                    .Select(pair => pair.Platform));
+
+                string SupportedPlatforms = string.Join(", ", SelectedBundle.BasisBundleConnector.BasisBundleGenerated.Select(pair => pair.Platform));
                 SupportedPlatformsText.text = "Supported Platforms : " + SupportedPlatforms;
+
                 ShowInformationPanel();
             }
             else

@@ -121,7 +121,7 @@ namespace Basis.Scripts.BasisSdk.Players
 
         public async Task LoadInitialAvatar(BasisDataStore.BasisSavedAvatar LastUsedAvatar)
         {
-            if (BasisLoadHandler.IsMetaDataOnDisc(LastUsedAvatar.UniqueID, out BasisOnDiscInformation info))
+            if (BasisLoadHandler.IsMetaDataOnDisc(LastUsedAvatar.UniqueID, out BasisBEEExtensionMeta info))
             {
                 await BasisDataStoreAvatarKeys.LoadKeys();
                 List<BasisDataStoreAvatarKeys.AvatarKey> activeKeys = BasisDataStoreAvatarKeys.DisplayKeys();
