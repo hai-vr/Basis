@@ -29,13 +29,13 @@ public static class BasisBeeManagement
         }
         if(output.Item2 == null)
         {
-            //lets force download it again.
+            //lets force download it again. this guards against partial file, corrupt file or reattempt at downloading if it fails.
             output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancellationToken);
         }
 
         if (output.Item1 == null || output.Item3 != string.Empty)
         {
-            new Exception("missing Bundle Bytes Array Error Message " + output.Item3);
+            new Exception($"missing Bundle Bytes Array Error Message {output.Item3}");
         }
         IEnumerable<AssetBundle> AssetBundles = AssetBundle.GetAllLoadedAssetBundles();
         foreach (AssetBundle assetBundle in AssetBundles)
@@ -96,10 +96,6 @@ public static class BasisBeeManagement
         {
             BasisDebug.Log("Download Store Meta And Bundle", BasisDebug.LogTag.Event);
             output = await BasisBundleManagement.DownloadConnectorFile(wrapper, report, cancellationToken);
-        }
-        if (output.Connector == null)
-        {
-            new Exception($"missing Bundle Bytes Array Error Message {output.ErrorMessage}");
         }
         if (!string.IsNullOrEmpty(output.ErrorMessage))
         {
