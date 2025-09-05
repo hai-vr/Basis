@@ -15,6 +15,7 @@ public class BasisBundleConnector
         UniqueVersion = version ?? throw new ArgumentNullException(nameof(version));
         BasisBundleDescription = basisBundleDescription ?? throw new ArgumentNullException(nameof(basisBundleDescription));
         BasisBundleGenerated = basisBundleGenerated ?? throw new ArgumentNullException(nameof(basisBundleGenerated));
+        ImageBytes = imageBytes;
     }
     public BasisBundleConnector()
     {
