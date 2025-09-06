@@ -110,15 +110,27 @@ namespace Basis.Scripts.UI.UI_Panels
             }
             AvatarImages.Clear();
         }
-        public async void SelectedDeleteAvatar()
+        public void SelectedDeleteAvatar()
         {
+
             BasisDataStoreAvatarKeys.AvatarKey Key = new BasisDataStoreAvatarKeys.AvatarKey()
             {
                 Pass = SelectedBundle.UnlockPassword,
                 Url = SelectedBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation
             };
-            await BasisDataStoreAvatarKeys.RemoveKey(Key);
             CloseThisMenu();
+            BasisUIAcceptDenyPanel.OpenAcceptDenyPanel("do you want to delete this avatar?", (bool accepted) =>
+            {
+                if (accepted)
+                {
+                    RemoveKey(Key);
+                    CloseThisMenu();
+                }
+            });
+        }
+        public async void RemoveKey(BasisDataStoreAvatarKeys.AvatarKey Key)
+        {
+            await BasisDataStoreAvatarKeys.RemoveKey(Key);
         }
         public override void InitalizeEvent()
         {
