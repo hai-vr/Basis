@@ -31,19 +31,29 @@ namespace Basis.Scripts.UI.UI_Panels
 
         public Button DeleteAvatar;
         public Button ShowAvatarPassword;
+        public Button ShowAvatarURL;
         public Button GoBack;
         public Button ChangeIntoAvatar;
         public BasisLoadableBundle SelectedBundle;
         public TMP_InputField AvatarPassword;
+        public TMP_InputField AvatarURL;
         public TextMeshProUGUI Name;
         public TextMeshProUGUI Description;
         public TextMeshProUGUI UniqueVersion;
-        public TextMeshProUGUI SupportedPlatformsText;
         public RawImage AvatarBigImage;
         public Texture FallbackImage;
         public RectTransform Content;
         public GridLayoutGroup gridLayout;
         public List<Texture> AvatarImages = new List<Texture>();
+        public GameObject WindowsIcon;
+        public GameObject LinuxIcon;
+        public GameObject AndroidIcon;
+        public Sprite EyeOn;
+        public Sprite EyeOff;
+        public Image EyePasswordIcon;
+        public Image EyeURLIcon;
+        public bool ISShowingPassword = false;
+        public bool ISShowingURL = false;
         private async void Start()
         {
             BasisDataStoreAvatarKeys.DisplayKeys();
@@ -52,10 +62,46 @@ namespace Basis.Scripts.UI.UI_Panels
             GoBack.onClick.AddListener(ShowAvatarSelectionPanel);
             DeleteAvatar.onClick.AddListener(SelectedDeleteAvatar);
             ShowAvatarPassword.onClick.AddListener(SelectedShowAvatarPassword);
+            ShowAvatarURL.onClick.AddListener(SelectedShowAvatarURL);
+
+            EyePasswordIcon.sprite = EyeOn;
+            EyeURLIcon.sprite = EyeOn;
+
             ShowAvatarSelectionPanel();
-            AvatarPassword.gameObject.SetActive(false);
             await Initialize();
         }
+
+        public void SelectedShowAvatarPassword()
+        {
+            ISShowingPassword = !ISShowingPassword;
+            AvatarPassword.readOnly = true;
+            if (ISShowingPassword)
+            {
+                AvatarPassword.text = SelectedBundle.UnlockPassword;
+                EyePasswordIcon.sprite = EyeOn;
+            }
+            else
+            {
+                EyePasswordIcon.sprite = EyeOff;
+                AvatarPassword.text = string.Empty;
+            }
+        }
+        public void SelectedShowAvatarURL()
+        {
+            ISShowingURL = !ISShowingURL;
+            AvatarURL.readOnly = true;
+            if (ISShowingURL)
+            { 
+                AvatarURL.text = SelectedBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+                EyeURLIcon.sprite = EyeOn;
+            }
+            else
+            {
+                EyeURLIcon.sprite = EyeOff;
+                AvatarURL.text = string.Empty;
+            }
+        }
+
         public void OnDestroy()
         {
             foreach (Texture image in AvatarImages)
@@ -73,12 +119,6 @@ namespace Basis.Scripts.UI.UI_Panels
             };
             await BasisDataStoreAvatarKeys.RemoveKey(Key);
             CloseThisMenu();
-        }
-        public void SelectedShowAvatarPassword()
-        {
-            AvatarPassword.gameObject.SetActive(!AvatarPassword.gameObject.activeSelf);
-            AvatarPassword.text = SelectedBundle.UnlockPassword;
-            AvatarPassword.readOnly = true;
         }
         public override void InitalizeEvent()
         {
@@ -350,12 +390,32 @@ namespace Basis.Scripts.UI.UI_Panels
 
                 ChangeIntoAvatar.onClick.AddListener(async () => await LoadAvatar(avatarLoadRequest));
 
-                Name.text = $"Avatar Name: {SelectedBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}";
-                Description.text = $"Avatar Description: {SelectedBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleDescription}";
-                UniqueVersion.text = $"Version ID: {SelectedBundle.BasisBundleConnector.UniqueVersion}";
+                Name.text = SelectedBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName;
+                Description.text = SelectedBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleDescription;
+                UniqueVersion.text = SelectedBundle.BasisBundleConnector.UniqueVersion;
 
-                string SupportedPlatforms = string.Join(", ", SelectedBundle.BasisBundleConnector.BasisBundleGenerated.Select(pair => pair.Platform));
-                SupportedPlatformsText.text = "Supported Platforms : " + SupportedPlatforms;
+                string[] Platforms = SelectedBundle.BasisBundleConnector.BasisBundleGenerated.Select(pair => pair.Platform).ToArray();
+
+                WindowsIcon.SetActive(false);
+                AndroidIcon.SetActive(false);
+                LinuxIcon.SetActive(false);
+
+                foreach (string Platform in Platforms)
+                {
+                    switch (Platform)
+                    {
+                        case "StandaloneWindows64":
+                            WindowsIcon.SetActive(true);
+
+                            break;
+                        case "StandaloneLinux64":
+                            AndroidIcon.SetActive(true);
+                            break;
+                        case "Android":
+                            LinuxIcon.SetActive(true);
+                            break;
+                    }
+                }
                 if (avatarLoadRequest.BasisBundleConnector.ImageBytes != null)
                 {
                     AvatarBigImage.texture = BasisTextureCompression.FromPngBytes(avatarLoadRequest.BasisBundleConnector.ImageBytes);
