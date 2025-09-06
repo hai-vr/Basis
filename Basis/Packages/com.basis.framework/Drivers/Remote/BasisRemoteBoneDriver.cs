@@ -215,14 +215,13 @@ namespace Basis.Scripts.Drivers
             // World rotations of head and hips
             Quaternion HeadWorldRotation = references.head.rotation;
             Quaternion HipsWorldRotation = references.Hips.rotation;
-
             // T-pose world rotations
-            Quaternion TposeHeadWorldRotation = references.Tposehead.rotation;
+            Quaternion TposeHeadWorldRotation = references.TposeHead.rotation;
             Quaternion TposeHipsWorldRotation = references.TposeHips.rotation;
 
             // Remove T-pose influence
-            Head.IncomingData.rotation = Quaternion.Inverse(TposeHeadWorldRotation) * HeadWorldRotation;
-            Hips.IncomingData.rotation = Quaternion.Inverse(TposeHipsWorldRotation) * HipsWorldRotation;
+            Head.IncomingData.rotation = TposeHeadWorldRotation * HeadWorldRotation;
+            Hips.IncomingData.rotation = TposeHipsWorldRotation * HipsWorldRotation;
 
             Head.IncomingData.position = references.head.position - rrt;
             Hips.IncomingData.position = references.Hips.position - rrt;
@@ -337,7 +336,6 @@ namespace Basis.Scripts.Drivers
                 }
             }
         }
-
         #endregion
 
         #region Lookups

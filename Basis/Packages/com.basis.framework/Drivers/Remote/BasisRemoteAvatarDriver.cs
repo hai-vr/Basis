@@ -39,19 +39,17 @@ namespace Basis.Scripts.Drivers
             SkinnedMeshRenderer = Player.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             SkinnedMeshRendererLength = SkinnedMeshRenderer.Length;
             SetupAvatarLayers(Player, BasisLayerMapper.RemoteAvatarLayer);
-
+            PutAvatarIntoTPose();
 
             AvatarInitalScale = Player.BasisAvatar.transform.localScale;
             BasisTransformMapping.AutoDetectReferences(Player.BasisAvatar.Animator, player.BasisAvatar.transform, ref References);
-
+            References.RecordPoses(Player.BasisAvatar.Animator);
             var JiggleRigs = player.BasisAvatar.GetComponentsInChildren<JiggleRig>();
 
             foreach (JiggleRig Rig in JiggleRigs)
             {
                 Rig.OnInitialize();
             }
-
-            References.RecordPoses();
 
             Player.FaceIsVisible = false;
             if (player.BasisAvatar == null)
@@ -82,7 +80,24 @@ namespace Basis.Scripts.Drivers
             player.BasisAvatar.Animator.enabled = false;
 
             SetupAvatarJiggleColliders();
+            ResetAvatarAnimator();
         }
+        public bool CurrentlyTposing;
+        public RuntimeAnimatorController SavedruntimeAnimatorController;
+        public void PutAvatarIntoTPose()
+        {
+            BasisDebug.Log("PutAvatarIntoTPose", BasisDebug.LogTag.Avatar);
+            CurrentlyTposing = true;
+            if (SavedruntimeAnimatorController == null)
+            {
+                SavedruntimeAnimatorController = Player.BasisAvatar.Animator.runtimeAnimatorController;
+            }
+            UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<RuntimeAnimatorController> op = Addressables.LoadAssetAsync<RuntimeAnimatorController>(TPose);
+            RuntimeAnimatorController RAC = op.WaitForCompletion();
+            Player.BasisAvatar.Animator.runtimeAnimatorController = RAC;
+            ForceUpdateAnimator(Player.BasisAvatar.Animator);
+        }
+        public const string TPose = "Assets/Animator/Animated TPose.controller";
         public void ForceUpdateAnimator(Animator Anim)
         {
             // Specify the time you want the Animator to update to (in seconds)
@@ -90,6 +105,14 @@ namespace Basis.Scripts.Drivers
 
             // Call the Update method to force the Animator to update to the desired time
             Anim.Update(desiredTime);
+        }
+
+        public void ResetAvatarAnimator()
+        {
+            BasisDebug.Log("ResetAvatarAnimator", BasisDebug.LogTag.Avatar);
+            Player.BasisAvatar.Animator.runtimeAnimatorController = SavedruntimeAnimatorController;
+            SavedruntimeAnimatorController = null;
+            CurrentlyTposing = false;
         }
         public async void SetupAvatarJiggleColliders()
         {

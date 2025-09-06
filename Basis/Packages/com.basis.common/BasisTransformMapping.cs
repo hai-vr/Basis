@@ -505,30 +505,44 @@ namespace Basis.Scripts.Common
             rotation = default;
             return false;
         }
-        public BasisCalibratedCoords Tposehead = new BasisCalibratedCoords();
+        public BasisCalibratedCoords TposeHead = new BasisCalibratedCoords();
         public BasisCalibratedCoords TposeHips = new BasisCalibratedCoords();
-        public void RecordPoses()
+        public Quaternion AnimatorRotation; // rotation during calibration
+
+        public void RecordPoses(Animator animator)
         {
-            if (GetTransform(HumanBodyBones.Head, out Transform HeadboneTransform))
+            // Capture animator rotation in world space
+            AnimatorRotation = animator.transform.rotation;
+
+            if (GetTransform(HumanBodyBones.Head, out Transform headBoneTransform))
             {
-                HeadboneTransform.GetLocalPositionAndRotation(out var pos, out var rot);
-                Tposehead.position = pos;
-                Tposehead.rotation = rot;
+                headBoneTransform.GetPositionAndRotation(out var pos, out var rot);
+
+                // Local rotation relative to animator's rotation
+                Quaternion relativeRot = Quaternion.Inverse(AnimatorRotation) * rot;
+
+                TposeHead.position = pos;
+                TposeHead.rotation = relativeRot;
             }
             else
             {
-                Tposehead.position = new Vector3();
-                Tposehead.rotation = Quaternion.identity;
+                TposeHead.position = Vector3.zero;
+                TposeHead.rotation = Quaternion.identity;
             }
-            if (GetTransform(HumanBodyBones.Hips, out Transform HipsboneTransform))
+
+            if (GetTransform(HumanBodyBones.Hips, out Transform hipsBoneTransform))
             {
-                HipsboneTransform.GetLocalPositionAndRotation(out var pos, out var rot);
+                hipsBoneTransform.GetPositionAndRotation(out var pos, out var rot);
+
+                // Local rotation relative to animator's rotation
+                Quaternion relativeRot = Quaternion.Inverse(AnimatorRotation) * rot;
+
                 TposeHips.position = pos;
-                TposeHips.rotation = rot;
+                TposeHips.rotation = relativeRot;
             }
             else
             {
-                TposeHips.position = new Vector3();
+                TposeHips.position = Vector3.zero;
                 TposeHips.rotation = Quaternion.identity;
             }
         }
