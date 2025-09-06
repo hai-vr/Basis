@@ -505,22 +505,32 @@ namespace Basis.Scripts.Common
             rotation = default;
             return false;
         }
-
-
-        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TPoseRecords = new Dictionary<HumanBodyBones, BasisCalibratedCoords>();
-        public void RecordPoses(Animator animator)
+        public BasisCalibratedCoords Tposehead = new BasisCalibratedCoords();
+        public BasisCalibratedCoords TposeHips = new BasisCalibratedCoords();
+        public void RecordPoses()
         {
-            //Tpose
-            for (int Index = 0; Index < 53; Index++)
+            if (GetTransform(HumanBodyBones.Head, out Transform HeadboneTransform))
             {
-                HumanBodyBones bone = (HumanBodyBones)Index;
-                if (GetTransform(bone, out Transform boneTransform))
-                {
-                    boneTransform.GetLocalPositionAndRotation(out var pos, out var rot);
-                    TPoseRecords[bone] = new BasisCalibratedCoords(pos, rot);
-                }
+                HeadboneTransform.GetLocalPositionAndRotation(out var pos, out var rot);
+                Tposehead.position = pos;
+                Tposehead.rotation = rot;
+            }
+            else
+            {
+                Tposehead.position = new Vector3();
+                Tposehead.rotation = Quaternion.identity;
+            }
+            if (GetTransform(HumanBodyBones.Hips, out Transform HipsboneTransform))
+            {
+                HipsboneTransform.GetLocalPositionAndRotation(out var pos, out var rot);
+                TposeHips.position = pos;
+                TposeHips.rotation = rot;
+            }
+            else
+            {
+                TposeHips.position = new Vector3();
+                TposeHips.rotation = Quaternion.identity;
             }
         }
-       
     }
 }

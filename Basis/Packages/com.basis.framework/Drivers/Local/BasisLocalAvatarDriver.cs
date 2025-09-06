@@ -262,7 +262,7 @@ namespace Basis.Scripts.Drivers
 			FindSkinnedMeshRenders(LocalPlayer);
 			SetupAvatarLayers(LocalPlayer, BasisLayerMapper.LocalAvatarLayer);
 			BasisTransformMapping.AutoDetectReferences(LocalPlayer.BasisAvatar.Animator, Avatar.transform, ref References);
-			References.RecordPoses(LocalPlayer.BasisAvatar.Animator);
+			References.RecordPoses();
 			LocalPlayer.FaceIsVisible = false;
 			if (Avatar == null)
 			{

@@ -1,40 +1,28 @@
 using Basis.Scripts.Avatar;
+using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Basis.Scripts.Drivers
 {
-    /// <summary>
-    /// Optimized version:
-    /// - Eliminated LINQ/Concat/IndexOf hot-path allocations
-    /// - Cached role↔index and control↔index lookups via dictionaries
-    /// - Null-safety: guard optional bones/avatars, avoid NREs
-    /// - Reduced repeated work in gizmo & simulation paths
-    /// - Fixed bug in DrawGizmos() where a different variable name was compared (Role vs role)
-    /// - Reduced GC by reusing arrays and avoiding temporary object creation in FindBone (returns null on miss)
-    /// - Minor micro-opts (AggressiveInlining on tiny helpers, early-outs)
-    /// </summary>
     [Serializable]
     public class BasisRemoteBoneDriver
     {
         // Config / references
         public int ControlsLength;
         public BasisRemotePlayer RemotePlayer;
-        public Transform RemotePlayerTransform;
 
-        public Transform HeadAvatar;
-        public Transform HipsAvatar;
+        public Transform RemotePlayerTransform { get; private set; }
 
         public BasisRemoteBoneControl Head;
         public BasisRemoteBoneControl Hips;
         public BasisRemoteBoneControl Mouth;
-
-        public bool HasHead;
-        public bool HasHips;
 
         [SerializeField] public BasisRemoteBoneControl[] Controls;
         [SerializeField] public BasisBoneTrackedRole[] trackedRoles;
@@ -76,13 +64,6 @@ namespace Basis.Scripts.Drivers
 
             // Cache transform for repeated use
             RemotePlayerTransform = RemotePlayer.transform;
-
-            var animator = RemotePlayer?.BasisAvatar?.Animator;
-            HeadAvatar = animator != null ? animator.GetBoneTransform(HumanBodyBones.Head) : null;
-            HipsAvatar = animator != null ? animator.GetBoneTransform(HumanBodyBones.Hips) : null;
-
-            HasHead = HeadAvatar != null;
-            HasHips = HipsAvatar != null;
         }
 
         public void CreateInitialArrays(bool isLocal)
@@ -229,13 +210,22 @@ namespace Basis.Scripts.Drivers
             }
             Vector3 rrt = RemotePlayerTransform.position;
 
-            HeadAvatar.GetPositionAndRotation(out Vector3 Headpos, out Quaternion Headrot);
-            Head.IncomingData.position = Headpos - rrt;
-            Head.IncomingData.rotation = Headrot;
+            Common.BasisTransformMapping references = RemotePlayer.RemoteAvatarDriver.References;
 
-            HipsAvatar.GetPositionAndRotation(out Vector3 Hipspos, out Quaternion Hipsrot);
-            Hips.IncomingData.position = Hipspos - rrt;
-            Hips.IncomingData.rotation = Hipsrot;
+            // World rotations of head and hips
+            Quaternion HeadWorldRotation = references.head.rotation;
+            Quaternion HipsWorldRotation = references.Hips.rotation;
+
+            // T-pose world rotations
+            Quaternion TposeHeadWorldRotation = references.Tposehead.rotation;
+            Quaternion TposeHipsWorldRotation = references.TposeHips.rotation;
+
+            // Remove T-pose influence
+            Head.IncomingData.rotation = Quaternion.Inverse(TposeHeadWorldRotation) * HeadWorldRotation;
+            Hips.IncomingData.rotation = Quaternion.Inverse(TposeHipsWorldRotation) * HipsWorldRotation;
+
+            Head.IncomingData.position = references.head.position - rrt;
+            Hips.IncomingData.position = references.Hips.position - rrt;
         }
         #endregion
 
