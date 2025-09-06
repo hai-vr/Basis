@@ -175,7 +175,7 @@ namespace Basis.Scripts.BasisSdk.Players
 
         public async Task CreateAvatar(byte LoadMode, BasisLoadableBundle BasisLoadableBundle)
         {
-            await BasisAvatarFactory.LoadAvatarLocal(this, LoadMode, BasisLoadableBundle,this.transform.position,this.transform.rotation);
+            await BasisAvatarFactory.LoadAvatarLocal(this, LoadMode, BasisLoadableBundle,this.transform.position,Quaternion.identity);
             BasisDataStore.SaveAvatar(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, LoadMode, LoadFileNameAndExtension);
             OnLocalAvatarChanged?.Invoke();
         }
