@@ -639,9 +639,9 @@ MonoBehaviour:
         AssetBundleDescription: 
       BasisBundleGenerated: []
       ImageBytes: 
-  - UnlockPassword: e2f6596a0f3035b8527923b2508918ece024dac526fa71ace5554cd5b5a136ba
+  - UnlockPassword: 8c72903e5f940c8070cb1533ff6170436482975c7f810374d43b8be4b18bfd08
     BasisRemoteBundleEncrypted:
-      RemoteBeeFileLocation: https://cdn.yewnyx.net/gymcat/1/ceb68d2a38204e7c8f76ec5af7fc4ef220250831.BEE
+      RemoteBeeFileLocation: https://cdn.yewnyx.net/gymcat/2/eae8389fb4524513ab84c095c803caff20250907.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
@@ -663,9 +663,9 @@ MonoBehaviour:
         AssetBundleDescription: 
       BasisBundleGenerated: []
       ImageBytes: 
-  - UnlockPassword: 21475eea7d2d986074310b4f86aedfc6f2bbe0c67e292a4cc8447ce0fc815560
+  - UnlockPassword: 85d9a62f7de9e93ab3ce2dda04f2745b5d0bc89c3c627f18c53fe1c1fb7ebc21
     BasisRemoteBundleEncrypted:
-      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Yun/96c152945202418a94bdc710929999c020250831.BEE
+      RemoteBeeFileLocation: https://cdn.yewnyx.net/yun/1_noet/17f0d994eb534d6f878c130f03bc01dd20250907.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
