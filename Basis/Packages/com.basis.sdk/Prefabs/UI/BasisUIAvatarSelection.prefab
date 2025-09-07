@@ -585,7 +585,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 0
+  m_PresetInfoIsWorld: 1
 --- !u!114 &3843996678262047675
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -690,18 +690,6 @@ MonoBehaviour:
   - UnlockPassword: 113332d5fee840829a0f2ee318dfcfb6e18b10a305c148729a5fa09f22a0a6bb
     BasisRemoteBundleEncrypted:
       RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/Mako/49543a7895164b1f871c531ac9382ebe20250831.BEE
-    BasisLocalEncryptedBundle:
-      DownloadedBeeFileLocation: 
-    BasisBundleConnector:
-      UniqueVersion: LoadingAvatar
-      BasisBundleDescription:
-        AssetBundleName: 
-        AssetBundleDescription: 
-      BasisBundleGenerated: []
-      ImageBytes: 
-  - UnlockPassword: d868debc29f4429dcbd20320fa3c0eeb9998892f191d11e8ac04ef87600f464f
-    BasisRemoteBundleEncrypted:
-      RemoteBeeFileLocation: https://cdn.yewnyx.net/brush/2/0b25b0638ba342e4a75dc210619cfdac20250831.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
