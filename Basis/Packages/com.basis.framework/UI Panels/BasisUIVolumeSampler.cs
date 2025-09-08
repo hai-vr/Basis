@@ -12,8 +12,6 @@ public class BasisUIVolumeSampler : MonoBehaviour
     [Tooltip("Gradient from quiet→loud (e.g., green→yellow→red).")]
     public Gradient colorByLevel;
     [Header("Level mapping")]
-    [Tooltip("Convert RMS to dB and map from [minDb..maxDb] to 0..1.")]
-    public bool useDecibels = true;
     [Tooltip("Lower dB bound mapped to 0. Typical noise floor.")]
     public float minDb = -60f;
     [Tooltip("Upper dB bound mapped to 1. Full-scale ~ 0 dBFS.")]
@@ -50,14 +48,18 @@ public class BasisUIVolumeSampler : MonoBehaviour
     float peakNorm; // 0..1 peak-hold position
     float peakTimer;
 
-    // Optional: expose for debugging in Inspector (read-only)
-    [SerializeField, Tooltip("Latest linear RMS from callback")]
-    float debug_rmsLinear;
-    [SerializeField, Tooltip("Latest linear peak from callback")]
-    float debug_peakLinear;
-    [SerializeField, Tooltip("Latest dB computed from RMS")]
-    float debug_db;
 
+    [Header("References")]
+    public Slider slider;
+    public Image bandRecommended;
+    public Image bandOverdrive;
+    public Image defaultTick; // thin vertical image
+
+    [Header("Semantics (in slider units)")]
+    [Tooltip("Lower bound of 'recommended' range, e.g., 0.6 (60%).")]
+    public float recommendedMin = 0.6f;
+    [Tooltip("Default/standard reference, typically 1.0 (100%).")]
+    public float defaultValue = 1.0f;
     public void Initalize(BasisRemotePlayer remotePlayer)
     {
         RemotePlayer = remotePlayer;
@@ -77,6 +79,40 @@ public class BasisUIVolumeSampler : MonoBehaviour
 
         RemotePlayer.NetworkReceiver.AudioReceiverModule.BasisRemoteVisemeAudioDriver.AudioData += OnAudio;
         subscribed = true;
+
+        float span = Mathf.Max(0.0001f, slider.maxValue - slider.minValue);
+
+        // Helper to set a child Image’s anchors in normalized [0..1] space along X.
+        void SetBand(Image img, float xMin, float xMax)
+        {
+            if (!img) return;
+            var rt = img.rectTransform;
+            rt.anchorMin = new Vector2(Mathf.Clamp01(xMin), 0f);
+            rt.anchorMax = new Vector2(Mathf.Clamp01(xMax), 1f);
+            rt.anchoredPosition = Vector2.zero;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+        }
+
+        bandRecommended.color = new Color(0f, 0.8f, 0.4f, 0.4f); // semi-transparent green
+        bandOverdrive.color = new Color(0.9f, 0f, 0f, 0.4f); // semi-transparent red
+
+        float recMinN = (recommendedMin - slider.minValue) / span;
+        float defN = (defaultValue - slider.minValue) / span;
+        float overMinN = defN;
+        float overMaxN = 1f; // up to max
+
+        SetBand(bandRecommended, recMinN, defN);
+        SetBand(bandOverdrive, overMinN, overMaxN);
+
+        if (defaultTick)
+        {
+            var rt = defaultTick.rectTransform;
+            rt.anchorMin = new Vector2(defN, 0f);
+            rt.anchorMax = new Vector2(defN, 1f);
+            rt.anchoredPosition = Vector2.zero;
+            // Make sure DefaultTick has a LayoutElement or fixed width so it’s visible.
+        }
     }
     void OnDisable() => TryUnsubscribe();
     void OnDestroy() => TryUnsubscribe();
@@ -109,26 +145,11 @@ public class BasisUIVolumeSampler : MonoBehaviour
 
         instantaneousRms = rms;
         instantaneousPeak = peak;
-
-        // Expose for inspector sanity checks (Unity shows volatile fine)
-        debug_rmsLinear = rms;
-        debug_peakLinear = peak;
-
-        // Pre-compute dB for debugging (not used by UI directly)
-        if (useDecibels)
-        {
-            float db = 20f * Mathf.Log10(Mathf.Max(1e-7f, rms)) + gainDb;
-            debug_db = db;
-        }
-        else
-        {
-            debug_db = -999f; // N/A
-        }
     }
     void Update()
     {
         // Map current measurement to target normalized 0..1 (can exceed 1 before clamp for overdrive detection)
-        float targetUnit = useDecibels ? RmsToUnit(instantaneousRms) : instantaneousRms;
+        float targetUnit = RmsToUnit(instantaneousRms);
         float targetClamped = Mathf.Clamp01(targetUnit);
 
         // Smooth with different time constants for rise/fall
@@ -145,7 +166,7 @@ public class BasisUIVolumeSampler : MonoBehaviour
         if (peakTick)
         {
             // Calculate current normalized peak from instantaneousPeak
-            float peakUnit = useDecibels ? RmsToUnit(instantaneousPeak) : instantaneousPeak;
+            float peakUnit = RmsToUnit(instantaneousPeak);
             float peakClamped = Mathf.Clamp01(peakUnit);
 
             if (peakClamped > peakNorm)
