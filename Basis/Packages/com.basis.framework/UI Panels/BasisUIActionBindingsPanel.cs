@@ -51,9 +51,9 @@ namespace Basis.Scripts.UI.UI_Panels
             _roles = (BasisBoneTrackedRole[])Enum.GetValues(typeof(BasisBoneTrackedRole));
 
             _roleNames = new string[_roles.Length];
-            for (int i = 0; i < _roles.Length; i++)
+            for (int Index = 0; Index < _roles.Length; Index++)
             {
-                _roleNames[i] = PrettyEnumName(_roles[i].ToString());
+                _roleNames[Index] = PrettyEnumName(_roles[Index].ToString());
             }
 
             WireButtons(true);
