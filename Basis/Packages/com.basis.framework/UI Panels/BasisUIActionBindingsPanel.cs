@@ -1,6 +1,10 @@
+// File: BasisUIActionBindingsPanel.cs
+// What it does: Manages the bindings UI with multi-role selection, clear-per-row, conflict warnings, and unsaved-change highlighting.
+
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 // Short alias so we can refer to the Action enum cleanly.
@@ -28,29 +32,23 @@ namespace Basis.Scripts.UI.UI_Panels
         [Tooltip("Where rows will be instantiated (should have a VerticalLayoutGroup).")]
         [SerializeField] private Transform rowsParent;
 
-        [Tooltip("Prefab with a Text + Dropdown (see BindingRowUI).")]
+        [Tooltip("Row prefab containing label, role toggles, clear button, and warning/dirty indicators.")]
         [SerializeField] private BasisBindingRowUI rowPrefab;
-
-        [Space]
-        [SerializeField] private Button saveButton;
         [SerializeField] private Button resetButton;
-
-        [Header("Behavior")]
-        [Tooltip("If true, saves immediately to disk whenever a binding changes.")]
-        [SerializeField] private bool autoSaveOnChange = true;
+        [SerializeField] private TextMeshProUGUI saveButtonLabel;
 
         private readonly List<BasisBindingRowUI> _rows = new List<BasisBindingRowUI>(16);
+        private readonly Dictionary<ActionId, int> _actionIndexLookup = new Dictionary<ActionId, int>(16);
 
-        // Cache the role list we expose in the dropdown.
         private BasisBoneTrackedRole[] _roles;
-        private string[] _roleNames; // pretty names in same order as _roles (index +1 in dropdown, +0 is Unbound)
+        private string[] _roleNames;
+
+        private bool _dirty;
 
         private void Awake()
         {
-            // Build role list from enum (stable order).
             _roles = (BasisBoneTrackedRole[])Enum.GetValues(typeof(BasisBoneTrackedRole));
 
-            // Build pretty names WITHOUT LINQ.
             _roleNames = new string[_roles.Length];
             for (int i = 0; i < _roles.Length; i++)
             {
@@ -58,144 +56,261 @@ namespace Basis.Scripts.UI.UI_Panels
             }
 
             WireButtons(true);
+            SetDirty(false);
         }
 
         private async void OnEnable()
         {
             RebuildRows();
 
-            // Load from disk (if present) and apply to driver.
             if (BasisActionDriver.HasSavedBindings)
             {
                 await BasisActionDriver.LoadApplyToDriverAsync();
             }
 
-            // Reflect the driver state into the UI.
             RefreshSelectionsFromDriver();
+            RecomputeAllConflicts();
+            SetDirty(false);
         }
 
         private void OnDisable()
         {
-            // (Optional) Persist on close if auto-save is off but you still prefer saving.
-            if (!autoSaveOnChange)
-            {
-                SaveToDisk();
-            }
+            SaveToDisk();
         }
 
         private void WireButtons(bool on)
         {
             if (on)
             {
-                saveButton.onClick.AddListener(SaveToDisk);
                 resetButton.onClick.AddListener(ResetToDefault);
             }
             else
             {
-                saveButton.onClick.RemoveListener(SaveToDisk);
                 resetButton.onClick.RemoveListener(ResetToDefault);
             }
         }
 
         private void RebuildRows()
         {
-            // Clear existing
             for (int i = _rows.Count - 1; i >= 0; i--)
             {
-                if (_rows[i]) Destroy(_rows[i].gameObject);
+                if (_rows[i]) { Destroy(_rows[i].gameObject); }
             }
             _rows.Clear();
+            _actionIndexLookup.Clear();
 
-            // Create one row per action (skip Count sentinel)
-            foreach (ActionId action in Enum.GetValues(typeof(ActionId)))
+            int rowIdx = 0;
+            foreach (ActionId action in (ActionId[])Enum.GetValues(typeof(ActionId)))
             {
-                if (action == ActionId.Count)
-                {
-                    continue;
-                }
+                if (action == ActionId.Count) { continue; }
 
                 var row = Instantiate(rowPrefab, rowsParent);
                 row.gameObject.name = $"Row_{action}";
                 row.SetLabel(PrettyEnumName(action.ToString()));
+                row.BuildRoleToggles(_roleNames, (roleIndex, isOn) => OnRoleToggleChanged(action, roleIndex, isOn));
+                row.SetWarning(string.Empty);
+                // row.SetDirty(false);
                 row.gameObject.SetActive(true);
 
-                // Build options: Unbound + roles
-                var options = new List<string>(_roles.Length + 1) { "Unbound" };
-                for (int i = 0; i < _roleNames.Length; i++)
-                    options.Add(_roleNames[i]);
-
-                row.SetOptions(options);
-
-                // Hook change
-                row.SetOnValueChanged(idx => OnRowChanged(action, idx));
-
                 _rows.Add(row);
+                _actionIndexLookup[action] = rowIdx;
+                rowIdx++;
             }
         }
 
         private void RefreshSelectionsFromDriver()
         {
-            // For each row/action, read binding and set dropdown index
-            for (int index = 0; index < _rows.Count; index++)
+            for (int i = 0; i < _rows.Count; i++)
             {
-                var action = (ActionId)index; // relies on enum being contiguous from 0..Count-1
-                var binding = BasisActionDriver.GetBinding(action);
+                var action = (ActionId)i;
 
-                int dropdownIndex = 0; // Unbound by default
-                if (binding.HasValue)
+                var boundRoles = BasisActionDriver.GetBindings(action); // multi-bind aware
+                var selected = new bool[_roles.Length];
+
+                for (int r = 0; r < _roles.Length; r++)
                 {
-                    // Find the role in our _roles list
-                    var role = binding.Value;
-                    int roleIdx = Array.IndexOf(_roles, role);
-                    if (roleIdx >= 0) dropdownIndex = roleIdx + 1; // +1 because 0 is Unbound
+                    selected[r] = false;
                 }
-                _rows[index].SetValueWithoutNotify(dropdownIndex);
+
+                for (int k = 0; k < boundRoles.Count; k++)
+                {
+                    int idx = Array.IndexOf(_roles, boundRoles[k]);
+                    if (idx >= 0) { selected[idx] = true; }
+                }
+
+                _rows[i].SetRoleSelectionWithoutNotify(selected);
+                //   _rows[i].SetDirty(false);
+                _rows[i].SetWarning(string.Empty);
             }
         }
 
-        private void OnRowChanged(ActionId action, int dropdownIndex)
+        private void OnRoleToggleChanged(ActionId action, int roleIndex, bool isOn)
         {
-            // 0 => Unbound
-            if (dropdownIndex <= 0)
+            if (roleIndex < 0 || roleIndex >= _roles.Length) { return; }
+            var role = _roles[roleIndex];
+
+            if (isOn)
             {
-                BasisActionDriver.Unbind(action);
+                BasisActionDriver.Bind(action, role);
             }
             else
             {
-                var role = _roles[dropdownIndex - 1];
-                BasisActionDriver.Bind(action, role);
+                BasisActionDriver.Unbind(action, role);
             }
+            SaveToDisk();
 
-            if (autoSaveOnChange)
+            RecomputeAllConflicts();
+        }
+        private void SetDirty(bool dirty)
+        {
+            _dirty = dirty;
+            if (saveButtonLabel != null)
             {
-                SaveToDisk();
+                saveButtonLabel.text = dirty ? "Save (Unsaved Changes)" : "Save";
             }
         }
 
         private async void ResetToDefault()
         {
             await BasisActionDriver.LoadBindings();
-
-            // Remove any persistent custom layout on disk
             BasisActionDriver.DeleteSaveFile();
-
             RefreshSelectionsFromDriver();
+            RecomputeAllConflicts();
+            SetDirty(false);
         }
+
         private async void SaveToDisk()
         {
             await BasisActionDriver.SaveFromDriver();
+            ClearDirtyAll();
         }
+
+        private void ClearDirtyAll()
+        {
+            // for (int i = 0; i < _rows.Count; i++)
+            // {
+            //  _rows[i].SetDirty(false);
+            //  }
+            SetDirty(false);
+        }
+
+        private void RecomputeAllConflicts()
+        {
+            var perRoleChannels = new Dictionary<BasisBoneTrackedRole, Dictionary<string, List<ActionId>>>(8);
+
+            foreach (ActionId action in (ActionId[])Enum.GetValues(typeof(ActionId)))
+            {
+                if (action == ActionId.Count) { continue; }
+
+                var channels = GetActionChannels(action);
+                var roles = BasisActionDriver.GetBindings(action);
+
+                for (int i = 0; i < roles.Count; i++)
+                {
+                    var role = roles[i];
+                    if (!perRoleChannels.TryGetValue(role, out var map))
+                    {
+                        map = new Dictionary<string, List<ActionId>>(8);
+                        perRoleChannels[role] = map;
+                    }
+
+                    for (int c = 0; c < channels.Length; c++)
+                    {
+                        var channel = channels[c];
+                        if (!map.TryGetValue(channel, out var list))
+                        {
+                            list = new List<ActionId>(4);
+                            map[channel] = list;
+                        }
+                        list.Add(action);
+                    }
+                }
+            }
+
+            foreach (var pair in _actionIndexLookup)
+            {
+                var action = pair.Key;
+                string warning = BuildWarningForAction(action, perRoleChannels);
+                _rows[pair.Value].SetWarning(warning);
+            }
+        }
+
+        private string BuildWarningForAction(ActionId action, Dictionary<BasisBoneTrackedRole, Dictionary<string, List<ActionId>>> perRoleChannels)
+        {
+            var roles = BasisActionDriver.GetBindings(action);
+            if (roles.Count == 0) { return string.Empty; }
+
+            var channels = GetActionChannels(action);
+            List<string> conflicts = new List<string>(4);
+
+            for (int i = 0; i < roles.Count; i++)
+            {
+                var role = roles[i];
+                if (!perRoleChannels.TryGetValue(role, out var map)) { continue; }
+
+                for (int c = 0; c < channels.Length; c++)
+                {
+                    var channel = channels[c];
+                    if (map.TryGetValue(channel, out var list) && list.Count > 1)
+                    {
+                        // Exclude self then collect
+                        for (int k = 0; k < list.Count; k++)
+                        {
+                            if (list[k] != action)
+                            {
+                                conflicts.Add($"{PrettyEnumName(list[k].ToString())} on {PrettyEnumName(role.ToString())}");
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (conflicts.Count == 0) { return string.Empty; }
+
+            // Deduplicate simple strings
+            var set = new HashSet<string>(conflicts);
+            conflicts.Clear();
+            conflicts.AddRange(set);
+
+            return $"Potential conflict with: {string.Join(", ", conflicts)}";
+        }
+
+        private static string[] GetActionChannels(ActionId action)
+        {
+            // What it does: Provides a coarse input-channel classification for conflict warnings.
+            switch (action)
+            {
+                case ActionId.SetMovementSpeedMultiplierFromPrimary2DAxis: return _Axis2D;
+                case ActionId.SetMovementVectorFromPrimary2DAxis: return _Axis2D;
+                case ActionId.RotateFromPrimary2DAxis: return _Axis2D;
+
+                case ActionId.ToggleHamburgerOnSecondaryRelease: return _SecondaryButtonRelease;
+                case ActionId.ToggleMicOnPrimaryReleaseIfNoHover: return _PrimaryButtonRelease;
+                case ActionId.JumpOnPrimaryButton: return _PrimaryButtonHold;
+
+                case ActionId.TickMovementSpeed: return _Tick;
+                default: return _Misc;
+            }
+        }
+
+        private static readonly string[] _Axis2D = new[] { "Axis2D" };
+        private static readonly string[] _PrimaryButtonRelease = new[] { "PrimaryButtonRelease" };
+        private static readonly string[] _PrimaryButtonHold = new[] { "PrimaryButtonHold" };
+        private static readonly string[] _SecondaryButtonRelease = new[] { "SecondaryButtonRelease" };
+        private static readonly string[] _Tick = new[] { "Tick" };
+        private static readonly string[] _Misc = new[] { "Misc" };
 
         private static string PrettyEnumName(string raw)
         {
-            // Turn "ToggleMicOnPrimaryReleaseIfNoHover" -> "Toggle Mic On Primary Release If No Hover"
-            if (string.IsNullOrEmpty(raw)) return raw;
+            if (string.IsNullOrEmpty(raw)) { return raw; }
             var chars = new List<char>(raw.Length + 8);
             for (int i = 0; i < raw.Length; i++)
             {
                 char c = raw[i];
                 if (i > 0 && char.IsUpper(c) && (char.IsLower(raw[i - 1]) || (i + 1 < raw.Length && char.IsLower(raw[i + 1]))))
+                {
                     chars.Add(' ');
+                }
                 chars.Add(c);
             }
             return new string(chars.ToArray());

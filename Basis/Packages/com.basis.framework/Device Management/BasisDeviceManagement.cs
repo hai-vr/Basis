@@ -162,7 +162,7 @@ namespace Basis.Scripts.Device_Management
             }
             await BasisSettingsSystem.LoadAllSettingsAsync();
             SMDMicrophone.LoadInMicrophoneData(mode);
-          await  BasisActionDriver.LoadBindings();
+            await BasisActionDriver.LoadBindings();
             OnBootModeChanged?.Invoke(mode);
             BasisDebug.Log($"Loading mode: {mode}", BasisDebug.LogTag.Device);
         }
