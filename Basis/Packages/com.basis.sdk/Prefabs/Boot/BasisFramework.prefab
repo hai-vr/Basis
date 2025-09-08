@@ -170,6 +170,7 @@ GameObject:
   - component: {fileID: 4926678751529155332}
   - component: {fileID: 1359221182720975491}
   - component: {fileID: 8285517692325404402}
+  - component: {fileID: 251103215370718543}
   m_Layer: 0
   m_Name: Modules
   m_TagString: Untagged
@@ -397,6 +398,20 @@ MonoBehaviour:
   SettingsNames:
   - Field Of View
   SelectedFOV: 82
+--- !u!114 &251103215370718543
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3197856584617865972}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a928657f3fe208c408626a3a898760a8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Basis Framework::SMModuleIcons
+  SettingsNames:
+  - Microphone Icon
 --- !u!1 &6119941615115968628
 GameObject:
   m_ObjectHideFlags: 0
@@ -932,6 +947,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
+      ImageBytes: 
   DefaultAvatar:
     UnlockPassword: 
     BasisRemoteBundleEncrypted:
@@ -944,6 +960,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
+      ImageBytes: 
   UseAddressablesToLoadScene: 0
   UseSceneProvidedHere: 0
 --- !u!114 &6910429841152494025
