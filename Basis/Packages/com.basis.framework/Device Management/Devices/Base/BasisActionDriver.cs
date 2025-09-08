@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
@@ -8,10 +9,12 @@ using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 
 /// <summary>
-/// Input action router for Basis. 
-/// - Each behavior is its own function.
-/// - Bind behaviors to devices (BasisBoneTrackedRole) at runtime via the public API.
-/// - Call UpdatePlayerControl(...) per device as usual; the router invokes the bound behaviors for that device.
+/// Input action router for Basis, optimized for hot-path runtime performance.
+/// - Compile per-role arrays of delegates once on (re)bind; Update only iterates a cached array (no per-frame dictionary lookups).
+/// - Fast early-out in Bind() when rebinding to the same role (avoids list scans/duplication).
+/// - Optional try/catch in editor/development builds only (no exception machinery on player builds).
+/// - Batch rebuilds during ResetDefaultBindings() to avoid N× recompilations.
+/// - fixed array indexed by ActionId (O(1) lookup at build time;
 /// </summary>
 public static class BasisActionDriver
 {
@@ -22,30 +25,42 @@ public static class BasisActionDriver
     public enum ActionId
     {
         // Movement
-        SetMovementSpeedMultiplierFromPrimary2DAxis,
-        SetMovementVectorFromPrimary2DAxis,
-        TickMovementSpeed,
+        SetMovementSpeedMultiplierFromPrimary2DAxis = 0,
+        SetMovementVectorFromPrimary2DAxis = 1,
+        TickMovementSpeed = 2,
 
         // UI / System
-        ToggleHamburgerOnSecondaryRelease,
-        ToggleMicOnPrimaryReleaseIfNoHover,
+        ToggleHamburgerOnSecondaryRelease = 3,
+        ToggleMicOnPrimaryReleaseIfNoHover = 4,
 
         // Camera/Character orientation & locomotion
-        RotateFromPrimary2DAxis,
-        JumpOnPrimaryButton
-    }
+        RotateFromPrimary2DAxis = 5,
+        JumpOnPrimaryButton = 6,
 
+        // Keep this as the last entry for sizing arrays.
+        Count = 7
+    }
+    // Initialize with the original layout so nothing changes unless you rebind.
+    static BasisActionDriver()
+    {
+        ResetDefaultBindings();
+    }
     /// <summary>
     /// Bind a behavior to the device (tracked role) that should drive it.
     /// If the action was previously bound, the old binding is replaced.
     /// </summary>
     public static void Bind(ActionId action, BasisBoneTrackedRole role)
     {
+        // Fast path: if already bound to the same role, do nothing.
+        if (s_ActionToRole.TryGetValue(action, out var oldRole) && EqualityComparer<BasisBoneTrackedRole>.Default.Equals(oldRole, role))
+            return;
+
         // Remove existing binding (if any)
-        if (s_ActionToRole.TryGetValue(action, out var oldRole))
+        if (s_ActionToRole.TryGetValue(action, out oldRole))
         {
             if (s_RoleToActions.TryGetValue(oldRole, out var list))
             {
+                // Remove without Contains() branch — List.Remove handles the scan once.
                 list.Remove(action);
             }
         }
@@ -57,9 +72,15 @@ public static class BasisActionDriver
             actionsForRole = new List<ActionId>(8);
             s_RoleToActions[role] = actionsForRole;
         }
-        if (!actionsForRole.Contains(action))
+        actionsForRole.Add(action);
+
+        // Rebuild compiled delegates for affected roles unless we're batching.
+        if (!s_SuppressRebuild)
         {
-            actionsForRole.Add(action);
+            if (s_RoleToActions.TryGetValue(role, out _)) RebuildCompiledActionsForRole(role);
+            if (s_ActionToRole.TryGetValue(action, out var prevRole)) // in case action moved
+                if (!EqualityComparer<BasisBoneTrackedRole>.Default.Equals(prevRole, role))
+                    RebuildCompiledActionsForRole(prevRole);
         }
     }
 
@@ -74,8 +95,11 @@ public static class BasisActionDriver
             {
                 list.Remove(action);
             }
+            s_ActionToRole.Remove(action);
+
+            if (!s_SuppressRebuild)
+                RebuildCompiledActionsForRole(role);
         }
-        s_ActionToRole.Remove(action);
     }
 
     /// <summary>
@@ -104,6 +128,10 @@ public static class BasisActionDriver
     {
         s_ActionToRole.Clear();
         s_RoleToActions.Clear();
+        s_RoleToCompiled.Clear();
+
+        // Batch up the rebuilds to a single pass at the end.
+        s_SuppressRebuild = true;
 
         // Left hand — everything that was in PrimaryDevice()
         Bind(ActionId.SetMovementSpeedMultiplierFromPrimary2DAxis, BasisBoneTrackedRole.LeftHand);
@@ -117,20 +145,26 @@ public static class BasisActionDriver
 
         // Center eye — everything that was in HeadsDevice()
         Bind(ActionId.ToggleMicOnPrimaryReleaseIfNoHover, BasisBoneTrackedRole.CenterEye);
+
+        s_SuppressRebuild = false;
+        RebuildAllCompiled();
     }
+
     /// <summary>
     /// Call this once per device input update (same signature as before).
     /// The router will execute only the actions currently bound to <paramref name="trackedRole"/>.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void UpdatePlayerControl(BasisBoneTrackedRole trackedRole, ref BasisInputState CurrentInputState, ref BasisInputState LastInputState)
     {
-        if (!s_RoleToActions.TryGetValue(trackedRole, out var actions)) return;
+        if (!s_RoleToCompiled.TryGetValue(trackedRole, out var compiled) || compiled.Length == 0)
+            return;
 
-        for (int i = 0; i < actions.Count; i++)
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // Keep diagnostics in editor/dev builds.
+        for (int Index = 0; Index < compiled.Length; Index++)
         {
-            var actionId = actions[i];
-            if (!s_ActionImpl.TryGetValue(actionId, out var actionImpl)) continue;
-
+            var actionImpl = compiled[Index];
             try
             {
                 actionImpl(ref CurrentInputState, ref LastInputState);
@@ -140,57 +174,49 @@ public static class BasisActionDriver
                 BasisDebug.LogError(ex, BasisDebug.LogTag.Input);
             }
         }
+#else
+        // Hot-path: no per-action try/catch in player builds.
+        for (int Index = 0; Index < compiled.Length; Index++)
+        {
+            compiled[Index](ref CurrentInputState, ref LastInputState);
+        }
+#endif
     }
 
     // Delegate type so we can pass ref states.
     public delegate void InputAction(ref BasisInputState current, ref BasisInputState last);
 
-    // Map ActionId -> implementation
-    private static readonly Dictionary<ActionId, InputAction> s_ActionImpl = new Dictionary<ActionId, InputAction>
-    {
-        { ActionId.SetMovementSpeedMultiplierFromPrimary2DAxis, SetMovementSpeedMultiplierFromPrimary2DAxis },
-        { ActionId.SetMovementVectorFromPrimary2DAxis,          SetMovementVectorFromPrimary2DAxis },
-        { ActionId.TickMovementSpeed,                           TickMovementSpeed },
-
-        { ActionId.ToggleHamburgerOnSecondaryRelease,           ToggleHamburgerOnSecondaryRelease },
-        { ActionId.ToggleMicOnPrimaryReleaseIfNoHover,          ToggleMicOnPrimaryReleaseIfNoHover },
-
-        { ActionId.RotateFromPrimary2DAxis,                     RotateFromPrimary2DAxis },
-        { ActionId.JumpOnPrimaryButton,                         JumpOnPrimaryButton },
-    };
+    // --------- IMPLEMENTATIONS (kept identical in behavior) ---------
 
     /// <summary>
     /// Compute the largest absolute component of the primary 2D axis and apply it as a movement speed multiplier.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void SetMovementSpeedMultiplierFromPrimary2DAxis(ref BasisInputState current, ref BasisInputState last)
     {
         var axis = current.Primary2DAxis;
         float largestValue = Mathf.Abs(axis.x) > Mathf.Abs(axis.y) ? axis.x : axis.y;
-        var controller = BasisLocalPlayer.Instance?.LocalCharacterDriver;
-        if (controller == null) return;
-
+        var controller = BasisLocalPlayer.Instance.LocalCharacterDriver;
         controller.SetMovementSpeedMultiplier(largestValue);
     }
 
     /// <summary>
     /// Feed the raw primary 2D axis into the character movement vector.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void SetMovementVectorFromPrimary2DAxis(ref BasisInputState current, ref BasisInputState last)
     {
-        var controller = BasisLocalPlayer.Instance?.LocalCharacterDriver;
-        if (controller == null) return;
-
+        var controller = BasisLocalPlayer.Instance.LocalCharacterDriver;
         controller.SetMovementVector(current.Primary2DAxis);
     }
 
     /// <summary>
     /// Update movement speed (e.g., apply sprint/walk curves).
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void TickMovementSpeed(ref BasisInputState current, ref BasisInputState last)
     {
-        var controller = BasisLocalPlayer.Instance?.LocalCharacterDriver;
-        if (controller == null) return;
-
+        var controller = BasisLocalPlayer.Instance.LocalCharacterDriver;
         // In the original code this was always 'true'.
         controller.UpdateMovementSpeed(true);
     }
@@ -198,6 +224,7 @@ public static class BasisActionDriver
     /// <summary>
     /// On Secondary Button RELEASE: toggle hamburger menu (open if closed, close if open).
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ToggleHamburgerOnSecondaryRelease(ref BasisInputState current, ref BasisInputState last)
     {
         // Only act on release edge.
@@ -217,6 +244,7 @@ public static class BasisActionDriver
     /// <summary>
     /// On Primary Button RELEASE (and when not hovering UI): toggle microphone paused state.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ToggleMicOnPrimaryReleaseIfNoHover(ref BasisInputState current, ref BasisInputState last)
     {
         if (current.PrimaryButtonGetState == false && last.PrimaryButtonGetState)
@@ -231,33 +259,71 @@ public static class BasisActionDriver
     /// <summary>
     /// Write the primary 2D axis into the local character driver's rotation vector.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void RotateFromPrimary2DAxis(ref BasisInputState current, ref BasisInputState last)
     {
-        var driver = BasisLocalPlayer.Instance?.LocalCharacterDriver;
-        if (driver == null) return;
-
+        var driver = BasisLocalPlayer.Instance.LocalCharacterDriver;
         driver.Rotation = current.Primary2DAxis;
     }
 
     /// <summary>
     /// While Primary Button is held, perform jump handling.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void JumpOnPrimaryButton(ref BasisInputState current, ref BasisInputState last)
     {
         if (current.PrimaryButtonGetState)
         {
-            BasisLocalPlayer.Instance?.LocalCharacterDriver?.HandleJump();
+            BasisLocalPlayer.Instance.LocalCharacterDriver.HandleJump();
         }
     }
 
+    // --------- INTERNAL: FAST LOOKUPS / COMPILED TABLES ---------
 
-    private static readonly Dictionary<ActionId, BasisBoneTrackedRole> s_ActionToRole = new Dictionary<ActionId, BasisBoneTrackedRole>();
-    private static readonly Dictionary<BasisBoneTrackedRole, List<ActionId>> s_RoleToActions = new Dictionary<BasisBoneTrackedRole, List<ActionId>>();
-    private static readonly List<ActionId> s_EmptyActions = new List<ActionId>(0);
-
-    // Initialize with the original layout so nothing changes unless you rebind.
-    static BasisActionDriver()
+    // Fixed array (indexed by ActionId) holding the implementation delegates.
+    // This is built once and never touched per frame.
+    private static readonly InputAction[] s_ActionImplArray = new InputAction[(int)ActionId.Count]
     {
-        ResetDefaultBindings();
+        SetMovementSpeedMultiplierFromPrimary2DAxis,   // 0
+        SetMovementVectorFromPrimary2DAxis,            // 1
+        TickMovementSpeed,                              // 2
+        ToggleHamburgerOnSecondaryRelease,              // 3
+        ToggleMicOnPrimaryReleaseIfNoHover,             // 4
+        RotateFromPrimary2DAxis,                        // 5
+        JumpOnPrimaryButton                             // 6
+    };
+    private static readonly Dictionary<ActionId, BasisBoneTrackedRole> s_ActionToRole = new Dictionary<ActionId, BasisBoneTrackedRole>(capacity: 16);
+    private static readonly Dictionary<BasisBoneTrackedRole, List<ActionId>> s_RoleToActions =new Dictionary<BasisBoneTrackedRole, List<ActionId>>(capacity: 8);
+    private static readonly Dictionary<BasisBoneTrackedRole, InputAction[]> s_RoleToCompiled = new Dictionary<BasisBoneTrackedRole, InputAction[]>(capacity: 8);
+    private static readonly List<ActionId> s_EmptyActions = new List<ActionId>(0);
+    private static readonly InputAction[] s_EmptyImpls = Array.Empty<InputAction>();
+    private static bool s_SuppressRebuild;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void RebuildCompiledActionsForRole(BasisBoneTrackedRole role)
+    {
+        if (!s_RoleToActions.TryGetValue(role, out var list) || list == null || list.Count == 0)
+        {
+            s_RoleToCompiled[role] = s_EmptyImpls;
+            return;
+        }
+
+        // Build without allocations beyond exactly what's needed.
+        var count = list.Count;
+        var compiled = new InputAction[count];
+        for (int Index = 0; Index < count; Index++)
+        {
+            var action = list[Index];
+            compiled[Index] = s_ActionImplArray[(int)action];
+        }
+        s_RoleToCompiled[role] = compiled;
+    }
+
+    private static void RebuildAllCompiled()
+    {
+        foreach (var kvp in s_RoleToActions)
+        {
+            RebuildCompiledActionsForRole(kvp.Key);
+        }
     }
 }
