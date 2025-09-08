@@ -192,7 +192,7 @@ namespace Basis.Scripts.Drivers
             IsCurrentlyMuted = IsMuted;
 
             // Cancel any running animation
-            if (scaleCoroutine != null && CameraDriver != null)
+            if (scaleCoroutine != null)
             {
                 CameraDriver.StopCoroutine(scaleCoroutine);
                 scaleCoroutine = null;
@@ -204,26 +204,17 @@ namespace Basis.Scripts.Drivers
             if (IsMuted)
             {
                 SpriteRendererIcon.sprite = SpriteMicrophoneOff;
-
-                if (PlaySound && AudioSource != null && MuteSound != null)
-                {
-                    AudioSource.PlayOneShot(MuteSound);
-                }
+                AudioSource.PlayOneShot(MuteSound);
 
                 SpriteRendererIcon.color = MutedColor;
 
                 // Animate scale "bounce"
-                if (CameraDriver != null)
-                    scaleCoroutine = CameraDriver.StartCoroutine(ScaleIcons(SpriteRendererIcon.gameObject));
+                scaleCoroutine = CameraDriver.StartCoroutine(ScaleIcons(SpriteRendererIcon.gameObject));
             }
             else
             {
                 SpriteRendererIcon.sprite = SpriteMicrophoneOn;
-
-                if (PlaySound && AudioSource != null && UnMuteSound != null)
-                {
-                    AudioSource.PlayOneShot(UnMuteSound);
-                }
+                AudioSource.PlayOneShot(UnMuteSound);
 
                 SpriteRendererIcon.color = LocalIsTransmitting ? UnMutedMutedIconColorActive : UnMutedMutedIconColorInactive;
 
@@ -241,7 +232,7 @@ namespace Basis.Scripts.Drivers
             DisplayMode = newMode;
 
             // Stop any running animation if we might be hiding the icon
-            if (scaleCoroutine != null && CameraDriver != null)
+            if (scaleCoroutine != null)
             {
                 CameraDriver.StopCoroutine(scaleCoroutine);
                 scaleCoroutine = null;
@@ -297,8 +288,6 @@ namespace Basis.Scripts.Drivers
         // ---------------- Animation ----------------
         private IEnumerator ScaleIcons(GameObject iconToScale)
         {
-            if (iconToScale == null) yield break;
-
             float time = 0f;
 
             // Phase 1: Scale up
