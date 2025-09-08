@@ -209,17 +209,21 @@ namespace Basis.Scripts.Drivers
         {
             if (Parent != null)
             {
+                // Get the largest axis of the parent's scale so the sphere collider adapts correctly
+                float scaleFactor = Parent.lossyScale.magnitude / Mathf.Sqrt(3f);
+                float TransformScale = 0.1f * scaleFactor;
+
+
                 JiggleColliderSerializable jiggleColliderSerializable = new JiggleColliderSerializable
                 {
                     collider = new JiggleCollider()
                     {
                         type = JiggleCollider.JiggleColliderType.Sphere,
                         localToWorldMatrix = Parent.localToWorldMatrix,
-                        radius = 0.1f
-                    }
+                        radius = TransformScale // Scaled radius
+                    },
+                    transform = Parent
                 };
-                jiggleColliderSerializable.collider.type = JiggleCollider.JiggleColliderType.Sphere;
-                jiggleColliderSerializable.transform = Parent;
 
                 JiggleColliders.Add(jiggleColliderSerializable);
             }
