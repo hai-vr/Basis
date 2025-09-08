@@ -88,19 +88,8 @@ public class BasisEventDriver : MonoBehaviour
 #if UNITY_SERVER
         OnBeforeRender();
 #endif
-        if(BasisLocalAvatarDriver.IsNormalHead == false)
-        {
-            BasisLocalAvatarDriver.ScaleHeadToNormal();
-            JigglePhysics.SchedulePose(TimeAsDouble);
-            JigglePhysics.CompletePose();
-            BasisLocalAvatarDriver.ScaleheadToZero();
-        }
-        else
-        {
-            //if the local head is good already just continue on.
-            JigglePhysics.SchedulePose(TimeAsDouble);
-            JigglePhysics.CompletePose();
-        }
+        JigglePhysics.SchedulePose(TimeAsDouble);
+        JigglePhysics.CompletePose();
     }
     private void OnBeforeRender()
     {

@@ -176,9 +176,15 @@ namespace Basis.Scripts.BasisSdk.Players
             if (LastComputedMeshLod != grid)
             {
                 LastComputedMeshLod = grid;
-                foreach (Renderer renderer in BasisAvatar.Renders)
+                if (BasisAvatar.Renders != null)
                 {
-                    renderer.forceMeshLod = grid;          // Correct property, not "forceMeshLod"
+                    foreach (Renderer renderer in BasisAvatar.Renders)
+                    {
+                        if (renderer != null)
+                        {
+                            renderer.forceMeshLod = grid;          // Correct property, not "forceMeshLod"
+                        }
+                    }
                 }
             }
         }

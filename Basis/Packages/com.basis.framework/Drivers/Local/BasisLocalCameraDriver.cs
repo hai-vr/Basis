@@ -9,6 +9,7 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.XR;
 using Vector3 = UnityEngine.Vector3;
+using System;
 namespace Basis.Scripts.Drivers
 {
     public class BasisLocalCameraDriver : MonoBehaviour
@@ -69,6 +70,7 @@ namespace Basis.Scripts.Drivers
                 BasisLocalMicrophoneDriver.MainThreadOnHasAudio += MicrophoneTransmitting;
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence += MicrophoneNotTransmitting;
                 RenderPipelineManager.beginCameraRendering += BeginCameraRendering;
+                RenderPipelineManager.endCameraRendering += endCameraRendering;
                 BasisDeviceManagement.OnBootModeChanged += OnModeSwitch;
                 BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnHeightChanged;
                 InstanceExists?.Invoke();
@@ -88,6 +90,7 @@ namespace Basis.Scripts.Drivers
 #endif
             SpriteRendererIcon.gameObject.SetActive(true);
         }
+
         public void MicrophoneTransmitting()
         {
             SpriteRendererIcon.color = UnMutedMutedIconColorActive;
@@ -186,6 +189,7 @@ namespace Basis.Scripts.Drivers
         public void OnDestroy()
         {
             RenderPipelineManager.beginCameraRendering -= BeginCameraRendering;
+            RenderPipelineManager.endCameraRendering -= endCameraRendering;
             BasisDeviceManagement.OnBootModeChanged -= OnModeSwitch;
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnHeightChanged;
             BasisLocalMicrophoneDriver.OnPausedAction -= OnPausedEvent;
@@ -292,13 +296,23 @@ namespace Basis.Scripts.Drivers
             if (HasEvents)
             {
                 RenderPipelineManager.beginCameraRendering -= BeginCameraRendering;
+                RenderPipelineManager.endCameraRendering -= endCameraRendering;
                 BasisDeviceManagement.OnBootModeChanged -= OnModeSwitch;
                 BasisLocalMicrophoneDriver.MainThreadOnHasAudio -= MicrophoneTransmitting;
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence -= MicrophoneNotTransmitting;
                 HasEvents = false;
             }
         }
-
+        private void endCameraRendering(ScriptableRenderContext context, Camera camera)
+        {
+            if (BasisLocalAvatarDriver.References.Hashead)
+            {
+                if (Camera.GetInstanceID() == CameraInstanceID)
+                {
+                    BasisLocalAvatarDriver.ScaleHeadToNormal();
+                }
+            }
+        }
         public void BeginCameraRendering(ScriptableRenderContext context, Camera Camera)
         {
             if (BasisLocalAvatarDriver.References.Hashead)
@@ -319,10 +333,10 @@ namespace Basis.Scripts.Drivers
                         ParentOfUI.localPosition = localPos;
                     }
                 }
-                else
-                {
-                    BasisLocalAvatarDriver.ScaleHeadToNormal();
-                }
+                // else
+                ///  {
+                //     BasisLocalAvatarDriver.ScaleHeadToNormal();
+                // }
             }
         }
         // Function to calculate the position
