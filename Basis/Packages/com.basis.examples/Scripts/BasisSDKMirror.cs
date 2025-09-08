@@ -111,7 +111,6 @@ public class BasisSDKMirror : MonoBehaviour
 
         BasisLocalCameraDriver.InstanceExists -= Initialize;
         RenderPipeline.beginCameraRendering -= UpdateCamera;
-        BasisLocalPlayer.Instance.LocalAvatarDriver.RemoveActiveMatrixOverride(instanceID);
         basisMeshRendererCheck.Check -= VisibilityFlag;
     }
     private void Initialize()
@@ -134,12 +133,6 @@ public class BasisSDKMirror : MonoBehaviour
         BasisLocalAvatarDriver.ScaleHeadToNormal();
 
         OnCamerasRenderering?.Invoke();
-
-        if (BasisLocalAvatarDriver.Instance != null)
-        {
-            BasisLocalAvatarDriver.Instance.TryActiveMatrixOverride(instanceID);
-        }
-
         thisPosition = Renderer.transform.position;
         normal = Renderer.transform.TransformDirection(projectionDirection);
         RenderCameras(context, camera);
