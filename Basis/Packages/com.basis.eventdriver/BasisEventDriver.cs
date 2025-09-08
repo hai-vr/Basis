@@ -85,11 +85,12 @@ public class BasisEventDriver : MonoBehaviour
         BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
         BasisNetworkManagement.SimulateNetworkApply();
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
+        JigglePhysics.SchedulePose(TimeAsDouble);
+        JigglePhysics.CompletePose();
+
 #if UNITY_SERVER
         OnBeforeRender();
 #endif
-        JigglePhysics.SchedulePose(TimeAsDouble);
-        JigglePhysics.CompletePose();
     }
     private void OnBeforeRender()
     {
