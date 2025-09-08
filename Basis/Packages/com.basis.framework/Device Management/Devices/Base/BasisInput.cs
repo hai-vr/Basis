@@ -44,6 +44,7 @@ namespace Basis.Scripts.Device_Management.Devices
         public BasisCalibratedCoords RaycastCoord;
         [SerializeField]
         public BasisInverseOffsetFromBoneData BasisInverseOffsetData = new BasisInverseOffsetFromBoneData();
+        public float HandBiasSplay = 0;
         /// <summary>
         /// initalize the tracking of this input
         /// </summary>
@@ -146,7 +147,7 @@ namespace Basis.Scripts.Device_Management.Devices
             Control.InverseOffsetFromBone.position = BasisInverseOffsetData.InitialInverseTrackRotation * (Offset);
             Control.InverseOffsetFromBone.rotation = BasisInverseOffsetData.InitialInverseTrackRotation * BasisInverseOffsetData.InitialControlRotation;
             Control.UseInverseOffset = true;
-        }        
+        }
         public void UnAssignRoleAndTracker()
         {
             if (Control != null)
@@ -272,95 +273,7 @@ namespace Basis.Scripts.Device_Management.Devices
         }
         public void UpdatePlayerControl()
         {
-            switch (trackedRole)
-            {
-                case BasisBoneTrackedRole.LeftHand:
-                    float largestValue = Mathf.Abs(CurrentInputState.Primary2DAxis.x) > Mathf.Abs(CurrentInputState.Primary2DAxis.y)
-                        ? CurrentInputState.Primary2DAxis.x
-                        : CurrentInputState.Primary2DAxis.y;
-                    //0 to 1 largestValue
-                    var CharacterController = BasisLocalPlayer.Instance.LocalCharacterDriver;
-                    CharacterController.SetMovementSpeedMultiplier(largestValue);
-                    CharacterController.SetMovementVector(CurrentInputState.Primary2DAxis);
-                    // todo: consider hoisting variable to be toggled by another user input (eg: thumbstick click)
-                    CharacterController.UpdateMovementSpeed(true);
-                    //only open ui after we have stopped pressing down on the secondary button
-                    if (CurrentInputState.SecondaryButtonGetState == false && LastInputState.SecondaryButtonGetState)
-                    {
-                        if (BasisHamburgerMenu.Instance == null)
-                        {
-                            BasisHamburgerMenu.OpenHamburgerMenuNow();
-                        }
-                        else
-                        {
-                            BasisHamburgerMenu.Instance.CloseThisMenu();
-                        }
-                    }
-                    if (CurrentInputState.PrimaryButtonGetState == false && LastInputState.PrimaryButtonGetState)
-                    {
-                        if (BasisInputModuleHandler.Instance.HasHoverONInput == false)
-                        {
-                            BasisLocalMicrophoneDriver.ToggleIsPaused();
-                        }
-                    }
-                    break;
-                case BasisBoneTrackedRole.RightHand:
-                    BasisLocalPlayer.Instance.LocalCharacterDriver.Rotation = CurrentInputState.Primary2DAxis;
-                    if (CurrentInputState.PrimaryButtonGetState)
-                    {
-                        BasisLocalPlayer.Instance.LocalCharacterDriver.HandleJump();
-                    }
-                    break;
-                case BasisBoneTrackedRole.CenterEye:
-                    if (CurrentInputState.PrimaryButtonGetState == false && LastInputState.PrimaryButtonGetState)
-                    {
-                        if (BasisInputModuleHandler.Instance.HasHoverONInput == false)
-                        {
-                            BasisLocalMicrophoneDriver.ToggleIsPaused();
-                        }
-                    }
-                    break;
-                case BasisBoneTrackedRole.Head:
-                    break;
-                case BasisBoneTrackedRole.Neck:
-                    break;
-                case BasisBoneTrackedRole.Chest:
-                    break;
-                case BasisBoneTrackedRole.Hips:
-                    break;
-                case BasisBoneTrackedRole.Spine:
-                    break;
-                case BasisBoneTrackedRole.LeftUpperLeg:
-                    break;
-                case BasisBoneTrackedRole.RightUpperLeg:
-                    break;
-                case BasisBoneTrackedRole.LeftLowerLeg:
-                    break;
-                case BasisBoneTrackedRole.RightLowerLeg:
-                    break;
-                case BasisBoneTrackedRole.LeftFoot:
-                    break;
-                case BasisBoneTrackedRole.RightFoot:
-                    break;
-                case BasisBoneTrackedRole.LeftShoulder:
-                    break;
-                case BasisBoneTrackedRole.RightShoulder:
-                    break;
-                case BasisBoneTrackedRole.LeftUpperArm:
-                    break;
-                case BasisBoneTrackedRole.RightUpperArm:
-                    break;
-                case BasisBoneTrackedRole.LeftLowerArm:
-                    break;
-                case BasisBoneTrackedRole.RightLowerArm:
-                    break;
-                case BasisBoneTrackedRole.LeftToes:
-                    break;
-                case BasisBoneTrackedRole.RightToes:
-                    break;
-                case BasisBoneTrackedRole.Mouth:
-                    break;
-            }
+            BasisActionDriver.UpdatePlayerControl(trackedRole, ref CurrentInputState, ref LastInputState);
             if (HasRaycaster)
             {
                 BasisPointRaycaster.UpdateRaycast();
@@ -426,7 +339,6 @@ namespace Basis.Scripts.Device_Management.Devices
             BasisUIRaycast.Initialize(BaseInput, BasisPointRaycaster);
             HasRaycaster = true;
         }
-        public float HandBiasSplay = 0;
         public float Remap01ToMinus1To1(float value)
         {
             return (0.75f - value) * 2f - 0.75f;
