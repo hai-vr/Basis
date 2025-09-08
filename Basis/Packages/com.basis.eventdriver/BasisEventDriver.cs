@@ -64,8 +64,9 @@ public class BasisEventDriver : MonoBehaviour
     }
     public void FixedUpdate()
     {
+        TimeAsDouble = Time.timeAsDouble;
         BasisSceneFactory.Simulate();
-        JigglePhysics.ScheduleSimulate(Time.timeAsDouble, Time.fixedTimeAsDouble, Time.fixedDeltaTime);
+        JigglePhysics.ScheduleSimulate(TimeAsDouble, Time.fixedTimeAsDouble, Time.fixedDeltaTime);
     }
     public void LateUpdate()
     {
