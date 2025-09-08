@@ -218,12 +218,6 @@ namespace Basis.Scripts.Drivers
 				return BasisLocalPlayer.FallbackSize;
 			}
 		}
-
-		public void SetMatrixOverride()
-		{
-			SetAllMatrixRecalculation(true);
-		}
-
 		public void Calibration(BasisLocalPlayer LocalPlayer)
 		{
 			var Avatar = LocalPlayer.BasisAvatar;
