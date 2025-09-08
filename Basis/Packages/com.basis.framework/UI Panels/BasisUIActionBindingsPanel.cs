@@ -1,6 +1,7 @@
 // File: BasisUIActionBindingsPanel.cs
 // What it does: Manages the bindings UI with multi-role selection, clear-per-row, conflict warnings, and unsaved-change highlighting.
 
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
@@ -59,10 +60,14 @@ namespace Basis.Scripts.UI.UI_Panels
             SetDirty(false);
         }
 
-        private async void OnEnable()
+        private void OnEnable()
+        {
+            Initalize();
+            BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
+        }
+        public async void Initalize()
         {
             RebuildRows();
-
             if (BasisActionDriver.HasSavedBindings)
             {
                 await BasisActionDriver.LoadApplyToDriverAsync();
@@ -73,8 +78,14 @@ namespace Basis.Scripts.UI.UI_Panels
             SetDirty(false);
         }
 
+        private void OnBootModeChanged(string Mode)
+        {
+            Initalize();
+        }
+
         private void OnDisable()
         {
+            BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
             SaveToDisk();
         }
 
