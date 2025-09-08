@@ -4,7 +4,6 @@ using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.UI;
-using Basis.Scripts.UI.UI_Panels;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.AddressableAssets;

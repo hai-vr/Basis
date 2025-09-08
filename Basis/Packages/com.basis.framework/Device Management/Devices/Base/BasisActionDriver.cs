@@ -1,11 +1,14 @@
-using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.UI;
 using Basis.Scripts.UI.UI_Panels;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using UnityEngine;
 
 /// <summary>
@@ -18,6 +21,16 @@ using UnityEngine;
 /// </summary>
 public static class BasisActionDriver
 {
+    public const string FileName = "BasisActionBindingsV1.json";
+    public const string FolderPath = "BasisActions"; // No leading slash!
+
+    public static string SavePath => Path.Combine(Application.persistentDataPath, FolderPath, BasisDeviceManagement.StaticCurrentMode, FileName
+    );
+
+    /// <summary>
+    /// True if a bindings file is present on disk.
+    /// </summary>
+    public static bool HasSavedBindings => File.Exists(SavePath);
     /// <summary>
     /// The individual behaviors this driver can execute.
     /// Add new entries here when you add new behavior functions.
@@ -39,11 +52,6 @@ public static class BasisActionDriver
 
         // Keep this as the last entry for sizing arrays.
         Count = 7
-    }
-    // Initialize with the original layout so nothing changes unless you rebind.
-    static BasisActionDriver()
-    {
-        ResetDefaultBindings();
     }
     /// <summary>
     /// Bind a behavior to the device (tracked role) that should drive it.
@@ -124,7 +132,9 @@ public static class BasisActionDriver
     /// - RightHand: rotate, jump
     /// - CenterEye: mic toggle on primary release (when not hovering UI)
     /// </summary>
-    public static void ResetDefaultBindings()
+    /// <param name="CurrentMode">device mode that we are in we should load based on this</param>
+    /// <returns></returns>
+    public static async Task LoadBindings()
     {
         s_ActionToRole.Clear();
         s_RoleToActions.Clear();
@@ -142,14 +152,27 @@ public static class BasisActionDriver
         // Right hand — everything that was in SecondaryDevice()
         Bind(ActionId.RotateFromPrimary2DAxis, BasisBoneTrackedRole.RightHand);
         Bind(ActionId.JumpOnPrimaryButton, BasisBoneTrackedRole.RightHand);
-
-        // Center eye — everything that was in HeadsDevice()
-        Bind(ActionId.ToggleMicOnPrimaryReleaseIfNoHover, BasisBoneTrackedRole.CenterEye);
-
+        if (BasisDeviceManagement.IsCurrentModeVR() == false)
+        {
+            Bind(ActionId.ToggleMicOnPrimaryReleaseIfNoHover, BasisBoneTrackedRole.CenterEye);
+        }
+        else
+        {
+            // Center eye — everything that was in HeadsDevice()
+            Bind(ActionId.ToggleMicOnPrimaryReleaseIfNoHover, BasisBoneTrackedRole.LeftHand);
+        }
         s_SuppressRebuild = false;
         RebuildAllCompiled();
-    }
 
+        if (File.Exists(SavePath))
+        {
+            await LoadApplyToDriverAsync();
+        }
+        else
+        {
+            await SaveFromDriver();
+        }
+    }
     /// <summary>
     /// Call this once per device input update (same signature as before).
     /// The router will execute only the actions currently bound to <paramref name="trackedRole"/>.
@@ -182,12 +205,7 @@ public static class BasisActionDriver
         }
 #endif
     }
-
-    // Delegate type so we can pass ref states.
     public delegate void InputAction(ref BasisInputState current, ref BasisInputState last);
-
-    // --------- IMPLEMENTATIONS (kept identical in behavior) ---------
-
     /// <summary>
     /// Compute the largest absolute component of the primary 2D axis and apply it as a movement speed multiplier.
     /// </summary>
@@ -293,7 +311,7 @@ public static class BasisActionDriver
         JumpOnPrimaryButton                             // 6
     };
     private static readonly Dictionary<ActionId, BasisBoneTrackedRole> s_ActionToRole = new Dictionary<ActionId, BasisBoneTrackedRole>(capacity: 16);
-    private static readonly Dictionary<BasisBoneTrackedRole, List<ActionId>> s_RoleToActions =new Dictionary<BasisBoneTrackedRole, List<ActionId>>(capacity: 8);
+    private static readonly Dictionary<BasisBoneTrackedRole, List<ActionId>> s_RoleToActions = new Dictionary<BasisBoneTrackedRole, List<ActionId>>(capacity: 8);
     private static readonly Dictionary<BasisBoneTrackedRole, InputAction[]> s_RoleToCompiled = new Dictionary<BasisBoneTrackedRole, InputAction[]>(capacity: 8);
     private static readonly List<ActionId> s_EmptyActions = new List<ActionId>(0);
     private static readonly InputAction[] s_EmptyImpls = Array.Empty<InputAction>();
@@ -325,5 +343,144 @@ public static class BasisActionDriver
         {
             RebuildCompiledActionsForRole(kvp.Key);
         }
+    }
+
+    /// <summary>
+    /// Deletes the saved bindings file (if any).
+    /// </summary>
+    public static void DeleteSaveFile()
+    {
+        if (!File.Exists(SavePath)) return;
+
+        try
+        {
+            File.Delete(SavePath);
+            BasisDebug.Log($"Bindings Deleted {SavePath}", BasisDebug.LogTag.Input);
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogError($"Bindings Failed to delete save file: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Saves all currently bound actions from BasisActionDriver to disk.
+    /// </summary>
+    public static async Task SaveFromDriver()
+    {
+        // Emit records for bound actions only (skip unbound to keep JSON compact)
+        List<BasisBindingRecord> list = new List<BasisBindingRecord>(16);
+
+        foreach (ActionId action in Enum.GetValues(typeof(ActionId)))
+        {
+            if (action == ActionId.Count) continue;
+
+            var role = BasisActionDriver.GetBinding(action);
+            if (role.HasValue)
+            {
+                list.Add(new BasisBindingRecord
+                {
+                    action = action.ToString(),
+                    role = role.Value.ToString()
+                });
+            }
+        }
+
+        BindingWrapper wrapper = new BindingWrapper { records = list.ToArray() };
+      await  WriteWrapperToDisk(wrapper);
+    }
+
+    /// <summary>
+    /// Loads bindings (if present) and applies them to BasisActionDriver.
+    /// </summary>
+    public static async Task LoadApplyToDriverAsync()
+    {
+        if (!File.Exists(SavePath))
+        {
+            return;
+        }
+
+        BindingWrapper wrapper;
+        try
+        {
+            string json = await File.ReadAllTextAsync(SavePath);
+            if (string.IsNullOrEmpty(json))
+            {
+                return;
+            }
+
+            wrapper = JsonUtility.FromJson<BindingWrapper>(json);
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogError($"Bindings Failed to read/parse bindings file: {ex.Message}", BasisDebug.LogTag.Input);
+            await SaveFromDriver();
+            return;
+        }
+
+        if (wrapper.records == null || wrapper.records.Length == 0) return;
+
+        // Apply saved bindings
+        for (int Index = 0; Index < wrapper.records.Length; Index++)
+        {
+            var rec = wrapper.records[Index];
+            if (!EnumTryParse(rec.action, out ActionId action)) continue;
+            if (!EnumTryParse(rec.role, out BasisBoneTrackedRole role)) continue;
+
+            BasisActionDriver.Bind(action, role);
+        }
+    }
+    private static async Task WriteWrapperToDisk(BindingWrapper wrapper)
+    {
+        string json = JsonUtility.ToJson(wrapper, prettyPrint: true);
+
+        try
+        {
+            // Ensure directory exists (persistentDataPath should exist, but just in case)
+            var dir = Path.GetDirectoryName(SavePath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            string tmpPath = SavePath + ".tmp";
+            await File.WriteAllTextAsync(tmpPath, json);
+            if (File.Exists(SavePath))
+            {
+                File.Replace(tmpPath, SavePath, null);
+            }
+            else
+            {
+                File.Move(tmpPath, SavePath);
+            }
+#if UNITY_EDITOR
+            BasisDebug.Log($"Bindings Saved {wrapper.records?.Length ?? 0} bindings to {SavePath}", BasisDebug.LogTag.Input);
+#endif
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogError($"Bindings Failed to save bindings to disk: {ex.Message}", BasisDebug.LogTag.Input);
+        }
+    }
+    private static bool EnumTryParse<TEnum>(string s, out TEnum value) where TEnum : struct
+    {
+#if UNITY_2021_2_OR_NEWER
+        return Enum.TryParse(s, ignoreCase: true, out value);
+#else
+            try { value = (TEnum)Enum.Parse(typeof(TEnum), s, true); return true; }
+            catch { value = default; return false; }
+#endif
+    }
+    [Serializable]
+    public struct BasisBindingRecord
+    {
+        public string action;
+        public string role;
+    }
+
+    [Serializable]
+    public struct BindingWrapper
+    {
+        public BasisBindingRecord[] records;
     }
 }
