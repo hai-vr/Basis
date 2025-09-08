@@ -7,7 +7,6 @@ using SteamAudio;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-using UnityEngine.XR;
 using Vector3 = UnityEngine.Vector3;
 using System;
 namespace Basis.Scripts.Drivers
@@ -24,7 +23,7 @@ namespace Basis.Scripts.Drivers
         public BasisLocalPlayer LocalPlayer;
         public int DefaultCameraFov = 90;
         // Static event to notify when the instance exists
-        public static event System.Action InstanceExists;
+        public static event Action InstanceExists;
         public BasisLockToInput BasisLockToInput;
         public bool HasEvents = false;
         public Transform ParentOfUI;
@@ -34,7 +33,6 @@ namespace Basis.Scripts.Drivers
         public Sprite SpriteMicrophoneOff;
 
         public Vector3 DesktopMicrophoneViewportPosition = new(0.2f, 0.15f, 1f); // Adjust as needed for canvas position and depth
-        public Vector3 VRMicrophoneOffset = new Vector3(-0.0004f, -0.0015f, 2f);
 
         public AudioClip MuteSound;
         public AudioClip UnMuteSound;
@@ -52,6 +50,18 @@ namespace Basis.Scripts.Drivers
         public Color UnMutedMutedIconColorActive = Color.white;
         public Color UnMutedMutedIconColorInactive = Color.grey;
         public Color MutedColor = Color.grey;
+
+        // Normalized [-1..1] desired position within the visible frustum where (0,0) is center.
+        // (-1,-1)=bottom-left edge, (1,1)=top-right edge.
+        // Think of it as "anchoring" inside the HMD view, independent of resolution.
+        public Vector2 VRdesiredNormXY = new Vector2(-0.42f, -0.52f);
+
+        // Optional additional normalized padding (percentage of frustum half-width/half-height)
+        [Range(0f, 0.2f)]
+        public float VRextraViewportPad = 0.022f;
+        public Vector2 iconHalfRU;
+        Vector3[] corners = new Vector3[4];
+        Rect FrustumRequest = new Rect(0, 0, 1, 1);
         public void OnEnable()
         {
             if (BasisHelpers.CheckInstance(Instance))
@@ -70,7 +80,7 @@ namespace Basis.Scripts.Drivers
                 BasisLocalMicrophoneDriver.MainThreadOnHasAudio += MicrophoneTransmitting;
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence += MicrophoneNotTransmitting;
                 RenderPipelineManager.beginCameraRendering += BeginCameraRendering;
-                RenderPipelineManager.endCameraRendering += endCameraRendering;
+                RenderPipelineManager.endCameraRendering += EndCameraRendering;
                 BasisDeviceManagement.OnBootModeChanged += OnModeSwitch;
                 BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnHeightChanged;
                 InstanceExists?.Invoke();
@@ -89,6 +99,9 @@ namespace Basis.Scripts.Drivers
             }
 #endif
             SpriteRendererIcon.gameObject.SetActive(true);
+
+            // 2) Icon half-size in meters, in camera-local axes
+            iconHalfRU = GetIconHalfSizeRUInCameraSpace(Camera, ParentOfUI);
         }
 
         public void MicrophoneTransmitting()
@@ -189,7 +202,7 @@ namespace Basis.Scripts.Drivers
         public void OnDestroy()
         {
             RenderPipelineManager.beginCameraRendering -= BeginCameraRendering;
-            RenderPipelineManager.endCameraRendering -= endCameraRendering;
+            RenderPipelineManager.endCameraRendering -= EndCameraRendering;
             BasisDeviceManagement.OnBootModeChanged -= OnModeSwitch;
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnHeightChanged;
             BasisLocalMicrophoneDriver.OnPausedAction -= OnPausedEvent;
@@ -279,13 +292,6 @@ namespace Basis.Scripts.Drivers
             //the normal users scale is 1.6m
             //so a avatar the size of 
             this.transform.localScale = Vector3.one * LocalPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
-            // Calculate the scale relative to the parent
-            Vector3 parentScale = this.transform.lossyScale;
-            ParentOfUI.localScale = new Vector3(
-               0.02f / parentScale.x,
-                0.02f / parentScale.y,
-               0.02f / parentScale.z
-            );
         }
         public void OnDisable()
         {
@@ -296,14 +302,14 @@ namespace Basis.Scripts.Drivers
             if (HasEvents)
             {
                 RenderPipelineManager.beginCameraRendering -= BeginCameraRendering;
-                RenderPipelineManager.endCameraRendering -= endCameraRendering;
+                RenderPipelineManager.endCameraRendering -= EndCameraRendering;
                 BasisDeviceManagement.OnBootModeChanged -= OnModeSwitch;
                 BasisLocalMicrophoneDriver.MainThreadOnHasAudio -= MicrophoneTransmitting;
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence -= MicrophoneNotTransmitting;
                 HasEvents = false;
             }
         }
-        private void endCameraRendering(ScriptableRenderContext context, Camera camera)
+        private void EndCameraRendering(ScriptableRenderContext context, Camera camera)
         {
             if (BasisLocalAvatarDriver.References.Hashead)
             {
@@ -321,10 +327,11 @@ namespace Basis.Scripts.Drivers
                 {
                     this.transform.GetPositionAndRotation(out Position, out Rotation);
                     BasisLocalAvatarDriver.ScaleheadToZero();
+
                     if (CameraData.allowXRRendering)
                     {
-                        Vector2 EyeTextureSize = new Vector2(XRSettings.eyeTextureWidth, XRSettings.eyeTextureHeight);
-                        ParentOfUI.localPosition = CalculatePosition(EyeTextureSize, VRMicrophoneOffset);
+                        ParentOfUI.localPosition = CalculateClampedLocal(Camera);
+
                     }
                     else
                     {
@@ -333,23 +340,83 @@ namespace Basis.Scripts.Drivers
                         ParentOfUI.localPosition = localPos;
                     }
                 }
-                // else
-                ///  {
-                //     BasisLocalAvatarDriver.ScaleHeadToNormal();
-                // }
             }
         }
-        // Function to calculate the position
-        Vector3 CalculatePosition(Vector2 size, Vector3 percentage)
+        /// <summary>
+        /// Places ParentOfUI in front of the camera at depth, using desired normalized coords in [-1..1],
+        /// and clamps so the entire object (bounds) stays visible. Returns camera-local position.
+        /// </summary>
+        private Vector3 CalculateClampedLocal(Camera cam)
         {
-            // The center of the object is assumed to be at (0, 0, 0) for simplicity
-            Vector3 center = size / 2;
+            // 1) Frustum size at 'depth'
+            // Use frustum corners to be robust to per-eye projections/FOVs.
+            cam.CalculateFrustumCorners(FrustumRequest, 1, Camera.MonoOrStereoscopicEye.Left, corners);
+            // corners: BL, TL, TR, BR in camera-local space
+            // We want width/height at 'depth'
+            Vector3 BL = corners[0];
+            Vector3 TL = corners[1];
+            Vector3 TR = corners[2];
+            // In camera-local, right vector is along TR - TL, up is TL - BL; center is (BL+TR)/2
+            float frustumWidth = (TR - TL).magnitude;
+            float frustumHeight = (TL - BL).magnitude;
+            float halfW = frustumWidth * 0.5f;
+            float halfH = frustumHeight * 0.5f;
 
-            // Calculate position relative to the center based on the percentage and size
-            Vector3 offset = new Vector3((percentage.x - 0.5f) * size.x, (percentage.y - 0.5f) * size.y, percentage.z);
+            // 3) Convert desired normXY [-1..1] to clamped norm so icon stays fully inside
+            // Compute normalized “margins” required by the icon extents
+            float marginU = Mathf.Clamp01(iconHalfRU.x / Mathf.Max(halfW, 1e-4f)) + VRextraViewportPad;
+            float marginV = Mathf.Clamp01(iconHalfRU.y / Mathf.Max(halfH, 1e-4f)) + VRextraViewportPad;
 
-            // The position is the center plus the offset
-            return offset + center;
+            float u = Mathf.Clamp(VRdesiredNormXY.x, -1f + marginU, 1f - marginU);
+            float v = Mathf.Clamp(VRdesiredNormXY.y, -1f + marginV, 1f - marginV);
+
+            // 4) Build the camera-local position at depth using clamped normalized coords
+            // Center point at depth on camera forward
+            Vector3 centerAtDepth = cam.transform.InverseTransformPoint(Position + cam.transform.forward * BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
+
+            // Get camera-local right/up from corner vectors
+            Vector3 rightLocal = (TR - TL).normalized;
+            Vector3 upLocal = (TL - BL).normalized;
+
+            Vector3 localPos = centerAtDepth + rightLocal * (u * halfW) + upLocal * (v * halfH);
+
+            return localPos;
+        }
+
+        /// <summary>
+        /// Computes the icon's half-size in meters projected onto the camera's right/up axes.
+        /// Works for both 3D Renderers and world-space UI (RectTransform).
+        /// </summary>
+        private Vector2 GetIconHalfSizeRUInCameraSpace(Camera cam, Transform uiRoot)
+        {
+            // Bounds are in world space; project extents to camera right/up
+            Vector3 ext = SpriteRendererIcon.bounds.extents;
+            // We approximate by projecting the oriented extents to RU; this is conservative.
+            Vector3 right = cam.transform.right;
+            Vector3 up = cam.transform.up;
+
+            // Build an oriented bounding "radius" along RU by sampling the 3 axes of the object
+            // (handles rotated meshes). extents in local axes:
+            Vector3 ex = uiRoot.TransformVector(new Vector3(ext.x * 2f, 0, 0)) * 0.5f;
+            Vector3 ey = uiRoot.TransformVector(new Vector3(0, ext.y * 2f, 0)) * 0.5f;
+            Vector3 ez = uiRoot.TransformVector(new Vector3(0, 0, ext.z * 2f)) * 0.5f;
+
+            float halfRight = ProjectHalfOnAxis(right, ex, ey, ez);
+            float halfUp = ProjectHalfOnAxis(up, ex, ey, ez);
+
+            return new Vector2(Mathf.Abs(halfRight), Mathf.Abs(halfUp));
+        }
+
+        /// <summary>
+        /// Projects the sum of half-axes onto a given axis; conservative half-size projection.
+        /// </summary>
+        private static float ProjectHalfOnAxis(Vector3 axis, params Vector3[] halfAxes)
+        {
+            axis = axis.normalized;
+            float sum = 0f;
+            for (int Index = 0; Index < halfAxes.Length; Index++)
+                sum += Mathf.Abs(Vector3.Dot(axis, halfAxes[Index]));
+            return sum;
         }
         public static void AllowXRRenderering(bool AllowXRRendering)
         {
