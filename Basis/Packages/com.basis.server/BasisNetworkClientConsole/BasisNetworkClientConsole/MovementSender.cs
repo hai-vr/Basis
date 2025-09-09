@@ -102,7 +102,7 @@ namespace Basis.Network
             bytes[offset + 3] = (byte)((intValue >> 24) & 0xFF);
             offset += 4;
         }
-        public static void WriteZeroBytes(ref byte[] bytes, ref int offset, int count = 137)
+        public static void WriteZeroBytes(ref byte[] bytes, ref int offset, int count = 140)
         {
             // Ensure the array is large enough
             if (bytes.Length < offset + count)

@@ -35,7 +35,7 @@ public class NetworkClient
                 UnsyncedEvents = true,
                 ReceivePollingTime = BasisNetworkCommons.ReceivePollingTime,
                 PacketPoolSize = BasisNetworkCommons.PacketPoolSize,
-                 
+
             };
             client.Start();
             NetDataWriter Writer = new NetDataWriter(true,12);
