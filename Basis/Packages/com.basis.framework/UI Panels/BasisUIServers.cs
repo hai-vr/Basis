@@ -124,8 +124,7 @@ namespace Basis.Scripts.UI.UI_Panels
                     BasisNetworkManagement.Instance.Connect();
                     if (BasisSetUserName.Instance != null)
                     {
-                        GameObject.Destroy(BasisSetUserName.Instance.gameObject);
-                        BasisSetUserName.Instance = null;
+                        BasisSetUserName.Instance.DestroyUserNamePanel();
                     }
                     Ready.interactable = false;
                     CloseThisMenu();

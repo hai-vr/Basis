@@ -115,7 +115,6 @@ namespace Basis.Scripts.UI.UI_Panels
                     BasisNetworkManagement.Instance.Connect();
                     Ready.interactable = false;
                     BasisDebug.Log("connecting to default");
-                    Destroy(this.gameObject);
                 }
             }
             else
@@ -124,6 +123,11 @@ namespace Basis.Scripts.UI.UI_Panels
                 // Re-enable button interaction if username is empty
                 Ready.interactable = true;
             }
+        }
+        public void DestroyUserNamePanel()
+        {
+            Destroy(this.gameObject);
+            BasisSetUserName.Instance = null;
         }
         public void ToggleAdvancedSettings()
         {

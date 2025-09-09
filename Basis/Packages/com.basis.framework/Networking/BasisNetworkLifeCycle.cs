@@ -83,7 +83,6 @@ public static class BasisNetworkLifeCycle
             BasisNetworkConnection.LocalPlayerIsConnected = false;
             Management.LocalAccessTransmitter = null;
             BasisNetworkConnection.LocalPlayerPeer = null;
-            BasisNetworkConnection.StopClientTask();
             if (DisplayReason)
             {
                 BasisDebug.Log($"Client disconnected from server [{peer?.RemoteId}] [{disconnectInfo.Reason}]");
@@ -138,6 +137,5 @@ public static class BasisNetworkLifeCycle
         // let the MonoBehaviour reset its Instance in OnDestroy; no direct assignment here
         BasisDebug.Log("BasisNetworkManagement has been successfully shutdown.", BasisDebug.LogTag.Networking);
         BasisNetworkConnection.NetworkClient?.Disconnect();
-        BasisNetworkConnection.StopClientTask();
     }
 }

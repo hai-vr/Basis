@@ -4,6 +4,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.TransformBinders.BoneControl;
+using Basis.Scripts.UI.UI_Panels;
 using BasisNetworkClient;
 using LiteNetLib;
 using System;
@@ -24,7 +25,6 @@ namespace Basis.Scripts.Networking
         public static NetworkClient NetworkClient { get; set; } = new NetworkClient();
         public static bool LocalPlayerIsConnected { get; set; }
         public static BasisNetworkServerRunner BasisNetworkServerRunner = null;
-        public static CancellationTokenSource clientCts;
         private static void LogErrorOutput(string msg) => BasisDebug.LogError(msg, BasisDebug.LogTag.Networking);
         private static void LogWarningOutput(string msg) => BasisDebug.LogWarning(msg);
         private static void LogOutput(string msg) => BasisDebug.Log(msg, BasisDebug.LogTag.Networking);
@@ -86,7 +86,6 @@ namespace Basis.Scripts.Networking
             readyMessage.localAvatarSyncMessage = dataSet.LASM;
 
             BasisDebug.Log("Network Starting Client");
-            clientCts = new CancellationTokenSource();
 
             _ = Task.Run(() =>
             {
@@ -104,6 +103,7 @@ namespace Basis.Scripts.Networking
                     if (LocalPlayerPeer != null)
                     {
                         BasisDebug.Log("Network Client Started " + LocalPlayerPeer.RemoteId);
+
                     }
                     else
                     {
@@ -112,29 +112,16 @@ namespace Basis.Scripts.Networking
                             Reason = DisconnectReason.ConnectionFailed
                         });
                     }
-
-                    // Example: poll cancellation
-                    while (!clientCts.Token.IsCancellationRequested)
-                    {
-                        // optional: keep alive work
-                        Thread.Sleep(100);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    BasisDebug.Log("Client task cancelled.");
                 }
                 catch (Exception ex)
                 {
-                    BasisDebug.Log("Client task error: " + ex);
+                    BasisDebug.LogError("Client task error: " + ex, BasisDebug.LogTag.Networking);
+                    HandleDisconnection(null, new DisconnectInfo
+                    {
+                        Reason = DisconnectReason.UnknownHost
+                    });
                 }
-            }, clientCts.Token);
-        }
-
-        public static void StopClientTask()
-        {
-            clientCts?.Cancel();
-            clientCts?.Dispose();
+            });
         }
         private static void PeerConnectedEvent(NetPeer peer)
         {
@@ -179,6 +166,10 @@ namespace Basis.Scripts.Networking
                     BasisNetworkPlayer.OnPlayerJoined?.Invoke(BasisNetworkManagement.Instance.LocalAccessTransmitter);
 
                     LocalPlayerIsConnected = true;
+                    if (BasisSetUserName.Instance != null)
+                    {
+                        BasisSetUserName.Instance.DestroyUserNamePanel();
+                    }
                 }
                 catch (Exception ex)
                 {
