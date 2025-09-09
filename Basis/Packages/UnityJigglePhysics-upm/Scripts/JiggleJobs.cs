@@ -125,9 +125,9 @@ public class JiggleJobs {
         handleInterpolate = jobInterpolation.ScheduleParallel(_memoryBus.transformCount, 128, handleRootRead);
         hasHandleInterpolate = true;
 
-        if (hasHandleBulkRead) {
+        if (hasHandleBulkReset) {
             handleTransformWrite = jobTransformWrite.Schedule(_memoryBus.GetTransformAccessArray(),
-                JobHandle.CombineDependencies(handleInterpolate, handleBulkRead));
+                JobHandle.CombineDependencies(handleInterpolate, handleBulkReset));
         } else {
             handleTransformWrite = jobTransformWrite.Schedule(_memoryBus.GetTransformAccessArray(), handleInterpolate);
         }
@@ -319,8 +319,8 @@ public class JiggleJobs {
                     }
 
 
-                    if (point.childenCount != 0) {
-                        for (int j = 0; j < point.childenCount; j++) {
+                    if (point.childrenCount != 0) {
+                        for (int j = 0; j < point.childrenCount; j++) {
                             var childPoint = tree.points[point.childrenIndices[j]];
                             var childPose = poses[point.childrenIndices[j] + tree.transformIndexOffset];
                             if (!childPose.isVirtual) {
