@@ -981,3 +981,5 @@ MonoBehaviour:
   timeSinceLastUpdate: 0
   DeltaTime: 0
   TimeAsDouble: 0
+  proceduralMaterial: {fileID: 2100000, guid: 4fe20975baa16b1d4986440508067f23, type: 2}
+  sphereMesh: {fileID: -2691282190475973994, guid: 9a8a836b4c693e1e8b39eed45e660050, type: 3}

@@ -25,7 +25,6 @@ public static class BasisNetworkLifeCycle
         BasisNetworkIdResolver.KnownIdMap.Clear();
         BasisNetworkIdResolver.PendingResolutions.Clear();
         BasisNetworkManagement.instantiationParameters = new InstantiationParameters(Vector3.zero, Quaternion.identity, BasisDeviceManagement.Instance.transform);
-
         BasisMuscleRange.Initalize();
 
         BasisNetworkManagement.MainThreadContext = SynchronizationContext.Current;
@@ -83,6 +82,7 @@ public static class BasisNetworkLifeCycle
             BasisNetworkConnection.LocalPlayerIsConnected = false;
             Management.LocalAccessTransmitter = null;
             BasisNetworkConnection.LocalPlayerPeer = null;
+            BasisNetworkManagement.OnRequestServerSideDatabaseItem = null;
             if (DisplayReason)
             {
                 BasisDebug.Log($"Client disconnected from server [{peer?.RemoteId}] [{disconnectInfo.Reason}]");
@@ -129,6 +129,7 @@ public static class BasisNetworkLifeCycle
         BasisNetworkManagement.OnEnableInstanceCreate = null;
         BasisNetworkManagement.MainThreadContext = null;
         BasisNetworkConnection.LocalPlayerPeer = null;
+        BasisNetworkManagement.OnRequestServerSideDatabaseItem = null;
         Management.LocalAccessTransmitter = null;
         BasisNetworkConnection.LocalPlayerIsConnected = false;
 

@@ -204,7 +204,7 @@ namespace Basis.Scripts.Drivers
                 c?.ComputeMovementRemote();
             }
 
-            if (BasisGizmoManager.UseGizmos)
+            if (SMModuleDebugOptions.UseGizmos)
             {
                 DrawGizmos();
             }

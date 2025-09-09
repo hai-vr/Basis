@@ -1,6 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
-using Basis.Scripts.Drivers;
 using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Transmitters;
@@ -13,6 +12,10 @@ public class BasisEventDriver : MonoBehaviour
     public float timeSinceLastUpdate = 0f;
     public float DeltaTime;
     public double TimeAsDouble;
+    [SerializeField]
+    private Material proceduralMaterial;
+    [SerializeField]
+    private Mesh sphereMesh;
     public void OnEnable()
     {
 #if UNITY_SERVER
@@ -87,8 +90,15 @@ public class BasisEventDriver : MonoBehaviour
         BasisNetworkManagement.SimulateNetworkApply();
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
         JigglePhysics.SchedulePose(TimeAsDouble);
+        if (SMModuleDebugOptions.UseGizmos)
+        {
+            JigglePhysics.ScheduleRender();
+        }
         JigglePhysics.CompletePose();
-
+        if (SMModuleDebugOptions.UseGizmos)
+        {
+            JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
+        }
 #if UNITY_SERVER
         OnBeforeRender();
 #endif
