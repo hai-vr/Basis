@@ -67,6 +67,7 @@ public static class BasisNetworkLifeCycle
                 }
                 BasisNetworkPlayer.OnPlayerLeft?.Invoke(networkedPlayer);
             }
+            BasisNetworkManagement.Transmitter?.DeInitialize();
             if (BasisNetworkConnection.BasisNetworkServerRunner != null)
             {
                 BasisNetworkConnection.BasisNetworkServerRunner.Stop();
@@ -77,7 +78,6 @@ public static class BasisNetworkLifeCycle
             await BasisNetworkSpawnItem.Reset();//remove items
             BasisNetworkIdResolver.KnownIdMap.Clear();
             BasisNetworkIdResolver.PendingResolutions.Clear();
-            BasisNetworkManagement.Transmitter?.DeInitialize();
             BasisNetworkManagement.Transmitter = null;
             BasisNetworkConnection.NetworkClient?.Disconnect();//disconnect the local client last.
             BasisNetworkConnection.LocalPlayerIsConnected = false;
@@ -106,6 +106,9 @@ public static class BasisNetworkLifeCycle
             }
             BasisNetworkPlayer.OnPlayerLeft?.Invoke(networkedPlayer);
         }
+        // Reset instance-scoped configuration to safe defaults
+        BasisNetworkManagement.Transmitter?.DeInitialize();
+
         if (BasisNetworkConnection.BasisNetworkServerRunner != null)
         {
             BasisNetworkConnection.BasisNetworkServerRunner.Stop();
@@ -117,8 +120,6 @@ public static class BasisNetworkLifeCycle
         BasisNetworkIdResolver.PendingResolutions.Clear();
         BasisAudioRemoteSource.DeInitalize();//release memory for audio gameobject
         BasisRemoteNetworkDriver.Shutdown();
-        // Reset instance-scoped configuration to safe defaults
-        BasisNetworkManagement.Transmitter?.DeInitialize();
         BasisNetworkManagement.Transmitter = null;
         // Clear delegates / events
         BasisNetworkPlayer.OnOwnershipTransfer = null;

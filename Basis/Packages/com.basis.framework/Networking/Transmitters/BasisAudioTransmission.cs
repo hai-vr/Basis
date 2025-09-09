@@ -41,8 +41,6 @@ namespace Basis.Scripts.Networking.Transmitters
                 DetachMicrophoneEvents();
             }
 
-            BasisLocalMicrophoneDriver.DeInitialize();
-
             encoder?.Dispose();
             encoder = null;
         }

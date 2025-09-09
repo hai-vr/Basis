@@ -211,6 +211,7 @@ namespace Basis.Scripts.BasisSdk.Players
                 BasisLocalMicrophoneDriver.OnHasSilence -= DriveAudioToViseme;
                 HasCalibrationEvents = false;
             }
+            BasisLocalMicrophoneDriver.DeInitialize();
             if (LocalHandDriver != null)
             {
                 LocalHandDriver.Dispose();
