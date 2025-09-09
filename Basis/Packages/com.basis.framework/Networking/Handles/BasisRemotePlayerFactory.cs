@@ -27,7 +27,7 @@ namespace Basis.Scripts.Networking
 
             if (avatarID.byteArray != null)
             {
-                BasisNetworkManagement.JoiningPlayers.Add(ServerReadyMessage.playerIdMessage.playerID);
+                BasisNetworkPlayers.JoiningPlayers.Add(ServerReadyMessage.playerIdMessage.playerID);
 
                 // Start both tasks simultaneously
                 Task<BasisRemotePlayer> createRemotePlayerTask = BasisPlayerFactory.CreateRemotePlayer(instantiationParameters, avatarID, ServerReadyMessage.localReadyMessage.playerMetaDataMessage);
@@ -37,14 +37,14 @@ namespace Basis.Scripts.Networking
                 // Continue with the rest of the code
                 RemoteInitialization(BasisNetworkReceiver, remote, ServerReadyMessage);
                 BasisNetworkReceiver.LastLinkedAvatarIndex = avatarID.LocalAvatarIndex;
-                if (BasisNetworkManagement.AddPlayer(BasisNetworkReceiver))
+                if (BasisNetworkPlayers.AddPlayer(BasisNetworkReceiver))
                 {
                     //    BasisDebug.Log("Added Player AT " + BasisNetworkReceiver.NetId);
                 }
                 else
                 {
                     BasisNetworkHandleRemoval.HandleDisconnectId(ServerReadyMessage.playerIdMessage.playerID);
-                    if (BasisNetworkManagement.AddPlayer(BasisNetworkReceiver))
+                    if (BasisNetworkPlayers.AddPlayer(BasisNetworkReceiver))
                     {
                         BasisDebug.LogError($"Player Forcefully removed and readded with new Identity : {ServerReadyMessage.playerIdMessage.playerID}");
                     }
@@ -58,7 +58,7 @@ namespace Basis.Scripts.Networking
                 BasisNetworkPlayer.OnRemotePlayerJoined?.Invoke(BasisNetworkReceiver, remote);
                 BasisNetworkPlayer.OnPlayerJoined?.Invoke(BasisNetworkReceiver);
 
-                BasisNetworkManagement.JoiningPlayers.Remove(ServerReadyMessage.playerIdMessage.playerID);
+                BasisNetworkPlayers.JoiningPlayers.Remove(ServerReadyMessage.playerIdMessage.playerID);
                 remote.LoadAvatarFromInitial(avatarID);
 
                 return BasisNetworkReceiver;

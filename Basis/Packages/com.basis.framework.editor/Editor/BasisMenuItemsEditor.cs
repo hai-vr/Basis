@@ -274,13 +274,13 @@ public static class BasisMenuItemsEditor
         {
             playerIdMessage = new PlayerIdMessage
             {
-                playerID = (ushort)(BasisNetworkManagement.Players.Count + 1)
+                playerID = (ushort)(BasisNetworkPlayers.Players.Count + 1)
             },
             localReadyMessage = new ReadyMessage()
         };
         serverSideSyncPlayerMessage.localReadyMessage.clientAvatarChangeMessage = new ClientAvatarChangeMessage();
         serverSideSyncPlayerMessage.localReadyMessage.localAvatarSyncMessage = new LocalAvatarSyncMessage();
-        if(BasisNetworkManagement.Players.TryGetValue((ushort)BasisNetworkManagement.LocalPlayerPeer.Id, out BasisNetworkPlayer Player))
+        if(BasisNetworkPlayers.Players.TryGetValue((ushort)BasisNetworkConnection.LocalPlayerPeer.Id, out BasisNetworkPlayer Player))
         {
           BasisNetworkTransmitter Transmitter = (BasisNetworkTransmitter)Player;
             if (Transmitter != null)

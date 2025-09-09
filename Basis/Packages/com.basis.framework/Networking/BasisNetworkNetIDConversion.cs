@@ -44,7 +44,7 @@ public static class BasisNetworkIdResolver
             NetIDMessage requestMessage = new NetIDMessage { UniqueID = stringId };
             requestMessage.Serialize(writer);
 
-            BasisNetworkManagement.LocalPlayerPeer.Send(writer, BasisNetworkCommons.netIDAssignChannel, LiteNetLib.DeliveryMethod.ReliableOrdered);
+            BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.netIDAssignChannel, LiteNetLib.DeliveryMethod.ReliableOrdered);
 
             return await AwaitWithTimeout(tcs.Task, stringId);
         }

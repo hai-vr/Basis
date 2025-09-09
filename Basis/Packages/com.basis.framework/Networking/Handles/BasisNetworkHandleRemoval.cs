@@ -43,7 +43,7 @@ public static class BasisNetworkHandleRemoval
         }
 
         // Remove from network manager
-        if (BasisNetworkManagement.RemovePlayer(disconnectedID, out BasisNetworkPlayer network))
+        if (BasisNetworkPlayers.RemovePlayer(disconnectedID, out BasisNetworkPlayer network))
         {
             if (network == null)
             {
