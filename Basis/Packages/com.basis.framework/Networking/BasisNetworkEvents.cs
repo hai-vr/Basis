@@ -4,6 +4,7 @@ using Basis.Scripts.Networking;
 using BasisNetworkClient;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using System.Drawing;
 using UnityEngine;
 using static SerializableBasis;
 
@@ -284,13 +285,14 @@ public static class BasisNetworkEvents
         {
             if (disconnectInfo.AdditionalData.TryGetString(out string Reason))
             {
-                BasisUINotification.OpenNotification(Reason, true, new Vector3(0, 0, 0.9f));
+                BasisUINotification.OpenNotification(Reason, false, Vector3.zero);
                 BasisDebug.LogError(Reason);
             }
         }
         else
         {
-            BasisUINotification.OpenNotification(disconnectInfo.Reason.ToString(), true, new Vector3(0, 0, 0.9f));
+            BasisUINotification.OpenNotification(disconnectInfo.Reason.ToString(), false, Vector3.zero);
+            BasisDebug.LogError(disconnectInfo.Reason.ToString());
         }
     }
     public static void PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)

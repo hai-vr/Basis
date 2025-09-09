@@ -24,8 +24,10 @@ namespace Basis.Scripts.UI.UI_Panels
         public Toggle HostMode;
         public TextMeshProUGUI ConnectText;
         public Vector3 InitalScale;
+        public static BasisSetUserName Instance;
         public void Start()
         {
+            Instance = this;
             InitalScale = gameObject.transform.localScale;
             UserNameTMP_InputField.text = BasisDataStore.LoadString(LoadFileName, string.Empty);
             Ready.onClick.AddListener(HasUserName);

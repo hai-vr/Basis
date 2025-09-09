@@ -108,7 +108,8 @@ namespace Basis.Scripts.UI.UI_Panels
             {
                 if (BasisNetworkConnection.LocalPlayerIsConnected)
                 {
-                    BasisNetworkManagement.Disconnect();
+                    await BasisNetworkLifeCycle.Destroy(BasisNetworkManagement.Instance);
+                    BasisNetworkLifeCycle.Initalize(BasisNetworkManagement.Instance);
                 }
                 BasisLocalPlayer.Instance.DisplayName = UserNameTMP_InputField.text;
                 BasisLocalPlayer.Instance.SetSafeDisplayname();
@@ -121,6 +122,11 @@ namespace Basis.Scripts.UI.UI_Panels
                     BasisNetworkManagement.Instance.IsHostMode = HostMode.isOn;
                     ushort.TryParse(Port.text, out BasisNetworkManagement.Instance.Port);
                     BasisNetworkManagement.Instance.Connect();
+                    if (BasisSetUserName.Instance != null)
+                    {
+                        GameObject.Destroy(BasisSetUserName.Instance.gameObject);
+                        BasisSetUserName.Instance = null;
+                    }
                     Ready.interactable = false;
                     CloseThisMenu();
                 }

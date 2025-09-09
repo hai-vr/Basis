@@ -28,18 +28,19 @@ namespace Basis.Scripts.Networking
         // --- Lifecycle helpers ---------------------------------------------
         public static void ClearAllRegistries()
         {
+            foreach (KeyValuePair<ushort, BasisNetworkPlayer> BasisNetworkPlayer in Players)
+            {
+                BasisNetworkHandleRemoval.HandleDisconnectIdImmediate(BasisNetworkPlayer.Key);
+            }
             Players.Clear();
             RemotePlayers.Clear();
             JoiningPlayers.Clear();
             OwnershipPairing.Clear();
             PublishReceiversSnapshot();
         }
-
         public static void PublishReceiversSnapshot()
         {
-            _receiversSnapshot = RemotePlayers.Count == 0
-                ? Array.Empty<BasisNetworkReceiver>()
-                : RemotePlayers.Values.ToArray();
+            _receiversSnapshot = RemotePlayers.Count == 0 ? Array.Empty<BasisNetworkReceiver>() : RemotePlayers.Values.ToArray();
         }
 
         // --- Registry APIs --------------------------------------------------

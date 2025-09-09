@@ -1,36 +1,35 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Helpers;
-using Basis.Scripts.Device_Management;
-using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
 using LiteNetLib;
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using static SerializableBasis;
 namespace Basis.Scripts.Networking
 {
     [DefaultExecutionOrder(15001)]
-    public sealed class BasisNetworkManagement : MonoBehaviour
+    public class BasisNetworkManagement : MonoBehaviour
     {
         [Header("Connection")]
         public string Ip = "170.64.184.249";
         public ushort Port = 4296;
         [HideInInspector] public string Password = "default_password";
         public bool IsHostMode = false;
-        public static BasisNetworkManagement Instance { get; private set; }
-        public static SynchronizationContext MainThreadContext { get; internal set; }
-        public static bool NetworkRunning { get; private set; }
-        public static BasisNetworkTransmitter Transmitter { get; internal set; }
+        public static BasisNetworkManagement Instance;
+        public static SynchronizationContext MainThreadContext;
+        public static bool NetworkRunning;
+        public static BasisNetworkTransmitter Transmitter;
         public static NetPeer LocalPlayerPeer => BasisNetworkConnection.LocalPlayerPeer;
 
         [SerializeField] public BasisNetworkTransmitter LocalAccessTransmitter;
         public static ServerMetaDataMessage ServerMetaDataMessage = new ServerMetaDataMessage();
         public static Action OnEnableInstanceCreate;
         public static InstantiationParameters instantiationParameters;
-        private static int mainThreadId;
+        public static int mainThreadId;
 
         private void OnEnable()
         {
@@ -42,59 +41,16 @@ namespace Basis.Scripts.Networking
 
             Instance = this;
 
-            mainThreadId = Thread.CurrentThread.ManagedThreadId;
-            BasisRemoteNetworkDriver.Initialize(95, Unity.Collections.Allocator.Persistent);
-
-            BasisAudioTransformDriver.Initialize(1024);
-            BasisAudioRemoteSource.Initalize();
-
-            instantiationParameters = new InstantiationParameters(Vector3.zero, Quaternion.identity, BasisDeviceManagement.Instance.transform);
-
-            BasisMuscleRange.Initalize();
-
-            MainThreadContext = SynchronizationContext.Current;
-
-            // Reset & initialize metadata defaults
-            BasisNetworkPlayers.ClearAllRegistries(); // new: central place
-            ServerMetaDataMessage = new ServerMetaDataMessage
-            {
-                ClientMetaDataMessage = new ClientMetaDataMessage(),
-                SyncInterval = 50,
-                BaseMultiplier = 1,
-                IncreaseRate = 0.005f,
-                SlowestSendRate = 2.5f
-            };
-
-            if (BasisDeviceManagement.Instance != null)
-            {
-                transform.SetParent(BasisDeviceManagement.Instance.transform, false);
-            }
-
-            transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-            OnEnableInstanceCreate?.Invoke();
-
-            BasisNetworkPlayers.PublishReceiversSnapshot();
-            NetworkRunning = true;
-
-            // hand configuration to connection layer
-            BasisNetworkConnection.Configure(this);
+            BasisNetworkLifeCycle.Initalize(this);
+        }
+        public async void OnDisable()
+        {
+          await  BasisNetworkLifeCycle.Destroy(this);
         }
         public static bool IsMainThread()
         {
             return Thread.CurrentThread.ManagedThreadId == mainThreadId;
         }
-        public static void Disconnect()
-        {
-            
-        }
-        public static async void Shutdown()
-        {
-            BasisAudioRemoteSource.DeInitalize();
-            BasisNetworkPlayers.ClearAllRegistries();
-            await BasisNetworkConnection.Shutdown();
-            BasisNetworkConnection.DisconnectClientOnly();
-        }
-
         // --- Public wrappers (nice, tiny face for UI buttons/inspector) ----
         public void Connect() => BasisNetworkConnection.Connect(Port, Ip, Password, IsHostMode);
 
@@ -127,15 +83,6 @@ namespace Basis.Scripts.Networking
 
             BasisAudioTransformDriver.BeginFrame();
             BasisAudioTransformDriver.EndFrame();
-        }
-
-        // Scene reset + user-visible disconnect message
-        internal static void ResetSceneAndAnnounce(DisconnectInfo info)
-        {
-            //   SceneManager.LoadScene(0, LoadSceneMode.Single);
-            //  await Boot_Sequence.BootSequence.OnAddressablesInitializationComplete();
-
-            BasisNetworkEvents.HandleDisconnectionReason(info);
         }
         public static int GetServerTimeOffsetSeconds()
         {

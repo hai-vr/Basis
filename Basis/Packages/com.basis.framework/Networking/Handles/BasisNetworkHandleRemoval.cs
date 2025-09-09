@@ -47,7 +47,7 @@ public static class BasisNetworkHandleRemoval
         {
             if (network == null)
             {
-                BasisDebug.LogError($"z Missing Player for removing ID {disconnectedID}");
+                BasisDebug.LogError($"Missing Networked Player for removing ID {disconnectedID}");
                 return;
             }
 
@@ -58,7 +58,7 @@ public static class BasisNetworkHandleRemoval
             }
             else
             {
-                BasisDebug.LogError($"A Missing Player for removing ID {disconnectedID}");
+                BasisDebug.LogError($"Missing Player for removing ID {disconnectedID}");
             }
             BasisNetworkPlayer.OnPlayerLeft?.Invoke(network);
 
