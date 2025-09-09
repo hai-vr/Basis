@@ -234,6 +234,17 @@ public static class BasisNetworkEvents
                 BasisNetworkManagement.ServerMetaDataMessage = SMDM;
 
                 break;
+            case BasisNetworkCommons.StoreDatabaseChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                DatabasePrimativeMessage DatabasePrimativeMessage = new DatabasePrimativeMessage();
+                DatabasePrimativeMessage.Deserialize(Reader);
+                Reader.Recycle();
+                BasisNetworkManagement.OnRequestServerSideDatabaseItem?.Invoke(DatabasePrimativeMessage);
+                break;
             default:
                 BNL.LogError($"this Channel was not been implemented {channel}");
                 Reader.Recycle();

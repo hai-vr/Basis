@@ -3,7 +3,9 @@ using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
 using LiteNetLib;
+using LiteNetLib.Utils;
 using System;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -116,6 +118,36 @@ namespace Basis.Scripts.Networking
             peer.Send(payload, BasisNetworkCommons.ServerBoundChannel, mode);
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.SceneData, payload.Length);
         }
+        public static void SendServerSideDatabaseItem(string DatabaseID, ConcurrentDictionary<string, object> jsonPayload)
+        {
+            var peer = LocalPlayerPeer;
+            if (peer == null)
+            {
+                BasisDebug.LogError("Local NetPeer was null!", BasisDebug.LogTag.Networking);
+                return;
+            }
+            DatabasePrimativeMessage databasePrimativeMessage = new DatabasePrimativeMessage();
+            databasePrimativeMessage.Name = DatabaseID;
+            databasePrimativeMessage.jsonPayload = jsonPayload;
+            NetDataWriter netDataWriter = new NetDataWriter();
+            databasePrimativeMessage.Serialize(netDataWriter);
+            BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.RequestStoreDatabaseChannel, DeliveryMethod.ReliableOrdered);
+        }
+        public static void RequestServerSideDatabaseItem(string DatabaseID)
+        {
+            var peer = LocalPlayerPeer;
+            if (peer == null)
+            {
+                BasisDebug.LogError("Local NetPeer was null!", BasisDebug.LogTag.Networking);
+                return;
+            }
+            DataBaseRequest DataBaseRequest = new DataBaseRequest();
+            DataBaseRequest.DatabaseID = DatabaseID;
+            NetDataWriter netDataWriter = new NetDataWriter();
+            DataBaseRequest.Serialize(netDataWriter);
+            BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.RequestStoreDatabaseChannel, DeliveryMethod.ReliableOrdered);
+        }
+        public static Action<DatabasePrimativeMessage> OnRequestServerSideDatabaseItem;
 
         public static long RemoteTimeDelta() => LocalPlayerPeer?.RemoteTimeDelta ?? 0;
         public static DateTime RemoteUtcTime() => LocalPlayerPeer?.RemoteUtcTime ?? DateTime.UtcNow;
