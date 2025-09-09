@@ -124,7 +124,6 @@ namespace Basis.Scripts.UI.UI_Panels
                 if (accepted)
                 {
                     RemoveKey(Key);
-                    CloseThisMenu();
                 }
             });
         }
