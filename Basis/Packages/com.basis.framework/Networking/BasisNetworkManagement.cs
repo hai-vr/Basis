@@ -7,10 +7,8 @@ using Basis.Scripts.Profiler;
 using LiteNetLib;
 using System;
 using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
-using UnityEngine.SceneManagement;
 using static SerializableBasis;
 namespace Basis.Scripts.Networking
 {
@@ -30,8 +28,6 @@ namespace Basis.Scripts.Networking
 
         [SerializeField] public BasisNetworkTransmitter LocalAccessTransmitter;
         public static ServerMetaDataMessage ServerMetaDataMessage = new ServerMetaDataMessage();
-        public static DisconnectInfo LastDisconnectInfo;
-        public static bool HasDisconnectReason = false;
         public static Action OnEnableInstanceCreate;
         public static InstantiationParameters instantiationParameters;
         private static int mainThreadId;
@@ -48,13 +44,6 @@ namespace Basis.Scripts.Networking
 
             mainThreadId = Thread.CurrentThread.ManagedThreadId;
             BasisRemoteNetworkDriver.Initialize(95, Unity.Collections.Allocator.Persistent);
-
-            if (HasDisconnectReason)
-            {
-                BasisNetworkEvents.HandleDisconnectionReason(LastDisconnectInfo);
-                HasDisconnectReason = false;
-                LastDisconnectInfo = default;
-            }
 
             BasisAudioTransformDriver.Initialize(1024);
             BasisAudioRemoteSource.Initalize();
@@ -94,19 +83,16 @@ namespace Basis.Scripts.Networking
         {
             return Thread.CurrentThread.ManagedThreadId == mainThreadId;
         }
-        private async void OnDestroy()
+        public static void Disconnect()
         {
-            try
-            {
-                BasisAudioRemoteSource.DeInitalize();
-                BasisNetworkPlayers.ClearAllRegistries();
-                await BasisNetworkConnection.Shutdown();
-                BasisNetworkConnection.DisconnectClientOnly();
-            }
-            finally
-            {
-                NetworkRunning = false;
-            }
+            
+        }
+        public static async void Shutdown()
+        {
+            BasisAudioRemoteSource.DeInitalize();
+            BasisNetworkPlayers.ClearAllRegistries();
+            await BasisNetworkConnection.Shutdown();
+            BasisNetworkConnection.DisconnectClientOnly();
         }
 
         // --- Public wrappers (nice, tiny face for UI buttons/inspector) ----
@@ -144,12 +130,12 @@ namespace Basis.Scripts.Networking
         }
 
         // Scene reset + user-visible disconnect message
-        internal static async Task ResetSceneAndAnnounce(DisconnectInfo info)
+        internal static void ResetSceneAndAnnounce(DisconnectInfo info)
         {
-            SceneManager.LoadScene(0, LoadSceneMode.Single);
-            await Boot_Sequence.BootSequence.OnAddressablesInitializationComplete();
-            LastDisconnectInfo = info;
-            HasDisconnectReason = true;
+            //   SceneManager.LoadScene(0, LoadSceneMode.Single);
+            //  await Boot_Sequence.BootSequence.OnAddressablesInitializationComplete();
+
+            BasisNetworkEvents.HandleDisconnectionReason(info);
         }
         public static int GetServerTimeOffsetSeconds()
         {

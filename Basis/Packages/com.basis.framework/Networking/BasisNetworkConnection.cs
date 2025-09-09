@@ -172,7 +172,7 @@ namespace Basis.Scripts.Networking
 
         public static void HandleDisconnection(NetPeer peer, DisconnectInfo disconnectInfo)
         {
-            BasisNetworkManagement.MainThreadContext?.Post(async _ =>
+            BasisNetworkManagement.MainThreadContext?.Post(_ =>
             {
                 try
                 {
@@ -195,7 +195,7 @@ namespace Basis.Scripts.Networking
 
                     BasisDebug.Log($"Client disconnected from server [{peer?.RemoteId}] [{disconnectInfo.Reason}]");
 
-                    await BasisNetworkManagement.ResetSceneAndAnnounce(disconnectInfo);
+                    BasisNetworkManagement.ResetSceneAndAnnounce(disconnectInfo);
                 }
                 finally
                 {
@@ -207,11 +207,7 @@ namespace Basis.Scripts.Networking
 
         public static void DisconnectClientOnly()
         {
-            try
-            {
-                NetworkClient?.Disconnect();
-            }
-            catch { /* swallow */ }
+            NetworkClient?.Disconnect();
         }
 
         // --- Shutdown -------------------------------------------------------
