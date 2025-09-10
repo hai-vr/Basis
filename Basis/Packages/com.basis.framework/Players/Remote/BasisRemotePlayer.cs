@@ -96,8 +96,9 @@ namespace Basis.Scripts.BasisSdk.Players
         {
             if (BasisLoadableBundle == null || string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
             {
-                BasisDebug.LogError("trying to create Avatar with empty Bundle");
-                return;
+                BasisDebug.LogError("trying to create Avatar with empty Bundle", BasisDebug.LogTag.Remote);
+                BasisLoadableBundle = BasisAvatarFactory.LoadingAvatar;
+                Mode = 0;
             }
             //BasisDebug.Log("Remote Player Create Avatar Request");
             BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
@@ -167,17 +168,17 @@ namespace Basis.Scripts.BasisSdk.Players
         public short LastComputedMeshLod = -1;
         public void ChangeMeshLOD(float DistanceToPlayer, float ReductionMultiplier)
         {
-            // Normalize distance into [0,1]
-            float normalized = DistanceToPlayer * ReductionMultiplier;
-
-            // Map evenly to 0–3 LOD (4 levels total)
-            short grid = (short)Mathf.Clamp(Mathf.FloorToInt(normalized * 4f), 0, 3);
-
-            if (LastComputedMeshLod != grid)
+            if (BasisAvatar != null && BasisAvatar.Renders != null)
             {
-                LastComputedMeshLod = grid;
-                if (BasisAvatar.Renders != null)
+                // Normalize distance into [0,1]
+                float normalized = DistanceToPlayer * ReductionMultiplier;
+
+                // Map evenly to 0–3 LOD (4 levels total)
+                short grid = (short)Mathf.Clamp(Mathf.FloorToInt(normalized * 4f), 0, 3);
+
+                if (LastComputedMeshLod != grid)
                 {
+                    LastComputedMeshLod = grid;
                     foreach (Renderer renderer in BasisAvatar.Renders)
                     {
                         if (renderer != null)
