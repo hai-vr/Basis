@@ -211,7 +211,7 @@ namespace Basis.Scripts.Drivers
             {
                 // Get the largest axis of the parent's scale so the sphere collider adapts correctly
                 float scaleFactor = Parent.lossyScale.magnitude / Mathf.Sqrt(3f);
-                float TransformScale = 0.1f * scaleFactor;
+                float TransformScale = 0.025f * scaleFactor;
 
 
                 JiggleColliderSerializable jiggleColliderSerializable = new JiggleColliderSerializable
