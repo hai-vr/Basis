@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+using static Basis.Scripts.Drivers.BasisRemoteBoneDriver;
 using static SerializableBasis;
 
 namespace Basis.Scripts.Networking.Receivers
@@ -125,20 +126,15 @@ namespace Basis.Scripts.Networking.Receivers
         public void ApplyComputedData()
         {
             // Inline what ApplyPoseData used to do
-            Transform AnimatorsTransform = Player.AvatarTransform;
             float3 Scaling = Player.BasisAvatar.AnimatorHumanScale;
-            float3 Scale = ApplyingScale;
-            float3 Position = ApplyingPosition;
-            Quaternion Rotation = ApplyingRotation;
             float[] MusclesLocal = Muscles ?? ZeroMuscles;
 
             // Guard scale to avoid NaNs / zero
-            Scale = SanitizeScale(Scale);
-            Scaling = SafeDivide(Scaling, Scale);
+            Scaling = SafeDivide(Scaling, ApplyingScale);
 
             // Body transform
-            HumanPose.bodyPosition = Vector3.Scale(Position, Scaling);
-            HumanPose.bodyRotation = Rotation;
+            HumanPose.bodyPosition = Vector3.Scale(ApplyingPosition, Scaling);
+            HumanPose.bodyRotation = ApplyingRotation;
 
             // Muscles (95)
             if (!IsValidMuscleArray(HumanPose.muscles))
@@ -158,7 +154,7 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             }
 
-            AnimatorsTransform.localScale = Scale;
+            Player.AvatarTransform.localScale = ApplyingScale;
             PoseHandler.SetHumanPose(ref HumanPose);
 
             RemotePlayer.RemoteBoneDriver.SimulateAndApplyRemote(ApplyingScale);
@@ -178,10 +174,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         public static float3 SafeDivide(float3 a, float3 b, float epsilon = 1e-5f)
         {
-            return new float3(
-                math.abs(b.x) > epsilon ? a.x / b.x : a.x,
-                math.abs(b.y) > epsilon ? a.y / b.y : a.y,
-                math.abs(b.z) > epsilon ? a.z / b.z : a.z);
+            return new float3( math.abs(b.x) > epsilon ? a.x / b.x : a.x, math.abs(b.y) > epsilon ? a.y / b.y : a.y, math.abs(b.z) > epsilon ? a.z / b.z : a.z);
         }
 
         /// <summary>
@@ -476,34 +469,6 @@ namespace Basis.Scripts.Networking.Receivers
 
         private static bool IsValidMuscleArray(float[] arr) => arr != null && arr.Length >= 95;
 
-        private static bool IsFinite(float3 v) =>
-            math.isfinite(v.x) && math.isfinite(v.y) && math.isfinite(v.z);
-
-        private static float3 SanitizeScale(float3 s)
-        {
-            // Treat non-finite or near-zero as 1
-            const float eps = 1e-4f;
-            if (!IsFinite(s))
-                return new float3(1, 1, 1);
-
-            return new float3(
-                math.abs(s.x) < eps ? 1f : s.x,
-                math.abs(s.y) < eps ? 1f : s.y,
-                math.abs(s.z) < eps ? 1f : s.z
-            );
-        }
-
-        private static quaternion SanitizeRotation(quaternion q)
-        {
-            // If not finite or nearly zero length, use identity
-            if (!math.isfinite(q.value.x) || !math.isfinite(q.value.y) || !math.isfinite(q.value.z) || !math.isfinite(q.value.w))
-                return quaternion.identity;
-
-            float magSq = q.value.x * q.value.x + q.value.y * q.value.y + q.value.z * q.value.z + q.value.w * q.value.w;
-            if (magSq < 1e-8f) return quaternion.identity;
-            return math.normalize(q);
-        }
-
         /// <summary>
         /// Validates a buffer; attempts to repair fixable fields in-place.
         /// Returns true if usable after fixup; false if unrecoverable.
@@ -516,25 +481,6 @@ namespace Basis.Scripts.Networking.Receivers
                 // Replace with shared zeros to keep pose valid; we still accept the frame
                 buf.Muscles = ZeroMuscles;
             }
-
-            // Scale
-            buf.Scale = SanitizeScale(buf.Scale);
-
-            // Position
-            if (!IsFinite(buf.Position))
-            {
-                // If position broke, keep last known good (0 if none)
-                buf.Position = float3.zero;
-            }
-
-            // Rotation
-            buf.rotation = SanitizeRotation(buf.rotation);
-
-            // Seconds interval — clamp to a sane minimum so interpolation works
-            if (!math.isfinite((float)buf.SecondsInterval) || buf.SecondsInterval <= 0)
-                buf.SecondsInterval = 1.0 / 60.0;
-
-            // If we got here, the frame is usable
             return true;
         }
     }

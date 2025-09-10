@@ -9,6 +9,7 @@ using System.Collections;
 using TMPro;
 using Unity.Mathematics;
 using UnityEngine;
+using static Basis.Scripts.Drivers.BasisRemoteBoneDriver;
 namespace Basis.Scripts.UI.NamePlate
 {
     public class BasisRemoteNamePlate : BasisInteractableObject

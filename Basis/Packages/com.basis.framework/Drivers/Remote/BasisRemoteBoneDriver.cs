@@ -1,14 +1,11 @@
-using Basis.Scripts.Avatar;
-using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Common;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.UIElements;
-
 namespace Basis.Scripts.Drivers
 {
     [Serializable]
@@ -136,15 +133,16 @@ namespace Basis.Scripts.Drivers
             role = (BasisBoneTrackedRole)index;
 
             var c = new BasisRemoteBoneControl();
-            c.Initialize();
-            FillOutBasicInformation(c, role.ToString(), color);
+            c.OutGoingData.position = Vector3.zero;
+            c.OutGoingData.rotation = Quaternion.identity;
+            c.HasBone = true;
+            FillOutBasicInformation(c, color);
 
             basisBoneControl = c;
         }
 
-        public void FillOutBasicInformation(BasisRemoteBoneControl control, string name, Color color)
+        public void FillOutBasicInformation(BasisRemoteBoneControl control,Color color)
         {
-            control.name = name;
             control.Color = color;
         }
 
@@ -201,9 +199,30 @@ namespace Basis.Scripts.Drivers
             for (int i = 0; i < ControlsLength; i++)
             {
                 var c = Controls[i];
-                c?.ComputeMovementRemote();
-            }
+                if (c.hasTrackerDriver == BasisHasTracked.HasTracker)
+                {
+                    c.OutGoingData.rotation = c.IncomingData.rotation;
+                    c.OutGoingData.position = c.IncomingData.position;
+                }
+                else
+                {
+                    if (c.HasTarget)
+                    {
+                        var targetRotation = c.Target.OutGoingData.rotation;
+                        var targetPosition = c.Target.OutGoingData.position;
 
+                        Vector3 offset = targetRotation * c.ScaledOffset;
+                        c.OutGoingData.position = targetPosition + offset;
+
+                        c.OutGoingData.rotation = targetRotation;
+                    }
+                    else
+                    {
+                        c.OutGoingData.rotation = c.IncomingData.rotation;
+                        c.OutGoingData.position = c.IncomingData.position;
+                    }
+                }
+            }
             if (SMModuleDebugOptions.UseGizmos)
             {
                 DrawGizmos();
@@ -380,8 +399,6 @@ namespace Basis.Scripts.Drivers
 
         #endregion
 
-        #region Utilities
-
         /// <summary>
         /// Returns a rainbow array of size count. Reuses prior buffer when possible.
         /// </summary>
@@ -397,12 +414,6 @@ namespace Basis.Scripts.Drivers
             }
             return cache;
         }
-
-        /// <summary>
-        /// Backwards-compatible overload kept for external callers.
-        /// </summary>
-        public Color[] GenerateRainbowColors(int requestColorCount) => GenerateRainbowColors(null, requestColorCount);
-
         public void CreateRotationalLock(BasisRemoteBoneControl addToBone, BasisRemoteBoneControl target)
         {
             if (addToBone == null) return;
@@ -421,7 +432,44 @@ namespace Basis.Scripts.Drivers
                 addToBone.HasTarget = false;
             }
         }
-
-        #endregion
+        [System.Serializable]
+        public class BasisRemoteBoneControl
+        {
+            [NonSerialized]
+            public BasisRemoteBoneControl Target;
+            public bool HasLineDraw;
+            public int LineDrawIndex;
+            public bool HasTarget = false;
+            public float3 Offset;
+            public float3 ScaledOffset;
+            [SerializeField]
+            public BasisCalibratedCoords OutGoingData = new BasisCalibratedCoords();
+            [SerializeField]
+            public BasisCalibratedCoords TposeLocal = new BasisCalibratedCoords();
+            //the scaled tpose is tpose * the avatar height change
+            [SerializeField]
+            public BasisCalibratedCoords TposeLocalScaled = new BasisCalibratedCoords();
+            [SerializeField]
+            public BasisCalibratedCoords IncomingData = new BasisCalibratedCoords();
+            public int GizmoReference = -1;
+            public bool HasGizmo = false;
+            [SerializeField]
+            [HideInInspector]
+            private Color gizmoColor = Color.blue;
+            // Backing fields for the properties
+            [SerializeField]
+            public BasisHasTracked hasTrackerDriver = BasisHasTracked.HasNoTracker;
+            // Properties with get/set accessors
+            public BasisHasTracked HasTracked
+            {
+                get => hasTrackerDriver;
+                set
+                {
+                    hasTrackerDriver = value;
+                }
+            }
+            public Color Color { get => gizmoColor; set => gizmoColor = value; }
+            public bool HasBone { get; internal set; }
+        }
     }
 }

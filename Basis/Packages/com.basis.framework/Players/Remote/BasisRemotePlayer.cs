@@ -6,6 +6,7 @@ using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.UI.NamePlate;
 using System.Threading.Tasks;
 using UnityEngine;
+using static Basis.Scripts.Drivers.BasisRemoteBoneDriver;
 using static SerializableBasis;
 namespace Basis.Scripts.BasisSdk.Players
 {
