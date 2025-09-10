@@ -121,13 +121,8 @@ public static partial class BasisRemoteNetworkDriver
     /// Write inputs for a given index (0..FixedCapacity-1) for this frame.
     /// You manage indices yourself; this driver never resizes or re-maps.
     /// </summary>
-    public static void SetInputs(
-        int index,
-        float3 prevPos, float3 targetPos,
-        float3 prevScale, float3 targetScale,
-        quaternion prevRot, quaternion targetRot,
-        float interpolationTime,
-        float[] prevMuscles, float[] targetMuscles)
+    public static void SetInputs( int index, float3 prevPos, float3 targetPos, float3 prevScale, float3 targetScale,
+    quaternion prevRot, quaternion targetRot,float interpolationTime, float[] prevMuscles, float[] targetMuscles)
     {
         EnsureInitialized();
         if ((uint)index >= FixedCapacity)
@@ -145,7 +140,7 @@ public static partial class BasisRemoteNetworkDriver
         _targetScales[index] = targetScale;
         _prevRotations[index] = prevRot;
         _targetRotations[index] = targetRot;
-        _interpolationTimes[index] = math.clamp(interpolationTime, 0f, 1f);
+        _interpolationTimes[index] = interpolationTime;
 
         // Flattened write: [index * MuscleCount .. (index+1) * MuscleCount)
         int baseOffset = index * _muscleCount;
