@@ -102,7 +102,7 @@ public struct JiggleJobBroadPhase : IJob {
                         gridCell.staleness = 0;
                         unsafe {
                             gridCell.colliderIndices[gridCell.count] = i;
-                            gridCell.count = math.min(gridCell.count + 1, 32);
+                            gridCell.count = math.min(gridCell.count + 1, 31);
                         }
                         broadPhaseMap[grid] = gridCell;
                     }
