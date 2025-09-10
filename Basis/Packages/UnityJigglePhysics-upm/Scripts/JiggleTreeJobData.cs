@@ -28,7 +28,10 @@ public unsafe struct JiggleTreeJobData {
     public uint transformIndexOffset;
     public uint colliderIndexOffset;
     public uint colliderCount;
-    public float extents;
+    
+    public int2 minExtentPosition;
+    public int2 maxExtentPosition;
+    
     public JiggleSimulatedPoint* points;
     public JigglePointParameters* parameters;
     private const int MAX_POINTS = 10000;
@@ -55,7 +58,9 @@ public unsafe struct JiggleTreeJobData {
         fixed (JigglePointParameters* src = inputParameters) {
             UnsafeUtility.MemCpy(parameters, src, sizeof(JigglePointParameters) * pointCount);
         }
-        extents = 1f;
+
+        minExtentPosition = new int2(0);
+        maxExtentPosition = new int2(0);
     }
 
     public void Set(int rootID, JiggleSimulatedPoint[] inputPoints, JigglePointParameters[] inputParameters) {
