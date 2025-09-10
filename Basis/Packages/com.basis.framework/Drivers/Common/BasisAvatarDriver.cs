@@ -176,8 +176,8 @@ namespace Basis.Scripts.Drivers
         public List<JiggleColliderSerializable> JiggleColliders;
         public void AddJiggleRigColliders(BasisTransformMapping Mapping)
         {
-            JiggleCreatorHelper(Mapping.leftFoot);
-            JiggleCreatorHelper(Mapping.rightFoot);
+            JiggleCreatorHelper(Mapping.leftFoot, 0.05f);
+            JiggleCreatorHelper(Mapping.rightFoot, 0.05f);
 
             JiggleCreatorHelper(Mapping.LeftThumb);
             JiggleCreatorHelper(Mapping.LeftIndex);
@@ -205,13 +205,13 @@ namespace Basis.Scripts.Drivers
                 JiggleCreatorHelper(Parent);
             }
         }
-        public void JiggleCreatorHelper(Transform Parent)
+        public void JiggleCreatorHelper(Transform Parent,float Scale = 0.018f)
         {
             if (Parent != null)
             {
                 // Get the largest axis of the parent's scale so the sphere collider adapts correctly
                 float scaleFactor = Parent.lossyScale.magnitude / Mathf.Sqrt(3f);
-                float TransformScale = 0.025f * scaleFactor;
+                float TransformScale = Scale * scaleFactor;
 
 
                 JiggleColliderSerializable jiggleColliderSerializable = new JiggleColliderSerializable
