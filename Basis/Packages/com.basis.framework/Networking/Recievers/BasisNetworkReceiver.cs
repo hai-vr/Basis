@@ -91,26 +91,23 @@ namespace Basis.Scripts.Networking.Receivers
                 if (!IsValidMuscleArray(prevMuscles))
                 {
                     if (LogFirstError)
+                    {
                         BasisDebug.LogWarning("BasisNetworkReceiver: First frame muscles were null/invalid; using zeros.");
+                    }
                     prevMuscles = ZeroMuscles;
                 }
 
                 if (!IsValidMuscleArray(targetMuscles))
                 {
                     if (LogFirstError)
+                    {
                         BasisDebug.LogWarning("BasisNetworkReceiver: Last frame muscles were null/invalid; using zeros.");
+                    }
                     targetMuscles = ZeroMuscles;
                 }
 
                 // Feed driver
-                BasisRemoteNetworkDriver.SetInputs(
-                    playerId,
-                    first.Position, last.Position,
-                    first.Scale, last.Scale,
-                    first.rotation, last.rotation,
-                    interpolationTime,
-                    prevMuscles, targetMuscles
-                );
+                BasisRemoteNetworkDriver.SetInputs(playerId, first.Position, last.Position, first.Scale, last.Scale, first.rotation, last.rotation, interpolationTime, prevMuscles, targetMuscles);
             }
         }
 
