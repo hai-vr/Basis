@@ -173,6 +173,10 @@ namespace Basis.Scripts.Networking
                 }
                 catch (Exception ex)
                 {
+                    if (BasisSetUserName.Instance != null && BasisSetUserName.Instance.Ready != null)
+                    {
+                        BasisSetUserName.Instance.Ready.interactable = true;
+                    }
                     BasisDebug.LogError($"Error setting up the local player: {ex.Message} {ex.StackTrace}");
                 }
             }, null);

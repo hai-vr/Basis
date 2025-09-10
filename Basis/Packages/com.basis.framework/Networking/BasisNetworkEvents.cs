@@ -1,6 +1,7 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
+using Basis.Scripts.UI.UI_Panels;
 using BasisNetworkClient;
 using LiteNetLib;
 using LiteNetLib.Utils;
@@ -305,6 +306,10 @@ public static class BasisNetworkEvents
             BasisUINotification.OpenNotification(disconnectInfo.Reason.ToString(), false, Vector3.zero);
             BasisDebug.LogError(disconnectInfo.Reason.ToString());
         }
+        if (BasisSetUserName.Instance != null && BasisSetUserName.Instance.Ready != null)
+        {
+            BasisSetUserName.Instance.Ready.interactable = true;
+        }
     }
     public static void PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
     {
@@ -312,6 +317,10 @@ public static class BasisNetworkEvents
         if (peer == BasisNetworkConnection.LocalPlayerPeer)
         {
             BasisNetworkConnection.HandleDisconnection(peer, disconnectInfo);
+        }
+        if (BasisSetUserName.Instance != null && BasisSetUserName.Instance.Ready != null)
+        {
+            BasisSetUserName.Instance.Ready.interactable = true;
         }
     }
 }
