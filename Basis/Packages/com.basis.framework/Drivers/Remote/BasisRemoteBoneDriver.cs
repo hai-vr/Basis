@@ -1,8 +1,6 @@
-using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
-using System;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -18,10 +16,8 @@ namespace Basis.Scripts.Drivers
     {
         // Source of truth
         public BasisRemotePlayer RemotePlayer { get; private set; }
-
         // Only the controls we actually need
         public Bone Head, Neck, Chest, Spine, Hips, CenterEye, Mouth;
-
         // Cache last scale to avoid per-frame recompute
         Vector3 _lastScale = Vector3.one;
         public Transform RemotePlayerTransform;
@@ -35,14 +31,11 @@ namespace Basis.Scripts.Drivers
             public float3 Offset;       // (AssignedTo.Tpose - Target.Tpose) at scale = 1
             public float3 ScaledOffset; // Offset * scale
         }
-
         #region Init
-
         public void OnCalibration(BasisRemotePlayer remotePlayer)
         {
             RemotePlayer = remotePlayer;
         }
-
         /// <summary>
         /// Capture T-pose positions for the 7 roles we care about and compute lock offsets.
         /// Call this once after the avatar is loaded / posed in T.
@@ -53,9 +46,7 @@ namespace Basis.Scripts.Drivers
             var animator = avatar.Animator;
             RemotePlayerTransform = animator.transform;
             // Helper: get a bone transform safely
-            Transform B(HumanBodyBones b) => animator.avatar != null && animator.avatar.isHuman
-                ? animator.GetBoneTransform(b)
-                : null;
+            Transform B(HumanBodyBones b) => animator.avatar != null && animator.avatar.isHuman ? animator.GetBoneTransform(b) : null;
 
             // Fill T-pose locals from current world pose
             SetInitialFromWorld(RemotePlayerTransform, B(HumanBodyBones.Head), ref Head);
@@ -65,18 +56,10 @@ namespace Basis.Scripts.Drivers
             SetInitialFromWorld(RemotePlayerTransform, B(HumanBodyBones.Hips), ref Hips);
 
             // CenterEye / Mouth come from avatar’s authored points
-            {
-                float3 worldEye = BasisHelpers.ConvertFromLocalSpace(
-                    BasisHelpers.AvatarPositionConversion(avatar.AvatarEyePosition),
-                    RemotePlayerTransform.position);
-                SetInitialFromWorld(RemotePlayerTransform, worldEye, ref CenterEye);
-            }
-            {
-                float3 worldMouth = BasisHelpers.ConvertFromLocalSpace(
-                    BasisHelpers.AvatarPositionConversion(avatar.AvatarMouthPosition),
-                    RemotePlayerTransform.position);
-                SetInitialFromWorld(RemotePlayerTransform, worldMouth, ref Mouth);
-            }
+            float3 worldEye = BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(avatar.AvatarEyePosition), RemotePlayerTransform.position);
+            SetInitialFromWorld(RemotePlayerTransform, worldEye, ref CenterEye);
+            float3 worldMouth = BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(avatar.AvatarMouthPosition), RemotePlayerTransform.position);
+            SetInitialFromWorld(RemotePlayerTransform, worldMouth, ref Mouth);
 
             // At initialization, scaled == unscaled (scale = 1)
             CopyScaledEqualsUnscaled(ref Head);
