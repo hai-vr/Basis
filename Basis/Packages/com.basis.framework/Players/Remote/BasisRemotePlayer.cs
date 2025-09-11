@@ -2,11 +2,9 @@ using Basis.Scripts.Addressable_Driver.Resource;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.Receivers;
-using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.UI.NamePlate;
 using System.Threading.Tasks;
 using UnityEngine;
-using static Basis.Scripts.Drivers.BasisRemoteBoneDriver;
 using static SerializableBasis;
 namespace Basis.Scripts.BasisSdk.Players
 {
@@ -45,7 +43,6 @@ namespace Basis.Scripts.BasisSdk.Players
             UUID = PlayerMetaDataMessage.playerUUID;
             IsLocal = false;
             RemoteBoneDriver.CreateInitialArrays(false);
-            RemoteBoneDriver.InitializeRemote();
             if (HasEvents == false)
             {
                 RemoteAvatarDriver.CalibrationComplete += RemoteCalibration;
@@ -60,14 +57,7 @@ namespace Basis.Scripts.BasisSdk.Players
                     return;
                 }
                 RemoteNamePlate.transform.SetParent(transform, false);
-                if (RemoteBoneDriver.FindBone(out BasisRemoteBoneControl Hips, BasisBoneTrackedRole.Hips))
-                {
-                    RemoteNamePlate.Initalize(Hips, this);
-                }
-                else
-                {
-                    BasisDebug.LogError("Missing Hips!");
-                }
+                RemoteNamePlate.Initalize(this);
             }
         }
         public async void LoadAvatarFromInitial(ClientAvatarChangeMessage CACM)

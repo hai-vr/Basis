@@ -9,13 +9,10 @@ using System.Collections;
 using TMPro;
 using Unity.Mathematics;
 using UnityEngine;
-using static Basis.Scripts.Drivers.BasisRemoteBoneDriver;
 namespace Basis.Scripts.UI.NamePlate
 {
     public class BasisRemoteNamePlate : BasisInteractableObject
     {
-        public BasisRemoteBoneControl HipTarget;
-        public BasisRemoteBoneControl MouthTarget;
         public SpriteRenderer LoadingBar;
         public MeshFilter Filter;
         public TextMeshPro LoadingText;
@@ -37,13 +34,11 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         /// <param name="hipTarget"></param>
         /// <param name="basisRemotePlayer"></param>
-        public void Initalize(BasisRemoteBoneControl hipTarget, BasisRemotePlayer basisRemotePlayer)
+        public void Initalize(BasisRemotePlayer basisRemotePlayer)
         {
             cachedReturnDelay = new WaitForSeconds(BasisRemoteNamePlateDriver.returnDelay);
             cachedEndOfFrame = new WaitForEndOfFrame();
             BasisRemotePlayer = basisRemotePlayer;
-            HipTarget = hipTarget;
-            MouthTarget = BasisRemotePlayer.RemoteBoneDriver.Mouth;
             BasisRemotePlayer.RemoteNamePlate = this;
             BasisRemotePlayer.HasRemoteNamePlate = true;
             BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport += ProgressReport;
@@ -64,7 +59,7 @@ namespace Basis.Scripts.UI.NamePlate
             HasRendererCheckWiredUp = false;
             if (BasisRemotePlayer != null && BasisRemotePlayer.FaceRenderer != null)
             {
-              //  BasisDebug.Log("Wired up Renderer Check For Blinking");
+                //  BasisDebug.Log("Wired up Renderer Check For Blinking");
                 BasisRemotePlayer.FaceRenderer.Check += UpdateFaceVisibility;
                 BasisRemotePlayer.FaceRenderer.DestroyCalled += AvatarUnloaded;
                 UpdateFaceVisibility(BasisRemotePlayer.FaceIsVisible);
@@ -320,8 +315,8 @@ namespace Basis.Scripts.UI.NamePlate
         public static float YHeightMultiplier = 1.25f;
         public void Simulate()
         {
-            cachedDirection = HipTarget.OutGoingData.position;
-            cachedDirection.y += MouthTarget.TposeLocalScaled.position.y / YHeightMultiplier;
+            cachedDirection = BasisRemotePlayer.RemoteBoneDriver.GetHipsPosition().position;
+            cachedDirection.y += BasisRemotePlayer.RemoteBoneDriver.GetMouthTposePosition().y / YHeightMultiplier;
             dirToCamera = BasisLocalCameraDriver.Position - cachedDirection;
             Self.SetPositionAndRotation(cachedDirection, Quaternion.Euler(x, math.atan2(dirToCamera.x, dirToCamera.z) * Mathf.Rad2Deg, z));
         }

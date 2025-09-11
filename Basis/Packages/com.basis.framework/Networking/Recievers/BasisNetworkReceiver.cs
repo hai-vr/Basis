@@ -1,15 +1,12 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Profiler;
-using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
-using static Basis.Scripts.Drivers.BasisRemoteBoneDriver;
 using static SerializableBasis;
-
 namespace Basis.Scripts.Networking.Receivers
 {
     [DefaultExecutionOrder(15001)]
@@ -25,8 +22,6 @@ namespace Basis.Scripts.Networking.Receivers
         /// If more than this many frames are queued, old frames will be dropped to catch up.
         /// </summary>
         public static int BufferCapacityBeforeCleanup = 5;
-
-        public BasisRemoteBoneControl MouthBone;
 
         [SerializeField]
         public BasisAudioReceiver AudioReceiverModule = new BasisAudioReceiver();
@@ -161,7 +156,7 @@ namespace Basis.Scripts.Networking.Receivers
 
             if (AudioReceiverModule.HasTransform)
             {
-                var outgoing = RemotePlayer.RemoteBoneDriver.Mouth.OutGoingData;
+                var outgoing = RemotePlayer.RemoteBoneDriver.GetMouthPosition();
                //AudioReceiverModule.AudioSourceTransform.SetPositionAndRotation(outgoing.position, outgoing.rotation);
                 BasisAudioTransformDriver.EnqueueSet(AudioReceiverModule.AudioSourceTransform, outgoing.position, outgoing.rotation);
             }

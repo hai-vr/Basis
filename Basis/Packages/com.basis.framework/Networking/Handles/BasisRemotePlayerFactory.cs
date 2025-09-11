@@ -80,7 +80,6 @@ namespace Basis.Scripts.Networking
                     RemotePlayer.RemoteAvatarDriver.CalibrationComplete += BasisNetworkReceiver.OnAvatarCalibrationRemote;
                     RemotePlayer.RemoteAvatarDriver.HasEvents = true;
                 }
-                RemotePlayer.RemoteBoneDriver.FindBone(out BasisNetworkReceiver.MouthBone, BasisBoneTrackedRole.Mouth);
             }
             else
             {

@@ -1,5 +1,8 @@
+using Basis.Scripts.BasisSdk;
+using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
@@ -14,46 +17,38 @@ namespace Basis.Scripts.Drivers
         // Config / references
         public int ControlsLength;
         public BasisRemotePlayer RemotePlayer;
-
         public Transform RemotePlayerTransform { get; private set; }
-
-        public BasisRemoteBoneControl Head;
-        public BasisRemoteBoneControl Hips;
-        public BasisRemoteBoneControl Mouth;
-
+        private BasisRemoteBoneControl Head;
+        private BasisRemoteBoneControl Hips;
+        private BasisRemoteBoneControl Mouth;
         [SerializeField] public BasisRemoteBoneControl[] Controls;
         [SerializeField] public BasisBoneTrackedRole[] trackedRoles;
-
         public bool HasControls;
-
         public const float DefaultGizmoSize = 0.05f;
-
         // Caches to avoid O(n) scans
         // role -> index and control -> index maps (populated in CreateInitialArrays/AddRange)
         Dictionary<BasisBoneTrackedRole, int> _roleToIndex;
         Dictionary<BasisRemoteBoneControl, int> _controlToIndex;
-
         // Scale caches
         Vector3 _lastScale = Vector3.zero;
         Vector3 _lastInitialScale = Vector3.zero;
-
-        // Reusable color cache
-        Color[] _rainbowCache;
-
         #region Initialization
-
-        public void InitializeRemote()
+        public BasisCalibratedCoords GetHeadPosition()
         {
-            // Role maps might not exist yet (CreateInitialArrays handles normally), but guard anyway.
-            EnsureMaps();
-
-            FindBone(out Head, BasisBoneTrackedRole.Head);
-            FindBone(out Hips, BasisBoneTrackedRole.Hips);
-            Head.HasTracked = BasisHasTracked.HasTracker;
-            Hips.HasTracked = BasisHasTracked.HasTracker;
-            FindBone(out Mouth, BasisBoneTrackedRole.Mouth);
+            return Head.OutGoingData;
         }
-
+        public BasisCalibratedCoords GetHipsPosition()
+        {
+            return Hips.OutGoingData;
+        }
+        public BasisCalibratedCoords GetMouthPosition()
+        {
+            return Mouth.OutGoingData;
+        }
+        public Vector3 GetMouthTposePosition()
+        {
+            return Mouth.TposeLocalScaled.position;
+        }
         public void OnCalibration(BasisRemotePlayer remotePlayer)
         {
             // Use the incoming parameter directly; don't rely on stale RemotePlayer
@@ -74,16 +69,13 @@ namespace Basis.Scripts.Drivers
                 ? Enum.GetValues(typeof(BasisBoneTrackedRole)).Length
                 : 6;
 
-            // Colors (cache sized to max seen)
-            _rainbowCache = GenerateRainbowColors(_rainbowCache, length);
-
             // Build arrays without LINQ/Concat
             var newControls = new BasisRemoteBoneControl[length + (isLocal ? 0 : 1)];
             var newRoles = new BasisBoneTrackedRole[length + (isLocal ? 0 : 1)];
 
             for (int i = 0; i < length; i++)
             {
-                SetupRole(i, _rainbowCache[i], out BasisRemoteBoneControl control, out BasisBoneTrackedRole role);
+                SetupRole(i, Color.aliceBlue, out BasisRemoteBoneControl control, out BasisBoneTrackedRole role);
                 newControls[i] = control;
                 newRoles[i] = role;
             }
@@ -100,6 +92,15 @@ namespace Basis.Scripts.Drivers
 
             HasControls = true;
             InitializeGizmos();
+
+            // Role maps might not exist yet (CreateInitialArrays handles normally), but guard anyway.
+            EnsureMaps();
+
+            FindBone(out Head, BasisBoneTrackedRole.Head);
+            FindBone(out Hips, BasisBoneTrackedRole.Hips);
+            FindBone(out Mouth, BasisBoneTrackedRole.Mouth);
+            Head.HasTracked = BasisHasTracked.HasTracker;
+            Hips.HasTracked = BasisHasTracked.HasTracker;
         }
 
         public void AddRange(BasisRemoteBoneControl[] newControls, BasisBoneTrackedRole[] newRoles)
@@ -141,7 +142,7 @@ namespace Basis.Scripts.Drivers
             basisBoneControl = c;
         }
 
-        public void FillOutBasicInformation(BasisRemoteBoneControl control,Color color)
+        public void FillOutBasicInformation(BasisRemoteBoneControl control, Color color)
         {
             control.Color = color;
         }
@@ -299,7 +300,7 @@ namespace Basis.Scripts.Drivers
                         }
                     }
 
-                    if (BasisGizmoManager.CreateSphereGizmo(role.ToString(),out control.GizmoReference, bonePos, DefaultGizmoSize * scale, control.Color))
+                    if (BasisGizmoManager.CreateSphereGizmo(role.ToString(), out control.GizmoReference, bonePos, DefaultGizmoSize * scale, control.Color))
                     {
                         control.HasGizmo = true;
                     }
@@ -398,22 +399,6 @@ namespace Basis.Scripts.Drivers
         }
 
         #endregion
-
-        /// <summary>
-        /// Returns a rainbow array of size count. Reuses prior buffer when possible.
-        /// </summary>
-        public Color[] GenerateRainbowColors(Color[] cache, int count)
-        {
-            if (cache == null || cache.Length < count)
-                cache = new Color[count];
-
-            for (int i = 0; i < count; i++)
-            {
-                float hue = Mathf.Repeat(i / (float)count, 1f);
-                cache[i] = Color.HSVToRGB(hue, 1f, 1f);
-            }
-            return cache;
-        }
         public void CreateRotationalLock(BasisRemoteBoneControl addToBone, BasisRemoteBoneControl target)
         {
             if (addToBone == null) return;
@@ -431,6 +416,141 @@ namespace Basis.Scripts.Drivers
                 addToBone.ScaledOffset = Vector3.zero;
                 addToBone.HasTarget = false;
             }
+        }
+        public void SetInitialData(Transform Transform, BasisRemoteBoneControl bone, BasisBoneTrackedRole Role, Vector3 WorldTpose)
+        {
+            bone.OutGoingData.position = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(Transform, WorldTpose);
+            bone.TposeLocal.position = bone.OutGoingData.position;
+            bone.TposeLocal.rotation = bone.OutGoingData.rotation;
+            if (BasisRemoteAvatarDriver.IsApartOfSpineVertical(Role))
+            {
+                bone.OutGoingData.position = new Vector3(0, bone.OutGoingData.position.y, bone.OutGoingData.position.z);
+                bone.TposeLocal.position = bone.OutGoingData.position;
+            }
+            if (Role == BasisBoneTrackedRole.Hips)
+            {
+                bone.TposeLocal.rotation = quaternion.identity;
+            }
+            bone.TposeLocalScaled.position = bone.TposeLocal.position;
+            bone.TposeLocalScaled.rotation = bone.TposeLocal.rotation;
+        }
+        public void SetAndCreateLock(BasisBoneTrackedRole LockToBoneRole, BasisBoneTrackedRole AssignedTo)
+        {
+            if (FindBone(out BasisRemoteBoneControl AssignedToAddToBone, AssignedTo) == false)
+            {
+                BasisDebug.LogError("Cant Find Bone " + AssignedTo);
+            }
+            if (FindBone(out BasisRemoteBoneControl LockToBone, LockToBoneRole) == false)
+            {
+                BasisDebug.LogError("Cant Find Bone " + LockToBoneRole);
+            }
+            CreateRotationalLock(AssignedToAddToBone, LockToBone);
+        }
+        public void CalculateTransformPositions(BasisRemotePlayer basisPlayer)
+        {
+            Animator animator = basisPlayer.BasisAvatar.Animator;
+            Transform rootTransform = animator.transform;
+            float3 Position = rootTransform.position;
+            for (int Index = 0; Index < ControlsLength; Index++)
+            {
+                var control = Controls[Index];
+                var role = trackedRoles[Index];
+
+                switch (trackedRoles[Index])
+                {
+                    case BasisBoneTrackedRole.CenterEye:
+                        {
+                            GetWorldSpacePos(BasisHelpers.AvatarPositionConversion(basisPlayer.BasisAvatar.AvatarEyePosition), Position, out float3 world);
+                            basisPlayer.RemoteBoneDriver.SetInitialData(rootTransform, control, role, world);
+                            break;
+                        }
+
+                    case BasisBoneTrackedRole.Mouth:
+                        {
+                            GetWorldSpacePos(BasisHelpers.AvatarPositionConversion(basisPlayer.BasisAvatar.AvatarMouthPosition), Position, out float3 world);
+                            basisPlayer.RemoteBoneDriver.SetInitialData(rootTransform, control, role, world);
+                            break;
+                        }
+
+                    default:
+                        {
+                            if (BasisDeviceManagement.Instance.FBBD.FindBone(out BasisFallBone fallback, trackedRoles[Index]))
+                            {
+                                if (BasisRemoteAvatarDriver.TryConvertToHumanoidRole(trackedRoles[Index], out HumanBodyBones human))
+                                {
+                                    GetBoneRotAndPos(basisPlayer.transform, basisPlayer.BasisAvatar, human, fallback.PositionPercentage, out quaternion _, out float3 world, out bool _);
+                                    basisPlayer.RemoteBoneDriver.SetInitialData(rootTransform, control, role, world);
+                                }
+                                else
+                                {
+                                    BasisDebug.LogError("cant Convert to humanbodybone " + trackedRoles[Index]);
+                                }
+                            }
+                            else
+                            {
+                                BasisDebug.LogError("cant find Fallback Bone for " + trackedRoles[Index]);
+                            }
+
+                            break;
+                        }
+                }
+            }
+            SetAndCreateLock(BasisBoneTrackedRole.Head, BasisBoneTrackedRole.Neck);
+            SetAndCreateLock(BasisBoneTrackedRole.Head, BasisBoneTrackedRole.CenterEye);
+            SetAndCreateLock(BasisBoneTrackedRole.Head, BasisBoneTrackedRole.Mouth);
+            SetAndCreateLock(BasisBoneTrackedRole.Neck, BasisBoneTrackedRole.Chest);
+            SetAndCreateLock(BasisBoneTrackedRole.Chest, BasisBoneTrackedRole.Spine);
+            SetAndCreateLock(BasisBoneTrackedRole.Spine, BasisBoneTrackedRole.Hips);
+        }
+        public void GetWorldSpacePos(Vector3 localAvatarSpace, Vector3 AnimatorPosition, out float3 position)
+        {
+            position = BasisHelpers.ConvertFromLocalSpace(localAvatarSpace, AnimatorPosition);
+        }
+        public void GetBoneRotAndPos(Transform driver, BasisAvatar BasisAvatar, HumanBodyBones bone, Vector3 heightPercentage, out quaternion Rotation, out float3 Position, out bool UsedFallback)
+        {
+            if (BasisAvatar.Animator.avatar != null && BasisAvatar.Animator.avatar.isHuman)
+            {
+                Transform boneTransform = BasisAvatar.Animator.GetBoneTransform(bone);
+                if (boneTransform == null)
+                {
+                    Rotation = driver.rotation;
+                    Position = driver.position;
+                    Position += CalculateFallbackOffset(bone, ActiveAvatarEyeHeight(BasisAvatar), heightPercentage);
+                    UsedFallback = true;
+                }
+                else
+                {
+                    UsedFallback = false;
+                    boneTransform.GetPositionAndRotation(out Vector3 VPosition, out Quaternion QRotation);
+                    Position = VPosition;
+                    Rotation = QRotation;
+                }
+            }
+            else
+            {
+                Rotation = driver.rotation;
+                Position = driver.position;
+                Position = new Vector3(0, Position.y, 0);
+                Position += CalculateFallbackOffset(bone, ActiveAvatarEyeHeight(BasisAvatar), heightPercentage);
+                Position = new Vector3(0, Position.y, 0);
+                UsedFallback = true;
+            }
+        }
+        public float ActiveAvatarEyeHeight(BasisAvatar BasisAvatar)
+        {
+            if (BasisAvatar != null)
+            {
+                return BasisAvatar.AvatarEyePosition.x;
+            }
+            else
+            {
+                return BasisLocalPlayer.FallbackSize;
+            }
+        }
+        public float3 CalculateFallbackOffset(HumanBodyBones bone, float fallbackHeight, float3 heightPercentage)
+        {
+            Vector3 height = fallbackHeight * heightPercentage;
+            return bone == HumanBodyBones.Hips ? math.mul(height, -Vector3.up) : math.mul(height, Vector3.up);
         }
         [System.Serializable]
         public class BasisRemoteBoneControl
@@ -471,5 +591,6 @@ namespace Basis.Scripts.Drivers
             public Color Color { get => gizmoColor; set => gizmoColor = value; }
             public bool HasBone { get; internal set; }
         }
+
     }
 }
