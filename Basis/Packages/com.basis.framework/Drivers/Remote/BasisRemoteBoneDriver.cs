@@ -31,18 +31,14 @@ namespace Basis.Scripts.Drivers
             public float3 Offset;       // (AssignedTo.Tpose - Target.Tpose) at scale = 1
             public float3 ScaledOffset; // Offset * scale
         }
-        #region Init
-        public void OnCalibration(BasisRemotePlayer remotePlayer)
-        {
-            RemotePlayer = remotePlayer;
-        }
         /// <summary>
         /// Capture T-pose positions for the 7 roles we care about and compute lock offsets.
         /// Call this once after the avatar is loaded / posed in T.
         /// </summary>
-        public void InitializeFromAvatar(BasisRemotePlayer basisPlayer)
+        public void InitializeFromAvatar(BasisRemotePlayer remotePlayer)
         {
-            var avatar = basisPlayer.BasisAvatar;
+            RemotePlayer = remotePlayer;
+            var avatar = remotePlayer.BasisAvatar;
             var animator = avatar.Animator;
             RemotePlayerTransform = animator.transform;
             // Helper: get a bone transform safely
@@ -116,11 +112,6 @@ namespace Basis.Scripts.Drivers
             b.TposeLocalScaled.position = b.TposeLocal.position;
             b.TposeLocalScaled.rotation = b.TposeLocal.rotation;
         }
-
-        #endregion
-
-        #region Runtime
-
         /// <summary>
         /// Apply the lock chain, with optional non-uniform scale for avatar space.
         /// call every frame after you’ve updated Head.Incoming (and optionally others).
@@ -158,9 +149,6 @@ namespace Basis.Scripts.Drivers
 
             // Spine locked to Chest
             ApplyChildLock(ref Spine, in Chest);
-
-            // Hips locked to Spine
-            //  ApplyChildLock(ref Hips, in Spine);
 
             // CenterEye and Mouth locked to Head
             ApplyChildLock(ref CenterEye, in Head);
@@ -203,6 +191,5 @@ namespace Basis.Scripts.Drivers
         {
             return Mouth.TposeLocalScaled.position;
         }
-        #endregion
     }
 }

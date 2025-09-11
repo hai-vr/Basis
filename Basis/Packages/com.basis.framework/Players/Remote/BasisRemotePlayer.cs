@@ -27,7 +27,6 @@ namespace Basis.Scripts.BasisSdk.Players
         [SerializeField]
         public BasisRemoteNamePlate RemoteNamePlate = null;
         public bool HasRemoteNamePlate = false;
-        public bool HasEvents = false;
         public bool OutOfRangeFromLocal = false;
         public ClientAvatarChangeMessage CACM;
         public bool InAvatarRange = true;
@@ -42,11 +41,6 @@ namespace Basis.Scripts.BasisSdk.Players
             this.name = DisplayName;
             UUID = PlayerMetaDataMessage.playerUUID;
             IsLocal = false;
-            if (HasEvents == false)
-            {
-                RemoteAvatarDriver.CalibrationComplete += RemoteCalibration;
-                HasEvents = true;
-            }
             var data = await AddressableResourceProcess.LoadSystemGameobject(LoadableNamePlatename, new UnityEngine.ResourceManagement.ResourceProviders.InstantiationParameters());
             if (data.TryGetComponent(out RemoteNamePlate))
             {
@@ -129,14 +123,6 @@ namespace Basis.Scripts.BasisSdk.Players
         }
         public void OnDestroy()
         {
-            if (HasEvents)
-            {
-                if (RemoteAvatarDriver != null)
-                {
-                    RemoteAvatarDriver.CalibrationComplete -= RemoteCalibration;
-                    HasEvents = false;
-                }
-            }
             if (FacialBlinkDriver != null)
             {
                 FacialBlinkDriver.OnDestroy();
@@ -149,10 +135,6 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 AddressableResourceProcess.ReleaseGameobject(RemoteNamePlate.gameObject);
             }
-        }
-        public void RemoteCalibration()
-        {
-            RemoteBoneDriver.OnCalibration(this);
         }
         public short LastComputedMeshLod = -1;
         public void ChangeMeshLOD(float DistanceToPlayer, float ReductionMultiplier)
