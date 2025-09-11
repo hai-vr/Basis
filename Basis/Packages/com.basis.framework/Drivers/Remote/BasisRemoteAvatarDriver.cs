@@ -71,7 +71,7 @@ namespace Basis.Scripts.Drivers
             player.RemoteEyeDriver.Initalize(this, player);
             UpdateWhenOffscreenAndDisableMatrixRecal(false);
             player.BasisAvatar.Animator.logWarnings = false;
-            player.RemoteBoneDriver.CalculateTransformPositions(player);
+            player.RemoteBoneDriver.InitializeFromAvatar(player);
             player.BasisAvatar.Animator.enabled = false;
 
             SetupAvatarJiggleColliders();

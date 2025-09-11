@@ -152,7 +152,7 @@ namespace Basis.Scripts.Networking.Receivers
             Player.AvatarTransform.localScale = ApplyingScale;
             PoseHandler.SetHumanPose(ref HumanPose);
 
-            RemotePlayer.RemoteBoneDriver.SimulateAndApplyRemote(ApplyingScale);
+            RemotePlayer.RemoteBoneDriver.SimulateAndApply(ApplyingScale);
 
             if (AudioReceiverModule.HasTransform)
             {

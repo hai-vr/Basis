@@ -42,7 +42,6 @@ namespace Basis.Scripts.BasisSdk.Players
             this.name = DisplayName;
             UUID = PlayerMetaDataMessage.playerUUID;
             IsLocal = false;
-            RemoteBoneDriver.CreateInitialArrays(false);
             if (HasEvents == false)
             {
                 RemoteAvatarDriver.CalibrationComplete += RemoteCalibration;
@@ -146,7 +145,6 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 RemoteEyeDriver.OnDestroy();
             }
-            RemoteBoneDriver.DeInitializeGizmos();
             if (RemoteNamePlate != null)
             {
                 AddressableResourceProcess.ReleaseGameobject(RemoteNamePlate.gameObject);
