@@ -318,7 +318,9 @@ namespace Basis.Scripts.UI.NamePlate
             cachedDirection = BasisRemotePlayer.RemoteBoneDriver.GetHipsPosition().position;
             cachedDirection.y += BasisRemotePlayer.RemoteBoneDriver.GetMouthTposePosition().y / YHeightMultiplier;
             dirToCamera = BasisLocalCameraDriver.Position - cachedDirection;
-            Self.SetPositionAndRotation(cachedDirection, Quaternion.Euler(x, math.atan2(dirToCamera.x, dirToCamera.z) * Mathf.Rad2Deg, z));
+          //  Self.SetPositionAndRotation(cachedDirection, Quaternion.Euler(x, math.atan2(dirToCamera.x, dirToCamera.z) * Mathf.Rad2Deg, z));
+
+            BasisAudioTransformDriver.EnqueueSet(Self, cachedDirection, Quaternion.Euler(x, math.atan2(dirToCamera.x, dirToCamera.z) * Mathf.Rad2Deg, z));
         }
     }
 }

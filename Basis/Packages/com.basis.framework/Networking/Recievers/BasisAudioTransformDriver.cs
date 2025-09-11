@@ -7,20 +7,18 @@ using UnityEngine;
 using UnityEngine.Jobs;
 
 /// <summary>
-/// Static transform batch applier.
-/// - Call Initialize() once (optionally with capacity).
-/// - Per frame, call BeginFrame() then EndFrame() OR just SimulateOneFrame().
-/// - Use EnqueueSet / RequestRemove anytime (main thread).
-/// - Call Shutdown() on domain unload/editor exit to dispose native containers.
-/// 
-/// If you prefer automatic driving from Unity's update loop, add the optional
-/// BasisAudioTransformDriverHook to a GameObject (below).
+/// Static transform batch applier with additive capacity control.
+/// Usage:
+/// - Initialize() once (optional capacity).
+/// - Per frame: BeginFrame() then EndFrame(), or SimulateOneFrame().
+/// - EnqueueSet / RequestRemove anytime (main thread).
+/// - Shutdown() on domain unload.
 /// </summary>
 public static class BasisAudioTransformDriver
 {
     // ------- State -------
     private static bool _initialized;
-    private static int _initialCapacity = 1024;
+    private static int _initialCapacity = 128;
 
     // Job wiring
     private static JobHandle _handle;
@@ -39,13 +37,28 @@ public static class BasisAudioTransformDriver
     private static readonly Dictionary<Transform, int> _indexOf = new Dictionary<Transform, int>(4096);
 
     // Deferred queues (safe to call EnqueueSet/RequestRemove anytime; we flush once per frame)
-    private static readonly List<(Transform t, float3 p, quaternion r)> _queuedSetsThisFrame =
-        new List<(Transform, float3, quaternion)>(4096);
+    private static readonly List<(Transform t, float3 p, quaternion r)> _queuedSetsThisFrame = new List<(Transform, float3, quaternion)>(4096);
     private static readonly HashSet<Transform> _queuedRemovals = new HashSet<Transform>();
 
     // "Dirty" tracking: only entries tagged with currentGen are touched
     private static int _currentGen = 1;
     private static int _dirtyCountThisGen = 0;
+
+    // -------- Additive Capacity Controls --------
+    // How many slots to add/remove at a time.
+    private static int _growthStep = 128;
+
+    // If utilization (length/capacity) stays below this for N frames, shrink.
+    private static float _shrinkUtilizationThreshold = 0.55f;
+
+    // Number of consecutive under-utilized frames before shrinking.
+    private static int _shrinkConsecutiveFrames = 20;
+
+    // Cooldown between shrinks to prevent thrash.
+    private static int _shrinkCooldownFrames = 60;
+
+    private static int _underUtilFrameCounter = 0;
+    private static int _sinceLastShrinkFrames = 9999;
 
     public static bool IsInitialized => _initialized;
     public static int Count => _taa.isCreated ? _taa.length : 0;
@@ -76,17 +89,23 @@ public static class BasisAudioTransformDriver
 
         _initialCapacity = Mathf.Max(1, initialCapacity);
 
-        _taa = new TransformAccessArray(_initialCapacity);
-        _positions = new NativeList<float3>(_initialCapacity, Allocator.Persistent);
-        _rotations = new NativeList<quaternion>(_initialCapacity, Allocator.Persistent);
-        _entryGen = new NativeList<int>(_initialCapacity, Allocator.Persistent);
+        // Round initial capacity up to step boundary to make future shrink clean.
+        int stepAligned = RoundUpToStep(_initialCapacity, _growthStep);
 
-        _mirror.Capacity = Mathf.Max(_mirror.Capacity, _initialCapacity);
+        _taa = new TransformAccessArray(stepAligned);
+        _positions = new NativeList<float3>(stepAligned, Allocator.Persistent);
+        _rotations = new NativeList<quaternion>(stepAligned, Allocator.Persistent);
+        _entryGen = new NativeList<int>(stepAligned, Allocator.Persistent);
+
+        _mirror.Capacity = Mathf.Max(_mirror.Capacity, stepAligned);
 
         _currentGen = 1;
         _dirtyCountThisGen = 0;
         _jobScheduled = false;
         _initialized = true;
+
+        _underUtilFrameCounter = 0;
+        _sinceLastShrinkFrames = 9999;
     }
 
     /// <summary>Dispose containers and clear all state.</summary>
@@ -110,21 +129,20 @@ public static class BasisAudioTransformDriver
         _dirtyCountThisGen = 0;
         _jobScheduled = false;
         _initialized = false;
+
+        _underUtilFrameCounter = 0;
+        _sinceLastShrinkFrames = 9999;
     }
 
     // --------------- Frame Simulation API ---------------
-    /// <summary>
-    /// Call once per frame before you want transforms applied.
-    /// This mirrors MonoBehaviour.Update(): completes prior frame's work, flushes queues, and schedules the job.
-    /// </summary>
     public static void BeginFrame()
     {
         if (!_initialized) Initialize(_initialCapacity);
 
-        // Make sure last frame’s work is done
+        // Finish prior frame
         CompleteIfScheduled();
 
-        // Apply queued removals & additions/updates (no main-thread Transform writes)
+        // Apply queued removals/additions (no Transform writes here)
         FlushRemovals();
         FlushQueuedSets();
 
@@ -145,10 +163,6 @@ public static class BasisAudioTransformDriver
         }
     }
 
-    /// <summary>
-    /// Call once per frame after you've allowed other scripts to enqueue work (mirrors LateUpdate).
-    /// Completes the job and advances the generation.
-    /// </summary>
     public static void EndFrame()
     {
         if (!_initialized) return;
@@ -162,16 +176,19 @@ public static class BasisAudioTransformDriver
             _currentGen++;
             if (_currentGen == int.MaxValue) _currentGen = 1; // wrap safely
         }
+
+        // Additive shrink evaluation once per frame (after mutations are settled)
+        TryShrinkCapacity();
+
+        _sinceLastShrinkFrames++;
     }
 
-    /// <summary>Convenience: does BeginFrame() then EndFrame().</summary>
     public static void SimulateOneFrame()
     {
         BeginFrame();
         EndFrame();
     }
 
-    /// <summary>Ensure any scheduled job completes immediately.</summary>
     public static void ForceComplete() => CompleteIfScheduled();
 
     private static void CompleteIfScheduled()
@@ -184,10 +201,6 @@ public static class BasisAudioTransformDriver
     }
 
     // --------------- Public Work API ---------------
-    /// <summary>
-    /// Enqueue a world-space position/rotation to be applied this frame to 't'.
-    /// Replacement for calling Transform.SetPositionAndRotation thousands of times.
-    /// </summary>
     public static void EnqueueSet(Transform t, Vector3 position, Quaternion rotation)
     {
         if (t == null) return;
@@ -195,7 +208,6 @@ public static class BasisAudioTransformDriver
         _queuedSetsThisFrame.Add((t, (float3)position, (quaternion)rotation));
     }
 
-    /// <summary>Stop tracking a Transform; safe to call anytime (main thread).</summary>
     public static void RequestRemove(Transform t)
     {
         if (t == null) return;
@@ -203,7 +215,6 @@ public static class BasisAudioTransformDriver
         _queuedRemovals.Add(t);
     }
 
-    /// <summary>Remove everything and reset the driver.</summary>
     public static void ClearAll()
     {
         if (!_initialized) return;
@@ -223,44 +234,122 @@ public static class BasisAudioTransformDriver
 
         _dirtyCountThisGen = 0;
         _currentGen = 1;
+
+        // Bring capacity down to the nearest step to free memory.
+        TrimExcessCapacity();
+        _sinceLastShrinkFrames = 0;
     }
 
-    // --------------- Internal: flush & bookkeeping ---------------
-    private static void EnsureCapacity(int needed)
+    // --------------- Internal: capacity management ---------------
+    private static int RoundUpToStep(int value, int step)
     {
-        if (needed <= _taa.capacity &&
-            needed <= _positions.Capacity &&
-            needed <= _rotations.Capacity &&
-            needed <= _entryGen.Capacity)
-            return;
+        if (step <= 1) return value;
+        int rem = value % step;
+        return rem == 0 ? value : (value + (step - rem));
+    }
 
-        int current = math.max(_taa.capacity, _positions.Capacity);
-        int newCap = math.max(needed, math.max(4, current * 2));
+    private static int RoundDownToStep(int value, int step)
+    {
+        if (step <= 1) return value;
+        return (value / step) * step;
+    }
+
+    /// <summary>
+    /// Additive growth: increase capacity in +_growthStep chunks until it can fit 'needed'.
+    /// </summary>
+    private static void EnsureCapacityAdditive(int needed)
+    {
+        int capTaa = _taa.capacity;
+        int cap = math.max(capTaa, math.max(_positions.Capacity, math.max(_rotations.Capacity, _entryGen.Capacity)));
+
+        if (needed <= cap) return;
+
+        int target = cap;
+        while (target < needed) target += _growthStep;
+
+        // Apply new capacity (step-aligned)
+        _taa.capacity = target;
+        _positions.Capacity = target;
+        _rotations.Capacity = target;
+        _entryGen.Capacity = target;
+
+        _mirror.Capacity = math.max(_mirror.Capacity, target);
+        // No changes to lengths here.
+    }
+
+    /// <summary>
+    /// Try to shrink capacity additively when sustained under-utilization is detected.
+    /// </summary>
+    private static void TryShrinkCapacity()
+    {
+        if (!_initialized) return;
+
+        int len = _taa.length;
+        int cap = math.max(_taa.capacity, math.max(_positions.Capacity, math.max(_rotations.Capacity, _entryGen.Capacity)));
+        if (cap <= 0) return;
+
+        float util = (len <= 0) ? 0f : (len / (float)cap);
+
+        if (util < _shrinkUtilizationThreshold)
+        {
+            _underUtilFrameCounter++;
+        }
+        else
+        {
+            _underUtilFrameCounter = 0;
+        }
+
+        if (_underUtilFrameCounter >= _shrinkConsecutiveFrames && _sinceLastShrinkFrames >= _shrinkCooldownFrames)
+        {
+            // Compute target capacity: the smallest step-aligned >= length.
+            int minTarget = RoundUpToStep(math.max(len, 1), _growthStep);
+
+            // Only shrink if it actually reduces capacity.
+            if (minTarget < cap)
+            {
+                // Important: capacities cannot go below Length.
+                int newCap = Mathf.Max(minTarget, len);
+
+                // Apply step-aligned new capacity to all containers.
+                _taa.capacity = newCap;
+                _positions.Capacity = newCap;
+                _rotations.Capacity = newCap;
+                _entryGen.Capacity = newCap;
+
+                // Managed list
+                if (_mirror.Capacity > newCap) _mirror.Capacity = newCap;
+
+                _sinceLastShrinkFrames = 0;
+            }
+
+            _underUtilFrameCounter = 0; // reset streak after a shrink attempt
+        }
+    }
+
+    /// <summary>Force capacity down to the smallest step-aligned >= length (useful after ClearAll).</summary>
+    private static void TrimExcessCapacity()
+    {
+        if (!_initialized) return;
+        int len = _taa.length;
+        int newCap = RoundUpToStep(math.max(len, 1), _growthStep);
 
         _taa.capacity = newCap;
         _positions.Capacity = newCap;
         _rotations.Capacity = newCap;
         _entryGen.Capacity = newCap;
-        _mirror.Capacity = math.max(_mirror.Capacity, newCap);
+
+        if (_mirror.Capacity > newCap) _mirror.Capacity = newCap;
     }
 
-    /// <summary>
-    /// Rebuild _indexOf from _mirror (and sanity-trim managed/native lists to match _taa.length).
-    /// Call this if anything looks out-of-sync.
-    /// </summary>
+    // --------------- Internal: flush & bookkeeping ---------------
     private static void RebuildIndexMapAndRealign()
     {
-        // If the managed lists got longer than _taa (e.g., external destruction or prior errors), trim them.
         int targetLen = _taa.length;
 
-        // Trim managed lists down to targetLen
         while (_mirror.Count > targetLen) _mirror.RemoveAt(_mirror.Count - 1);
         while (_positions.Length > targetLen) _positions.RemoveAtSwapBack(_positions.Length - 1);
         while (_rotations.Length > targetLen) _rotations.RemoveAtSwapBack(_rotations.Length - 1);
         while (_entryGen.Length > targetLen) _entryGen.RemoveAtSwapBack(_entryGen.Length - 1);
-
-        // If managed lists are shorter (shouldn't happen here), we won't try to re-expand;
-        // they'll be filled on next EnqueueSet.
 
         _indexOf.Clear();
         for (int i = 0; i < _mirror.Count; i++)
@@ -275,8 +364,6 @@ public static class BasisAudioTransformDriver
     {
         if (_queuedRemovals.Count == 0) return;
 
-        // Quick pre-check: if anything smells off, fix alignment first.
-        // (These should always match during normal operation.)
         if (_taa.length != _mirror.Count ||
             _positions.Length != _taa.length ||
             _rotations.Length != _taa.length ||
@@ -285,8 +372,6 @@ public static class BasisAudioTransformDriver
             RebuildIndexMapAndRealign();
         }
 
-        // Avoid mutating while iterating the set.
-        // Also, remove duplicates and nulls just in case.
         _tmpRemovalBuffer.Clear();
         foreach (var t in _queuedRemovals)
         {
@@ -297,36 +382,28 @@ public static class BasisAudioTransformDriver
         {
             var t = _tmpRemovalBuffer[n];
 
-            // Try fast lookup
             if (!_indexOf.TryGetValue(t, out int idx))
             {
-                // Fallback: scan mirror once (robust against any stale map edge cases)
                 idx = _mirror.IndexOf(t);
-                if (idx < 0) continue; // already gone
+                if (idx < 0) continue;
             }
 
-            // If the index is out of bounds for TAA, we got desynced; resync and try again.
             if (idx < 0 || idx >= _taa.length)
             {
                 RebuildIndexMapAndRealign();
-
-                // Try again after resync
-                idx = -1;
-                _indexOf.TryGetValue(t, out idx);
-                if (idx < 0 || idx >= _taa.length) continue; // still not valid -> skip
+                if (!_indexOf.TryGetValue(t, out idx) || idx < 0 || idx >= _taa.length) continue;
             }
 
             int lastIdx = _taa.length - 1;
 
-            // Remove from TAA first (swap-back)
+            // Remove from TAA (swap-back)
             _taa.RemoveAtSwapBack(idx);
 
-            // Mirror & arrays swap-back to keep indices consistent
-            int lastMirrorIdx = _mirror.Count - 1; // still old count here
+            // Mirror & arrays swap-back
+            int lastMirrorIdx = _mirror.Count - 1;
 
             if (idx != lastIdx)
             {
-                // Copy the tail entry into idx
                 _positions[idx] = _positions[lastMirrorIdx];
                 _rotations[idx] = _rotations[lastMirrorIdx];
                 _entryGen[idx] = _entryGen[lastMirrorIdx];
@@ -338,19 +415,16 @@ public static class BasisAudioTransformDriver
                     _indexOf[movedT] = idx;
             }
 
-            // Pop the tail from managed/native mirrors
             _positions.RemoveAtSwapBack(lastMirrorIdx);
             _rotations.RemoveAtSwapBack(lastMirrorIdx);
             _entryGen.RemoveAtSwapBack(lastMirrorIdx);
             _mirror.RemoveAt(lastMirrorIdx);
 
-            // Finally remove from the lookup
             _indexOf.Remove(t);
         }
 
         _queuedRemovals.Clear();
 
-        // Final sanity: ensure everything is aligned after a batch of removals
         if (_taa.length != _mirror.Count ||
             _positions.Length != _taa.length ||
             _rotations.Length != _taa.length ||
@@ -366,16 +440,15 @@ public static class BasisAudioTransformDriver
     {
         if (_queuedSetsThisFrame.Count == 0) return;
 
-        // Pre-ensure capacity (best-effort)
+        // Pre-ensure capacity additively for all potential new entries
         int needed = _taa.length;
         for (int i = 0; i < _queuedSetsThisFrame.Count; i++)
         {
             var t = _queuedSetsThisFrame[i].t;
             if (t != null && !_indexOf.ContainsKey(t)) needed++;
         }
-        EnsureCapacity(needed);
+        EnsureCapacityAdditive(needed);
 
-        // Process each queued set
         for (int i = 0; i < _queuedSetsThisFrame.Count; i++)
         {
             var (t, p, r) = _queuedSetsThisFrame[i];
@@ -397,14 +470,12 @@ public static class BasisAudioTransformDriver
             }
             else
             {
-                // Guard against rare desync: if idx is invalid, rebuild, then retry this one.
                 if (idx < 0 || idx >= _taa.length)
                 {
                     RebuildIndexMapAndRealign();
 
                     if (!_indexOf.TryGetValue(t, out idx) || idx < 0 || idx >= _taa.length)
                     {
-                        // If still invalid after rebuild, treat as a fresh add.
                         int newIdx = _taa.length;
                         _taa.Add(t);
                         _mirror.Add(t);

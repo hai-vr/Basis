@@ -4,23 +4,17 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Unity.Mathematics;
 using UnityEngine;
-
 namespace Basis.Scripts.Drivers
 {
     [System.Serializable]
     public class BasisRemoteBoneDriver
     {
         public BasisRemotePlayer RemotePlayer { get; private set; }
-
         // Only the controls we actually need
         public Bone Head, Neck, Chest, Spine, Hips, CenterEye, Mouth;
-
         // Cache last scale to avoid per-frame recompute
         private Vector3 _lastScale = Vector3.one;
         public Transform RemotePlayerTransform;
-
-        private const float kScaleEpsilon = 1e-4f;
-
         [System.Serializable]
         public struct Bone
         {
@@ -31,7 +25,6 @@ namespace Basis.Scripts.Drivers
             public Vector3 Offset;                       // (AssignedTo.Tpose - Target.Tpose) at scale = 1
             public Vector3 ScaledOffset;                 // Offset * scale
         }
-
         /// <summary>
         /// Capture T-pose positions for the 7 roles we care about and compute lock offsets.
         /// Call this once after the avatar is loaded / posed in T.
@@ -44,8 +37,7 @@ namespace Basis.Scripts.Drivers
             RemotePlayerTransform = animator.transform;
 
             // Helper: get a bone transform safely
-            Transform B(HumanBodyBones b) =>
-                animator.avatar != null && animator.avatar.isHuman ? animator.GetBoneTransform(b) : null;
+            Transform B(HumanBodyBones b) => animator.avatar != null && animator.avatar.isHuman ? animator.GetBoneTransform(b) : null;
 
             // Fill T-pose locals from current world pose
             SetInitialFromWorld(RemotePlayerTransform, B(HumanBodyBones.Head), ref Head);
@@ -55,14 +47,10 @@ namespace Basis.Scripts.Drivers
             SetInitialFromWorld(RemotePlayerTransform, B(HumanBodyBones.Hips), ref Hips);
 
             // CenterEye / Mouth come from avatar’s authored points
-            float3 worldEye = BasisHelpers.ConvertFromLocalSpace(
-                BasisHelpers.AvatarPositionConversion(avatar.AvatarEyePosition),
-                RemotePlayerTransform.position);
+            float3 worldEye = BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(avatar.AvatarEyePosition), RemotePlayerTransform.position);
             SetInitialFromWorld(RemotePlayerTransform, worldEye, ref CenterEye);
 
-            float3 worldMouth = BasisHelpers.ConvertFromLocalSpace(
-                BasisHelpers.AvatarPositionConversion(avatar.AvatarMouthPosition),
-                RemotePlayerTransform.position);
+            float3 worldMouth = BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(avatar.AvatarMouthPosition), RemotePlayerTransform.position);
             SetInitialFromWorld(RemotePlayerTransform, worldMouth, ref Mouth);
 
             // At initialization, scaled == unscaled (scale = 1)
@@ -93,33 +81,29 @@ namespace Basis.Scripts.Drivers
             _lastScale = Vector3.one;
         }
 
-        private static void SetInitialFromWorld(Transform root, Transform t, ref Bone bone)
+        private static void SetInitialFromWorld(Transform root, Transform Trans, ref Bone bone)
         {
-            if (t == null)
+            if (Trans == null)
             {
                 bone.TposeLocal.position = Vector3.zero;
                 bone.TposeLocal.rotation = quaternion.identity;
                 return;
             }
-
-            t.GetPositionAndRotation(out Vector3 wpos, out bone.TposeLocal.rotation);
+            Trans.GetPositionAndRotation(out Vector3 wpos, out bone.TposeLocal.rotation);
             // Convert world to avatar-local once and stash
             bone.TposeLocal.position = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(root, wpos);
         }
-
         private static void SetInitialFromWorld(Transform root, float3 world, ref Bone bone)
         {
             bone.TposeLocal.position = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(root, world);
             bone.TposeLocal.rotation = quaternion.identity;
         }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CopyScaledEqualsUnscaled(ref Bone b)
         {
             b.TposeLocalScaled.position = b.TposeLocal.position;
             b.TposeLocalScaled.rotation = b.TposeLocal.rotation;
         }
-
         /// <summary>
         /// Apply the lock chain, with optional non-uniform scale for avatar space.
         /// Call every frame after you’ve updated Head.Incoming (and optionally others).
@@ -138,15 +122,12 @@ namespace Basis.Scripts.Drivers
                 RescaleOnlyThisBone(ref Mouth, nowScale);
                 _lastScale = nowScale;
             }
-
             // Cache frame-local data
             var references = RemotePlayer.RemoteAvatarDriver.References;
             Vector3 rrt = RemotePlayerTransform.position;
-
             // Remove T-pose influence
             Head.Outgoing.rotation = references.TposeHead.rotation * references.head.rotation;
             Hips.Outgoing.rotation = references.TposeHips.rotation * references.Hips.rotation;
-
             Head.Outgoing.position = references.head.position - rrt;
             Hips.Outgoing.position = references.Hips.position - rrt;
 
@@ -157,7 +138,6 @@ namespace Basis.Scripts.Drivers
             ApplyChildLock(ref CenterEye, in Head);
             ApplyChildLock(ref Mouth, in Head);
         }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void ApplyChildLock(ref Bone child, in Bone parent)
         {
@@ -168,7 +148,6 @@ namespace Basis.Scripts.Drivers
             child.Outgoing.position = P + off;
             child.Outgoing.rotation = R;
         }
-
         // NOTE: Only rescale the bone itself; do not touch the parent/target here.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void RescaleOnlyThisBone(ref Bone b, Vector3 s)
@@ -184,7 +163,6 @@ namespace Basis.Scripts.Drivers
             // Rotation doesn't scale; keep as-is
             b.TposeLocalScaled.rotation = b.TposeLocal.rotation;
         }
-
         public BasisCalibratedCoords GetMouthPosition() => Mouth.Outgoing;
         public BasisCalibratedCoords GetHeadPosition() => Head.Outgoing;
         public BasisCalibratedCoords GetHipsPosition() => Hips.Outgoing;
