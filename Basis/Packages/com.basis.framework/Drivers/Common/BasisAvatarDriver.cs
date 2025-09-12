@@ -3,6 +3,7 @@ using Basis.Scripts.Common;
 using Basis.Scripts.TransformBinders.BoneControl;
 using GatorDragonGames.JigglePhysics;
 using System.Collections.Generic;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace Basis.Scripts.Drivers
@@ -176,8 +177,8 @@ namespace Basis.Scripts.Drivers
         public List<JiggleColliderSerializable> JiggleColliders;
         public void AddJiggleRigColliders(BasisTransformMapping Mapping)
         {
-            JiggleCreatorHelper(Mapping.leftFoot, 0.05f);
-            JiggleCreatorHelper(Mapping.rightFoot, 0.05f);
+            JiggleCreatorHelper(Mapping.leftFoot, 0.015f);
+            JiggleCreatorHelper(Mapping.rightFoot, 0.015f);
 
             JiggleCreatorHelper(Mapping.LeftThumb);
             JiggleCreatorHelper(Mapping.LeftIndex);
@@ -205,22 +206,17 @@ namespace Basis.Scripts.Drivers
                 JiggleCreatorHelper(Parent);
             }
         }
-        public void JiggleCreatorHelper(Transform Parent,float Scale = 0.018f)
+        public void JiggleCreatorHelper(Transform Parent,float Scale = 0.005f)
         {
             if (Parent != null)
             {
-                // Get the largest axis of the parent's scale so the sphere collider adapts correctly
-                float scaleFactor = Parent.lossyScale.magnitude / Mathf.Sqrt(3f);
-                float TransformScale = Scale * scaleFactor;
-
-
                 JiggleColliderSerializable jiggleColliderSerializable = new JiggleColliderSerializable
                 {
                     collider = new JiggleCollider()
                     {
                         type = JiggleCollider.JiggleColliderType.Sphere,
                         localToWorldMatrix = Parent.localToWorldMatrix,
-                        radius = TransformScale // Scaled radius
+                        radius = Scale / (Parent.lossyScale.magnitude /3) // Scaled radius
                     },
                     transform = Parent
                 };
