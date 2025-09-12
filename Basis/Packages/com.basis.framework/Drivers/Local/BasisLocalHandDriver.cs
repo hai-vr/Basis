@@ -61,7 +61,7 @@ public class BasisLocalHandDriver
     public NativeArray<Vector2> CoordKeysArray;
     public NativeArray<float> DistancesArray;
     public NativeArray<int> closestIndexArray;
-    public float LerpSpeed = 17f;
+    public float LerpSpeed = 22F;
     public Vector2[] Poses;
     public void Dispose()
     {
