@@ -46,40 +46,6 @@ using System.Threading;
 [InitializeOnLoadAttribute]
 partial class OculusBuildApp : EditorWindow
 {
-    static void SetPCTarget()
-    {
-        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.StandaloneWindows)
-        {
-            EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows);
-        }
-#if !USING_XR_SDK && !REQUIRES_XR_SDK
-        UnityEditorInternal.VR.VREditor.SetVREnabledOnTargetGroup(BuildTargetGroup.Standalone, true);
-#pragma warning disable 618
-        PlayerSettings.virtualRealitySupported = true;
-#pragma warning restore 618
-#endif
-        AssetDatabase.SaveAssets();
-    }
-
-    static void SetAndroidTarget()
-    {
-        EditorUserBuildSettings.androidBuildSubtarget = MobileTextureSubtarget.ASTC;
-        EditorUserBuildSettings.androidBuildSystem = AndroidBuildSystem.Gradle;
-
-        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android)
-        {
-            EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
-        }
-
-#if !USING_XR_SDK && !REQUIRES_XR_SDK
-        UnityEditorInternal.VR.VREditor.SetVREnabledOnTargetGroup(BuildTargetGroup.Standalone, true);
-#pragma warning disable 618
-        PlayerSettings.virtualRealitySupported = true;
-#pragma warning restore 618
-#endif
-        AssetDatabase.SaveAssets();
-    }
-
 #if UNITY_EDITOR_WIN && UNITY_ANDROID
     // Build setting constants
     const string REMOTE_APK_PATH = "/data/local/tmp";
