@@ -143,11 +143,10 @@
       "dependencies": {}
     },
     "com.meta.xr.sdk.core": {
-      "version": "77.0.0",
+      "version": "file:com.meta.xr.sdk.core",
       "depth": 0,
-      "source": "registry",
-      "dependencies": {},
-      "url": "https://packages.unity.com"
+      "source": "embedded",
+      "dependencies": {}
     },
     "com.steam.steamaudio": {
       "version": "file:com.steam.steamaudio",
