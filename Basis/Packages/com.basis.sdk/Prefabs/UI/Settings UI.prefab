@@ -3943,10 +3943,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisSettings::BasisTMP_DropdownSetting
   settingKey: Microphone Icon
   platformDefault:
-    windows: ActivityDetection
-    android: ActivityDetection
-    linux: ActivityDetection
-    other: ActivityDetection
+    windows: AlwaysVisible
+    android: AlwaysVisible
+    linux: AlwaysVisible
+    other: AlwaysVisible
   dropdown: {fileID: 8698209491332463452}
   Text: {fileID: 7525620007226966905}
   showSelectedLabel: 1
@@ -17942,7 +17942,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 0
+  m_PresetInfoIsWorld: 1
 --- !u!114 &6328418170902668384
 MonoBehaviour:
   m_ObjectHideFlags: 0

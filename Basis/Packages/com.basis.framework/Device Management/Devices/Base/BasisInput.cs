@@ -401,5 +401,24 @@ namespace Basis.Scripts.Device_Management.Devices
         public abstract void ShowTrackedVisual();
         public abstract void PlayHaptic(float duration = 0.25f, float amplitude = 0.5f, float frequency = 0.5f);
         public abstract void PlaySoundEffect(string SoundEffectName, float Volume);
+
+        public void ShowTrackedVisualDefaultImplementation()
+        {
+            if (BasisVisualTracker == null)
+            {
+                DeviceSupportInformation Match = BasisDeviceManagement.Instance.BasisDeviceNameMatcher.GetAssociatedDeviceMatchableNames(CommonDeviceIdentifier);
+                if (Match.CanDisplayPhysicalTracker)
+                {
+                    LoadModelWithKey(Match.DeviceID);
+                }
+                else
+                {
+                    if (UseFallbackModel())
+                    {
+                        LoadModelWithKey(FallbackDeviceID);
+                    }
+                }
+            }
+        }
     }
 }
