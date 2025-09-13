@@ -5,6 +5,7 @@ using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.UI.NamePlate;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using static SerializableBasis;
 namespace Basis.Scripts.BasisSdk.Players
 {
@@ -33,7 +34,22 @@ namespace Basis.Scripts.BasisSdk.Players
         public byte AlwaysRequestedMode;//0 downloading 1 local
         [HideInInspector]
         public BasisLoadableBundle AlwaysRequestedAvatar;
-        public async Task RemoteInitialize(ClientAvatarChangeMessage cACM, ClientMetaDataMessage PlayerMetaDataMessage, string LoadableNamePlatename = "Assets/UI/Prefabs/NamePlate.prefab")
+        public static GameObject NamePlate;
+        /// <summary>
+        /// we are leaking this memory atm!
+        /// </summary>
+        /// <param name="LoadableNamePlatename"></param>
+        /// <returns></returns>
+        public static GameObject LoadFromHandle(string LoadableNamePlatename)
+        {
+            if (NamePlate == null)
+            {
+                UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(LoadableNamePlatename);
+                NamePlate = op.WaitForCompletion();
+            }
+            return NamePlate;
+        }
+        public void RemoteInitialize(ClientAvatarChangeMessage cACM, ClientMetaDataMessage PlayerMetaDataMessage, string LoadableNamePlatename = "Assets/UI/Prefabs/NamePlate.prefab")
         {
             CACM = cACM;
             DisplayName = PlayerMetaDataMessage.playerDisplayName;
@@ -41,7 +57,7 @@ namespace Basis.Scripts.BasisSdk.Players
             this.name = DisplayName;
             UUID = PlayerMetaDataMessage.playerUUID;
             IsLocal = false;
-            var data = await AddressableResourceProcess.LoadSystemGameobject(LoadableNamePlatename, new UnityEngine.ResourceManagement.ResourceProviders.InstantiationParameters());
+            GameObject data = GameObject.Instantiate(LoadFromHandle(LoadableNamePlatename), transform);
             if (data.TryGetComponent(out RemoteNamePlate))
             {
                 if (this == null)
@@ -49,7 +65,6 @@ namespace Basis.Scripts.BasisSdk.Players
                     AddressableResourceProcess.ReleaseGameobject(data);
                     return;
                 }
-                RemoteNamePlate.transform.SetParent(transform, false);
                 RemoteNamePlate.Initalize(this);
             }
         }

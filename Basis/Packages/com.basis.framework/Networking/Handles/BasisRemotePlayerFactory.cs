@@ -2,9 +2,6 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Player;
-using Basis.Scripts.TransformBinders.BoneControl;
-using System.Threading.Tasks;
-using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using static SerializableBasis;
 
@@ -12,15 +9,15 @@ namespace Basis.Scripts.Networking
 {
     public static class BasisRemotePlayerFactory
     {
-        public static async Task HandleCreateRemotePlayer(LiteNetLib.NetPacketReader reader, InstantiationParameters Parent)
+        public static void HandleCreateRemotePlayer(LiteNetLib.NetPacketReader reader, InstantiationParameters Parent)
         {
            // BasisDebug.Log($"Handling Create Remote Player! {reader.AvailableBytes}");
             ServerReadyMessage ServerReadyMessage = new ServerReadyMessage();
             ServerReadyMessage.Deserialize(reader);
 
-            await CreateRemotePlayer(ServerReadyMessage, Parent);
+             CreateRemotePlayer(ServerReadyMessage, Parent);
         }
-        public static async Task<BasisNetworkPlayer> CreateRemotePlayer(ServerReadyMessage ServerReadyMessage, InstantiationParameters instantiationParameters)
+        public static BasisNetworkPlayer CreateRemotePlayer(ServerReadyMessage ServerReadyMessage, InstantiationParameters instantiationParameters)
         {
 
             ClientAvatarChangeMessage avatarID = ServerReadyMessage.localReadyMessage.clientAvatarChangeMessage;
@@ -30,10 +27,8 @@ namespace Basis.Scripts.Networking
                 BasisNetworkPlayers.JoiningPlayers.Add(ServerReadyMessage.playerIdMessage.playerID);
 
                 // Start both tasks simultaneously
-                Task<BasisRemotePlayer> createRemotePlayerTask = BasisPlayerFactory.CreateRemotePlayer(instantiationParameters, avatarID, ServerReadyMessage.localReadyMessage.playerMetaDataMessage);
+                BasisRemotePlayer remote = BasisPlayerFactory.CreateRemotePlayer(instantiationParameters, avatarID, ServerReadyMessage.localReadyMessage.playerMetaDataMessage);
                 BasisNetworkReceiver BasisNetworkReceiver = new BasisNetworkReceiver(ServerReadyMessage.playerIdMessage.playerID);
-                // Retrieve the results
-                BasisRemotePlayer remote = await createRemotePlayerTask;
                 // Continue with the rest of the code
                 RemoteInitialization(BasisNetworkReceiver, remote, ServerReadyMessage);
                 BasisNetworkReceiver.LastLinkedAvatarIndex = avatarID.LocalAvatarIndex;

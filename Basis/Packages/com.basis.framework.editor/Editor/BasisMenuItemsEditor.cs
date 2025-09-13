@@ -291,9 +291,9 @@ public static class BasisMenuItemsEditor
             CreateTestRemotePlayer(serverSideSyncPlayerMessage);
         }
     }
-    public async static void CreateTestRemotePlayer(ServerReadyMessage ServerReadyMessage)
+    public static void CreateTestRemotePlayer(ServerReadyMessage ServerReadyMessage)
     {
-        await BasisRemotePlayerFactory.CreateRemotePlayer(ServerReadyMessage, BasisNetworkManagement.instantiationParameters);
+        BasisRemotePlayerFactory.CreateRemotePlayer(ServerReadyMessage, BasisNetworkManagement.instantiationParameters);
     }
     // Group 1: Authentication and Player Metadata
     [Serializable]

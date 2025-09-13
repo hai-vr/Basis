@@ -64,9 +64,9 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                     return;
                 }
-                BasisNetworkManagement.MainThreadContext.Post(async _ =>
+                BasisNetworkManagement.MainThreadContext.Post(_ =>
                 {
-                    await BasisRemotePlayerFactory.HandleCreateRemotePlayer(Reader, BasisNetworkManagement.instantiationParameters);
+                    BasisRemotePlayerFactory.HandleCreateRemotePlayer(Reader, BasisNetworkManagement.instantiationParameters);
                     Reader.Recycle();
                 }, null);
                 break;
@@ -77,10 +77,10 @@ public static class BasisNetworkEvents
                     return;
                 }
                 //same as remote player but just used at the start
-                BasisNetworkManagement.MainThreadContext.Post(async _ =>
+                BasisNetworkManagement.MainThreadContext.Post(_ =>
                 {
                     //this one is called first and is also generally where the issues are.
-                    await BasisRemotePlayerFactory.HandleCreateRemotePlayer(Reader, BasisNetworkManagement.instantiationParameters);
+                    BasisRemotePlayerFactory.HandleCreateRemotePlayer(Reader, BasisNetworkManagement.instantiationParameters);
                     Reader.Recycle();
                 }, null);
                 break;
