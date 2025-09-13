@@ -126,8 +126,11 @@ namespace Basis.Scripts.Drivers
 			player.LocalRigDriver.BuildBuilder();
 			IsNormalHead = true;
 			RemoveJiggleRigColliders();
-			AddJiggleRigColliders(References);
-		}
+            if (player.IsConsideredFallBackAvatar == false)
+            {
+                AddJiggleRigColliders(References);
+            }
+        }
 
 		public static void ScaleHeadToNormal()
 		{

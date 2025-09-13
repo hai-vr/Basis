@@ -5,6 +5,7 @@ using GatorDragonGames.JigglePhysics;
 using System;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using static BasisNetworkServer.BasisNetworkingReductionSystem.BasisServerReductionSystemEvents;
 namespace Basis.Scripts.Drivers
 {
     [System.Serializable]
@@ -113,10 +114,11 @@ namespace Basis.Scripts.Drivers
         {
             RemoveJiggleRigColliders();
             BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(Player.UUID);
-            if (BasisPlayerSettingsData.AvatarInteraction)
+            if (BasisPlayerSettingsData.AvatarInteraction && Player.IsConsideredFallBackAvatar == false)
             {
                 AddJiggleRigColliders(References);
             }
+
         }
         public bool IsAble(BasisRemotePlayer remotePlayer)
         {
