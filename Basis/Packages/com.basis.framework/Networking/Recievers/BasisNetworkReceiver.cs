@@ -10,6 +10,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
+
 namespace Basis.Scripts.Networking.Receivers
 {
     [DefaultExecutionOrder(15001)]
@@ -17,8 +18,8 @@ namespace Basis.Scripts.Networking.Receivers
     public class BasisNetworkReceiver : BasisNetworkPlayer
     {
         private const int EyesAndMouthOffset = 15; // starting muscle index for eyes/mouth
-        private const int EyesAndMouthCount = 6;  // number of floats to copy
-        public const int EyeAndMouthSize = EyesAndMouthOffset * sizeof(float); // bytes
+        private const int EyesAndMouthCount = 6;   // number of floats to copy
+        public const int EyeAndMouthSize = EyesAndMouthOffset * sizeof(float);      // bytes
         public const int EyeAndMountCountInBytes = EyesAndMouthCount * sizeof(float); // bytes
 
         /// <summary>
@@ -26,16 +27,11 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public static int BufferCapacityBeforeCleanup = 5;
 
-        [SerializeField]
-        public BasisAudioReceiver AudioReceiverModule = new BasisAudioReceiver();
-
-        [SerializeField]
-        public ConcurrentQueue<BasisAvatarBuffer> PayloadQueue = new ConcurrentQueue<BasisAvatarBuffer>();
-
+        [SerializeField] public BasisAudioReceiver AudioReceiverModule = new BasisAudioReceiver();
+        [SerializeField] public ConcurrentQueue<BasisAvatarBuffer> PayloadQueue = new ConcurrentQueue<BasisAvatarBuffer>();
         public BasisRemotePlayer RemotePlayer;
 
-        [SerializeField]
-        public BasisRemoteAvatarBufferHolder BufferHolder = new BasisRemoteAvatarBufferHolder();
+        [SerializeField] public BasisRemoteAvatarBufferHolder BufferHolder = new BasisRemoteAvatarBufferHolder();
 
         public bool HasEvents = false;
         public bool HasAvatarQueue;
@@ -90,23 +86,28 @@ namespace Basis.Scripts.Networking.Receivers
                 if (!IsValidMuscleArray(prevMuscles))
                 {
                     if (LogFirstError)
-                    {
                         BasisDebug.LogWarning("BasisNetworkReceiver: First frame muscles were null/invalid; using zeros.");
-                    }
                     prevMuscles = new NativeArray<float>(95, Allocator.Persistent);
                 }
 
                 if (!IsValidMuscleArray(targetMuscles))
                 {
                     if (LogFirstError)
-                    {
                         BasisDebug.LogWarning("BasisNetworkReceiver: Last frame muscles were null/invalid; using zeros.");
-                    }
                     targetMuscles = new NativeArray<float>(95, Allocator.Persistent);
                 }
-
-                // Feed driver
-                BasisRemoteNetworkDriver.SetInputs(playerId, first.Position, last.Position, first.Scale, last.Scale, first.rotation, last.rotation, interpolationTime, prevMuscles, targetMuscles);
+                if (Player.BasisAvatar != null && Player.BasisAvatar.Animator != null)
+                {
+                    // Feed driver (per-avatar transforms, scales, rotations, muscles, t)
+                    BasisRemoteNetworkDriver.SetInputs(
+                        playerId, Player.BasisAvatar.Animator.humanScale,
+                        first.Position, last.Position,
+                        first.Scale, last.Scale,
+                        first.rotation, last.rotation,
+                        interpolationTime,
+                        prevMuscles, targetMuscles
+                    );
+                }
             }
         }
 
@@ -114,21 +115,16 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (BufferHolder.HasFirst && BufferHolder.HasLast)
             {
-                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out ApplyingPosition, out ApplyingScale, out ApplyingRotation, Muscles))
+                // Pull outputs (position, scale, rotation, muscles). We also use outPos for a robust fallback path.
+                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out var applyingScale, out var applyingRotation, out float3 scaledBody, Muscles))
                 {
-                    // Inline what ApplyPoseData used to do
-                    float3 Scaling = Player.BasisAvatar.AnimatorHumanScale;
+                    HumanPose.bodyPosition = scaledBody;
+                    HumanPose.bodyRotation = applyingRotation;
 
-                    // Guard scale to avoid NaNs / zero
-                    Scaling = SafeDivide(Scaling, ApplyingScale);
-
-                    Vector3 ScaledBody = Vector3.Scale(ApplyingPosition, Scaling);
-                    // Body transform
-                    HumanPose.bodyPosition = ScaledBody;
-                    HumanPose.bodyRotation = ApplyingRotation;
-
+                    // Muscles
                     Memcpy95(Muscles ?? ZeroMuscles, HumanPose.muscles);
-                    // Overlay eyes/mouth in one tiny copy (or a few assignments if the count is tiny)
+
+                    // Overlay eyes/mouth in one tiny copy
                     unsafe
                     {
                         fixed (float* pDst = HumanPose.muscles)
@@ -141,11 +137,17 @@ namespace Basis.Scripts.Networking.Receivers
                             );
                         }
                     }
-                    Player.AvatarTransform.localScale = ApplyingScale;
+
+                    // If you DID NOT provide a TransformAccessArray to the driver via SetAvatarTransformList,
+                    // you can set localScale here on main thread:
+                    // Player.AvatarTransform.localScale = new Vector3(applyingScale.x, applyingScale.y, applyingScale.z);
+
+                    // HumanPoseHandler must stay on main thread
                     PoseHandler.SetHumanPose(ref HumanPose);
                 }
             }
         }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static void Memcpy95(float[] src, float[] dst)
         {
@@ -159,9 +161,14 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             }
         }
+
         public static float3 SafeDivide(float3 a, float3 b, float epsilon = 1e-5f)
         {
-            return new float3(math.abs(b.x) > epsilon ? a.x / b.x : a.x, math.abs(b.y) > epsilon ? a.y / b.y : a.y, math.abs(b.z) > epsilon ? a.z / b.z : a.z);
+            return new float3(
+                math.abs(b.x) > epsilon ? a.x / b.x : a.x,
+                math.abs(b.y) > epsilon ? a.y / b.y : a.y,
+                math.abs(b.z) > epsilon ? a.z / b.z : a.z
+            );
         }
 
         /// <summary>
@@ -171,6 +178,7 @@ namespace Basis.Scripts.Networking.Receivers
         {
             PayloadQueue.Enqueue(avatarBuffer);
         }
+
         public override void Initialize()
         {
             RemotePlayer = (BasisRemotePlayer)Player;
@@ -187,10 +195,12 @@ namespace Basis.Scripts.Networking.Receivers
             BufferHolder.ClearAndRelease();
             interpolationTime = 0f;
         }
+
         public void OnCalibration()
         {
-            Player.BasisAvatar.AnimatorHumanScale = Vector3.one / Player.BasisAvatar.Animator.humanScale;
+
             AudioReceiverModule.AvatarChanged(this);
+
             // Track which keys got successfully sent
             List<byte> keysToRemove = new List<byte>();
 
@@ -233,6 +243,7 @@ namespace Basis.Scripts.Networking.Receivers
                 NextMessages.Remove(key);
             }
         }
+
         /// <summary>
         /// Determines if a given avatar index is "in the past" relative to the current.
         /// Handles wrap-around since AvatarLinkIndex is a byte (0-255).
@@ -245,10 +256,12 @@ namespace Basis.Scripts.Networking.Receivers
             // If diff is between 1 and 127, then it's behind (old)
             return diff > 0 && diff < 128;
         }
+
         public override void DeInitialize()
         {
-            //no need we pump data always before requesting so its not a necessary step
-            //BasisRemoteNetworkDriver.ResetIndex(playerId);
+            // no need we pump data always before requesting so its not a necessary step
+            // BasisRemoteNetworkDriver.ResetIndex(playerId);
+
             BufferHolder.ClearAndRelease();
             if (_staged != null)
             {
@@ -465,7 +478,7 @@ namespace Basis.Scripts.Networking.Receivers
             // Muscles
             if (!IsValidMuscleArray(buf.Muscles))
             {
-                // Replace with shared zeros to keep pose valid; we still accept the frame
+                // Replace with a zeroed buffer to keep pose valid; we still accept the frame.
                 buf.Muscles = new NativeArray<float>(95, Allocator.Persistent);
             }
             return true;
