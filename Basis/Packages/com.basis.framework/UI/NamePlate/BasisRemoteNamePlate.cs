@@ -1,23 +1,16 @@
-using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
-using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections;
-using System.Collections.Generic;
 using TMPro;
-using Unity.Burst;
-using Unity.Collections;
 using Unity.Jobs;
-using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Jobs;
 namespace Basis.Scripts.UI.NamePlate
 {
-    public partial class BasisRemoteNamePlate : BasisInteractableObject
+    public class BasisRemoteNamePlate : BasisInteractableObject
     {
         public SpriteRenderer LoadingBar;
         public MeshFilter Filter;
@@ -35,6 +28,8 @@ namespace Basis.Scripts.UI.NamePlate
         public Color CurrentColor;
         public Transform Self;
         public float InteractRange = 2f;
+        public static JobHandle NamePlateBatch;
+        public static bool HasScheduledNamePlateBatch;
         /// <summary>
         /// can only be called once after that the text is nuked and a mesh render is just used with a filter
         /// </summary>
@@ -55,11 +50,23 @@ namespace Basis.Scripts.UI.NamePlate
             LoadingText.enableVertexGradient = false;
 
             var BoneDriver = RemotePlayer.RemoteBoneDriver;
-            RemotePlayer.RemotePlayerDataIndex = BasisRemoteNamePlateBatchDriver.AllocateDataRow(BoneDriver.Hips.Outgoing.position, BoneDriver.DifferencebetweenHipAndHead);
+
+            if(HasScheduledNamePlateBatch)
+            {
+                NamePlateBatch.Complete();
+                HasScheduledNamePlateBatch = false;
+            }
+
+            RemotePlayer.RemotePlayerDataIndex = BasisRemoteNamePlateBatchDriver.AllocateDataRow(new Unity.Mathematics.float4(BoneDriver.Hips.Outgoing.position, BoneDriver.DifferencebetweenHipAndHead));
             BasisRemoteNamePlateBatchDriver.AddNameplate(Self, RemotePlayer.RemotePlayerDataIndex);
         }
         public void DeInitalize()
         {
+            if (HasScheduledNamePlateBatch)
+            {
+                NamePlateBatch.Complete();
+                HasScheduledNamePlateBatch = false;
+            }
             BasisRemoteNamePlateBatchDriver.RemoveNameplateAt(BasisRemotePlayer.RemotePlayerDataIndex);
             BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport -= ProgressReport;
             BasisRemotePlayer.AudioReceived -= OnAudioReceived;

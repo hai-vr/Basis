@@ -2,16 +2,14 @@ using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
+using Basis.Scripts.UI.NamePlate;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
-using System.Threading.Tasks;
-using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
-using static Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate;
 using static SerializableBasis;
 namespace Basis.Scripts.Networking
 {
@@ -34,7 +32,6 @@ namespace Basis.Scripts.Networking
         public static Action OnEnableInstanceCreate;
         public static InstantiationParameters instantiationParameters;
         public static int mainThreadId;
-
         private void OnEnable()
         {
             if (!BasisHelpers.CheckInstance(Instance))
@@ -57,7 +54,6 @@ namespace Basis.Scripts.Networking
         }
         // --- Public wrappers (nice, tiny face for UI buttons/inspector) ----
         public void Connect() => BasisNetworkConnection.Connect(Port, Ip, Password, IsHostMode);
-        public static JobHandle NamePlateBatch;
         // Simulation ticks stay here; they call into players/driver
         public static void SimulateNetworkCompute()
         {
@@ -72,12 +68,12 @@ namespace Basis.Scripts.Networking
                 //if the remote players nameplate is visible update input data.
                 if (RemotePlayer.RemoteNamePlate.IsVisible)
                 {
-                    BasisRemoteNamePlateBatchDriver.UpdateDataRow(RemotePlayer.RemotePlayerDataIndex, BoneDriver.Hips.Outgoing.position, BoneDriver.DifferencebetweenHipAndHead);
+                    BasisRemoteNamePlateBatchDriver.UpdateDataRow(RemotePlayer.RemotePlayerDataIndex, new Unity.Mathematics.float4(BoneDriver.Hips.Outgoing.position, BoneDriver.DifferencebetweenHipAndHead));
                 }
                 snapshot[Index].Compute();
             }
-            NamePlateBatch = BasisRemoteNamePlateBatchDriver.Schedule();
-
+            BasisRemoteNamePlate.NamePlateBatch = BasisRemoteNamePlateBatchDriver.Schedule();
+            BasisRemoteNamePlate.HasScheduledNamePlateBatch = true;
             BasisRemoteNetworkDriver.Compute();
             BasisNetworkProfiler.Update();
         }
@@ -93,7 +89,11 @@ namespace Basis.Scripts.Networking
             {
                 snapshot[Index].Apply();
             }
-            NamePlateBatch.Complete();
+            if (BasisRemoteNamePlate.HasScheduledNamePlateBatch)
+            {
+                BasisRemoteNamePlate.NamePlateBatch.Complete();
+                BasisRemoteNamePlate.HasScheduledNamePlateBatch = false;
+            }
             BasisAudioTransformDriver.BeginFrame();
             BasisAudioTransformDriver.EndFrame();
         }

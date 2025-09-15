@@ -3,6 +3,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Transmitters;
+using Basis.Scripts.UI.NamePlate;
 using GatorDragonGames.JigglePhysics;
 using UnityEngine;
 using UnityEngine.InputSystem;
