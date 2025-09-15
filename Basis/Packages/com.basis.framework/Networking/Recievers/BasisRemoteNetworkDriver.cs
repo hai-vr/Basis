@@ -256,23 +256,36 @@ public static partial class BasisRemoteNetworkDriver
     /// <summary>
     /// Read back the computed outputs for an index after Apply().
     /// </summary>
-    public static bool GetOutputs( int index, out float3 outPos, out float3 outScale, out quaternion outRot,ref float[] outMuscles) // length == MuscleCount
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool GetOutputs_NoAlloc(
+           int index,
+           out float3 outPos,
+           out float3 outScale,
+           out quaternion outRot,
+           float[] outMuscles /* must be length == _muscleCount */)
     {
-        EnsureInitialized();
-        outPos = default;
-        outScale = default;
-        outRot = default;
-
+        // minimal guards; no allocations
+        outPos = default; outScale = default; outRot = default;
         if ((uint)index >= FixedCapacity) return false;
-        if (outMuscles == null || outMuscles.Length < _muscleCount)
-            outMuscles = new float[_muscleCount];
+        if (outMuscles == null || outMuscles.Length != _muscleCount) return false;
 
         outPos = _outPositions[index];
         outScale = _outScales[index];
         outRot = _outRotations[index];
 
         int baseOffset = index * _muscleCount;
-        NativeArray<float>.Copy(euroValuesOutput, baseOffset, outMuscles, 0, _muscleCount);
+
+        unsafe
+        {
+            // source: NativeArray<float> (contiguous)
+            float* src = (float*)euroValuesOutput.GetUnsafeReadOnlyPtr() + baseOffset;
+
+            // dest: managed float[] pinned just for the copy
+            fixed (float* dst = outMuscles)
+            {
+                UnsafeUtility.MemCpy(dst, src, _muscleCount * sizeof(float));
+            }
+        }
         return true;
     }
     /// <summary>

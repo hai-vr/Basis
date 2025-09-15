@@ -112,7 +112,7 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (BufferHolder.HasFirst && BufferHolder.HasLast)
             {
-                if (BasisRemoteNetworkDriver.GetOutputs(playerId, out ApplyingPosition, out ApplyingScale, out ApplyingRotation, ref Muscles))
+                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out ApplyingPosition, out ApplyingScale, out ApplyingRotation, Muscles))
                 {
                     ApplyComputedData();
                 }
