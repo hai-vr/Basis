@@ -1,3 +1,4 @@
+using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
@@ -6,12 +7,17 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Jobs;
 namespace Basis.Scripts.UI.NamePlate
 {
-    public class BasisRemoteNamePlate : BasisInteractableObject
+    public partial class BasisRemoteNamePlate : BasisInteractableObject
     {
         public SpriteRenderer LoadingBar;
         public MeshFilter Filter;
@@ -33,14 +39,13 @@ namespace Basis.Scripts.UI.NamePlate
         /// can only be called once after that the text is nuked and a mesh render is just used with a filter
         /// </summary>
         /// <param name="hipTarget"></param>
-        /// <param name="basisRemotePlayer"></param>
-        public void Initalize(BasisRemotePlayer basisRemotePlayer)
+        /// <param name="RemotePlayer"></param>
+        public void Initalize(BasisRemotePlayer RemotePlayer)
         {
             cachedReturnDelay = new WaitForSeconds(BasisRemoteNamePlateDriver.returnDelay);
             cachedEndOfFrame = new WaitForEndOfFrame();
-            BasisRemotePlayer = basisRemotePlayer;
+            BasisRemotePlayer = RemotePlayer;
             BasisRemotePlayer.RemoteNamePlate = this;
-            BasisRemotePlayer.HasRemoteNamePlate = true;
             BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport += ProgressReport;
             BasisRemotePlayer.AudioReceived += OnAudioReceived;
             BasisRemotePlayer.OnAvatarSwitched += RebuildRenderCheck;
@@ -49,6 +54,16 @@ namespace Basis.Scripts.UI.NamePlate
             BasisRemoteNamePlateDriver.Instance.GenerateTextFactory(BasisRemotePlayer, this);
             LoadingText.enableVertexGradient = false;
 
+            var BoneDriver = RemotePlayer.RemoteBoneDriver;
+            RemotePlayer.RemotePlayerDataIndex = BasisRemoteNamePlateBatchDriver.AllocateDataRow(BoneDriver.Hips.Outgoing.position, BoneDriver.DifferencebetweenHipAndHead);
+            BasisRemoteNamePlateBatchDriver.AddNameplate(Self, RemotePlayer.RemotePlayerDataIndex);
+        }
+        public void DeInitalize()
+        {
+            BasisRemoteNamePlateBatchDriver.RemoveNameplateAt(BasisRemotePlayer.RemotePlayerDataIndex);
+            BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport -= ProgressReport;
+            BasisRemotePlayer.AudioReceived -= OnAudioReceived;
+            DeInitalizeCallToRender();
         }
         public void RebuildRenderCheck()
         {
@@ -143,13 +158,6 @@ namespace Basis.Scripts.UI.NamePlate
             yield return cachedReturnDelay;
             yield return StartCoroutine(TransitionColor(BasisRemoteNamePlateDriver.StaticNormalColor));
             returnToNormalCoroutine = null;
-        }
-        public new void OnDestroy()
-        {
-            BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport -= ProgressReport;
-            BasisRemotePlayer.AudioReceived -= OnAudioReceived;
-            DeInitalizeCallToRender();
-            base.OnDestroy();
         }
         public void DeInitalizeCallToRender()
         {
@@ -307,20 +315,6 @@ namespace Basis.Scripts.UI.NamePlate
         {
             // click or mostly triggered
             return input.CurrentInputState.Trigger >= 0.9;
-        }
-        public const float x = 0;
-        public const float z = 0;
-        public static Vector3 dirToCamera;
-        public static Vector3 cachedDirection;
-        public static float YHeightMultiplier = 1.25f;
-        public void Simulate()
-        {
-            cachedDirection = BasisRemotePlayer.RemoteBoneDriver.GetHipsPosition().position;
-            cachedDirection.y += BasisRemotePlayer.RemoteBoneDriver.GetMouthTposePosition().y / YHeightMultiplier;
-            dirToCamera = BasisLocalCameraDriver.Position - cachedDirection;
-          //  Self.SetPositionAndRotation(cachedDirection, Quaternion.Euler(x, math.atan2(dirToCamera.x, dirToCamera.z) * Mathf.Rad2Deg, z));
-
-            BasisAudioTransformDriver.EnqueueSet(Self, cachedDirection, Quaternion.Euler(x, math.atan2(dirToCamera.x, dirToCamera.z) * Mathf.Rad2Deg, z));
         }
     }
 }

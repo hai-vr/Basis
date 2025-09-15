@@ -27,7 +27,6 @@ namespace Basis.Scripts.BasisSdk.Players
         [Header("Name Plate")]
         [SerializeField]
         public BasisRemoteNamePlate RemoteNamePlate = null;
-        public bool HasRemoteNamePlate = false;
         public bool OutOfRangeFromLocal = false;
         public ClientAvatarChangeMessage CACM;
         public bool InAvatarRange = true;
@@ -35,6 +34,7 @@ namespace Basis.Scripts.BasisSdk.Players
         [HideInInspector]
         public BasisLoadableBundle AlwaysRequestedAvatar;
         public static GameObject NamePlate;
+        public int RemotePlayerDataIndex;
         /// <summary>
         /// we are leaking this memory atm!
         /// </summary>
@@ -148,6 +148,7 @@ namespace Basis.Scripts.BasisSdk.Players
             }
             if (RemoteNamePlate != null)
             {
+                RemoteNamePlate.DeInitalize();
                 AddressableResourceProcess.ReleaseGameobject(RemoteNamePlate.gameObject);
             }
         }

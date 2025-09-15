@@ -239,6 +239,11 @@ namespace Basis.Scripts.BasisSdk.Players
 
         public void SimulateOnRender(float DeltaTime)
         {
+
+            //now lets move the local player position.
+            LocalCharacterDriver.SimulateMovement(DeltaTime);
+
+
             //moves all bones to where they belong
             LocalBoneDriver.SimulateAndApply(this, DeltaTime);
 
@@ -252,9 +257,6 @@ namespace Basis.Scripts.BasisSdk.Players
             //then
             //process Animator and IK processes.
             LocalRigDriver.SimulateIKDestinations(DeltaTime);
-
-            //now lets move the local player position.
-            LocalCharacterDriver.SimulateMovement(DeltaTime);
 
             //now that everything has been processed lets update WorldPosition in BoneDriver.
             //this is so AfterFinalMove can use world position coords. (stops Laggy pickups)

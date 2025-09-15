@@ -6,6 +6,7 @@ using Basis.Scripts.Networking.Transmitters;
 using GatorDragonGames.JigglePhysics;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using static Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate;
 public class BasisEventDriver : MonoBehaviour
 {
     public float updateInterval = 0.1f; // 100 milliseconds
@@ -24,11 +25,13 @@ public class BasisEventDriver : MonoBehaviour
 #endif
         BasisSceneFactory.Initalize();
         BasisObjectSyncDriver.Initalization();
+        BasisRemoteNamePlateBatchDriver.Initialize();
     }
     public void OnDestroy()
     {
         BasisObjectSyncDriver.OnDestroy();
         Application.onBeforeRender -= OnBeforeRender;
+        BasisRemoteNamePlateBatchDriver.Dispose();
     }
     public void OnDisable()
     {
@@ -69,7 +72,7 @@ public class BasisEventDriver : MonoBehaviour
     {
         TimeAsDouble = Time.timeAsDouble;
         BasisSceneFactory.Simulate();
-        JigglePhysics.ScheduleSimulate(TimeAsDouble, Time.fixedTimeAsDouble, Time.fixedDeltaTime);
+        JigglePhysics.ScheduleSimulate(TimeAsDouble, Time.fixedDeltaTime);
     }
     public void LateUpdate()
     {

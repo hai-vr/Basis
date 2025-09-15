@@ -104,6 +104,7 @@ namespace Basis.Scripts.Drivers
             b.TposeLocalScaled.position = b.TposeLocal.position;
             b.TposeLocalScaled.rotation = b.TposeLocal.rotation;
         }
+        public float DifferencebetweenHipAndHead => Mouth.TposeLocalScaled.position.y - Hips.TposeLocalScaled.position.y;
         /// <summary>
         /// Apply the lock chain, with optional non-uniform scale for avatar space.
         /// Call every frame after you’ve updated Head.Incoming (and optionally others).

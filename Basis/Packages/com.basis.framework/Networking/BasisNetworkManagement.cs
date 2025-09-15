@@ -8,8 +8,10 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
+using static Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate;
 using static SerializableBasis;
 namespace Basis.Scripts.Networking
 {
@@ -55,17 +57,26 @@ namespace Basis.Scripts.Networking
         }
         // --- Public wrappers (nice, tiny face for UI buttons/inspector) ----
         public void Connect() => BasisNetworkConnection.Connect(Port, Ip, Password, IsHostMode);
-
+        public static JobHandle NamePlateBatch;
         // Simulation ticks stay here; they call into players/driver
         public static void SimulateNetworkCompute()
         {
             if (!NetworkRunning) return;
 
             var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
+
             for (int Index = 0; Index < snapshot.Length; Index++)
             {
-                snapshot[Index]?.Compute();
+                var RemotePlayer = snapshot[Index].RemotePlayer;
+                var BoneDriver = RemotePlayer.RemoteBoneDriver;
+                //if the remote players nameplate is visible update input data.
+                if (RemotePlayer.RemoteNamePlate.IsVisible)
+                {
+                    BasisRemoteNamePlateBatchDriver.UpdateDataRow(RemotePlayer.RemotePlayerDataIndex, BoneDriver.Hips.Outgoing.position, BoneDriver.DifferencebetweenHipAndHead);
+                }
+                snapshot[Index].Compute();
             }
+            NamePlateBatch = BasisRemoteNamePlateBatchDriver.Schedule();
 
             BasisRemoteNetworkDriver.Compute();
             BasisNetworkProfiler.Update();
@@ -80,9 +91,9 @@ namespace Basis.Scripts.Networking
             var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
             for (int Index = 0; Index < snapshot.Length; Index++)
             {
-                snapshot[Index]?.Apply();
+                snapshot[Index].Apply();
             }
-
+            NamePlateBatch.Complete();
             BasisAudioTransformDriver.BeginFrame();
             BasisAudioTransformDriver.EndFrame();
         }

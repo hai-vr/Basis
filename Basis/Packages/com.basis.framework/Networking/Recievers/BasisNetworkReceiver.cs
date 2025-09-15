@@ -160,11 +160,6 @@ namespace Basis.Scripts.Networking.Receivers
                //AudioReceiverModule.AudioSourceTransform.SetPositionAndRotation(outgoing.position, outgoing.rotation);
                 BasisAudioTransformDriver.EnqueueSet(AudioReceiverModule.AudioSourceTransform, outgoing.position, outgoing.rotation);
             }
-
-            if (RemotePlayer.HasRemoteNamePlate)
-            {
-                RemotePlayer.RemoteNamePlate.Simulate();
-            }
         }
 
         public static float3 SafeDivide(float3 a, float3 b, float epsilon = 1e-5f)
