@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Helpers;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
 using Basis.Scripts.UI.NamePlate;
@@ -68,7 +69,7 @@ namespace Basis.Scripts.Networking
                 //if the remote players nameplate is visible update input data.
                 if (RemotePlayer.RemoteNamePlate.IsVisible)
                 {
-                    BasisRemoteNamePlateBatchDriver.UpdateDataRow(RemotePlayer.RemotePlayerDataIndex, new Unity.Mathematics.float4(BoneDriver.Hips.Outgoing.position, BoneDriver.DifferencebetweenHipAndHead));
+                    BasisRemoteNamePlateBatchDriver.UpdateDataRow(RemotePlayer.RemotePlayerDataIndex, new Unity.Mathematics.float4(BoneDriver.GetOutgoingPosition(BasisRemoteBoneDriver.Hips), BoneDriver.DifferencebetweenHipAndHead));
                 }
                 snapshot[Index].Compute();
             }

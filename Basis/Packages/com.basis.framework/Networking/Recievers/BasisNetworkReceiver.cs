@@ -156,9 +156,10 @@ namespace Basis.Scripts.Networking.Receivers
 
             if (AudioReceiverModule.HasTransform)
             {
-                var outgoing = RemotePlayer.RemoteBoneDriver.GetMouthPosition();
-               //AudioReceiverModule.AudioSourceTransform.SetPositionAndRotation(outgoing.position, outgoing.rotation);
-                BasisAudioTransformDriver.EnqueueSet(AudioReceiverModule.AudioSourceTransform, outgoing.position, outgoing.rotation);
+                var MouthPosition = RemotePlayer.RemoteBoneDriver.GetMouthPosition();
+                var MouthRotation = RemotePlayer.RemoteBoneDriver.GetMouthRotation();
+                //AudioReceiverModule.AudioSourceTransform.SetPositionAndRotation(outgoing.position, outgoing.rotation);
+                BasisAudioTransformDriver.EnqueueSet(AudioReceiverModule.AudioSourceTransform, MouthPosition, MouthRotation);
             }
         }
 

@@ -57,7 +57,7 @@ namespace Basis.Scripts.UI.NamePlate
                 HasScheduledNamePlateBatch = false;
             }
 
-            RemotePlayer.RemotePlayerDataIndex = BasisRemoteNamePlateBatchDriver.AllocateDataRow(new Unity.Mathematics.float4(BoneDriver.Hips.Outgoing.position, BoneDriver.DifferencebetweenHipAndHead));
+            RemotePlayer.RemotePlayerDataIndex = BasisRemoteNamePlateBatchDriver.AllocateDataRow(new Unity.Mathematics.float4(0,0,0, BoneDriver.DifferencebetweenHipAndHead));
             BasisRemoteNamePlateBatchDriver.AddNameplate(Self, RemotePlayer.RemotePlayerDataIndex);
         }
         public void DeInitalize()
