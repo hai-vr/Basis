@@ -2,13 +2,13 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking;
+using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.UI.NamePlate;
 using GatorDragonGames.JigglePhysics;
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using static Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate;
 public class BasisEventDriver : MonoBehaviour
 {
     public float updateInterval = 0.1f; // 100 milliseconds
@@ -36,6 +36,7 @@ public class BasisEventDriver : MonoBehaviour
         Application.onBeforeRender -= OnBeforeRender;
         BasisRemoteNamePlateBatchDriver.Dispose();
         RemoteBoneJobSystem.Dispose();
+        BasisAvatarBufferPool.DeInitalize();
     }
     public void OnDisable()
     {

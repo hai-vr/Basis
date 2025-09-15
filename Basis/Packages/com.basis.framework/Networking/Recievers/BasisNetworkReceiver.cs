@@ -4,6 +4,7 @@ using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
@@ -90,7 +91,7 @@ namespace Basis.Scripts.Networking.Receivers
                     {
                         BasisDebug.LogWarning("BasisNetworkReceiver: First frame muscles were null/invalid; using zeros.");
                     }
-                    prevMuscles = ZeroMuscles;
+                    prevMuscles = new NativeArray<float>(95, Allocator.Persistent);
                 }
 
                 if (!IsValidMuscleArray(targetMuscles))
@@ -99,7 +100,7 @@ namespace Basis.Scripts.Networking.Receivers
                     {
                         BasisDebug.LogWarning("BasisNetworkReceiver: Last frame muscles were null/invalid; using zeros.");
                     }
-                    targetMuscles = ZeroMuscles;
+                    targetMuscles = new NativeArray<float>(95, Allocator.Persistent);
                 }
 
                 // Feed driver
@@ -148,7 +149,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         public static float3 SafeDivide(float3 a, float3 b, float epsilon = 1e-5f)
         {
-            return new float3( math.abs(b.x) > epsilon ? a.x / b.x : a.x, math.abs(b.y) > epsilon ? a.y / b.y : a.y, math.abs(b.z) > epsilon ? a.z / b.z : a.z);
+            return new float3(math.abs(b.x) > epsilon ? a.x / b.x : a.x, math.abs(b.y) > epsilon ? a.y / b.y : a.y, math.abs(b.z) > epsilon ? a.z / b.z : a.z);
         }
 
         /// <summary>
@@ -234,8 +235,8 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public override void DeInitialize()
         {
-          //no need we pump data always before requesting so its not a necessary step
-          //BasisRemoteNetworkDriver.ResetIndex(playerId);
+            //no need we pump data always before requesting so its not a necessary step
+            //BasisRemoteNetworkDriver.ResetIndex(playerId);
             BufferHolder.ClearAndRelease();
             if (_staged != null)
             {
@@ -441,6 +442,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         // ---------- Validation / Fixup helpers ----------
 
+        private static bool IsValidMuscleArray(NativeArray<float> arr) => arr != null && arr.Length >= 95;
         private static bool IsValidMuscleArray(float[] arr) => arr != null && arr.Length >= 95;
 
         /// <summary>
@@ -453,7 +455,7 @@ namespace Basis.Scripts.Networking.Receivers
             if (!IsValidMuscleArray(buf.Muscles))
             {
                 // Replace with shared zeros to keep pose valid; we still accept the frame
-                buf.Muscles = ZeroMuscles;
+                buf.Muscles = new NativeArray<float>(95, Allocator.Persistent);
             }
             return true;
         }

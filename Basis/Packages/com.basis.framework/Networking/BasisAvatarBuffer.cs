@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.Collections;
 using Unity.Mathematics;
 
 namespace Basis.Scripts.Networking.NetworkedAvatar
@@ -9,15 +10,19 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public quaternion rotation = new quaternion(0, 0, 0, 1);
         public float3 Scale = new float3(1, 1, 1);
         public float3 Position = new float3(0, 0, 0);
-        public float[] Muscles = new float[95];
+        public NativeArray<float> Muscles;
         public double SecondsInterval = 0.01;
 
         // Initialize method for pooling
         public void Initialize()
         {
-            if (Muscles == null || Muscles.Length != 95)
+            if (Muscles == null || Muscles.IsCreated == false || Muscles.Length != 95)
             {
-                Muscles = new float[95];
+                if (Muscles != null && Muscles.IsCreated)
+                {
+                    Muscles.Dispose();
+                }
+                Muscles = new NativeArray<float>(95, Allocator.Persistent);
             }
             rotation = quaternion.identity;
             Scale = new float3(1f, 1f, 1f);
@@ -50,6 +55,17 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             item.Initialize(); // reset before pooling
             _pool.Push(item);
             item = default; // optional: avoid accidental use after release
+        }
+        public static void DeInitalize()
+        {
+            while (_pool.Count > 0)
+            {
+                var dataset = _pool.Pop();
+                if (dataset.Muscles.IsCreated)
+                {
+                    dataset.Muscles.Dispose();
+                }
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Profiler;
 using System;
+using Unity.Collections;
 using Unity.Mathematics;
 using static SerializableBasis;
 namespace Basis.Scripts.Networking.NetworkedAvatar
@@ -94,12 +95,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             return math.normalize(q);
         }
         private static bool IsFinite(Unity.Mathematics.float3 v) => math.isfinite(v.x) && math.isfinite(v.y) && math.isfinite(v.z);
-        public static void DecompressAvatarMuscles_NoLoop(byte[] data, ref float[] floatArray, ref int offset)
+        public static void DecompressAvatarMuscles_NoLoop(byte[] data, ref NativeArray<float> outputArray, ref int offset)
         {
             int dataPos = offset;
 
+            float[] floatArray = outputArray.ToArray();
             // Sections in the same order as the original method
-            DecompressSpineChestHead(data, ref dataPos, floatArray);
+            DecompressSpineChestHead(data, ref dataPos, ref floatArray);
 
             // no need to put this data on the network! 6 in total (saves between 6 and 16 bytes)
             //DecompressEyesJaw(data, ref dataPos, floatArray); // (intentionally skipped as in original)
@@ -112,12 +114,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             DecompressRightHandFingers(data, ref dataPos, floatArray);
 
             offset = dataPos;
+            outputArray.CopyFrom(floatArray);
         }
-
         // ----------------------
         // Section: Spine/Chest/Head
         // ----------------------
-        private static void DecompressSpineChestHead(byte[] data, ref int dataPos, float[] floatArray)
+        private static void DecompressSpineChestHead(byte[] data, ref int dataPos,ref float[] floatArray)
         {
             ReadCompressed(data, ref dataPos, 0, false, floatArray); // Spine Front-Back: Range 80
             ReadCompressed(data, ref dataPos, 1, false, floatArray); // Spine Left-Right: Range 80

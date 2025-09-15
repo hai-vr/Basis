@@ -1,6 +1,8 @@
 using Basis.Scripts.Networking;
 using System;
+using System.Runtime.CompilerServices;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -121,18 +123,11 @@ public static partial class BasisRemoteNetworkDriver
     /// Write inputs for a given index (0..FixedCapacity-1) for this frame.
     /// You manage indices yourself; this driver never resizes or re-maps.
     /// </summary>
-    public static void SetInputs( int index, float3 prevPos, float3 targetPos, float3 prevScale, float3 targetScale,
-    quaternion prevRot, quaternion targetRot,float interpolationTime, float[] prevMuscles, float[] targetMuscles)
+    public static void SetInputs(int index, float3 prevPos, float3 targetPos, float3 prevScale, float3 targetScale, quaternion prevRot, quaternion targetRot, float interpolationTime, NativeArray<float> prevMuscles, NativeArray<float> targetMuscles)
     {
         EnsureInitialized();
         if ((uint)index >= FixedCapacity)
             throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
-
-        if (prevMuscles == null || targetMuscles == null)
-            throw new ArgumentNullException("prevMuscles/targetMuscles must be non-null arrays");
-
-        if (prevMuscles.Length < _muscleCount || targetMuscles.Length < _muscleCount)
-            throw new ArgumentException($"prevMuscles/targetMuscles must have length >= {_muscleCount}");
 
         _prevPositions[index] = prevPos;
         _targetPositions[index] = targetPos;
@@ -144,12 +139,19 @@ public static partial class BasisRemoteNetworkDriver
 
         // Flattened write: [index * MuscleCount .. (index+1) * MuscleCount)
         int baseOffset = index * _muscleCount;
-
-        NativeArray<float>.Copy(prevMuscles, 0, _prevMuscles, baseOffset, _muscleCount);
-        NativeArray<float>.Copy(targetMuscles, 0, _targetMuscles, baseOffset, _muscleCount);
+        FastCopyMuscles(prevMuscles, 0, _prevMuscles, baseOffset, _muscleCount);
+        FastCopyMuscles(targetMuscles, 0, _targetMuscles, baseOffset, _muscleCount);
 
         // Advance active count if needed
         if (index + 1 > _activeCount) _activeCount = index + 1;
+    }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static unsafe void FastCopyMuscles(NativeArray<float> src, int srcStart,NativeArray<float> dst, int dstStart,int count)
+    {
+        var bytes = (long)count * sizeof(float);
+        var srcPtr = (byte*)src.GetUnsafeReadOnlyPtr() + (long)srcStart * sizeof(float);
+        var dstPtr = (byte*)dst.GetUnsafePtr() + (long)dstStart * sizeof(float);
+        UnsafeUtility.MemCpy(dstPtr, srcPtr, bytes);
     }
 
     /// <summary>
@@ -254,10 +256,7 @@ public static partial class BasisRemoteNetworkDriver
     /// <summary>
     /// Read back the computed outputs for an index after Apply().
     /// </summary>
-    public static bool GetOutputs(
-        int index,
-        out float3 outPos, out float3 outScale, out quaternion outRot,
-        ref float[] outMuscles) // length == MuscleCount
+    public static bool GetOutputs( int index, out float3 outPos, out float3 outScale, out quaternion outRot,ref float[] outMuscles) // length == MuscleCount
     {
         EnsureInitialized();
         outPos = default;
