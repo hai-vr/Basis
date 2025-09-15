@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Transmitters;
@@ -127,8 +128,9 @@ namespace Basis.Scripts.Networking
         {
             BasisDebug.Log("Success! Now setting up Networked Local Player");
 
-            BasisNetworkManagement.MainThreadContext?.Post(_ =>
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
+                BasisDebug.Log("PeerConnectedEvent On MainThread");
                 try
                 {
                     LocalPlayerPeer = peer;
@@ -179,15 +181,14 @@ namespace Basis.Scripts.Networking
                     }
                     BasisDebug.LogError($"Error setting up the local player: {ex.Message} {ex.StackTrace}");
                 }
-            }, null);
+            });
         }
         public static void HandleDisconnection(NetPeer peer, DisconnectInfo disconnectInfo)
         {
-            BasisNetworkManagement.MainThreadContext?.Post(async _ =>
+            BasisDeviceManagement.EnqueueOnMainThread(async () =>
             {
                 await BasisNetworkLifeCycle.RebootManagement(BasisNetworkManagement.Instance, true, peer, disconnectInfo);
-            },
-            null);
+            });
         }
     }
 }

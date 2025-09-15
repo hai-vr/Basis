@@ -366,7 +366,11 @@ namespace Basis.Scripts.Device_Management
 
         public static void EnqueueOnMainThread(Action action)
         {
-            if (action == null) return;
+            if (action == null)
+            {
+                BasisDebug.LogError("Missing Main Thread Message Enqueue");
+                return;
+            }
             mainThreadActions.Enqueue(action);
             hasPendingActions = true;
         }

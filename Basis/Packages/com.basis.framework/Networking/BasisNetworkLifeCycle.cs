@@ -27,8 +27,6 @@ public static class BasisNetworkLifeCycle
         BasisNetworkManagement.instantiationParameters = new InstantiationParameters(Vector3.zero, Quaternion.identity, BasisDeviceManagement.Instance.transform);
         BasisMuscleRange.Initalize();
 
-        BasisNetworkManagement.MainThreadContext = SynchronizationContext.Current;
-
         // Reset & initialize metadata defaults
         BasisNetworkPlayers.ClearAllRegistries(); // new: central place
         BasisNetworkManagement.ServerMetaDataMessage = new ServerMetaDataMessage
@@ -127,7 +125,6 @@ public static class BasisNetworkLifeCycle
         BasisNetworkPlayer.OnLocalPlayerLeft = null;
         BasisNetworkPlayer.OnRemotePlayerLeft = null;
         BasisNetworkManagement.OnEnableInstanceCreate = null;
-        BasisNetworkManagement.MainThreadContext = null;
         BasisNetworkConnection.LocalPlayerPeer = null;
         BasisNetworkManagement.OnRequestServerSideDatabaseItem = null;
         Management.LocalAccessTransmitter = null;

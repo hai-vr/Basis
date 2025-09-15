@@ -140,23 +140,9 @@ namespace Basis.Scripts.Networking.Receivers
             else
             {
                 Array.Copy(MusclesLocal, HumanPose.muscles, 95);
-
-                // Eyes/Mouth overlay — only if we have enough space and source
-                if (HumanPose.muscles.Length >= (EyesAndMouthOffset + EyesAndMouthCount)
-                    && EyesAndMouth != null && EyesAndMouth.Length >= EyesAndMouthCount)
-                {
-                    Buffer.BlockCopy(EyesAndMouth, 0, HumanPose.muscles, EyeAndMouthSize, EyeAndMouthcount);
-                }
-            }
-
-            Player.AvatarTransform.localScale = ApplyingScale;
-            PoseHandler.SetHumanPose(ref HumanPose);
-
-            if (AudioReceiverModule.HasTransform)
-            {
-                var MouthPosition = RemoteBoneJobSystem.GetOutgoingPosition(playerId, BoneIdx.Mouth);
-                var MouthRotation = RemoteBoneJobSystem.GetOutgoingRotation(playerId, BoneIdx.Mouth);
-                BasisAudioTransformDriver.EnqueueSet(AudioReceiverModule.AudioSourceTransform, MouthPosition, MouthRotation);
+                Buffer.BlockCopy(EyesAndMouth, 0, HumanPose.muscles, EyeAndMouthSize, EyeAndMouthcount);
+                Player.AvatarTransform.localScale = ApplyingScale;
+                PoseHandler.SetHumanPose(ref HumanPose);
             }
         }
 

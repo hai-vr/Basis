@@ -114,7 +114,7 @@ namespace Basis.Scripts.UI.NamePlate
                 Color targetColor = BasisRemotePlayer.OutOfRangeFromLocal
                     ? hasRealAudio ? BasisRemoteNamePlateDriver.StaticOutOfRangeColor : BasisRemoteNamePlateDriver.StaticNormalColor
                     : hasRealAudio ? BasisRemoteNamePlateDriver.StaticIsTalkingColor : BasisRemoteNamePlateDriver.StaticNormalColor;
-                BasisNetworkManagement.MainThreadContext.Post(_ =>
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
                 {
                     if (this != null)
                     {
@@ -130,7 +130,7 @@ namespace Basis.Scripts.UI.NamePlate
                             }
                         }
                     }
-                }, null);
+                });
             }
         }
         private IEnumerator TransitionColor(Color targetColor)

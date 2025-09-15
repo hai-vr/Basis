@@ -36,7 +36,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public static BasisRangedUshortFloatData RotationCompression = new BasisRangedUshortFloatData(-1f, 1f, 0.001f);
         public const int MuscleCount = 95;
         [SerializeField]
-        public HumanPose HumanPose = new HumanPose() { muscles = new float[MuscleCount] };
+        public HumanPose HumanPose = new HumanPose()
+        {
+            muscles = new float[MuscleCount],
+             bodyPosition = Vector3.zero,
+              bodyRotation = Quaternion.identity,
+        };
         [SerializeField]
         public HumanPoseHandler PoseHandler;
         public BasisPlayer Player;
@@ -83,17 +88,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
             else
             {
-                if (BasisNetworkManagement.MainThreadContext == null)
-                {
-                    BasisDebug.LogError("Main thread context is not set. Ensure this script is started on the main thread.");
-                    return;
-                }
-
                 // Post the task to the main thread
-                BasisNetworkManagement.MainThreadContext.Post(_ =>
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
                 {
                     AvatarLoadComplete();
-                }, null);
+                });
             }
         }
         public int NetworkBehaviourCount = 0;

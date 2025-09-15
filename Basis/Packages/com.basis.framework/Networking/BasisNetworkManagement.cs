@@ -24,7 +24,6 @@ namespace Basis.Scripts.Networking
         [HideInInspector] public string Password = "default_password";
         public bool IsHostMode = false;
         public static BasisNetworkManagement Instance;
-        public static SynchronizationContext MainThreadContext;
         public static bool NetworkRunning;
         public static BasisNetworkTransmitter Transmitter;
         public static NetPeer LocalPlayerPeer => BasisNetworkConnection.LocalPlayerPeer;
@@ -88,7 +87,14 @@ namespace Basis.Scripts.Networking
             for (int Index = 0; Index < snapshot.Length; Index++)
             {
                 snapshot[Index].Apply();
+                if (snapshot[Index].AudioReceiverModule.HasTransform)
+                {
+                    var MouthPosition = RemoteBoneJobSystem.GetOutgoingPosition(snapshot[Index].playerId, BoneIdx.Mouth);
+                    var MouthRotation = RemoteBoneJobSystem.GetOutgoingRotation(snapshot[Index].playerId, BoneIdx.Mouth);
+                    BasisAudioTransformDriver.EnqueueSet(snapshot[Index].AudioReceiverModule.AudioSourceTransform, MouthPosition, MouthRotation);
+                }
             }
+
             if (BasisRemoteNamePlate.HasScheduledNamePlateBatch)
             {
                 BasisRemoteNamePlate.NamePlateBatch.Complete();

@@ -5,6 +5,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.UI.NamePlate;
 using GatorDragonGames.JigglePhysics;
+using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using static Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate;
@@ -47,6 +48,16 @@ public class BasisEventDriver : MonoBehaviour
     {
         DeltaTime = Time.deltaTime;
         TimeAsDouble = Time.timeAsDouble;
+
+        // Drain everything that arrived from worker threads
+        while (BasisDeviceManagement.mainThreadActions.TryDequeue(out System.Action action))
+        {
+            try { action.Invoke(); }
+            catch (Exception ex) { Debug.LogError($"MainThread action failed: {ex}"); }
+        }
+
+
+
         BasisNetworkManagement.SimulateNetworkCompute();
         BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
 
@@ -61,15 +72,6 @@ public class BasisEventDriver : MonoBehaviour
             timeSinceLastUpdate -= updateInterval; // Subtract interval instead of resetting to zero
             BasisConsoleLogger.QueryLogDisplay();
         }
-        if (!BasisDeviceManagement.hasPendingActions) return;
-
-        while (BasisDeviceManagement.mainThreadActions.TryDequeue(out System.Action action))
-        {
-            action.Invoke();
-        }
-
-        // Reset flag once all actions are executed
-        BasisDeviceManagement.hasPendingActions = !BasisDeviceManagement.mainThreadActions.IsEmpty;
     }
     public void FixedUpdate()
     {
