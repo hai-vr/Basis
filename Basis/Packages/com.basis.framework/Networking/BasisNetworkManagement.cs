@@ -72,7 +72,7 @@ namespace Basis.Scripts.Networking
             }
             BasisRemoteNetworkDriver.Compute();
             BasisNetworkProfiler.Update();
-            RemoteBoneJobSystem.Complete((dataIndex, hipsPos, diff) => {BasisRemoteNamePlateBatchDriver.UpdateDataRow(dataIndex, new Unity.Mathematics.float4(hipsPos, diff));},Handle: BoneJobSystem);
+            RemoteBoneJobSystem.Complete((dataIndex, hipsPos, diff) => {BasisRemoteNamePlateBatchDriver.UpdateDataRow(dataIndex, new Unity.Mathematics.float4(hipsPos, diff));},handle: BoneJobSystem);
             BasisRemoteNamePlate.HasScheduledNamePlateBatch = true;
             BasisRemoteNamePlate.NamePlateBatch = BasisRemoteNamePlateBatchDriver.Schedule();
         }
