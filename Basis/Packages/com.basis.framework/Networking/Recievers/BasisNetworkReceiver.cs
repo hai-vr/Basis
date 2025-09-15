@@ -4,7 +4,9 @@ using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
@@ -17,7 +19,7 @@ namespace Basis.Scripts.Networking.Receivers
         private const int EyesAndMouthOffset = 15; // starting muscle index for eyes/mouth
         private const int EyesAndMouthCount = 6;  // number of floats to copy
         public const int EyeAndMouthSize = EyesAndMouthOffset * sizeof(float); // bytes
-        public const int EyeAndMouthcount = EyesAndMouthCount * sizeof(float); // bytes
+        public const int EyeAndMountCountInBytes = EyesAndMouthCount * sizeof(float); // bytes
 
         /// <summary>
         /// If more than this many frames are queued, old frames will be dropped to catch up.
@@ -131,22 +133,36 @@ namespace Basis.Scripts.Networking.Receivers
             // Body transform
             HumanPose.bodyPosition = Vector3.Scale(ApplyingPosition, Scaling);
             HumanPose.bodyRotation = ApplyingRotation;
-
-            // Muscles (95)
-            if (!IsValidMuscleArray(HumanPose.muscles))
+            Memcpy95(MusclesLocal, HumanPose.muscles);
+            // Overlay eyes/mouth in one tiny copy (or a few assignments if the count is tiny)
+            unsafe
             {
-                // HumanPose.muscles must exist & be 95; if the engine ever gives us less, bail safely
-                BasisDebug.LogError("BasisNetworkReceiver: HumanPose.muscles is invalid; aborting muscle copy this frame.");
+                fixed (float* pDst = HumanPose.muscles)
+                fixed (float* pSrc = EyesAndMouth)
+                {
+                    UnsafeUtility.MemCpy(
+                        pDst + (EyeAndMouthSize / sizeof(float)),
+                        pSrc,
+                        EyeAndMountCountInBytes
+                    );
+                }
             }
-            else
+            Player.AvatarTransform.localScale = ApplyingScale;
+            PoseHandler.SetHumanPose(ref HumanPose);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static void Memcpy95(float[] src, float[] dst)
+        {
+            const int MuscleCount = 95;
+            unsafe
             {
-                Array.Copy(MusclesLocal, HumanPose.muscles, 95);
-                Buffer.BlockCopy(EyesAndMouth, 0, HumanPose.muscles, EyeAndMouthSize, EyeAndMouthcount);
-                Player.AvatarTransform.localScale = ApplyingScale;
-                PoseHandler.SetHumanPose(ref HumanPose);
+                fixed (float* pSrc = src)
+                fixed (float* pDst = dst)
+                {
+                    UnsafeUtility.MemCpy(pDst, pSrc, MuscleCount * sizeof(float));
+                }
             }
         }
-
         public static float3 SafeDivide(float3 a, float3 b, float epsilon = 1e-5f)
         {
             return new float3(math.abs(b.x) > epsilon ? a.x / b.x : a.x, math.abs(b.y) > epsilon ? a.y / b.y : a.y, math.abs(b.z) > epsilon ? a.z / b.z : a.z);
@@ -443,7 +459,6 @@ namespace Basis.Scripts.Networking.Receivers
         // ---------- Validation / Fixup helpers ----------
 
         private static bool IsValidMuscleArray(NativeArray<float> arr) => arr != null && arr.Length >= 95;
-        private static bool IsValidMuscleArray(float[] arr) => arr != null && arr.Length >= 95;
 
         /// <summary>
         /// Validates a buffer; attempts to repair fixable fields in-place.
