@@ -9,6 +9,7 @@ using LiteNetLib.Utils;
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
+using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using static SerializableBasis;
@@ -47,7 +48,7 @@ namespace Basis.Scripts.Networking
         }
         public async void OnDisable()
         {
-          await  BasisNetworkLifeCycle.Destroy(this);
+            await BasisNetworkLifeCycle.Destroy(this);
         }
         public static bool IsMainThread()
         {
@@ -56,27 +57,25 @@ namespace Basis.Scripts.Networking
         // --- Public wrappers (nice, tiny face for UI buttons/inspector) ----
         public void Connect() => BasisNetworkConnection.Connect(Port, Ip, Password, IsHostMode);
         // Simulation ticks stay here; they call into players/driver
+
+        public static JobHandle BoneJobSystem;
         public static void SimulateNetworkCompute()
         {
             if (!NetworkRunning) return;
 
             var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
-
+            BoneJobSystem = RemoteBoneJobSystem.Schedule();//will always be a frame behind! this should be ok.
             for (int Index = 0; Index < snapshot.Length; Index++)
             {
                 var RemotePlayer = snapshot[Index].RemotePlayer;
-                var BoneDriver = RemotePlayer.RemoteBoneDriver;
-                //if the remote players nameplate is visible update input data.
-                if (RemotePlayer.RemoteNamePlate.IsVisible)
-                {
-                    BasisRemoteNamePlateBatchDriver.UpdateDataRow(RemotePlayer.RemotePlayerDataIndex, new Unity.Mathematics.float4(BoneDriver.GetOutgoingPosition(BasisRemoteBoneDriver.Hips), BoneDriver.DifferencebetweenHipAndHead));
-                }
+                // Each frame, wherever you previously did the per-receiver Simulate/Apply:
                 snapshot[Index].Compute();
             }
-            BasisRemoteNamePlate.NamePlateBatch = BasisRemoteNamePlateBatchDriver.Schedule();
-            BasisRemoteNamePlate.HasScheduledNamePlateBatch = true;
             BasisRemoteNetworkDriver.Compute();
             BasisNetworkProfiler.Update();
+            RemoteBoneJobSystem.Complete((dataIndex, hipsPos, diff) => {BasisRemoteNamePlateBatchDriver.UpdateDataRow(dataIndex, new Unity.Mathematics.float4(hipsPos, diff));},Handle: BoneJobSystem);
+            BasisRemoteNamePlate.HasScheduledNamePlateBatch = true;
+            BasisRemoteNamePlate.NamePlateBatch = BasisRemoteNamePlateBatchDriver.Schedule();
         }
 
         public static void SimulateNetworkApply()

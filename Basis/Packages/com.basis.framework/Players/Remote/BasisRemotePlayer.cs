@@ -16,8 +16,8 @@ namespace Basis.Scripts.BasisSdk.Players
         [SerializeField]
         public BasisRemoteEyeDriver RemoteEyeDriver = new BasisRemoteEyeDriver();
         [Header("Bone Driver")]
-        [SerializeField]
-        public BasisRemoteBoneDriver RemoteBoneDriver = new BasisRemoteBoneDriver();
+       // [SerializeField]
+       // public BasisRemoteBoneDriver RemoteBoneDriver = new BasisRemoteBoneDriver();
         [Header("Avatar Driver")]
         [SerializeField]
         public BasisRemoteAvatarDriver RemoteAvatarDriver = new BasisRemoteAvatarDriver();
@@ -150,6 +150,11 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 RemoteNamePlate.DeInitalize();
                 AddressableResourceProcess.ReleaseGameobject(RemoteNamePlate.gameObject);
+            }
+            if (RemoteAvatarDriver.hasDatainBoneDriver)
+            {
+                RemoteBoneJobSystem.RemoveRemotePlayer(NetworkReceiver.playerId);
+                RemoteAvatarDriver.hasDatainBoneDriver = false;
             }
         }
         public short LastComputedMeshLod = -1;

@@ -18,6 +18,7 @@ namespace Basis.Scripts.Drivers
         public bool HasEvents = false;
         public int SkinnedMeshRendererLength;
         public Vector3 AvatarInitalScale = Vector3.one;
+        public bool hasDatainBoneDriver = false;
         public void RemoteCalibration(BasisRemotePlayer player)
         {
             if (!IsAble(player))
@@ -71,7 +72,33 @@ namespace Basis.Scripts.Drivers
             player.RemoteEyeDriver.Initalize(this, player);
             UpdateWhenOffscreenAndDisableMatrixRecal(false);
             player.BasisAvatar.Animator.logWarnings = false;
-            player.RemoteBoneDriver.InitializeFromAvatar(player);
+            if (hasDatainBoneDriver)
+            {
+                RemoteBoneJobSystem.RemoveRemotePlayer(player.NetworkReceiver.playerId);
+                hasDatainBoneDriver = false;
+            }
+            // On player join:
+            RemoteBoneJobSystem.AddRemotePlayer(
+                key: player.NetworkReceiver.playerId,
+                remotePlayerRoot: player.BasisAvatar.Animator.transform,
+                head: player.RemoteAvatarDriver.References.head,
+                hips: player.RemoteAvatarDriver.References.Hips,
+                tposeHead: player.RemoteAvatarDriver.References.TposeHead,
+                tposeHips: player.RemoteAvatarDriver.References.TposeHips,
+                authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(
+                    BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarEyePosition),
+                    player.BasisAvatar.Animator.transform.position
+                ),
+                authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(
+                    BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarMouthPosition),
+                    player.BasisAvatar.Animator.transform.position
+                ),
+                remotePlayerDataIndex: player.RemotePlayerDataIndex,
+                isNameplateVisible: () => player.RemoteNamePlate.IsVisible
+            );
+            hasDatainBoneDriver = true;
+
+           // player.RemoteBoneDriver.InitializeFromAvatar(player);
             player.BasisAvatar.Animator.enabled = false;
 
             SetupAvatarJiggleColliders();
@@ -122,10 +149,6 @@ namespace Basis.Scripts.Drivers
         public bool IsAble(BasisRemotePlayer remotePlayer)
         {
             if (IsNull(remotePlayer.BasisAvatar))
-            {
-                return false;
-            }
-            if (remotePlayer.RemoteBoneDriver == null)
             {
                 return false;
             }

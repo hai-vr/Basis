@@ -152,13 +152,10 @@ namespace Basis.Scripts.Networking.Receivers
             Player.AvatarTransform.localScale = ApplyingScale;
             PoseHandler.SetHumanPose(ref HumanPose);
 
-            RemotePlayer.RemoteBoneDriver.SimulateAndApply(ApplyingScale);
-
             if (AudioReceiverModule.HasTransform)
             {
-                var MouthPosition = RemotePlayer.RemoteBoneDriver.GetMouthPosition();
-                var MouthRotation = RemotePlayer.RemoteBoneDriver.GetMouthRotation();
-                //AudioReceiverModule.AudioSourceTransform.SetPositionAndRotation(outgoing.position, outgoing.rotation);
+                var MouthPosition = RemoteBoneJobSystem.GetOutgoingPosition(playerId, BoneIdx.Mouth);
+                var MouthRotation = RemoteBoneJobSystem.GetOutgoingRotation(playerId, BoneIdx.Mouth);
                 BasisAudioTransformDriver.EnqueueSet(AudioReceiverModule.AudioSourceTransform, MouthPosition, MouthRotation);
             }
         }

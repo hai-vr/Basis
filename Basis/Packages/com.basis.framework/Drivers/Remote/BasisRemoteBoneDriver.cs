@@ -1,314 +1,408 @@
-using System.Runtime.CompilerServices;
-using Basis.Scripts.BasisSdk.Helpers;
-using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Common;
+using System;
+using System.Collections.Generic;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 
-namespace Basis.Scripts.Drivers
+// ---------------- Bone indices ----------------
+public static class BoneIdx
 {
-    [System.Serializable]
-    public class BasisRemoteBoneDriver
+    public const int Head = 0;
+    public const int Neck = 1;
+    public const int Chest = 2;
+    public const int Spine = 3;
+    public const int Hips = 4;
+    public const int CenterEye = 5;
+    public const int Mouth = 6;
+    public const int BoneCount = 7;
+}
+
+// ---------------- SoA structs ----------------
+public struct RemoteAuthoring
+{
+    public float3 tposeLocal_unscaled_Head;
+    public float3 tposeLocal_unscaled_Neck;
+    public float3 tposeLocal_unscaled_Chest;
+    public float3 tposeLocal_unscaled_Spine;
+    public float3 tposeLocal_unscaled_Hips;
+    public float3 tposeLocal_unscaled_CenterEye;
+    public float3 tposeLocal_unscaled_Mouth;
+
+    public float3 offsets_unscaled_Neck;
+    public float3 offsets_unscaled_Chest;
+    public float3 offsets_unscaled_Spine;      // Chest→Spine in this chain
+    public float3 offsets_unscaled_CenterEye;
+    public float3 offsets_unscaled_Mouth;
+}
+
+public struct RemoteFrameInput
+{
+    public float3 rootWorld;
+    public float3 headWPos;
+    public float3 hipsWPos;
+    public quaternion headWRot;
+    public quaternion hipsWRot;
+    public quaternion tposeHeadRot;
+    public quaternion tposeHipsRot;
+    public float3 nowScale;
+}
+
+public struct RemoteScaleCache
+{
+    public float3 lastScale;
+    public float3 tposeLocal_scaled_Hips;
+    public float3 tposeLocal_scaled_Mouth;
+    public float3 offsets_scaled_Neck;
+    public float3 offsets_scaled_Chest;
+    public float3 offsets_scaled_Spine;
+    public float3 offsets_scaled_CenterEye;
+    public float3 offsets_scaled_Mouth;
+}
+
+public struct RemoteFrameOutput
+{
+    public float3 pos_Head, pos_Neck, pos_Chest, pos_Spine, pos_Hips, pos_CenterEye, pos_Mouth;
+    public quaternion rot_Head, rot_Neck, rot_Chest, rot_Spine, rot_Hips, rot_CenterEye, rot_Mouth;
+    public float diffHipToHeadMouthY;
+}
+
+[BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
+public struct BoneSimJob : IJobParallelFor
+{
+    [ReadOnly] public NativeArray<RemoteAuthoring> Authoring;
+    [ReadOnly] public NativeArray<RemoteFrameInput> In;
+    public NativeArray<RemoteScaleCache> ScaleCache;
+    public NativeArray<RemoteFrameOutput> Out;
+
+    public void Execute(int i)
     {
-        public BasisRemotePlayer RemotePlayer { get; private set; }
-        public Transform RemotePlayerTransform;
+        var a = Authoring[i];
+        var f = In[i];
+        var sc = ScaleCache[i];
 
-        // -------- Per-bone fields (SoA exploded) --------
-        // T-pose locals and offsets at scale=1 (avatar space)
-        private float3 _tposeLocal_unscaled_Head;
-        private float3 _tposeLocal_unscaled_Neck;
-        private float3 _tposeLocal_unscaled_Chest;
-        private float3 _tposeLocal_unscaled_Spine;
-        private float3 _tposeLocal_unscaled_Hips;
-        private float3 _tposeLocal_unscaled_CenterEye;
-        private float3 _tposeLocal_unscaled_Mouth;
-
-        private float3 _offsets_unscaled_Neck;
-        private float3 _offsets_unscaled_Chest;
-        private float3 _offsets_unscaled_Spine;
-        private float3 _offsets_unscaled_CenterEye;
-        private float3 _offsets_unscaled_Mouth;
-
-        private float3 _tposeLocal_scaled_Hips;
-        private float3 _tposeLocal_scaled_Mouth;
-
-        private float3 _offsets_scaled_Neck;
-        private float3 _offsets_scaled_Chest;
-        private float3 _offsets_scaled_Spine;
-        private float3 _offsets_scaled_CenterEye;
-        private float3 _offsets_scaled_Mouth;
-
-        // Per-frame outputs (avatar space)
-        private float3 _outgoingPos_Head;
-        private float3 _outgoingPos_Neck;
-        private float3 _outgoingPos_Chest;
-        private float3 _outgoingPos_Spine;
-        private float3 _outgoingPos_Hips;
-        private float3 _outgoingPos_CenterEye;
-        private float3 _outgoingPos_Mouth;
-
-        private quaternion _outgoingRot_Head;
-        private quaternion _outgoingRot_Neck;
-        private quaternion _outgoingRot_Chest;
-        private quaternion _outgoingRot_Spine;
-        private quaternion _outgoingRot_Hips;
-        private quaternion _outgoingRot_CenterEye;
-        private quaternion _outgoingRot_Mouth;
-
-        // Scale cache (math-only)
-        private float3 _lastScaleF3 = new float3(1f, 1f, 1f);
-
-        public float DifferencebetweenHipAndHead;
-
-        // Bone index layout (kept for public API compatibility)
-        public const int Head = 0;
-        public const int Neck = 1;
-        public const int Chest = 2;
-        public const int Spine = 3;
-        public const int Hips = 4;
-        public const int CenterEye = 5;
-        public const int Mouth = 6;
-        public const int BoneCount = 7;
-
-        /// <summary>
-        /// Capture T-pose positions for the bones we care about and compute child-parent offsets.
-        /// Call once after the avatar is loaded / posed in T.
-        /// </summary>
-        public void InitializeFromAvatar(BasisRemotePlayer remotePlayer)
+        if (!f.nowScale.Equals(sc.lastScale))
         {
-            RemotePlayer = remotePlayer;
-            var avatar = RemotePlayer.BasisAvatar;
-            RemotePlayerTransform = avatar.Animator.transform;
+            sc.tposeLocal_scaled_Hips = a.tposeLocal_unscaled_Hips * f.nowScale;
+            sc.tposeLocal_scaled_Mouth = a.tposeLocal_unscaled_Mouth * f.nowScale;
 
-            var refs = remotePlayer.RemoteAvatarDriver.References;
+            sc.offsets_scaled_Neck = a.offsets_unscaled_Neck * f.nowScale;
+            sc.offsets_scaled_Chest = a.offsets_unscaled_Chest * f.nowScale;
+            sc.offsets_scaled_Spine = a.offsets_unscaled_Spine * f.nowScale;
+            sc.offsets_scaled_CenterEye = a.offsets_unscaled_CenterEye * f.nowScale;
+            sc.offsets_scaled_Mouth = a.offsets_unscaled_Mouth * f.nowScale;
 
-            // Fill T-pose locals from current world pose → avatar space
-            // Head
-            if (refs.head != null)
-            {
-                refs.head.GetPositionAndRotation(out Vector3 wpos, out _);
-                _tposeLocal_unscaled_Head = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(RemotePlayerTransform, wpos);
-            }
-            else _tposeLocal_unscaled_Head = math.float3(0f);
-
-            // Neck
-            if (refs.neck != null)
-            {
-                refs.neck.GetPositionAndRotation(out Vector3 wpos, out _);
-                _tposeLocal_unscaled_Neck = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(RemotePlayerTransform, wpos);
-            }
-            else _tposeLocal_unscaled_Neck = math.float3(0f);
-
-            // Chest
-            if (refs.chest != null)
-            {
-                refs.chest.GetPositionAndRotation(out Vector3 wpos, out _);
-                _tposeLocal_unscaled_Chest = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(RemotePlayerTransform, wpos);
-            }
-            else _tposeLocal_unscaled_Chest = math.float3(0f);
-
-            // Spine
-            if (refs.spine != null)
-            {
-                refs.spine.GetPositionAndRotation(out Vector3 wpos, out _);
-                _tposeLocal_unscaled_Spine = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(RemotePlayerTransform, wpos);
-            }
-            else _tposeLocal_unscaled_Spine = math.float3(0f);
-
-            // Hips
-            if (refs.Hips != null)
-            {
-                refs.Hips.GetPositionAndRotation(out Vector3 wpos, out _);
-                _tposeLocal_unscaled_Hips = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(RemotePlayerTransform, wpos);
-            }
-            else _tposeLocal_unscaled_Hips = math.float3(0f);
-
-            // CenterEye from authored point (world)
-            float3 worldEye = BasisHelpers.ConvertFromLocalSpace(
-                BasisHelpers.AvatarPositionConversion(avatar.AvatarEyePosition),
-                RemotePlayerTransform.position
-            );
-            _tposeLocal_unscaled_CenterEye = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(RemotePlayerTransform, worldEye);
-
-            // Mouth from authored point (world)
-            float3 worldMouth = BasisHelpers.ConvertFromLocalSpace(
-                BasisHelpers.AvatarPositionConversion(avatar.AvatarMouthPosition),
-                RemotePlayerTransform.position
-            );
-            _tposeLocal_unscaled_Mouth = BasisLocalBoneDriver.ConvertToAvatarSpaceInitial(RemotePlayerTransform, worldMouth);
-
-            // Compute unscaled offsets at scale=1 (child - parent)
-            ComputeUnscaledOffsets(
-                in _tposeLocal_unscaled_Head,
-                in _tposeLocal_unscaled_Neck,
-                in _tposeLocal_unscaled_Chest,
-                in _tposeLocal_unscaled_Spine,
-                in _tposeLocal_unscaled_Hips,
-                in _tposeLocal_unscaled_CenterEye,
-                in _tposeLocal_unscaled_Mouth,
-                out _offsets_unscaled_Neck,
-                out _offsets_unscaled_Chest,
-                out _offsets_unscaled_Spine,
-                out _offsets_unscaled_CenterEye,
-                out _offsets_unscaled_Mouth
-            );
-
-            // Initialize scaled copies to scale=1
-            _tposeLocal_scaled_Hips = _tposeLocal_unscaled_Hips;
-            _tposeLocal_scaled_Mouth = _tposeLocal_unscaled_Mouth;
-            _offsets_scaled_Neck = _offsets_unscaled_Neck;
-            _offsets_scaled_Chest = _offsets_unscaled_Chest;
-            _offsets_scaled_Spine = _offsets_unscaled_Spine;
-            _offsets_scaled_CenterEye = _offsets_unscaled_CenterEye;
-            _offsets_scaled_Mouth = _offsets_unscaled_Mouth;
-
-            // Match legacy field semantics
-            DifferencebetweenHipAndHead = _tposeLocal_scaled_Mouth.y - _tposeLocal_scaled_Hips.y;
+            sc.lastScale = f.nowScale;
+            ScaleCache[i] = sc;
         }
 
-        /// <summary>
-        /// Pure-math pass operating directly on fields. Call every frame.
-        /// </summary>
-        public void SimulateAndApply(Vector3 nowScaleF3)
+        quaternion headR = math.mul(f.tposeHeadRot, f.headWRot);
+        quaternion hipsR = math.mul(f.tposeHipsRot, f.hipsWRot);
+
+        float3 headP = f.headWPos - f.rootWorld;
+        float3 hipsP = f.hipsWPos - f.rootWorld;
+
+        float3 neckP = headP + math.mul(headR, sc.offsets_scaled_Neck);
+        float3 chestP = neckP + math.mul(headR, sc.offsets_scaled_Chest);
+        float3 spineP = chestP + math.mul(headR, sc.offsets_scaled_Spine);
+        float3 eyeP = headP + math.mul(headR, sc.offsets_scaled_CenterEye);
+        float3 mouthP = headP + math.mul(headR, sc.offsets_scaled_Mouth);
+
+        Out[i] = new RemoteFrameOutput
         {
-            var refs = RemotePlayer.RemoteAvatarDriver.References;
+            pos_Head = headP,
+            pos_Neck = neckP,
+            pos_Chest = chestP,
+            pos_Spine = spineP,
+            pos_Hips = hipsP,
+            pos_CenterEye = eyeP,
+            pos_Mouth = mouthP,
+            rot_Head = headR,
+            rot_Neck = headR,
+            rot_Chest = headR,
+            rot_Spine = headR,
+            rot_Hips = hipsR,
+            rot_CenterEye = headR,
+            rot_Mouth = headR,
+            diffHipToHeadMouthY = sc.tposeLocal_scaled_Mouth.y - sc.tposeLocal_scaled_Hips.y
+        };
+    }
+}
 
-            // Frame inputs (world)
-            float3 rootWorld = RemotePlayerTransform.position;
-            float3 headWPos = refs.head.position;
-            float3 hipsWPos = refs.Hips.position;
+// ---------------- Static Manager ----------------
+public static class RemoteBoneJobSystem
+{
+    // Persistent SoA
+    static NativeList<RemoteAuthoring> sAuthoring;
+    static NativeList<RemoteFrameInput> sIn;
+    static NativeList<RemoteScaleCache> sScale;
+    static NativeList<RemoteFrameOutput> sOut;
 
-            quaternion headWRot = (quaternion)refs.head.rotation;
-            quaternion hipsWRot = (quaternion)refs.Hips.rotation;
-            quaternion tposeHeadRot = (quaternion)refs.TposeHead.rotation;
-            quaternion tposeHipsRot = (quaternion)refs.TposeHips.rotation;
+    // Bookkeeping
+    static readonly Dictionary<int, int> sKeyToIndex = new Dictionary<int, int>();
+    static readonly List<PerEntityRefs> sIndexToRefs = new List<PerEntityRefs>();
+    static JobHandle sPending;
+    static bool sInitialized;
 
-            // --- Rescale lazily if scale changed ---
-            float3 nowScale = nowScaleF3;
-            if (math.any(nowScale != _lastScaleF3))
-            {
-                _tposeLocal_scaled_Hips = _tposeLocal_unscaled_Hips * nowScale;
-                _tposeLocal_scaled_Mouth = _tposeLocal_unscaled_Mouth * nowScale;
-                _offsets_scaled_Neck = _offsets_unscaled_Neck * nowScale;
-                _offsets_scaled_Chest = _offsets_unscaled_Chest * nowScale;
-                _offsets_scaled_Spine = _offsets_unscaled_Spine * nowScale;
-                _offsets_scaled_CenterEye = _offsets_unscaled_CenterEye * nowScale;
-                _offsets_scaled_Mouth = _offsets_unscaled_Mouth * nowScale;
+    struct PerEntityRefs
+    {
+        public Transform Root;
+        public Transform Head;
+        public Transform Hips;
+        public BasisCalibratedCoords TposeHead;
+        public BasisCalibratedCoords TposeHips;
+        public int RemotePlayerDataIndex;
+        public bool HasNameplate;
+        public Func<bool> IsNameplateVisible;
+    }
 
-                _lastScaleF3 = nowScale;
-            }
+    // -------- Lifecycle --------
+    public static void Initialize(int initialCapacity = 0)
+    {
+        if (sInitialized) return;
+        sAuthoring = new NativeList<RemoteAuthoring>(initialCapacity, Allocator.Persistent);
+        sIn = new NativeList<RemoteFrameInput>(initialCapacity, Allocator.Persistent);
+        sScale = new NativeList<RemoteScaleCache>(initialCapacity, Allocator.Persistent);
+        sOut = new NativeList<RemoteFrameOutput>(initialCapacity, Allocator.Persistent);
+        sInitialized = true;
+    }
 
-            // --- Remove T-pose influence (rot) and convert world→avatar (pos) ---
-            {
-                quaternion headR = math.mul(tposeHeadRot, headWRot); // Tpose * Current
-                _outgoingRot_Head = headR;
-                _outgoingPos_Head = headWPos - rootWorld;
+    public static void Dispose()
+    {
+        CompletePending();
+        if (sAuthoring.IsCreated) sAuthoring.Dispose();
+        if (sIn.IsCreated) sIn.Dispose();
+        if (sScale.IsCreated) sScale.Dispose();
+        if (sOut.IsCreated) sOut.Dispose();
+        sKeyToIndex.Clear();
+        sIndexToRefs.Clear();
+        sInitialized = false;
+    }
 
-                quaternion hipsR = math.mul(tposeHipsRot, hipsWRot);
-                _outgoingRot_Hips = hipsR;
-                _outgoingPos_Hips = hipsWPos - rootWorld;
-            }
+    static void CompletePending()
+    {
+        sPending.Complete();
+        sPending = default;
+    }
 
-            // --- Hard-locks: child = parent + (parent.R * childOffsetScaled) ---
-            {
-                quaternion R = _outgoingRot_Head;
-                float3 P = _outgoingPos_Head;
-                float3 off = math.mul(R, _offsets_scaled_Neck);
-                _outgoingRot_Neck = R;
-                _outgoingPos_Neck = P + off;
-            }
-            {
-                quaternion R = _outgoingRot_Neck;
-                float3 P = _outgoingPos_Neck;
-                float3 off = math.mul(R, _offsets_scaled_Chest);
-                _outgoingRot_Chest = R;
-                _outgoingPos_Chest = P + off;
-            }
-            {
-                quaternion R = _outgoingRot_Chest;
-                float3 P = _outgoingPos_Chest;
-                float3 off = math.mul(R, _offsets_scaled_Spine);
-                _outgoingRot_Spine = R;
-                _outgoingPos_Spine = P + off;
-            }
-            {
-                quaternion R = _outgoingRot_Head;
-                float3 P = _outgoingPos_Head;
-                float3 off = math.mul(R, _offsets_scaled_CenterEye);
-                _outgoingRot_CenterEye = R;
-                _outgoingPos_CenterEye = P + off;
-            }
-            {
-                quaternion R = _outgoingRot_Head;
-                float3 P = _outgoingPos_Head;
-                float3 off = math.mul(R, _offsets_scaled_Mouth);
-                _outgoingRot_Mouth = R;
-                _outgoingPos_Mouth = P + off;
-            }
+    // -------- Add / Remove --------
+    public static int AddRemotePlayer(
+        int key,
+        Transform remotePlayerRoot,
+        Transform head, Transform hips,
+        BasisCalibratedCoords tposeHead, BasisCalibratedCoords tposeHips,
+        float3 authoredCenterEyeWorld,
+        float3 authoredMouthWorld,
+        int remotePlayerDataIndex,
+        Func<bool> isNameplateVisible // nullable
+    )
+    {
+        if (!sInitialized) Initialize();
 
-            // Matches the legacy field semantics
-            DifferencebetweenHipAndHead = _tposeLocal_scaled_Mouth.y - _tposeLocal_scaled_Hips.y;
-        }
+        CompletePending();
 
-        // ----------------- Public read API -----------------
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public float3 GetOutgoingPosition(int boneIndex)
+        float3 rootWorld = remotePlayerRoot.position;
+        float3 ToAvatarLocal(float3 world) => world - rootWorld;
+
+        float3 tHead = ToAvatarLocal(head.position);
+        float3 tNeck = float3.zero;
+        float3 tChest = float3.zero;
+        float3 tSpine = float3.zero;
+        float3 tHips = ToAvatarLocal(hips.position);
+        float3 tEye = ToAvatarLocal(authoredCenterEyeWorld);
+        float3 tMouth = ToAvatarLocal(authoredMouthWorld);
+
+        float3 offNeck = tNeck - tHead;
+        float3 offChest = tChest - tNeck;
+        float3 offSpine = tSpine - tChest;
+        float3 offEye = tEye - tHead;
+        float3 offMouth = tMouth - tHead;
+
+        var a = new RemoteAuthoring
         {
-            switch (boneIndex)
+            tposeLocal_unscaled_Head = tHead,
+            tposeLocal_unscaled_Neck = tNeck,
+            tposeLocal_unscaled_Chest = tChest,
+            tposeLocal_unscaled_Spine = tSpine,
+            tposeLocal_unscaled_Hips = tHips,
+            tposeLocal_unscaled_CenterEye = tEye,
+            tposeLocal_unscaled_Mouth = tMouth,
+
+            offsets_unscaled_Neck = offNeck,
+            offsets_unscaled_Chest = offChest,
+            offsets_unscaled_Spine = offSpine,
+            offsets_unscaled_CenterEye = offEye,
+            offsets_unscaled_Mouth = offMouth
+        };
+
+        int idx = sAuthoring.Length;
+        sAuthoring.Add(a);
+        sIn.Add(default);
+        sScale.Add(new RemoteScaleCache { lastScale = new float3(1, 1, 1) });
+        sOut.Add(default);
+
+        if (sIndexToRefs.Count == idx) sIndexToRefs.Add(default);
+        sIndexToRefs[idx] = new PerEntityRefs
+        {
+            Root = remotePlayerRoot,
+            Head = head,
+            Hips = hips,
+            TposeHead = tposeHead,
+            TposeHips = tposeHips,
+            RemotePlayerDataIndex = remotePlayerDataIndex,
+            HasNameplate = isNameplateVisible != null,
+            IsNameplateVisible = isNameplateVisible
+        };
+
+        sKeyToIndex[key] = idx;
+        return key;
+    }
+
+    public static bool RemoveRemotePlayer(int key)
+    {
+        if (!sInitialized) return false;
+        CompletePending();
+
+        if (!sKeyToIndex.TryGetValue(key, out int idx)) return false;
+
+        int last = sAuthoring.Length - 1;
+        if (idx != last)
+        {
+            sAuthoring[idx] = sAuthoring[last];
+            sIn[idx] = sIn[last];
+            sScale[idx] = sScale[last];
+            sOut[idx] = sOut[last];
+
+            sIndexToRefs[idx] = sIndexToRefs[last];
+
+            // patch moved key
+            foreach (var kv in sKeyToIndex)
             {
-                case Head: return _outgoingPos_Head;
-                case Neck: return _outgoingPos_Neck;
-                case Chest: return _outgoingPos_Chest;
-                case Spine: return _outgoingPos_Spine;
-                case Hips: return _outgoingPos_Hips;
-                case CenterEye: return _outgoingPos_CenterEye;
-                case Mouth: return _outgoingPos_Mouth;
-                default: return float3.zero;
+                if (kv.Value == last) { sKeyToIndex[kv.Key] = idx; break; }
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public quaternion GetOutgoingRotation(int boneIndex)
+        sAuthoring.RemoveAt(last);
+        sIn.RemoveAt(last);
+        sScale.RemoveAt(last);
+        sOut.RemoveAt(last);
+        sIndexToRefs.RemoveAt(last);
+        sKeyToIndex.Remove(key);
+        return true;
+    }
+
+    // -------- Frame steps --------
+    public static void GatherInputs()
+    {
+        if (!sInitialized) return;
+
+        for (int i = 0; i < sAuthoring.Length; i++)
         {
-            switch (boneIndex)
+            var r = sIndexToRefs[i];
+
+            sIn[i] = new RemoteFrameInput
             {
-                case Head: return _outgoingRot_Head;
-                case Neck: return _outgoingRot_Neck;
-                case Chest: return _outgoingRot_Chest;
-                case Spine: return _outgoingRot_Spine;
-                case Hips: return _outgoingRot_Hips;
-                case CenterEye: return _outgoingRot_CenterEye;
-                case Mouth: return _outgoingRot_Mouth;
-                default: return quaternion.identity;
+                rootWorld = r.Root.position,
+                headWPos = r.Head.position,
+                hipsWPos = r.Hips.position,
+                headWRot = (quaternion)r.Head.rotation,
+                hipsWRot = (quaternion)r.Hips.rotation,
+                tposeHeadRot = (quaternion)r.TposeHead.rotation,
+                tposeHipsRot = (quaternion)r.TposeHips.rotation,
+                nowScale = r.Root.lossyScale
+            };
+        }
+    }
+
+    public static JobHandle ScheduleSimulation(JobHandle dependsOn = default, int batchSize = 64)
+    {
+        if (!sInitialized || sAuthoring.Length == 0) return dependsOn;
+
+        var job = new BoneSimJob
+        {
+            Authoring = sAuthoring.AsDeferredJobArray(),
+            In = sIn.AsDeferredJobArray(),
+            ScaleCache = sScale.AsDeferredJobArray(),
+            Out = sOut.AsDeferredJobArray()
+        };
+
+        sPending = job.Schedule(sAuthoring.Length, math.max(1, batchSize), dependsOn);
+        return sPending;
+    }
+
+    public static void CompleteAndApply(Action<int, float3, float> nameplateUpdater)
+    {
+        if (!sInitialized) return;
+
+        CompletePending();
+
+        for (int i = 0; i < sOut.Length; i++)
+        {
+            var o = sOut[i];
+            var r = sIndexToRefs[i];
+
+            if (r.HasNameplate && r.IsNameplateVisible())
+            {
+                // (dataIndex, hipsPos, diff)
+                nameplateUpdater?.Invoke(r.RemotePlayerDataIndex, o.pos_Hips, o.diffHipToHeadMouthY);
             }
         }
+    }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public float3 GetMouthPosition() => _outgoingPos_Mouth;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public quaternion GetMouthRotation() => _outgoingRot_Mouth;
-
-        // ---------- Static helper (still handy for init) ----------
-        public static void ComputeUnscaledOffsets(
-            in float3 tposeLocal_unscaled_Head,
-            in float3 tposeLocal_unscaled_Neck,
-            in float3 tposeLocal_unscaled_Chest,
-            in float3 tposeLocal_unscaled_Spine,
-            in float3 tposeLocal_unscaled_Hips,
-            in float3 tposeLocal_unscaled_CenterEye,
-            in float3 tposeLocal_unscaled_Mouth,
-            out float3 offsets_unscaled_Neck,
-            out float3 offsets_unscaled_Chest,
-            out float3 offsets_unscaled_Hips,
-            out float3 offsets_unscaled_CenterEye,
-            out float3 offsets_unscaled_Mouth
-        )
+    // -------- Accessors by key --------
+    public static float3 GetOutgoingPosition(int key, int boneIndex)
+    {
+        if (!TryGetIndex(key, out int idx)) return float3.zero;
+        var o = sOut[idx];
+        switch (boneIndex)
         {
-            offsets_unscaled_Neck = tposeLocal_unscaled_Neck - tposeLocal_unscaled_Head;
-            offsets_unscaled_Chest = tposeLocal_unscaled_Chest - tposeLocal_unscaled_Neck;
-            offsets_unscaled_Hips = tposeLocal_unscaled_Hips - tposeLocal_unscaled_Spine;
-            offsets_unscaled_CenterEye = tposeLocal_unscaled_CenterEye - tposeLocal_unscaled_Head;
-            offsets_unscaled_Mouth = tposeLocal_unscaled_Mouth - tposeLocal_unscaled_Head;
+            case BoneIdx.Head: return o.pos_Head;
+            case BoneIdx.Neck: return o.pos_Neck;
+            case BoneIdx.Chest: return o.pos_Chest;
+            case BoneIdx.Spine: return o.pos_Spine;
+            case BoneIdx.Hips: return o.pos_Hips;
+            case BoneIdx.CenterEye: return o.pos_CenterEye;
+            case BoneIdx.Mouth: return o.pos_Mouth;
+            default: return float3.zero;
         }
+    }
+
+    public static quaternion GetOutgoingRotation(int key, int boneIndex)
+    {
+        if (!TryGetIndex(key, out int idx)) return quaternion.identity;
+        var o = sOut[idx];
+        switch (boneIndex)
+        {
+            case BoneIdx.Head: return o.rot_Head;
+            case BoneIdx.Neck: return o.rot_Neck;
+            case BoneIdx.Chest: return o.rot_Chest;
+            case BoneIdx.Spine: return o.rot_Spine;
+            case BoneIdx.Hips: return o.rot_Hips;
+            case BoneIdx.CenterEye: return o.rot_CenterEye;
+            case BoneIdx.Mouth: return o.rot_Mouth;
+            default: return quaternion.identity;
+        }
+    }
+
+    public static float GetDiffHipToHeadMouthY(int key)
+    {
+        if (!TryGetIndex(key, out int idx)) return 0f;
+        return sOut[idx].diffHipToHeadMouthY;
+    }
+
+    static bool TryGetIndex(int key, out int idx) => sKeyToIndex.TryGetValue(key, out idx);
+
+    // -------- Convenience: single call frame driver --------
+    public static JobHandle Schedule( int batchSize = 64)
+    {
+        GatherInputs();
+      return ScheduleSimulation(default, batchSize);
+    }
+    public static void Complete(Action<int, float3, float> nameplateUpdater, JobHandle Handle)
+    {
+        Handle.Complete();
+        CompleteAndApply(nameplateUpdater);
     }
 }

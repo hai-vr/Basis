@@ -48,16 +48,13 @@ namespace Basis.Scripts.UI.NamePlate
             Self = this.transform;
             BasisRemoteNamePlateDriver.Instance.GenerateTextFactory(BasisRemotePlayer, this);
             LoadingText.enableVertexGradient = false;
-
-            var BoneDriver = RemotePlayer.RemoteBoneDriver;
-
             if(HasScheduledNamePlateBatch)
             {
                 NamePlateBatch.Complete();
                 HasScheduledNamePlateBatch = false;
             }
 
-            RemotePlayer.RemotePlayerDataIndex = BasisRemoteNamePlateBatchDriver.AllocateDataRow(new Unity.Mathematics.float4(0,0,0, BoneDriver.DifferencebetweenHipAndHead));
+            RemotePlayer.RemotePlayerDataIndex = BasisRemoteNamePlateBatchDriver.AllocateDataRow(new Unity.Mathematics.float4(0,0,0, 1));
             BasisRemoteNamePlateBatchDriver.AddNameplate(Self, RemotePlayer.RemotePlayerDataIndex);
         }
         public void DeInitalize()
