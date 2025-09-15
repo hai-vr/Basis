@@ -55,7 +55,6 @@ namespace Basis.Scripts.Device_Management
         public delegate void InitializationCompletedHandler();
         public static event InitializationCompletedHandler OnInitializationCompleted;
         public static readonly ConcurrentQueue<Action> mainThreadActions = new ConcurrentQueue<Action>();
-        public static volatile bool hasPendingActions = false;
         public static Action OnDeviceManagementLoop;
 
         [SerializeField] public string[] BakedInCommandLineArgs = new string[] { };
@@ -372,7 +371,6 @@ namespace Basis.Scripts.Device_Management
                 return;
             }
             mainThreadActions.Enqueue(action);
-            hasPendingActions = true;
         }
 
         public string DefaultMode()
