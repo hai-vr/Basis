@@ -116,7 +116,7 @@ namespace Basis.Scripts.Networking.Receivers
             if (BufferHolder.HasFirst && BufferHolder.HasLast)
             {
                 // Pull outputs (position, scale, rotation, muscles). We also use outPos for a robust fallback path.
-                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out var applyingScale, out var applyingRotation, out float3 scaledBody, Muscles))
+                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out float3 applyingScale, out var applyingRotation, out float3 scaledBody, Muscles))
                 {
                     HumanPose.bodyPosition = scaledBody;
                     HumanPose.bodyRotation = applyingRotation;
@@ -140,7 +140,7 @@ namespace Basis.Scripts.Networking.Receivers
 
                     // If you DID NOT provide a TransformAccessArray to the driver via SetAvatarTransformList,
                     // you can set localScale here on main thread:
-                    // Player.AvatarTransform.localScale = new Vector3(applyingScale.x, applyingScale.y, applyingScale.z);
+                     Player.AvatarTransform.localScale = applyingScale;
 
                     // HumanPoseHandler must stay on main thread
                     PoseHandler.SetHumanPose(ref HumanPose);
@@ -160,15 +160,6 @@ namespace Basis.Scripts.Networking.Receivers
                     UnsafeUtility.MemCpy(pDst, pSrc, MuscleCount * sizeof(float));
                 }
             }
-        }
-
-        public static float3 SafeDivide(float3 a, float3 b, float epsilon = 1e-5f)
-        {
-            return new float3(
-                math.abs(b.x) > epsilon ? a.x / b.x : a.x,
-                math.abs(b.y) > epsilon ? a.y / b.y : a.y,
-                math.abs(b.z) > epsilon ? a.z / b.z : a.z
-            );
         }
 
         /// <summary>

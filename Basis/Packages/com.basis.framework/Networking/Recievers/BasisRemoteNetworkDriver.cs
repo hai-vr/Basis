@@ -1,6 +1,4 @@
-using Basis.Scripts.Networking;
 using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
@@ -48,9 +46,6 @@ public static partial class BasisRemoteNetworkDriver
     static NativeArray<float2> positionFilters;   // per-channel state
     static NativeArray<float2> derivativeFilters; // per-channel state
 
-    // Transform job bits
-    static TransformAccessArray _avatarTransforms; // optional: transforms to scale in parallel
-    static NativeArray<int> _transformIndexMap;    // optional: maps TransformAccessArray slot -> player index
 
     // State
     static int _muscleCount;
@@ -59,7 +54,6 @@ public static partial class BasisRemoteNetworkDriver
     static Allocator _allocator = Allocator.Persistent;
 
     public static JobHandle oneEuroJob;         // final frame fence (combined deps)
-    static JobHandle _transformApplyJob;        // scale writes
 
 
     /// <summary>Initialize the driver with a fixed capacity of 1024. Must be called before SetInputs/Compute/Apply/GetOutputs.</summary>
@@ -113,12 +107,6 @@ public static partial class BasisRemoteNetworkDriver
         // Make sure no jobs are still using our arrays
         if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
 
-        if (_avatarTransforms.isCreated)
-            _avatarTransforms.Dispose();
-
-        if (_transformIndexMap.IsCreated)
-            _transformIndexMap.Dispose();
-
         DisposeAll();
         _activeCount = 0;
         _muscleCount = 0;
@@ -127,7 +115,7 @@ public static partial class BasisRemoteNetworkDriver
 
     /// <summary>Write inputs for a given index (0..FixedCapacity-1) for this frame.</summary>
     public static void SetInputs(
-        int index,float humanScale,
+        int index, float humanScale,
         float3 prevPos, float3 targetPos,
         float3 prevScale, float3 targetScale,
         quaternion prevRot, quaternion targetRot,
@@ -139,7 +127,6 @@ public static partial class BasisRemoteNetworkDriver
             throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
 
         _humanScales[index] = humanScale;
-        if (index + 1 > _activeCount) _activeCount = index + 1;
         _prevPositions[index] = prevPos;
         _targetPositions[index] = targetPos;
         _prevScales[index] = prevScale;
@@ -207,30 +194,6 @@ public static partial class BasisRemoteNetworkDriver
         }
     }
 
-    /// <summary>Provide a list of avatar transforms to be scaled in parallel. Optional.</summary>
-    public static void SetAvatarTransformList(List<Transform> transforms, NativeArray<int> indexMap = default)
-    {
-        if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
-
-        if (_avatarTransforms.isCreated)
-            _avatarTransforms.Dispose();
-
-        _avatarTransforms = transforms != null && transforms.Count > 0
-            ? new TransformAccessArray(transforms.ToArray())
-            : default;
-
-        if (_transformIndexMap.IsCreated) _transformIndexMap.Dispose();
-
-        if (indexMap.IsCreated && transforms != null && indexMap.Length == transforms.Count)
-        {
-            _transformIndexMap = new NativeArray<int>(indexMap, _allocator);
-        }
-        else
-        {
-            _transformIndexMap = default;
-        }
-    }
-
     /// <summary>Run the batched jobs once for the current frame.</summary>
     public static void Compute()
     {
@@ -284,29 +247,8 @@ public static partial class BasisRemoteNetworkDriver
             MuscleCountPerAvatar = _muscleCount
         }.Schedule(num * _muscleCount, 128, musclesJob);
 
-        // Decide if we can use the index map (validate NOW, outside the job)
-        bool useMap = _avatarTransforms.isCreated
-                   && _avatarTransforms.length > 0
-                   && _transformIndexMap.IsCreated
-                   && _transformIndexMap.Length == _avatarTransforms.length;
-
-        // Optional: push localScale in parallel (depends on avatarJob -> scales ready)
-        if (_avatarTransforms.isCreated && _avatarTransforms.length > 0)
-        {
-            _transformApplyJob = new ApplyScaleTransformJob
-            {
-                Scales = _outScales,
-                IndexMap = _transformIndexMap,
-                UseIndexMap = useMap
-            }.Schedule(_avatarTransforms, avatarJob);
-        }
-        else
-        {
-            _transformApplyJob = avatarJob; // no-op dependency
-        }
-
         // Combine all deps so Apply() has a single fence
-        oneEuroJob = JobHandle.CombineDependencies(euroJobHandle, scaledBodyJob, _transformApplyJob);
+        oneEuroJob = JobHandle.CombineDependencies(euroJobHandle, scaledBodyJob);
     }
 
     /*
@@ -465,31 +407,6 @@ public static partial class BasisRemoteNetworkDriver
                 mask.z > 0f ? Scale.z / applyScale.z : Scale.z);
 
             ScaledBodyPositions[i] = OutputPositions[i] * safeDiv;
-        }
-    }
-
-    /// <summary>Parallel transform scaler (optional, jobified) — with UseIndexMap flag.</summary>
-    [BurstCompile]
-    public struct ApplyScaleTransformJob : IJobParallelForTransform
-    {
-        [ReadOnly] public NativeArray<float3> Scales;
-        [ReadOnly] public NativeArray<int> IndexMap;   // optional
-        [ReadOnly] public bool UseIndexMap;
-
-        public void Execute(int i, TransformAccess t)
-        {
-            int idx = i;
-            if (UseIndexMap)
-            {
-                // belts and suspenders: guard in case data changed between schedule and run
-                if ((uint)i < (uint)IndexMap.Length)
-                    idx = IndexMap[i];
-            }
-
-            if ((uint)idx >= (uint)Scales.Length) return;
-
-            float3 s = Scales[idx];
-            t.localScale = new Vector3(s.x, s.y, s.z);
         }
     }
 
