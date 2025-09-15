@@ -15,6 +15,8 @@ public class BasisEventDriver : MonoBehaviour
     public float timeSinceLastUpdate = 0f;
     public float DeltaTime;
     public double TimeAsDouble;
+    public double fixedTimeAsDouble;
+    public float fixedDeltaTime;
     [SerializeField]
     private Material proceduralMaterial;
     [SerializeField]
@@ -78,10 +80,11 @@ public class BasisEventDriver : MonoBehaviour
     {
         TimeAsDouble = Time.timeAsDouble;
         BasisSceneFactory.Simulate();
-        JigglePhysics.ScheduleSimulate(TimeAsDouble, Time.fixedDeltaTime);
     }
     public void LateUpdate()
     {
+        fixedTimeAsDouble = Time.fixedTimeAsDouble;
+        fixedDeltaTime = Time.fixedDeltaTime;
         BasisDeviceManagement.OnDeviceManagementLoop?.Invoke();
         if (BasisLocalEyeDriver.RequiresUpdate())
         {
@@ -97,6 +100,9 @@ public class BasisEventDriver : MonoBehaviour
 #endif
         BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
         BasisNetworkManagement.SimulateNetworkApply();
+
+        JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, Time.fixedDeltaTime);
+
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
         JigglePhysics.SchedulePose(TimeAsDouble);
         if (SMModuleDebugOptions.UseGizmos)
