@@ -171,37 +171,6 @@ namespace Basis.Scripts.UI.NamePlate
             _tToIdx.Remove(id);
             return true;
         }
-
-        /// <summary>Removes a nameplate by index. Returns true if removed.</summary>
-        public static bool RemoveNameplateAt(int nameplateIdx)
-        {
-            if (_taa.isCreated == false)
-            {
-                return true;
-            }
-
-            if (nameplateIdx < 0 || nameplateIdx >= _taa.length) return false;
-
-            int last = _taa.length - 1;
-            Transform txToRemove = _taa[nameplateIdx];
-
-            if (nameplateIdx == last)
-            {
-                _taa.RemoveAtSwapBack(nameplateIdx);
-                _mapNameplateToData.RemoveAtSwapBack(nameplateIdx);
-                _tToIdx.Remove(txToRemove.GetInstanceID());
-                return true;
-            }
-
-            Transform lastTx = _taa[last];
-            _taa.RemoveAtSwapBack(nameplateIdx);
-            _mapNameplateToData.RemoveAtSwapBack(nameplateIdx);
-
-            _tToIdx[lastTx.GetInstanceID()] = nameplateIdx;
-            _tToIdx.Remove(txToRemove.GetInstanceID());
-            return true;
-        }
-
         /// <summary>Retarget a nameplate to a different data row.</summary>
         public static void RebindNameplate(Transform tx, int newDataIdx)
         {

@@ -64,7 +64,7 @@ namespace Basis.Scripts.UI.NamePlate
                 NamePlateBatch.Complete();
                 HasScheduledNamePlateBatch = false;
             }
-            BasisRemoteNamePlateBatchDriver.RemoveNameplateAt(BasisRemotePlayer.RemotePlayerDataIndex);
+            BasisRemoteNamePlateBatchDriver.RemoveNameplate(Self);
             BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport -= ProgressReport;
             BasisRemotePlayer.AudioReceived -= OnAudioReceived;
             DeInitalizeCallToRender();

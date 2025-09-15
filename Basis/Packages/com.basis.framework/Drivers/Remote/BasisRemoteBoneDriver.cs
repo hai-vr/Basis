@@ -304,9 +304,9 @@ public static class RemoteBoneJobSystem
 
             sIn[i] = new RemoteFrameInput
             {
-                rootWorld = r.Root.position,
-                headWPos = r.Head.position,
-                hipsWPos = r.Hips.position,
+                rootWorld =  r.Root.position,//transform
+                headWPos = r.Head.position,//transform
+                hipsWPos = r.Hips.position,//transform
                 headWRot = (quaternion)r.Head.rotation,
                 hipsWRot = (quaternion)r.Hips.rotation,
                 tposeHeadRot = (quaternion)r.TposeHead.rotation,
