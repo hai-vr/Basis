@@ -116,39 +116,35 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out ApplyingPosition, out ApplyingScale, out ApplyingRotation, Muscles))
                 {
-                    ApplyComputedData();
+                    // Inline what ApplyPoseData used to do
+                    float3 Scaling = Player.BasisAvatar.AnimatorHumanScale;
+
+                    // Guard scale to avoid NaNs / zero
+                    Scaling = SafeDivide(Scaling, ApplyingScale);
+
+                    Vector3 ScaledBody = Vector3.Scale(ApplyingPosition, Scaling);
+                    // Body transform
+                    HumanPose.bodyPosition = ScaledBody;
+                    HumanPose.bodyRotation = ApplyingRotation;
+
+                    Memcpy95(Muscles ?? ZeroMuscles, HumanPose.muscles);
+                    // Overlay eyes/mouth in one tiny copy (or a few assignments if the count is tiny)
+                    unsafe
+                    {
+                        fixed (float* pDst = HumanPose.muscles)
+                        fixed (float* pSrc = EyesAndMouth)
+                        {
+                            UnsafeUtility.MemCpy(
+                                pDst + (EyeAndMouthSize / sizeof(float)),
+                                pSrc,
+                                EyeAndMountCountInBytes
+                            );
+                        }
+                    }
+                    Player.AvatarTransform.localScale = ApplyingScale;
+                    PoseHandler.SetHumanPose(ref HumanPose);
                 }
             }
-        }
-
-        public void ApplyComputedData()
-        {
-            // Inline what ApplyPoseData used to do
-            float3 Scaling = Player.BasisAvatar.AnimatorHumanScale;
-            float[] MusclesLocal = Muscles ?? ZeroMuscles;
-
-            // Guard scale to avoid NaNs / zero
-            Scaling = SafeDivide(Scaling, ApplyingScale);
-
-            // Body transform
-            HumanPose.bodyPosition = Vector3.Scale(ApplyingPosition, Scaling);
-            HumanPose.bodyRotation = ApplyingRotation;
-            Memcpy95(MusclesLocal, HumanPose.muscles);
-            // Overlay eyes/mouth in one tiny copy (or a few assignments if the count is tiny)
-            unsafe
-            {
-                fixed (float* pDst = HumanPose.muscles)
-                fixed (float* pSrc = EyesAndMouth)
-                {
-                    UnsafeUtility.MemCpy(
-                        pDst + (EyeAndMouthSize / sizeof(float)),
-                        pSrc,
-                        EyeAndMountCountInBytes
-                    );
-                }
-            }
-            Player.AvatarTransform.localScale = ApplyingScale;
-            PoseHandler.SetHumanPose(ref HumanPose);
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static void Memcpy95(float[] src, float[] dst)

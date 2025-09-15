@@ -1,6 +1,7 @@
 using Basis.Scripts.Networking;
 using System;
 using System.Runtime.CompilerServices;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
@@ -242,6 +243,144 @@ public static partial class BasisRemoteNetworkDriver
             DerivativeFilters = derivativeFilters,
             MuscleCountPerAvatar = _muscleCount
         }.Schedule(num * _muscleCount, 128, musclesJob);
+    }
+/*
+ * BasicOneEuroFilterParallelJob.cs
+ * Author: Dario Mazzanti (dario.mazzanti@iit.it), 2016
+ *
+ * This Unity C# utility is based on the C++ implementation of the OneEuroFilter algorithm by Nicolas Roussel (http://www.lifl.fr/~casiez/1euro/OneEuroFilter.cc)
+ * More info on the 1€ filter by Géry Casiez at http://www.lifl.fr/~casiez/1euro/
+ *
+ */
+    [BurstCompile]
+    public struct BasisOneEuroFilterParallelJob : IJobParallelFor
+    {
+        // Input signal (flattened: players * muscles)
+        [ReadOnly] public NativeArray<float> InputValues;
+
+        // Output signal (flattened: players * muscles)
+        public NativeArray<float> OutputValues;
+
+        // Per-player deltaTime (or sampling period proxy). Length == numPlayers
+        [ReadOnly] public NativeArray<float> DeltaTime;
+
+        // Filter state per flattened channel (same length as OutputValues)
+        public NativeArray<float2> PositionFilters;   // x = previous input, y = previous output
+        public NativeArray<float2> DerivativeFilters; // x = previous derivative input, y = previous derivative output
+
+        // Parameters
+        public float MinCutoff;
+        public float Beta;
+        public float DerivativeCutoff;
+
+        // Stride to recover the player index from the flattened channel index
+        // i.e., the number of muscles per avatar
+        [ReadOnly] public int MuscleCountPerAvatar;
+
+        public void Execute(int index)
+        {
+            // 2D indexing: player + muscle
+            int playerIndex = MuscleCountPerAvatar > 0 ? (index / MuscleCountPerAvatar) : 0;
+
+            // Defensive: if something is off, early-out safely (keeps Burst happy).
+            if ((uint)playerIndex >= (uint)DeltaTime.Length) return;
+            if ((uint)index >= (uint)InputValues.Length) return;
+            if ((uint)index >= (uint)OutputValues.Length) return;
+            if ((uint)index >= (uint)PositionFilters.Length) return;
+            if ((uint)index >= (uint)DerivativeFilters.Length) return;
+
+            float dt = DeltaTime[playerIndex];
+            // Guard against zero/very small dt to avoid div-by-zero or huge frequency
+            if (dt <= 0f) dt = 1e-3f;
+
+            float frequency = 1.0f / dt;
+
+            // Current raw input for this (player,muscle) channel
+            float inputValue = InputValues[index];
+
+            // Previous filtered output stored in PositionFilters[index].y
+            float prevFiltered = PositionFilters[index].y;
+            float prevRaw = PositionFilters[index].x;
+
+            // Derivative estimate from raw inputs
+            float dValue = (inputValue - prevRaw) * frequency;
+
+            // Filter derivative
+            float alphaD = Alpha(DerivativeCutoff, frequency);
+            float prevDerivFiltered = DerivativeFilters[index].y;
+            float edValue = alphaD * dValue + (1.0f - alphaD) * prevDerivFiltered;
+
+            // Update cutoff based on filtered derivative magnitude
+            float cutoff = MinCutoff + Beta * Mathf.Abs(edValue);
+
+            // Filter the input value
+            float alphaX = Alpha(cutoff, frequency);
+            float filtered = alphaX * inputValue + (1.0f - alphaX) * prevFiltered;
+
+            // Write output
+            OutputValues[index] = filtered;
+
+            // Update state
+            PositionFilters[index] = new float2(inputValue, filtered);
+            DerivativeFilters[index] = new float2(dValue, edValue);
+        }
+
+        private static float Alpha(float cutoff, float frequency)
+        {
+            // cutoff in Hz, frequency in Hz
+            float te = 1.0f / frequency;
+            float tau = 1.0f / (2.0f * Mathf.PI * math.max(cutoff, 1e-4f));
+            return 1.0f / (1.0f + tau / te);
+        }
+    }
+        [BurstCompile]
+    public struct UpdateAllAvatarsJob : IJobParallelFor
+    {
+        [ReadOnly] public NativeArray<float3> PreviousPositions;
+        [ReadOnly] public NativeArray<float3> TargetPositions;
+
+        [ReadOnly] public NativeArray<float3> PreviousScales;
+        [ReadOnly] public NativeArray<float3> TargetScales;
+
+        [ReadOnly] public NativeArray<quaternion> PreviousRotations;
+        [ReadOnly] public NativeArray<quaternion> TargetRotations;
+
+        [ReadOnly] public NativeArray<float> InterpolationTimes;
+
+        public NativeArray<float3> OutputPositions;
+        public NativeArray<float3> OutputScales;
+        public NativeArray<quaternion> OutputRotations;
+
+        public void Execute(int index)
+        {
+            float t = InterpolationTimes[index];
+
+            OutputPositions[index] = math.lerp(PreviousPositions[index], TargetPositions[index], t);
+            OutputScales[index] = math.lerp(PreviousScales[index], TargetScales[index], t);
+            OutputRotations[index] = math.slerp(PreviousRotations[index], TargetRotations[index], t);
+        }
+    }
+    [BurstCompile]
+    public struct UpdateAllAvatarMusclesJob : IJobParallelFor
+    {
+        [ReadOnly] public NativeArray<float> PreviousMuscles; // Flattened array
+        [ReadOnly] public NativeArray<float> TargetMuscles;
+        [ReadOnly] public NativeArray<float> InterpolationTimes;
+
+        public NativeArray<float> OutputMuscles;
+        public int MuscleCountPerAvatar;
+
+        public void Execute(int index)
+        {
+            int playerIndex = index / MuscleCountPerAvatar;
+            float t = InterpolationTimes[playerIndex];
+
+            OutputMuscles[index] = math.lerp(
+                PreviousMuscles[index],
+                TargetMuscles[index],
+                t
+            );
+        }
     }
 
     /// <summary>
