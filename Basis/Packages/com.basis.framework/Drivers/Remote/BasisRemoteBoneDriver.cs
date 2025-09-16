@@ -591,6 +591,27 @@ public static class RemoteBoneJobSystem
             default: return quaternion.identity;
         }
     }
+    public static bool TryGetOutgoingPose(int key, int boneIndex, out float3 position, out quaternion rotation)
+    {
+        position = float3.zero;
+        rotation = quaternion.identity;
+
+        if (!TryGetIndex(key, out int idx)) return false;
+        var o = sOut[idx];
+
+        // single switch for both values
+        switch (boneIndex)
+        {
+            case BoneIdx.Head: position = o.pos_Head; rotation = o.rot_Head; return true;
+            case BoneIdx.Neck: position = o.pos_Neck; rotation = o.rot_Neck; return true;
+            case BoneIdx.Chest: position = o.pos_Chest; rotation = o.rot_Chest; return true;
+            case BoneIdx.Spine: position = o.pos_Spine; rotation = o.rot_Spine; return true;
+            case BoneIdx.Hips: position = o.pos_Hips; rotation = o.rot_Hips; return true;
+            case BoneIdx.CenterEye: position = o.pos_CenterEye; rotation = o.rot_CenterEye; return true;
+            case BoneIdx.Mouth: position = o.pos_Mouth; rotation = o.rot_Mouth; return true;
+            default: return false;
+        }
+    }
 
     public static float GetDiffHipToHeadMouthY(int key)
     {

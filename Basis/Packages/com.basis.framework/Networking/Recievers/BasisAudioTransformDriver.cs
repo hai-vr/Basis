@@ -137,8 +137,6 @@ public static class BasisAudioTransformDriver
     // --------------- Frame Simulation API ---------------
     public static void BeginFrame()
     {
-        if (!_initialized) Initialize(_initialCapacity);
-
         // Finish prior frame
         CompleteIfScheduled();
 
@@ -204,14 +202,12 @@ public static class BasisAudioTransformDriver
     public static void EnqueueSet(Transform t, Vector3 position, Quaternion rotation)
     {
         if (t == null) return;
-        if (!_initialized) Initialize(_initialCapacity);
         _queuedSetsThisFrame.Add((t, (float3)position, (quaternion)rotation));
     }
 
     public static void RequestRemove(Transform t)
     {
         if (t == null) return;
-        if (!_initialized) Initialize(_initialCapacity);
         _queuedRemovals.Add(t);
     }
 

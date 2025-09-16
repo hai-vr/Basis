@@ -53,9 +53,6 @@ namespace Basis.Scripts.Networking.Receivers
         // Main-thread staging for dequeued packets
         private readonly List<BasisAvatarBuffer> _staged = new List<BasisAvatarBuffer>(16);
 
-        // Shared zero array for safety
-        private static readonly float[] ZeroMuscles = new float[95];
-
         // ---------- Compute / Apply ----------
 
         /// <summary>
@@ -122,7 +119,7 @@ namespace Basis.Scripts.Networking.Receivers
                     HumanPose.bodyRotation = applyingRotation;
 
                     // Muscles
-                    Memcpy95(Muscles ?? ZeroMuscles, HumanPose.muscles);
+                    Memcpy95(Muscles, HumanPose.muscles);
 
                     // Overlay eyes/mouth in one tiny copy
                     unsafe
@@ -140,10 +137,18 @@ namespace Basis.Scripts.Networking.Receivers
 
                     // If you DID NOT provide a TransformAccessArray to the driver via SetAvatarTransformList,
                     // you can set localScale here on main thread:
-                     Player.AvatarTransform.localScale = applyingScale;
+                    Player.AvatarTransform.localScale = applyingScale;
 
                     // HumanPoseHandler must stay on main thread
                     PoseHandler.SetHumanPose(ref HumanPose);
+
+                    if (AudioReceiverModule.HasTransform)
+                    {
+                        if (RemoteBoneJobSystem.TryGetOutgoingPose(playerId, BoneIdx.Mouth, out float3 MouthPosition, out quaternion MouthRotation))
+                        {
+                            BasisAudioTransformDriver.EnqueueSet(AudioReceiverModule.AudioSourceTransform, MouthPosition, MouthRotation);
+                        }
+                    }
                 }
             }
         }

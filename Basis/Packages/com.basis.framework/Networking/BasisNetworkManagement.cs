@@ -66,7 +66,6 @@ namespace Basis.Scripts.Networking
             BoneJobSystem = RemoteBoneJobSystem.Schedule();//will always be a frame behind! this should be ok.
             for (int Index = 0; Index < snapshot.Length; Index++)
             {
-                var RemotePlayer = snapshot[Index].RemotePlayer;
                 // Each frame, wherever you previously did the per-receiver Simulate/Apply:
                 snapshot[Index].Compute();
             }
@@ -87,20 +86,13 @@ namespace Basis.Scripts.Networking
             for (int Index = 0; Index < snapshot.Length; Index++)
             {
                 snapshot[Index].Apply();
-                if (snapshot[Index].AudioReceiverModule.HasTransform)
-                {
-                    var MouthPosition = RemoteBoneJobSystem.GetOutgoingPosition(snapshot[Index].playerId, BoneIdx.Mouth);
-                    var MouthRotation = RemoteBoneJobSystem.GetOutgoingRotation(snapshot[Index].playerId, BoneIdx.Mouth);
-                    BasisAudioTransformDriver.EnqueueSet(snapshot[Index].AudioReceiverModule.AudioSourceTransform, MouthPosition, MouthRotation);
-                }
             }
-
+            BasisAudioTransformDriver.BeginFrame();
             if (BasisRemoteNamePlate.HasScheduledNamePlateBatch)
             {
                 BasisRemoteNamePlate.NamePlateBatch.Complete();
                 BasisRemoteNamePlate.HasScheduledNamePlateBatch = false;
             }
-            BasisAudioTransformDriver.BeginFrame();
             BasisAudioTransformDriver.EndFrame();
         }
         public static int GetServerTimeOffsetSeconds()

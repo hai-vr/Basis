@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
@@ -171,20 +170,20 @@ public static partial class BasisRemoteNetworkDriver
         if ((uint)index >= FixedCapacity)
             throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
 
-        // --- sanitize everything on input ---
-        _humanScales[index] = SanitizeFloat(humanScale, 1f, MinHumanScale, MaxHumanScale);
+        // --- NO SANITIZATION HERE ANYMORE: write raw values ---
+        _humanScales[index] = humanScale;
 
-        _prevPositions[index] = SanitizePosition(prevPos);
-        _targetPositions[index] = SanitizePosition(targetPos);
+        _prevPositions[index] = prevPos;
+        _targetPositions[index] = targetPos;
 
-        _prevScales[index] = SanitizeScale(prevScale);
-        _targetScales[index] = SanitizeScale(targetScale);
+        _prevScales[index] = prevScale;
+        _targetScales[index] = targetScale;
 
-        _prevRotations[index] = SanitizeRotation(prevRot);
-        _targetRotations[index] = SanitizeRotation(targetRot);
+        _prevRotations[index] = prevRot;
+        _targetRotations[index] = targetRot;
 
-        // Interpolation t is used by transform & muscle lerps — keep it in [0,1].
-        _interpolationTimes[index] = SanitizeFloat(interpolationTime, 0f, 0f, 1f);
+        // raw t as well; clamped later on threads
+        _interpolationTimes[index] = interpolationTime;
 
         // Flattened write: [index * MuscleCount .. (index+1) * MuscleCount)
         int baseOffset = index * _muscleCount;
@@ -248,6 +247,20 @@ public static partial class BasisRemoteNetworkDriver
         int num = _activeCount;
         if (num <= 0) return;
 
+        // 0) sanitize all raw inputs on threads
+        var sanitizeInputsJob = new SanitizeAvatarInputsJob
+        {
+            PrevPositions = _prevPositions,
+            TargetPositions = _targetPositions,
+            PrevScales = _prevScales,
+            TargetScales = _targetScales,
+            PrevRotations = _prevRotations,
+            TargetRotations = _targetRotations,
+            InterpolationTimes = _interpolationTimes,
+            HumanScales = _humanScales
+        }.Schedule(num, 128);
+
+        // 1) transforms (depends on sanitized inputs)
         var avatarJob = new UpdateAllAvatarsJob
         {
             PreviousPositions = _prevPositions,
@@ -260,9 +273,9 @@ public static partial class BasisRemoteNetworkDriver
             OutputPositions = _outPositions,
             OutputScales = _outScales,
             OutputRotations = _outRotations
-        }.Schedule(num, 128);
+        }.Schedule(num, 128, sanitizeInputsJob);
 
-        // Precompute scaled body position with guarded divide (Burst)
+        // 2) precompute scaled body (after transforms)
         var scaledBodyJob = new ComputeScaledBodyJob
         {
             OutputPositions = _outPositions,
@@ -271,30 +284,30 @@ public static partial class BasisRemoteNetworkDriver
             ScaledBodyPositions = _scaledBodyPositions
         }.Schedule(num, 128, avatarJob);
 
-        // (new) pre-sanitize raw muscle inputs
+        // 3) sanitize raw muscle buffers (still on threads) — depends on sanitized t
         int flatChannels = num * _muscleCount;
         var sanitizeMuscleInputs = new SanitizeMuscleBuffersJob
         {
             A = _prevMuscles,
             B = _targetMuscles
-        }.Schedule(flatChannels, 128, avatarJob);
+        }.Schedule(flatChannels, 128, sanitizeInputsJob);
 
-        // Interpolate muscles across players * muscles (flattened)
+        // 4) interpolate muscles (needs sanitized t + sanitized muscles)
         JobHandle musclesJob = new UpdateAllAvatarMusclesJob
         {
             PreviousMuscles = _prevMuscles,
             TargetMuscles = _targetMuscles,
-            InterpolationTimes = _interpolationTimes, // index-based per "player"
+            InterpolationTimes = _interpolationTimes,
             OutputMuscles = _outMuscles,
             MuscleCountPerAvatar = _muscleCount
         }.Schedule(flatChannels, 128, sanitizeMuscleInputs);
 
-        // 1€ filter: read interpolated muscles, write filtered output
+        // 5) filter and clamp
         JobHandle euroJobHandle = new BasisOneEuroFilterParallelJob
         {
-            InputValues = _outMuscles,          // raw/interpolated input per (index,muscle)
-            OutputValues = euroValuesOutput,    // filtered output
-            DeltaTime = _interpolationTimes,    // per-index dt / interpolation t
+            InputValues = _outMuscles,
+            OutputValues = euroValuesOutput,
+            DeltaTime = _interpolationTimes,
             MinCutoff = MinCutoff,
             Beta = Beta,
             DerivativeCutoff = DerivativeCutoff,
@@ -303,16 +316,38 @@ public static partial class BasisRemoteNetworkDriver
             MuscleCountPerAvatar = _muscleCount
         }.Schedule(flatChannels, 128, musclesJob);
 
-        // (new) final clamp on filtered muscles (paranoia)
         var clampFiltered = new SanitizeSingleBufferJob
         {
             Buffer = euroValuesOutput
         }.Schedule(flatChannels, 128, euroJobHandle);
 
-        // Combine all deps so Apply() has a single fence
+        // 6) single fence
         oneEuroJob = JobHandle.CombineDependencies(clampFiltered, scaledBodyJob);
     }
+    [BurstCompile]
+    public struct SanitizeAvatarInputsJob : IJobParallelFor
+    {
+        public NativeArray<float3> PrevPositions;
+        public NativeArray<float3> TargetPositions;
+        public NativeArray<float3> PrevScales;
+        public NativeArray<float3> TargetScales;
+        public NativeArray<quaternion> PrevRotations;
+        public NativeArray<quaternion> TargetRotations;
+        public NativeArray<float> InterpolationTimes;
+        public NativeArray<float> HumanScales;
 
+        public void Execute(int index)
+        {
+            HumanScales[index] = SanitizeFloat(HumanScales[index], 1f, MinHumanScale, MaxHumanScale);
+            PrevPositions[index] = SanitizePosition(PrevPositions[index]);
+            TargetPositions[index] = SanitizePosition(TargetPositions[index]);
+            PrevScales[index] = SanitizeScale(PrevScales[index]);
+            TargetScales[index] = SanitizeScale(TargetScales[index]);
+            PrevRotations[index] = SanitizeRotation(PrevRotations[index]);
+            TargetRotations[index] = SanitizeRotation(TargetRotations[index]);
+            InterpolationTimes[index] = SanitizeFloat(InterpolationTimes[index], 0f, 0f, 1f);
+        }
+    }
     /*
      * BasicOneEuroFilterParallelJob.cs
      * Author: Dario Mazzanti (dario.mazzanti@iit.it), 2016
