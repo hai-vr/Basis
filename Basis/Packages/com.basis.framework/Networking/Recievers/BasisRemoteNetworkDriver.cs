@@ -561,14 +561,15 @@ public static partial class BasisRemoteNetworkDriver
     /* must be length == _muscleCount */
     /// <summary>Read back the computed outputs for an index after Apply().</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool GetOutputs_NoAlloc(int index,out float3 outPos,out float3 outScale,out quaternion outRot, out float3 BodyPosition,float[] outMuscles)
+    public static bool GetOutputs_NoAlloc(int index,out float3 outPos,out quaternion outRot, out float3 BodyPosition,float[] outMuscles)
     {
-        outPos = default; outScale = default; outRot = default; BodyPosition = default;
+        //outScale = default;
+        outPos = default;  outRot = default; BodyPosition = default;
         if ((uint)index >= FixedCapacity) return false;
         if (outMuscles == null || outMuscles.Length != _muscleCount) return false;
 
         outPos = _outPositions[index];
-        outScale = _outScales[index];
+      //  outScale = _outScales[index];
         outRot = _outRotations[index];
 
         int baseOffset = index * _muscleCount;

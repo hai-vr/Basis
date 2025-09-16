@@ -161,7 +161,7 @@ struct GatherHeadJob : IJobParallelForTransform
     public void Execute(int index, TransformAccess tx)
     {
         headPos[index] = tx.position;
-        headRot[index] = (quaternion)tx.rotation;
+        headRot[index] = tx.rotation;
     }
 }
 
@@ -174,7 +174,7 @@ struct GatherHipsJob : IJobParallelForTransform
     public void Execute(int index, TransformAccess tx)
     {
         hipsPos[index] = tx.position;
-        hipsRot[index] = (quaternion)tx.rotation;
+        hipsRot[index] = tx.rotation;
     }
 }
 
@@ -208,6 +208,37 @@ struct CombineInputsJob : IJobParallelFor
     }
 }
 
+// ---------- Apply job (Mouth → Transform) ----------
+[BurstCompile]
+struct ApplyMouthJob : IJobParallelForTransform
+{
+    [ReadOnly] public NativeArray<RemoteFrameOutput> Out;
+    [ReadOnly] public NativeArray<float3> rootWorld; // sTmpRootPos
+
+    public void Execute(int index, TransformAccess tx)
+    {
+        var o = Out[index];
+
+        // Sim positions are root-relative; add rootWorld to get absolute
+        float3 worldPos = rootWorld[index] + o.pos_Mouth;
+        tx.position = worldPos;
+        tx.rotation = o.rot_Mouth; // rot_* are world rotations
+    }
+}
+
+// ---------- Apply job (AvatarTransform scale) ----------
+[BurstCompile]
+struct ApplyAvatarScaleJob : IJobParallelForTransform
+{
+    [ReadOnly] public NativeArray<float3> rootScale; // sTmpRootScale
+
+    public void Execute(int index, TransformAccess tx)
+    {
+        // Writes local scale to match root world scale (simple case).
+        tx.localScale = rootScale[index];
+    }
+}
+
 // ---------------- Static Manager ----------------
 public static class RemoteBoneJobSystem
 {
@@ -221,10 +252,12 @@ public static class RemoteBoneJobSystem
     static NativeList<quaternion> sTPoseHeadRot;
     static NativeList<quaternion> sTPoseHipsRot;
 
-    // Transform access arrays (roots / heads / hips)
+    // Transform access arrays (roots / heads / hips / mouthTargets / avatar scale targets)
     static TransformAccessArray sRoots;
     static TransformAccessArray sHeads;
     static TransformAccessArray sHips;
+    static TransformAccessArray sMouthTargets;
+    static TransformAccessArray sAvatarTransforms; // NEW
 
     // Temp per-frame buffers (reused)
     static NativeArray<float3> sTmpRootPos, sTmpHeadPos, sTmpHipsPos;
@@ -260,6 +293,8 @@ public static class RemoteBoneJobSystem
         sRoots = new TransformAccessArray(initialCapacity);
         sHeads = new TransformAccessArray(initialCapacity);
         sHips = new TransformAccessArray(initialCapacity);
+        sMouthTargets = new TransformAccessArray(initialCapacity);
+        sAvatarTransforms = new TransformAccessArray(initialCapacity); // NEW
 
         sInitialized = true;
     }
@@ -279,6 +314,8 @@ public static class RemoteBoneJobSystem
         if (sRoots.isCreated) sRoots.Dispose();
         if (sHeads.isCreated) sHeads.Dispose();
         if (sHips.isCreated) sHips.Dispose();
+        if (sMouthTargets.isCreated) sMouthTargets.Dispose();
+        if (sAvatarTransforms.isCreated) sAvatarTransforms.Dispose(); // NEW
 
         DisposeTempBuffers();
 
@@ -298,11 +335,13 @@ public static class RemoteBoneJobSystem
         int key,
         Transform remotePlayerRoot,
         Transform head, Transform hips,
+        Transform mouthTarget,             // target transform to write mouth pose
+        Transform avatarTransform,         // NEW: target transform to set scale
         BasisCalibratedCoords tposeHead, BasisCalibratedCoords tposeHips,
         float3 authoredCenterEyeWorld,
         float3 authoredMouthWorld,
         int remotePlayerDataIndex,
-        Func<bool> isNameplateVisible // nullable
+        Func<bool> isNameplateVisible      // nullable
     )
     {
         if (!sInitialized) Initialize();
@@ -362,6 +401,8 @@ public static class RemoteBoneJobSystem
         sRoots.Add(remotePlayerRoot);
         sHeads.Add(head);
         sHips.Add(hips);
+        sMouthTargets.Add(mouthTarget);
+        sAvatarTransforms.Add(avatarTransform); // NEW
 
         // Index→refs for nameplate updater
         if (sIndexToRefs.Count == idx) sIndexToRefs.Add(default);
@@ -401,15 +442,16 @@ public static class RemoteBoneJobSystem
             sRoots.RemoveAtSwapBack(idx);
             sHeads.RemoveAtSwapBack(idx);
             sHips.RemoveAtSwapBack(idx);
+            sMouthTargets.RemoveAtSwapBack(idx);
+            sAvatarTransforms.RemoveAtSwapBack(idx); // NEW
 
-            // Bring the last transforms into the removed slot positions to keep indexes tight:
-            // Note: RemoveAtSwapBack already did the swap; nothing more to do.
-
-            // Patch moved key
+            // Patch moved key (safe: don't modify while enumerating)
+            int movedKey = -1;
             foreach (var kv in sKeyToIndex)
             {
-                if (kv.Value == last) { sKeyToIndex[kv.Key] = idx; break; }
+                if (kv.Value == last) { movedKey = kv.Key; break; }
             }
+            if (movedKey != -1) sKeyToIndex[movedKey] = idx;
         }
         else
         {
@@ -417,6 +459,8 @@ public static class RemoteBoneJobSystem
             sRoots.RemoveAtSwapBack(last);
             sHeads.RemoveAtSwapBack(last);
             sHips.RemoveAtSwapBack(last);
+            sMouthTargets.RemoveAtSwapBack(last);
+            sAvatarTransforms.RemoveAtSwapBack(last); // NEW
         }
 
         sAuthoring.RemoveAt(last);
@@ -478,6 +522,8 @@ public static class RemoteBoneJobSystem
             sRoots.capacity = newCap;
             sHeads.capacity = newCap;
             sHips.capacity = newCap;
+            sMouthTargets.capacity = newCap;
+            sAvatarTransforms.capacity = newCap; // NEW
         }
     }
 
@@ -518,7 +564,7 @@ public static class RemoteBoneJobSystem
             tposeHeadRot = sTPoseHeadRot.AsDeferredJobArray(),
             tposeHipsRot = sTPoseHipsRot.AsDeferredJobArray(),
             InOut = sIn.AsDeferredJobArray()
-        }.Schedule(sAuthoring.Length, math.max(1, batchSize), deps);
+        }.Schedule(sAuthoring.Length, batchSize, deps);
 
         var sim = new BoneSimJob
         {
@@ -526,10 +572,24 @@ public static class RemoteBoneJobSystem
             In = sIn.AsDeferredJobArray(),
             ScaleCache = sScale.AsDeferredJobArray(),
             Out = sOut.AsDeferredJobArray()
-        }.Schedule(sAuthoring.Length, math.max(1, batchSize), combine);
+        }.Schedule(sAuthoring.Length, batchSize, combine);
 
-        sPending = sim;
-        return sim;
+        // Apply mouth pose to target transforms (world space)
+        var applyMouth = new ApplyMouthJob
+        {
+            Out = sOut.AsDeferredJobArray(),
+            rootWorld = sTmpRootPos
+        }.Schedule(sMouthTargets, sim);
+
+        // Apply avatar scale from gathered root world scale
+        var applyScale = new ApplyAvatarScaleJob
+        {
+            rootScale = sTmpRootScale
+        }.Schedule(sAvatarTransforms, deps); // needs only gather jobs
+
+        var finalHandle = JobHandle.CombineDependencies(applyMouth, applyScale);
+        sPending = finalHandle;
+        return finalHandle;
     }
 
     public static void Complete(Action<int, float3, float> nameplateUpdater, JobHandle handle)
@@ -591,6 +651,7 @@ public static class RemoteBoneJobSystem
             default: return quaternion.identity;
         }
     }
+
     public static bool TryGetOutgoingPose(int key, int boneIndex, out float3 position, out quaternion rotation)
     {
         position = float3.zero;
@@ -611,12 +672,6 @@ public static class RemoteBoneJobSystem
             case BoneIdx.Mouth: position = o.pos_Mouth; rotation = o.rot_Mouth; return true;
             default: return false;
         }
-    }
-
-    public static float GetDiffHipToHeadMouthY(int key)
-    {
-        if (!TryGetIndex(key, out int idx)) return 0f;
-        return sOut[idx].diffHipToHeadMouthY;
     }
 
     static bool TryGetIndex(int key, out int idx) => sKeyToIndex.TryGetValue(key, out idx);

@@ -15,9 +15,6 @@ namespace Basis.Scripts.BasisSdk.Players
         [Header("Eye Driver")]
         [SerializeField]
         public BasisRemoteEyeDriver RemoteEyeDriver = new BasisRemoteEyeDriver();
-        [Header("Bone Driver")]
-       // [SerializeField]
-       // public BasisRemoteBoneDriver RemoteBoneDriver = new BasisRemoteBoneDriver();
         [Header("Avatar Driver")]
         [SerializeField]
         public BasisRemoteAvatarDriver RemoteAvatarDriver = new BasisRemoteAvatarDriver();
@@ -35,6 +32,7 @@ namespace Basis.Scripts.BasisSdk.Players
         public BasisLoadableBundle AlwaysRequestedAvatar;
         public static GameObject NamePlate;
         public int RemotePlayerDataIndex;
+        public Transform MouthTransform;
         /// <summary>
         /// we are leaking this memory atm!
         /// </summary>

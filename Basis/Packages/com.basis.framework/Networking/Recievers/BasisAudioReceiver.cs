@@ -44,11 +44,11 @@ namespace Basis.Scripts.Networking.Receivers
                 InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize);
             }
         }
-        public async void LoadAudioSource(BasisNetworkPlayer networkedPlayer)
+        public async void LoadAudioSource(BasisNetworkPlayer networkedPlayer,Transform Parent)
         {
             if (AudioSourceTransform == null)
             {
-                AudioSourceTransform = BasisAudioRemoteSource.RequestAudio().transform;
+                AudioSourceTransform = BasisAudioRemoteSource.RequestAudio(Parent).transform;
                 AudioSourceTransform.name = $"[Audio] {BasisNetworkPlayer.Player.DisplayName}";
                 HasTransform = true;
                 if (audioSource == null)
@@ -74,7 +74,6 @@ namespace Basis.Scripts.Networking.Receivers
             }
             if (AudioSourceTransform != null)
             {
-                BasisAudioTransformDriver.RequestRemove(AudioSourceTransform);
                 BasisAudioRemoteSource.Return(AudioSourceTransform.gameObject);
                 AudioSourceTransform = null;
                 HasTransform = false;
@@ -135,7 +134,7 @@ namespace Basis.Scripts.Networking.Receivers
 #endif
             if (BasisNetworkPlayer != null)
             {
-                LoadAudioSource(BasisNetworkPlayer);
+                LoadAudioSource(BasisNetworkPlayer,AudioSourceTransform);
             }
         }
         public void ChangeRemotePlayersVolumeSettings(float volume = 1.0f,float dopplerLevel = 0,float spatialBlend = 1.0f,bool spatialize = true,bool spatializePostEffects = true)

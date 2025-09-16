@@ -83,6 +83,8 @@ namespace Basis.Scripts.Drivers
                 remotePlayerRoot: player.BasisAvatar.Animator.transform,
                 head: player.RemoteAvatarDriver.References.head,
                 hips: player.RemoteAvatarDriver.References.Hips,
+                mouthTarget: player.MouthTransform,
+                  avatarTransform: player.AvatarTransform,
                 tposeHead: player.RemoteAvatarDriver.References.TposeHead,
                 tposeHips: player.RemoteAvatarDriver.References.TposeHips,
                 authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(
@@ -98,7 +100,7 @@ namespace Basis.Scripts.Drivers
             );
             hasDatainBoneDriver = true;
 
-           // player.RemoteBoneDriver.InitializeFromAvatar(player);
+            // player.RemoteBoneDriver.InitializeFromAvatar(player);
             player.BasisAvatar.Animator.enabled = false;
 
             SetupAvatarJiggleColliders();

@@ -87,13 +87,11 @@ namespace Basis.Scripts.Networking
             {
                 snapshot[Index].Apply();
             }
-            BasisAudioTransformDriver.BeginFrame();
             if (BasisRemoteNamePlate.HasScheduledNamePlateBatch)
             {
                 BasisRemoteNamePlate.NamePlateBatch.Complete();
                 BasisRemoteNamePlate.HasScheduledNamePlateBatch = false;
             }
-            BasisAudioTransformDriver.EndFrame();
         }
         public static int GetServerTimeOffsetSeconds()
         {

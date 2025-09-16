@@ -113,7 +113,7 @@ namespace Basis.Scripts.Networking.Receivers
             if (BufferHolder.HasFirst && BufferHolder.HasLast)
             {
                 // Pull outputs (position, scale, rotation, muscles). We also use outPos for a robust fallback path.
-                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out float3 applyingScale, out var applyingRotation, out float3 scaledBody, Muscles))
+                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out var applyingRotation, out float3 scaledBody, Muscles))
                 {
                     HumanPose.bodyPosition = scaledBody;
                     HumanPose.bodyRotation = applyingRotation;
@@ -134,21 +134,10 @@ namespace Basis.Scripts.Networking.Receivers
                             );
                         }
                     }
-
-                    // If you DID NOT provide a TransformAccessArray to the driver via SetAvatarTransformList,
-                    // you can set localScale here on main thread:
-                    Player.AvatarTransform.localScale = applyingScale;
+                    //  Player.AvatarTransform.localScale = applyingScale;
 
                     // HumanPoseHandler must stay on main thread
                     PoseHandler.SetHumanPose(ref HumanPose);
-
-                    if (AudioReceiverModule.HasTransform)
-                    {
-                        if (RemoteBoneJobSystem.TryGetOutgoingPose(playerId, BoneIdx.Mouth, out float3 MouthPosition, out quaternion MouthRotation))
-                        {
-                            BasisAudioTransformDriver.EnqueueSet(AudioReceiverModule.AudioSourceTransform, MouthPosition, MouthRotation);
-                        }
-                    }
                 }
             }
         }
