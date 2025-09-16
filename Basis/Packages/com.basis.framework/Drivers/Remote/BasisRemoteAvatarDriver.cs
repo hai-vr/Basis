@@ -77,19 +77,21 @@ namespace Basis.Scripts.Drivers
                 RemoteBoneJobSystem.RemoveRemotePlayer(player.NetworkReceiver.playerId);
                 hasDatainBoneDriver = false;
             }
+            var Reference = player.RemoteAvatarDriver.References;
+            Vector3 Position = player.BasisAvatar.Animator.transform.position;
             // On player join:
             RemoteBoneJobSystem.AddRemotePlayer(
                 key: player.NetworkReceiver.playerId,
                 Root: player.BasisAvatar.Animator.transform,
-                head: player.RemoteAvatarDriver.References.head,
-                Hip: player.RemoteAvatarDriver.References.Hips,
+                head: Reference.head,
+                Hip: Reference.Hips,
                 Mouth: player.MouthTransform,
                 Avatar: player.AvatarTransform,
                 namePlate : player.RemoteNamePlate.Self,
-                tposeHead: player.RemoteAvatarDriver.References.TposeHead,
-                tposeHips: player.RemoteAvatarDriver.References.TposeHips,
-                authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarEyePosition),player.BasisAvatar.Animator.transform.position),
-                authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarMouthPosition),player.BasisAvatar.Animator.transform.position)
+                tposeHead: Reference.TposeHead,
+                tposeHips: Reference.TposeHips,
+                authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarEyePosition), Position),
+                authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarMouthPosition), Position)
             );
             hasDatainBoneDriver = true;
 

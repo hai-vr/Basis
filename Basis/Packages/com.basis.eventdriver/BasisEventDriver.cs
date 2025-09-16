@@ -17,6 +17,7 @@ public class BasisEventDriver : MonoBehaviour
     public double TimeAsDouble;
     public double fixedTimeAsDouble;
     public float fixedDeltaTime;
+    public float unscaledDeltaTime;
     [SerializeField]
     private Material proceduralMaterial;
     [SerializeField]
@@ -49,17 +50,14 @@ public class BasisEventDriver : MonoBehaviour
     {
         DeltaTime = Time.deltaTime;
         TimeAsDouble = Time.timeAsDouble;
-
+        unscaledDeltaTime = Time.unscaledDeltaTime;
         // Drain everything that arrived from worker threads
         while (BasisDeviceManagement.mainThreadActions.TryDequeue(out System.Action action))
         {
             try { action.Invoke(); }
             catch (Exception ex) { Debug.LogError($"MainThread action failed: {ex}"); }
         }
-
-
-
-        BasisNetworkManagement.SimulateNetworkCompute();
+        BasisNetworkManagement.SimulateNetworkCompute(unscaledDeltaTime);
         BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
 
 #if UNITY_SERVER

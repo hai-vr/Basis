@@ -298,7 +298,7 @@ public static class RemoteBoneJobSystem
         sPending.Complete();
         sPending = default;
     }
-    public static int AddRemotePlayer(int key,Transform Root,Transform head,Transform Hip,Transform Mouth,Transform Avatar,Transform namePlate,BasisCalibratedCoords tposeHead,BasisCalibratedCoords tposeHips,float3 authoredCenterEyeWorld,float3 authoredMouthWorld)
+    public static int AddRemotePlayer(int key, Transform Root, Transform head, Transform Hip, Transform Mouth, Transform Avatar, Transform namePlate, BasisCalibratedCoords tposeHead, BasisCalibratedCoords tposeHips, float3 authoredCenterEyeWorld, float3 authoredMouthWorld)
     {
         if (!sInitialized) Initialize();
         CompletePending();

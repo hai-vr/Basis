@@ -60,7 +60,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// Pulls data to staging, builds/advances the interpolation window,
         /// computes the fraction using SecondsInterval, and pushes inputs to the driver.
         /// </summary>
-        public void Compute()
+        public void Compute(float unscaledDeltaTime)
         {
             // 1) Pull network packets to main-thread staging
             PumpQueueToStaging();
@@ -71,7 +71,7 @@ namespace Basis.Scripts.Networking.Receivers
             // 3) If we have a window, compute interpolation fraction and feed the compute phase
             if (BufferHolder.HasFirst && BufferHolder.HasLast)
             {
-                ComputeInterpolationFraction();
+                ComputeInterpolationFraction(unscaledDeltaTime);
 
                 var first = BufferHolder.First;
                 var last = BufferHolder.Last;
@@ -425,7 +425,7 @@ namespace Basis.Scripts.Networking.Receivers
             }
         }
 
-        private void ComputeInterpolationFraction()
+        private void ComputeInterpolationFraction(float unscaledDeltaTime)
         {
             var first = BufferHolder.First;
             var last = BufferHolder.Last;
@@ -438,7 +438,7 @@ namespace Basis.Scripts.Networking.Receivers
             // Clamp to sane floor to avoid huge dt spikes dividing by tiny intervals
             if (windowDuration <= 1e-6) windowDuration = 1e-3;
 
-            double step = Math.Max(Time.unscaledDeltaTime, 0.0);
+            double step = Math.Max(unscaledDeltaTime, 0.0);
             interpolationTime += (float)(step / windowDuration);
             if (interpolationTime > 1f) interpolationTime = 1f;
             if (interpolationTime < 0f) interpolationTime = 0f;
@@ -447,9 +447,9 @@ namespace Basis.Scripts.Networking.Receivers
         private void DropOldestFromStaging(int count)
         {
             count = Mathf.Min(count, _staged.Count);
-            for (int i = 0; i < count; i++)
+            for (int Index = 0; Index < count; Index++)
             {
-                var b = _staged[i];
+                var b = _staged[Index];
                 BasisAvatarBufferPool.Release(ref b);
             }
             _staged.RemoveRange(0, count);
