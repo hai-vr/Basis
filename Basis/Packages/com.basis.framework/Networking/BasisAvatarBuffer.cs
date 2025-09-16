@@ -52,9 +52,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
         public static void Release(ref BasisAvatarBuffer item)
         {
-            item.Initialize(); // reset before pooling
             _pool.Push(item);
-            item = default; // optional: avoid accidental use after release
         }
         public static void DeInitalize()
         {
