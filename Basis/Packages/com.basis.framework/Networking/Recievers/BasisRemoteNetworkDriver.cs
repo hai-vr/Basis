@@ -46,7 +46,6 @@ public static partial class BasisRemoteNetworkDriver
     static NativeArray<float2> positionFilters;   // per-channel state
     static NativeArray<float2> derivativeFilters; // per-channel state
 
-
     // State
     static int _muscleCount;
     static bool _initialized;
@@ -54,7 +53,6 @@ public static partial class BasisRemoteNetworkDriver
     static Allocator _allocator = Allocator.Persistent;
 
     public static JobHandle oneEuroJob;         // final frame fence (combined deps)
-
 
     /// <summary>Initialize the driver with a fixed capacity of 1024. Must be called before SetInputs/Compute/Apply/GetOutputs.</summary>
     public static void Initialize(int muscleCount, Allocator allocator = Allocator.Persistent)
@@ -170,7 +168,7 @@ public static partial class BasisRemoteNetworkDriver
         _targetRotations[index] = quaternion.identity;
         _interpolationTimes[index] = 0f;
 
-        _humanScales[index] =  1;
+        _humanScales[index] = 1;
         _scaledBodyPositions[index] = float3.zero;
 
         int baseOffset = index * _muscleCount;
@@ -294,25 +292,33 @@ public static partial class BasisRemoteNetworkDriver
             if ((uint)index >= (uint)PositionFilters.Length) return;
             if ((uint)index >= (uint)DerivativeFilters.Length) return;
 
+            // --- sanitize dt / frequency ---
             float dt = DeltaTime[playerIndex];
-            if (dt <= 0f) dt = 1e-3f; // guard
-
+            bool dtBad = !math.isfinite(dt) | (dt <= 1e-6f);
+            dt = math.select(dt, 1e-3f, dtBad); // 1ms fallback
             float frequency = 1.0f / dt;
-            float inputValue = InputValues[index];
 
-            float prevFiltered = PositionFilters[index].y;
-            float prevRaw = PositionFilters[index].x;
+            // --- sanitize inputs & state ---
+            float inputValueRaw = InputValues[index];
+            float2 posState = PositionFilters[index];
+            float2 derState = DerivativeFilters[index];
 
-            float dValue = (inputValue - prevRaw) * frequency;
+            float prevFiltered = SafeFloat(posState.y, 0f);
+            float prevRaw = SafeFloat(posState.x, prevFiltered);
 
-            float alphaD = Alpha(DerivativeCutoff, frequency);
-            float prevDerivFiltered = DerivativeFilters[index].y;
-            float edValue = alphaD * dValue + (1.0f - alphaD) * prevDerivFiltered;
+            // if input is bad, fall back to previous filtered value to keep continuity
+            float inputValue = SafeFloat(inputValueRaw, prevFiltered);
 
-            float cutoff = MinCutoff + Beta * Mathf.Abs(edValue);
+            float dValue = SafeFloat((inputValue - prevRaw) * frequency, 0f);
 
-            float alphaX = Alpha(cutoff, frequency);
-            float filtered = alphaX * inputValue + (1.0f - alphaX) * prevFiltered;
+            float alphaD = AlphaSafe(DerivativeCutoff, frequency);
+            float prevDerivFiltered = SafeFloat(derState.y, 0f);
+            float edValue = SafeFloat(alphaD * dValue + (1.0f - alphaD) * prevDerivFiltered, 0f);
+
+            float cutoff = SafeFloat(MinCutoff + Beta * math.abs(edValue), MinCutoff);
+            float alphaX = AlphaSafe(cutoff, frequency);
+
+            float filtered = SafeFloat(alphaX * inputValue + (1.0f - alphaX) * prevFiltered, inputValue);
 
             OutputValues[index] = filtered;
 
@@ -320,11 +326,23 @@ public static partial class BasisRemoteNetworkDriver
             DerivativeFilters[index] = new float2(dValue, edValue);
         }
 
-        private static float Alpha(float cutoff, float frequency)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float SafeFloat(float v, float fallback)
         {
+            return math.select(v, fallback, !math.isfinite(v));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float AlphaSafe(float cutoff, float frequency)
+        {
+            cutoff = SafeFloat(cutoff, 1e-4f);
+            frequency = SafeFloat(frequency, 1e-3f);
+
             float te = 1.0f / frequency;
             float tau = 1.0f / (2.0f * Mathf.PI * math.max(cutoff, 1e-4f));
-            return 1.0f / (1.0f + tau / te);
+            float denom = 1.0f + tau / te;
+            denom = math.select(denom, 1.0f, !math.isfinite(denom) | (math.abs(denom) <= 1e-6f));
+            return 1.0f / denom;
         }
     }
 
@@ -349,10 +367,53 @@ public static partial class BasisRemoteNetworkDriver
         public void Execute(int index)
         {
             float t = InterpolationTimes[index];
+            t = SafeT(t); // finite and clamped [0,1]
 
-            OutputPositions[index] = math.lerp(PreviousPositions[index], TargetPositions[index], t);
-            OutputScales[index] = math.lerp(PreviousScales[index], TargetScales[index], t);
-            OutputRotations[index] = math.slerp(PreviousRotations[index], TargetRotations[index], t);
+            float3 p0 = SafeFloat3(PreviousPositions[index], float3.zero);
+            float3 p1 = SafeFloat3(TargetPositions[index], float3.zero);
+
+            float3 s0 = SafeFloat3(PreviousScales[index], new float3(1f));
+            float3 s1 = SafeFloat3(TargetScales[index], new float3(1f));
+
+            quaternion r0 = SafeQuat(PreviousRotations[index]);
+            quaternion r1 = SafeQuat(TargetRotations[index]);
+
+            OutputPositions[index] = math.lerp(p0, p1, t);
+            OutputScales[index] = math.lerp(s0, s1, t);
+            OutputRotations[index] = math.slerp(r0, r1, t);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float SafeT(float t)
+        {
+            t = math.select(t, 0f, !math.isfinite(t));
+            return math.clamp(t, 0f, 1f);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float3 SafeFloat3(float3 v, float3 fallback)
+        {
+            bool3 good = math.isfinite(v);
+            return math.select(fallback, v, good);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static quaternion SafeQuat(quaternion q)
+        {
+            float4 v = q.value;
+
+            // reject any NaN/Inf components
+            if (!math.all(math.isfinite(v)))
+                return quaternion.identity;
+
+            float len = math.length(v);
+
+            // reject degenerate quats
+            if (len <= 1e-6f || !math.isfinite(len))
+                return quaternion.identity;
+
+            // safe to normalize now
+            return math.normalize(q);
         }
     }
 
@@ -368,14 +429,29 @@ public static partial class BasisRemoteNetworkDriver
 
         public void Execute(int index)
         {
-            int playerIndex = index / MuscleCountPerAvatar;
-            float t = InterpolationTimes[playerIndex];
+            int playerIndex = MuscleCountPerAvatar > 0 ? (index / MuscleCountPerAvatar) : 0;
+            if ((uint)playerIndex >= (uint)InterpolationTimes.Length) return;
 
-            OutputMuscles[index] = math.lerp(
-                PreviousMuscles[index],
-                TargetMuscles[index],
-                t
-            );
+            float t = SafeT(InterpolationTimes[playerIndex]);
+
+            float a = SafeFloat(PreviousMuscles[index], 0f);
+            float b = SafeFloat(TargetMuscles[index], a);
+
+            float outv = math.lerp(a, b, t);
+            OutputMuscles[index] = SafeFloat(outv, 0f);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float SafeFloat(float v, float fallback)
+        {
+            return math.select(v, fallback, !math.isfinite(v));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float SafeT(float t)
+        {
+            t = math.select(t, 0f, !math.isfinite(t));
+            return math.clamp(t, 0f, 1f);
         }
     }
 
@@ -385,7 +461,7 @@ public static partial class BasisRemoteNetworkDriver
     {
         [ReadOnly] public NativeArray<float3> OutputPositions; // from UpdateAllAvatarsJob
         [ReadOnly] public NativeArray<float3> OutputScales;    // from UpdateAllAvatarsJob
-        [ReadOnly] public NativeArray<float> HumanScales;     // per avatar
+        [ReadOnly] public NativeArray<float> HumanScales;      // per avatar
 
         [WriteOnly] public NativeArray<float3> ScaledBodyPositions;
 
@@ -398,10 +474,8 @@ public static partial class BasisRemoteNetworkDriver
             // Sanitize baseScale: avoid 0 / NaN / Inf before reciprocal
             float baseScale = HumanScales[i];
             bool baseBad = !math.isfinite(baseScale) | (math.abs(baseScale) <= eps);
-            // If bad, fall back to 1.0; else use reciprocal
             float invBase = math.select(math.rcp(baseScale), 1f, baseBad);
 
-            // Use float3 everywhere (avoid Vector3 in Burst jobs)
             float3 scale = new float3(invBase); // equivalent to 1 / baseScale if valid
 
             // Per-component guard for applyScale (also handle NaN/Inf there)
@@ -410,10 +484,11 @@ public static partial class BasisRemoteNetworkDriver
             // If valid, divide; otherwise just use the base scale
             float3 safeDiv = math.select(scale, scale / applyScale, validApply);
 
-            // Optional: clamp to avoid exploding values if inputs are extreme
-            // safeDiv = math.clamp(safeDiv, -1e6f, 1e6f);
+            // Sanitize position before multiply
+            float3 pos = OutputPositions[i];
+            pos = math.select(float3.zero, pos, math.isfinite(pos));
 
-            ScaledBodyPositions[i] = OutputPositions[i] * safeDiv;
+            ScaledBodyPositions[i] = pos * safeDiv;
         }
     }
 
