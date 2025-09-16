@@ -28,8 +28,6 @@ namespace Basis.Scripts.UI.NamePlate
         public Color CurrentColor;
         public Transform Self;
         public float InteractRange = 2f;
-        public static JobHandle NamePlateBatch;
-        public static bool HasScheduledNamePlateBatch;
         /// <summary>
         /// can only be called once after that the text is nuked and a mesh render is just used with a filter
         /// </summary>
@@ -48,23 +46,9 @@ namespace Basis.Scripts.UI.NamePlate
             Self = this.transform;
             BasisRemoteNamePlateDriver.Instance.GenerateTextFactory(BasisRemotePlayer, this);
             LoadingText.enableVertexGradient = false;
-            if(HasScheduledNamePlateBatch)
-            {
-                NamePlateBatch.Complete();
-                HasScheduledNamePlateBatch = false;
-            }
-
-            RemotePlayer.RemotePlayerDataIndex = BasisRemoteNamePlateBatchDriver.AllocateDataRow(new Unity.Mathematics.float4(0,0,0, 1));
-            BasisRemoteNamePlateBatchDriver.AddNameplate(Self, RemotePlayer.RemotePlayerDataIndex);
         }
         public void DeInitalize()
         {
-            if (HasScheduledNamePlateBatch)
-            {
-                NamePlateBatch.Complete();
-                HasScheduledNamePlateBatch = false;
-            }
-            BasisRemoteNamePlateBatchDriver.RemoveNameplate(Self);
             BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport -= ProgressReport;
             BasisRemotePlayer.AudioReceived -= OnAudioReceived;
             DeInitalizeCallToRender();

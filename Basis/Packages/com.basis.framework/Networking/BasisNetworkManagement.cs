@@ -71,9 +71,7 @@ namespace Basis.Scripts.Networking
             }
             BasisRemoteNetworkDriver.Compute();
             BasisNetworkProfiler.Update();
-            RemoteBoneJobSystem.Complete((dataIndex, hipsPos, diff) => {BasisRemoteNamePlateBatchDriver.UpdateDataRow(dataIndex, new Unity.Mathematics.float4(hipsPos, diff));},handle: BoneJobSystem);
-            BasisRemoteNamePlate.HasScheduledNamePlateBatch = true;
-            BasisRemoteNamePlate.NamePlateBatch = BasisRemoteNamePlateBatchDriver.Schedule();
+            RemoteBoneJobSystem.Complete(BoneJobSystem);
         }
 
         public static void SimulateNetworkApply()
@@ -86,11 +84,6 @@ namespace Basis.Scripts.Networking
             for (int Index = 0; Index < snapshot.Length; Index++)
             {
                 snapshot[Index].Apply();
-            }
-            if (BasisRemoteNamePlate.HasScheduledNamePlateBatch)
-            {
-                BasisRemoteNamePlate.NamePlateBatch.Complete();
-                BasisRemoteNamePlate.HasScheduledNamePlateBatch = false;
             }
         }
         public static int GetServerTimeOffsetSeconds()

@@ -84,19 +84,12 @@ namespace Basis.Scripts.Drivers
                 head: player.RemoteAvatarDriver.References.head,
                 hips: player.RemoteAvatarDriver.References.Hips,
                 mouthTarget: player.MouthTransform,
-                  avatarTransform: player.AvatarTransform,
+                avatarTransform: player.AvatarTransform,
+                NamePlate : player.RemoteNamePlate.Self,
                 tposeHead: player.RemoteAvatarDriver.References.TposeHead,
                 tposeHips: player.RemoteAvatarDriver.References.TposeHips,
-                authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(
-                    BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarEyePosition),
-                    player.BasisAvatar.Animator.transform.position
-                ),
-                authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(
-                    BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarMouthPosition),
-                    player.BasisAvatar.Animator.transform.position
-                ),
-                remotePlayerDataIndex: player.RemotePlayerDataIndex,
-                isNameplateVisible: () => player.RemoteNamePlate.IsVisible
+                authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarEyePosition),player.BasisAvatar.Animator.transform.position),
+                authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarMouthPosition),player.BasisAvatar.Animator.transform.position)
             );
             hasDatainBoneDriver = true;
 

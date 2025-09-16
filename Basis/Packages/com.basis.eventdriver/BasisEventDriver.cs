@@ -30,13 +30,11 @@ public class BasisEventDriver : MonoBehaviour
         BasisSceneFactory.Initalize();
         BasisObjectSyncDriver.Initalization();
         RemoteBoneJobSystem.Initialize();
-        BasisRemoteNamePlateBatchDriver.Initialize();
     }
     public void OnDestroy()
     {
         BasisObjectSyncDriver.OnDestroy();
         Application.onBeforeRender -= OnBeforeRender;
-        BasisRemoteNamePlateBatchDriver.Dispose();
         RemoteBoneJobSystem.Dispose();
         BasisAvatarBufferPool.DeInitalize();
     }
