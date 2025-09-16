@@ -80,12 +80,12 @@ namespace Basis.Scripts.Drivers
             // On player join:
             RemoteBoneJobSystem.AddRemotePlayer(
                 key: player.NetworkReceiver.playerId,
-                remotePlayerRoot: player.BasisAvatar.Animator.transform,
+                Root: player.BasisAvatar.Animator.transform,
                 head: player.RemoteAvatarDriver.References.head,
-                hips: player.RemoteAvatarDriver.References.Hips,
-                mouthTarget: player.MouthTransform,
-                avatarTransform: player.AvatarTransform,
-                NamePlate : player.RemoteNamePlate.Self,
+                Hip: player.RemoteAvatarDriver.References.Hips,
+                Mouth: player.MouthTransform,
+                Avatar: player.AvatarTransform,
+                namePlate : player.RemoteNamePlate.Self,
                 tposeHead: player.RemoteAvatarDriver.References.TposeHead,
                 tposeHips: player.RemoteAvatarDriver.References.TposeHips,
                 authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarEyePosition),player.BasisAvatar.Animator.transform.position),
