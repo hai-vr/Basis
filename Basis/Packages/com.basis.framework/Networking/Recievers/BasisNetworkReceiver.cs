@@ -96,6 +96,7 @@ namespace Basis.Scripts.Networking.Receivers
                         BasisDebug.LogWarning("BasisNetworkReceiver: Last frame muscles were null/invalid; using zeros.");
                     targetMuscles = new NativeArray<float>(95, Allocator.Persistent);
                 }
+
                 if (Player.BasisAvatar != null && Player.BasisAvatar.Animator != null)
                 {
                     // Feed driver (per-avatar transforms, scales, rotations, muscles, t)
@@ -305,6 +306,11 @@ namespace Basis.Scripts.Networking.Receivers
         // ---------- Ctor ----------
         public BasisNetworkReceiver(ushort PlayerID)
         {
+            BufferHolder.First.Position = Vector3.zero;
+            BufferHolder.First.Scale = Vector3.one;
+
+            BufferHolder.Last.Position = Vector3.zero;
+            BufferHolder.Last.Scale = Vector3.one;
             playerId = PlayerID;
             hasID = true;
         }

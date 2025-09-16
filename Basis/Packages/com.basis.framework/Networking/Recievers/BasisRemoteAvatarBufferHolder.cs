@@ -10,8 +10,8 @@ namespace Basis.Scripts.Networking.Receivers
         public bool HasFirst = false;
         public bool HasLast = false;
 
-        [SerializeField] public BasisAvatarBuffer First;
-        [SerializeField] public BasisAvatarBuffer Last;
+        [SerializeField] public BasisAvatarBuffer First = new BasisAvatarBuffer() { Scale = Vector3.one };
+        [SerializeField] public BasisAvatarBuffer Last = new BasisAvatarBuffer() { Scale = Vector3.one };
 
         public void ClearAndRelease()
         {

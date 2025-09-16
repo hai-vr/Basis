@@ -1,11 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
 using UnityEngine.Jobs;
 
 public static partial class BasisRemoteNetworkDriver
@@ -18,6 +18,55 @@ public static partial class BasisRemoteNetworkDriver
 
     /// <summary>Muscle count used by the driver.</summary>
     public static int MuscleCount => _muscleCount;
+
+    // ---------------- sanitation knobs (tune as needed) ----------------
+    public const float MinScaleComponent = 1e-3f;    // no zeros/tiny scales
+    public const float MaxScaleComponent = 1e2f;     // avoid runaway giants
+    public const float MaxPositionComponent = 1e5f;  // world-space clamp
+
+    public const float MinHumanScale = 0.01f;
+    public const float MaxHumanScale = 150;
+
+    // Interp t is [0,1]; filter dt is clamped to sensible ranges
+    public const float MinDt = 1e-4f;   // 0.1ms
+    public const float MaxDt = 0.25f;   // <= 4 Hz
+
+    public const float MuscleMin = -180f;
+    public const float MuscleMax = 180f;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static float SanitizeFloat(float v, float def, float min, float max)
+    {
+        return math.isfinite(v) ? math.clamp(v, min, max) : def;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static float3 SanitizePosition(float3 p)
+    {
+        float x = math.isfinite(p.x) ? math.clamp(p.x, -MaxPositionComponent, MaxPositionComponent) : 0f;
+        float y = math.isfinite(p.y) ? math.clamp(p.y, -MaxPositionComponent, MaxPositionComponent) : 0f;
+        float z = math.isfinite(p.z) ? math.clamp(p.z, -MaxPositionComponent, MaxPositionComponent) : 0f;
+        return new float3(x, y, z);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static float3 SanitizeScale(float3 s)
+    {
+        // Force positive, kill NaNs/Infs, clamp magnitude
+        float x = SanitizeFloat(math.abs(s.x), 1f, MinScaleComponent, MaxScaleComponent);
+        float y = SanitizeFloat(math.abs(s.y), 1f, MinScaleComponent, MaxScaleComponent);
+        float z = SanitizeFloat(math.abs(s.z), 1f, MinScaleComponent, MaxScaleComponent);
+        return new float3(x, y, z);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static quaternion SanitizeRotation(quaternion q)
+    {
+        float4 v = q.value;
+        if (!math.all(math.isfinite(v))) return quaternion.identity;
+        float len2 = math.lengthsq(v);
+        return (len2 > 1e-8f) ? math.normalize(q) : quaternion.identity;
+    }
 
     // Native buffers (size == FixedCapacity, except muscles which is FixedCapacity * _muscleCount)
     static NativeArray<float3> _prevPositions;
@@ -32,9 +81,9 @@ public static partial class BasisRemoteNetworkDriver
     static NativeArray<float3> _outScales;
     static NativeArray<quaternion> _outRotations;
 
-    // New: per-avatar animator human scale and precomputed body position (scaled)
+    // Per-avatar animator human scale and precomputed body position (scaled)
     static NativeArray<float> _humanScales;          // Player.BasisAvatar.AnimatorHumanScale
-    static NativeArray<float3> _scaledBodyPositions;  // = ApplyingPosition * SafeDivide(humanScale, ApplyingScale)
+    static NativeArray<float3> _scaledBodyPositions; // = ApplyingPosition * SafeDivide(humanScale, ApplyingScale)
 
     // Muscles (flattened: players * muscles)
     static NativeArray<float> _prevMuscles;   // flattened
@@ -46,15 +95,13 @@ public static partial class BasisRemoteNetworkDriver
     static NativeArray<float2> positionFilters;   // per-channel state
     static NativeArray<float2> derivativeFilters; // per-channel state
 
-
     // State
     static int _muscleCount;
     static bool _initialized;
     static int _activeCount; // highest index written + 1
     static Allocator _allocator = Allocator.Persistent;
 
-    public static JobHandle oneEuroJob;         // final frame fence (combined deps)
-
+    public static JobHandle oneEuroJob; // final frame fence (combined deps)
 
     /// <summary>Initialize the driver with a fixed capacity of 1024. Must be called before SetInputs/Compute/Apply/GetOutputs.</summary>
     public static void Initialize(int muscleCount, Allocator allocator = Allocator.Persistent)
@@ -79,8 +126,7 @@ public static partial class BasisRemoteNetworkDriver
             _targetRotations[i] = quaternion.identity;
             _interpolationTimes[i] = 0f;
 
-            // New: default human scale to 1
-            _humanScales[i] = 1;
+            _humanScales[i] = 1f;
             _scaledBodyPositions[i] = float3.zero;
         }
 
@@ -104,7 +150,6 @@ public static partial class BasisRemoteNetworkDriver
     {
         if (!_initialized) return;
 
-        // Make sure no jobs are still using our arrays
         if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
 
         DisposeAll();
@@ -126,21 +171,26 @@ public static partial class BasisRemoteNetworkDriver
         if ((uint)index >= FixedCapacity)
             throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
 
-        _humanScales[index] = humanScale;
-        _prevPositions[index] = prevPos;
-        _targetPositions[index] = targetPos;
-        _prevScales[index] = prevScale;
-        _targetScales[index] = targetScale;
-        _prevRotations[index] = prevRot;
-        _targetRotations[index] = targetRot;
-        _interpolationTimes[index] = interpolationTime;
+        // --- sanitize everything on input ---
+        _humanScales[index] = SanitizeFloat(humanScale, 1f, MinHumanScale, MaxHumanScale);
+
+        _prevPositions[index] = SanitizePosition(prevPos);
+        _targetPositions[index] = SanitizePosition(targetPos);
+
+        _prevScales[index] = SanitizeScale(prevScale);
+        _targetScales[index] = SanitizeScale(targetScale);
+
+        _prevRotations[index] = SanitizeRotation(prevRot);
+        _targetRotations[index] = SanitizeRotation(targetRot);
+
+        // Interpolation t is used by transform & muscle lerps — keep it in [0,1].
+        _interpolationTimes[index] = SanitizeFloat(interpolationTime, 0f, 0f, 1f);
 
         // Flattened write: [index * MuscleCount .. (index+1) * MuscleCount)
         int baseOffset = index * _muscleCount;
         FastCopyMuscles(prevMuscles, 0, _prevMuscles, baseOffset, _muscleCount);
         FastCopyMuscles(targetMuscles, 0, _targetMuscles, baseOffset, _muscleCount);
 
-        // Advance active count if needed
         if (index + 1 > _activeCount) _activeCount = index + 1;
     }
 
@@ -159,7 +209,6 @@ public static partial class BasisRemoteNetworkDriver
         if ((uint)index >= FixedCapacity)
             throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
 
-        // Make sure no jobs are still reading/writing these buffers
         if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
 
         _prevPositions[index] = default;
@@ -170,7 +219,7 @@ public static partial class BasisRemoteNetworkDriver
         _targetRotations[index] = quaternion.identity;
         _interpolationTimes[index] = 0f;
 
-        _humanScales[index] =  1;
+        _humanScales[index] = 1f;
         _scaledBodyPositions[index] = float3.zero;
 
         int baseOffset = index * _muscleCount;
@@ -186,7 +235,6 @@ public static partial class BasisRemoteNetworkDriver
             derivativeFilters[flat] = float2.zero;
         }
 
-        // Optionally shrink active count if we cleared the tail
         if (index == _activeCount - 1)
         {
             int newCount = index;
@@ -223,6 +271,14 @@ public static partial class BasisRemoteNetworkDriver
             ScaledBodyPositions = _scaledBodyPositions
         }.Schedule(num, 128, avatarJob);
 
+        // (new) pre-sanitize raw muscle inputs
+        int flatChannels = num * _muscleCount;
+        var sanitizeMuscleInputs = new SanitizeMuscleBuffersJob
+        {
+            A = _prevMuscles,
+            B = _targetMuscles
+        }.Schedule(flatChannels, 128, avatarJob);
+
         // Interpolate muscles across players * muscles (flattened)
         JobHandle musclesJob = new UpdateAllAvatarMusclesJob
         {
@@ -231,7 +287,7 @@ public static partial class BasisRemoteNetworkDriver
             InterpolationTimes = _interpolationTimes, // index-based per "player"
             OutputMuscles = _outMuscles,
             MuscleCountPerAvatar = _muscleCount
-        }.Schedule(num * _muscleCount, 128, avatarJob);
+        }.Schedule(flatChannels, 128, sanitizeMuscleInputs);
 
         // 1€ filter: read interpolated muscles, write filtered output
         JobHandle euroJobHandle = new BasisOneEuroFilterParallelJob
@@ -245,10 +301,16 @@ public static partial class BasisRemoteNetworkDriver
             PositionFilters = positionFilters,
             DerivativeFilters = derivativeFilters,
             MuscleCountPerAvatar = _muscleCount
-        }.Schedule(num * _muscleCount, 128, musclesJob);
+        }.Schedule(flatChannels, 128, musclesJob);
+
+        // (new) final clamp on filtered muscles (paranoia)
+        var clampFiltered = new SanitizeSingleBufferJob
+        {
+            Buffer = euroValuesOutput
+        }.Schedule(flatChannels, 128, euroJobHandle);
 
         // Combine all deps so Apply() has a single fence
-        oneEuroJob = JobHandle.CombineDependencies(euroJobHandle, scaledBodyJob);
+        oneEuroJob = JobHandle.CombineDependencies(clampFiltered, scaledBodyJob);
     }
 
     /*
@@ -295,24 +357,38 @@ public static partial class BasisRemoteNetworkDriver
             if ((uint)index >= (uint)DerivativeFilters.Length) return;
 
             float dt = DeltaTime[playerIndex];
-            if (dt <= 0f) dt = 1e-3f; // guard
+            // Kill NaNs/Infs and clamp to sane [MinDt, MaxDt]
+            if (!math.isfinite(dt)) dt = 1f / 90f;
+            dt = math.clamp(dt, MinDt, MaxDt);
 
             float frequency = 1.0f / dt;
+
             float inputValue = InputValues[index];
+            inputValue = math.isfinite(inputValue) ? inputValue : 0f;
 
             float prevFiltered = PositionFilters[index].y;
+            prevFiltered = math.isfinite(prevFiltered) ? prevFiltered : 0f;
+
             float prevRaw = PositionFilters[index].x;
+            prevRaw = math.isfinite(prevRaw) ? prevRaw : 0f;
 
             float dValue = (inputValue - prevRaw) * frequency;
+            dValue = math.isfinite(dValue) ? dValue : 0f;
 
             float alphaD = Alpha(DerivativeCutoff, frequency);
             float prevDerivFiltered = DerivativeFilters[index].y;
+            prevDerivFiltered = math.isfinite(prevDerivFiltered) ? prevDerivFiltered : 0f;
+
             float edValue = alphaD * dValue + (1.0f - alphaD) * prevDerivFiltered;
 
-            float cutoff = MinCutoff + Beta * Mathf.Abs(edValue);
+            float cutoff = MinCutoff + Beta * math.abs(edValue);
+            cutoff = math.max(cutoff, 1e-4f);
 
             float alphaX = Alpha(cutoff, frequency);
             float filtered = alphaX * inputValue + (1.0f - alphaX) * prevFiltered;
+
+            // final clamp to muscle bounds
+            filtered = math.isfinite(filtered) ? math.clamp(filtered, MuscleMin, MuscleMax) : 0f;
 
             OutputValues[index] = filtered;
 
@@ -323,7 +399,8 @@ public static partial class BasisRemoteNetworkDriver
         private static float Alpha(float cutoff, float frequency)
         {
             float te = 1.0f / frequency;
-            float tau = 1.0f / (2.0f * Mathf.PI * math.max(cutoff, 1e-4f));
+            float c = math.max(cutoff, 1e-4f);
+            float tau = 1.0f / (2.0f * math.PI * c);
             return 1.0f / (1.0f + tau / te);
         }
     }
@@ -348,11 +425,37 @@ public static partial class BasisRemoteNetworkDriver
 
         public void Execute(int index)
         {
-            float t = InterpolationTimes[index];
+            float t = math.saturate(InterpolationTimes[index]);
 
-            OutputPositions[index] = math.lerp(PreviousPositions[index], TargetPositions[index], t);
-            OutputScales[index] = math.lerp(PreviousScales[index], TargetScales[index], t);
-            OutputRotations[index] = math.slerp(PreviousRotations[index], TargetRotations[index], t);
+            float3 p0 = PreviousPositions[index];
+            float3 p1 = TargetPositions[index];
+            float3 s0 = PreviousScales[index];
+            float3 s1 = TargetScales[index];
+
+            float3 outP = math.lerp(p0, p1, t);
+            float3 outS = math.lerp(s0, s1, t);
+            quaternion outR = math.slerp(PreviousRotations[index], TargetRotations[index], t);
+
+            // sanitize outputs
+            OutputPositions[index] = new float3(
+                math.isfinite(outP.x) ? math.clamp(outP.x, -MaxPositionComponent, MaxPositionComponent) : 0f,
+                math.isfinite(outP.y) ? math.clamp(outP.y, -MaxPositionComponent, MaxPositionComponent) : 0f,
+                math.isfinite(outP.z) ? math.clamp(outP.z, -MaxPositionComponent, MaxPositionComponent) : 0f
+            );
+
+            float3 s = outS;
+            s = new float3(
+                math.isfinite(s.x) ? math.clamp(math.abs(s.x), MinScaleComponent, MaxScaleComponent) : 1f,
+                math.isfinite(s.y) ? math.clamp(math.abs(s.y), MinScaleComponent, MaxScaleComponent) : 1f,
+                math.isfinite(s.z) ? math.clamp(math.abs(s.z), MinScaleComponent, MaxScaleComponent) : 1f
+            );
+
+
+            OutputScales[index] = s;
+
+            float4 rv = outR.value;
+            quaternion cleanR = (!math.all(math.isfinite(rv)) || math.lengthsq(rv) <= 1e-8f) ? quaternion.identity : math.normalize(outR);
+            OutputRotations[index] = cleanR;
         }
     }
 
@@ -368,14 +471,13 @@ public static partial class BasisRemoteNetworkDriver
 
         public void Execute(int index)
         {
-            int playerIndex = index / MuscleCountPerAvatar;
-            float t = InterpolationTimes[playerIndex];
+            int playerIndex = MuscleCountPerAvatar > 0 ? (index / MuscleCountPerAvatar) : 0;
+            float t = math.saturate(InterpolationTimes[playerIndex]);
 
-            OutputMuscles[index] = math.lerp(
-                PreviousMuscles[index],
-                TargetMuscles[index],
-                t
-            );
+            float v = math.lerp(PreviousMuscles[index], TargetMuscles[index], t);
+            v = math.isfinite(v) ? math.clamp(v, MuscleMin, MuscleMax) : 0f;
+
+            OutputMuscles[index] = v;
         }
     }
 
@@ -385,7 +487,7 @@ public static partial class BasisRemoteNetworkDriver
     {
         [ReadOnly] public NativeArray<float3> OutputPositions; // from UpdateAllAvatarsJob
         [ReadOnly] public NativeArray<float3> OutputScales;    // from UpdateAllAvatarsJob
-        [ReadOnly] public NativeArray<float> HumanScales;     // per avatar
+        [ReadOnly] public NativeArray<float> HumanScales;      // per avatar
 
         [WriteOnly] public NativeArray<float3> ScaledBodyPositions;
 
@@ -398,22 +500,20 @@ public static partial class BasisRemoteNetworkDriver
             // Sanitize baseScale: avoid 0 / NaN / Inf before reciprocal
             float baseScale = HumanScales[i];
             bool baseBad = !math.isfinite(baseScale) | (math.abs(baseScale) <= eps);
-            // If bad, fall back to 1.0; else use reciprocal
             float invBase = math.select(math.rcp(baseScale), 1f, baseBad);
 
-            // Use float3 everywhere (avoid Vector3 in Burst jobs)
-            float3 scale = new float3(invBase); // equivalent to 1 / baseScale if valid
+            float3 scale = new float3(invBase);
 
-            // Per-component guard for applyScale (also handle NaN/Inf there)
             bool3 validApply = math.isfinite(applyScale) & (math.abs(applyScale) > eps);
 
-            // If valid, divide; otherwise just use the base scale
             float3 safeDiv = math.select(scale, scale / applyScale, validApply);
 
-            // Optional: clamp to avoid exploding values if inputs are extreme
-            // safeDiv = math.clamp(safeDiv, -1e6f, 1e6f);
+            float3 scaled = OutputPositions[i] * safeDiv;
 
-            ScaledBodyPositions[i] = OutputPositions[i] * safeDiv;
+            // final clamp to world bounds
+            ScaledBodyPositions[i] = math.clamp(scaled,
+                new float3(-MaxPositionComponent),
+                new float3(MaxPositionComponent));
         }
     }
 
@@ -421,21 +521,13 @@ public static partial class BasisRemoteNetworkDriver
     public static void Apply()
     {
         if (!_initialized) return;
-        oneEuroJob.Complete(); // also fences scaledBody + transform jobs via combined deps
+        oneEuroJob.Complete();
     }
-
+    /* must be length == _muscleCount */
     /// <summary>Read back the computed outputs for an index after Apply().</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool GetOutputs_NoAlloc(
-        int index,
-        out float3 outPos,
-        out float3 outScale,
-        out quaternion outRot,
-        out float3 BodyPosition,
-        float[] outMuscles /* must be length == _muscleCount */
-      )
+    public static bool GetOutputs_NoAlloc(int index,out float3 outPos,out float3 outScale,out quaternion outRot, out float3 BodyPosition,float[] outMuscles)
     {
-        // minimal guards; no allocations
         outPos = default; outScale = default; outRot = default; BodyPosition = default;
         if ((uint)index >= FixedCapacity) return false;
         if (outMuscles == null || outMuscles.Length != _muscleCount) return false;
@@ -462,16 +554,12 @@ public static partial class BasisRemoteNetworkDriver
     }
 
     /// <summary>
-    /// Update the One Euro filter parameters on the shared network singleton and (optionally)
-    /// reset the filter internal state so it "forgets" previous history and re-converges
-    /// from the current inputs.
+    /// Update the One Euro filter parameters and optionally reset filter state.
     /// </summary>
     public static void UpdateOneEuroParameters(float minCutoff, float beta, float derivativeCutoff, bool resetState = true)
     {
-        // Ensure no jobs are currently touching the buffers.
         if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
 
-        // Push values to the source of truth used in Compute()
         MinCutoff = minCutoff;
         Beta = beta;
         DerivativeCutoff = derivativeCutoff;
@@ -519,6 +607,36 @@ public static partial class BasisRemoteNetworkDriver
         }
     }
 
+    // ---------------- sanitizing jobs ----------------
+
+    [BurstCompile]
+    public struct SanitizeMuscleBuffersJob : IJobParallelFor
+    {
+        public NativeArray<float> A; // prev
+        public NativeArray<float> B; // target
+
+        public void Execute(int i)
+        {
+            float a = A[i];
+            float b = B[i];
+            a = math.isfinite(a) ? math.clamp(a, MuscleMin, MuscleMax) : 0f;
+            b = math.isfinite(b) ? math.clamp(b, MuscleMin, MuscleMax) : 0f;
+            A[i] = a;
+            B[i] = b;
+        }
+    }
+
+    [BurstCompile]
+    public struct SanitizeSingleBufferJob : IJobParallelFor
+    {
+        public NativeArray<float> Buffer;
+        public void Execute(int i)
+        {
+            float v = Buffer[i];
+            Buffer[i] = math.isfinite(v) ? math.clamp(v, MuscleMin, MuscleMax) : 0f;
+        }
+    }
+
     // ---------------- internal allocation helpers ----------------
 
     static void AllocateAll(int capacity)
@@ -536,7 +654,7 @@ public static partial class BasisRemoteNetworkDriver
         _outScales = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
         _outRotations = new NativeArray<quaternion>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
 
-        // New: human scale + scaled body
+        // Human scale + scaled body
         _humanScales = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
         _scaledBodyPositions = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
 
@@ -554,7 +672,6 @@ public static partial class BasisRemoteNetworkDriver
 
     static void DisposeAll()
     {
-        // Dispose safely
         if (_prevPositions.IsCreated) _prevPositions.Dispose();
         if (_targetPositions.IsCreated) _targetPositions.Dispose();
         if (_prevScales.IsCreated) _prevScales.Dispose();
