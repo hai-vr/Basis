@@ -391,20 +391,27 @@ public static partial class BasisRemoteNetworkDriver
 
         public void Execute(int i)
         {
-            float3 applyScale = OutputScales[i];
-            float baseScale = HumanScales[i];
-            float3 Scale = Vector3.one / baseScale;
-            // SafeDivide(baseScale, applyScale) component-wise with epsilon guard.
             const float eps = 1e-6f;
-            float3 mask = new float3(
-                math.abs(applyScale.x) > eps ? 1f : 0f,
-                math.abs(applyScale.y) > eps ? 1f : 0f,
-                math.abs(applyScale.z) > eps ? 1f : 0f);
 
-            float3 safeDiv = new float3(
-                mask.x > 0f ? Scale.x / applyScale.x : Scale.x,
-                mask.y > 0f ? Scale.y / applyScale.y : Scale.y,
-                mask.z > 0f ? Scale.z / applyScale.z : Scale.z);
+            float3 applyScale = OutputScales[i];
+
+            // Sanitize baseScale: avoid 0 / NaN / Inf before reciprocal
+            float baseScale = HumanScales[i];
+            bool baseBad = !math.isfinite(baseScale) | (math.abs(baseScale) <= eps);
+            // If bad, fall back to 1.0; else use reciprocal
+            float invBase = math.select(math.rcp(baseScale), 1f, baseBad);
+
+            // Use float3 everywhere (avoid Vector3 in Burst jobs)
+            float3 scale = new float3(invBase); // equivalent to 1 / baseScale if valid
+
+            // Per-component guard for applyScale (also handle NaN/Inf there)
+            bool3 validApply = math.isfinite(applyScale) & (math.abs(applyScale) > eps);
+
+            // If valid, divide; otherwise just use the base scale
+            float3 safeDiv = math.select(scale, scale / applyScale, validApply);
+
+            // Optional: clamp to avoid exploding values if inputs are extreme
+            // safeDiv = math.clamp(safeDiv, -1e6f, 1e6f);
 
             ScaledBodyPositions[i] = OutputPositions[i] * safeDiv;
         }

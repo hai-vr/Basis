@@ -110,7 +110,6 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             }
         }
-
         public void Apply()
         {
             if (BufferHolder.HasFirst && BufferHolder.HasLast)
