@@ -113,9 +113,9 @@ namespace Basis.Scripts.Networking.Receivers
             if (BufferHolder.HasFirst && BufferHolder.HasLast)
             {
                 // Pull outputs (position, scale, rotation, muscles). We also use outPos for a robust fallback path.
-                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out var applyingRotation, out float3 scaledBody, Muscles))
+                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out float3 outPos, out quaternion applyingRotation, out float3 scaledBody, Muscles))
                 {
-                    HumanPose.bodyPosition = scaledBody;
+                    HumanPose.bodyPosition = outPos;
                     HumanPose.bodyRotation = applyingRotation;
 
                     // Muscles
@@ -169,7 +169,7 @@ namespace Basis.Scripts.Networking.Receivers
             RemotePlayer = (BasisRemotePlayer)Player;
             AudioReceiverModule.Initalize(this);
 
-            if (!HasEvents && RemotePlayer?.RemoteAvatarDriver != null)
+            if (!HasEvents)
             {
                 RemotePlayer.RemoteAvatarDriver.CalibrationComplete += OnCalibration;
                 HasEvents = true;

@@ -11,62 +11,6 @@ public static partial class BasisRemoteNetworkDriver
 {
     /// <summary>Fixed capacity for this driver instance.</summary>
     public const int FixedCapacity = 1024;
-
-    /// <summary>Returns the number of active indices (max index that has been written + 1).</summary>
-    public static int ActivePlayerCount => _activeCount;
-
-    /// <summary>Muscle count used by the driver.</summary>
-    public static int MuscleCount => _muscleCount;
-
-    // ---------------- sanitation knobs (tune as needed) ----------------
-    public const float MinScaleComponent = 1e-3f;    // no zeros/tiny scales
-    public const float MaxScaleComponent = 1e2f;     // avoid runaway giants
-    public const float MaxPositionComponent = 1e5f;  // world-space clamp
-
-    public const float MinHumanScale = 0.01f;
-    public const float MaxHumanScale = 150;
-
-    // Interp t is [0,1]; filter dt is clamped to sensible ranges
-    public const float MinDt = 1e-4f;   // 0.1ms
-    public const float MaxDt = 0.25f;   // <= 4 Hz
-
-    public const float MuscleMin = -180f;
-    public const float MuscleMax = 180f;
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static float SanitizeFloat(float v, float def, float min, float max)
-    {
-        return math.isfinite(v) ? math.clamp(v, min, max) : def;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static float3 SanitizePosition(float3 p)
-    {
-        float x = math.isfinite(p.x) ? math.clamp(p.x, -MaxPositionComponent, MaxPositionComponent) : 0f;
-        float y = math.isfinite(p.y) ? math.clamp(p.y, -MaxPositionComponent, MaxPositionComponent) : 0f;
-        float z = math.isfinite(p.z) ? math.clamp(p.z, -MaxPositionComponent, MaxPositionComponent) : 0f;
-        return new float3(x, y, z);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static float3 SanitizeScale(float3 s)
-    {
-        // Force positive, kill NaNs/Infs, clamp magnitude
-        float x = SanitizeFloat(math.abs(s.x), 1f, MinScaleComponent, MaxScaleComponent);
-        float y = SanitizeFloat(math.abs(s.y), 1f, MinScaleComponent, MaxScaleComponent);
-        float z = SanitizeFloat(math.abs(s.z), 1f, MinScaleComponent, MaxScaleComponent);
-        return new float3(x, y, z);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static quaternion SanitizeRotation(quaternion q)
-    {
-        float4 v = q.value;
-        if (!math.all(math.isfinite(v))) return quaternion.identity;
-        float len2 = math.lengthsq(v);
-        return (len2 > 1e-8f) ? math.normalize(q) : quaternion.identity;
-    }
-
     // Native buffers (size == FixedCapacity, except muscles which is FixedCapacity * _muscleCount)
     static NativeArray<float3> _prevPositions;
     static NativeArray<float3> _targetPositions;
@@ -170,7 +114,6 @@ public static partial class BasisRemoteNetworkDriver
         if ((uint)index >= FixedCapacity)
             throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
 
-        // --- NO SANITIZATION HERE ANYMORE: write raw values ---
         _humanScales[index] = humanScale;
 
         _prevPositions[index] = prevPos;
@@ -200,45 +143,6 @@ public static partial class BasisRemoteNetworkDriver
         var srcPtr = (byte*)src.GetUnsafeReadOnlyPtr() + (long)srcStart * sizeof(float);
         var dstPtr = (byte*)dst.GetUnsafePtr() + (long)dstStart * sizeof(float);
         UnsafeUtility.MemCpy(dstPtr, srcPtr, bytes);
-    }
-
-    /// <summary>Optional: reset a given index back to defaults (zeros/identity).</summary>
-    public static void ResetIndex(int index)
-    {
-        if ((uint)index >= FixedCapacity)
-            throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
-
-        if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
-
-        _prevPositions[index] = default;
-        _targetPositions[index] = default;
-        _prevScales[index] = new float3(1, 1, 1);
-        _targetScales[index] = new float3(1, 1, 1);
-        _prevRotations[index] = quaternion.identity;
-        _targetRotations[index] = quaternion.identity;
-        _interpolationTimes[index] = 0f;
-
-        _humanScales[index] = 1f;
-        _scaledBodyPositions[index] = float3.zero;
-
-        int baseOffset = index * _muscleCount;
-        for (int m = 0; m < _muscleCount; m++)
-        {
-            int flat = baseOffset + m;
-            _prevMuscles[flat] = 0f;
-            _targetMuscles[flat] = 0f;
-            _outMuscles[flat] = 0f;
-
-            euroValuesOutput[flat] = 0f;
-            positionFilters[flat] = float2.zero;
-            derivativeFilters[flat] = float2.zero;
-        }
-
-        if (index == _activeCount - 1)
-        {
-            int newCount = index;
-            _activeCount = newCount;
-        }
     }
 
     /// <summary>Run the batched jobs once for the current frame.</summary>
@@ -286,11 +190,6 @@ public static partial class BasisRemoteNetworkDriver
 
         // 3) sanitize raw muscle buffers (still on threads) — depends on sanitized t
         int flatChannels = num * _muscleCount;
-        var sanitizeMuscleInputs = new SanitizeMuscleBuffersJob
-        {
-            A = _prevMuscles,
-            B = _targetMuscles
-        }.Schedule(flatChannels, 128, sanitizeInputsJob);
 
         // 4) interpolate muscles (needs sanitized t + sanitized muscles)
         JobHandle musclesJob = new UpdateAllAvatarMusclesJob
@@ -300,7 +199,7 @@ public static partial class BasisRemoteNetworkDriver
             InterpolationTimes = _interpolationTimes,
             OutputMuscles = _outMuscles,
             MuscleCountPerAvatar = _muscleCount
-        }.Schedule(flatChannels, 128, sanitizeMuscleInputs);
+        }.Schedule(flatChannels, 128, sanitizeInputsJob);
 
         // 5) filter and clamp
         JobHandle euroJobHandle = new BasisOneEuroFilterParallelJob
@@ -324,252 +223,30 @@ public static partial class BasisRemoteNetworkDriver
         // 6) single fence
         oneEuroJob = JobHandle.CombineDependencies(clampFiltered, scaledBodyJob);
     }
-    [BurstCompile]
-    public struct SanitizeAvatarInputsJob : IJobParallelFor
-    {
-        public NativeArray<float3> PrevPositions;
-        public NativeArray<float3> TargetPositions;
-        public NativeArray<float3> PrevScales;
-        public NativeArray<float3> TargetScales;
-        public NativeArray<quaternion> PrevRotations;
-        public NativeArray<quaternion> TargetRotations;
-        public NativeArray<float> InterpolationTimes;
-        public NativeArray<float> HumanScales;
-
-        public void Execute(int index)
-        {
-            HumanScales[index] = SanitizeFloat(HumanScales[index], 1f, MinHumanScale, MaxHumanScale);
-            PrevPositions[index] = SanitizePosition(PrevPositions[index]);
-            TargetPositions[index] = SanitizePosition(TargetPositions[index]);
-            PrevScales[index] = SanitizeScale(PrevScales[index]);
-            TargetScales[index] = SanitizeScale(TargetScales[index]);
-            PrevRotations[index] = SanitizeRotation(PrevRotations[index]);
-            TargetRotations[index] = SanitizeRotation(TargetRotations[index]);
-            InterpolationTimes[index] = SanitizeFloat(InterpolationTimes[index], 0f, 0f, 1f);
-        }
-    }
-    /*
-     * BasicOneEuroFilterParallelJob.cs
-     * Author: Dario Mazzanti (dario.mazzanti@iit.it), 2016
-     *
-     * This Unity C# utility is based on the C++ implementation of the OneEuroFilter algorithm by Nicolas Roussel (http://www.lifl.fr/~casiez/1euro/OneEuroFilter.cc)
-     * More info on the 1€ filter by Géry Casiez at http://www.lifl.fr/~casiez/1euro/
-     *
-     */
-    [BurstCompile]
-    public struct BasisOneEuroFilterParallelJob : IJobParallelFor
-    {
-        // Input signal (flattened: players * muscles)
-        [ReadOnly] public NativeArray<float> InputValues;
-
-        // Output signal (flattened: players * muscles)
-        public NativeArray<float> OutputValues;
-
-        // Per-player deltaTime (or sampling period proxy). Length == numPlayers
-        [ReadOnly] public NativeArray<float> DeltaTime;
-
-        // Filter state per flattened channel (same length as OutputValues)
-        public NativeArray<float2> PositionFilters;   // x = previous input, y = previous output
-        public NativeArray<float2> DerivativeFilters; // x = previous derivative input, y = previous derivative output
-
-        // Parameters
-        public float MinCutoff;
-        public float Beta;
-        public float DerivativeCutoff;
-
-        // Stride to recover the player index from the flattened channel index
-        // i.e., the number of muscles per avatar
-        [ReadOnly] public int MuscleCountPerAvatar;
-
-        public void Execute(int index)
-        {
-            int playerIndex = MuscleCountPerAvatar > 0 ? (index / MuscleCountPerAvatar) : 0;
-
-            if ((uint)playerIndex >= (uint)DeltaTime.Length) return;
-            if ((uint)index >= (uint)InputValues.Length) return;
-            if ((uint)index >= (uint)OutputValues.Length) return;
-            if ((uint)index >= (uint)PositionFilters.Length) return;
-            if ((uint)index >= (uint)DerivativeFilters.Length) return;
-
-            float dt = DeltaTime[playerIndex];
-            // Kill NaNs/Infs and clamp to sane [MinDt, MaxDt]
-            if (!math.isfinite(dt)) dt = 1f / 90f;
-            dt = math.clamp(dt, MinDt, MaxDt);
-
-            float frequency = 1.0f / dt;
-
-            float inputValue = InputValues[index];
-            inputValue = math.isfinite(inputValue) ? inputValue : 0f;
-
-            float prevFiltered = PositionFilters[index].y;
-            prevFiltered = math.isfinite(prevFiltered) ? prevFiltered : 0f;
-
-            float prevRaw = PositionFilters[index].x;
-            prevRaw = math.isfinite(prevRaw) ? prevRaw : 0f;
-
-            float dValue = (inputValue - prevRaw) * frequency;
-            dValue = math.isfinite(dValue) ? dValue : 0f;
-
-            float alphaD = Alpha(DerivativeCutoff, frequency);
-            float prevDerivFiltered = DerivativeFilters[index].y;
-            prevDerivFiltered = math.isfinite(prevDerivFiltered) ? prevDerivFiltered : 0f;
-
-            float edValue = alphaD * dValue + (1.0f - alphaD) * prevDerivFiltered;
-
-            float cutoff = MinCutoff + Beta * math.abs(edValue);
-            cutoff = math.max(cutoff, 1e-4f);
-
-            float alphaX = Alpha(cutoff, frequency);
-            float filtered = alphaX * inputValue + (1.0f - alphaX) * prevFiltered;
-
-            // final clamp to muscle bounds
-            filtered = math.isfinite(filtered) ? math.clamp(filtered, MuscleMin, MuscleMax) : 0f;
-
-            OutputValues[index] = filtered;
-
-            PositionFilters[index] = new float2(inputValue, filtered);
-            DerivativeFilters[index] = new float2(dValue, edValue);
-        }
-
-        private static float Alpha(float cutoff, float frequency)
-        {
-            float te = 1.0f / frequency;
-            float c = math.max(cutoff, 1e-4f);
-            float tau = 1.0f / (2.0f * math.PI * c);
-            return 1.0f / (1.0f + tau / te);
-        }
-    }
-
-    [BurstCompile]
-    public struct UpdateAllAvatarsJob : IJobParallelFor
-    {
-        [ReadOnly] public NativeArray<float3> PreviousPositions;
-        [ReadOnly] public NativeArray<float3> TargetPositions;
-
-        [ReadOnly] public NativeArray<float3> PreviousScales;
-        [ReadOnly] public NativeArray<float3> TargetScales;
-
-        [ReadOnly] public NativeArray<quaternion> PreviousRotations;
-        [ReadOnly] public NativeArray<quaternion> TargetRotations;
-
-        [ReadOnly] public NativeArray<float> InterpolationTimes;
-
-        public NativeArray<float3> OutputPositions;
-        public NativeArray<float3> OutputScales;
-        public NativeArray<quaternion> OutputRotations;
-
-        public void Execute(int index)
-        {
-            float t = math.saturate(InterpolationTimes[index]);
-
-            float3 p0 = PreviousPositions[index];
-            float3 p1 = TargetPositions[index];
-            float3 s0 = PreviousScales[index];
-            float3 s1 = TargetScales[index];
-
-            float3 outP = math.lerp(p0, p1, t);
-            float3 outS = math.lerp(s0, s1, t);
-            quaternion outR = math.slerp(PreviousRotations[index], TargetRotations[index], t);
-
-            // sanitize outputs
-            OutputPositions[index] = new float3(
-                math.isfinite(outP.x) ? math.clamp(outP.x, -MaxPositionComponent, MaxPositionComponent) : 0f,
-                math.isfinite(outP.y) ? math.clamp(outP.y, -MaxPositionComponent, MaxPositionComponent) : 0f,
-                math.isfinite(outP.z) ? math.clamp(outP.z, -MaxPositionComponent, MaxPositionComponent) : 0f
-            );
-
-            float3 s = outS;
-            s = new float3(
-                math.isfinite(s.x) ? math.clamp(math.abs(s.x), MinScaleComponent, MaxScaleComponent) : 1f,
-                math.isfinite(s.y) ? math.clamp(math.abs(s.y), MinScaleComponent, MaxScaleComponent) : 1f,
-                math.isfinite(s.z) ? math.clamp(math.abs(s.z), MinScaleComponent, MaxScaleComponent) : 1f
-            );
-
-
-            OutputScales[index] = s;
-
-            float4 rv = outR.value;
-            quaternion cleanR = (!math.all(math.isfinite(rv)) || math.lengthsq(rv) <= 1e-8f) ? quaternion.identity : math.normalize(outR);
-            OutputRotations[index] = cleanR;
-        }
-    }
-
-    [BurstCompile]
-    public struct UpdateAllAvatarMusclesJob : IJobParallelFor
-    {
-        [ReadOnly] public NativeArray<float> PreviousMuscles; // Flattened array
-        [ReadOnly] public NativeArray<float> TargetMuscles;
-        [ReadOnly] public NativeArray<float> InterpolationTimes;
-
-        public NativeArray<float> OutputMuscles;
-        public int MuscleCountPerAvatar;
-
-        public void Execute(int index)
-        {
-            int playerIndex = MuscleCountPerAvatar > 0 ? (index / MuscleCountPerAvatar) : 0;
-            float t = math.saturate(InterpolationTimes[playerIndex]);
-
-            float v = math.lerp(PreviousMuscles[index], TargetMuscles[index], t);
-            v = math.isfinite(v) ? math.clamp(v, MuscleMin, MuscleMax) : 0f;
-
-            OutputMuscles[index] = v;
-        }
-    }
-
-    /// <summary>Guarded divide + scaled body position (Burst).</summary>
-    [BurstCompile]
-    public struct ComputeScaledBodyJob : IJobParallelFor
-    {
-        [ReadOnly] public NativeArray<float3> OutputPositions; // from UpdateAllAvatarsJob
-        [ReadOnly] public NativeArray<float3> OutputScales;    // from UpdateAllAvatarsJob
-        [ReadOnly] public NativeArray<float> HumanScales;      // per avatar
-
-        [WriteOnly] public NativeArray<float3> ScaledBodyPositions;
-
-        public void Execute(int i)
-        {
-            const float eps = 1e-6f;
-
-            float3 applyScale = OutputScales[i];
-
-            // Sanitize baseScale: avoid 0 / NaN / Inf before reciprocal
-            float baseScale = HumanScales[i];
-            bool baseBad = !math.isfinite(baseScale) | (math.abs(baseScale) <= eps);
-            float invBase = math.select(math.rcp(baseScale), 1f, baseBad);
-
-            float3 scale = new float3(invBase);
-
-            bool3 validApply = math.isfinite(applyScale) & (math.abs(applyScale) > eps);
-
-            float3 safeDiv = math.select(scale, scale / applyScale, validApply);
-
-            float3 scaled = OutputPositions[i] * safeDiv;
-
-            // final clamp to world bounds
-            ScaledBodyPositions[i] = math.clamp(scaled,
-                new float3(-MaxPositionComponent),
-                new float3(MaxPositionComponent));
-        }
-    }
-
     /// <summary>Completes all scheduled work for this frame.</summary>
     public static void Apply()
     {
         if (!_initialized) return;
         oneEuroJob.Complete();
     }
-    /* must be length == _muscleCount */
     /// <summary>Read back the computed outputs for an index after Apply().</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool GetOutputs_NoAlloc(int index,out float3 outPos,out quaternion outRot, out float3 BodyPosition,float[] outMuscles)
+    public static bool GetOutputs_NoAlloc(int index, out float3 outPos, out quaternion outRot, out float3 BodyPosition, float[] outMuscles)
     {
-        //outScale = default;
-        outPos = default;  outRot = default; BodyPosition = default;
-        if ((uint)index >= FixedCapacity) return false;
-        if (outMuscles == null || outMuscles.Length != _muscleCount) return false;
+        outPos = default;
+        outRot = default;
+        BodyPosition = default;
+
+        if ((uint)index >= FixedCapacity)
+        {
+            return false;
+        }
+        if (outMuscles == null || outMuscles.Length != _muscleCount)
+        {
+            return false;
+        }
 
         outPos = _outPositions[index];
-      //  outScale = _outScales[index];
         outRot = _outRotations[index];
 
         int baseOffset = index * _muscleCount;
@@ -642,39 +319,6 @@ public static partial class BasisRemoteNetworkDriver
             euroValuesOutput[flat] = 0f;
         }
     }
-
-    // ---------------- sanitizing jobs ----------------
-
-    [BurstCompile]
-    public struct SanitizeMuscleBuffersJob : IJobParallelFor
-    {
-        public NativeArray<float> A; // prev
-        public NativeArray<float> B; // target
-
-        public void Execute(int i)
-        {
-            float a = A[i];
-            float b = B[i];
-            a = math.isfinite(a) ? math.clamp(a, MuscleMin, MuscleMax) : 0f;
-            b = math.isfinite(b) ? math.clamp(b, MuscleMin, MuscleMax) : 0f;
-            A[i] = a;
-            B[i] = b;
-        }
-    }
-
-    [BurstCompile]
-    public struct SanitizeSingleBufferJob : IJobParallelFor
-    {
-        public NativeArray<float> Buffer;
-        public void Execute(int i)
-        {
-            float v = Buffer[i];
-            Buffer[i] = math.isfinite(v) ? math.clamp(v, MuscleMin, MuscleMax) : 0f;
-        }
-    }
-
-    // ---------------- internal allocation helpers ----------------
-
     static void AllocateAll(int capacity)
     {
         // Transform data
@@ -705,7 +349,6 @@ public static partial class BasisRemoteNetworkDriver
         positionFilters = new NativeArray<float2>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
         derivativeFilters = new NativeArray<float2>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
     }
-
     static void DisposeAll()
     {
         if (_prevPositions.IsCreated) _prevPositions.Dispose();
@@ -730,5 +373,271 @@ public static partial class BasisRemoteNetworkDriver
         if (euroValuesOutput.IsCreated) euroValuesOutput.Dispose();
         if (positionFilters.IsCreated) positionFilters.Dispose();
         if (derivativeFilters.IsCreated) derivativeFilters.Dispose();
+    }
+    [BurstCompile]
+    public struct SanitizeSingleBufferJob : IJobParallelFor
+    {
+        public NativeArray<float> Buffer;
+        public void Execute(int i)
+        {
+            float v = Buffer[i];
+            Buffer[i] = math.isfinite(v) ? math.clamp(v, MuscleMin, MuscleMax) : 0f;
+        }
+    }
+    [BurstCompile]
+    public struct SanitizeAvatarInputsJob : IJobParallelFor
+    {
+        public NativeArray<float3> PrevPositions;
+        public NativeArray<float3> TargetPositions;
+        public NativeArray<float3> PrevScales;
+        public NativeArray<float3> TargetScales;
+        public NativeArray<quaternion> PrevRotations;
+        public NativeArray<quaternion> TargetRotations;
+        public NativeArray<float> InterpolationTimes;
+        public NativeArray<float> HumanScales;
+
+        public void Execute(int index)
+        {
+            HumanScales[index] = SanitizeFloat(HumanScales[index], 1f, MinHumanScale, MaxHumanScale);
+            PrevPositions[index] = PrevPositions[index];
+            TargetPositions[index] = TargetPositions[index];
+            PrevScales[index] = SanitizeScale(PrevScales[index]);
+            TargetScales[index] = SanitizeScale(TargetScales[index]);
+            PrevRotations[index] = SanitizeRotation(PrevRotations[index]);
+            TargetRotations[index] = SanitizeRotation(TargetRotations[index]);
+            InterpolationTimes[index] = SanitizeFloat(InterpolationTimes[index], 0f, 0f, 1f);
+        }
+    }
+    /*
+     * BasicOneEuroFilterParallelJob.cs
+     * Author: Dario Mazzanti (dario.mazzanti@iit.it), 2016
+     *
+     * This Unity C# utility is based on the C++ implementation of the OneEuroFilter algorithm by Nicolas Roussel (http://www.lifl.fr/~casiez/1euro/OneEuroFilter.cc)
+     * More info on the 1€ filter by Géry Casiez at http://www.lifl.fr/~casiez/1euro/
+     *
+     */
+    [BurstCompile]
+    public struct BasisOneEuroFilterParallelJob : IJobParallelFor
+    {
+        // Input signal (flattened: players * muscles)
+        [ReadOnly] public NativeArray<float> InputValues;
+
+        // Output signal (flattened: players * muscles)
+        public NativeArray<float> OutputValues;
+
+        // Per-player deltaTime (or sampling period proxy). Length == numPlayers
+        [ReadOnly] public NativeArray<float> DeltaTime;
+
+        // Filter state per flattened channel (same length as OutputValues)
+        public NativeArray<float2> PositionFilters;   // x = previous input, y = previous output
+        public NativeArray<float2> DerivativeFilters; // x = previous derivative input, y = previous derivative output
+
+        // Parameters
+        public float MinCutoff;
+        public float Beta;
+        public float DerivativeCutoff;
+
+        // Stride to recover the player index from the flattened channel index
+        // i.e., the number of muscles per avatar
+        [ReadOnly] public int MuscleCountPerAvatar;
+
+        public void Execute(int index)
+        {
+            int playerIndex = MuscleCountPerAvatar > 0 ? (index / MuscleCountPerAvatar) : 0;
+
+            if ((uint)playerIndex >= (uint)DeltaTime.Length) return;
+            if ((uint)index >= (uint)InputValues.Length) return;
+            if ((uint)index >= (uint)OutputValues.Length) return;
+            if ((uint)index >= (uint)PositionFilters.Length) return;
+            if ((uint)index >= (uint)DerivativeFilters.Length) return;
+
+            float dt = DeltaTime[playerIndex];
+            // Kill NaNs/Infs and clamp to sane [MinDt, MaxDt]
+            if (!math.isfinite(dt)) dt = 1f / 90f;
+
+            float frequency = 1.0f / dt;
+
+            float inputValue = InputValues[index];
+            inputValue = math.isfinite(inputValue) ? inputValue : 0f;
+
+            float prevFiltered = PositionFilters[index].y;
+            prevFiltered = math.isfinite(prevFiltered) ? prevFiltered : 0f;
+
+            float prevRaw = PositionFilters[index].x;
+            prevRaw = math.isfinite(prevRaw) ? prevRaw : 0f;
+
+            float dValue = (inputValue - prevRaw) * frequency;
+            dValue = math.isfinite(dValue) ? dValue : 0f;
+
+            float alphaD = Alpha(DerivativeCutoff, frequency);
+            float prevDerivFiltered = DerivativeFilters[index].y;
+            prevDerivFiltered = math.isfinite(prevDerivFiltered) ? prevDerivFiltered : 0f;
+
+            float edValue = alphaD * dValue + (1.0f - alphaD) * prevDerivFiltered;
+
+            float cutoff = MinCutoff + Beta * math.abs(edValue);
+            cutoff = math.max(cutoff, 1e-4f);
+
+            float alphaX = Alpha(cutoff, frequency);
+            float filtered = alphaX * inputValue + (1.0f - alphaX) * prevFiltered;
+
+            // final clamp to muscle bounds
+            filtered = math.isfinite(filtered) ? math.clamp(filtered, MuscleMin, MuscleMax) : 0f;
+
+            OutputValues[index] = filtered;
+
+            PositionFilters[index] = new float2(inputValue, filtered);
+            DerivativeFilters[index] = new float2(dValue, edValue);
+        }
+
+        private static float Alpha(float cutoff, float frequency)
+        {
+            float te = 1.0f / frequency;
+            float c = math.max(cutoff, 1e-4f);
+            float tau = 1.0f / (2.0f * math.PI * c);
+            return 1.0f / (1.0f + tau / te);
+        }
+    }
+
+    [BurstCompile]
+    public struct UpdateAllAvatarsJob : IJobParallelFor
+    {
+        [ReadOnly] public NativeArray<float3> PreviousPositions;
+        [ReadOnly] public NativeArray<float3> TargetPositions;
+
+        [ReadOnly] public NativeArray<float3> PreviousScales;
+        [ReadOnly] public NativeArray<float3> TargetScales;
+
+        [ReadOnly] public NativeArray<quaternion> PreviousRotations;
+        [ReadOnly] public NativeArray<quaternion> TargetRotations;
+
+        [ReadOnly] public NativeArray<float> InterpolationTimes;
+
+        [WriteOnly]
+        public NativeArray<float3> OutputPositions;
+        [WriteOnly]
+        public NativeArray<float3> OutputScales;
+        [WriteOnly]
+        public NativeArray<quaternion> OutputRotations;
+
+        public void Execute(int index)
+        {
+            float t = math.saturate(InterpolationTimes[index]);
+
+            float3 p0 = PreviousPositions[index];
+            float3 p1 = TargetPositions[index];
+            float3 s0 = PreviousScales[index];
+            float3 s1 = TargetScales[index];
+
+            float3 outP = math.lerp(p0, p1, t);
+            float3 outS = math.lerp(s0, s1, t);
+            quaternion outR = math.slerp(PreviousRotations[index], TargetRotations[index], t);
+
+            // sanitize outputs
+            OutputPositions[index] = outP;
+
+            float3 s = outS;
+            s = new float3(
+                math.isfinite(s.x) ? math.clamp(math.abs(s.x), MinScaleComponent, MaxScaleComponent) : 1f,
+                math.isfinite(s.y) ? math.clamp(math.abs(s.y), MinScaleComponent, MaxScaleComponent) : 1f,
+                math.isfinite(s.z) ? math.clamp(math.abs(s.z), MinScaleComponent, MaxScaleComponent) : 1f
+            );
+
+
+            OutputScales[index] = s;
+
+            float4 rv = outR.value;
+            quaternion cleanR = (!math.all(math.isfinite(rv)) || math.lengthsq(rv) <= 1e-8f) ? quaternion.identity : math.normalize(outR);
+            OutputRotations[index] = cleanR;
+        }
+    }
+
+    [BurstCompile]
+    public struct UpdateAllAvatarMusclesJob : IJobParallelFor
+    {
+        [ReadOnly] public NativeArray<float> PreviousMuscles; // Flattened array
+        [ReadOnly] public NativeArray<float> TargetMuscles;
+        [ReadOnly] public NativeArray<float> InterpolationTimes;
+
+        public NativeArray<float> OutputMuscles;
+        public int MuscleCountPerAvatar;
+
+        public void Execute(int index)
+        {
+            int playerIndex = MuscleCountPerAvatar > 0 ? (index / MuscleCountPerAvatar) : 0;
+            float t = math.saturate(InterpolationTimes[playerIndex]);
+
+            float v = math.lerp(PreviousMuscles[index], TargetMuscles[index], t);
+            v = math.isfinite(v) ? math.clamp(v, MuscleMin, MuscleMax) : 0f;
+
+            OutputMuscles[index] = v;
+        }
+    }
+
+    /// <summary>Guarded divide + scaled body position (Burst).</summary>
+    [BurstCompile]
+    public struct ComputeScaledBodyJob : IJobParallelFor
+    {
+        [ReadOnly] public NativeArray<float3> OutputPositions; // from UpdateAllAvatarsJob
+        [ReadOnly] public NativeArray<float3> OutputScales;    // from UpdateAllAvatarsJob
+        [ReadOnly] public NativeArray<float> HumanScales;      // per avatar
+
+        [WriteOnly] public NativeArray<float3> ScaledBodyPositions;
+
+        public void Execute(int i)
+        {
+            const float eps = 1e-6f;
+
+            float3 applyScale = OutputScales[i];
+
+            // Sanitize baseScale: avoid 0 / NaN / Inf before reciprocal
+            float baseScale = HumanScales[i];
+            bool baseBad = !math.isfinite(baseScale) | (math.abs(baseScale) <= eps);
+            float invBase = math.select(math.rcp(baseScale), 1f, baseBad);
+
+            float3 scale = new float3(invBase);
+
+            bool3 validApply = math.isfinite(applyScale) & (math.abs(applyScale) > eps);
+
+            float3 safeDiv = math.select(scale, scale / applyScale, validApply);
+
+            float3 scaled = OutputPositions[i] * safeDiv;
+
+            // final clamp to world bounds
+            ScaledBodyPositions[i] = scaled;
+        }
+    }
+    public const float MinScaleComponent = 1e-3f;    // no zeros/tiny scales
+    public const float MaxScaleComponent = 1e2f;     // avoid runaway giants
+
+    public const float MinHumanScale = 0.01f;
+    public const float MaxHumanScale = 150;
+
+    public const float MuscleMin = -180f;
+    public const float MuscleMax = 180f;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static float SanitizeFloat(float v, float def, float min, float max)
+    {
+        return math.isfinite(v) ? math.clamp(v, min, max) : def;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static float3 SanitizeScale(float3 s)
+    {
+        // Force positive, kill NaNs/Infs, clamp magnitude
+        float x = SanitizeFloat(math.abs(s.x), 1f, MinScaleComponent, MaxScaleComponent);
+        float y = SanitizeFloat(math.abs(s.y), 1f, MinScaleComponent, MaxScaleComponent);
+        float z = SanitizeFloat(math.abs(s.z), 1f, MinScaleComponent, MaxScaleComponent);
+        return new float3(x, y, z);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static quaternion SanitizeRotation(quaternion q)
+    {
+        float4 v = q.value;
+        if (!math.all(math.isfinite(v))) return quaternion.identity;
+        float len2 = math.lengthsq(v);
+        return (len2 > 1e-8f) ? math.normalize(q) : quaternion.identity;
     }
 }
