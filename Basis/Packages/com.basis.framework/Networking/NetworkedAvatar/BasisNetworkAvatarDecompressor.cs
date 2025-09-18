@@ -71,8 +71,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
             Buffer.rotation = SanitizeRotation(BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, BasisNetworkPlayer.RotationCompression, ref offset));
             DecompressAvatarMuscles_NoLoop(data, ref Buffer.Muscles, ref offset);
-            ushort Scale = BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset);
-            Buffer.Scale = MuscleDecompress(Scale, MinimumValueSupported, MaximumValueSupported);
+            Buffer.Scale = MuscleDecompress(BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset), MinimumValueSupported, MaximumValueSupported);
 
             // Seconds interval — clamp to a sane minimum so interpolation works
             if (!math.isfinite((float)SecondsInterval) || SecondsInterval <= 0)

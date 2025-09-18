@@ -54,7 +54,7 @@ namespace Basis.Scripts.Networking.Receivers
         private readonly List<BasisAvatarBuffer> _staged = new List<BasisAvatarBuffer>(16);
 
         // ---------- Compute / Apply ----------
-
+        public bool HasBufferHolds;
         /// <summary>
         /// Called from your network simulation (main thread).
         /// Pulls data to staging, builds/advances the interpolation window,
@@ -67,35 +67,15 @@ namespace Basis.Scripts.Networking.Receivers
 
             // 2) Ensure we have a valid interpolation window (First -> Last)
             BuildOrAdvanceWindow();
-
+            HasBufferHolds = BufferHolder.HasFirst && BufferHolder.HasLast;
             // 3) If we have a window, compute interpolation fraction and feed the compute phase
-            if (BufferHolder.HasFirst && BufferHolder.HasLast)
+            if (HasBufferHolds)
             {
                 ComputeInterpolationFraction(unscaledDeltaTime);
-
-                var first = BufferHolder.First;
-                var last = BufferHolder.Last;
-
-                // Ensure muscles are non-null and correct length
-                var prevMuscles = first.Muscles;
-                var targetMuscles = last.Muscles;
-
-                if (!IsValidMuscleArray(prevMuscles))
-                {
-                    if (LogFirstError)
-                        BasisDebug.LogWarning("BasisNetworkReceiver: First frame muscles were null/invalid; using zeros.");
-                    prevMuscles = new NativeArray<float>(95, Allocator.Persistent);
-                }
-
-                if (!IsValidMuscleArray(targetMuscles))
-                {
-                    if (LogFirstError)
-                        BasisDebug.LogWarning("BasisNetworkReceiver: Last frame muscles were null/invalid; using zeros.");
-                    targetMuscles = new NativeArray<float>(95, Allocator.Persistent);
-                }
-
                 if (Player.BasisAvatar != null && Player.BasisAvatar.Animator != null)
                 {
+                    var first = BufferHolder.First;
+                    var last = BufferHolder.Last;
                     // Feed driver (per-avatar transforms, scales, rotations, muscles, t)
                     BasisRemoteNetworkDriver.SetInputs(
                         playerId, Player.BasisAvatar.Animator.humanScale,
@@ -103,19 +83,19 @@ namespace Basis.Scripts.Networking.Receivers
                         first.Scale, last.Scale,
                         first.rotation, last.rotation,
                         interpolationTime,
-                        prevMuscles, targetMuscles
+                         first.Muscles, last.Muscles
                     );
                 }
             }
         }
         public void Apply()
         {
-            if (BufferHolder.HasFirst && BufferHolder.HasLast)
+            if (HasBufferHolds)
             {
                 // Pull outputs (position, scale, rotation, muscles). We also use outPos for a robust fallback path.
-                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out float3 outPos, out quaternion applyingRotation, out float3 scaledBody, Muscles))
+                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out float3 applyingScale, out var applyingRotation, out float3 scaledBody, Muscles))
                 {
-                    HumanPose.bodyPosition = outPos;
+                    HumanPose.bodyPosition = scaledBody;
                     HumanPose.bodyRotation = applyingRotation;
 
                     // Muscles
@@ -134,7 +114,9 @@ namespace Basis.Scripts.Networking.Receivers
                             );
                         }
                     }
-                    //  Player.AvatarTransform.localScale = applyingScale;
+                    // its hard to move this out atm since the data that we supply only comes from a fixed size of ouputs but we need a more
+                    //moving targeted solution to account for transforms
+                     Player.AvatarTransform.localScale = applyingScale;
 
                     // HumanPoseHandler must stay on main thread
                     PoseHandler.SetHumanPose(ref HumanPose);
@@ -169,7 +151,7 @@ namespace Basis.Scripts.Networking.Receivers
             RemotePlayer = (BasisRemotePlayer)Player;
             AudioReceiverModule.Initalize(this);
 
-            if (!HasEvents)
+            if (!HasEvents && RemotePlayer?.RemoteAvatarDriver != null)
             {
                 RemotePlayer.RemoteAvatarDriver.CalibrationComplete += OnCalibration;
                 HasEvents = true;
@@ -300,11 +282,6 @@ namespace Basis.Scripts.Networking.Receivers
         // ---------- Ctor ----------
         public BasisNetworkReceiver(ushort PlayerID)
         {
-            BufferHolder.First.Position = Vector3.zero;
-            BufferHolder.First.Scale = Vector3.one;
-
-            BufferHolder.Last.Position = Vector3.zero;
-            BufferHolder.Last.Scale = Vector3.one;
             playerId = PlayerID;
             hasID = true;
         }
@@ -350,7 +327,7 @@ namespace Basis.Scripts.Networking.Receivers
                 return;
 
             // If we've consumed the current window, advance; repeat while we have more staged
-            while (interpolationTime >= 1f && _staged.Count > 0)
+            while (interpolationTime >= 1f && _staged.Count != 0)
             {
                 // Release old First
                 if (BufferHolder.HasFirst)
@@ -447,9 +424,9 @@ namespace Basis.Scripts.Networking.Receivers
         private void DropOldestFromStaging(int count)
         {
             count = Mathf.Min(count, _staged.Count);
-            for (int Index = 0; Index < count; Index++)
+            for (int i = 0; i < count; i++)
             {
-                var b = _staged[Index];
+                var b = _staged[i];
                 BasisAvatarBufferPool.Release(ref b);
             }
             _staged.RemoveRange(0, count);

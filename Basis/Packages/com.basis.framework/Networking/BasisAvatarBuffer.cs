@@ -52,16 +52,21 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
         public static void Release(ref BasisAvatarBuffer item)
         {
+            item.Initialize(); // reset before pooling
             _pool.Push(item);
+            item = default; // optional: avoid accidental use after release
         }
         public static void DeInitalize()
         {
             while (_pool.Count > 0)
             {
                 var dataset = _pool.Pop();
-                if (dataset != null && dataset.Muscles != null && dataset.Muscles.IsCreated)
+                if (dataset != null && dataset.Muscles != null)
                 {
-                    dataset.Muscles.Dispose();
+                    if (dataset.Muscles.IsCreated)
+                    {
+                        dataset.Muscles.Dispose();
+                    }
                 }
             }
         }

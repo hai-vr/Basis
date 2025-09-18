@@ -57,6 +57,9 @@ public class BasisEventDriver : MonoBehaviour
             try { action.Invoke(); }
             catch (Exception ex) { Debug.LogError($"MainThread action failed: {ex}"); }
         }
+
+
+
         BasisNetworkManagement.SimulateNetworkCompute(unscaledDeltaTime);
         BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
 

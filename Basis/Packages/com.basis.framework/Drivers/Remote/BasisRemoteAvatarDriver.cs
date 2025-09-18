@@ -77,25 +77,30 @@ namespace Basis.Scripts.Drivers
                 RemoteBoneJobSystem.RemoveRemotePlayer(player.NetworkReceiver.playerId);
                 hasDatainBoneDriver = false;
             }
-            var Reference = player.RemoteAvatarDriver.References;
-            Vector3 Position = player.BasisAvatar.Animator.transform.position;
             // On player join:
             RemoteBoneJobSystem.AddRemotePlayer(
                 key: player.NetworkReceiver.playerId,
-                Root: player.BasisAvatar.Animator.transform,
-                head: Reference.head,
-                Hip: Reference.Hips,
-                Mouth: player.MouthTransform,
-                Avatar: player.AvatarTransform,
-                namePlate : player.RemoteNamePlate.Self,
-                tposeHead: Reference.TposeHead,
-                tposeHips: Reference.TposeHips,
-                authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarEyePosition), Position),
-                authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarMouthPosition), Position)
+                remotePlayerRoot: player.BasisAvatar.Animator.transform,
+                head: player.RemoteAvatarDriver.References.head,
+                hips: player.RemoteAvatarDriver.References.Hips,
+                tposeHead: player.RemoteAvatarDriver.References.TposeHead,
+                tposeHips: player.RemoteAvatarDriver.References.TposeHips,
+                authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(
+                    BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarEyePosition),
+                    player.BasisAvatar.Animator.transform.position
+                ),
+                authoredMouthWorld: BasisHelpers.ConvertFromLocalSpace(
+                    BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarMouthPosition),
+                    player.BasisAvatar.Animator.transform.position
+                ),
+                NamePlate: player.RemoteNamePlate.Self,
+                AvatarScale: player.BasisAvatar.Animator.transform,
+                MouthTransform: player.MouthTransform
+                
             );
             hasDatainBoneDriver = true;
 
-            // player.RemoteBoneDriver.InitializeFromAvatar(player);
+           // player.RemoteBoneDriver.InitializeFromAvatar(player);
             player.BasisAvatar.Animator.enabled = false;
 
             SetupAvatarJiggleColliders();
@@ -105,7 +110,7 @@ namespace Basis.Scripts.Drivers
         public RuntimeAnimatorController SavedruntimeAnimatorController;
         public void PutAvatarIntoTPose()
         {
-         //  BasisDebug.Log("PutAvatarIntoTPose", BasisDebug.LogTag.Avatar);
+          //  BasisDebug.Log("PutAvatarIntoTPose", BasisDebug.LogTag.Avatar);
             CurrentlyTposing = true;
             if (SavedruntimeAnimatorController == null)
             {

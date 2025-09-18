@@ -263,7 +263,7 @@ namespace Basis.Scripts.Networking.Transmitters
             }
             for (int Index = 0; Index < ReceiverCount; Index++)
             {
-                targetPositions[Index] = RemoteBoneJobSystem.GetOutgoingHead(Index);
+                targetPositions[Index] = RemoteBoneJobSystem.GetOutgoingPosition(Index, BoneIdx.Mouth);
             }
             smallestDistance[0] = float.MaxValue;
             distanceJobHandle = distanceJob.Schedule(targetPositions.Length, 64);
