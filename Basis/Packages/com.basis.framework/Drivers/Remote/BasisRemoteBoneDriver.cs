@@ -295,7 +295,7 @@ public static class RemoteBoneJobSystem
     }
     public static int AddRemotePlayer(int key, Transform remotePlayerRoot, Transform head, Transform hips,
         BasisCalibratedCoords tposeHead, BasisCalibratedCoords tposeHips, float3 authoredCenterEyeWorld,
-        float3 authoredMouthWorld,Transform NamePlate,Transform AvatarScale,Transform MouthTransform)
+        float3 authoredMouthWorld, Transform NamePlate, Transform AvatarScale, Transform MouthTransform)
     {
         if (!sInitialized) Initialize();
         CompletePending();
@@ -523,21 +523,15 @@ public static class RemoteBoneJobSystem
 
         CompletePending();
     }
-    public static float3 GetOutgoingPosition(int key, int boneIndex)
+    public static bool GetOutGoingMouth(int key, out float3 outgoing)
     {
-        if (!TryGetIndex(key, out int idx)) return float3.zero;
-        var o = sOut[idx];
-        switch (boneIndex)
+        if (!sKeyToIndex.TryGetValue(key, out int idx))
         {
-            case BoneIdx.Head: return o.pos_Head;
-            case BoneIdx.Neck: return o.pos_Neck;
-            case BoneIdx.Chest: return o.pos_Chest;
-            case BoneIdx.Spine: return o.pos_Spine;
-            case BoneIdx.Hips: return o.pos_Hips;
-            case BoneIdx.CenterEye: return o.pos_CenterEye;
-            case BoneIdx.Mouth: return o.pos_Mouth;
-            default: return float3.zero;
+            outgoing = Vector3.zero;
+            return false;
         }
+        var o = sOut[idx];
+        outgoing = o.pos_Mouth;
+        return true;
     }
-    static bool TryGetIndex(int key, out int idx) => sKeyToIndex.TryGetValue(key, out idx);
 }

@@ -252,6 +252,7 @@ namespace Basis.Scripts.Networking.Transmitters
             if (IndexLength != ReceiverCount)
             {
                 ResizeOrCreateArrayData(ReceiverCount);
+
                 LastMicrophoneRangeIndex = new bool[ReceiverCount];
                 MicrophoneRangeIndex = new bool[ReceiverCount];
                 HearingIndex = new bool[ReceiverCount];
@@ -261,9 +262,14 @@ namespace Basis.Scripts.Networking.Transmitters
                 IndexLength = ReceiverCount;
                 HearingIndexToId = BasisNetworkPlayers.RemotePlayers.Keys.ToArray();
             }
+            Receivers.BasisNetworkReceiver[] Snapshot = BasisNetworkPlayers.ReceiversSnapshot;
             for (int Index = 0; Index < ReceiverCount; Index++)
             {
-                targetPositions[Index] = RemoteBoneJobSystem.GetOutgoingPosition(Index, BoneIdx.Mouth);
+                var RemotePlayers = Snapshot[Index];
+                if (RemoteBoneJobSystem.GetOutGoingMouth(RemotePlayers.playerId, out float3 outgoing))
+                {
+                    targetPositions[Index] = outgoing;
+                }
             }
             smallestDistance[0] = float.MaxValue;
             distanceJobHandle = distanceJob.Schedule(targetPositions.Length, 64);
