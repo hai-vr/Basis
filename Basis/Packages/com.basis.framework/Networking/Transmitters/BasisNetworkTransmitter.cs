@@ -265,8 +265,8 @@ namespace Basis.Scripts.Networking.Transmitters
             Receivers.BasisNetworkReceiver[] Snapshot = BasisNetworkPlayers.ReceiversSnapshot;
             for (int Index = 0; Index < ReceiverCount; Index++)
             {
-                var RemotePlayers = Snapshot[Index];
-                if (RemoteBoneJobSystem.GetOutGoingMouth(RemotePlayers.playerId, out float3 outgoing))
+                var Remote = Snapshot[Index];
+                if (RemoteBoneJobSystem.GetOutGoingMouth(Remote.playerId, out float3 outgoing))
                 {
                     targetPositions[Index] = outgoing;
                 }

@@ -1,10 +1,8 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
-using System;
 using Unity.Mathematics;
 using UnityEngine;
-
 namespace Basis.Scripts.Eye_Follow
 {
     [DefaultExecutionOrder(15002)]
@@ -46,6 +44,8 @@ namespace Basis.Scripts.Eye_Follow
         public float timer; // Timer to track look-around interval
         public float DistanceBeforeTeleport = 30;
         public static BasisLocalEyeDriver Instance;
+        public bool wasDisabled = false;
+        public bool IsEnabled;
         public void OnDestroy(BasisLocalPlayer Player)
         {
             HasHead = false;
@@ -77,14 +77,15 @@ namespace Basis.Scripts.Eye_Follow
                 }
                 HasEvents = true;
             }
-            rightEyeTransform = BasisLocalAvatarDriver.References.RightEye;
-            leftEyeTransform = BasisLocalAvatarDriver.References.LeftEye;
-            HeadTransform = BasisLocalAvatarDriver.References.head;
+            var References = BasisLocalAvatarDriver.References;
+            rightEyeTransform = References.RightEye;
+            leftEyeTransform = References.LeftEye;
+            HeadTransform = References.head;
 
-            HasLeftEye = BasisLocalAvatarDriver.References.HasLeftEye;
-            HasRightEye = BasisLocalAvatarDriver.References.HasRightEye;
-            HasHead = BasisLocalAvatarDriver.References.Hashead;
-            Vector3 HeadPosition = BasisLocalAvatarDriver.References.head.position;
+            HasLeftEye = References.HasLeftEye;
+            HasRightEye = References.HasRightEye;
+            HasHead = References.Hashead;
+            Vector3 HeadPosition = References.head.position;
             if (HasLeftEye)
             {
                 LeftEyeInitallocalSpace.rotation = leftEyeTransform.rotation;
@@ -144,7 +145,7 @@ namespace Basis.Scripts.Eye_Follow
         {
             if (RequiresUpdate())
             {
-                Simulate();
+                Simulate(Time.deltaTime);
             }
             CenterTargetWorld = RandomizedPosition;//will be caught up
 
@@ -164,19 +165,16 @@ namespace Basis.Scripts.Eye_Follow
             wasDisabled = true;
             HasHead = false;
         }
-        public bool wasDisabled = false;
-        public bool IsEnabled;
-
         public static bool RequiresUpdate()
         {
             return Override == false && HasHead;
         }
-        public void Simulate()
+        public void Simulate(float DeltaTime)
         {
             if (IsEnabled)
             {
                 // Update timer using DeltaTime
-                timer += Time.deltaTime;
+                timer += DeltaTime;
 
                 // Check if it's time to look around
                 if (timer > CurrentLookAroundInterval)
@@ -190,11 +188,8 @@ namespace Basis.Scripts.Eye_Follow
                 }
 
                 HeadTransform.GetPositionAndRotation(out Vector3 headPosition, out Quaternion headRotation);
-                Vector3 float3headPosition = headPosition;
-                Quaternion QHeadRotation = headRotation;
-                Quaternion InversedHeadRotation = math.inverse(headRotation);
                 // Calculate the randomized target position using float3 for optimized math operations
-                Vector3 targetPosition = float3headPosition + (QHeadRotation * EyeForwards) + AppliedOffset;
+                Vector3 targetPosition = headPosition + (headRotation * EyeForwards) + AppliedOffset;
 
                 // Check distance for teleporting, otherwise smooth move
                 if (math.distance(targetPosition, CenterTargetWorld) > DistanceBeforeTeleport || wasDisabled)
@@ -206,16 +201,18 @@ namespace Basis.Scripts.Eye_Follow
                 {
                     CenterTargetWorld = Vector3.MoveTowards(CenterTargetWorld, targetPosition, lookSpeed);
                 }
+                Quaternion InversedHeadRotation = math.inverse(headRotation);
+                Vector3 Up = HeadTransform.up;
                 // Set eye rotations using optimized float3 and quaternion operations
                 if (HasLeftEye)
                 {
                     LeftEyeTargetWorld = CenterTargetWorld + LeftEyeInitallocalSpace.position;
-                    leftEyeTransform.rotation = LookAtTarget(leftEyeTransform.position, LeftEyeTargetWorld, math.mul(LeftEyeInitallocalSpace.rotation, InversedHeadRotation), HeadTransform.up);
+                    leftEyeTransform.rotation = LookAtTarget(leftEyeTransform.position, LeftEyeTargetWorld, math.mul(LeftEyeInitallocalSpace.rotation, InversedHeadRotation), Up);
                 }
                 if (HasRightEye)
                 {
                     RightEyeTargetWorld = CenterTargetWorld + RightEyeInitallocalSpace.position;
-                    rightEyeTransform.rotation = LookAtTarget(rightEyeTransform.position, RightEyeTargetWorld, math.mul(RightEyeInitallocalSpace.rotation, InversedHeadRotation), HeadTransform.up);
+                    rightEyeTransform.rotation = LookAtTarget(rightEyeTransform.position, RightEyeTargetWorld, math.mul(RightEyeInitallocalSpace.rotation, InversedHeadRotation), Up);
                 }
                 if (SMModuleDebugOptions.UseGizmos)
                 {
