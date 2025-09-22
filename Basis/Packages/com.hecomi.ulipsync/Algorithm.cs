@@ -556,17 +556,6 @@ namespace uLipSync
         }
 
         // ---------- Norm ----------------------------------------------------------
-
-        public static float Norm(in NativeArray<float> array)
-        {
-            return Norm((float*)array.GetUnsafeReadOnlyPtr(), array.Length);
-        }
-
-        public static float Norm(in NativeSlice<float> slice)
-        {
-            return Norm((float*)slice.GetUnsafeReadOnlyPtr(), slice.Length);
-        }
-
         [BurstCompile]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static float Norm(float* array, int len)
