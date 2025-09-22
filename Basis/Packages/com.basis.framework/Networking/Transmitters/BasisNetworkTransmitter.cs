@@ -13,6 +13,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
+
 namespace Basis.Scripts.Networking.Transmitters
 {
     [DefaultExecutionOrder(15001)]
@@ -208,6 +209,7 @@ namespace Basis.Scripts.Networking.Transmitters
                 BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, writer.Length);
             }
         }
+
         public static bool AreBoolArraysEqual(bool[] array1, bool[] array2)
         {
             if (array1 == null && array2 == null) return true;
@@ -374,6 +376,7 @@ namespace Basis.Scripts.Networking.Transmitters
                 HasEvents = false;
             }
         }
+
         public static NetDataWriter AvatarChangeWriter = new NetDataWriter();
         public void SendOutAvatarChange()
         {
@@ -390,31 +393,31 @@ namespace Basis.Scripts.Networking.Transmitters
             BasisNetworkConnection.LocalPlayerPeer.Send(AvatarChangeWriter, BasisNetworkCommons.AvatarChangeMessageChannel, DeliveryMethod.ReliableOrdered);
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AvatarChange, AvatarChangeWriter.Length);
         }
+
         [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Standard)]
         public struct BasisDistanceJobBatch : IJobParallelForBatch
         {
             public float VoiceDistance;
             public float HearingDistance;
             public float AvatarDistance;
-            public float HysteresisMargin;        // e.g., 0.05f
-            public int batchSize;               // provided by scheduler
+            public float HysteresisMargin;
+            public int batchSize;
 
             [ReadOnly] public float3 referencePosition;
             [ReadOnly] public NativeArray<float3> targetPositions;
 
-            // previous states (read-only)
             [ReadOnly] public NativeArray<bool> PrevDistanceInside;
             [ReadOnly] public NativeArray<bool> PrevHearingInside;
             [ReadOnly] public NativeArray<bool> PrevAvatarInside;
 
-            // outputs (write-only)
-            [WriteOnly] public NativeArray<float> distances;       // squared distances
+            [WriteOnly] public NativeArray<float> distances;
             [WriteOnly] public NativeArray<bool> DistanceInside;
             [WriteOnly] public NativeArray<bool> HearingInside;
             [WriteOnly] public NativeArray<bool> AvatarInside;
 
-            // per-batch minima (write-only, length = ceil(N / batchSize))
-            [WriteOnly] public NativeArray<float> batchMins;
+            // We write one unique element per batch — explicitly allow this access pattern.
+            [NativeDisableParallelForRestriction]
+            public NativeArray<float> batchMins;
 
             [BurstCompile]
             private static bool Hysteresis(bool wasInside, float d2, float threshold2, float margin)
@@ -437,7 +440,7 @@ namespace Basis.Scripts.Networking.Transmitters
                 for (int i = startIndex; i < end; i++)
                 {
                     float3 diff = targetPositions[i] - referencePosition;
-                    float d2 = math.lengthsq(diff);        // squared distance
+                    float d2 = math.lengthsq(diff);
                     distances[i] = d2;
 
                     bool dIn = Hysteresis(PrevDistanceInside[i], d2, v2, HysteresisMargin);
@@ -451,6 +454,7 @@ namespace Basis.Scripts.Networking.Transmitters
                     minD2 = math.min(minD2, d2);
                 }
 
+                // one writer per batch slot
                 int batchIndex = startIndex / math.max(1, batchSize);
                 batchMins[batchIndex] = minD2;
             }
