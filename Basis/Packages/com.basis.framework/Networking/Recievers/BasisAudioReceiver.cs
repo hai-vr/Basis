@@ -184,7 +184,7 @@ namespace Basis.Scripts.Networking.Receivers
             }
             else
             {
-                Debug.LogWarning("Decoder is null. Cannot apply gain.");
+                BasisDebug.LogWarning("Decoder is null. Cannot apply gain.");
             }
         }
         private float[] _inputScratch;      // big enough for the largest chunk we pull
