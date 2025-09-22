@@ -168,6 +168,7 @@ namespace SteamAudio
 
         private void Awake()
         {
+            Transform = this.transform;
             mSimulator = SteamAudioManager.Simulator;
 
             var settings = SteamAudioManager.GetSimulationSettings(false);
@@ -233,9 +234,10 @@ namespace SteamAudio
                 mThis.Free();
             }
         }
-
+        public Transform Transform;
         private void OnEnable()
         {
+            Transform = this.transform;
             mSource.AddToSimulator(mSimulator);
             SteamAudioManager.AddSource(this);
 
@@ -272,7 +274,8 @@ namespace SteamAudio
 
                 var oldColor = Gizmos.color;
                 Gizmos.color = Color.red;
-                Gizmos.DrawWireMesh(mDeformedSphereMesh, transform.position, transform.rotation);
+                transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out UnityEngine.Quaternion Rotation);
+                Gizmos.DrawWireMesh(mDeformedSphereMesh, Position, Rotation);
                 Gizmos.color = oldColor;
             }
         }
@@ -281,7 +284,7 @@ namespace SteamAudio
         public void SetInputs(SimulationFlags flags)
         {
             // --- Fast transform read: one native hop ---
-            transform.GetPositionAndRotation(out var pos, out var rot);
+            Transform.GetPositionAndRotation(out var pos, out var rot);
             var ahead = rot * UnityEngine.Vector3.forward; // pure math (managed), no extra native calls
             var up = rot * UnityEngine.Vector3.up;
             var right = rot * UnityEngine.Vector3.right;
