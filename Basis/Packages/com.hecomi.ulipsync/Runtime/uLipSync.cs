@@ -4,24 +4,18 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using System.Collections.Generic;
 using System.Threading;
-
 namespace uLipSync
 {
     public class uLipSync : MonoBehaviour
     {
         public Profile profile;
-
         JobHandle _jobHandle;
-
         readonly object _lockObject = new object();
         bool _allocated = false;
-
         // Audio ring-buffer write index
         int _writeIndex = 0;
-
         // flip-flop to indicate new data is ready
         volatile int _isDataReceived = 0; // 0 = false, 1 = true
-
         // Native buffers
         NativeArray<float> _inputData;             // ring buffer in native space
         NativeArray<float> _mfcc;                  // computed MFCCs (for our job)
@@ -31,12 +25,7 @@ namespace uLipSync
         NativeArray<float> _phonemes;              // reference MFCCs packed [phonemeCount * mfccNum]
         NativeArray<float> _scores;                // output scores from job
         NativeArray<LipSyncJob.Info> _info;        // volume + main phoneme idx
-
-        // calibration
-        readonly List<int> _requestedCalibrationVowels = new List<int>(8);
-
         string[] _phonemeNames;
-
         // Exposed results / caches
         public int phonemeCount;
         public NativeArray<float> mfcc => _mfccForOther;
@@ -44,28 +33,18 @@ namespace uLipSync
         public int outputSampleRate;
         public int PhonemesCount;
         public int mfccsCount;
-
         // runtime mix values
         float[] _phonemeRatios;
         readonly Dictionary<string, int> _phonemeNameToIndex = new Dictionary<string, int>(32);
-
         public string mainPhoneme;
         public float NormalVolume;
         public float rawVolume;
-
-        public bool RequestedCalibration = false;
         public int CachedInputSampleCount;
-
         public float globalMultiplier;
         public float MultipliedWeight;
         public float finalWeight;
-
-        int mfccNum => profile ? profile.mfccNum : 12;
-
+        int mfccNum => profile.mfccNum;
         public uLipSyncBlendShape uLipSyncBlendShape;
-
-        // ---------- Unity lifecycle ----------
-
         public void LateUpdate()
         {
             // If last scheduled job is still running, skip this frame.
@@ -91,9 +70,7 @@ namespace uLipSync
                     rawVolume = math.max(_info[0].volume, 0f);
                     // single log10, normalized to [0..1]
                     float logv = rawVolume > 0f ? math.log10(rawVolume) : 0f;
-                    NormalVolume = math.clamp(
-                        (logv - Common.DefaultMinVolume) / math.max(Common.DefaultMaxVolume - Common.DefaultMinVolume, 1e-6f),
-                        0f, 1f);
+                    NormalVolume = math.clamp((logv - Common.DefaultMinVolume) / math.max(Common.DifferenceVolume, 1e-6f), 0f, 1f);
                 }
 
                 // Compute phoneme ratios from scores (single pass, no managed copy)
@@ -109,21 +86,8 @@ namespace uLipSync
                 // Apply to blendshapes
                 OnLipSyncUpdate();
 
-                // Handle deferred calibration (after results are stable)
-                if (RequestedCalibration && _requestedCalibrationVowels.Count > 0 && profile != null)
-                {
-                    int count = _requestedCalibrationVowels.Count;
-                    for (int i = 0; i < count; i++)
-                    {
-                        int idx = _requestedCalibrationVowels[i];
-                        profile.UpdateMfcc(idx, mfcc, true);
-                    }
-                    _requestedCalibrationVowels.Clear();
-                    RequestedCalibration = false;
-                }
-
                 // Keep a tightly packed copy of profile phoneme MFCCs in native array
-                if (profile != null && _phonemes.IsCreated)
+                if (_phonemes.IsCreated)
                 {
                     int write = 0;
                     int max = math.min(mfccsCount, phonemeCount);
@@ -141,7 +105,7 @@ namespace uLipSync
             // If new audio arrived, schedule a new job using the ring buffer snapshot.
             if (Interlocked.Exchange(ref _isDataReceived, 0) == 1)
             {
-                if (!_allocated || profile == null) return;
+                if (!_allocated) return;
 
                 // Copy managed inputs -> native ringbuffer (fast; single copy)
                 int startIndexSnapshot;
@@ -189,14 +153,13 @@ namespace uLipSync
             if (rawVolume > 0f)
             {
                 float logv = Mathf.Log10(rawVolume);
-                float denom = Mathf.Max(uLipSyncBlendShape.maxVolume - uLipSyncBlendShape.minVolume, 1e-4f);
+                float denom = Mathf.Max(uLipSyncBlendShape.VolumeDifference, 1e-4f);
                 normVol = Mathf.Clamp01((logv - uLipSyncBlendShape.minVolume) / denom);
             }
 
-            uLipSyncBlendShape._volume = uLipSyncBlendShape.SmoothDamp(
-                uLipSyncBlendShape._volume, normVol, ref uLipSyncBlendShape._openCloseVelocity);
+            uLipSyncBlendShape._volume = uLipSyncBlendShape.SmoothDamp(uLipSyncBlendShape._volume, normVol, ref uLipSyncBlendShape._openCloseVelocity);
 
-            globalMultiplier = uLipSyncBlendShape._volume * uLipSyncBlendShape.maxBlendShapeValue;
+            globalMultiplier = uLipSyncBlendShape._volume * 100;
 
             var infos = uLipSyncBlendShape.BlendShapeInfos;
             if (infos == null) return;
@@ -205,12 +168,12 @@ namespace uLipSync
 
             // First pass: compute target weights + sum (write back if struct)
             float totalWeight = 0f;
-            for (int i = 0; i < count; i++)
+            for (int Index = 0; Index < count; Index++)
             {
-                var bs = infos[i];
+                var bs = infos[Index];
                 float targetWeight = 0f;
 
-                if (uLipSyncBlendShape.usePhonemeBlend && !string.IsNullOrEmpty(bs.phoneme))
+                if (!string.IsNullOrEmpty(bs.phoneme))
                 {
                     if (_phonemeNameToIndex.TryGetValue(bs.phoneme, out int idx) &&
                         idx >= 0 && idx < _phonemeRatios.Length)
@@ -228,19 +191,17 @@ namespace uLipSync
                 bs.weightVelocity = vel;
 
                 totalWeight += bs.weight;
-                infos[i] = bs; // write back if struct
+                infos[Index] = bs; // write back if struct
             }
 
             // Base multiply (normalize only when sum is not ~zero)
             const float epsilon = 1e-6f;
-            float baseMultiply = (Mathf.Abs(totalWeight) > epsilon)
-                ? (1f / totalWeight) * globalMultiplier
-                : globalMultiplier;
+            float baseMultiply = (Mathf.Abs(totalWeight) > epsilon) ? (1f / totalWeight) * globalMultiplier : globalMultiplier;
 
             // Second pass: apply to renderer
-            for (int i = 0; i < count; i++)
+            for (int Index = 0; Index < count; Index++)
             {
-                var bs = infos[i];
+                var bs = infos[Index];
                 if (bs.index < 0) continue;
 
                 // guard against out-of-range (valid indices are 0..blendShapeCount-1)
@@ -294,9 +255,9 @@ namespace uLipSync
             lock (_lockObject)
             {
                 CachedInputSampleCount = inputSampleCount;
-
-                phonemeCount = math.max(profile.mfccs.Count, 1);
-                mfccsCount = profile.mfccs.Count;
+                int Count = profile.mfccs.Count;
+                phonemeCount = math.max(Count, 1);
+                mfccsCount = Count;
                 PhonemesCount = mfccNum * phonemeCount;
                 outputSampleRate = AudioSettings.outputSampleRate;
 
@@ -370,19 +331,11 @@ namespace uLipSync
             }
         }
 
-        public void RequestCalibration(int index)
-        {
-            RequestedCalibration = true;
-            _requestedCalibrationVowels.Add(index);
-        }
-
         int inputSampleCount
         {
             get
             {
                 int sr = AudioSettings.outputSampleRate;
-                if (profile == null) return sr;
-
                 float r = (float)sr / math.max(profile.targetSampleRate, 1);
                 return Mathf.CeilToInt(math.max(profile.sampleCount, 1) * r);
             }

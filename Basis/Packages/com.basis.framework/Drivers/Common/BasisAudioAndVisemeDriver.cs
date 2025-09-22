@@ -27,17 +27,17 @@ namespace Basis.Scripts.Drivers
             Player = BasisPlayer;
             if (Avatar == null)
             {
-             //  BasisDebug.Log("not setting up BasisVisemeDriver Avatar was null");
+                //  BasisDebug.Log("not setting up BasisVisemeDriver Avatar was null");
                 return false;
             }
             if (Avatar.FaceVisemeMesh == null)
             {
-              //  BasisDebug.Log("not setting up BasisVisemeDriver FaceVisemeMesh was null");
+                //  BasisDebug.Log("not setting up BasisVisemeDriver FaceVisemeMesh was null");
                 return false;
             }
             if (Avatar.FaceVisemeMesh.sharedMesh.blendShapeCount == 0)
             {
-              //  BasisDebug.Log("not setting up BasisVisemeDriver blendShapeCount was empty");
+                //  BasisDebug.Log("not setting up BasisVisemeDriver blendShapeCount was empty");
                 return false;
             }
             if (uLipSync == null)
@@ -49,15 +49,11 @@ namespace Basis.Scripts.Drivers
                 uLipSync = BasisHelpers.GetOrAddComponent<uLipSync.uLipSync>(BasisPlayer.gameObject);
             }
             phonemeBlendShapeTable.Clear();
-            if (uLipSync.profile == null)
-            {
-                uLipSync.profile = BasisDeviceManagement.Instance.LipSyncProfile;
-            }
+            uLipSync.profile = BasisDeviceManagement.Instance.LipSyncProfile;
             if (uLipSyncBlendShape == null)
             {
                 uLipSyncBlendShape = BasisHelpers.GetOrAddComponent<uLipSyncBlendShape>(BasisPlayer.gameObject);
             }
-            uLipSyncBlendShape.usePhonemeBlend = true;
             uLipSyncBlendShape.skinnedMeshRenderer = Avatar.FaceVisemeMesh;
             BlendShapeCount = Avatar.FaceVisemeMovement.Length;
             HasViseme = new bool[BlendShapeCount];
@@ -154,7 +150,7 @@ namespace Basis.Scripts.Drivers
             uLipSync.Initalize();
             if (Player != null && Player.FaceRenderer != null && HashInstanceID != Player.FaceRenderer.GetInstanceID())
             {
-               // BasisDebug.Log("Wired up Renderer Check For Blinking");
+                // BasisDebug.Log("Wired up Renderer Check For Blinking");
                 Player.FaceRenderer.Check += UpdateFaceVisibility;
                 Player.FaceRenderer.DestroyCalled += TryShutdown;
             }
@@ -183,7 +179,7 @@ namespace Basis.Scripts.Drivers
                 }
             }
         }
-        public void ProcessAudioSamples(float[] data,int channels,int Length)
+        public void ProcessAudioSamples(float[] data, int channels, int Length)
         {
             if (uLipSyncEnabledState == false)
             {
@@ -197,20 +193,14 @@ namespace Basis.Scripts.Drivers
         }
         public void OnPausedEvent(bool IsPaused)
         {
-            if (IsPaused)
+            if (uLipSyncBlendShape != null)
             {
-                if (uLipSyncBlendShape != null)
+
+                if (IsPaused)
                 {
-                    uLipSyncBlendShape.maxVolume = 0;
-                    uLipSyncBlendShape.minVolume = 0;
                 }
-            }
-            else
-            {
-                if (uLipSyncBlendShape != null)
+                else
                 {
-                    uLipSyncBlendShape.maxVolume = -1.5f;
-                    uLipSyncBlendShape.minVolume = -2.5f;
                 }
             }
         }

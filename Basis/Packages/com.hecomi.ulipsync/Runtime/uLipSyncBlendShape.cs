@@ -10,12 +10,10 @@ namespace uLipSync
         public List<BlendShapeInfo> CachedblendShapes = new List<BlendShapeInfo>();
         public BlendShapeInfo[] BlendShapeInfos;
 
-        [Range(0f, 0.3f)]
-        public float smoothness = 0.05f;
-        public float maxBlendShapeValue = 100f;
-        public float minVolume = -2.5f;
-        public float maxVolume = -1.5f;
-        public bool usePhonemeBlend = false;
+        public const float smoothness = 0.05f;
+        public const float minVolume = -2.5f;
+        public const float maxVolume = -1.5f;
+        public const float VolumeDifference = uLipSyncBlendShape.maxVolume - uLipSyncBlendShape.minVolume;
         public float _volume = 0f;
         public float _openCloseVelocity = 0f;
 
