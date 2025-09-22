@@ -4,6 +4,7 @@ using Basis.Scripts.Networking.NetworkedAvatar;
 using OpusSharp.Core;
 using OpusSharp.Core.Extensions;
 using System;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 namespace Basis.Scripts.Networking.Receivers
 {
@@ -126,6 +127,11 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void StartAudio()
         {
+            // Conservative initial sizes; will grow once and then reuse.
+            _inputScratch = new float[1024];
+            _resampleScratch = new float[1024];
+            _cachedOutputRate = outputSampleRate;
+            _resampleRatio = (float)RemoteOpusSettings.NetworkSampleRate / _cachedOutputRate;
 #if UNITY_SERVER
        return;
 #endif
@@ -181,78 +187,132 @@ namespace Basis.Scripts.Networking.Receivers
                 Debug.LogWarning("Decoder is null. Cannot apply gain.");
             }
         }
+        private float[] _inputScratch;      // big enough for the largest chunk we pull
+        private int _cachedOutputRate = -1;
+        private float _resampleRatio = 1f;
+        private float[] _resampleScratch;   // big enough for the largest 'frames' we output
         public void OnAudioFilterRead(float[] data, int channels, int length)
         {
-            int frames = length / channels; // Number of audio frames
+            // Unity’s official signature is (float[] data, int channels); you’ve added 'length'.
+            // We'll trust 'length' == data.Length for your setup.
+            int frames = length / channels;
+
             if (InOrderRead.IsEmpty)
             {
-                // No voice data, fill with silence
-                //  BasisDebug.Log("Missing Audio Data! filling with Silence");
-                Array.Fill(data, 0);
+                // No voice data: write silence without allocating
+                Array.Clear(data, 0, length);
                 return;
             }
 
-            if (RemoteOpusSettings.NetworkSampleRate == outputSampleRate)
+            // Recompute ratio only when sample rate changes (avoids division each callback)
+            if (_cachedOutputRate != outputSampleRate)
             {
-                ProcessAudioWithoutResampling(data, frames, channels);
+                _cachedOutputRate = outputSampleRate;
+                _resampleRatio = (float)RemoteOpusSettings.NetworkSampleRate / _cachedOutputRate;
+            }
+
+            if (RemoteOpusSettings.NetworkSampleRate == _cachedOutputRate)
+            {
+                ProcessNoResample(data, frames, channels);
             }
             else
             {
-                ProcessAudioWithResampling(data, frames, channels, outputSampleRate);
+                ProcessResample(data, frames, channels);
             }
         }
-        private void ProcessAudioWithResampling(float[] data, int frames, int channels, int outputSampleRate)
+
+        private void EnsureCapacity(ref float[] buf, int needed)
         {
-            float resampleRatio = (float)RemoteOpusSettings.NetworkSampleRate / outputSampleRate;
-            int neededFrames = Mathf.CeilToInt(frames * resampleRatio);
+            if (buf.Length < needed)
+            {
+                // grow to next power-of-two-ish to avoid repeated resizes
+                int newSize = 1;
+                while (newSize < needed) newSize <<= 1;
+                buf = new float[newSize];
+            }
+        }
+
+        private void ProcessNoResample(float[] data, int frames, int channels)
+        {
+            // Pull 'frames' mono samples
+            EnsureCapacity(ref _inputScratch, frames);
+            InOrderRead.Remove(frames, out float[] segment);
+
+            // Copy into our scratch if the InOrderRead returns a pooled array we must return immediately
+            // If Remove already gives us exactly the buffer to use, you can avoid this copy:
+            //   var mono = segment;
+            // Here I'll copy into _inputScratch to keep the code safe and predictable.
+            Buffer.BlockCopy(segment, 0, _inputScratch, 0, frames * sizeof(float));
+
+            int idx = 0;
+            for (int f = 0; f < frames; f++)
+            {
+                float sample = _inputScratch[f];
+                // Multiply into each channel sample in-place
+                for (int c = 0; c < channels; c++)
+                {
+                    float v = data[idx] * sample;
+                    data[idx++] = FastClamp(v);
+                }
+            }
+
+            InOrderRead.BufferedReturn.Enqueue(segment);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float FastClamp(float x)  // cheaper than Math.Clamp in tight loops
+        {
+            if (x > 1f) return 1f;
+            if (x < -1f) return -1f;
+            return x;
+        }
+        private void ProcessResample(float[] data, int frames, int channels)
+        {
+            // How many network frames we need to cover these output frames
+            float ratio = _resampleRatio; // network / output
+            int neededFrames = (int)Mathf.Ceil(frames * ratio);
+
+            EnsureCapacity(ref _inputScratch, neededFrames);
+            EnsureCapacity(ref _resampleScratch, frames);
 
             InOrderRead.Remove(neededFrames, out float[] inputSegment);
 
-            float[] resampledSegment = new float[frames];
+            // Copy to scratch (see note in ProcessNoResample)
+            Buffer.BlockCopy(inputSegment, 0, _inputScratch, 0, neededFrames * sizeof(float));
 
-            // Resampling using linear interpolation
-            for (int FrameIndex = 0; FrameIndex < frames; FrameIndex++)
+            // Linear interpolation via phase accumulator
+            // phase advances in "network samples" per output sample
+            double phase = 0.0;
+            double step = ratio;
+            int maxIndex = neededFrames - 1; // last valid low index
+            for (int f = 0; f < frames; f++)
             {
-                float srcIndex = FrameIndex * resampleRatio;
-                int indexLow = Mathf.FloorToInt(srcIndex);
-                int indexHigh = Mathf.CeilToInt(srcIndex);
-                float frac = srcIndex - indexLow;
+                int iLow = (int)phase;                // floor
+                double frac = phase - iLow;           // [0,1)
+                int iHigh = iLow + 1;
 
-                float sampleLow = (indexLow < inputSegment.Length) ? inputSegment[indexLow] : 0;
-                float sampleHigh = (indexHigh < inputSegment.Length) ? inputSegment[indexHigh] : 0;
+                // Bound the high index once; no branch if inside range
+                float sLow = _inputScratch[iLow];
+                float sHigh = (iHigh <= maxIndex) ? _inputScratch[iHigh] : 0f;
 
-                resampledSegment[FrameIndex] = Mathf.Lerp(sampleLow, sampleHigh, frac);
+                // Manual lerp: sLow + frac*(sHigh - sLow)
+                _resampleScratch[f] = (float)(sLow + frac * (sHigh - sLow));
+
+                phase += step;
             }
 
-            // Apply resampled audio to output buffer
-            for (int FrameIndex = 0; FrameIndex < frames; FrameIndex++)
+            // Apply to output interleaved buffer
+            int idx = 0;
+            for (int f = 0; f < frames; f++)
             {
-                float sample = resampledSegment[FrameIndex];
+                float sample = _resampleScratch[f];
                 for (int c = 0; c < channels; c++)
                 {
-                    int index = FrameIndex * channels + c;
-                    data[index] *= sample;
-                    data[index] = Math.Clamp(data[index], -1, 1);
+                    float v = data[idx] * sample;
+                    data[idx++] = FastClamp(v);
                 }
             }
 
             InOrderRead.BufferedReturn.Enqueue(inputSegment);
-        }
-        private void ProcessAudioWithoutResampling(float[] data, int frames, int channels)
-        {
-            InOrderRead.Remove(frames, out float[] segment);
-
-            for (int FrameIndex = 0; FrameIndex < frames; FrameIndex++)
-            {
-                float sample = segment[FrameIndex]; // Single-channel sample from the RingBuffer
-                for (int ChannelIndex = 0; ChannelIndex < channels; ChannelIndex++)
-                {
-                    int index = FrameIndex * channels + ChannelIndex;
-                    data[index] *= sample;
-                    data[index] = Math.Clamp(data[index], -1, 1);
-                }
-            }
-            InOrderRead.BufferedReturn.Enqueue(segment);
         }
     }
 }
