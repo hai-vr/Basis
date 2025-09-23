@@ -7,27 +7,97 @@ using OpusSharp.Core.Extensions;
 using System;
 using System.Runtime.CompilerServices;
 using UnityEngine;
+
 namespace Basis.Scripts.Networking.Receivers
 {
-    [System.Serializable]
+    /// <summary>
+    /// Receives, decodes, buffers, and plays remote voice audio for a networked player.
+    /// Manages an <see cref="AudioSource"/>, Opus decoding, ring-buffering, resampling,
+    /// and optional viseme (lip-sync) driving.
+    /// </summary>
+    [Serializable]
     public class BasisAudioReceiver
     {
+        /// <summary>
+        /// Remote viseme driver component attached to the active audio source.
+        /// </summary>
         public BasisRemoteAudioDriver BasisRemoteVisemeAudioDriver = null;
+
+        /// <summary>
+        /// The active <see cref="AudioSource"/> used for playback.
+        /// </summary>
         public AudioSource audioSource;
+
+        /// <summary>
+        /// Viseme and audio processing driver used to feed lip-sync.
+        /// </summary>
         public BasisAudioAndVisemeDriver visemeDriver = new BasisAudioAndVisemeDriver();
+
+        /// <summary>
+        /// Ring buffer used to maintain correct ordering of decoded audio samples.
+        /// </summary>
         public BasisVoiceRingBuffer InOrderRead = new BasisVoiceRingBuffer();
+
+        /// <summary>
+        /// True if playback is currently active.
+        /// </summary>
         public bool IsPlaying = false;
+
+        /// <summary>
+        /// Decode destination buffer (mono) sized to one network frame.
+        /// </summary>
         public float[] pcmBuffer = new float[RemoteOpusSettings.SampleLength];
+
+        /// <summary>
+        /// Number of valid samples written to <see cref="pcmBuffer"/> by the decoder.
+        /// </summary>
         public int pcmLength;
+
+        /// <summary>
+        /// (Optional) last network ring index read (for diagnostics).
+        /// </summary>
         public byte lastReadIndex = 0;
+
+        /// <summary>
+        /// Transform holding/parenting the audio source in the scene (usually near mouth).
+        /// </summary>
         public Transform AudioSourceTransform;
+
+        /// <summary>
+        /// Temporary resampling segment (used when output rate != network rate).
+        /// </summary>
         public float[] resampledSegment;
+
+        /// <summary>
+        /// Indicates whether an audio transform/source has been successfully created.
+        /// </summary>
         public volatile bool HasTransform = false;
+
+        /// <summary>
+        /// Owning network receiver (player/session context).
+        /// </summary>
         public BasisNetworkReceiver BasisNetworkReceiver;
-        //everything can safely share the same silent data as we only copy it.
+
+        /// <summary>
+        /// Shared silence buffer to avoid allocations when no audio is present.
+        /// </summary>
         public static float[] silentData;
+
+        /// <summary>
+        /// Unity output sample rate cache (AudioSettings.outputSampleRate).
+        /// </summary>
         public static int outputSampleRate;
+
+        /// <summary>
+        /// Opus decoder used for network voice frames.
+        /// </summary>
         public OpusDecoder decoder = new OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
+
+        /// <summary>
+        /// Called when an encoded voice packet arrives. Decodes and enqueues PCM.
+        /// </summary>
+        /// <param name="data">Opus-encoded payload.</param>
+        /// <param name="length">Payload length in bytes.</param>
         public void OnDecode(byte[] data, int length)
         {
             if (HasTransform)
@@ -37,6 +107,10 @@ namespace Basis.Scripts.Networking.Receivers
                 AudioSourceSet();
             }
         }
+
+        /// <summary>
+        /// Enables/disables the audio source on the main thread based on buffer state.
+        /// </summary>
         public void AudioSourceSet()
         {
             BasisDeviceManagement.EnqueueOnMainThread(() =>
@@ -60,6 +134,10 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             });
         }
+
+        /// <summary>
+        /// Enqueues a frame of silence when no real audio is available.
+        /// </summary>
         public void OnDecodeSilence()
         {
             if (HasTransform)
@@ -68,89 +146,132 @@ namespace Basis.Scripts.Networking.Receivers
                 AudioSourceSet();
             }
         }
-        public async void LoadAudioSource(BasisNetworkPlayer networkedPlayer,Transform MouthParent)
+
+        /// <summary>
+        /// Creates/attaches an <see cref="AudioSource"/> and begins playback for the given player.
+        /// Also initializes viseme driving and applies per-player volume settings.
+        /// </summary>
+        /// <param name="networkedPlayer">The networked player whose voice we render.</param>
+        /// <param name="MouthParent">Transform to parent the audio source under (e.g., mouth).</param>
+        public async void LoadAudioSource(BasisNetworkPlayer networkedPlayer, Transform MouthParent)
         {
             if (AudioSourceTransform == null)
             {
                 AudioSourceTransform = BasisAudioRemoteSource.RequestAudio(MouthParent).transform;
                 AudioSourceTransform.name = $"[Audio] {BasisNetworkReceiver.Player.DisplayName}";
+
                 if (audioSource == null)
                 {
                     audioSource = BasisHelpers.GetOrAddComponent<AudioSource>(AudioSourceTransform.gameObject);
                     audioSource.loop = true;
-                    // Initialize settings and audio source
                     audioSource.clip = BasisAudioClipPool.Get(networkedPlayer.playerId);
                 }
+
                 audioSource.Play();
-                HasTransform= true;
+                HasTransform = true;
             }
+
             IsPlaying = true;
             AvatarChanged(networkedPlayer);
-            BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(networkedPlayer.Player.UUID);
+
+            var BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(networkedPlayer.Player.UUID);
             ChangeRemotePlayersVolumeSettings(BasisPlayerSettingsData.VolumeLevel);
         }
+
+        /// <summary>
+        /// Stops playback, returns pooled resources, and clears references.
+        /// </summary>
         public void UnloadAudioSource()
         {
             HasTransform = false;
+
             if (audioSource != null && audioSource.clip != null)
             {
                 audioSource.Stop();
                 BasisAudioClipPool.Return(audioSource.clip);
             }
+
             if (AudioSourceTransform != null)
             {
                 BasisAudioRemoteSource.Return(AudioSourceTransform.gameObject);
                 AudioSourceTransform = null;
                 BasisRemoteVisemeAudioDriver = null;
             }
+
             IsPlaying = false;
         }
+
+        /// <summary>
+        /// Initializes the receiver for a specific networked player/receiver context.
+        /// Sets up shared silence buffer and caches output sample rate.
+        /// </summary>
+        /// <param name="networkedPlayer">Owning network receiver.</param>
         public void Initalize(BasisNetworkReceiver networkedPlayer)
         {
 #if UNITY_SERVER
-       return;
+            return;
 #endif
-            outputSampleRate = UnityEngine.AudioSettings.outputSampleRate;
+            outputSampleRate = AudioSettings.outputSampleRate;
+
             if (silentData == null)
             {
                 silentData = new float[RemoteOpusSettings.FrameSize];
             }
+
             BasisNetworkReceiver = networkedPlayer;
         }
+
+        /// <summary>
+        /// Cleans up decoder and audio resources.
+        /// </summary>
         public void OnDestroy()
         {
-            // Unsubscribe from events on destroy
             if (decoder != null)
             {
                 decoder.Dispose();
                 decoder = null;
             }
+
             UnloadAudioSource();
         }
+
+        /// <summary>
+        /// Called when the remote player's avatar changes; refreshes viseme setup.
+        /// </summary>
+        /// <param name="networkedPlayer">The player whose avatar changed.</param>
         public void AvatarChanged(BasisNetworkPlayer networkedPlayer)
         {
 #if UNITY_SERVER
-       return;
+            return;
 #endif
             if (audioSource != null)
             {
-                // Ensure viseme driver is initialized for audio processing
                 visemeDriver.TryInitialize(networkedPlayer.Player);
+
                 if (BasisRemoteVisemeAudioDriver == null)
                 {
                     BasisRemoteVisemeAudioDriver = BasisHelpers.GetOrAddComponent<BasisRemoteAudioDriver>(audioSource.gameObject);
                 }
+
                 BasisRemoteVisemeAudioDriver.BasisAudioReceiver = this;
                 BasisRemoteVisemeAudioDriver.Initalize(visemeDriver);
             }
         }
+
+        /// <summary>
+        /// Stops audio and unloads associated resources.
+        /// </summary>
         public void StopAudio()
         {
 #if UNITY_SERVER
-       return;
+            return;
 #endif
             UnloadAudioSource();
         }
+
+        /// <summary>
+        /// Starts audio playback, allocating scratch buffers and creating the source if needed.
+        /// </summary>
         public void StartAudio()
         {
             // Conservative initial sizes; will grow once and then reuse.
@@ -159,51 +280,52 @@ namespace Basis.Scripts.Networking.Receivers
             _cachedOutputRate = outputSampleRate;
             _resampleRatio = (float)RemoteOpusSettings.NetworkSampleRate / _cachedOutputRate;
 #if UNITY_SERVER
-       return;
+            return;
 #endif
             if (BasisNetworkReceiver != null)
             {
                 LoadAudioSource(BasisNetworkReceiver, BasisNetworkReceiver.RemotePlayer.MouthTransform);
             }
         }
-        public void ChangeRemotePlayersVolumeSettings(float volume = 1.0f,float dopplerLevel = 0,float spatialBlend = 1.0f,bool spatialize = true,bool spatializePostEffects = true)
+
+        /// <summary>
+        /// Applies per-remote-player audio settings (volume, spatialization, doppler, and Opus gain).
+        /// </summary>
+        /// <param name="volume">Desired volume (0..∞, clamped to 1 for Unity volume; Opus gain scales above 1).</param>
+        /// <param name="dopplerLevel">Doppler effect intensity (≥ 0).</param>
+        /// <param name="spatialBlend">0 = 2D, 1 = fully 3D.</param>
+        /// <param name="spatialize">Enable HRTF/spatializer if available.</param>
+        /// <param name="spatializePostEffects">Apply spatialization post-effects.</param>
+        public void ChangeRemotePlayersVolumeSettings(float volume = 1.0f, float dopplerLevel = 0, float spatialBlend = 1.0f, bool spatialize = true, bool spatializePostEffects = true)
         {
-            // Safety check for audio source
             if (audioSource == null)
             {
                 Debug.LogWarning("AudioSource is null. Cannot apply volume settings.");
                 return;
             }
 
-            // Apply spatial audio settings
             audioSource.spatialize = spatialize;
             audioSource.spatializePostEffects = spatializePostEffects;
             audioSource.spatialBlend = Mathf.Clamp01(spatialBlend);
-            audioSource.dopplerLevel = Mathf.Max(0f, dopplerLevel); // Doppler should not be negative
+            audioSource.dopplerLevel = Mathf.Max(0f, dopplerLevel);
 
-            // Determine gain value
             short gain;
-
             if (volume <= 0f)
             {
                 audioSource.volume = 0f;
-                gain = 256; // Mute gain for Opus (e.g., 256 = silence)
+                gain = 256;              // "mute" gain for Opus
             }
             else if (volume <= 1f)
             {
                 audioSource.volume = volume;
-                gain = 1024; // Normal gain
+                gain = 1024;             // nominal gain
             }
             else
             {
                 audioSource.volume = 1f;
-                gain = (short)Mathf.Clamp(volume * 1024f, 1024f, short.MaxValue); // Prevent overflow
+                gain = (short)Mathf.Clamp(volume * 1024f, 1024f, short.MaxValue);
             }
 
-            // Log for debugging if needed
-            //Debug.Log($"[AudioDebug] Set Volume: {volume}, UnityVolume: {audioSource.volume}, Gain: {gain}, Spatialize: {spatialize}");
-
-            // Apply gain to decoder
             if (decoder != null)
             {
                 OpusDecoderExtensions.SetGain(decoder, gain);
@@ -213,24 +335,32 @@ namespace Basis.Scripts.Networking.Receivers
                 BasisDebug.LogWarning("Decoder is null. Cannot apply gain.");
             }
         }
-        private float[] _inputScratch;      // big enough for the largest chunk we pull
+
+        // -------- Internal resampling / mixing helpers --------
+
+        private float[] _inputScratch;    // big enough for the largest chunk we pull
         private int _cachedOutputRate = -1;
         private float _resampleRatio = 1f;
-        private float[] _resampleScratch;   // big enough for the largest 'frames' we output
+        private float[] _resampleScratch; // big enough for the largest frames we output
+
+        /// <summary>
+        /// Unity audio callback. Mixes buffered mono voice into the provided interleaved output buffer.
+        /// If output sample rate differs from network rate, performs linear resampling.
+        /// </summary>
+        /// <param name="data">Interleaved output buffer to write into.</param>
+        /// <param name="channels">Number of output channels.</param>
+        /// <param name="length">Total sample count in <paramref name="data"/> (interleaved).</param>
         public void OnAudioFilterRead(float[] data, int channels, int length)
         {
-            // Unity’s official signature is (float[] data, int channels); you’ve added 'length'.
-            // We'll trust 'length' == data.Length for your setup.
+            // Unity’s official signature is (float[] data, int channels); this variant includes 'length'.
             int frames = length / channels;
 
             if (InOrderRead.IsEmpty)
             {
-                // No voice data: write silence without allocating
                 Array.Clear(data, 0, length);
                 return;
             }
 
-            // Recompute ratio only when sample rate changes (avoids division each callback)
             if (_cachedOutputRate != outputSampleRate)
             {
                 _cachedOutputRate = outputSampleRate;
@@ -247,34 +377,35 @@ namespace Basis.Scripts.Networking.Receivers
             }
         }
 
+        /// <summary>
+        /// Ensures a scratch buffer has at least <paramref name="needed"/> elements.
+        /// Uses power-of-two growth to reduce reallocations.
+        /// </summary>
         private void EnsureCapacity(ref float[] buf, int needed)
         {
             if (buf.Length < needed)
             {
-                // grow to next power-of-two-ish to avoid repeated resizes
                 int newSize = 1;
                 while (newSize < needed) newSize <<= 1;
                 buf = new float[newSize];
             }
         }
 
+        /// <summary>
+        /// Processes audio when no resampling is required (network rate == output rate).
+        /// </summary>
         private void ProcessNoResample(float[] data, int frames, int channels)
         {
-            // Pull 'frames' mono samples
             EnsureCapacity(ref _inputScratch, frames);
             InOrderRead.Remove(frames, out float[] segment);
 
-            // Copy into our scratch if the InOrderRead returns a pooled array we must return immediately
-            // If Remove already gives us exactly the buffer to use, you can avoid this copy:
-            //   var mono = segment;
-            // Here I'll copy into _inputScratch to keep the code safe and predictable.
+            // Copy to local scratch for safe reuse of pooled arrays
             Buffer.BlockCopy(segment, 0, _inputScratch, 0, frames * sizeof(float));
 
             int idx = 0;
             for (int f = 0; f < frames; f++)
             {
                 float sample = _inputScratch[f];
-                // Multiply into each channel sample in-place
                 for (int c = 0; c < channels; c++)
                 {
                     float v = data[idx] * sample;
@@ -284,16 +415,23 @@ namespace Basis.Scripts.Networking.Receivers
 
             InOrderRead.BufferedReturn.Enqueue(segment);
         }
+
+        /// <summary>
+        /// Fast clamp to [-1,1] optimized for tight loops.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float FastClamp(float x)  // cheaper than Math.Clamp in tight loops
+        private static float FastClamp(float x)
         {
             if (x > 1f) return 1f;
             if (x < -1f) return -1f;
             return x;
         }
+
+        /// <summary>
+        /// Processes audio with linear resampling when output rate differs from network rate.
+        /// </summary>
         private void ProcessResample(float[] data, int frames, int channels)
         {
-            // How many network frames we need to cover these output frames
             float ratio = _resampleRatio; // network / output
             int neededFrames = (int)Mathf.Ceil(frames * ratio);
 
@@ -302,31 +440,26 @@ namespace Basis.Scripts.Networking.Receivers
 
             InOrderRead.Remove(neededFrames, out float[] inputSegment);
 
-            // Copy to scratch (see note in ProcessNoResample)
             Buffer.BlockCopy(inputSegment, 0, _inputScratch, 0, neededFrames * sizeof(float));
 
-            // Linear interpolation via phase accumulator
-            // phase advances in "network samples" per output sample
+            // Phase-accumulator linear interpolation
             double phase = 0.0;
             double step = ratio;
-            int maxIndex = neededFrames - 1; // last valid low index
+            int maxIndex = neededFrames - 1;
+
             for (int f = 0; f < frames; f++)
             {
-                int iLow = (int)phase;                // floor
-                double frac = phase - iLow;           // [0,1)
+                int iLow = (int)phase;
+                double frac = phase - iLow;
                 int iHigh = iLow + 1;
 
-                // Bound the high index once; no branch if inside range
                 float sLow = _inputScratch[iLow];
                 float sHigh = (iHigh <= maxIndex) ? _inputScratch[iHigh] : 0f;
 
-                // Manual lerp: sLow + frac*(sHigh - sLow)
                 _resampleScratch[f] = (float)(sLow + frac * (sHigh - sLow));
-
                 phase += step;
             }
 
-            // Apply to output interleaved buffer
             int idx = 0;
             for (int f = 0; f < frames; f++)
             {

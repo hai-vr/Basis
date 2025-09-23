@@ -301,7 +301,7 @@ namespace Basis.Scripts.Drivers
                         }
                         else
                         {
-                            if (BasisGizmoManager.CreateSphereGizmo(role.ToString(), out Control.TposeGizmoReference, BonePosition, BasisAvatarIKStageCalibration.MaxDistanceBeforeMax(role) * Size, Control.Color))
+                            if (BasisGizmoManager.CreateSphereGizmo(role.ToString(), out Control.TposeGizmoReference, BonePosition, BasisAvatarIKStageCalibration.MaxDistanceBeforeTrackerIsIrrelivant(role) * Size, Control.Color))
                             {
                                 Control.TposeHasGizmo = true;
                             }

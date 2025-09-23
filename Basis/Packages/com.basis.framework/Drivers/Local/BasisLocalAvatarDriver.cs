@@ -309,7 +309,7 @@ namespace Basis.Scripts.Drivers
 					default:
 						{
 							// Use fallback DB + humanoid mapping
-							if (fbdb.FindBone(out BasisFallBone fallback, role))
+							if (fbdb.FindBone(out BasisFallBackBone fallback, role))
 							{
 								if (TryConvertToHumanoidRole(role, out HumanBodyBones human))
 								{
