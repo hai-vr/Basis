@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Helpers;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using OpusSharp.Core;
@@ -29,18 +30,37 @@ namespace Basis.Scripts.Networking.Receivers
         public OpusDecoder decoder = new OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
         public void OnDecode(byte[] data, int length)
         {
-            if (HasTransform)//only process the audio if we actually need it!
+            pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.NetworkSampleRate, false);
+            InOrderRead.Add(pcmBuffer, pcmLength, true);
+            AudioSourceSet();
+        }
+        public void AudioSourceSet()
+        {
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
-                pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.NetworkSampleRate, false);
-                InOrderRead.Add(pcmBuffer, pcmLength);
-            }
+                if (HasTransform)
+                {
+                    if (InOrderRead.HasRealAudio)
+                    {
+                        if (audioSource.enabled == false)
+                        {
+                            audioSource.enabled = true;
+                        }
+                    }
+                    else
+                    {
+                        if (audioSource.enabled)
+                        {
+                            audioSource.enabled = false;
+                        }
+                    }
+                }
+            });
         }
         public void OnDecodeSilence()
         {
-            if (HasTransform)//only process the audio if we actually need it!
-            {
-                InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize);
-            }
+            InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
+            AudioSourceSet();
         }
         public async void LoadAudioSource(BasisNetworkPlayer networkedPlayer,Transform MouthParent)
         {
@@ -48,7 +68,6 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 AudioSourceTransform = BasisAudioRemoteSource.RequestAudio(MouthParent).transform;
                 AudioSourceTransform.name = $"[Audio] {BasisNetworkReceiver.Player.DisplayName}";
-                HasTransform = true;
                 if (audioSource == null)
                 {
                     audioSource = BasisHelpers.GetOrAddComponent<AudioSource>(AudioSourceTransform.gameObject);
@@ -57,6 +76,7 @@ namespace Basis.Scripts.Networking.Receivers
                     audioSource.clip = BasisAudioClipPool.Get(networkedPlayer.playerId);
                 }
                 audioSource.Play();
+                HasTransform= true;
             }
             IsPlaying = true;
             AvatarChanged(networkedPlayer);
@@ -65,6 +85,7 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void UnloadAudioSource()
         {
+            HasTransform = false;
             if (audioSource != null && audioSource.clip != null)
             {
                 audioSource.Stop();
@@ -74,7 +95,6 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 BasisAudioRemoteSource.Return(AudioSourceTransform.gameObject);
                 AudioSourceTransform = null;
-                HasTransform = false;
                 BasisRemoteVisemeAudioDriver = null;
             }
             IsPlaying = false;
