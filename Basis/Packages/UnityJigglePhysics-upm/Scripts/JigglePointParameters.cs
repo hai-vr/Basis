@@ -51,13 +51,11 @@ namespace GatorDragonGames.JigglePhysics
         // Validation helpers let the runtime path stay branch-light.
         public void Ensure01()
         {
-            if (curve == null) curve = kUnitCurve;
             value = Mathf.Clamp01(value);
         }
 
         public void EnsureNonNegative()
         {
-            if (curve == null) curve = kUnitCurve;
             if (value < 0f) value = 0f;
         }
     }
