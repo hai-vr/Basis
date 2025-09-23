@@ -22,7 +22,7 @@ namespace Basis.Scripts.Networking.Receivers
         public byte lastReadIndex = 0;
         public Transform AudioSourceTransform;
         public float[] resampledSegment;
-        public bool HasTransform = false;
+        public volatile bool HasTransform = false;
         public BasisNetworkReceiver BasisNetworkReceiver;
         //everything can safely share the same silent data as we only copy it.
         public static float[] silentData;
@@ -30,9 +30,12 @@ namespace Basis.Scripts.Networking.Receivers
         public OpusDecoder decoder = new OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
         public void OnDecode(byte[] data, int length)
         {
-            pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.NetworkSampleRate, false);
-            InOrderRead.Add(pcmBuffer, pcmLength, true);
-            AudioSourceSet();
+            if (HasTransform)
+            {
+                pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.NetworkSampleRate, false);
+                InOrderRead.Add(pcmBuffer, pcmLength, true);
+                AudioSourceSet();
+            }
         }
         public void AudioSourceSet()
         {
@@ -59,8 +62,11 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public void OnDecodeSilence()
         {
-            InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
-            AudioSourceSet();
+            if (HasTransform)
+            {
+                InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
+                AudioSourceSet();
+            }
         }
         public async void LoadAudioSource(BasisNetworkPlayer networkedPlayer,Transform MouthParent)
         {
