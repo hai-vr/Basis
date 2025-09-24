@@ -9,7 +9,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: eab19e7e7ffb40249a76c62d511738a7, type: 3}
+  m_Script: {fileID: 0}
   m_Name: BasisDocDB
   m_EditorClassIdentifier: BasisEditor::BasisDocDB
   Entries:
@@ -3090,7 +3090,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: CameraOrientation+BasisHandHeldCameraUI+DepthMode
     MemberName: useEXR
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -15001,7 +15001,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisCharacterController.BasisLocalCharacterDriver
     MemberName: IsCrouching
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -22491,7 +22491,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: 
     MemberName: Count
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -35244,7 +35244,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.
     MemberName: IsRunning
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -35366,7 +35366,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.
     MemberName: FirstPeer
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -36977,7 +36977,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.
     MemberName: ConnectionState
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -36997,7 +36997,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.
     MemberName: ConnectTime
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -37057,7 +37057,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.
     MemberName: Ping
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -37077,7 +37077,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.
     MemberName: RoundTripTime
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -37097,7 +37097,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.
     MemberName: Mtu
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -37118,7 +37118,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.
     MemberName: RemoteTimeDelta
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -37160,7 +37160,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.
     MemberName: TimeSinceLastPacket
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -37864,7 +37864,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.PooledPacket
     MemberName: Data
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -39744,7 +39744,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.Utils.
     MemberName: Stratum
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -39768,7 +39768,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: LiteNetLib.Utils.
     MemberName: Poll
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
@@ -40367,7 +40367,7 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Contrib.Auth.DecentralizedIds.DidKeyResolver
     MemberName: Kind
-    Kind: Field
+    Kind: Property
     ParamCount: 0
     ParamNames: []
     ParamDocs: []

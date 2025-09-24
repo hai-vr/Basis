@@ -1,6 +1,6 @@
-// Assets/Editor/DocDB.cs
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 [Serializable]
@@ -42,18 +42,28 @@ public class BasisDocDB : ScriptableObject
 {
     public List<DocEntry> Entries = new();
 
-    // Quick lookup cache at runtime in editor
     private Dictionary<string, List<DocEntry>> _byType;
+    private static readonly System.Text.RegularExpressions.Regex Arity = new(@"`\d+", RegexOptions.Compiled);
+
+    private static string NormalizeTypeKey(string fullName)
+    {
+        if (string.IsNullOrEmpty(fullName)) return fullName;
+        // Strip generic arity (`1) and any assembly generic argument payloads, keep + for nested
+        var s = Arity.Replace(fullName, string.Empty);
+        return s;
+    }
 
     public void BuildIndex()
     {
+        // Always rebuild from Entries
         _byType = new Dictionary<string, List<DocEntry>>();
         foreach (var e in Entries)
         {
-            if (!_byType.TryGetValue(e.TypeFullName, out var list))
+            var key = NormalizeTypeKey(e.TypeFullName);
+            if (!_byType.TryGetValue(key, out var list))
             {
                 list = new List<DocEntry>();
-                _byType[e.TypeFullName] = list;
+                _byType[key] = list;
             }
             list.Add(e);
         }
@@ -62,18 +72,30 @@ public class BasisDocDB : ScriptableObject
     public DocEntry FindFor(string typeFullName, string memberName, string kind, int paramCount)
     {
         if (_byType == null) BuildIndex();
-        if (!_byType.TryGetValue(typeFullName, out var list)) return null;
 
-        // Prefer exact kind + paramCount match, then fall back
-        DocEntry best = null;
-        foreach (var e in list)
+        // 1) Exact lookup with normalized key
+        var key = NormalizeTypeKey(typeFullName);
+        if (_byType.TryGetValue(key, out var list))
         {
+            DocEntry best = null;
+            foreach (var e in list)
+            {
+                if (!string.Equals(e.MemberName, memberName, StringComparison.Ordinal)) continue;
+                if (!string.Equals(e.Kind, kind, StringComparison.Ordinal)) continue;
+                if (e.ParamCount == paramCount) return e;
+                best ??= e;
+            }
+            if (best != null) return best;
+        }
+
+        // 2) Fallback: very tolerant scan (handles rare mismatch cases)
+        foreach (var e in Entries)
+        {
+            if (NormalizeTypeKey(e.TypeFullName) != key) continue;
             if (!string.Equals(e.MemberName, memberName, StringComparison.Ordinal)) continue;
             if (!string.Equals(e.Kind, kind, StringComparison.Ordinal)) continue;
-
-            if (e.ParamCount == paramCount) return e;
-            best ??= e; // fallback if overload count differs
+            return e;
         }
-        return best;
+        return null;
     }
 }

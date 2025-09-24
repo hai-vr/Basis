@@ -78,6 +78,7 @@ public static class BasisDocGenerator
         }
 
         db.Entries = entries;
+        db.BuildIndex();
         EditorUtility.SetDirty(db);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
@@ -98,6 +99,27 @@ public static class BasisDocGenerator
         // Track attribute lines immediately preceding a declaration
         var attributeBuffer = new List<string>();
 
+        // Local helper: property name that works for both brace and arrow bodies
+        static string ExtractPropertyNameLoose(string ln)
+        {
+            // cut off before '{' or '=>', whichever comes first
+            int brace = ln.IndexOf('{');
+            int arrow = ln.IndexOf("=>", StringComparison.Ordinal);
+            int end = ln.Length;
+            if (brace >= 0) end = Math.Min(end, brace);
+            if (arrow >= 0) end = Math.Min(end, arrow);
+
+            var before = ln.Substring(0, end).Trim();
+
+            // indexer?
+            if (before.Contains(" this[", StringComparison.Ordinal) ||
+                before.EndsWith(" this", StringComparison.Ordinal))
+                return "this";
+
+            var parts = before.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length > 0 ? parts[^1] : null;
+        }
+
         while (i < lines.Length)
         {
             var raw = lines[i];
@@ -105,7 +127,16 @@ public static class BasisDocGenerator
 
             // namespace
             if (line.StartsWith("namespace "))
-                currentNs = line.Substring("namespace ".Length).Split('{')[0].Trim();
+            {
+                var rest = line.Substring("namespace ".Length).Trim();
+
+                // file-scoped: `namespace Foo.Bar;`
+                if (rest.EndsWith(";"))
+                    currentNs = rest.TrimEnd(';').Trim();
+                else
+                    // block-scoped: `namespace Foo.Bar {`
+                    currentNs = rest.Split('{')[0].Trim();
+            }
 
             // accumulate attributes like [Obsolete("msg")] sitting on the lines above declarations
             if (line.StartsWith("["))
@@ -166,8 +197,11 @@ public static class BasisDocGenerator
                 // detect member kind by shape
                 bool hasParen = line.Contains("(") && line.Contains(")");
                 bool hasBrace = line.Contains("{");
+                bool hasArrow = line.Contains("=>");
                 bool hasEvent = ContainsWholeWord(line, "event");
-                bool looksLikeIndexer = line.Contains(" this[") || line.StartsWith("public this[") || line.Contains(" this (") || line.Contains(" this("); // tolerant
+                bool looksLikeIndexer =
+                    line.Contains(" this[") || line.StartsWith("public this[", StringComparison.Ordinal) ||
+                    line.Contains(" this (") || line.Contains(" this("); // tolerant
                 var currentTypeName = typeStack.Count > 0 ? typeStack.Peek() : null;
 
                 if (hasEvent)
@@ -176,35 +210,23 @@ public static class BasisDocGenerator
                     entry.MemberName = ExtractIdentifierAfter(line, new[] { "event" });
                     entry.TypeFullName = typeFullName;
                 }
-                else if (hasParen && !hasBrace)
+                else if (hasParen) // method-like (with or without body; arrow-bodies included)
                 {
-                    // Likely a method-like declaration without body (interface or extern); still treat as Method
                     entry.Kind = "Method";
                     entry.MemberName = ExtractMethodName(line);
-                    if (!string.IsNullOrEmpty(currentTypeName) && string.Equals(entry.MemberName, currentTypeName, StringComparison.Ordinal))
+                    if (!string.IsNullOrEmpty(currentTypeName) &&
+                        string.Equals(entry.MemberName, currentTypeName, StringComparison.Ordinal))
                         entry.Kind = "Constructor";
 
                     entry.ParamNames = ExtractParamNames(line);
                     entry.ParamCount = entry.ParamNames.Count;
                     entry.TypeFullName = typeFullName;
                 }
-                else if (hasParen && hasBrace)
+                else if ((hasBrace && (line.Contains(" get;") || line.Contains(" set;") || line.Contains(" init;")))
+                       || (!hasBrace && hasArrow)) // properties incl. expression-bodied
                 {
-                    // Method with body
-                    entry.Kind = "Method";
-                    entry.MemberName = ExtractMethodName(line);
-                    if (!string.IsNullOrEmpty(currentTypeName) && string.Equals(entry.MemberName, currentTypeName, StringComparison.Ordinal))
-                        entry.Kind = "Constructor";
-
-                    entry.ParamNames = ExtractParamNames(line);
-                    entry.ParamCount = entry.ParamNames.Count;
-                    entry.TypeFullName = typeFullName;
-                }
-                else if (hasBrace && (line.Contains(" get;") || line.Contains(" set;")))
-                {
-                    // Property or indexer
                     entry.Kind = looksLikeIndexer ? "Indexer" : "Property";
-                    entry.MemberName = looksLikeIndexer ? "this" : ExtractPropertyName(line);
+                    entry.MemberName = looksLikeIndexer ? "this" : ExtractPropertyNameLoose(line);
                     entry.TypeFullName = typeFullName;
                     entry.ParamCount = looksLikeIndexer ? ExtractIndexerParamCount(line) : 0;
                 }
@@ -237,6 +259,7 @@ public static class BasisDocGenerator
             i++;
         }
     }
+
 
     private static bool StartsWithAny(string s, params string[] prefixes)
         => prefixes.Any(p => s.StartsWith(p, StringComparison.Ordinal));
@@ -404,12 +427,16 @@ public static class BasisDocGenerator
 
     private static string ExtractPropertyName(string line)
     {
-        // Handles "public int Foo { get; set; }"
-        var brace = line.IndexOf('{');
-        if (brace < 0) brace = line.Length;
-        var before = line.Substring(0, brace).Trim();
+        // Compute the cut-off before body: '{' or '=>', whichever comes first
+        int brace = line.IndexOf('{');
+        int arrow = line.IndexOf("=>", StringComparison.Ordinal);
+        int end = line.Length;
+        if (brace >= 0) end = Math.Min(end, brace);
+        if (arrow >= 0) end = Math.Min(end, arrow);
 
-        // Indexer pattern: "public int this[int i] { get; set; }"
+        var before = line.Substring(0, end).Trim();
+
+        // Indexer
         if (before.Contains(" this[") || before.EndsWith(" this", StringComparison.Ordinal))
             return "this";
 

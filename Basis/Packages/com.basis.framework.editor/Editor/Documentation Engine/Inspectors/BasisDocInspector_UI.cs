@@ -5,10 +5,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -82,6 +84,7 @@ public class BasisDocInspector_UI : Editor
     {
         // Load DB once here
         _db = AssetDatabase.LoadAssetAtPath<BasisDocDB>(DbAssetPath);
+        _db?.BuildIndex();
 
         var hostType = target.GetType();
         _useApiPanel = ShouldHandleType(hostType);
