@@ -6573,6 +6573,293 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject
+    MemberName: BasisInteractableObject
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Abstract base class for interactable objects in the Basis SDK.\n Provides
+      hover, interact, and influence event management for input devices.\n Requires
+      a Rigidbody if using trigger-based hover spheres."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject
+    MemberName: new
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - 0
+    ParamDocs: []
+    Summary: Collection of input sources bound to this interactable.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject
+    MemberName: AutoHold
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Determines whether the interactable should automatically be held after
+      interaction.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject+BasisAutoHold
+    MemberName: BasisAutoHold
+    Kind: Enum
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Enum for controlling automatic hold behavior after interaction.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject
+    MemberName: RequiresUpdateLoop
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Object remains held after interaction until explicitly dropped.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject
+    MemberName: OnInteractStartEvent
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Event triggered when interaction starts with an input.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject
+    MemberName: OnInteractEndEvent
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Event triggered when interaction ends with an input.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject
+    MemberName: OnHoverStartEvent
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Event triggered when hover starts from an input.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject
+    MemberName: OnHoverEndEvent
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Event triggered when hover ends from an input.\n Includes whether the
+      input will immediately interact."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject
+    MemberName: OnInfluenceEnable
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Event triggered when influence (enabled state) is activated.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject
+    MemberName: OnInfluenceDisable
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Event triggered when influence (enabled state) is deactivated.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject
+    MemberName: InteractableEnabled
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Whether this object can currently be interacted with.\n Changing this
+      property invokes cleanup and influence events as needed."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: Awake
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Called during object initialization.\n Sets up inputs when the local
+      player is ready."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: OnDestroy
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Registers input devices and subscribes to add/remove events.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
     MemberName: IsWithinRange
     Kind: Method
@@ -6581,11 +6868,12 @@ MonoBehaviour:
     - source
     - InteractRange
     ParamDocs:
-    - 
-    Summary: Check if object is within range based on its transform and Interact
-      Range.
+    - The source position (e.g., controller).
+    - The maximum allowed range.
+    Summary: "Called when a new input device is added.\n Sets up role bindings for
+      the input."
     Remarks: 
-    Returns: 
+    Returns: True if within range, false otherwise.
     Value: 
     Examples: []
     TypeParamNames: []
@@ -6603,7 +6891,8 @@ MonoBehaviour:
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Gets collider on self, override with cached get whenever possible.
+    Summary: "Gets the collider attached to this object if one exists.\n Override
+      with cached reference when possible."
     Remarks: 
     Returns: 
     Value: 
@@ -6624,12 +6913,12 @@ MonoBehaviour:
     ParamNames:
     - input
     ParamDocs:
-    - 
-    Summary: Be careful when using a value that changes OnInteract or OnHover when
-      overriding, it may cause odd behavior.
+    - The input to check.
+    Summary: "Determines whether an input is currently triggering an interaction.\n
+      Default checks Grip button, and for desktop CenterEye role with Trigger ==
+      1."
     Remarks: 
-    Returns: If the Interactable should change state from Hover to Interacting, e.g.
-      when trigger is down
+    Returns: True if interaction should start, false otherwise.
     Value: 
     Examples: []
     TypeParamNames: []
@@ -6648,9 +6937,157 @@ MonoBehaviour:
     ParamNames:
     - input
     ParamDocs:
-    - 
-    Summary: Deskop check for triggering AutoHold drop. Base implementation will
-      always return true, since not all interactables have a concept of holding.
+    - The input to check.
+    Summary: "Determines whether hold drop has been triggered.\n Base implementation
+      always returns true.\n Override for objects that have specific hold behavior."
+    Remarks: 
+    Returns: True if hold drop is triggered, otherwise false.
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: CanHover
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs: []
+    Summary: Determines if the input is capable of hovering this object.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: IsHoveredBy
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs: []
+    Summary: Checks if this object is currently hovered by the given input.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: CanInteract
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs: []
+    Summary: Determines if the input is capable of interacting with this object.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: IsInteractingWith
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs: []
+    Summary: Checks if this object is currently being interacted with by the given
+      input.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: OnInteractStart
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs: []
+    Summary: Called when interaction starts. Invokes OnInteractStartEvent.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: OnInteractEnd
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs: []
+    Summary: Called when interaction ends. Invokes OnInteractEndEvent.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: OnHoverStart
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs: []
+    Summary: Called when hover starts. Invokes OnHoverStartEvent.
     Remarks: 
     Returns: 
     Value: 
@@ -6672,9 +7109,9 @@ MonoBehaviour:
     - input
     - willInteract
     ParamDocs:
-    - 
-    - Always CanInteract(input) or false
-    Summary: 
+    - The input ending hover.
+    - Whether this hover will transition into interaction.
+    Summary: Called when hover ends. Invokes OnHoverEndEvent.
     Remarks: 
     Returns: 
     Value: 
@@ -6694,8 +7131,8 @@ MonoBehaviour:
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Interactable event loop, called every frame on AfterFinalMove when an
-      input has it as a target and RequiresUpdateLoop is true.
+    Summary: "Per-frame update loop for inputs targeting this interactable.\n Only
+      runs when RequiresUpdateLoop is true."
     Remarks: 
     Returns: 
     Value: 
@@ -6715,8 +7152,8 @@ MonoBehaviour:
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Cleanly clear state of all inputs. This will call hover/interact end
-      for each input with hovering/interacting state.
+    Summary: "Clears state of all influencing inputs.\n Ensures proper hover and
+      interaction end events are called."
     Remarks: 
     Returns: 
     Value: 
@@ -6736,8 +7173,765 @@ MonoBehaviour:
     ParamCount: 1
     ParamNames:
     - input
+    ParamDocs:
+    - The input to check.
+    Summary: Checks whether this object can be influenced (hovered or interacted
+      with) by the given input.
+    Remarks: 
+    Returns: True if this object can be influenced, false otherwise.
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: BasisPickupInteractable
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
     ParamDocs: []
-    Summary: If this object is able to be influenced from a source position
+    Summary: "Interactable that supports being picked up, hovered, and manipulated
+      by input sources\n (hands or desktop center-eye). Handles highlight mesh creation,
+      input-state transitions,\n constraint-based following, desktop zoom/rotate
+      (\"zoop\") behavior, and realistic drop velocities."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: KinematicWhileInteracting
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "When , sets the attached Rigidbody to Rigidbody.isKinematic\n while
+      interacting to avoid physics jitter. If , gravity is disabled during interaction
+      instead."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: CanSelfSteal
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Allows the same player/input to steal interaction from itself, enabling
+      quick re-grabs.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: DesktopRotateSpeed
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Desktop-only rotation speed multiplier when dragging to rotate the held
+      object.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: DesktopZoopSpeed
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Desktop-only zoom step in Unity units per mouse wheel tick.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: DesktopZoopMinDistance
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Minimum distance from the source during desktop zoom.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: DesktopZoopMaxDistance
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Maximum distance from the source during desktop zoom (additional reach
+      applied based on player height).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: GenerateColliderMesh
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: If , builds a simple mesh at Start to visualize/highlight the collider.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: minLinearVelocity
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Minimum linear velocity threshold used when applying release velocity
+      on drop.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: interactEndLinearVelocityMultiplier
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Multiplier applied to linear velocity when interaction ends.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: minAngularVelocity
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Minimum angular velocity threshold used when applying release velocity
+      on drop.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: interactEndAngularVelocityMultiplier
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Multiplier applied to angular velocity when interaction ends.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: ColliderRef
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Collider reference used for range checks and optional highlight mesh
+      generation.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: RigidRef
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Optional rigidbody reference for physics-based motion and release velocities.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: InputConstraint
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Parent constraint that drives the object to follow the active input
+      source with offsets.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: HighlightClone
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Highlight mesh instance cloned from ColliderRef (if enabled).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: asyncOperationHighlightMat
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Handle for the highlight material addressable operation.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: ColliderHighlightMat
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Loaded highlight material applied to HighlightClone.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: _previousKinematicValue
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Stores the previous kinematic state when toggling during interaction.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: _previousGravityValue
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Stores the previous gravity state when toggling during interaction.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: k_LoadMaterialAddress
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Addressable key for the highlight material.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: k_CloneName
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Name assigned to the generated collider highlight clone.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: k_DesktopZoopSmoothing
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Smoothing time for desktop zoom interpolation.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: k_DesktopZoopMaxVelocity
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Maximum speed for desktop zoom interpolation.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: InteractRange
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Lock context used to temporarily pause head/camera updates while rotating
+      in desktop.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: OnPickupUse
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Event-like callback invoked every frame a trigger state is detected
+      while interacting.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: new
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Optional hook points that must all return  for hover to be allowed.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: new
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Optional hook points that must all return  for interaction to be allowed.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable
+    MemberName: Start
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Unity start hook. Ensures references, allocates constraint, loads highlight
+      material, and optionally builds the collider highlight mesh.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: HighlightObject
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - highlight
+    ParamDocs:
+    - Whether to enable the highlight.
+    Summary: Toggles the visibility of the highlight clone, if present.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: CanHover
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs: []
+    Summary: 
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: CanInteract
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs: []
+    Summary: 
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: OnHoverStart
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs:
+    - The input source beginning hover.
+    Summary: "Called when hovering begins for an input. Promotes the input to the
+      `Hovering` state,\n shows highlight, and invokes BasisInteractableObject.OnHoverStartEvent."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: OnHoverEnd
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - input
+    - willInteract
+    ParamDocs:
+    - The input source ending hover.
+    - Whether interaction is about to begin.
+    Summary: "Called when hover ends for an input. Optionally clears state if interaction
+      won't begin,\n hides highlight, and invokes BasisInteractableObject.OnHoverEndEvent."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: OnInteractStart
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs:
+    - The input source starting interaction.
+    Summary: "Begins interaction: handles self-steal, toggles physics/gravity, configures
+      the parent constraint\n offsets based on the current input pose, and enables
+      evaluation."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: OnInteractEnd
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs:
+    - The input source ending interaction.
+    Summary: "Ends interaction: restores physics/gravity, applies release velocities
+      if appropriate,\n disables the parent constraint, clears desktop manipulation
+      state, and fires end events."
     Remarks: 
     Returns: 
     Value: 
@@ -6756,14 +7950,245 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 0
     ParamNames: []
-    ParamDocs: []
-    Summary: set linear/angular velocity to multiplier or 0 if below min velocity
+    ParamDocs:
+    - Current world position.
+    - Current world rotation.
+    - Angle in degrees.
+    Summary: "Applies cached linear and angular velocities to the rigidbody on drop,\n
+      zeroing components that are below configured thresholds."
+    Remarks: 
+    Returns: Angle normalized to [0, 360).
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: IsInteractingWith
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs:
+    - Input to test.
+    Summary: Returns whether the provided input is actively interacting with this
+      object.
     Remarks: 
     Returns: 
     Value: 
     Examples: []
     TypeParamNames: []
     TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: IsHoveredBy
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs:
+    - Input to test.
+    Summary: Returns whether the provided input is currently hovering this object.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: GetCollider
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Gets the primary collider used for interaction checks.
+    Remarks: 
+    Returns: The collider reference, if any.
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: OnDestroy
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs:
+    - The desktop center-eye input wrapper.
+    - Outputs the active wrapper when interaction is in progress.
+    Summary: "Handles desktop-only controls: mouse wheel zoom (\"zoop\") and drag
+      rotation.\n Temporarily pauses head/look rotation while rotating."
+    Remarks: 
+    Returns: if an input is actively interacting; otherwise .
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: IsWithinRange
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - source
+    - _interactRange
+    ParamDocs:
+    - The position of the interacting source.
+    - Base interaction range.
+    Summary: Extends the default range check to allow additional reach on desktop
+      (based on player height).
+    Remarks: 
+    Returns: Whether the source is within range of the collider or transform.
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: IsHoldDropTriggered
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - input
+    ParamDocs:
+    - Input to test.
+    Summary: 'Desktop-only: determines whether a held object should be dropped using
+      the secondary trigger (e.g., right-click).'
+    Remarks: 
+    Returns: True when desktop center-eye secondary trigger is pressed.
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: OnValidate
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Editor-only validation to ensure required references are present and
+      to initialize the constraint if missing.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.
+    MemberName: Drop
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - ClearAllInfluencing(
+    ParamDocs: []
+    Summary: Convenience method to force a drop by clearing all influencers.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.PickupListExt
+    MemberName: PickupListExt
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Helper extension for evaluating a list of boolean predicates against
+      a single argument.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Interactions.PickupListExt
+    MemberName: AllTrue<T>
+    Kind: Method
+    ParamCount: 3
+    ParamNames:
+    - IList<Func<T
+    - list
+    - arg
+    ParamDocs:
+    - List of predicates.
+    - Argument to pass to each predicate.
+    Summary: "Returns  only if every predicate in `list` returns\n  when invoked
+      with `arg`."
+    Remarks: 
+    Returns: Whether all predicates returned true.
+    Value: 
+    Examples: []
+    TypeParamNames:
+    - T
+    TypeParamDocs:
+    - Argument type.
     ExceptionCrefs: []
     ExceptionDocs: []
     SeeCrefs: []
