@@ -800,7 +800,7 @@ public class BasisDocInspector_UI : Editor
 
     private static string NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
 
-    private string NiceType(Type t)
+    private static string NiceType(Type t)
     {
         if (t == null) return "void";
         if (t == typeof(void)) return "void";
@@ -821,63 +821,329 @@ public class BasisDocInspector_UI : Editor
         }));
         return $"{NiceType(m.ReturnType)} {m.Name}({parms})";
     }
+    // ---- Accessor discovery model ---------------------------------------------
+
+    private sealed class AccessorPattern
+    {
+        public string Expr;     // e.g., "Foo.Instance" or "Foo.TryGet(/* id */, out var obj) ? obj : null"
+        public bool MayBeNull;  // true if a guard is recommended
+        public string Hint;     // "Singleton", "Provider.TryGet", "Provider.Get", "Provider.Enumerable", "Attribute"
+        public override string ToString() => Expr;
+    }
+
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
+    private sealed class AccessorTemplateAttribute : Attribute
+    {
+        // Template can use {T} (declaring type name) and {var} (suggested var name)
+        public string Template { get; }
+        public bool MayBeNull { get; }
+        public string Hint { get; }
+        public AccessorTemplateAttribute(string template, bool mayBeNull = true, string hint = "Attribute")
+        {
+            Template = template; MayBeNull = mayBeNull; Hint = hint;
+        }
+    }
+
+    private static readonly Dictionary<Type, AccessorPattern> _accessorCache = new();
+
+    // Cheap “is IEnumerable<T> of the target”
+    private static bool IsSeqOf(Type seqType, Type t)
+    {
+        if (seqType == t.MakeArrayType()) return true;
+        if (!typeof(System.Collections.IEnumerable).IsAssignableFrom(seqType)) return false;
+        if (seqType.IsGenericType && seqType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+            return seqType.GetGenericArguments()[0] == t;
+
+        // Walk interfaces for IEnumerable<T>
+        foreach (var it in seqType.GetInterfaces())
+            if (it.IsGenericType && it.GetGenericTypeDefinition() == typeof(IEnumerable<>)
+                && it.GetGenericArguments()[0] == t) return true;
+        return false;
+    }
+
+    private static bool TryGetSingletonAccessor(Type t, out AccessorPattern pat)
+    {
+        const BindingFlags SB = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        var f = t.GetField("Instance", SB);
+        if (f != null && f.FieldType == t)
+        {
+            pat = new AccessorPattern { Expr = $"{t.Name}.Instance", MayBeNull = true, Hint = "Singleton" };
+            return true;
+        }
+        var p = t.GetProperty("Instance", SB);
+        if (p != null && p.PropertyType == t && p.GetMethod != null)
+        {
+            pat = new AccessorPattern { Expr = $"{t.Name}.Instance", MayBeNull = true, Hint = "Singleton" };
+            return true;
+        }
+        pat = null; return false;
+    }
+
+    // Search assemblies that “feel relevant”: host’s assembly and any that start with "Basis"
+    private static IEnumerable<Assembly> AssembliesFor(Type t)
+    {
+        var a = t.Assembly;
+        yield return a;
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (asm == a) continue;
+            var n = asm.GetName().Name ?? "";
+            if (n.StartsWith("Basis", StringComparison.Ordinal)) yield return asm;
+        }
+    }
+
+    private static bool TryAttributeAccessor(Type t, out AccessorPattern pat)
+    {
+        var attr = t.GetCustomAttributes(typeof(AccessorTemplateAttribute), false)
+                    .Cast<AccessorTemplateAttribute>().FirstOrDefault();
+        if (attr != null)
+        {
+            var expr = attr.Template.Replace("{T}", t.Name).Replace("{var}", SafeVarName(t.Name));
+            pat = new AccessorPattern { Expr = expr, MayBeNull = attr.MayBeNull, Hint = attr.Hint ?? "Attribute" };
+            return true;
+        }
+        pat = null; return false;
+    }
+
+    private static bool TryProviderTryGet(Type target, out AccessorPattern pat)
+    {
+        // Pattern: public static bool TryGet*(..., out T) or TryResolve*(..., out T)
+        foreach (var asm in AssembliesFor(target))
+            foreach (var type in asm.GetTypes())
+            {
+                if (!type.IsClass) continue;
+                var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Static);
+                foreach (var m in methods)
+                {
+                    var name = m.Name;
+                    if (!(name.StartsWith("TryGet", StringComparison.Ordinal) ||
+                          name.StartsWith("TryResolve", StringComparison.Ordinal))) continue;
+
+                    if (m.ReturnType != typeof(bool)) continue;
+                    var ps = m.GetParameters();
+                    if (ps.Length == 0) continue;
+                    var last = ps[^1];
+                    if (!last.IsOut) continue;
+                    var outType = last.ParameterType.GetElementType();
+                    if (outType != target) continue;
+
+                    // Build a generic call expression with placeholders for inputs
+                    var args = string.Join(", ", ps.Take(ps.Length - 1).Select(p =>
+                        $"/* {p.Name}: {NiceType(p.ParameterType)} */"));
+                    var expr = $"{type.FullName}.{m.Name}({args}, out var {SafeVarName(target.Name)}) ? {SafeVarName(target.Name)} : null";
+                    pat = new AccessorPattern { Expr = expr, MayBeNull = true, Hint = "Provider.TryGet" };
+                    return true;
+                }
+            }
+        pat = null; return false;
+    }
+
+    private static bool TryProviderGet(Type target, out AccessorPattern pat)
+    {
+        // Pattern: public static T Get*(...)  (direct return)
+        foreach (var asm in AssembliesFor(target))
+            foreach (var type in asm.GetTypes())
+            {
+                if (!type.IsClass) continue;
+                var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Static);
+                foreach (var m in methods)
+                {
+                    if (m.ReturnType != target) continue;
+                    // avoid property getters masquerading as methods
+                    if (m.IsSpecialName) continue;
+                    var args = string.Join(", ", m.GetParameters().Select(p =>
+                        $"/* {p.Name}: {NiceType(p.ParameterType)} */"));
+                    var expr = $"{type.FullName}.{m.Name}({args})";
+                    pat = new AccessorPattern { Expr = expr, MayBeNull = true, Hint = "Provider.Get" };
+                    return true;
+                }
+            }
+        pat = null; return false;
+    }
+
+    private static bool TryProviderEnumerable(Type target, out AccessorPattern pat)
+    {
+        // Pattern: public static IEnumerable<T>/T[] Something { get; }  OR  public static IEnumerable<T>/T[] GetSomething()
+        foreach (var asm in AssembliesFor(target))
+            foreach (var type in asm.GetTypes())
+            {
+                if (!type.IsClass) continue;
+
+                // Props
+                var props = type.GetProperties(BindingFlags.Public | BindingFlags.Static);
+                foreach (var p in props)
+                {
+                    if (p.GetMethod == null) continue;
+                    if (!IsSeqOf(p.PropertyType, target)) continue;
+                    var expr = $"{type.FullName}.{p.Name}.FirstOrDefault()";
+                    pat = new AccessorPattern { Expr = expr, MayBeNull = true, Hint = "Provider.Enumerable" };
+                    return true;
+                }
+
+                // Methods
+                var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Static);
+                foreach (var m in methods)
+                {
+                    if (!IsSeqOf(m.ReturnType, target)) continue;
+                    var args = string.Join(", ", m.GetParameters().Select(p =>
+                        $"/* {p.Name}: {NiceType(p.ParameterType)} */"));
+                    var expr = $"{type.FullName}.{m.Name}({args}).FirstOrDefault()";
+                    pat = new AccessorPattern { Expr = expr, MayBeNull = true, Hint = "Provider.Enumerable" };
+                    return true;
+                }
+            }
+        pat = null; return false;
+    }
+
+    private static AccessorPattern DiscoverAccessor(Type declaringType, Component host)
+    {
+        if (_accessorCache.TryGetValue(declaringType, out var cached)) return cached;
+
+        // 1) Explicit attribute on the target type
+        if (TryAttributeAccessor(declaringType, out var patAttr))
+            return _accessorCache[declaringType] = patAttr;
+
+        // 2) Singleton on the type itself
+        if (TryGetSingletonAccessor(declaringType, out var patSingleton))
+            return _accessorCache[declaringType] = patSingleton;
+
+        // 3) Providers (no name heuristics; pattern-based)
+        if (TryProviderTryGet(declaringType, out var patTryGet))
+            return _accessorCache[declaringType] = patTryGet;
+
+        if (TryProviderGet(declaringType, out var patGet))
+            return _accessorCache[declaringType] = patGet;
+
+        if (TryProviderEnumerable(declaringType, out var patSeq))
+            return _accessorCache[declaringType] = patSeq;
+
+        // 4) Fallback: local component
+        var fallback = new AccessorPattern { Expr = $"GetComponent<{declaringType.Name}>()", MayBeNull = true, Hint = "GetComponent" };
+        return _accessorCache[declaringType] = fallback;
+    }
+
+    private static string SafeVarName(string typeName)
+    {
+        if (string.IsNullOrEmpty(typeName)) return "obj";
+        var v = char.ToLowerInvariant(typeName[0]) + typeName.Substring(1);
+        // avoid keywords lightly
+        if (v is "var" or "int" or "string" or "float" or "bool") v = "_" + v;
+        return v;
+    }
+    private static string BestAccessorFor(Type declaringType, Component host, out string sourceHint, out bool mayBeNull)
+    {
+        var pat = DiscoverAccessor(declaringType, host);
+        sourceHint = pat.Hint;
+        mayBeNull = pat.MayBeNull;
+        return pat.Expr;
+    }
 
     private string GenerateSnippet(MemberRow d, Component comp)
     {
-        var compType = comp.GetType().Name;
-        var varName = char.ToLowerInvariant(compType[0]) + compType.Substring(1);
+        var declType = d.Info?.DeclaringType ?? comp.GetType();
+        var declName = declType.Name;
+        var varName = SafeVarName(declName);
         var sb = new StringBuilder();
+
+        // Handle true static members exactly as before
+        bool isStatic =
+            (d.Info as FieldInfo)?.IsStatic == true ||
+            (d.Info as PropertyInfo)?.GetMethod?.IsStatic == true ||
+            (d.Info as PropertyInfo)?.SetMethod?.IsStatic == true ||
+            (d.Info as MethodInfo)?.IsStatic == true ||
+            (d.Info as EventInfo)?.AddMethod?.IsStatic == true;
+
+        if (isStatic)
+        {
+            switch (d.Kind)
+            {
+                case "Fields":
+                    sb.AppendLine("// read");
+                    sb.AppendLine($"var value = {declName}.{d.Name};");
+                    sb.AppendLine();
+                    sb.AppendLine("// write");
+                    sb.AppendLine($"{declName}.{d.Name} = /* new {d.TypeName} */;");
+                    return sb.ToString();
+
+                case "Properties":
+                    sb.AppendLine("// read");
+                    sb.AppendLine($"var value = {declName}.{d.Name};");
+                    if ((d.Info as PropertyInfo)?.SetMethod != null)
+                        sb.AppendLine($"{declName}.{d.Name} = /* new {d.TypeName} */;");
+                    return sb.ToString();
+
+                case "Methods":
+                    {
+                        var mm = (MethodInfo)d.Info;
+                        var ps = mm.GetParameters();
+                        sb.Append($"{declName}.{mm.Name}(");
+                        sb.Append(string.Join(", ", ps.Select(p =>
+                        {
+                            var t = p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType;
+                            var mod = p.IsOut ? "out " : p.ParameterType.IsByRef ? "ref " :
+                                      p.GetCustomAttributes(typeof(ParamArrayAttribute), false).Length > 0 ? "params " : "";
+                            return $"/* {mod}{NiceType(t)} {p.Name} */";
+                        })));
+                        sb.AppendLine(");");
+                        return sb.ToString();
+                    }
+
+                case "Events":
+                    sb.AppendLine($"{declName}.{d.Name} += MyHandler;");
+                    sb.AppendLine("// ... later");
+                    sb.AppendLine($"{declName}.{d.Name} -= MyHandler;");
+                    sb.AppendLine();
+                    sb.AppendLine("void MyHandler() { /* ... */ }");
+                    return sb.ToString();
+            }
+        }
+
+        // Instance path via discovered accessor
+        var accessor = BestAccessorFor(declType, comp, out var hint, out var mayBeNull);
+        sb.AppendLine($"// Source: {hint}");
+        sb.AppendLine($"{declName} {varName} = {accessor};");
+        if (mayBeNull) sb.AppendLine($"if ({varName} == null) return; // not available yet");
 
         switch (d.Kind)
         {
             case "Fields":
-                {
-                    var isStatic = (d.Info as FieldInfo)?.IsStatic ?? false;
-                    if (isStatic)
-                    {
-                        sb.AppendLine("// read");
-                        sb.AppendLine($"var value = {d.Info.DeclaringType.Name}.{d.Name};");
-                        sb.AppendLine();
-                        sb.AppendLine("// write");
-                        sb.AppendLine($"{d.Info.DeclaringType.Name}.{d.Name} = /* new {d.TypeName} */;");
-                    }
-                    else
-                    {
-                        sb.AppendLine($"{compType} {varName} = GetComponent<{compType}>();");
-                        sb.AppendLine($"var value = {varName}.{d.Name};");
-                        sb.AppendLine($"{varName}.{d.Name} = /* new {d.TypeName} */;");
-                    }
-                    break;
-                }
+                sb.AppendLine($"var value = {varName}.{d.Name};");
+                sb.AppendLine($"{varName}.{d.Name} = /* new {d.TypeName} */;");
+                break;
+
             case "Properties":
                 {
                     var canSet = (d.Info as PropertyInfo)?.SetMethod != null;
-                    sb.AppendLine($"{compType} {varName} = GetComponent<{compType}>();");
                     sb.AppendLine($"var value = {varName}.{d.Name};");
                     if (canSet) sb.AppendLine($"{varName}.{d.Name} = /* new {d.TypeName} */;");
                     break;
                 }
+
             case "Methods":
                 {
                     var mm = (MethodInfo)d.Info;
                     var ps = mm.GetParameters();
-                    sb.AppendLine($"{compType} {varName} = GetComponent<{compType}>();");
                     sb.Append($"{varName}.{mm.Name}(");
-                    sb.Append(string.Join(", ", ps.Select(p => $"/* {p.Name}: {NiceType(p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType)} */")));
+                    sb.Append(string.Join(", ", ps.Select(p =>
+                    {
+                        var t = p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType;
+                        var mod = p.IsOut ? "out " : p.ParameterType.IsByRef ? "ref " :
+                                  p.GetCustomAttributes(typeof(ParamArrayAttribute), false).Length > 0 ? "params " : "";
+                        return $"/* {mod}{NiceType(t)} {p.Name} */";
+                    })));
                     sb.AppendLine(");");
                     break;
                 }
+
             case "Events":
-                {
-                    sb.AppendLine($"{compType} {varName} = GetComponent<{compType}>();");
-                    sb.AppendLine($"{varName}.{d.Name} += MyHandler;");
-                    sb.AppendLine("// ... later");
-                    sb.AppendLine($"{varName}.{d.Name} -= MyHandler;");
-                    sb.AppendLine();
-                    sb.AppendLine("void MyHandler() { /* ... */ }");
-                    break;
-                }
+                sb.AppendLine($"{varName}.{d.Name} += MyHandler;");
+                sb.AppendLine("// ... later");
+                sb.AppendLine($"{varName}.{d.Name} -= MyHandler;");
+                sb.AppendLine();
+                sb.AppendLine("void MyHandler() { /* ... */ }");
+                break;
         }
+
         return sb.ToString();
     }
 
