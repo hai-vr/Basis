@@ -23,43 +23,6 @@ public partial class BasisProjectSetup : EditorWindow
         EditorApplication.update -= OpenOnceOnLoad;
         ShowWindow();
     }
-
-    private void OnEnable()
-    {
-        _choice = (PlatformChoice)EditorPrefs.GetInt(PREF_LAST_PLATFORM, (int)PlatformChoice.Windows);
-
-        if (!EditorPrefs.GetBool(PREF_HAS_OPENED, false))
-            EditorPrefs.SetBool(PREF_HAS_OPENED, true);
-
-        _showFirstRunNotice = SessionState.GetBool(SESSION_SHOW_FIRST_NOTICE, false);
-        if (_showFirstRunNotice) SessionState.EraseInt(SESSION_SHOW_FIRST_NOTICE);
-
-        _firstRunKind = (FirstRunKind)EditorPrefs.GetInt(PREF_FIRST_RUN_KIND, (int)FirstRunKind.None);
-
-        if (SessionState.GetBool(SESSION_NEED_MODULE_RECHECK, true))
-        {
-            RecheckBuildModulesAndBackends();
-            SessionState.SetBool(SESSION_NEED_MODULE_RECHECK, false);
-        }
-
-        // kick off a package scan on Linux
-        BeginPackageScanIfNeeded();
-        EditorApplication.update += PollPackageOperations;
-
-        // cache logo
-        LoadLogoIfNeeded();
-
-        // Cache scene assets
-        _sceneInit = LoadSceneAsset(SCENE_INIT);
-        _sceneDemo = LoadSceneAsset(SCENE_DEMO);
-        _sceneInteractables = LoadSceneAsset(SCENE_INTERACTABLES);
-    }
-
-    private void OnDisable()
-    {
-        EditorApplication.update -= PollPackageOperations;
-    }
-
     // =======================
     // Linux + Meta XR removal helpers
     // =======================

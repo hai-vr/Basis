@@ -1,22 +1,45 @@
 #if UNITY_EDITOR
-using UnityEditor;
-using UnityEngine;
 using System;
-using System.Reflection;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
 using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Rendering; // just for GraphicsDeviceType enums if needed
 
 public partial class BasisProjectSetup : EditorWindow
 {
+    // ─────────────────────────── Enums & constants ───────────────────────────
+
     private enum PlatformChoice { Windows, Linux, Android }
     private enum FirstRunKind { None = 0, Avatar = 1, World = 2, Project = 3 }
+    private enum Tab { QuickStart, BuildModules, PlatformQuality, PlayXR, Docs, Scenes, About }
 
-    // EditorPrefs keys
+    // Persisted prefs
     private const string PREF_LAST_PLATFORM = "BasisPlatformSwitcher_LastPlatform";
     private const string PREF_HAS_OPENED = "BasisPlatformSwitcher_HasOpened";
     private const string PREF_FIRST_RUN_KIND = "BasisPlatformSwitcher_FirstRunKind";
+    private const string PREF_TAB = "BasisProjectSetup_Tab";
+    // Docs foldouts
+    private const string FOLD_DOCS_ASMDEF = "Basis_Fold_DOCS_Asmdef";
+    private const string FOLD_DOCS_SNIPPETS = "Basis_Fold_DOCS_Snippets";
+
+    // External docs
+    private const string UNITY_ASMDEF_DOCS = "https://docs.unity3d.com/Manual/ScriptCompilationAssemblyDefinitionFiles.html";
+    // Foldout prefs
+    private const string FOLD_QS_FIRST_RUN = "Basis_Fold_QS_FirstRun";
+    private const string FOLD_QS_FUNDING = "Basis_Fold_QS_Funding";
+    private const string FOLD_BUILD_STATUS = "Basis_Fold_Build_Status";
+    private const string FOLD_PQ_APPLY = "Basis_Fold_PQ_Apply";
+    private const string FOLD_PLAY_KEYS = "Basis_Fold_PLAY_Keys";
+    private const string FOLD_PLAY_CONTROL = "Basis_Fold_PLAY_Control";
+    private const string FOLD_DOCS_INLINE = "Basis_Fold_DOCS_Inline";
+    private const string FOLD_SCENES_LIST = "Basis_Fold_SCENES_List";
+    private const string FOLD_ABOUT_INFO = "Basis_Fold_ABOUT_Info";
 
     // SessionState keys
     private const string SESSION_SHOW_FIRST_NOTICE = "BasisPlatformSwitcher_ShowFirstNotice";
@@ -30,14 +53,14 @@ public partial class BasisProjectSetup : EditorWindow
     private const string BASIS_DONATE = "https://opencollective.com/basis";
     private const string UNITY_HUB_ADD_MODULES = "https://docs.unity3d.com/hub/manual/AddModules.html";
 
-    // Package id we want gone on Linux
+    // Package id to remove on Linux (optional hygiene)
     private const string META_XR_CORE_PKG = "com.meta.xr.sdk.core";
 
     // Logo (Packages path)
     private const string BASIS_LOGO_PATH = "Packages/com.basis.sdk/Textures/BasisLogoTemp.png";
     private Texture2D _basisLogo;
 
-    // Basis default scenes
+    // Basis default scenes (adjust as needed)
     private const string SCENE_INIT = "Packages/com.basis.sdk/Scenes/initialization.unity";
     private const string SCENE_DEMO = "Packages/com.basis.examples/Scenes/DemoScene.unity";
     private const string SCENE_INTERACTABLES = "Packages/com.basis.examples/Scenes/InteractablesScene.unity";
@@ -48,19 +71,20 @@ public partial class BasisProjectSetup : EditorWindow
     private SceneAsset _sceneInteractables;
 
     // UI state
+    private Tab _tab;
     private PlatformChoice _choice;
     private bool _showFirstRunNotice;
     private FirstRunKind _firstRunKind;
 
-    // Enforce IL2CPP when applying
+    // Enforcement
     private bool _enforceIl2cpp = true;
 
-    // Cached module checks (session only)
+    // Cached module checks (session)
     private bool? _hasWin;
     private bool? _hasLinux;
     private bool? _hasAndroid;
 
-    private bool? _hasIl2cppStandalone; // Windows/Linux share Standalone group for backend availability
+    private bool? _hasIl2cppStandalone;
     private bool? _hasIl2cppAndroid;
 
     // Quality presets (1=Desktop, 2=Quest/Android)
@@ -68,44 +92,119 @@ public partial class BasisProjectSetup : EditorWindow
     private const int QUALITY_ANDROID = 2;
 
     // Package manager state
-    private bool? _metaXrInstalled;        // null = unknown, true/false = known
-    private ListRequest _pkgListReq;        // scanning
-    private RemoveRequest _pkgRemoveReq;    // removing
-    private string _pkgStatus;              // short status string
+    private bool? _metaXrInstalled;          // null = unknown (scanning), true/false known
+    private ListRequest _pkgListReq;          // scanning
+    private RemoveRequest _pkgRemoveReq;      // removing
+    private string _pkgStatus;                // short status string
+
+    // Copy toast
+    private double _copiedToastUntil;
+
+    // ─────────────────────────── Menu & lifecycle ───────────────────────────
 
     [MenuItem("Basis/ProjectSetup")]
     public static void ShowWindow()
     {
         var window = GetWindow<BasisProjectSetup>("Basis Project Setup");
-        window.minSize = new Vector2(560, 500);
+        window.minSize = new Vector2(640, 520);
         window.Show();
     }
 
+    private void OnEnable()
+    {
+        _tab = (Tab)EditorPrefs.GetInt(PREF_TAB, (int)Tab.QuickStart);
+        _choice = (PlatformChoice)EditorPrefs.GetInt(PREF_LAST_PLATFORM, (int)PlatformChoice.Windows);
+
+        if (!EditorPrefs.GetBool(PREF_HAS_OPENED, false))
+            EditorPrefs.SetBool(PREF_HAS_OPENED, true);
+
+        _showFirstRunNotice = SessionState.GetBool(SESSION_SHOW_FIRST_NOTICE, false);
+        if (_showFirstRunNotice) SessionState.EraseBool(SESSION_SHOW_FIRST_NOTICE);
+
+        _firstRunKind = (FirstRunKind)EditorPrefs.GetInt(PREF_FIRST_RUN_KIND, (int)FirstRunKind.None);
+
+        if (SessionState.GetBool(SESSION_NEED_MODULE_RECHECK, true))
+        {
+            RecheckBuildModulesAndBackends();
+            SessionState.SetBool(SESSION_NEED_MODULE_RECHECK, false);
+        }
+
+        BeginPackageScanIfNeeded();
+        EditorApplication.update += PollPackageOperations;
+
+        LoadLogoIfNeeded();
+
+        _sceneInit = LoadSceneAsset(SCENE_INIT);
+        _sceneDemo = LoadSceneAsset(SCENE_DEMO);
+        _sceneInteractables = LoadSceneAsset(SCENE_INTERACTABLES);
+    }
+
+    private void OnDisable()
+    {
+        EditorApplication.update -= PollPackageOperations;
+        EditorApplication.update -= Repaint;
+    }
+
+    // ────────────────────────────── IMGUI root ──────────────────────────────
+
     private void OnGUI()
     {
-        EditorGUILayout.Space();
+        EditorGUILayout.Space(2);
         DrawHeader();
-        EditorGUILayout.Space(8);
+        EditorGUILayout.Space(6);
 
         if (_showFirstRunNotice)
         {
             EditorGUILayout.HelpBox(
-                "First time here! Choose what you’re setting up, verify build modules (including IL2CPP), " +
-                "and pick your target platform before building or pressing Play.",
+                "First time here! Choose what you’re setting up, verify build modules (including IL2CPP), and pick your target platform before building or pressing Play.",
                 MessageType.Warning);
         }
 
-        // Documentation + First-run selector
-        using (new EditorGUILayout.VerticalScope("box"))
+        var newTab = (Tab)GUILayout.Toolbar((int)_tab,
+            new[] { "Quick Start", "Build & Modules", "Platform & Quality", "Play & XR", "Docs", "Scenes", "About" });
+        if (newTab != _tab)
         {
-            EditorGUILayout.LabelField("Documentation", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("Jump straight into the right docs.", EditorStyles.wordWrappedLabel);
+            _tab = newTab;
+            EditorPrefs.SetInt(PREF_TAB, (int)_tab);
+        }
 
+        EditorGUILayout.Space(6);
+        switch (_tab)
+        {
+            case Tab.QuickStart: DrawTab_QuickStart(); break;
+            case Tab.BuildModules: DrawTab_BuildModules(); break;
+            case Tab.PlatformQuality: DrawTab_PlatformQuality(); break;
+            case Tab.PlayXR: DrawTab_PlayXR(); break;
+            case Tab.Docs: DrawTab_Docs(); break;
+            case Tab.Scenes: DrawTab_Scenes(); break;
+            case Tab.About: DrawTab_About(); break;
+        }
+
+        GUILayout.FlexibleSpace();
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Close", GUILayout.Width(90))) Close();
+        }
+
+        if (GUI.changed)
+        {
+            EditorPrefs.SetInt(PREF_LAST_PLATFORM, (int)_choice);
+        }
+    }
+
+    // ───────────────────────────────── TABS ─────────────────────────────────
+
+    private void DrawTab_QuickStart()
+    {
+        FoldoutBox("First Run & Docs", FOLD_QS_FIRST_RUN, () =>
+        {
+            EditorGUILayout.LabelField("Jump straight into the right docs.", EditorStyles.wordWrappedLabel);
             using (new EditorGUILayout.HorizontalScope())
             {
                 if (GUILayout.Button("Avatar Docs")) Application.OpenURL(BASIS_AVATARS);
                 if (GUILayout.Button("World Docs")) Application.OpenURL(BASIS_WORLDS);
-                if (GUILayout.Button("Project – Getting Started")) Application.OpenURL(BASIS_GETTING_STARTED);
+                if (GUILayout.Button("Getting Started")) Application.OpenURL(BASIS_GETTING_STARTED);
                 if (GUILayout.Button("basisvr.org")) Application.OpenURL(BASIS_SITE);
             }
 
@@ -124,26 +223,42 @@ public partial class BasisProjectSetup : EditorWindow
             if (_firstRunKind == FirstRunKind.Avatar || _firstRunKind == FirstRunKind.World)
             {
                 EditorGUILayout.HelpBox(
-                    "For Avatars/Worlds you should install Windows, Linux, and Android Build Support via Unity Hub.\n" +
-                    "Use IL2CPP for best compatibility/performance (required on Android).",
+                    "Install Windows, Linux, and Android Build Support via Unity Hub. Use IL2CPP for best compatibility (required on Android).",
                     MessageType.Info);
             }
-        }
+        });
 
-        EditorGUILayout.Space();
+        FoldoutBox("How We Are Funded", FOLD_QS_FUNDING, () =>
+        {
+            EditorGUILayout.LabelField(
+                "BasisVR is sustained by community donations and collaborations. Funds are pooled to solve shared problems (networking, embodiment, tooling).",
+                EditorStyles.wordWrappedLabel);
+#if UNITY_2021_2_OR_NEWER
+            if (EditorGUILayout.LinkButton("Support Basis on Open Collective")) Application.OpenURL(BASIS_DONATE);
+#else
+            if (GUILayout.Button("Support Basis on Open Collective", EditorStyles.linkLabel)) Application.OpenURL(BASIS_DONATE);
+#endif
+        });
+    }
 
-        // Linux-only package warning/controls
+    private void DrawTab_BuildModules()
+    {
         DrawLinuxMetaXrNotice();
 
-        // Build modules + IL2CPP check
-        using (new EditorGUILayout.VerticalScope("box"))
+        FoldoutBox("Build Targets / Modules / IL2CPP", FOLD_BUILD_STATUS, () =>
         {
-            EditorGUILayout.LabelField("Build Targets / Modules / IL2CPP", EditorStyles.boldLabel);
+            DrawStatusChips();
 
-            if (!_hasWin.HasValue || !_hasLinux.HasValue || !_hasAndroid.HasValue || !_hasIl2cppStandalone.HasValue || !_hasIl2cppAndroid.HasValue)
+            EditorGUILayout.Space(4);
+            if (!_hasWin.HasValue || !_hasLinux.HasValue || !_hasAndroid.HasValue ||
+                !_hasIl2cppStandalone.HasValue || !_hasIl2cppAndroid.HasValue)
+            {
                 RecheckBuildModulesAndBackendsRow();
+            }
             else
+            {
                 DrawModuleAndBackendStatusRow();
+            }
 
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -154,32 +269,30 @@ public partial class BasisProjectSetup : EditorWindow
                 if (GUILayout.Button("How to add modules in Unity Hub", EditorStyles.linkLabel)) Application.OpenURL(UNITY_HUB_ADD_MODULES);
 #endif
             }
-        }
+        });
+    }
 
-        EditorGUILayout.Space();
-
-        // Platform & Quality
-        using (new EditorGUILayout.VerticalScope("box"))
+    private void DrawTab_PlatformQuality()
+    {
+        FoldoutBox("Platform & Quality", FOLD_PQ_APPLY, () =>
         {
-            EditorGUILayout.LabelField("Platform & Quality", EditorStyles.boldLabel);
-
             using (new EditorGUILayout.HorizontalScope())
             {
-                DrawPlatformRadio(PlatformChoice.Windows, "Windows (Standalone)");
-                DrawPlatformRadio(PlatformChoice.Linux, "Linux (Standalone)");
+                DrawPlatformRadio(PlatformChoice.Windows, "Windows");
+                DrawPlatformRadio(PlatformChoice.Linux, "Linux");
                 DrawPlatformRadio(PlatformChoice.Android, "Android (Quest)");
             }
 
             _enforceIl2cpp = EditorGUILayout.ToggleLeft(
-                "Enforce IL2CPP scripting backend when applying",
-                _enforceIl2cpp);
+                "Enforce IL2CPP scripting backend when applying", _enforceIl2cpp);
 
             EditorGUILayout.HelpBox("Quality presets: 1 = Desktop (Windows/Linux), 2 = Android/Quest", MessageType.None);
 
             bool modulesOk = AreRequiredModulesOkForCurrentSelection();
             using (new EditorGUI.DisabledScope(!modulesOk && _enforceIl2cpp))
             {
-                if (GUILayout.Button(modulesOk ? "Apply & Switch Platform" : "Apply & Switch Platform (modules missing)"))
+                string label = modulesOk ? "Apply & Switch Platform" : "Apply & Switch Platform (modules missing)";
+                if (GUILayout.Button(label))
                 {
                     if (!modulesOk && _enforceIl2cpp)
                     {
@@ -191,64 +304,295 @@ public partial class BasisProjectSetup : EditorWindow
                     else
                     {
                         ApplyPlatformAndQuality(_choice, _enforceIl2cpp);
-                        _showFirstRunNotice = false;
                     }
                 }
             }
-        }
+        });
+    }
 
-        EditorGUILayout.Space();
+    private void DrawTab_PlayXR()
+    {
+        FoldoutBox("Play Mode & XR Basics", FOLD_PLAY_KEYS, () =>
+        {
+            EditorGUILayout.LabelField(
+                "Entering Play in any scene will load Basis. The boot path is marked with " +
+                "[RuntimeInitializeOnLoadMethod(AfterSceneLoad)] and instantiates the Addressable prefab “BasisFramework”.\n\n" +
+                "XR hotkeys during Play:\n• F10 → OpenVR (SteamVR)\n• F11 → OpenXR",
+                EditorStyles.wordWrappedLabel);
+        });
 
-        // Initial Scene & Build Setup
-        DrawInitialSceneAndBuildSetup();
-        EditorGUILayout.Space();
+        FoldoutBox("Control Boot / XR Startup", FOLD_PLAY_CONTROL, () =>
+        {
+            EditorGUILayout.LabelField(
+                "Two common flows:\n" +
+                "1) Stop Basis from booting (good for plain-Unity testing).\n" +
+                "2) Desktop-first: let Basis boot, but don’t auto-enter XR; opt in via F10/F11.",
+                EditorStyles.wordWrappedLabel);
 
-        // About
+            EditorGUILayout.Space(6);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Open Boot Sequence Toggle"))
+                {
+                    var t = FindTypeByName("Basis.Scripts.Boot_Sequence.BootManagerEditor");
+                    if (t != null)
+                    {
+                        t.GetMethod("ShowWindow", BindingFlags.Public | BindingFlags.Static)?.Invoke(null, null);
+                    }
+                    else
+                    {
+                        EditorUtility.DisplayDialog(
+                            "Boot Sequence",
+                            "Couldn’t find BootManagerEditor. Make sure it’s in an Editor assembly.",
+                            "OK");
+                    }
+                }
+            }
+        });
+    }
+
+    private void DrawTab_Docs()
+    {
+        FoldoutBox("In-Editor API Docs", FOLD_DOCS_INLINE, () =>
+        {
+            EditorGUILayout.LabelField(
+                "Every Basis component ships its own API notes right in the Inspector. " +
+                "Select a Basis component and expand the foldout named “Basis API Reference”.",
+                EditorStyles.wordWrappedLabel);
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+#if UNITY_2021_2_OR_NEWER
+                if (EditorGUILayout.LinkButton("Unity: Assembly Definition Files")) Application.OpenURL(UNITY_ASMDEF_DOCS);
+#else
+            if (GUILayout.Button("Unity: Assembly Definition Files", EditorStyles.linkLabel)) Application.OpenURL(UNITY_ASMDEF_DOCS);
+#endif
+#if UNITY_2021_2_OR_NEWER
+                if (EditorGUILayout.LinkButton("Basis: Getting Started")) Application.OpenURL(BASIS_GETTING_STARTED);
+#else
+            if (GUILayout.Button("Basis: Getting Started", EditorStyles.linkLabel)) Application.OpenURL(BASIS_GETTING_STARTED);
+#endif
+            }
+        });
+
+        FoldoutBox("Assembly Definitions (asmdef) — How to hook into Basis", FOLD_DOCS_ASMDEF, () =>
+        {
+            EditorGUILayout.LabelField(
+                "Keep compile times lean and dependencies explicit. Put your gameplay in a runtime asmdef, and editor tools in an Editor-only asmdef.",
+                EditorStyles.wordWrappedLabel);
+
+            EditorGUILayout.Space(4);
+            using (new EditorGUILayout.VerticalScope("box"))
+            {
+                EditorGUILayout.LabelField("Runtime asmdef (template)", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(
+                    "Create Assets/YourGame/YourGame.Runtime.asmdef and add a reference to the Basis runtime assembly that contains BasisLocalPlayer.",
+                    EditorStyles.wordWrappedLabel);
+
+                ReadOnlyCodeWithCopy(AsmdefRuntimeTemplate);
+
+                EditorGUILayout.Space(6);
+                EditorGUILayout.LabelField("Editor asmdef (template)", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(
+                    "Create Assets/YourGame/Editor/YourGame.Editor.asmdef, tick Include Platforms → Editor, and reference YourGame.Runtime (+ any Basis Editor assemblies you need).",
+                    EditorStyles.wordWrappedLabel);
+
+                ReadOnlyCodeWithCopy(AsmdefEditorTemplate);
+            }
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.HelpBox(
+                "Tip: To find the exact Basis assembly to reference, click any Basis script and check its Assembly Definition in the Inspector. Add only what you need.",
+                MessageType.Info);
+        });
+
+        FoldoutBox("Basis Snippets — Local player, teleport, events", FOLD_DOCS_SNIPPETS, () =>
+        {
+            EditorGUILayout.LabelField(
+                "Paste these into your runtime assembly (the one that references Basis). Adjust namespaces to match your Basis package.",
+                EditorStyles.wordWrappedLabel);
+
+            EditorGUILayout.Space(4);
+            DrawSnippet("Teleport on keypress", Snippet_DevTeleport);
+            DrawSnippet("Wait for Basis then teleport", Snippet_WaitForBasis);
+            DrawSnippet("Listen for spawn/teleport events", Snippet_ListenForSpawn);
+        });
+    }
+    private void DrawSnippet(string title, string code)
+    {
         using (new EditorGUILayout.VerticalScope("box"))
         {
-            EditorGUILayout.LabelField("About Basis", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
+            ReadOnlyCodeWithCopy(code);
+        }
+    }
+    private void DrawTab_Scenes()
+    {
+        FoldoutBox("Initial Scene & Build Setup", FOLD_SCENES_LIST, DrawInitialSceneAndBuildSetup);
+    }
+
+    private void DrawTab_About()
+    {
+        FoldoutBox("About Basis", FOLD_ABOUT_INFO, () =>
+        {
             EditorGUILayout.LabelField(
-                "Creator-First, Creative Freedom — Basis lets you set up your own VR games with ease.\n" +
-                "Open-Source (MIT). Designed for creators. Strong systems for networking, user input, and user presence.",
+                "Creator-First, Creative Freedom — Basis helps you stand up VR projects quickly.\n" +
+                "Open-Source (MIT). Strong systems for networking, input, and presence.",
                 EditorStyles.wordWrappedLabel);
 #if UNITY_2021_2_OR_NEWER
             if (EditorGUILayout.LinkButton("Visit basisvr.org")) Application.OpenURL(BASIS_SITE);
 #else
             if (GUILayout.Button("Visit basisvr.org", EditorStyles.linkLabel)) Application.OpenURL(BASIS_SITE);
 #endif
+        });
+    }
+    private const string AsmdefRuntimeTemplate = @"{
+  ""name"": ""YourGame.Runtime"",
+    ""references"": [
+        ""GUID:c6d9b466725956a45955440904ff0491"",
+        ""GUID:8c9aa0e006f5b5347af5c5470971dfae"",
+        ""GUID:75469ad4d38634e559750d17036d5f7c"",
+        ""GUID:2684ea0d564097444a05d23355ff46a1""
+    ],
+    ""inc
+  ""includePlatforms"": [],
+  ""excludePlatforms"": [],
+  ""allowUnsafeCode"": false,
+  ""overrideReferences"": false,
+  ""precompiledReferences"": [],
+  ""autoReferenced"": true,
+  ""defineConstraints"": [],
+  ""versionDefines"": [],
+  ""noEngineReferences"": false
+}";
+
+    private const string AsmdefEditorTemplate = @"{
+  ""name"": ""YourGame.Editor"",
+    ""references"": [
+        ""GUID:c6d9b466725956a45955440904ff0491"",
+        ""GUID:8c9aa0e006f5b5347af5c5470971dfae"",
+        ""GUID:75469ad4d38634e559750d17036d5f7c"",
+        ""GUID:2684ea0d564097444a05d23355ff46a1""
+    ],
+    ""inc
+  ""includePlatforms"": [ ""Editor"" ],
+  ""excludePlatforms"": [],
+  ""allowUnsafeCode"": false,
+  ""overrideReferences"": false,
+  ""precompiledReferences"": [],
+  ""autoReferenced"": true,
+  ""defineConstraints"": [ ""UNITY_EDITOR"" ],
+  ""versionDefines"": [],
+  ""noEngineReferences"": false
+}";
+
+    // ───────────────────── C# snippets ─────────────────────
+
+    private const string Snippet_DevTeleport = @"using UnityEngine;
+// using Basis; // Adjust namespace
+
+public class DevTeleport : MonoBehaviour
+{
+    [SerializeField] private Transform target; // optional
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.T))
+        {
+            var lp = BasisLocalPlayer.Instance;
+            if (lp == null) return;
+
+            Vector3 pos = target ? target.position : new Vector3(0, 1.6f, 0);
+            Quaternion rot = target ? target.rotation : Quaternion.identity;
+
+            lp.Teleport(pos, rot);
+        }
+    }
+}";
+
+    private const string Snippet_WaitForBasis = @"using UnityEngine;
+using Basis.Scripts.BasisSdk.Players;
+
+public class DoThingWhenLocalPlayerReady : MonoBehaviour
+{
+    void OnEnable()
+    {
+        // already bootstrapped?
+        if (BasisLocalPlayer.PlayerReady && BasisLocalPlayer.Instance != null)
+        {
+            HandleReady(BasisLocalPlayer.Instance);
+            return;
         }
 
-        EditorGUILayout.Space();
+        // otherwise wait for the callback, then unhook
+        BasisLocalPlayer.OnLocalPlayerCreatedAndReady += OnReadyOnce;
+    }
 
-        // Funding
-        using (new EditorGUILayout.VerticalScope("box"))
+    void OnDisable()
+    {
+        BasisLocalPlayer.OnLocalPlayerCreatedAndReady -= OnReadyOnce;
+    }
+
+    private void OnReadyOnce()
+    {
+        BasisLocalPlayer.OnLocalPlayerCreatedAndReady -= OnReadyOnce;
+        HandleReady(BasisLocalPlayer.Instance);
+    }
+
+    private void HandleReady(BasisLocalPlayer lp)
+    {
+        if (lp == null) return;
+        Debug.Log(""Local player ready: "" + lp.name);
+        lp.Teleport(new Vector3(0, 1.6f, 0), Quaternion.identity);
+    }
+}
+";
+
+    private const string Snippet_ListenForSpawn = @"using UnityEngine;
+// using Basis;
+
+public class ListenForLocalSpawn : MonoBehaviour
+{
+    private BasisLocalPlayer _lp;
+
+    void OnEnable() { TryHook(); }
+    void OnDisable() { TryUnhook(); }
+
+    void TryHook()
+    {
+        _lp = BasisLocalPlayer.Instance;
+        if (_lp != null)
         {
-            EditorGUILayout.LabelField("How We Are Funded", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField(
-                "BasisVR is sustained by a mix of community donations and collaborations with companies who build on the framework. " +
-                "Funds are pooled to tackle shared problems (e.g., networking, embodiment, tooling) that benefit everyone.",
-                EditorStyles.wordWrappedLabel);
-#if UNITY_2021_2_OR_NEWER
-            if (EditorGUILayout.LinkButton("Support Basis on Open Collective")) Application.OpenURL(BASIS_DONATE);
-#else
-            if (GUILayout.Button("Support Basis on Open Collective", EditorStyles.linkLabel)) Application.OpenURL(BASIS_DONATE);
-#endif
+            _lp.OnSpawnedEvent += OnLocalSpawned;
         }
-
-        GUILayout.FlexibleSpace();
-        using (new EditorGUILayout.HorizontalScope())
+        else
         {
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Close")) Close();
-        }
-
-        if (GUI.changed)
-        {
-            EditorPrefs.SetInt(PREF_LAST_PLATFORM, (int)_choice);
+            InvokeRepeating(nameof(WaitAndHook), 0.25f, 0.25f);
         }
     }
 
-    // Header
+    void WaitAndHook()
+    {
+        _lp = BasisLocalPlayer.Instance;
+        if (_lp != null)
+        {
+            CancelInvoke(nameof(WaitAndHook));
+            _lp.OnSpawnedEvent += OnLocalSpawned;
+        }
+    }
+
+    void TryUnhook()
+    {
+        if (_lp != null) _lp.OnSpawnedEvent -= OnLocalSpawned;
+    }
+
+    void OnLocalSpawned()
+    {
+        Debug.Log(""Local player spawned or teleported."");
+    }
+}";
+    // ────────────────────────────── Section UI ──────────────────────────────
+
     private void DrawHeader()
     {
         var rect = GUILayoutUtility.GetRect(10, 86, GUILayout.ExpandWidth(true));
@@ -263,68 +607,52 @@ public partial class BasisProjectSetup : EditorWindow
         var title = new Rect(rect.x + pad, rect.y + 10, rect.width - (logoSize + pad * 2f), 28);
         var subtitle = new Rect(rect.x + pad, rect.y + 40, rect.width - (logoSize + pad * 2f), 40);
 
-        var tStyle = new GUIStyle(EditorStyles.boldLabel)
-        {
-            fontSize = 16,
-            normal = { textColor = Color.white }
-        };
-
-        var subtitleColor = EditorGUIUtility.isProSkin
-            ? new Color(0.85f, 0.85f, 0.9f)
-            : new Color(0.15f, 0.15f, 0.2f);
-
-        var sStyle = new GUIStyle(EditorStyles.label)
-        {
-            fontSize = 11,
-            wordWrap = true,
-            normal = { textColor = subtitleColor }
-        };
+        var tStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 16, normal = { textColor = Color.white } };
+        var subtitleColor = EditorGUIUtility.isProSkin ? new Color(0.85f, 0.85f, 0.9f) : new Color(0.15f, 0.15f, 0.2f);
+        var sStyle = new GUIStyle(EditorStyles.label) { fontSize = 11, wordWrap = true, normal = { textColor = subtitleColor } };
 
         GUI.Label(title, "Basis Project Wizard", tStyle);
-        GUI.Label(subtitle,
-            "Creator-First • Creative Freedom\n" +
-            "Open-Source (MIT) • Networking • Input • Presence",
-            sStyle);
+        GUI.Label(subtitle, "Creator-First • Creative Freedom\nOpen-Source (MIT) • Networking • Input • Presence", sStyle);
 
         if (_basisLogo != null)
         {
-            var logoRect = new Rect(
-                rect.xMax - logoSize - pad,
-                rect.y + (rect.height - logoSize) * 0.5f,
-                logoSize,
-                logoSize);
-
+            var logoRect = new Rect(rect.xMax - logoSize - pad, rect.y + (rect.height - logoSize) * 0.5f, logoSize, logoSize);
             var border = new Rect(logoRect.x - 2, logoRect.y - 2, logoRect.width + 4, logoRect.height + 4);
             EditorGUI.DrawRect(border, new Color(1, 1, 1, 0.05f));
-
             GUI.DrawTexture(logoRect, _basisLogo, ScaleMode.ScaleToFit, true);
         }
     }
 
-    // Radios
+    private void FoldoutBox(string title, string prefKey, Action body)
+    {
+        bool open = EditorPrefs.GetBool(prefKey, true);
+        using (new EditorGUILayout.VerticalScope("box"))
+        {
+            var newOpen = EditorGUILayout.BeginFoldoutHeaderGroup(open, title);
+            if (newOpen != open) EditorPrefs.SetBool(prefKey, newOpen);
+            if (newOpen) { EditorGUILayout.Space(2); body?.Invoke(); EditorGUILayout.Space(2); }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+    }
+
     private void DrawFirstRunRadio(FirstRunKind value, string label)
     {
-        var isSelected = _firstRunKind == value;
-        if (GUILayout.Toggle(isSelected, label, EditorStyles.radioButton))
-            _firstRunKind = value;
+        bool isSelected = _firstRunKind == value;
+        if (GUILayout.Toggle(isSelected, label, EditorStyles.radioButton)) _firstRunKind = value;
     }
 
     private void DrawPlatformRadio(PlatformChoice value, string label)
     {
-        var isSelected = _choice == value;
-        if (GUILayout.Toggle(isSelected, label, EditorStyles.radioButton))
-            _choice = value;
+        bool isSelected = _choice == value;
+        if (GUILayout.Toggle(isSelected, label, EditorStyles.radioButton)) _choice = value;
     }
 
-    // Scenes block
     private void DrawInitialSceneAndBuildSetup()
     {
         using (new EditorGUILayout.VerticalScope("box"))
         {
             EditorGUILayout.LabelField("Initial Scene & Build Setup", EditorStyles.boldLabel);
-
             EditorGUILayout.Space(4);
-
             DrawSceneRow("Initialization", SCENE_INIT, ref _sceneInit, makeFirst: true);
             DrawSceneRow("Demo Scene", SCENE_DEMO, ref _sceneDemo);
             DrawSceneRow("Interactables Scene", SCENE_INTERACTABLES, ref _sceneInteractables);
@@ -346,6 +674,126 @@ public partial class BasisProjectSetup : EditorWindow
             }
             GUI.enabled = true;
         }
+    }
+    private void DrawStatusChips()
+    {
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            DrawChip("Windows", _hasWin, "Editor module installed");
+            DrawChip("Linux", _hasLinux, "Editor module installed");
+            DrawChip("Android", _hasAndroid, "Editor module installed");
+        }
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            DrawChip("IL2CPP Standalone", _hasIl2cppStandalone, "Scripting backend available");
+            DrawChip("IL2CPP Android", _hasIl2cppAndroid, "Scripting backend available");
+            if (!string.IsNullOrEmpty(_pkgStatus))
+                GUILayout.Label($"Pkg: {_pkgStatus}", EditorStyles.miniLabel);
+        }
+
+        if (EditorApplication.timeSinceStartup < _copiedToastUntil)
+        {
+            EditorGUILayout.HelpBox("Copied to clipboard.", MessageType.None);
+        }
+    }
+
+    private void DrawChip(string label, bool? ok, string tooltip = null)
+    {
+        var style = new GUIStyle(EditorStyles.miniButtonMid);
+        Color col;
+        string txt;
+
+        if (!ok.HasValue) { col = new Color(0.5f, 0.5f, 0.5f, 0.2f); txt = $"{label}: ?"; }
+        else if (ok.Value) { col = new Color(0.2f, 0.6f, 0.2f, 0.25f); txt = $"{label}: ✓"; }
+        else { col = new Color(0.8f, 0.2f, 0.2f, 0.25f); txt = $"{label}: ✕"; }
+
+        var content = new GUIContent(txt, tooltip ?? label);
+        var r = GUILayoutUtility.GetRect(content, style, GUILayout.Width(150));
+        EditorGUI.DrawRect(r, col);
+        GUI.Label(r, content, EditorStyles.miniBoldLabel);
+    }
+
+    private void ReadOnlyCodeWithCopy(string code)
+    {
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            using (new EditorGUILayout.VerticalScope())
+            {
+                var prev = GUI.enabled; GUI.enabled = false;
+                var style = new GUIStyle(EditorStyles.textArea) { fontSize = 11 };
+                EditorGUILayout.TextArea(code, style, GUILayout.MinHeight(64));
+                GUI.enabled = prev;
+            }
+
+            using (new EditorGUILayout.VerticalScope(GUILayout.Width(60)))
+            {
+                GUILayout.Space(4);
+                if (GUILayout.Button("Copy", GUILayout.Height(24)))
+                {
+                    EditorGUIUtility.systemCopyBuffer = code;
+                    _copiedToastUntil = EditorApplication.timeSinceStartup + 1.25;
+                    EditorApplication.update -= Repaint;
+                    EditorApplication.update += Repaint;
+                }
+                GUILayout.FlexibleSpace();
+            }
+        }
+    }
+
+    // ─────────────────────────── Utility helpers ───────────────────────────
+
+    private static bool IsBuildTargetSupported(BuildTarget target)
+    {
+        try
+        {
+            // Most reliable public API
+            return BuildPipeline.IsBuildTargetSupported(BuildPipeline.GetBuildTargetGroup(target), target);
+        }
+        catch { return false; }
+    }
+
+    private static bool SupportsScriptingBackend(BuildTargetGroup group, ScriptingImplementation impl)
+    {
+        // Public API doesn’t expose “available backends”, so we reflect internal ModuleManager.
+        try
+        {
+            var mbt = typeof(BuildTargetGroup);
+#if UNITY_2021_2_OR_NEWER
+            // NamedBuildTarget is a thing, but we can still probe by group for availability
+#endif
+            var moduleManagerType = Type.GetType("UnityEditor.Modules.ModuleManager, UnityEditor.dll");
+            if (moduleManagerType != null)
+            {
+                var mi = moduleManagerType.GetMethod("GetScriptingImplementations", BindingFlags.Static | BindingFlags.NonPublic);
+                if (mi != null)
+                {
+                    var result = mi.Invoke(null, new object[] { group }) as Array;
+                    if (result != null)
+                    {
+                        foreach (var x in result)
+                        {
+                            if ((int)x == (int)impl) return true;
+                        }
+                        return false;
+                    }
+                }
+            }
+        }
+        catch { /* swallow */ }
+
+        // Fallback heuristics:
+        if (group == BuildTargetGroup.Android) return true;          // Android installs usually ship IL2CPP
+        if (group == BuildTargetGroup.Standalone) return true;       // Common on dev machines
+        return false;
+    }
+    private static Type FindTypeByName(string fullName)
+    {
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            var t = asm.GetType(fullName, throwOnError: false);
+            if (t != null) return t;
+        }
+        return null;
     }
 }
 #endif
