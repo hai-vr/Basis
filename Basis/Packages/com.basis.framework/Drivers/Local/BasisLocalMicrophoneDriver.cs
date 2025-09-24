@@ -5,6 +5,7 @@ using Basis.Scripts.Device_Management;
 using System.Threading;
 using Unity.Collections;
 using Unity.Jobs;
+using Basis.Scripts.BasisSdk.Players;
 
 /// <summary>
 /// Captures microphone audio into a ring buffer, optionally denoises it, adjusts volume via a Burst job,

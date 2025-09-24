@@ -74,7 +74,7 @@ public static class BasisDocGenerator
         Debug.Log($"DocDB rebuilt: {entries.Count} entries → {DbAssetPath}");
     }
 
-    // ---------- parsing (unchanged except for removing rel/path assumptions) ----------
+    // ---------- parsing ----------
 
     private static void ParseFile(string path, List<DocEntry> sink)
     {
@@ -84,86 +84,143 @@ public static class BasisDocGenerator
         string currentNs = null;
         var typeStack = new Stack<string>();
         List<string> pendingDocLines = null;
+        // Track attribute lines immediately preceding a declaration
+        var attributeBuffer = new List<string>();
 
         while (i < lines.Length)
         {
             var raw = lines[i];
             var line = raw.Trim();
 
+            // namespace
             if (line.StartsWith("namespace "))
                 currentNs = line.Substring("namespace ".Length).Split('{')[0].Trim();
 
-            if (StartsWithAny(line, "public ", "internal ", "protected internal ", "private ", "partial ", "sealed ", "abstract ")
-                && (line.Contains(" class ") || line.Contains(" struct ") || line.Contains(" interface ")))
+            // accumulate attributes like [Obsolete("msg")] sitting on the lines above declarations
+            if (line.StartsWith("["))
             {
-                var typeName = ExtractIdentifierAfter(line, new[] { "class", "struct", "interface" });
+                attributeBuffer.Add(line);
+                i++;
+                continue;
+            }
+
+            // type declarations (class/struct/interface/enum/delegate)
+            if (StartsWithAny(line, "public ", "internal ", "protected internal ", "private ", "partial ", "sealed ", "abstract ")
+                && (ContainsWholeWord(line, "class") || ContainsWholeWord(line, "struct") || ContainsWholeWord(line, "interface")
+                    || ContainsWholeWord(line, "enum") || ContainsWholeWord(line, "delegate")))
+            {
+                string kindForType = "Type";
+                if (ContainsWholeWord(line, "enum")) kindForType = "Enum";
+                else if (ContainsWholeWord(line, "delegate")) kindForType = "Delegate";
+
+                var typeName = ExtractIdentifierAfter(line, new[] { "class", "struct", "interface", "enum", "delegate" });
                 if (!string.IsNullOrEmpty(typeName))
                 {
                     typeStack.Push(typeName);
                     if (pendingDocLines != null)
                     {
                         var entry = ParseXmlDocIntoEntry(pendingDocLines);
-                        entry.Kind = "Type";
+                        entry.Kind = kindForType;
                         entry.MemberName = typeName;
                         entry.TypeFullName = BuildTypeFullName(currentNs, typeStack);
+
+                        // attributes on type (Obsolete)
+                        entry.ObsoleteMsg ??= ExtractObsoleteMsg(attributeBuffer);
+                        attributeBuffer.Clear();
+
                         sink.Add(entry);
                         pendingDocLines = null;
                     }
                 }
             }
 
+            // accumulate XML doc lines
             if (line.StartsWith("///"))
             {
                 pendingDocLines ??= new List<string>();
+                // Strip leading "///" but preserve rest
                 pendingDocLines.Add(line.Substring(3));
                 i++;
                 continue;
             }
 
-            if (pendingDocLines != null && line.StartsWith("public "))
+            // member declarations that follow a doc block
+            if (pendingDocLines != null && (line.StartsWith("public ") || line.StartsWith("protected ") || line.StartsWith("internal ")))
             {
                 var entry = ParseXmlDocIntoEntry(pendingDocLines);
                 pendingDocLines = null;
 
                 var typeFullName = BuildTypeFullName(currentNs, typeStack);
 
-                if (line.Contains("(") && line.Contains(")") && line.Contains("{") == false)
-                {
-                    entry.Kind = "Method";
-                    entry.MemberName = ExtractMethodName(line);
-                    entry.ParamNames = ExtractParamNames(line);
-                    entry.ParamCount = entry.ParamNames.Count;
-                    entry.TypeFullName = typeFullName;
-                    sink.Add(entry);
-                }
-                else if (line.Contains("{") && (line.Contains(" get;") || line.Contains(" set;")))
-                {
-                    entry.Kind = "Property";
-                    entry.MemberName = ExtractPropertyName(line);
-                    entry.TypeFullName = typeFullName;
-                    entry.ParamCount = 0;
-                    sink.Add(entry);
-                }
-                else if (line.Contains(" event "))
+                // detect member kind by shape
+                bool hasParen = line.Contains("(") && line.Contains(")");
+                bool hasBrace = line.Contains("{");
+                bool hasEvent = ContainsWholeWord(line, "event");
+                bool looksLikeIndexer = line.Contains(" this[") || line.StartsWith("public this[") || line.Contains(" this (") || line.Contains(" this("); // tolerant
+                var currentTypeName = typeStack.Count > 0 ? typeStack.Peek() : null;
+
+                if (hasEvent)
                 {
                     entry.Kind = "Event";
                     entry.MemberName = ExtractIdentifierAfter(line, new[] { "event" });
                     entry.TypeFullName = typeFullName;
-                    sink.Add(entry);
+                }
+                else if (hasParen && !hasBrace)
+                {
+                    // Likely a method-like declaration without body (interface or extern); still treat as Method
+                    entry.Kind = "Method";
+                    entry.MemberName = ExtractMethodName(line);
+                    if (!string.IsNullOrEmpty(currentTypeName) && string.Equals(entry.MemberName, currentTypeName, StringComparison.Ordinal))
+                        entry.Kind = "Constructor";
+
+                    entry.ParamNames = ExtractParamNames(line);
+                    entry.ParamCount = entry.ParamNames.Count;
+                    entry.TypeFullName = typeFullName;
+                }
+                else if (hasParen && hasBrace)
+                {
+                    // Method with body
+                    entry.Kind = "Method";
+                    entry.MemberName = ExtractMethodName(line);
+                    if (!string.IsNullOrEmpty(currentTypeName) && string.Equals(entry.MemberName, currentTypeName, StringComparison.Ordinal))
+                        entry.Kind = "Constructor";
+
+                    entry.ParamNames = ExtractParamNames(line);
+                    entry.ParamCount = entry.ParamNames.Count;
+                    entry.TypeFullName = typeFullName;
+                }
+                else if (hasBrace && (line.Contains(" get;") || line.Contains(" set;")))
+                {
+                    // Property or indexer
+                    entry.Kind = looksLikeIndexer ? "Indexer" : "Property";
+                    entry.MemberName = looksLikeIndexer ? "this" : ExtractPropertyName(line);
+                    entry.TypeFullName = typeFullName;
+                    entry.ParamCount = looksLikeIndexer ? ExtractIndexerParamCount(line) : 0;
                 }
                 else
                 {
+                    // Field
                     entry.Kind = "Field";
                     entry.MemberName = ExtractFieldName(line);
                     entry.TypeFullName = typeFullName;
-                    sink.Add(entry);
                 }
+
+                // attributes on member (Obsolete)
+                entry.ObsoleteMsg ??= ExtractObsoleteMsg(attributeBuffer);
+                attributeBuffer.Clear();
+
+                sink.Add(entry);
             }
 
+            // close type scope
             if (raw.StartsWith("}"))
             {
                 if (typeStack.Count > 0) typeStack.Pop();
             }
+
+            // reset attribute buffer if we hit a blank/non-attr/non-doc line before a declaration
+            if (attributeBuffer.Count > 0 && !line.StartsWith("[") && !line.StartsWith("///"))
+                attributeBuffer.Clear();
 
             i++;
         }
@@ -171,6 +228,16 @@ public static class BasisDocGenerator
 
     private static bool StartsWithAny(string s, params string[] prefixes)
         => prefixes.Any(p => s.StartsWith(p, StringComparison.Ordinal));
+
+    private static bool ContainsWholeWord(string s, string word)
+    {
+        var idx = s.IndexOf(word, StringComparison.Ordinal);
+        if (idx < 0) return false;
+        bool leftOk = idx == 0 || !char.IsLetterOrDigit(s[idx - 1]);
+        int end = idx + word.Length;
+        bool rightOk = end >= s.Length || !char.IsLetterOrDigit(s[end]);
+        return leftOk && rightOk;
+    }
 
     private static string BuildTypeFullName(string ns, Stack<string> types)
     {
@@ -187,28 +254,116 @@ public static class BasisDocGenerator
         try
         {
             var x = XDocument.Parse(xml);
+            string T(XElement el) => el == null ? null : NormalizeInline(el);
 
-            e.Summary = x.Root.Element("summary")?.Value?.Trim();
-            e.Remarks = x.Root.Element("remarks")?.Value?.Trim();
-            e.Returns = x.Root.Element("returns")?.Value?.Trim();
-            e.Example = x.Root.Element("example")?.Value?.Trim();
+            e.Summary = T(x.Root.Element("summary"));
+            e.Remarks = T(x.Root.Element("remarks"));
+            e.Returns = T(x.Root.Element("returns"));
+            e.Value = T(x.Root.Element("value"));
 
-            var paramElems = x.Root.Elements("param").ToList();
-            foreach (var pe in paramElems)
+            // <example> can appear multiple times
+            foreach (var ex in x.Root.Elements("example"))
+                e.Examples.Add(NormalizeInline(ex));
+
+            // <param>
+            foreach (var pe in x.Root.Elements("param"))
             {
-                var nameAttr = pe.Attribute("name")?.Value ?? "";
-                if (!string.IsNullOrEmpty(nameAttr))
-                {
-                    e.ParamNames.Add(nameAttr);
-                    e.ParamDocs.Add(pe.Value?.Trim() ?? "");
-                }
+                var name = pe.Attribute("name")?.Value ?? "";
+                if (name.Length == 0) continue;
+                e.ParamNames.Add(name);
+                e.ParamDocs.Add(NormalizeInline(pe));
+            }
+
+            // <typeparam>
+            foreach (var te in x.Root.Elements("typeparam"))
+            {
+                var name = te.Attribute("name")?.Value ?? "";
+                if (name.Length == 0) continue;
+                e.TypeParamNames.Add(name);
+                e.TypeParamDocs.Add(NormalizeInline(te));
+            }
+
+            // <exception cref="...">
+            foreach (var ex in x.Root.Elements("exception"))
+            {
+                var cref = ex.Attribute("cref")?.Value ?? "";
+                e.ExceptionCrefs.Add(cref);
+                e.ExceptionDocs.Add(NormalizeInline(ex));
+            }
+
+            // <see>, <seealso> (store cref only; text is already normalized)
+            foreach (var se in x.Root.Elements("see"))
+            {
+                var cref = se.Attribute("cref")?.Value ?? "";
+                if (!string.IsNullOrEmpty(cref)) e.SeeCrefs.Add(cref);
+            }
+            foreach (var sa in x.Root.Elements("seealso"))
+            {
+                var cref = sa.Attribute("cref")?.Value ?? "";
+                if (!string.IsNullOrEmpty(cref)) e.SeeAlsoCrefs.Add(cref);
+            }
+
+            // custom tags: <since>, <obsolete>, <platform>
+            e.Since = x.Root.Element("since")?.Value?.Trim();
+            e.ObsoleteMsg = x.Root.Element("obsolete")?.Value?.Trim();
+            foreach (var p in x.Root.Elements("platform"))
+            {
+                var v = p.Value?.Trim();
+                if (!string.IsNullOrEmpty(v)) e.Platforms.Add(v);
             }
         }
         catch
         {
+            // If malformed XML (common while drafting), keep raw text in Summary
             e.Summary = string.Join("\n", docLines);
         }
         return e;
+    }
+
+    // Convert inline XML to a viewer-friendly string (markdown-ish)
+    private static string NormalizeInline(XElement el)
+    {
+        string Recurse(XNode n) => n switch
+        {
+            XText t => t.Value,
+            XElement e when e.Name.LocalName == "para" => "\n\n" + string.Concat(e.Nodes().Select(Recurse)) + "\n\n",
+            XElement e when e.Name.LocalName == "c" => "`" + string.Concat(e.Nodes().Select(Recurse)) + "`",
+            XElement e when e.Name.LocalName == "code" => "```\n" + string.Concat(e.Nodes().Select(Recurse)) + "\n```",
+            XElement e when e.Name.LocalName == "paramref" => "`" + (e.Attribute("name")?.Value ?? "") + "`",
+            XElement e when e.Name.LocalName == "typeparamref" => "`" + (e.Attribute("name")?.Value ?? "") + "`",
+            XElement e when e.Name.LocalName == "see" => e.Attribute("cref")?.Value ?? string.Concat(e.Nodes().Select(Recurse)),
+            XElement e when e.Name.LocalName == "list" => RenderList(e),
+            XElement e => string.Concat(e.Nodes().Select(Recurse)), // default: flatten unknown tags
+            _ => ""
+        };
+        return string.Concat(el.Nodes().Select(Recurse)).Trim();
+    }
+
+    private static string RenderList(XElement list)
+    {
+        var type = (list.Attribute("type")?.Value ?? "bullet").ToLowerInvariant();
+        if (type is "bullet" or "number")
+        {
+            var i = 1;
+            var lines = new List<string>();
+            foreach (var item in list.Elements("item"))
+            {
+                var hasTerm = item.Element("term") != null;
+                var text = hasTerm
+                    ? $"{NormalizeInline(item.Element("term"))}: {NormalizeInline(item.Element("description") ?? item)}"
+                    : NormalizeInline(item);
+                lines.Add(type == "bullet" ? $"- {text}" : $"{i++}. {text}");
+            }
+            return "\n" + string.Join("\n", lines) + "\n";
+        }
+        if (type == "table")
+        {
+            // simple 2-col: term | description
+            var rows = list.Elements("item").Select(it =>
+                $"{NormalizeInline(it.Element("term") ?? new XElement("x"))} | {NormalizeInline(it.Element("description") ?? it)}");
+            return "\n" + string.Join("\n", rows) + "\n";
+        }
+        return "";
     }
 
     private static string ExtractIdentifierAfter(string line, string[] keywords)
@@ -219,7 +374,7 @@ public static class BasisDocGenerator
             if (idx >= 0)
             {
                 var after = line.Substring(idx + k.Length + 2).Trim();
-                var end = after.IndexOfAny(new[] { ' ', '<', ':', '{', '(' });
+                var end = after.IndexOfAny(new[] { ' ', '<', ':', '{', '(', '=' });
                 return end >= 0 ? after.Substring(0, end) : after;
             }
         }
@@ -237,11 +392,26 @@ public static class BasisDocGenerator
 
     private static string ExtractPropertyName(string line)
     {
+        // Handles "public int Foo { get; set; }"
         var brace = line.IndexOf('{');
-        if (brace < 0) return null;
+        if (brace < 0) brace = line.Length;
         var before = line.Substring(0, brace).Trim();
+
+        // Indexer pattern: "public int this[int i] { get; set; }"
+        if (before.Contains(" this[") || before.EndsWith(" this", StringComparison.Ordinal))
+            return "this";
+
         var parts = before.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
         return parts.Length > 0 ? parts[^1] : null;
+    }
+
+    private static int ExtractIndexerParamCount(string line)
+    {
+        var l = line.IndexOf('[');
+        var r = line.IndexOf(']');
+        if (l < 0 || r < 0 || r <= l + 1) return 0;
+        var inside = line.Substring(l + 1, r - l - 1);
+        return inside.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).Count();
     }
 
     private static string ExtractFieldName(string line)
@@ -270,7 +440,9 @@ public static class BasisDocGenerator
                 var name = tokens[^1];
                 var eq = name.IndexOf('=');
                 if (eq >= 0) name = name.Substring(0, eq).Trim();
-                if (name is "in" or "ref" or "out")
+
+                // handle ref/out/in modifiers
+                if (name is "in" or "ref" or "out" || name == "params")
                 {
                     if (tokens.Length >= 2) name = tokens[^2];
                 }
@@ -297,5 +469,28 @@ public static class BasisDocGenerator
         var dir = Path.GetDirectoryName(absolute);
         if (!Directory.Exists(dir))
             Directory.CreateDirectory(dir);
+    }
+
+    private static string ExtractObsoleteMsg(List<string> attributeLines)
+    {
+        // crude but effective parser for [Obsolete("message")] or [System.Obsolete("message")]
+        // Returns null if not found.
+        for (int i = attributeLines.Count - 1; i >= 0; --i)
+        {
+            var s = attributeLines[i].Trim();
+            if (!s.StartsWith("[")) continue;
+            if (s.Contains("Obsolete", StringComparison.Ordinal))
+            {
+                var firstQuote = s.IndexOf('"');
+                if (firstQuote >= 0)
+                {
+                    var secondQuote = s.IndexOf('"', firstQuote + 1);
+                    if (secondQuote > firstQuote)
+                        return s.Substring(firstQuote + 1, secondQuote - firstQuote - 1);
+                }
+                return ""; // obsolete w/o message
+            }
+        }
+        return null;
     }
 }

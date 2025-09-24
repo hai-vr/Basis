@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -33,6 +34,15 @@ public class BasisDocInspector_UI : Editor
     // If we decide this type shouldn't use the custom panel, we fall back to default
     private bool _useApiPanel;
 
+    // ---------- Theme ----------
+    private static readonly Color ColBorder = new(0, 0, 0, 0.12f);
+    private static readonly Color ColMuted = new(1f, 1f, 1f, 0.75f);
+    private static readonly Color ColCard = new(0.1f, 0.1f, 0.1f, 0.06f);
+    private static readonly Color ColChipBg = new(0.2f, 0.2f, 0.2f, 0.25f);
+    private static readonly Color ColChipOn = new(0.18f, 0.5f, 0.9f, 0.25f);
+
+    private const string MonoFont = "Lucida Console, Consolas, Courier New, monospace";
+
     // ---------- Row model ----------
     private class MemberRow
     {
@@ -47,9 +57,22 @@ public class BasisDocInspector_UI : Editor
         public string Summary;
         public string Remarks;
         public string Returns;
-        public string Example;
-        public string[] ParamNames;
-        public string[] ParamDocs;
+        public string ValueDoc;
+        public string Since;
+        public string ObsoleteMsg;
+        public string[] Platforms = Array.Empty<string>();
+
+        public string[] ParamNames = Array.Empty<string>();
+        public string[] ParamDocs = Array.Empty<string>();
+
+        public string[] TypeParamNames = Array.Empty<string>();
+        public string[] TypeParamDocs = Array.Empty<string>();
+
+        public (string cref, string doc)[] Exceptions = Array.Empty<(string, string)>();
+        public string[] See = Array.Empty<string>();
+        public string[] SeeAlso = Array.Empty<string>();
+
+        public List<string> Examples = new();
 
         public bool IsInherited(Type host) => Info?.DeclaringType != host;
     }
@@ -71,9 +94,9 @@ public class BasisDocInspector_UI : Editor
         var root = new VisualElement
         {
             style =
-        {
-            marginLeft = 6, marginRight = 6, marginTop = 6, marginBottom = 6
-        }
+            {
+                marginLeft = 6, marginRight = 6, marginTop = 6, marginBottom = 6
+            }
         };
 
         var defaultIMGUI = new IMGUIContainer(() => base.OnInspectorGUI());
@@ -108,8 +131,7 @@ public class BasisDocInspector_UI : Editor
         // Only if it's "ours" (same assembly OR allowed namespaces)
         if (!IsOurs(t, t)) return false;
 
-        // Quick probe: does DB contain any entries for this type?
-        // If your DB has a faster "HasType" API, use that. Otherwise, cheaply sample members.
+        // Quick probe: any docs for this type?
         foreach (var mi in ReflectMembersForProbe(t))
         {
             if (DbHasDocsFor(mi))
@@ -133,7 +155,6 @@ public class BasisDocInspector_UI : Editor
 
     private bool DbHasDocsFor(MemberInfo mi)
     {
-        // Match logic mirrors ToRow() usage
         var kind = mi switch
         {
             FieldInfo => "Field",
@@ -156,7 +177,7 @@ public class BasisDocInspector_UI : Editor
         // OUTER: [ Left(Filters) | Right(InnerSplit) ]
         var outer = new TwoPaneSplitView(0, 220, TwoPaneSplitViewOrientation.Horizontal)
         {
-            style = { minHeight = 380, height = 420 }
+            style = { minHeight = 420, height = 460 }
         };
 
         // LEFT: filters only
@@ -189,12 +210,13 @@ public class BasisDocInspector_UI : Editor
         chips.Add(_fltEvents);
         chips.Add(new ToolbarSpacer());
         chips.Add(_fltInherited);
+        left.Add(ChipLegend()); // small legend for tag colors
         left.Add(chips);
 
         outer.Add(left);
 
         // RIGHT of OUTER: an inner split that holds [ Middle(List) | Right(Details) ]
-        var inner = new TwoPaneSplitView(0, 320, TwoPaneSplitViewOrientation.Horizontal);
+        var inner = new TwoPaneSplitView(0, 340, TwoPaneSplitViewOrientation.Horizontal);
         outer.Add(inner);
 
         // MIDDLE: search + list
@@ -217,28 +239,29 @@ public class BasisDocInspector_UI : Editor
                 flexGrow = 1,
                 overflow = Overflow.Hidden,
                 borderTopWidth = 1, borderBottomWidth = 1, borderLeftWidth = 1, borderRightWidth = 1,
-                borderTopColor = new Color(0,0,0,0.1f),
-                borderBottomColor = new Color(0,0,0,0.1f),
-                borderLeftColor = new Color(0,0,0,0.1f),
-                borderRightColor = new Color(0,0,0,0.1f)
+                borderTopColor = ColBorder, borderBottomColor = ColBorder, borderLeftColor = ColBorder, borderRightColor = ColBorder
             }
         };
-        _list.makeItem = () => new Label
+        _list.makeItem = () =>
         {
-            style =
+            var row = new VisualElement
             {
-                position = Position.Relative,
-                unityTextAlign = TextAnchor.UpperLeft,
-                whiteSpace = WhiteSpace.Normal,
-                paddingLeft = 8, paddingRight = 8, paddingTop = 4, paddingBottom = 4
-            }
+                style =
+                {
+                    paddingLeft = 8, paddingRight = 8, paddingTop = 6, paddingBottom = 6
+                }
+            };
+            var title = new Label { name = "title", style = { unityFontStyleAndWeight = FontStyle.Bold } };
+            var sub = new Label { name = "sub", style = { color = ColMuted, fontSize = 11, whiteSpace = WhiteSpace.Normal } };
+            row.Add(title);
+            row.Add(sub);
+            return row;
         };
         _list.bindItem = (ve, i) =>
         {
-            var label = (Label)ve;
             var row = _view[i];
-            label.text = row.Display;
-            label.tooltip = row.Summary;
+            ve.Q<Label>("title").text = row.Display;
+            ve.Q<Label>("sub").text = row.Summary;
         };
         _list.onSelectionChange += _ => ShowDetails(_list.selectedIndex);
         middle.Add(_list);
@@ -266,10 +289,24 @@ public class BasisDocInspector_UI : Editor
         return outer;
     }
 
+    private VisualElement ChipLegend()
+    {
+        var row = new VisualElement { style = { marginLeft = 6, marginRight = 6, marginTop = 4, marginBottom = 2 } };
+        var hint = new Label("Tags: ")
+        {
+            style = { color = ColMuted, fontSize = 10, marginBottom = 2 }
+        };
+        row.Add(hint);
+        return row;
+    }
+
     private ToolbarToggle Chip(string text, bool value)
     {
         var t = new ToolbarToggle { text = text, value = value };
         t.RegisterValueChangedCallback(_ => ApplyFilter());
+        t.style.unityTextAlign = TextAnchor.MiddleCenter;
+        t.style.backgroundColor = value ? ColChipOn : ColChipBg;
+        t.RegisterCallback<ChangeEvent<bool>>(e => { t.style.backgroundColor = e.newValue ? ColChipOn : ColChipBg; });
         return t;
     }
 
@@ -358,7 +395,7 @@ public class BasisDocInspector_UI : Editor
             row.Display = $"Event • {ei.EventHandlerType?.Name}  {row.Name}";
         }
 
-        // Docs from DB (match by type, member, kind, param count)
+        // Docs from DB
         if (_db != null)
         {
             var kindSingle = row.Kind.TrimEnd('s'); // Fields -> Field
@@ -371,9 +408,34 @@ public class BasisDocInspector_UI : Editor
                 row.Summary = NullIfEmpty(hit.Summary);
                 row.Remarks = NullIfEmpty(hit.Remarks);
                 row.Returns = NullIfEmpty(hit.Returns);
-                row.Example = NullIfEmpty(hit.Example);
-                row.ParamNames = hit.ParamNames?.ToArray();
-                row.ParamDocs = hit.ParamDocs?.ToArray();
+                row.ValueDoc = NullIfEmpty(hit.Value);
+                row.Since = NullIfEmpty(hit.Since);
+                row.ObsoleteMsg = NullIfEmpty(hit.ObsoleteMsg);
+                row.Platforms = hit.Platforms?.ToArray() ?? Array.Empty<string>();
+
+                row.ParamNames = hit.ParamNames?.ToArray() ?? Array.Empty<string>();
+                row.ParamDocs = hit.ParamDocs?.ToArray() ?? Array.Empty<string>();
+
+                row.TypeParamNames = hit.TypeParamNames?.ToArray() ?? Array.Empty<string>();
+                row.TypeParamDocs = hit.TypeParamDocs?.ToArray() ?? Array.Empty<string>();
+
+                // pair exceptions
+                if (hit.ExceptionCrefs != null && hit.ExceptionDocs != null)
+                {
+                    var n = Math.Min(hit.ExceptionCrefs.Count, hit.ExceptionDocs.Count);
+                    var list = new List<(string, string)>();
+                    for (int i = 0; i < n; i++)
+                        list.Add((hit.ExceptionCrefs[i], hit.ExceptionDocs[i]));
+                    row.Exceptions = list.ToArray();
+                }
+
+                row.See = hit.SeeCrefs?.ToArray() ?? Array.Empty<string>();
+                row.SeeAlso = hit.SeeAlsoCrefs?.ToArray() ?? Array.Empty<string>();
+
+                if (hit.Examples != null && hit.Examples.Count > 0)
+                {
+                    row.Examples = new List<string>(hit.Examples);
+                }
             }
         }
 
@@ -433,7 +495,24 @@ public class BasisDocInspector_UI : Editor
         if (index < 0 || index >= _view.Count) return;
         var d = _view[index];
 
-        _detail.Add(Title(d.Name));
+        // Title + tags
+        var titleRow = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center } };
+        titleRow.Add(Title(d.Name));
+        titleRow.Add(Spacer(6));
+        titleRow.Add(ChipTag(d.Kind.TrimEnd('s')));
+
+        if (!string.IsNullOrEmpty(d.ObsoleteMsg))
+            titleRow.Add(ChipTag("Obsolete", new Color(0.9f, 0.4f, 0.3f, 0.4f)));
+
+        if (!string.IsNullOrEmpty(d.Since))
+            titleRow.Add(ChipTag($"Since {d.Since}", new Color(0.3f, 0.8f, 0.5f, 0.35f)));
+
+        if (d.Platforms is { Length: > 0 })
+        {
+            foreach (var p in d.Platforms) titleRow.Add(ChipTag(p));
+        }
+
+        _detail.Add(titleRow);
 
         if (!string.IsNullOrEmpty(d.Signature))
             _detail.Add(Subtle($"Signature: {d.Signature}"));
@@ -442,46 +521,55 @@ public class BasisDocInspector_UI : Editor
 
         if (!string.IsNullOrEmpty(d.Summary))
             _detail.Add(CardBlock("Summary", d.Summary));
+
         if (!string.IsNullOrEmpty(d.Remarks))
             _detail.Add(CardBlock("Remarks", d.Remarks));
 
         if (d.Info is MethodInfo mm)
         {
-            if (d.ParamNames != null && d.ParamNames.Length > 0)
-            {
-                var box = new VisualElement();
-                box.Add(BlockHeader("Parameters"));
-                for (int i = 0; i < d.ParamNames.Length; i++)
-                {
-                    var line = $"• {d.ParamNames[i]} — {(d.ParamDocs != null && i < d.ParamDocs.Length ? d.ParamDocs[i] : "")}";
-                    box.Add(new Label(line) { style = { whiteSpace = WhiteSpace.Normal } });
-                }
-                Card(box);
-            }
+            if (d.TypeParamNames.Length > 0)
+                _detail.Add(ListBlock("Type Parameters", d.TypeParamNames, d.TypeParamDocs));
+
+            if (d.ParamNames.Length > 0)
+                _detail.Add(ListBlock("Parameters", d.ParamNames, d.ParamDocs));
+
             if (!string.IsNullOrEmpty(d.Returns) && d.TypeName != "void")
                 _detail.Add(CardBlock("Returns", d.Returns));
         }
-
-        if (!string.IsNullOrEmpty(d.Example))
+        else if (d.Info is PropertyInfo)
         {
-            _detail.Add(BlockHeader("Example"));
-            var tf = new TextField { multiline = true, value = d.Example };
-            tf.style.height = Math.Min(240, 40 + d.Example.Length / 2);
-            _detail.Add(tf);
-            _detail.Add(new Button(() => EditorGUIUtility.systemCopyBuffer = d.Example) { text = "Copy example" });
-            _detail.Add(Spacer(6));
+            if (!string.IsNullOrEmpty(d.ValueDoc))
+                _detail.Add(CardBlock("Value", d.ValueDoc));
+        }
+
+        if (d.Exceptions.Length > 0)
+        {
+            var terms = d.Exceptions.Select(e => (e.cref, e.doc)).ToArray();
+            _detail.Add(ExceptionBlock("Exceptions", terms));
+        }
+
+        if (d.See.Length > 0 || d.SeeAlso.Length > 0)
+        {
+            var links = new List<string>();
+            if (d.See.Length > 0) links.AddRange(d.See);
+            if (d.SeeAlso.Length > 0) links.AddRange(d.SeeAlso.Select(s => s + " (see also)"));
+            _detail.Add(BulletBlock("Related", links));
+        }
+
+        // Examples: show each with colorized preview + copyable plaintext
+        if (d.Examples.Count > 0)
+        {
+            for (int i = 0; i < d.Examples.Count; i++)
+            {
+                var label = d.Examples.Count == 1 ? "Example" : $"Example {i + 1}";
+                _detail.Add(ColorizedCodeBlock(label, d.Examples[i]));
+            }
         }
 
         // auto usage snippet
         var snippet = GenerateSnippet(d, (Component)target);
         if (!string.IsNullOrEmpty(snippet))
-        {
-            _detail.Add(BlockHeader("How to call"));
-            var tf = new TextField { multiline = true, value = snippet };
-            tf.style.height = Math.Min(240, 40 + snippet.Length / 2);
-            _detail.Add(tf);
-            _detail.Add(new Button(() => EditorGUIUtility.systemCopyBuffer = snippet) { text = "Copy snippet" });
-        }
+            _detail.Add(ColorizedCodeBlock("How to call", snippet, showCopyButton: true));
 
         // live value for fields/props
         if (d.Info is FieldInfo fi)
@@ -528,12 +616,10 @@ public class BasisDocInspector_UI : Editor
         var dt = mi.DeclaringType;
         if (dt == null) return false;
 
-        // Namespace gate
         var ns = dt.Namespace ?? "";
         if (ns.StartsWith("UnityEngine", StringComparison.Ordinal)) return true;
         if (ns.StartsWith("UnityEditor", StringComparison.Ordinal)) return true;
 
-        // Core Unity base classes
         return dt == typeof(MonoBehaviour)
             || dt == typeof(Component)
             || dt == typeof(Behaviour)
@@ -551,14 +637,12 @@ public class BasisDocInspector_UI : Editor
 
     private static bool IsOurs(Type hostType, MemberInfo miOrType)
     {
-        // Accept same assembly as the inspected host
         var hostAsm = hostType.Assembly;
         var declType = miOrType as MemberInfo != null ? ((MemberInfo)miOrType).DeclaringType : (Type)miOrType;
         declType ??= hostType;
         var declAsm = declType.Assembly;
         if (declAsm != null && declAsm == hostAsm) return true;
 
-        // Accept friendly namespaces you own
         var ns = declType.Namespace ?? "";
         if (ns.StartsWith("Basis", StringComparison.Ordinal)) return true;
 
@@ -569,14 +653,11 @@ public class BasisDocInspector_UI : Editor
     {
         if (IsUnityFramework(mi)) return false;
         if (IsBlockedByName(mi)) return false;
-
-        // Only include "our" code (same assembly or our namespaces)
         if (!IsOurs(hostType, mi)) return false;
-
         return true;
     }
 
-    // ---------- Small helpers ----------
+    // ---------- Small UI helpers ----------
     private static VisualElement Divider() => new VisualElement
     {
         style =
@@ -587,16 +668,6 @@ public class BasisDocInspector_UI : Editor
     };
 
     private static VisualElement Spacer(float px) => new VisualElement { style = { height = px } };
-
-    private static Label SectionHeader(string text) => new Label(text)
-    {
-        style =
-        {
-            unityFontStyleAndWeight = FontStyle.Bold,
-            fontSize = 13,
-            marginBottom = 6
-        }
-    };
 
     private static Label Title(string text) => new Label(text)
     {
@@ -612,7 +683,7 @@ public class BasisDocInspector_UI : Editor
     {
         style =
         {
-            color = new Color(1f,1f,1f,0.75f),
+            color = ColMuted,
             fontSize = 11,
             marginBottom = 4
         }
@@ -627,9 +698,87 @@ public class BasisDocInspector_UI : Editor
     {
         var inner = new VisualElement();
         inner.Add(BlockHeader(title));
-        inner.Add(new Label(body) { style = { whiteSpace = WhiteSpace.Normal } });
+        var lbl = new Label(body) { style = { whiteSpace = WhiteSpace.Normal } };
+        inner.Add(lbl);
         Card(inner);
         return inner;
+    }
+
+    private VisualElement BulletBlock(string title, IEnumerable<string> items)
+    {
+        var inner = new VisualElement();
+        inner.Add(BlockHeader(title));
+        foreach (var it in items)
+            inner.Add(new Label("• " + it) { style = { whiteSpace = WhiteSpace.Normal } });
+        Card(inner);
+        return inner;
+    }
+
+    private VisualElement ListBlock(string title, string[] names, string[] docs)
+    {
+        var inner = new VisualElement();
+        inner.Add(BlockHeader(title));
+        for (int i = 0; i < names.Length; i++)
+        {
+            var doc = (i < docs.Length) ? docs[i] : "";
+            inner.Add(new Label($"• {names[i]} — {doc}") { style = { whiteSpace = WhiteSpace.Normal } });
+        }
+        Card(inner);
+        return inner;
+    }
+
+    private VisualElement ExceptionBlock(string title, (string cref, string doc)[] items)
+    {
+        var inner = new VisualElement();
+        inner.Add(BlockHeader(title));
+        foreach (var (cref, doc) in items)
+        {
+            var line = string.IsNullOrEmpty(cref) ? $"• {doc}" : $"• {cref} — {doc}";
+            inner.Add(new Label(line) { style = { whiteSpace = WhiteSpace.Normal } });
+        }
+        Card(inner);
+        return inner;
+    }
+
+    private VisualElement ColorizedCodeBlock(string title, string code, bool showCopyButton = true)
+    {
+        var wrap = new VisualElement();
+        wrap.Add(BlockHeader(title));
+
+        // Copyable plain text
+        var tf = new TextField { multiline = true, value = code };
+        tf.isReadOnly = true;
+        tf.style.whiteSpace = WhiteSpace.Normal;
+        tf.style.unityTextAlign = TextAnchor.UpperLeft;
+        tf.style.marginTop = 4;
+        tf.style.height = Mathf.Clamp(40 + code.Length / 2, 60, 260);
+        wrap.Add(tf);
+
+        if (showCopyButton)
+        {
+            wrap.Add(new Button(() => EditorGUIUtility.systemCopyBuffer = code) { text = "Copy code" });
+        }
+
+        Card(wrap);
+        return wrap;
+    }
+
+    private VisualElement ChipTag(string text, Color? c = null)
+    {
+        var tag = new Label(text)
+        {
+            style =
+            {
+                backgroundColor = c ?? ColChipBg,
+                unityTextAlign = TextAnchor.MiddleCenter,
+                paddingLeft = 6, paddingRight = 6, paddingTop = 2, paddingBottom = 2,
+                marginLeft = 4, marginRight = 0,
+                borderTopLeftRadius = 999, borderTopRightRadius = 999,
+                borderBottomLeftRadius = 999, borderBottomRightRadius = 999,
+                fontSize = 10
+            }
+        };
+        return tag;
     }
 
     private void Card(VisualElement content)
@@ -638,11 +787,11 @@ public class BasisDocInspector_UI : Editor
         {
             style =
             {
-                marginTop = 4, marginBottom = 6,
+                marginTop = 6, marginBottom = 8,
                 paddingLeft = 8, paddingRight = 8, paddingTop = 6, paddingBottom = 6,
-                backgroundColor = new Color(0.1f,0.1f,0.1f,0.06f),
-                borderTopLeftRadius = 6, borderTopRightRadius = 6,
-                borderBottomLeftRadius = 6, borderBottomRightRadius = 6
+                backgroundColor = ColCard,
+                borderTopLeftRadius = 8, borderTopRightRadius = 8,
+                borderBottomLeftRadius = 8, borderBottomRightRadius = 8
             }
         };
         card.Add(content);
@@ -666,8 +815,9 @@ public class BasisDocInspector_UI : Editor
         var ps = m.GetParameters();
         var parms = string.Join(", ", ps.Select(p =>
         {
-            var mod = p.IsOut ? "out " : p.ParameterType.IsByRef ? "ref " : "";
-            return $"{mod}{NiceType(p.ParameterType)} {p.Name}";
+            var mod = p.IsOut ? "out " : p.ParameterType.IsByRef ? "ref " : p.GetCustomAttributes(typeof(ParamArrayAttribute), false).Length > 0 ? "params " : "";
+            var t = p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType;
+            return $"{mod}{NiceType(t)} {p.Name}";
         }));
         return $"{NiceType(m.ReturnType)} {m.Name}({parms})";
     }
@@ -685,10 +835,10 @@ public class BasisDocInspector_UI : Editor
                     var isStatic = (d.Info as FieldInfo)?.IsStatic ?? false;
                     if (isStatic)
                     {
-                        sb.AppendLine($"// read");
+                        sb.AppendLine("// read");
                         sb.AppendLine($"var value = {d.Info.DeclaringType.Name}.{d.Name};");
                         sb.AppendLine();
-                        sb.AppendLine($"// write");
+                        sb.AppendLine("// write");
                         sb.AppendLine($"{d.Info.DeclaringType.Name}.{d.Name} = /* new {d.TypeName} */;");
                     }
                     else
@@ -713,7 +863,7 @@ public class BasisDocInspector_UI : Editor
                     var ps = mm.GetParameters();
                     sb.AppendLine($"{compType} {varName} = GetComponent<{compType}>();");
                     sb.Append($"{varName}.{mm.Name}(");
-                    sb.Append(string.Join(", ", ps.Select(p => $"/* {p.Name}: {NiceType(p.ParameterType)} */")));
+                    sb.Append(string.Join(", ", ps.Select(p => $"/* {p.Name}: {NiceType(p.ParameterType.IsByRef ? p.ParameterType.GetElementType() : p.ParameterType)} */")));
                     sb.AppendLine(");");
                     break;
                 }
@@ -751,4 +901,26 @@ public class BasisDocInspector_UI : Editor
             return false;
         }
     }
+
+    // ---------- Lightweight C# colorizer ----------
+    // Converts plain code to Unity rich text (for preview labels).
+    // We keep it simple: keywords, types, strings, comments, numbers.
+    private static readonly string[] CSharpKeywords =
+    {
+        "public","private","protected","internal","static","readonly","const","new","override","virtual","abstract","sealed",
+        "class","struct","interface","enum","delegate","event",
+        "void","int","float","double","bool","string","char","byte","long","short","decimal","var",
+        "in","out","ref","params","return","if","else","switch","case","default","break","continue","for","foreach","while","do",
+        "try","catch","finally","throw","using","namespace","get","set","add","remove","this","base","null","true","false"
+    };
+
+    private static readonly Regex RxString = new("\"(?:\\\\.|[^\"])*\"");
+    private static readonly Regex RxChar = new("'(?:\\\\.|[^'])'");
+    private static readonly Regex RxLineC = new("//.*?$", RegexOptions.Multiline);
+    private static readonly Regex RxBlockC = new(@"/\*.*?\*/", RegexOptions.Singleline);
+    private static readonly Regex RxNumber = new(@"\b\d+(\.\d+)?([fFdDlL])?\b");
+    private static readonly Regex RxIdent = new(@"\b[_A-Za-z]\w*\b");
+
+    private static string Wrap(string s, string hex, bool bold = false)
+        => bold ? $"<b><color={hex}>{s}</color></b>" : $"<color={hex}>{s}</color>";
 }

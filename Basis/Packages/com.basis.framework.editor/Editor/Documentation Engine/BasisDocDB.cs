@@ -8,14 +8,34 @@ public class DocEntry
 {
     public string TypeFullName;   // e.g., "Basis.Scripts.BasisSdk.Players.BasisLocalPlayer"
     public string MemberName;     // e.g., "Teleport"
-    public string Kind;           // "Type" | "Field" | "Property" | "Method" | "Event"
+    public string Kind;           // "Type" | "Field" | "Property" | "Method" | "Event" | "Constructor" | "Indexer"
     public int ParamCount;        // for methods
-    public List<string> ParamNames = new(); // optional; helps user display
+    public List<string> ParamNames = new(); // aligns with ParamDocs
+    public List<string> ParamDocs = new();  // aligns with ParamNames
+
+    // Core doc
     public string Summary;
     public string Remarks;
     public string Returns;
-    public List<string> ParamDocs = new(); // aligns with ParamNames by index
-    public string Example;
+    public string Value;          // <value> tag, often used for properties
+    public List<string> Examples = new(); // allow multiple examples
+
+    // Generics
+    public List<string> TypeParamNames = new();
+    public List<string> TypeParamDocs = new();
+
+    // Exceptions
+    public List<string> ExceptionCrefs = new();
+    public List<string> ExceptionDocs = new();
+
+    // Cross-links
+    public List<string> SeeCrefs = new();
+    public List<string> SeeAlsoCrefs = new();
+
+    // Metadata / custom tags
+    public string Since;          // version introduced
+    public string ObsoleteMsg;    // message if obsolete
+    public List<string> Platforms = new(); // e.g., "Editor", "Runtime", "Android"
 }
 
 public class BasisDocDB : ScriptableObject
