@@ -17,7 +17,18 @@ public static class BasisDocGenerator
         "com.basis.framework",
         "com.basis.examples",
         "com.basis.sdk",
-        "com.basis.framework.editor" // include your editor package too (optional)
+        "com.basis.settings",
+        "com.basis.bundlemanagement",
+        "com.basis.common",
+        "com.basis.console",
+        "com.basis.eventdriver",
+        "com.basis.gizmos",
+        "com.basis.openvr",
+        "com.basis.openxr",
+        "com.basis.profilerintergration",
+        "com.basis.server",
+        "com.basis.settingsmanager",
+        "com.basis.visualtrackers",
     };
 
     [MenuItem("Basis/Docs/Rebuild Doc Database")]
@@ -199,7 +210,7 @@ public static class BasisDocGenerator
                 }
                 else
                 {
-                    // Field
+                    // Field (robust extraction)
                     entry.Kind = "Field";
                     entry.MemberName = ExtractFieldName(line);
                     entry.TypeFullName = typeFullName;
@@ -212,8 +223,9 @@ public static class BasisDocGenerator
                 sink.Add(entry);
             }
 
-            // close type scope
-            if (raw.StartsWith("}"))
+            // close type scope (be tolerant of indentation)
+            var trimmedLeading = raw.TrimStart();
+            if (trimmedLeading.StartsWith("}"))
             {
                 if (typeStack.Count > 0) typeStack.Pop();
             }
@@ -414,13 +426,222 @@ public static class BasisDocGenerator
         return inside.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).Count();
     }
 
-    private static string ExtractFieldName(string line)
+    // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    // ROBUST FIELD NAME EXTRACTION
+    // Handles:
+    //   public string CurrentMode = BasisConstants.None;
+    //   public readonly int a, b = 3, c;
+    //   private unsafe int* p;
+    //   protected (int x, int y) tuple;
+    //   internal Foo<Bar<Baz[]>>[] items;
+    //   public int[] arr = new int[3] { 1, 2, 3 }; // with comments
+    //   public int @class;
+    //   volatile bool _flag;
+    // We return only the *first* declarator name on the line, which aligns with XML doc lines
+    // applying to the first symbol in multi-declarators.
+    private static string ExtractFieldName(string originalLine)
     {
-        var semi = line.IndexOf(';');
-        if (semi < 0) semi = line.Length;
-        var before = line.Substring(0, semi).Trim();
-        var parts = before.Split(new[] { ' ', '\t', '=' }, StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length > 0 ? parts[^1] : null;
+        if (string.IsNullOrEmpty(originalLine)) return null;
+
+        // Trim trailing line comments, but respect quotes.
+        var line = StripLineComments(originalLine);
+
+        // Consider only up to semicolon (declaration end) or brace (in case someone wrote a field-like thing that actually isn't).
+        int end = IndexOfAnyOutside(line, new[] { ';', '{' });
+        if (end < 0) end = line.Length;
+        var span = line.AsSpan(0, end).Trim();
+
+        if (span.Length == 0) return null;
+
+        // We want the last identifier token *before* we hit '=', ',', or ';' at nesting depth 0.
+        // We'll scan once, tracking nesting for (), [], <>, {} so commas/equal signs inside initializers/generics don't confuse us.
+        int depthParen = 0, depthBracket = 0, depthAngle = 0, depthBrace = 0;
+        bool inString = false;
+        char stringQuote = '\0';
+        bool inChar = false;
+        bool escaped = false;
+
+        // Best effort "last identifier" before hitting separator at depth 0.
+        string lastIdentifier = null;
+
+        // Additionally, in multi-declarators, we want the first declarator (after the type).
+        // We'll stop at the first ',' or '=' encountered at depth 0.
+        for (int i = 0; i < span.Length; i++)
+        {
+            char c = span[i];
+
+            // string/char literal handling to avoid eating '//' inside quotes
+            if (inString)
+            {
+                if (escaped) { escaped = false; continue; }
+                if (c == '\\') { escaped = true; continue; }
+                if (c == stringQuote) { inString = false; stringQuote = '\0'; }
+                continue;
+            }
+            if (inChar)
+            {
+                if (escaped) { escaped = false; continue; }
+                if (c == '\\') { escaped = true; continue; }
+                if (c == '\'') { inChar = false; }
+                continue;
+            }
+
+            // Enter string/char
+            if (c == '"') { inString = true; stringQuote = '"'; continue; }
+            if (c == '\'') { inChar = true; continue; }
+
+            // Track balanced delimiters
+            switch (c)
+            {
+                case '(': depthParen++; continue;
+                case ')': if (depthParen > 0) depthParen--; continue;
+                case '[': depthBracket++; continue;
+                case ']': if (depthBracket > 0) depthBracket--; continue;
+                case '{': depthBrace++; continue;
+                case '}': if (depthBrace > 0) depthBrace--; continue;
+                case '<': depthAngle++; continue;
+                case '>': if (depthAngle > 0) depthAngle--; continue;
+            }
+
+            // At depth 0, hitting '=' or ',' means we've passed the name for the current declarator.
+            if (depthParen == 0 && depthBracket == 0 && depthAngle == 0 && depthBrace == 0)
+            {
+                if (c == '=' || c == ',')
+                {
+                    // lastIdentifier is the name we want for the first declarator
+                    return lastIdentifier;
+                }
+            }
+
+            // Capture identifiers (support @identifiers)
+            if (IsIdentStart(c) || (c == '@' && i + 1 < span.Length && IsIdentStart(span[i + 1])))
+            {
+                int start = i;
+                i++; // move past first char
+                while (i < span.Length && IsIdentPart(span[i])) i++;
+
+                // The token we just read
+                var token = span.Slice(start, i - start).ToString();
+
+                // We collect *every* identifier; the field name will be the last identifier before '=', ',', or ';' at depth 0.
+                lastIdentifier = token;
+
+                // Move one step back because the for-loop will i++ again
+                i--;
+                continue;
+            }
+
+            // Reaching ';' at depth 0 terminates the declaration; return what we have (the last identifier).
+            if (c == ';' && depthParen == 0 && depthBracket == 0 && depthAngle == 0 && depthBrace == 0)
+                return lastIdentifier;
+        }
+
+        // If we never hit a terminator, return the last identifier we saw.
+        return lastIdentifier;
+    }
+
+    private static bool IsIdentStart(char c) => char.IsLetter(c) || c == '_' || c == '@';
+    private static bool IsIdentPart(char c) => char.IsLetterOrDigit(c) || c == '_' || c == '@';
+
+    // Cuts off // comments while respecting string/char literals
+    private static string StripLineComments(string s)
+    {
+        bool inString = false, inChar = false, escaped = false;
+        char quote = '\0';
+        for (int i = 0; i < s.Length - 1; i++)
+        {
+            char c = s[i];
+            char n = s[i + 1];
+
+            if (inString)
+            {
+                if (escaped) { escaped = false; continue; }
+                if (c == '\\') { escaped = true; continue; }
+                if (c == quote) { inString = false; quote = '\0'; }
+                continue;
+            }
+            if (inChar)
+            {
+                if (escaped) { escaped = false; continue; }
+                if (c == '\\') { escaped = true; continue; }
+                if (c == '\'') { inChar = false; }
+                continue;
+            }
+
+            if (c == '"') { inString = true; quote = '"'; continue; }
+            if (c == '\'') { inChar = true; continue; }
+
+            // // comment start
+            if (c == '/' && n == '/')
+            {
+                return s.Substring(0, i).TrimEnd();
+            }
+
+            // skip /* ... */ blocks if someone had weird formatting on a single line
+            if (c == '/' && n == '*')
+            {
+                int end = s.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                if (end < 0) return s.Substring(0, i).TrimEnd(); // treat as cut
+                // remove the block and continue scanning
+                s = s.Remove(i, end + 2 - i);
+                // step back one char so the loop re-checks at i
+                i = Math.Max(-1, i - 1);
+            }
+        }
+        return s.TrimEnd();
+    }
+
+    // Finds the first index of any char in 'chars' that is not nested inside (),[],<>,{}
+    private static int IndexOfAnyOutside(string s, char[] chars)
+    {
+        int depthParen = 0, depthBracket = 0, depthAngle = 0, depthBrace = 0;
+        bool inString = false, inChar = false, escaped = false;
+        char quote = '\0';
+
+        for (int i = 0; i < s.Length; i++)
+        {
+            char c = s[i];
+
+            if (inString)
+            {
+                if (escaped) { escaped = false; continue; }
+                if (c == '\\') { escaped = true; continue; }
+                if (c == quote) { inString = false; quote = '\0'; }
+                continue;
+            }
+            if (inChar)
+            {
+                if (escaped) { escaped = false; continue; }
+                if (c == '\\') { escaped = true; continue; }
+                if (c == '\'') { inChar = false; }
+                continue;
+            }
+
+            if (c == '"') { inString = true; quote = '"'; continue; }
+            if (c == '\'') { inChar = true; continue; }
+
+            switch (c)
+            {
+                case '(': depthParen++; break;
+                case ')': if (depthParen > 0) depthParen--; break;
+                case '[': depthBracket++; break;
+                case ']': if (depthBracket > 0) depthBracket--; break;
+                case '{': depthBrace++; break;
+                case '}': if (depthBrace > 0) depthBrace--; break;
+                case '<': depthAngle++; break;
+                case '>': if (depthAngle > 0) depthAngle--; break;
+            }
+
+            if (depthParen == 0 && depthBracket == 0 && depthAngle == 0 && depthBrace == 0)
+            {
+                for (int j = 0; j < chars.Length; j++)
+                {
+                    if (c == chars[j]) return i;
+                }
+            }
+        }
+
+        return -1;
     }
 
     private static List<string> ExtractParamNames(string line)

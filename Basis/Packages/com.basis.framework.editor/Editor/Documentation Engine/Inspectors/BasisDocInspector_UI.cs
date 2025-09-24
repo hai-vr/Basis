@@ -263,7 +263,7 @@ public class BasisDocInspector_UI : Editor
             ve.Q<Label>("title").text = row.Display;
             ve.Q<Label>("sub").text = row.Summary;
         };
-        _list.onSelectionChange += _ => ShowDetails(_list.selectedIndex);
+        _list.selectionChanged += _ => ShowDetails(_list.selectedIndex);
         middle.Add(_list);
 
         // Clip the ListView internal viewport once it’s mounted
@@ -1167,26 +1167,4 @@ public class BasisDocInspector_UI : Editor
             return false;
         }
     }
-
-    // ---------- Lightweight C# colorizer ----------
-    // Converts plain code to Unity rich text (for preview labels).
-    // We keep it simple: keywords, types, strings, comments, numbers.
-    private static readonly string[] CSharpKeywords =
-    {
-        "public","private","protected","internal","static","readonly","const","new","override","virtual","abstract","sealed",
-        "class","struct","interface","enum","delegate","event",
-        "void","int","float","double","bool","string","char","byte","long","short","decimal","var",
-        "in","out","ref","params","return","if","else","switch","case","default","break","continue","for","foreach","while","do",
-        "try","catch","finally","throw","using","namespace","get","set","add","remove","this","base","null","true","false"
-    };
-
-    private static readonly Regex RxString = new("\"(?:\\\\.|[^\"])*\"");
-    private static readonly Regex RxChar = new("'(?:\\\\.|[^'])'");
-    private static readonly Regex RxLineC = new("//.*?$", RegexOptions.Multiline);
-    private static readonly Regex RxBlockC = new(@"/\*.*?\*/", RegexOptions.Singleline);
-    private static readonly Regex RxNumber = new(@"\b\d+(\.\d+)?([fFdDlL])?\b");
-    private static readonly Regex RxIdent = new(@"\b[_A-Za-z]\w*\b");
-
-    private static string Wrap(string s, string hex, bool bold = false)
-        => bold ? $"<b><color={hex}>{s}</color></b>" : $"<color={hex}>{s}</color>";
 }
