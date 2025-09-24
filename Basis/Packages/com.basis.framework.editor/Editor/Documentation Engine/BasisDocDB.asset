@@ -34117,6 +34117,235 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BundledContentHolder
+    MemberName: BundledContentHolder
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Holds references to bundled content (avatars, systems, props, scenes)
+      and their selectors.\n Provides accessors for content validation and enforces
+      singleton access via Instance."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BundledContentHolder
+    MemberName: AvatarScriptSelector
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Selector used to validate or control avatar scripts.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BundledContentHolder
+    MemberName: SystemScriptSelector
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Selector used to validate or control system scripts.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BundledContentHolder
+    MemberName: PropScriptSelector
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Selector used to validate or control prop scripts.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BundledContentHolder
+    MemberName: DefaultScene
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Default loadable bundle representing the starting scene.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BundledContentHolder
+    MemberName: DefaultAvatar
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Default loadable bundle representing the default avatar.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BundledContentHolder
+    MemberName: Instance
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Singleton-style instance of this holder.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BundledContentHolder
+    MemberName: UseAddressablesToLoadScene
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: If true, scene loading will use Unity Addressables instead of direct
+      references.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BundledContentHolder
+    MemberName: UseSceneProvidedHere
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: If true, uses the scene reference provided here instead of externally
+      specified ones.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BundledContentHolder
+    MemberName: GetSelector
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - Selector
+    - PoliceCheck
+    ParamDocs:
+    - The type of content to retrieve (Avatar, System, Prop).
+    - Outputs the matching content police selector.
+    Summary: Retrieves the appropriate ContentPoliceSelector for the specified selector
+      type.
+    Remarks: 
+    Returns: '`true` if a selector was found; otherwise `false`.'
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Awake
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Unity Awake hook. Sets the static Instance reference.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: ContentPoliceControl
     MemberName: ContentControl
     Kind: Method
@@ -34694,6 +34923,355 @@ MonoBehaviour:
       a lock is occupied ```\nif (myLock)\n```\n You can add a lock multiple times.
       For each lock added, that same number of locks must be removed before it is
       considered unlocked."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisEventDriver
+    MemberName: BasisEventDriver
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Central per-frame driver that coordinates device actions, networking
+      compute/apply,\n physics scheduling for JigglePhysics, and various local simulation
+      hooks."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisEventDriver
+    MemberName: updateInterval
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Interval (seconds) for periodic tasks such as log display refreshes.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisEventDriver
+    MemberName: timeSinceLastUpdate
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Accumulator used to track elapsed time since the last interval tick.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisEventDriver
+    MemberName: DeltaTime
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Frame delta time (scaled).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisEventDriver
+    MemberName: TimeAsDouble
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Current time as a double (scaled), mirrored from Time.timeAsDouble.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisEventDriver
+    MemberName: fixedTimeAsDouble
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Fixed-step time as a double, mirrored from Time.fixedTimeAsDouble.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisEventDriver
+    MemberName: fixedDeltaTime
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Fixed-step delta time in seconds.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisEventDriver
+    MemberName: unscaledDeltaTime
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Unscaled frame delta time in seconds.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisEventDriver
+    MemberName: Instance
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Instance of Basis Event Driver
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisEventDriver
+    MemberName: OnEnable
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Unity enable hook. Subscribes render callbacks (client), initializes
+      scene and network drivers.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: OnDestroy
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Unity destroy hook. Cleans up network/physics resources and unsubscribes
+      callbacks.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: OnDisable
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Unity disable hook. Unsubscribes from the before-render callback on
+      clients.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: Update
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Unity update loop. Drains main-thread actions, advances network simulation
+      (compute),\n schedules remote interpolation, updates input on clients, and
+      runs periodic tasks."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: FixedUpdate
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Fixed-step simulation used for scene-level processing.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: LateUpdate
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "LateUpdate step for device management loop, eye simulation, local player
+      late sim,\n microphone updates (client), network apply, and JigglePhysics scheduling/pose/render."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: OnApplicationQuit
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Callback invoked before rendering each frame (client), used to run
+      final local player\n render-time simulation and to publish avatar changes."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: OnDrawGizmos
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Renders Gizmos for debugging JigglePhysics when enabled.
     Remarks: 
     Returns: 
     Value: 
