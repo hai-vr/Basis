@@ -3,12 +3,16 @@ using UnityEditor;
 using UnityEngine;
 using System;
 using System.Reflection;
+using System.Collections.Generic;
 
 // NEW: package manager APIs
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
 
-public class BasisPlatformSwitcher : EditorWindow
+// NEW: scene helpers
+using UnityEditor.SceneManagement;
+
+public class BasisProjectSetup : EditorWindow
 {
     private enum PlatformChoice { Windows, Linux, Android }
     private enum FirstRunKind { None = 0, Avatar = 1, World = 2, Project = 3 }
@@ -24,7 +28,6 @@ public class BasisPlatformSwitcher : EditorWindow
 
     // Links
     private const string BASIS_SITE = "https://basisvr.org/";
-    private const string BASIS_DOCS = "https://docs.basisvr.org/";
     private const string BASIS_GETTING_STARTED = "https://docs.basisvr.org/docs/getting-started/";
     private const string BASIS_AVATARS = "https://docs.basisvr.org/docs/avatars/";
     private const string BASIS_WORLDS = "https://docs.basisvr.org/docs/worlds/";
@@ -37,6 +40,16 @@ public class BasisPlatformSwitcher : EditorWindow
     // --- Logo (Packages path) ---
     private const string BASIS_LOGO_PATH = "Packages/com.basis.sdk/Textures/BasisLogoTemp.png";
     private Texture2D _basisLogo;
+
+    // === Basis default scenes ===
+    private const string SCENE_INIT = "Packages/com.basis.sdk/Scenes/initialization.unity";
+    private const string SCENE_DEMO = "Packages/com.basis.examples/Scenes/DemoScene.unity";
+    private const string SCENE_INTERACTABLES = "Packages/com.basis.examples/Scenes/InteractablesScene.unity";
+
+    // Cached scene assets
+    private SceneAsset _sceneInit;
+    private SceneAsset _sceneDemo;
+    private SceneAsset _sceneInteractables;
 
     // UI state
     private PlatformChoice _choice;
@@ -67,7 +80,7 @@ public class BasisPlatformSwitcher : EditorWindow
     [MenuItem("Basis/ProjectSetup")]
     public static void ShowWindow()
     {
-        var window = GetWindow<BasisPlatformSwitcher>("Basis Project Setup");
+        var window = GetWindow<BasisProjectSetup>("Basis Project Setup");
         window.minSize = new Vector2(560, 500);
         window.Show();
     }
@@ -114,6 +127,11 @@ public class BasisPlatformSwitcher : EditorWindow
 
         // NEW: cache logo
         LoadLogoIfNeeded();
+
+        // Cache scene assets
+        _sceneInit = LoadSceneAsset(SCENE_INIT);
+        _sceneDemo = LoadSceneAsset(SCENE_DEMO);
+        _sceneInteractables = LoadSceneAsset(SCENE_INTERACTABLES);
     }
 
     private void OnDisable()
@@ -146,6 +164,7 @@ public class BasisPlatformSwitcher : EditorWindow
                 if (GUILayout.Button("Avatar Docs")) Application.OpenURL(BASIS_AVATARS);
                 if (GUILayout.Button("World Docs")) Application.OpenURL(BASIS_WORLDS);
                 if (GUILayout.Button("Project – Getting Started")) Application.OpenURL(BASIS_GETTING_STARTED);
+                if (GUILayout.Button("basisvr.org")) Application.OpenURL(BASIS_SITE);
             }
 
             EditorGUILayout.Space(4);
@@ -238,6 +257,10 @@ public class BasisPlatformSwitcher : EditorWindow
 
         EditorGUILayout.Space();
 
+        // === Initial Scene & Build Setup ===
+        DrawInitialSceneAndBuildSetup();
+        EditorGUILayout.Space();
+
         // === About Basis ===
         using (new EditorGUILayout.VerticalScope("box"))
         {
@@ -246,6 +269,11 @@ public class BasisPlatformSwitcher : EditorWindow
                 "Creator-First, Creative Freedom — Basis lets you set up your own VR games with ease.\n" +
                 "Open-Source (MIT). Designed for creators. Strong systems for networking, user input, and user presence.",
                 EditorStyles.wordWrappedLabel);
+#if UNITY_2021_2_OR_NEWER
+            if (EditorGUILayout.LinkButton("Visit basisvr.org")) Application.OpenURL(BASIS_SITE);
+#else
+            if (GUILayout.Button("Visit basisvr.org", EditorStyles.linkLabel)) Application.OpenURL(BASIS_SITE);
+#endif
         }
 
         EditorGUILayout.Space();
@@ -778,6 +806,47 @@ public class BasisPlatformSwitcher : EditorWindow
             _basisLogo = icon?.image as Texture2D;
         }
 #endif
+    }
+    private static SceneAsset LoadSceneAsset(string path)
+    {
+        return AssetDatabase.LoadAssetAtPath<SceneAsset>(path);
+    }
+
+    private static bool ScenePathExists(string path)
+    {
+        return !string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(path));
+    }
+
+    private void DrawInitialSceneAndBuildSetup()
+    {
+        using (new EditorGUILayout.VerticalScope("box"))
+        {
+            EditorGUILayout.LabelField("Initial Scene & Build Setup", EditorStyles.boldLabel);
+
+            EditorGUILayout.Space(4);
+
+            // Per–scene controls
+            DrawSceneRow("Initialization", SCENE_INIT, ref _sceneInit, makeFirst: true);
+            DrawSceneRow("Demo Scene", SCENE_DEMO, ref _sceneDemo);
+            DrawSceneRow("Interactables Scene", SCENE_INTERACTABLES, ref _sceneInteractables);
+        }
+    }
+
+    private void DrawSceneRow(string label, string path, ref SceneAsset cached, bool makeFirst = false)
+    {
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            EditorGUILayout.LabelField(label, GUILayout.Width(130));
+            EditorGUILayout.SelectableLabel(path, EditorStyles.textField, GUILayout.Height(16));
+
+            GUI.enabled = ScenePathExists(path);
+            if (GUILayout.Button("Open", GUILayout.Width(70)))
+            {
+                if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                    EditorSceneManager.OpenScene(path);
+            }
+            GUI.enabled = true;
+        }
     }
 }
 #endif
