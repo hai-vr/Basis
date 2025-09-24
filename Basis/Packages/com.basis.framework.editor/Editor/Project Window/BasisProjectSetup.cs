@@ -228,6 +228,12 @@ public partial class BasisProjectSetup : EditorWindow
             }
         });
 
+        if (_firstRunKind == FirstRunKind.Avatar || _firstRunKind == FirstRunKind.World || _firstRunKind == FirstRunKind.Project)
+        {
+            EditorGUILayout.Space(6);
+            DrawFirstRunSteps(); // 🔧 new
+        }
+
         FoldoutBox("How We Are Funded", FOLD_QS_FUNDING, () =>
         {
             EditorGUILayout.LabelField(
@@ -240,7 +246,158 @@ public partial class BasisProjectSetup : EditorWindow
 #endif
         });
     }
+    private void DrawFirstRunSteps()
+    {
+        using (new EditorGUILayout.VerticalScope("box"))
+        {
+            var header = new GUIStyle(EditorStyles.boldLabel) { fontSize = 12 };
+            var body = new GUIStyle(EditorStyles.wordWrappedLabel);
 
+            switch (_firstRunKind)
+            {
+                case FirstRunKind.Avatar:
+                    EditorGUILayout.LabelField("Avatar setup — do this:", header);
+                    EditorGUILayout.LabelField(
+                        "1) Add the component “BasisAvatar” to your avatar root.\n" +
+                        "3) Set viewpoint/eye height as needed.\n" +
+                        "4) Enter Play and sanity check movement/teleport. by clicking test in editor", body);
+
+                    EditorGUILayout.Space(4);
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        if (GUILayout.Button("Add BasisAvatar to selected"))
+                            AddComponentToSelectionOrWarn("BasisAvatar");
+
+#if UNITY_2021_2_OR_NEWER
+                        if (EditorGUILayout.LinkButton("Avatar Docs")) Application.OpenURL(BASIS_AVATARS);
+#else
+                    if (GUILayout.Button("Avatar Docs", EditorStyles.linkLabel)) Application.OpenURL(BASIS_AVATARS);
+#endif
+                    }
+                    break;
+
+                case FirstRunKind.World:
+                    EditorGUILayout.LabelField("World setup — do this:", header);
+                    EditorGUILayout.LabelField(
+                        "1) Add the component “BasisScene” to a root scene object.\n" +
+                        "2) Set spawn points and scene options in Inspector.\n" +
+                        "3) Test desktop play, then enter XR with F10/F11.", body);
+
+                    EditorGUILayout.Space(4);
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        if (GUILayout.Button("Add BasisScene to selected / create root"))
+                            AddBasisSceneWithFallback();
+
+#if UNITY_2021_2_OR_NEWER
+                        if (EditorGUILayout.LinkButton("World Docs")) Application.OpenURL(BASIS_WORLDS);
+#else
+                    if (GUILayout.Button("World Docs", EditorStyles.linkLabel)) Application.OpenURL(BASIS_WORLDS);
+#endif
+                    }
+                    break;
+
+                case FirstRunKind.Project:
+                    EditorGUILayout.LabelField("Project basics — quick notes:", header);
+                    EditorGUILayout.LabelField(
+                        "• Avatar: add “BasisAvatar” to your avatar root.\n" +
+                        "• World: add “BasisScene” to a scene root object.\n" +
+                        "• Prop: add “BasisProp” to any GameObject you want to behave as a prop.", body);
+
+                    EditorGUILayout.Space(4);
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        if (GUILayout.Button("Add BasisAvatar to selected"))
+                            AddComponentToSelectionOrWarn("BasisAvatar");
+
+                        if (GUILayout.Button("Add BasisScene to selected / create root"))
+                            AddBasisSceneWithFallback();
+
+                        if (GUILayout.Button("Add BasisProp to selected"))
+                            AddComponentToSelectionOrWarn("BasisProp");
+                    }
+                    break;
+            }
+        }
+    }
+
+    // 🔧 NEW: add BasisScene with a good fallback
+    private void AddBasisSceneWithFallback()
+    {
+        var go = Selection.activeGameObject;
+        if (go == null)
+        {
+            // make a clean root if nothing is selected
+            go = new GameObject("BasisSceneRoot");
+            Undo.RegisterCreatedObjectUndo(go, "Create BasisSceneRoot");
+            Selection.activeGameObject = go;
+        }
+
+        if (!TryAddComponentByName(go, "BasisScene"))
+        {
+            EditorUtility.DisplayDialog(
+                "Type not found",
+                "Couldn’t find a component type named “BasisScene”.\n\n" +
+                "Make sure the Basis packages are imported and the type name matches.",
+                "OK");
+        }
+    }
+
+    // 🔧 NEW: add a component by simple type name, using reflection over loaded assemblies
+    private void AddComponentToSelectionOrWarn(string simpleTypeName)
+    {
+        var go = Selection.activeGameObject;
+        if (go == null)
+        {
+            EditorUtility.DisplayDialog("No selection",
+                "Select a GameObject in the Hierarchy first.", "OK");
+            return;
+        }
+
+        if (!TryAddComponentByName(go, simpleTypeName))
+        {
+            EditorUtility.DisplayDialog(
+                "Type not found",
+                $"Couldn’t find a component type named “{simpleTypeName}”.\n\n" +
+                "If this type lives in a namespace, the reflection scanner tries all assemblies; " +
+                "verify the component exists and the package is imported.",
+                "OK");
+        }
+    }
+
+    // 🔧 NEW: reflection-based add; searches all assemblies for a matching class name
+    private bool TryAddComponentByName(GameObject go, string simpleTypeName)
+    {
+        if (go == null || string.IsNullOrEmpty(simpleTypeName)) return false;
+
+        var type = AppDomain.CurrentDomain.GetAssemblies()
+            .SelectMany(a =>
+            {
+                Type[] types = Type.EmptyTypes;
+                try { types = a.GetTypes(); } catch { /* ignore reflection type load issues */ }
+                return types;
+            })
+            .FirstOrDefault(t =>
+                t != null &&
+                t.IsClass &&
+                !t.IsAbstract &&
+                typeof(Component).IsAssignableFrom(t) &&
+                t.Name == simpleTypeName);
+
+        if (type == null) return false;
+
+        Undo.AddComponent(go, type);
+        ShowTinyNotification($"{simpleTypeName} added to “{go.name}”.");
+        return true;
+    }
+
+    // 🔧 NEW: little toast on the window titlebar
+    private void ShowTinyNotification(string msg)
+    {
+        var wnd = GetWindow<BasisProjectSetup>();
+        wnd.ShowNotification(new GUIContent(msg));
+        EditorApplication.delayCall += () => wnd.RemoveNotification();
+    }
     private void DrawTab_BuildModules()
     {
         DrawLinuxMetaXrNotice();
