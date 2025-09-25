@@ -146,8 +146,8 @@ namespace Basis.Scripts.Animator_Driver
         public void LoadCachedAnimatorHashes(Animator animator)
         {
             Animator = animator;
-            BasisAvatarAnimatorHash.HashCurrentHorizontalMovement = Animator.StringToHash("CurrentHorizontalMovement");
-            BasisAvatarAnimatorHash.HashCurrentVerticalMovement = Animator.StringToHash("CurrentVerticalMovement");
+            BasisAvatarAnimatorHash.HashCurrentHorizontalMovement = Animator.StringToHash("VelocityX");
+            BasisAvatarAnimatorHash.HashCurrentVerticalMovement = Animator.StringToHash("VelocityZ");
             BasisAvatarAnimatorHash.HashCurrentSpeed = Animator.StringToHash("CurrentSpeed");
             BasisAvatarAnimatorHash.HashCrouchBlend = Animator.StringToHash("CrouchBlend");
             BasisAvatarAnimatorHash.HashCrouchedState = Animator.StringToHash("CrouchedState");
