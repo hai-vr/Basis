@@ -570,11 +570,29 @@ public partial class BasisProjectSetup : EditorWindow
                 EditorStyles.wordWrappedLabel);
 
             EditorGUILayout.Space(4);
-            DrawSnippet("Teleport on keypress", Snippet_DevTeleport);
-            DrawSnippet("Wait for Basis then teleport", Snippet_WaitForBasis);
-            DrawSnippet("Listen for spawn/teleport events", Snippet_ListenForSpawn);
+
+            // Calculate a sensible height so the scroll is visible but not cramped
+            float maxHeight = Mathf.Clamp(position.height - 220f, 220f, 900f);
+
+            // 🔽 Scrollable area for long snippet lists
+            using (var sv = new EditorGUILayout.ScrollViewScope(_docsSnippetsScroll, GUILayout.MaxHeight(maxHeight)))
+            {
+                _docsSnippetsScroll = sv.scrollPosition;
+
+                DrawSnippet("Teleport on keypress", Snippet_DevTeleport);
+                DrawSnippet("Wait for Basis then teleport", Snippet_WaitForBasis);
+                DrawSnippet("Listen for spawn/teleport events", Snippet_ListenForSpawn);
+                DrawSnippet("Get any tracked point once", Snippet_GetTrackedPointOnce);
+                DrawSnippet("Follow a tracked role (world space)", Snippet_FollowTrackedRole);
+                DrawSnippet("Follow a tracked role via BasisNetworkPlayer", Snippet_FollowTrackedRoleViaNet);
+                DrawSnippet("Play haptics on a role", Snippet_Haptics);
+                DrawSnippet("Detect if user is in VR", Snippet_IsUserInVR);
+            }
         });
     }
+
+    // NEW: scroll state for the Snippets foldout
+    private Vector2 _docsSnippetsScroll;
     private void DrawSnippet(string title, string code)
     {
         using (new EditorGUILayout.VerticalScope("box"))
@@ -644,6 +662,146 @@ public partial class BasisProjectSetup : EditorWindow
 }";
 
     // ───────────────────── C# snippets ─────────────────────
+    private const string Snippet_GetTrackedPointOnce = @"using UnityEngine;
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.TransformBinders.BoneControl;
+
+public class SampleGetTrackedPointOnce : MonoBehaviour
+{
+    // Pick any role defined in BasisBoneTrackedRole (Head, LeftHand, RightHand, etc.)
+    [SerializeField] private BasisBoneTrackedRole role = BasisBoneTrackedRole.RightHand;
+
+    void Start()
+    {
+        var lp = BasisLocalPlayer.Instance;
+        if (lp == null || lp.LocalBoneDriver == null)
+        {
+            Debug.LogWarning(""Local player not ready"");
+            return;
+        }
+
+        if (lp.LocalBoneDriver.FindBone(out BasisLocalBoneControl bone, role))
+        {
+            // Either pull the calibrated payload struct…
+            var data = bone.OutgoingWorldData; // position / rotation in world space
+            Debug.Log($""[{role}] pos={data.position} rot={data.rotation.eulerAngles}"");
+
+            // …or extract as raw values:
+            Vector3 pos = data.position;
+            Quaternion rot = data.rotation;
+
+            // Example: move this GameObject to the tracked point
+            transform.SetPositionAndRotation(pos, rot);
+        }
+        else
+        {
+            Debug.LogWarning($""No tracked device/bone found for role {role}"");
+        }
+    }
+}";
+    private const string Snippet_FollowTrackedRole = @"using UnityEngine;
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.TransformBinders.BoneControl;
+
+public class FollowTrackedRole : MonoBehaviour
+{
+    [SerializeField] private BasisBoneTrackedRole role = BasisBoneTrackedRole.RightHand;
+    [SerializeField] private bool matchRotation = true;
+
+    private BasisLocalBoneControl _control;
+
+    void OnEnable()
+    {
+        TryResolve();
+        // Simple retry in case Basis boots a tick later
+        if (_control == null) InvokeRepeating(nameof(TryResolve), 0.25f, 0.25f);
+    }
+
+    void OnDisable()
+    {
+        CancelInvoke(nameof(TryResolve));
+        _control = null;
+    }
+
+    void LateUpdate()
+    {
+        if (_control == null) return;
+
+        var d = _control.OutgoingWorldData; // world-space pose
+        transform.position = d.position;
+        if (matchRotation) transform.rotation = d.rotation;
+    }
+
+    private void TryResolve()
+    {
+        var lp = BasisLocalPlayer.Instance;
+        if (lp != null && lp.LocalBoneDriver != null &&
+            lp.LocalBoneDriver.FindBone(out BasisLocalBoneControl c, role))
+        {
+            _control = c;
+            CancelInvoke(nameof(TryResolve));
+            // Optional: Debug.Log($""Resolved tracked role {role} to {_control.name}"");
+        }
+    }
+}";
+    private const string Snippet_FollowTrackedRoleViaNet = @"using UnityEngine;
+using Basis.Scripts.Networking.NetworkedAvatar;
+
+public class FollowTrackedRoleViaNetworkPlayer : MonoBehaviour
+{
+    [SerializeField] private BasisBoneTrackedRole role = BasisBoneTrackedRole.RightHand;
+    [SerializeField] private bool matchRotation = true;
+
+    void LateUpdate()
+    {
+        var me = BasisNetworkPlayer.LocalPlayer;
+        if (me != null && me.GetTrackingData(role, out Vector3 pos, out Quaternion rot))
+        {
+            transform.position = pos;
+            if (matchRotation) transform.rotation = rot;
+        }
+    }
+}";
+
+    private const string Snippet_Haptics = @"using UnityEngine;
+using Basis.Scripts.Networking.NetworkedAvatar;
+
+public class HapticOnKey : MonoBehaviour
+{
+    [SerializeField] private BasisBoneTrackedRole role = BasisBoneTrackedRole.RightHand;
+
+    [Header(""Haptic Params"")]
+    [SerializeField, Range(0f, 1f)] private float amplitude = 0.5f;
+    [SerializeField, Range(0f, 1f)] private float frequency = 0.5f;
+    [SerializeField] private float duration = 0.25f; // SteamVR honors duration; OpenXR may approximate
+
+    [Header(""Keybinding"")]
+    [SerializeField] private KeyCode triggerKey = KeyCode.H;
+
+    void Update()
+    {
+        if (Input.GetKeyDown(triggerKey))
+        {
+            var me = BasisNetworkPlayer.LocalPlayer;
+            if (me != null)
+            {
+                me.PlayHaptic(role, duration, amplitude, frequency);
+                // Optional: Debug.Log($""Haptic sent to {role} (amp={amplitude}, freq={frequency}, dur={duration})"");
+            }
+        }
+    }
+}";
+    private const string Snippet_IsUserInVR = @"using UnityEngine;
+using Basis.Scripts.Device_Management;
+
+public class IsUserInVrExample : MonoBehaviour
+{
+    void Start()
+    {
+        bool inVr = BasisDeviceManagement.IsUserInDesktop() == false;
+        Debug.Log(""User in VR? "" + inVr);
+    }
+}";
 
     private const string Snippet_DevTeleport = @"using UnityEngine;
 // using Basis; // Adjust namespace
