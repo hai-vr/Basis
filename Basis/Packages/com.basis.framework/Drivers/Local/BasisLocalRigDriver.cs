@@ -221,6 +221,8 @@ namespace Basis.Scripts.Drivers
             BasisAnimationRiggingHelper.SetHandCollisionScale(LeftHandTwoBoneIK, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
             BasisAnimationRiggingHelper.SetHandCollisionScale(RightHandTwoBoneIK, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
 
+            BasisLocalPlayer.Instance.BasisLocalFootDriver.Update();
+
             if (Builder != null)
             {
                 // --- Do IK on animator ---

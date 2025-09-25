@@ -149,12 +149,16 @@ namespace Basis.Scripts.Drivers
 
             player.LocalRigDriver.SetBodySettings(player.LocalBoneDriver);
 
+
             CalculateTransformPositions(player, player.LocalBoneDriver);
 
             ComputeOffsets(player.LocalBoneDriver);
 
+            player.BasisLocalFootDriver.InitializeVariables();
+
             player.LocalHandDriver.ReInitialize(player.BasisAvatar.Animator);
             player.LocalAnimatorDriver.Initialize(player);
+
 
             // Exit T-Pose and restore animator
             ResetAvatarAnimator();
