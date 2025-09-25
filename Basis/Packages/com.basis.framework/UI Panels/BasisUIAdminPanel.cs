@@ -3,7 +3,6 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.UI.UI_Panels;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -67,7 +66,7 @@ public class BasisUIAdminPanel : BasisUIBase
     }
     private void BindButtons()
     {
-        TeleportAll.onClick.AddListener(() => BasisNetworkModeration.TeleportAll(SelectedPlayer.playerId));
+        TeleportAll.onClick.AddListener(() => BasisNetworkModeration.TeleportAll(SelectedPlayer?.playerId));
         Ban.onClick.AddListener(() => BasisNetworkModeration.SendBan(UUIDSubmission.text, ReasonSubmission.text));
         Kick.onClick.AddListener(() => BasisNetworkModeration.SendKick(UUIDSubmission.text, ReasonSubmission.text));
         IpBan.onClick.AddListener(() => BasisNetworkModeration.SendIPBan(UUIDSubmission.text, ReasonSubmission.text));
