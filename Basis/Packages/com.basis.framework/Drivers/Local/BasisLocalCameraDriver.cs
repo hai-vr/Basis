@@ -293,7 +293,6 @@ namespace Basis.Scripts.Drivers
                 }
             }
         }
-
         /// <summary>
         /// URP callback before camera render: caches camera transform, hides head for view,
         /// and positions the microphone UI either in XR or desktop mode.
@@ -316,7 +315,7 @@ namespace Basis.Scripts.Drivers
                         Vector3 worldPoint = Camera.ViewportToWorldPoint(DesktopMicrophoneViewportPosition);
                         // assume this transform is the camera parent
                         Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
-                        ParentOfUI.localPosition = localPos;
+                        ParentOfUI.localPosition = localPos * LocalPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
                     }
                 }
             }
