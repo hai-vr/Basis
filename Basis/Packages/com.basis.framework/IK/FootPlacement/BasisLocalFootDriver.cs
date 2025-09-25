@@ -21,6 +21,12 @@ public class BasisLocalFootDriver
     [SerializeField, Range(0f, 30f)] private float positionLerpSpeed = 15f;
     [SerializeField, Range(0f, 30f)] private float rotationLerpSpeed = 15f;
 
+    [Header("Sticky Feet")]
+    [SerializeField, Range(0.001f, 0.05f)] private float plantVelocityThreshold = 0.01f; // m/s below this = standing
+    [SerializeField, Range(0.01f, 0.25f)] private float maxAnchorStretch = 0.12f;       // how far we allow hip/ankle to stretch before unplant
+    [SerializeField, Range(0f, 30f)] private float plantedPosLerpSpeed = 25f;      // stiffer while planted
+    [SerializeField, Range(0f, 30f)] private float normalSlerpSpeed = 12f;         // smooth surface normals
+
     [Header("Leg Curve (Gizmos Only)")]
     [SerializeField, Range(6, 64)] private int curveSegments = 20;
     [SerializeField, Tooltip("Default knee plane hint; usually Avatar forward.")]
@@ -51,6 +57,14 @@ public class BasisLocalFootDriver
         public float shinLen;
         public bool hasHit;
         public int sideSign;                // -1 for Left, +1 for Right
+
+        // Sticky/anchoring
+        public bool isPlanted;                      // sticky flag
+        public Transform anchorTransform;           // the surface object
+        public Vector3 anchorLocalPoint;            // local-space hit point on surface
+        public Vector3 anchorLocalNormal;           // local-space normal
+        public Vector3 filteredNormal;              // smoothed world normal
+        public Vector3 prevPos;                     // previous world pos for velocity
 
         public FootState(string name, Transform bone, int sideSign)
         {
@@ -125,6 +139,10 @@ public class BasisLocalFootDriver
         if (f.bone == null) return;
         f.currentPos = f.targetPos = f.bone.position;
         f.currentRot = f.targetRot = f.bone.rotation;
+        f.prevPos = f.currentPos;
+        f.filteredNormal = AvatarTransform != null ? AvatarTransform.up : Vector3.up;
+        f.isPlanted = false;
+        f.anchorTransform = null;
     }
 
     // Call from LateUpdate in your host to let animation pose first, then we correct feet.
@@ -139,11 +157,13 @@ public class BasisLocalFootDriver
         ApplySmoothing(left);
         ApplySmoothing(right);
 
-        // Write back to the bones
-        WriteToBone(left);
-        WriteToBone(right);
+        // IMPORTANT: Avoid double-driving bones if IK targets are used.
+        // If you want the IK solver to be authoritative, do NOT write directly to bones.
+        // WriteToBone(left);
+        // WriteToBone(right);
 
         var Rig = BasisLocalPlayer.Instance.LocalRigDriver;
+
         // LEFT
         PushToRigTargets(
             left,
@@ -176,11 +196,11 @@ public class BasisLocalFootDriver
         if (f.bone == null) return;
 
         Vector3 rayOrigin = GetPerFootRayOrigin(f);
-        Vector3 rayDir = Vector3.down; // world down (you could use -AvatarTransform.up if you want avatar-relative)
+        Vector3 rayDir = Vector3.down; // world down (could use -AvatarTransform.up for avatar-relative)
         float rayLen = f.legLength;
 
         RaycastHit hit;
-        f.hasHit = Physics.SphereCast(
+        bool hasHit = Physics.SphereCast(
             rayOrigin,
             raySphereRadius,
             rayDir,
@@ -189,36 +209,113 @@ public class BasisLocalFootDriver
             groundLayers,
             QueryTriggerInteraction.Ignore
         );
+        f.hasHit = hasHit;
 
-        if (f.hasHit)
+        // Update / maintain anchor state (sticky feet)
+        UpdateAnchor(f, hasHit, hit);
+
+        // Decide where the target lives this frame
+        Vector3 pos;
+        Vector3 up;
+
+        if (f.isPlanted && f.anchorTransform != null)
         {
-            Vector3 desiredPos = hit.point + hit.normal * footHeightOffset;
-
-            Vector3 forwardProjected = Vector3.ProjectOnPlane(AvatarTransform.forward, hit.normal);
-            if (forwardProjected.sqrMagnitude < 1e-6f)
-                forwardProjected = Vector3.ProjectOnPlane(AvatarTransform.right, hit.normal);
-            forwardProjected.Normalize();
-
-            Quaternion surfaceRot = Quaternion.LookRotation(forwardProjected, hit.normal);
-            Quaternion uprightRot = Quaternion.LookRotation(forwardProjected, AvatarTransform.up);
-            float tiltAngle = Quaternion.Angle(uprightRot, surfaceRot);
-            float t = (tiltAngle <= 0.0001f) ? 0f : Mathf.Clamp01(maxFootTiltDegrees / tiltAngle);
-            Quaternion clampedRot = Quaternion.Slerp(uprightRot, surfaceRot, t);
-
-            f.targetPos = desiredPos;
-            f.targetRot = clampedRot;
+            // Stick to the anchored surface frame
+            pos = GetAnchorWorldPoint(f) + GetAnchorWorldNormal(f) * footHeightOffset;
+            up = GetAnchorWorldNormal(f);
+        }
+        else if (hasHit)
+        {
+            pos = hit.point + hit.normal * footHeightOffset;
+            // Keep a smoothed normal to reduce flicker / creep
+            float nAlpha = 1f - Mathf.Exp(-normalSlerpSpeed * Time.deltaTime);
+            f.filteredNormal = Vector3.Slerp(f.filteredNormal, hit.normal, nAlpha).normalized;
+            if (f.filteredNormal.sqrMagnitude < 1e-6f) f.filteredNormal = (AvatarTransform != null ? AvatarTransform.up : Vector3.up);
+            up = f.filteredNormal;
         }
         else
         {
+            // free swing / fallback to animation
             f.targetPos = f.bone.position;
             f.targetRot = f.bone.rotation;
+            return;
         }
+
+        // Build a forward that prefers avatar forward projected on the (smoothed) normal
+        Vector3 fwd = Vector3.ProjectOnPlane(AvatarTransform.forward, up);
+        if (fwd.sqrMagnitude < 1e-6f) fwd = Vector3.ProjectOnPlane(AvatarTransform.right, up);
+        fwd.Normalize();
+
+        // Clamp tilt
+        Quaternion surfaceRot = Quaternion.LookRotation(fwd, up);
+        Quaternion uprightRot = Quaternion.LookRotation(fwd, AvatarTransform.up);
+        float tiltAngle = Quaternion.Angle(uprightRot, surfaceRot);
+        float t = (tiltAngle <= 0.0001f) ? 0f : Mathf.Clamp01(maxFootTiltDegrees / tiltAngle);
+        Quaternion clampedRot = Quaternion.Slerp(uprightRot, surfaceRot, t);
+
+        f.targetPos = pos;
+        f.targetRot = clampedRot;
+    }
+
+    private void UpdateAnchor(FootState f, bool hasHit, RaycastHit hit)
+    {
+        // world-space foot speed
+        float speed = (f.currentPos - f.prevPos).magnitude / Mathf.Max(Time.deltaTime, 1e-5f);
+        f.prevPos = f.currentPos;
+
+        if (f.isPlanted)
+        {
+            // If we’re over-stretched or lifting away from surface, unplant
+            float stretch = Vector3.Distance(f.currentPos, GetAnchorWorldPoint(f));
+            if (stretch > maxAnchorStretch || speed > plantVelocityThreshold * 2f || !hasHit)
+            {
+                f.isPlanted = false;
+                f.anchorTransform = null;
+            }
+        }
+        else
+        {
+            // Plant when slow *and* we have a reliable ground under us
+            if (hasHit && speed < plantVelocityThreshold)
+            {
+                f.isPlanted = true;
+                f.anchorTransform = hit.collider.transform;
+                f.anchorLocalPoint = f.anchorTransform.InverseTransformPoint(hit.point);
+                f.anchorLocalNormal = f.anchorTransform.InverseTransformDirection(hit.normal).normalized;
+                // seed filtered normal
+                f.filteredNormal = hit.normal;
+            }
+        }
+
+        // Keep normal filtered when we have a hit
+        if (hasHit)
+        {
+            float nAlpha = 1f - Mathf.Exp(-normalSlerpSpeed * Time.deltaTime);
+            f.filteredNormal = Vector3.Slerp(f.filteredNormal, hit.normal, nAlpha);
+            if (f.filteredNormal.sqrMagnitude < 1e-6f) f.filteredNormal = (AvatarTransform != null ? AvatarTransform.up : Vector3.up);
+            f.filteredNormal.Normalize();
+        }
+    }
+
+    private Vector3 GetAnchorWorldPoint(FootState f)
+    {
+        if (f.anchorTransform == null) return f.currentPos;
+        return f.anchorTransform.TransformPoint(f.anchorLocalPoint);
+    }
+
+    private Vector3 GetAnchorWorldNormal(FootState f)
+    {
+        if (f.anchorTransform == null) return f.filteredNormal;
+        var n = f.anchorTransform.TransformDirection(f.anchorLocalNormal);
+        if (n.sqrMagnitude < 1e-6f) n = f.filteredNormal;
+        return n.normalized;
     }
 
     private void ApplySmoothing(FootState f)
     {
         float dt = Time.deltaTime;
-        float posAlpha = 1f - Mathf.Exp(-positionLerpSpeed * dt);
+        float posSpeed = f.isPlanted ? plantedPosLerpSpeed : positionLerpSpeed;
+        float posAlpha = 1f - Mathf.Exp(-posSpeed * dt);
         float rotAlpha = 1f - Mathf.Exp(-rotationLerpSpeed * dt);
 
         f.currentPos = Vector3.Lerp(f.currentPos, f.targetPos, posAlpha);
@@ -326,6 +423,15 @@ public class BasisLocalFootDriver
         Gizmos.DrawLine(p, p + f.targetRot * Vector3.right * ax);
         Gizmos.DrawLine(p, p + f.targetRot * Vector3.up * ax);
 
+        // Anchor viz
+        if (f.isPlanted && f.anchorTransform != null)
+        {
+            Gizmos.color = Color.green;
+            Vector3 ap = GetAnchorWorldPoint(f);
+            Gizmos.DrawWireSphere(ap, 0.02f);
+            Gizmos.DrawLine(ap, ap + GetAnchorWorldNormal(f) * 0.1f);
+        }
+
         // --- LEG CURVE (hip → knee → foot) ---
         bool ok;
         Vector3 hip = Hips.position;
@@ -358,30 +464,26 @@ public class BasisLocalFootDriver
         for (int i = 1; i <= segments; i++)
         {
             float t = i / (float)segments;
-            // B(t) = (1-t)^2 a + 2(1-t)t b + t^2 c
             float u = 1f - t;
             Vector3 pt = (u * u) * a + (2f * u * t) * b + (t * t) * c;
             Gizmos.DrawLine(prev, pt);
             prev = pt;
         }
     }
+
     private void PushToRigTargets(FootState f,
-                              Action<Vector3> setTargetLocalPos,
-                              Action<Quaternion> setTargetLocalRot,
-                              Action<Vector3> setHintLocalPos = null)
+                                  Action<Vector3> setTargetPos,
+                                  Action<Quaternion> setTargetRot,
+                                  Action<Vector3> setHintLocalPos = null)
     {
         if (AvatarTransform == null) return;
 
-        // convert foot target from world -> rig local
-       // Vector3 localPos = AvatarTransform.InverseTransformPoint(f.currentPos);
+        // If your rig expects local-space targets, convert here.
+        // Currently sending world-space (common for many runtime IK setups).
+        setTargetPos?.Invoke(f.currentPos);
+        setTargetRot?.Invoke(f.currentRot);
 
-        // for rotation, remove rigRoot's rotation (local space)
-       // Quaternion localRot = Quaternion.Inverse(AvatarTransform.rotation) * f.currentRot;
-
-        setTargetLocalPos?.Invoke(f.currentPos);
-        setTargetLocalRot?.Invoke(f.currentRot);
-
-        // optional: knee hint (world -> local) using your analytic knee solve
+        // optional: knee hint (world -> local) using analytic knee solve
         if (setHintLocalPos != null && Hips != null)
         {
             bool valid;
