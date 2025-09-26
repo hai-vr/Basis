@@ -77,7 +77,7 @@ public partial class BasisProjectSetup : EditorWindow
                 EditorUtility.DisplayDialog(
                     "IL2CPP Not Available",
                     $"IL2CPP scripting backend is not available for {group}. " +
-                    $"Install the appropriate *Build Support (IL2CPP)* module via Unity Hub.",
+                    $"Install the appropriate *Build Support (IL2CPP)* module via Unity Hub, some platforms wont have Il2cpp support.",
                     "OK");
                 return;
             }
