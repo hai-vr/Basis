@@ -163,6 +163,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     input = rightHand;
                     return true;
                 default:
+                    BasisDebug.Log("Unable to Try Get Role, will attempt again on calibration", BasisDebug.LogTag.Device);
                     return false;
             }
         }
