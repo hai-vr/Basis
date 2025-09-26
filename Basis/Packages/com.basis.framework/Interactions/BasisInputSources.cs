@@ -127,7 +127,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             var created = BasisInputWrapper.TryNewTracking(input, state, out BasisInputWrapper wrapper);
             if (!created)
+            {
+                BasisDebug.LogError("Unable to Create [TryNewTracking]", BasisDebug.LogTag.Device);
                 return false;
+            }
 
             switch (wrapper.Role)
             {
@@ -141,6 +144,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     rightHand = wrapper;
                     return true;
                 default:
+                    BasisDebug.LogError("Unable to Create [TryNewTracking]", BasisDebug.LogTag.Device);
                     return false;
             }
         }

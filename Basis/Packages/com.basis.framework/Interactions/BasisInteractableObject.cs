@@ -157,7 +157,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 return;
 
             if (!Inputs.SetInputByRole(input, BasisInteractInputState.Ignored))
-                BasisDebug.LogError("New input added not setup as expected by InteractableObject");
+            {
+                BasisDebug.LogError("New input added not setup as expected, Input role was set to ignored!");
+            }
         }
 
         /// <summary>
