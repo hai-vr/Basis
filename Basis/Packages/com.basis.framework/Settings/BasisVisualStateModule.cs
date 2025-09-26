@@ -54,7 +54,7 @@ public class BasisVisualStateModule : BasisSettingsBase
             LocalHandle = Addressables.LoadAssetAsync<GameObject>(AdaptiveCirlceId);
             var InMemory = LocalHandle.WaitForCompletion();
             AdaptiveCircleCreated = GameObject.Instantiate(InMemory, BasisLocalPlayer.Instance.transform);
-            AdaptiveCircleCreated.transform.position = Vector3.zero;
+            AdaptiveCircleCreated.transform.localPosition = Vector3.zero;
             if (AdaptiveCircleCreated.TryGetComponent(out BasisAdaptiveCircle))
             {
                 BasisAdaptiveCircle.Apply(Mathf.Sqrt(SMModuleDistanceBasedReductions.HearingRange));
