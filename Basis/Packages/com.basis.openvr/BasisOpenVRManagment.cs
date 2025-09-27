@@ -169,6 +169,13 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         public bool TryAssignRole(ETrackedDeviceClass deviceClass, uint deviceIndex, string NameInCaseFallback, out BasisBoneTrackedRole role, out SteamVR_Input_Sources source)
         {
 
+            if(NameInCaseFallback.ToLower().Contains("/rendermodels/"))
+            {
+                BasisDebug.LogError("a controller had /rendermodels/ in its name why? this seems wrong!");
+                role = BasisBoneTrackedRole.CenterEye;
+                source = SteamVR_Input_Sources.Keyboard;
+                return false;
+            }
             if (Valve.VR.OpenVR.System.IsTrackedDeviceConnected(deviceIndex))
             {
                 BasisDebug.Log($"{deviceIndex} was found to be connected");
