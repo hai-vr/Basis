@@ -246,7 +246,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 {
                     CalculateOffset();
                 }
-                SetRealTrackers(BasisHasTracked.HasTracker, BasisHasRigLayer.HasRigLayer);
+                SetRealTrackers(BasisHasTracked.HasTracker, BasisHasRigLayer.HasRigLayer,UniqueDeviceIdentifier);
             }
             else
             {
@@ -288,7 +288,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 //unassign last
                 if (hasRoleAssigned)
                 {
-                  //  SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer);
+                   SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer, UniqueDeviceIdentifier);
                 }
                 hasRoleAssigned = false;
                 trackedRole = BasisBoneTrackedRole.CenterEye;
@@ -397,28 +397,40 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         /// <param name="hasTracked">Whether this control is actively tracked by hardware.</param>
         /// <param name="HasLayer">Whether a rig layer is available for this control.</param>
-        public void SetRealTrackers(BasisHasTracked hasTracked, BasisHasRigLayer HasLayer)
+        public void SetRealTrackers(BasisHasTracked hasTracked, BasisHasRigLayer HasLayer,string DeviceID)
         {
             if (Control != null)
             {
-                Control.HasTracked = hasTracked;
-                Control.HasRigLayer = HasLayer;
-                if (Control.HasRigLayer == BasisHasRigLayer.HasNoRigLayer)
+                if (HasLayer == BasisHasRigLayer.HasNoRigLayer)
                 {
-                    hasRoleAssigned = false;
-                    if (TryGetRole(out BasisBoneTrackedRole Role))
+                    Control.DevicesWithRoles.Remove(DeviceID);
+                    if (Control.DevicesWithRoles.Count == 0)
                     {
-                        BasisLocalPlayer.Instance.LocalRigDriver.ApplyHint(Role, false);
+                        hasRoleAssigned = false;
+                        if (TryGetRole(out BasisBoneTrackedRole Role))
+                        {
+                            BasisLocalPlayer.Instance.LocalRigDriver.ApplyHint(Role, false);
+                        }
+                        Control.HasTracked = hasTracked;
+                        Control.HasRigLayer = HasLayer;
+                    }
+                    else
+                    {
+                        BasisDebug.Log($"Skipping {Control.name}! device had multiple devices associated", BasisDebug.LogTag.Input);
                     }
                 }
                 else
                 {
+                    Control.DevicesWithRoles.Add(DeviceID);
                     hasRoleAssigned = true;
                     if (TryGetRole(out BasisBoneTrackedRole Role))
                     {
                         BasisLocalPlayer.Instance.LocalRigDriver.ApplyHint(Role, true);
                     }
+                    Control.HasTracked = hasTracked;
+                    Control.HasRigLayer = HasLayer;
                 }
+
                 BasisDebug.Log("Set Tracker State for tracker " + UniqueDeviceIdentifier + " with bone " + Control.name + " as " + Control.HasTracked.ToString() + " | " + Control.HasRigLayer.ToString(), BasisDebug.LogTag.Input);
             }
             else
@@ -607,7 +619,7 @@ namespace Basis.Scripts.Device_Management.Devices
             if (hasRoleAssigned && trackedRole != BasisBoneTrackedRole.CenterEye)
             {
                 //this solves hands being removed and there tracker states
-              //  SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer);
+               SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer, UniqueDeviceIdentifier);
             }
             if (BasisUIRaycast != null)
             {

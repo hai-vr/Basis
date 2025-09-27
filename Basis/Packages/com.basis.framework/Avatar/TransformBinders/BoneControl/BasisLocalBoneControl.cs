@@ -1,5 +1,6 @@
 using Basis.Scripts.Common;
 using System;
+using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
@@ -80,6 +81,7 @@ namespace Basis.Scripts.TransformBinders.BoneControl
 
         [SerializeField] private BasisHasTracked hasTrackerDriver = BasisHasTracked.HasNoTracker;
 
+        public List<string> DevicesWithRoles = new List<string>();
         /// <summary>
         /// Indicates whether this bone currently has tracker input.
         /// Invokes <see cref="OnHasTrackerDriverChanged"/> when changed.
