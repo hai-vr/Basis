@@ -66,7 +66,10 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         public override void DoPollData()
         {
             if (!SteamVR.active)
+            {
+                BasisDebug.LogError("Cant Poll SteamVR was not active");
                 return;
+            }
 
             // Buttons / axes
             CurrentInputState.GripButton = SteamVR_Actions._default.Grip.GetState(inputSource);
@@ -106,10 +109,12 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             result = SteamVR.instance.compositor.GetLastPoseForTrackedDeviceIndex(Device.deviceIndex, ref devicePose, ref deviceGamePose);
             if (result != EVRCompositorError.None)
             {
+                BasisDebug.LogError($"EVRCompositorError {result}");
                 return;
             }
             if (deviceGamePose.bPoseIsValid == false)
             {
+                BasisDebug.LogError($"Pose was Not Valid!");
                 return;
             }
             DeviceLocalSpace = new SteamVR_Utils.RigidTransform(deviceGamePose.mDeviceToAbsoluteTracking);

@@ -288,7 +288,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 //unassign last
                 if (hasRoleAssigned)
                 {
-                    SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer);
+                   // SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer);
                 }
                 hasRoleAssigned = false;
                 trackedRole = BasisBoneTrackedRole.CenterEye;
