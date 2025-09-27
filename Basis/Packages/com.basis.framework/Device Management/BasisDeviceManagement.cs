@@ -295,7 +295,7 @@ namespace Basis.Scripts.Device_Management
                 }
             }
 
-            await BasisSettingsSystem.LoadAllSettingsAsync();
+            BasisSettingsSystem.LoadAllSettings();
             SMDMicrophone.LoadInMicrophoneData(mode);
             await BasisActionDriver.LoadBindings();
 
