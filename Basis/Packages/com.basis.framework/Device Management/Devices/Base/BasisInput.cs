@@ -288,7 +288,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 //unassign last
                 if (hasRoleAssigned)
                 {
-                   // SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer);
+                  //  SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer);
                 }
                 hasRoleAssigned = false;
                 trackedRole = BasisBoneTrackedRole.CenterEye;
@@ -607,7 +607,7 @@ namespace Basis.Scripts.Device_Management.Devices
             if (hasRoleAssigned && trackedRole != BasisBoneTrackedRole.CenterEye)
             {
                 //this solves hands being removed and there tracker states
-                SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer);
+              //  SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer);
             }
             if (BasisUIRaycast != null)
             {
