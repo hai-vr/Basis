@@ -18898,7 +18898,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 1
+  m_PresetInfoIsWorld: 0
 --- !u!114 &6328418170902668384
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -27704,10 +27704,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: BasisSettings::BasisTMP_DropdownSetting
   settingKey: Antialiasing
   platformDefault:
-    windows: MSAA 4X
+    windows: MSAA 2X
     android: MSAA 2X
-    linux: MSAA 4X
-    other: MSAA 4X
+    linux: MSAA 2X
+    other: MSAA 2X
   dropdown: {fileID: 5157606799740799637}
   Text: {fileID: 1941540099304302756}
   showSelectedLabel: 1
