@@ -45,7 +45,7 @@ public class BasisVisualStateModule : BasisSettingsBase
                 DeleteAvatarDistance();
                 break;
         }
-    } 
+    }
     public static void ShowAvatarDistance()
     {
         if (AdaptiveCircleCreated == null)
@@ -64,7 +64,10 @@ public class BasisVisualStateModule : BasisSettingsBase
     public static void DeleteAvatarDistance()
     {
         BasisDebug.Log("DeleteAvatarDistance");
-        Addressables.Release(LocalHandle);
+        if (LocalHandle.IsValid())
+        {
+            Addressables.Release(LocalHandle);
+        }
         if (AdaptiveCircleCreated != null)
         {
             GameObject.Destroy(AdaptiveCircleCreated.gameObject);
