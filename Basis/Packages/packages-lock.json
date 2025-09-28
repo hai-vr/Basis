@@ -573,13 +573,19 @@
       "dependencies": {}
     },
     "dev.hai-vr.basis.comms": {
-      "version": "file:HVRBasisAvatarComms",
+      "version": "file:dev.hai-vr.basis.comms",
       "depth": 0,
       "source": "embedded",
       "dependencies": {}
     },
     "dev.hai-vr.basis.ndmf": {
       "version": "file:HVRBasisNDMF",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
+    "nuget.meamod.dns": {
+      "version": "file:nuget.meamod.dns",
       "depth": 0,
       "source": "embedded",
       "dependencies": {}
