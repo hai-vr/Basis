@@ -115,11 +115,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 621d4ffff2bb13d4e962c46ce116049d
-    m_Address: Packages/com.basis.sdk/Prefabs/Visual helpers/Network Graph.prefab
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 6339a6e83fe84c14d975b2a5a205b51a
     m_Address: Packages/com.basis.sdk/Prefabs/UI/Accept Deny Panel.prefab
     m_ReadOnly: 0
