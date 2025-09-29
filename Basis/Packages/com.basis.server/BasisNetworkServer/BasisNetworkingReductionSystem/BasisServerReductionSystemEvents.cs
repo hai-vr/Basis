@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
+using BasisNetworkServer.BasisNetworking;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
@@ -210,6 +211,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         NetDataWriter Writer = RentWriter();
                         tempMsg.Serialize(Writer);
                         peer.Send(Writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
+                        BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.PlayerAvatarChannel, Writer.Length);
                         ReturnWriter(Writer);
                         sentTimes[playerJ.id] = nowTicks;
                     }

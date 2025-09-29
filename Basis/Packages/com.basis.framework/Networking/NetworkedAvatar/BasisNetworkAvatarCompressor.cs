@@ -107,10 +107,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             false, true, true, true,  // 87,88,89,90
             false, true, true, true,  // 91,92,93,94
         };
-
-        // ==============================
-        // public API (unchanged)
-        // ==============================
         public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
         {
             EnsureTransmitterIsInitialized(transmitter, animator);
@@ -121,11 +117,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             CompressAvatarData(transmitter.storedAvatarData, transmitter.HumanPose, animator);
 
-            // TODO: consider pooling or serializing directly to avoid Values.ToArray()
-            transmitter.storedAvatarData.LASM.AdditionalAvatarDatas =
-                transmitter.SendingOutAvatarData.Count == 0 ? null : transmitter.SendingOutAvatarData.Values.ToArray();
+            var data = transmitter.SendingOutAvatarData.Count == 0 ? null : transmitter.SendingOutAvatarData.Values.ToArray();
+
+            transmitter.storedAvatarData.LASM.AdditionalAvatarDatas = data;
 
             transmitter.storedAvatarData.LASM.Serialize(transmitter.AvatarSendWriter);
+
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
 
             BasisNetworkConnection.LocalPlayerPeer.Send(

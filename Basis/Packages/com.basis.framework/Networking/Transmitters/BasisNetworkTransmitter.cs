@@ -185,14 +185,15 @@ namespace Basis.Scripts.Networking.Transmitters
             }
         }
 
+        public List<ushort> TalkingPoints = new List<ushort>(128);
+        public NetDataWriter MicrophoneWriter = new NetDataWriter();
         /// <summary>Lets the server know who can hear us.</summary>
         public void MicrophoneOutputCheck()
         {
             if (AreBoolArraysEqual(MicrophoneRangeIndex, LastMicrophoneRangeIndex) == false)
             {
+                TalkingPoints.Clear();
                 Array.Copy(MicrophoneRangeIndex, LastMicrophoneRangeIndex, IndexLength);
-
-                List<ushort> TalkingPoints = new List<ushort>(IndexLength);
                 for (int Index = 0; Index < IndexLength; Index++)
                 {
                     if (MicrophoneRangeIndex[Index])
@@ -202,14 +203,17 @@ namespace Basis.Scripts.Networking.Transmitters
                 }
                 HasReasonToSendAudio = TalkingPoints.Count != 0;
 
-                VoiceReceiversMessage VRM = new VoiceReceiversMessage { users = TalkingPoints.ToArray() };
-                NetDataWriter writer = new NetDataWriter();
-                VRM.Serialize(writer);
-                BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.AudioRecipientsChannel, DeliveryMethod.ReliableOrdered);
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, writer.Length);
+                VoiceReceiversMessage VRM = new VoiceReceiversMessage
+                {
+                    users = TalkingPoints.ToArray()
+                };
+                MicrophoneWriter.Reset();
+                BasisDebug.Log("Sending out Microphone Check Data", BasisDebug.LogTag.Voice);
+                VRM.Serialize(MicrophoneWriter);
+                BasisNetworkConnection.LocalPlayerPeer.Send(MicrophoneWriter, BasisNetworkCommons.AudioRecipientsChannel, DeliveryMethod.ReliableOrdered);
+                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, MicrophoneWriter.Length);
             }
         }
-
         public static bool AreBoolArraysEqual(bool[] array1, bool[] array2)
         {
             if (array1 == null && array2 == null) return true;
