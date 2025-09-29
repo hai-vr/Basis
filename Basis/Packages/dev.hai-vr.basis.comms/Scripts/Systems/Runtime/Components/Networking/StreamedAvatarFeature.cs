@@ -188,7 +188,7 @@ namespace HVR.Basis.Comms
 
         private void EncodeAndSubmit(StreamedAvatarFeaturePayload message, ushort[] recipientsNullable)
         {
-            var buffer = new byte[HeaderBytes + valueArraySize];
+            var buffer = new byte[HeaderBytes + valueArraySize];//3 + 256 = 259
             buffer[0] = AvatarMessageProcessing.NewNet_WearerData;
             buffer[1] = localIdentifier;
             buffer[2] = (byte)(message.DeltaTime / DeltaLocalIntToSeconds);

@@ -423,6 +423,7 @@ public static class BasisMenuItemsEditor
     }
     public static void DataPass(BasisNetworkStatistics.Snapshot Snapshot)
     {
+        BasisDebug.Log("Adding Data from Snapshot Network Stats",BasisDebug.LogTag.Networking);
         // OPTIONAL: if key is a channelId (byte), map to const field names of BasisNetworkCommons
         BasisNetworkProfiler.ResolveName = (index) =>
         {

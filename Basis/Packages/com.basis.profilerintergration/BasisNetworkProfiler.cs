@@ -110,7 +110,7 @@ namespace Basis.Scripts.Profiler
                 var bytesName = $"{direction}/{friendlyName} Bytes";
                 var countName = $"{direction}/{friendlyName} Count";
 
-                var options = ProfilerCounterOptions.None; //| ProfilerCounterOptions.ResetToZeroOnFlush;
+                var options = ProfilerCounterOptions.FlushOnEndOfFrame | ProfilerCounterOptions.ResetToZeroOnFlush;
 
                 return new CounterPair
                 {

@@ -117,6 +117,7 @@ public static class BasisNetworkMessageProcessor
                 case BasisNetworkCommons.ServerStatisticsChannel:
                     if (reader.GetBool())
                     {
+                        BNL.Log("requested Server StatisticsChannel");
                         BasisNetworkStatistics.IsRecordingData = true;
                         BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ServerStatisticsChannel, reader.AvailableBytes);
                         ServerStatisticMessage ServerStatistic = new ServerStatisticMessage
