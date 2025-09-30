@@ -352,7 +352,7 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 if (HasControl)
                 {
-                    BasisDebug.Log("UnAssigning Tracker " + Control.name, BasisDebug.LogTag.Input);
+                    BasisDebug.Log($"UnAssigning Tracker {Control.name}", BasisDebug.LogTag.Input);
                     Control.InverseOffsetFromBone.position = Vector3.zero;
                     Control.InverseOffsetFromBone.rotation = Quaternion.identity;
                     Control.UseInverseOffset = false;
@@ -368,7 +368,7 @@ namespace Basis.Scripts.Device_Management.Devices
         public void ApplyTrackerCalibration(BasisBoneTrackedRole Role)
         {
             UnAssignTracker();
-            BasisDebug.Log("ApplyTrackerCalibration " + Role + " to tracker " + UniqueDeviceIdentifier, BasisDebug.LogTag.Input);
+            BasisDebug.Log($"ApplyTrackerCalibration {Role} to tracker {UniqueDeviceIdentifier}", BasisDebug.LogTag.Input);
             AssignRoleAndTracker(Role);
         }
 
