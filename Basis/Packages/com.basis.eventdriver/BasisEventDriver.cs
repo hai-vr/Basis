@@ -84,7 +84,7 @@ public class BasisEventDriver : MonoBehaviour
         BasisObjectSyncDriver.OnDestroy();
         Application.onBeforeRender -= OnBeforeRender;
         RemoteBoneJobSystem.Dispose();
-        BasisAvatarBufferPool.DeInitalize();
+        BasisAvatarBufferPool.Deinitialize();
     }
 
     /// <summary>

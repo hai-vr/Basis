@@ -113,7 +113,7 @@ namespace Basis.Scripts.Networking.Receivers
                         playerId, Player.BasisAvatar.Animator.humanScale,
                         first.Position, last.Position,
                         first.Scale, last.Scale,
-                        first.rotation, last.rotation,
+                        first.Rotation, last.Rotation,
                         interpolationTime,
                         first.Muscles, last.Muscles
                     );
@@ -281,14 +281,14 @@ namespace Basis.Scripts.Networking.Receivers
                 for (int i = 0; i < Count; i++)
                 {
                     var b = _staged[i];
-                    BasisAvatarBufferPool.Release(ref b);
+                    BasisAvatarBufferPool.Release(b);
                 }
                 _staged.Clear();
             }
 
             while (PayloadQueue.TryDequeue(out var buffer))
             {
-                BasisAvatarBufferPool.Release(ref buffer);
+                BasisAvatarBufferPool.Release(buffer);
             }
 
             if (RemotePlayer != null && HasEvents && RemotePlayer.RemoteAvatarDriver != null)
@@ -392,7 +392,7 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 if (BufferHolder.HasFirst)
                 {
-                    BasisAvatarBufferPool.Release(ref BufferHolder.First);
+                    BasisAvatarBufferPool.Release(BufferHolder.First);
                     BufferHolder.HasFirst = false;
                 }
 
@@ -434,7 +434,7 @@ namespace Basis.Scripts.Networking.Receivers
                     return;
                 }
 
-                BasisAvatarBufferPool.Release(ref first);
+                BasisAvatarBufferPool.Release(first);
             }
         }
 
@@ -457,7 +457,7 @@ namespace Basis.Scripts.Networking.Receivers
                     return;
                 }
 
-                BasisAvatarBufferPool.Release(ref last);
+                BasisAvatarBufferPool.Release(last);
             }
         }
 
@@ -492,7 +492,7 @@ namespace Basis.Scripts.Networking.Receivers
             for (int i = 0; i < count; i++)
             {
                 var b = _staged[i];
-                BasisAvatarBufferPool.Release(ref b);
+                BasisAvatarBufferPool.Release(b);
             }
             _staged.RemoveRange(0, count);
         }
