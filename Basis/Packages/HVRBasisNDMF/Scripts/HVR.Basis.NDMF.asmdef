@@ -15,7 +15,9 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "BASISNDMF_NDMF_IS_INSTALLED"
+    ],
     "versionDefines": [
         {
             "name": "nadena.dev.ndmf",
