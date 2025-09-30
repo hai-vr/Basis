@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "nadena.dev.ndmf",
+        "BasisSDK",
         "BasisSDKEditor",
         "BasisDebug"
     ],

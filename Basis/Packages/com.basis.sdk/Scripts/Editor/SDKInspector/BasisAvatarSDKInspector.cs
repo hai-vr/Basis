@@ -15,6 +15,9 @@ using Basis.Scripts.BasisSdk.Players;
 [CustomEditor(typeof(BasisAvatar))]
 public partial class BasisAvatarSDKInspector : Editor
 {
+    public delegate void BeforeTestInEditorHandler(GameObject clone);
+    public static BeforeTestInEditorHandler OnBeforeTestInEditor;
+
     public static event Action<BasisAvatarSDKInspector> InspectorGuiCreated;
     public static event Action ButtonClicked;
     public static event Action ValueChanged;
@@ -519,6 +522,7 @@ public partial class BasisAvatarSDKInspector : Editor
         BasisDebug.Log("LoadAvatar Called", BasisDebug.LogTag.Editor);
         var inSceneItem = GameObject.Instantiate(Avatar.gameObject);
         BasisAssetBundlePipeline.DestroyEditorOnlyInAvatar(inSceneItem);
+        OnBeforeTestInEditor?.Invoke(inSceneItem);
 
         BasisLoadableBundle LoadableBundle = new BasisLoadableBundle
         {
