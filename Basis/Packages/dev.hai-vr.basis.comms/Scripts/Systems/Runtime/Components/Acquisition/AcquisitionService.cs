@@ -9,11 +9,11 @@ namespace HVR.Basis.Comms
         public static AcquisitionService SceneInstance => HVRCommsUtil.GetOrCreateSceneInstance(ref _sceneInstance);
         private static AcquisitionService _sceneInstance;
 
-        public delegate void AddressUpdated(string address, float value);
+        public delegate void AddressUpdated(int address, float value);
 
-        private readonly Dictionary<string, AcquisitionForAddress> _addressUpdated = new Dictionary<string, AcquisitionForAddress>();
+        private readonly Dictionary<int, AcquisitionForAddress> _addressUpdated = new();
 
-        public void Submit(string address, float value)
+        public void Submit(int address, float value)
         {
             if (_addressUpdated.TryGetValue(address, out var acquisitor))
             {
@@ -21,7 +21,7 @@ namespace HVR.Basis.Comms
             }
         }
 
-        public void RegisterAddresses(string[] addressBase, AddressUpdated onAddressUpdated)
+        public void RegisterAddresses(int[] addressBase, AddressUpdated onAddressUpdated)
         {
             foreach (var address in addressBase)
             {
@@ -33,7 +33,7 @@ namespace HVR.Basis.Comms
             }
         }
 
-        public void UnregisterAddresses(string[] addressBase, AddressUpdated onAddressUpdated)
+        public void UnregisterAddresses(int[] addressBase, AddressUpdated onAddressUpdated)
         {
             foreach (var address in addressBase)
             {
@@ -49,6 +49,6 @@ namespace HVR.Basis.Comms
     {
         internal event AcquisitionService.AddressUpdated OnAddressUpdated;
 
-        public void Invoke(string address, float value) => OnAddressUpdated?.Invoke(address, value);
+        public void Invoke(int address, float value) => OnAddressUpdated?.Invoke(address, value);
     }
 }
