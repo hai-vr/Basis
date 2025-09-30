@@ -118,19 +118,12 @@ namespace HVR.Basis.Comms
             float totalQueueSeconds = 0;
             foreach (StreamedAvatarFeaturePayload payload in _queue)
             {
-                if (payload != null)
-                {
-                    totalQueueSeconds += payload.DeltaTime;
-                }
+                totalQueueSeconds += payload.DeltaTime;
             }
             // Debug.Log($"Queue time is {totalQueueSeconds} seconds, size is {_queue.Count}");
 
             while (_timeLeft <= 0 && _queue.TryDequeue(out var eval))
             {
-                if(eval == null)
-                {
-                    continue;
-                }
                 // Debug.Log($"Unpacking delta {eval.DeltaTime} as {string.Join(',', eval.FloatValues.Select(f => $"{f}"))}");
                 var effectiveDeltaTime = _queue.Count <= 5 || totalQueueSeconds < 0.2f
                     ? eval.DeltaTime
