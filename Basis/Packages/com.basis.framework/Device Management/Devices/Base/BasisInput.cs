@@ -421,7 +421,10 @@ namespace Basis.Scripts.Device_Management.Devices
                 }
                 else
                 {
-                    Control.DevicesWithRoles.Add(DeviceID);
+                    if (Control.DevicesWithRoles.Contains(DeviceID) == false)
+                    {
+                        Control.DevicesWithRoles.Add(DeviceID);
+                    }
                     hasRoleAssigned = true;
                     if (TryGetRole(out BasisBoneTrackedRole Role))
                     {
