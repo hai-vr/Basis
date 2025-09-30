@@ -159,8 +159,20 @@ namespace Basis.Scripts.Networking
             BasisRemoteNetworkDriver.Compute();
             BasisNetworkProfiler.Update();
             RemoteBoneJobSystem.Complete(BoneJobSystem);
-        }
 
+            if (HasRequested)
+            {
+                _timer += Time.deltaTime;
+                if (_timer >= 0.1f)
+                {
+                    _timer = 0f;
+
+                    BasisNetworkEvents.RequestStatFrames();
+                }
+            }
+        }
+        private static float _timer;
+        public static bool HasRequested;
         /// <summary>
         /// Applies networked state changes to receivers.
         /// </summary>

@@ -190,13 +190,13 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: c65e15bc2eea6e24e8606a9091a4bf13
-    m_Address: HVR.Basis.Comms.FaceTracking.DefaultUnifiedExpressionsDefinitionFile
+  - m_GUID: c1e44be3809ebf446b1c38479ca9d1ed
+    m_Address: Packages/com.basis.sdk/Prefabs/UI/ControllerConfig.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: c1e44be3809ebf446b1c38479ca9d1ed
-    m_Address: Packages/com.basis.sdk/Prefabs/UI/ControllerConfig.prefab
+  - m_GUID: c65e15bc2eea6e24e8606a9091a4bf13
+    m_Address: HVR.Basis.Comms.FaceTracking.DefaultUnifiedExpressionsDefinitionFile
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

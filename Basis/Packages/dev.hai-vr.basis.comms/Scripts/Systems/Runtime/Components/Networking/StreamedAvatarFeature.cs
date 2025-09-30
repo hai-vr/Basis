@@ -26,7 +26,7 @@ namespace HVR.Basis.Comms
         [NonSerialized] public bool isWearer;
         [NonSerialized] public byte localIdentifier;
 
-        private readonly Queue<StreamedAvatarFeaturePayload> _queue = new();
+        private readonly Queue<StreamedAvatarFeaturePayload> _queue = new Queue<StreamedAvatarFeaturePayload>();
         private float[] current;
         private float[] previous;
         private float[] target;
@@ -116,7 +116,10 @@ namespace HVR.Basis.Comms
             _timeLeft -= timePassed;
 
             float totalQueueSeconds = 0;
-            foreach (var payload in _queue) totalQueueSeconds += payload.DeltaTime;
+            foreach (StreamedAvatarFeaturePayload payload in _queue)
+            {
+                totalQueueSeconds += payload.DeltaTime;
+            }
             // Debug.Log($"Queue time is {totalQueueSeconds} seconds, size is {_queue.Count}");
 
             while (_timeLeft <= 0 && _queue.TryDequeue(out var eval))
@@ -188,7 +191,7 @@ namespace HVR.Basis.Comms
 
         private void EncodeAndSubmit(StreamedAvatarFeaturePayload message, ushort[] recipientsNullable)
         {
-            var buffer = new byte[HeaderBytes + valueArraySize];
+            var buffer = new byte[HeaderBytes + valueArraySize];//3 + 256 = 259
             buffer[0] = AvatarMessageProcessing.NewNet_WearerData;
             buffer[1] = localIdentifier;
             buffer[2] = (byte)(message.DeltaTime / DeltaLocalIntToSeconds);
