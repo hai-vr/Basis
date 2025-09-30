@@ -89,18 +89,11 @@ public static class BasisHeightDriver
             localPlayer.CurrentHeight.AvatarEyeHeight = BasisLocalPlayer.DefaultAvatarEyeHeight;
             BasisDebug.LogWarning($"Avatar eye height was invalid. Set to default: {BasisLocalPlayer.DefaultAvatarEyeHeight}", BasisDebug.LogTag.Avatar);
         }
+        BasisLocalHeightInformation.ComputeRatios();
 
-        // ---- compute ratios safely ----
-        localPlayer.CurrentHeight.EyeRatioAvatarToAvatarDefaultScale = localPlayer.CurrentHeight.AvatarEyeHeight / Mathf.Max(0.0001f, BasisLocalPlayer.DefaultAvatarEyeHeight);
-
-        localPlayer.CurrentHeight.EyeRatioPlayerToDefaultScale = localPlayer.CurrentHeight.PlayerEyeHeight / Mathf.Max(0.0001f, BasisLocalPlayer.DefaultPlayerEyeHeight);
-
-        localPlayer.CurrentHeight.ArmRatioAvatarToAvatarDefaultScale = localPlayer.CurrentHeight.AvatarArmSpan / Mathf.Max(0.0001f, BasisLocalPlayer.DefaultAvatarArmSpan);
-
-        localPlayer.CurrentHeight.ArmRatioPlayerToDefaultScale = localPlayer.CurrentHeight.PlayerArmSpan / Mathf.Max(0.0001f, BasisLocalPlayer.DefaultPlayerArmSpan);
 
         // choose which ratios to apply for the selected mode
-        localPlayer.CurrentHeight.PickRatio(selectedHeightMode);
+        localPlayer.CurrentHeight.PickHeightMode(selectedHeightMode);
 
         BasisDebug.Log($"Final Player Eye Height (raw): {localPlayer.CurrentHeight.PlayerEyeHeight}, Avatar Eye Height (raw): {localPlayer.CurrentHeight.AvatarEyeHeight}", BasisDebug.LogTag.Avatar);
 
@@ -121,8 +114,6 @@ public static class BasisHeightDriver
     /// </remarks>
     public static void CapturePlayerHeight(BasisLocalPlayer localPlayer)
     {
-        var lockToInput = BasisLocalCameraDriver.Instance?.BasisLockToInput;
-
         if (SMModuleSitStand.IsSteatedMode)
         {
             BasisDebug.Log("Was Seated Mode taking standard size of 1.7m", BasisDebug.LogTag.Avatar);
@@ -130,6 +121,7 @@ public static class BasisHeightDriver
         }
         else
         {
+            var lockToInput = BasisLocalCameraDriver.Instance?.BasisLockToInput;
             if (lockToInput?.BasisInput != null)
             {
                 lockToInput.BasisInput.PollData();

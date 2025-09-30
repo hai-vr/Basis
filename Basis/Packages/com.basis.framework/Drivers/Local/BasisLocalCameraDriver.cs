@@ -276,6 +276,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void OnHeightChanged()
         {
+            BasisDebug.Log($"On Camera Scale Ratio Changed! {LocalPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Local);
             // the normal users scale is 1.6m; scale camera with selected avatar scale
             this.transform.localScale = Vector3.one * LocalPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
         }

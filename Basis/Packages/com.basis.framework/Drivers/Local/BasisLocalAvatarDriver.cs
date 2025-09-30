@@ -80,7 +80,7 @@ namespace Basis.Scripts.Drivers
         /// <param name="player">The local player instance.</param>
         public void InitialLocalCalibration(BasisLocalPlayer player)
         {
-            player.CurrentHeight.PickRatio(BasisSelectedHeightMode.EyeHeight);
+            player.CurrentHeight.PickHeightMode(BasisSelectedHeightMode.EyeHeight);
             Instance = this;
             BasisDebug.Log("InitialLocalCalibration");
             if (HasTPoseEvent == false)

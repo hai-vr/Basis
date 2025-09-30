@@ -434,7 +434,7 @@ namespace Basis.Scripts.Device_Management.Devices
                     Control.HasRigLayer = HasLayer;
                 }
 
-                BasisDebug.Log("Set Tracker State for tracker " + UniqueDeviceIdentifier + " with bone " + Control.name + " as " + Control.HasTracked.ToString() + " | " + Control.HasRigLayer.ToString(), BasisDebug.LogTag.Input);
+                BasisDebug.Log($"Set Tracker State for tracker {UniqueDeviceIdentifier} with bone {Control.name} as {Control.HasTracked.ToString()} | {Control.HasRigLayer.ToString()}", BasisDebug.LogTag.Input);
             }
             else
             {
@@ -571,9 +571,8 @@ namespace Basis.Scripts.Device_Management.Devices
         {
             UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(key);
             GameObject go = op.WaitForCompletion();
-            GameObject gameObject = GameObject.Instantiate(go);
+            GameObject gameObject = GameObject.Instantiate(go, this.transform);
             gameObject.name = CommonDeviceIdentifier;
-            gameObject.transform.parent = this.transform;
             if (gameObject.TryGetComponent(out BasisVisualTracker))
             {
                 BasisVisualTracker.Initialization(this);
