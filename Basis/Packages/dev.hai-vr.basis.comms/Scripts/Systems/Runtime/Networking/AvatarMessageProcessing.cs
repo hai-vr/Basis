@@ -89,12 +89,12 @@ namespace HVR.Basis.Comms
         {
             if (_isWearer)
             {
-                _transmitter.NetworkMessageSend(new[] { NewNet_WearerReady });
+                _transmitter.NetworkMessageSend(new[] { NewNet_WearerReady }, DeliveryMethod.ReliableSequenced);
                 _onResyncEveryoneRequested.Invoke();
             }
             else
             {
-                _transmitter.NetworkMessageSend(new[] { NewNet_RemoteRequestsInitialization });
+                _transmitter.NetworkMessageSend(new[] { NewNet_RemoteRequestsInitialization }, DeliveryMethod.ReliableSequenced, new[] { _wearerNetId });
             }
         }
 
