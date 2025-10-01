@@ -137,13 +137,27 @@ namespace SteamAudio
 
         [Header("Advanced Settings")]
         public bool EnableValidation = false;
-        public static SteamAudioSettings Singleton;
+        private static SteamAudioSettings singleton;
+
+        public static SteamAudioSettings Singleton
+        {
+            get
+            {
+                if (singleton == null)
+                {
+                    SteamAudioBoot.PreloadSettings();
+                }
+                return singleton;
+            }
+
+            set => singleton = value;
+        }
     }
 }
 public static class SteamAudioBoot
 {
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    static void PreloadSettings()
+    public static void PreloadSettings()
     {
         SteamAudioSettings.Singleton = Resources.Load<SteamAudioSettings>("SteamAudioSettings");
         if (SteamAudioSettings.Singleton == null)
