@@ -71,13 +71,13 @@ public class BasisNetworkHeadlessDriver : BasisNetworkBehaviour
             }
             if (Keyboard.current.f3Key.wasPressedThisFrame)
             {
-                SendPauseMovement();
-                BasisDebug.Log($"[HeadlessDriver] SendPauseMovement", BasisDebug.LogTag.Remote);
+                SendUnpauseMovement();
+                BasisDebug.Log($"[HeadlessDriver] SendUnpauseMovement", BasisDebug.LogTag.Remote);
             }
             if (Keyboard.current.f4Key.wasPressedThisFrame)
             {
-                SendUnpauseMovement();
-                BasisDebug.Log($"[HeadlessDriver] SendUnpauseMovement", BasisDebug.LogTag.Remote);
+                SendPauseMovement();
+                BasisDebug.Log($"[HeadlessDriver] SendPauseMovement", BasisDebug.LogTag.Remote);
             }
         }
     }
