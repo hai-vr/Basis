@@ -59,22 +59,22 @@ public class BasisNetworkHeadlessDriver : BasisNetworkBehaviour
     {
         if (IsLocalOwner())
         {
-            if (Keyboard.current.f7Key.wasPressedThisFrame)
+            if (Keyboard.current.f1Key.wasPressedThisFrame)
             {
                 SendJump();
                 BasisDebug.Log($"[HeadlessDriver] SendJump", BasisDebug.LogTag.Remote);
             }
-            if (Keyboard.current.f8Key.wasPressedThisFrame)
+            if (Keyboard.current.f2Key.wasPressedThisFrame)
             {
                 StopJump();
                 BasisDebug.Log($"[HeadlessDriver] StopJump", BasisDebug.LogTag.Remote);
             }
-            if (Keyboard.current.f9Key.wasPressedThisFrame)
+            if (Keyboard.current.f3Key.wasPressedThisFrame)
             {
                 SendPauseMovement();
                 BasisDebug.Log($"[HeadlessDriver] SendPauseMovement", BasisDebug.LogTag.Remote);
             }
-            if (Keyboard.current.f10Key.wasPressedThisFrame)
+            if (Keyboard.current.f4Key.wasPressedThisFrame)
             {
                 SendUnpauseMovement();
                 BasisDebug.Log($"[HeadlessDriver] SendUnpauseMovement", BasisDebug.LogTag.Remote);
