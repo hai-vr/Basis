@@ -116,14 +116,7 @@ namespace HVR.Basis.Comms
                 .Concat(definitionFiles.SelectMany(file => file.definitions))
                 .ToArray();
 
-            var smrToBlendshapeNames = new Dictionary<SkinnedMeshRenderer, List<string>>();
-            foreach (var smr in renderers)
-            {
-                var mesh = smr.sharedMesh;
-                smrToBlendshapeNames.Add(smr, Enumerable.Range(0, mesh.blendShapeCount)
-                    .Select(i => mesh.GetBlendShapeName(i))
-                    .ToList());
-            }
+            var smrToBlendshapeNames = ResolveSmrToBlendshapeNames(renderers);
 
             // All streamed avatar feature values are between 0 and 1.
             // If we want to stream values outside of this range (i.e. [-1; 1]), we need to collect all
@@ -203,6 +196,20 @@ namespace HVR.Basis.Comms
             {
                 acquisition.RegisterAddresses(_addessIdToBaseIndex.Keys.ToArray(), OnAddressUpdated);
             }
+        }
+
+        public static Dictionary<SkinnedMeshRenderer, List<string>> ResolveSmrToBlendshapeNames(SkinnedMeshRenderer[] smrs)
+        {
+            var smrToBlendshapeNames = new Dictionary<SkinnedMeshRenderer, List<string>>();
+            foreach (var smr in smrs)
+            {
+                var mesh = smr.sharedMesh;
+                smrToBlendshapeNames.Add(smr, Enumerable.Range(0, mesh.blendShapeCount)
+                    .Select(i => mesh.GetBlendShapeName(i))
+                    .ToList());
+            }
+
+            return smrToBlendshapeNames;
         }
 
         public void OnHVRReadyBothAvatarAndNetwork(bool isLocallyOwned)
@@ -291,7 +298,7 @@ namespace HVR.Basis.Comms
             }
         }
 
-        private ComputedActuatorTarget[] ComputeTargets(Dictionary<SkinnedMeshRenderer, List<string>> smrToBlendshapeNames, string[] definitionBlendshapes, bool onlyFirstMatch)
+        public static ComputedActuatorTarget[] ComputeTargets(Dictionary<SkinnedMeshRenderer, List<string>> smrToBlendshapeNames, string[] definitionBlendshapes, bool onlyFirstMatch)
         {
             var actuatorTargets = new List<ComputedActuatorTarget>();
             foreach (var pair in smrToBlendshapeNames)
@@ -340,7 +347,7 @@ namespace HVR.Basis.Comms
             public RequestedFeature RequestedFeature;
         }
 
-        private class ComputedActuatorTarget
+        public class ComputedActuatorTarget
         {
             public SkinnedMeshRenderer Renderer;
             public int[] BlendshapeIndices;
