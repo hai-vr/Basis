@@ -16,11 +16,6 @@ public abstract class BasisInputController : BasisInput
     /// </summary>
     public BasisCalibratedCoords HandFinal = new BasisCalibratedCoords();
 
-    /// <summary>
-    /// Raw unmodified hand coordinates before final calibration.
-    /// </summary>
-    public BasisCalibratedCoords HandRaw = new BasisCalibratedCoords();
-
     [Header("IK Offsets")]
     public Vector3 leftHandToIKRotationOffset;
     public Vector3 rightHandToIKRotationOffset;
@@ -38,7 +33,6 @@ public abstract class BasisInputController : BasisInput
     public Vector3 leftHandToIKPositionOffset = Vector3.zero;
     public Vector3 rightHandToIKPositionOffset = Vector3.zero;
     public bool UseIKPositionOffset = true;
-
     /// <summary>
     /// Applies IK-specific rotation offsets to the incoming hand rotation based on role.
     /// </summary>
@@ -95,9 +89,9 @@ public abstract class BasisInputController : BasisInput
     /// <summary>
     /// Computes the raycast origin/direction using the hand’s final transform and active offset.
     /// </summary>
-    public void ComputeRaycastDirection()
+    public void ComputeRaycastDirection(Vector3 Position)
     {
-        RaycastCoord.position = HandFinal.position;
+        RaycastCoord.position = Position;
         RaycastCoord.rotation = HandFinal.rotation * ActiveRaycastOffset;
     }
 }

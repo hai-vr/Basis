@@ -109,12 +109,12 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             result = SteamVR.instance.compositor.GetLastPoseForTrackedDeviceIndex(Device.deviceIndex, ref devicePose, ref deviceGamePose);
             if (result != EVRCompositorError.None)
             {
-            //    BasisDebug.LogError($"EVRCompositorError {result}");
+                //    BasisDebug.LogError($"EVRCompositorError {result}");
                 return;
             }
             if (deviceGamePose.bPoseIsValid == false)
             {
-             //   BasisDebug.LogError($"Pose was Not Valid!");
+                //   BasisDebug.LogError($"Pose was Not Valid!");
                 return;
             }
             DeviceLocalSpace = new SteamVR_Utils.RigidTransform(deviceGamePose.mDeviceToAbsoluteTracking);
@@ -162,24 +162,37 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             float avatarScale = BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
 
             int idxWrist = SteamVR_Skeleton_JointIndexes.wrist;
+          //  int idxIndex = SteamVR_Skeleton_JointIndexes.indexProximal;
 
             Vector3 wristLocalPos = BonePositions[idxWrist];
             Quaternion wristLocalRot = BoneRotations[idxWrist];
+
+            // Vector3 IndexLocalPos = BonePositions[idxIndex];
+            // Quaternion IndexLocalRot = BoneRotations[idxIndex];
 
             // Rotation offset (per hand)
             Quaternion rotOffset = Quaternion.Euler(isLeft ? leftHandToIKRotationOffset : rightHandToIKRotationOffset);
 
             // Scale-sensitive bits
             Vector3 ScaledLocalPose = UnscaledDeviceCoord.position * avatarScale;
+
             Vector3 WristLocalPose = wristLocalPos * avatarScale;
+            // Vector3 IndexLocalPose = IndexLocalPos * avatarScale;
 
             // Core composition (existing math)
             // Position: move from the device pose back to the wrist by the wrist's local offset
             Vector3 wristWorldPos = ScaledLocalPose - (UnscaledDeviceCoord.rotation * WristLocalPose);
 
+            // Position: move from the device pose back to the Index by the Index's local offset
+            // Vector3 indexWorldPos = ScaledLocalPose - (UnscaledDeviceCoord.rotation * IndexLocalPose);
+
             // Rotation: deviceRot * wristLocalRot (then apply extra offset)
             Quaternion baseWristWorldRot = UnscaledDeviceCoord.rotation * wristLocalRot;
             Quaternion wristWorldRot = baseWristWorldRot * rotOffset;
+
+            // Rotation: deviceRot * indexLocalRot (then apply extra offset)
+            // Quaternion baseIndexWorldRot = UnscaledDeviceCoord.rotation * IndexLocalRot;
+            // Quaternion IndexWorldRot = baseIndexWorldRot * rotOffset;
 
             Vector3 posOffsetLocal = isLeft ? leftHandToIKPositionOffset : rightHandToIKPositionOffset;
             if (UseIKPositionOffset)
@@ -197,9 +210,9 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             UpdateRaycastOffset();
             ControlOnlyAsHand();
-            ComputeRaycastDirection();
+            ComputeRaycastDirection(wristWorldPos + (UnscaledDeviceCoord.rotation * (RaycastOffset * avatarScale)));
         }
-
+        public Vector3 RaycastOffset = new Vector3(0,0.05f,0.05f);
         public override void ShowTrackedVisual()
         {
             ShowTrackedVisualDefaultImplementation();

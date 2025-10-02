@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Common;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections.Generic;
 using Unity.Mathematics;
@@ -10,6 +11,7 @@ public class BasisOpenXRHandInput : BasisInputController
 {
     public Vector3 LeftHandPalmCorrection;
     public Vector3 RightHandPalmCorrection;
+
     public InputActionProperty DeviceActionPosition;
     public InputActionProperty DeviceActionRotation;
     public InputActionProperty Trigger;
@@ -19,19 +21,27 @@ public class BasisOpenXRHandInput : BasisInputController
     public InputActionProperty MenuButton;
     public InputActionProperty Primary2DAxis;
     public InputActionProperty Secondary2DAxis;
-    public UnityEngine.XR.InputDevice Device;
-    public const float TriggerDownAmount = 0.5f;
     public InputActionProperty PalmPoseActionPosition;
     public InputActionProperty PalmPoseActionRotation;
+    public InputActionProperty pointerPosition;
+    public InputActionProperty pointerRotation;
+
+    public UnityEngine.XR.InputDevice Device;
+    public const float TriggerDownAmount = 0.5f;
+
+    /// <summary>
+    /// Raw unmodified hand coordinates before final calibration.
+    /// </summary>
+    public BasisCalibratedCoords HandRaw = new BasisCalibratedCoords();
     public void Initialize(string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole)
     {
         HandBiasSplay = 0;
         leftHandToIKRotationOffset = new Vector3(0, 90, -30);
-        rightHandToIKRotationOffset = new Vector3(0, -90,30);
+        rightHandToIKRotationOffset = new Vector3(0, -90, 30);
 
         LeftHandPalmCorrection = new Vector3(-90, 90, -30);
 
-        RightHandPalmCorrection = new Vector3(-90,90,-150);
+        RightHandPalmCorrection = new Vector3(-90, 90, -150);
 
         InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole);
         string devicePath = basisBoneTrackedRole == BasisBoneTrackedRole.LeftHand ? "<XRController>{LeftHand}" : "<XRController>{RightHand}";
@@ -49,15 +59,25 @@ public class BasisOpenXRHandInput : BasisInputController
         MenuButton = new InputActionProperty(new InputAction(devicePath + "/menuButton", InputActionType.Button, devicePath + "/menuButton", expectedControlType: "Button"));
         Primary2DAxis = new InputActionProperty(new InputAction(devicePath + "/primary2DAxis", InputActionType.Value, devicePath + "/primary2DAxis", expectedControlType: "Vector2"));
         Secondary2DAxis = new InputActionProperty(new InputAction(devicePath + "/secondary2DAxis", InputActionType.Value, devicePath + "/secondary2DAxis", expectedControlType: "Vector2"));
+
         DeviceActionPosition = new InputActionProperty(new InputAction($"{devicePath}/devicePosition", InputActionType.Value, $"{devicePath}/devicePosition", expectedControlType: "Vector3"));
         DeviceActionRotation = new InputActionProperty(new InputAction($"{devicePath}/deviceRotation", InputActionType.Value, $"{devicePath}/deviceRotation", expectedControlType: "Quaternion"));
 
         PalmPoseActionPosition = new InputActionProperty(new InputAction($"{devicePosePath}/PosePosition", InputActionType.Value, $"{devicePosePath}/palmPosition", expectedControlType: "Vector3"));
         PalmPoseActionRotation = new InputActionProperty(new InputAction($"{devicePosePath}/PoseRotation", InputActionType.Value, $"{devicePosePath}/palmRotation", expectedControlType: "Quaternion"));
+
+        pointerPosition = new InputActionProperty(new InputAction($"{devicePath}/pointerPosition", InputActionType.Value, $"{devicePath}/pointerPosition", expectedControlType: "Vector3"));
+        pointerRotation = new InputActionProperty(new InputAction($"{devicePath}/pointerRotation", InputActionType.Value, $"{devicePath}/pointerRotation", expectedControlType: "Quaternion"));
+
         PalmPoseActionPosition.action.Enable();
         PalmPoseActionRotation.action.Enable();
+
         DeviceActionPosition.action.Enable();
         DeviceActionRotation.action.Enable();
+
+        pointerPosition.action.Enable();
+        pointerRotation.action.Enable();
+
         EnableInputActions();
     }
     private void EnableInputActions()
@@ -107,7 +127,7 @@ public class BasisOpenXRHandInput : BasisInputController
         ControlOnlyAsHand();
         UpdateRaycastOffset();
         UpdatePlayerControl();
-        ComputeRaycastDirection();
+        ComputeRaycastDirection(pointerPosition.action.ReadValue<Vector3>());
     }
     /// <summary>
     /// meta/ unity need to pull something out of there ass here,
