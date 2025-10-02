@@ -81,6 +81,8 @@ namespace Basis.Scripts.Drivers
             SetupAvatarLayers(Player, BasisLayerMapper.RemoteAvatarLayer);
             PutAvatarIntoTPose();
 
+            player.BasisAvatar.HumanScale = player.BasisAvatar.Animator.humanScale;
+
             AvatarInitalScale = Player.BasisAvatar.transform.localScale;
 
             // Auto-detect bone refs and record TPose

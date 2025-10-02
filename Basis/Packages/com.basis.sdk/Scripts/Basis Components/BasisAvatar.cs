@@ -118,5 +118,11 @@ namespace Basis.Scripts.BasisSdk
         /// Processing options used when the avatar is processed. This is always null after the avatar is processed.
         /// </summary>
         public BasisProcessingAvatarOptions ProcessingAvatarOptions;
+
+        /// <summary>
+        /// the animators humanScale, Cached here to stop requesting it from the animator per frame.
+        /// </summary>
+
+        public float HumanScale = 1;
     }
 }

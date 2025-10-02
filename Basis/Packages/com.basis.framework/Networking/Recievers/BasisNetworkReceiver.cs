@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -96,21 +97,38 @@ namespace Basis.Scripts.Networking.Receivers
             PumpQueueToStaging();
 
             // 2) Ensure we have a valid interpolation window (First -> Last)
+
             BuildOrAdvanceWindow();
             HasBufferHolds = BufferHolder.HasFirst && BufferHolder.HasLast;
 
             // 3) If we have a window, compute interpolation fraction and feed the compute phase
             if (HasBufferHolds)
             {
-                ComputeInterpolationFraction(unscaledDeltaTime);
+                var first = BufferHolder.First;
+                var last = BufferHolder.Last;
+
+                double windowDuration =
+                    last.SecondsInterval > 0 ? last.SecondsInterval :
+                    first.SecondsInterval > 0 ? first.SecondsInterval :
+                    (1.0 / 60.0);
+
+                if (windowDuration <= 1e-6)
+                {
+                    windowDuration = 1e-3;
+                }
+
+                double step = Math.Max(unscaledDeltaTime, 0.0);
+                interpolationTime += (float)(step / windowDuration);
+
+                if (interpolationTime > 1f) interpolationTime = 1f;
+                if (interpolationTime < 0f) interpolationTime = 0f;
+
+                //  Player.
 
                 if (Player.BasisAvatar != null && Player.BasisAvatar.Animator != null)
                 {
-                    var first = BufferHolder.First;
-                    var last = BufferHolder.Last;
-
                     BasisRemoteNetworkDriver.SetInputs(
-                        playerId, Player.BasisAvatar.Animator.humanScale,
+                        playerId, Player.BasisAvatar.HumanScale,
                         first.Position, last.Position,
                         first.Scale, last.Scale,
                         first.Rotation, last.Rotation,
@@ -120,52 +138,42 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             }
         }
-
+        public bool ApplyScaledTransform = true;
+        public float3 SavedScale = float3.zero;
         /// <summary>
         /// Main-thread application step. Pulls posed outputs from the driver and applies
         /// body position/rotation/muscles to the avatar via <see cref="PoseHandler"/>.
         /// </summary>
+        [BurstCompile]
         public void Apply()
         {
-            if (HasBufferHolds)
+            if (HasBufferHolds && BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out float3 applyingScale, out var applyingRotation, out float3 scaledBody, Muscles))
             {
-                if (BasisRemoteNetworkDriver.GetOutputs_NoAlloc(
-                        playerId,
-                        out var outPos,
-                        out float3 applyingScale,
-                        out var applyingRotation,
-                        out float3 scaledBody,
-                        Muscles))
+                HumanPose.bodyPosition = scaledBody;
+                HumanPose.bodyRotation = applyingRotation;
+
+                // Copy all 95 muscles
+                Memcpy95(Muscles, HumanPose.muscles);
+
+                // Overlay eyes/mouth block in one shot
+                unsafe
                 {
-                    HumanPose.bodyPosition = scaledBody;
-                    HumanPose.bodyRotation = applyingRotation;
-
-                    // Copy all 95 muscles
-                    Memcpy95(Muscles, HumanPose.muscles);
-
-                    // Overlay eyes/mouth block in one shot
-                    unsafe
+                    fixed (float* pDst = HumanPose.muscles)
+                    fixed (float* pSrc = EyesAndMouth)
                     {
-                        fixed (float* pDst = HumanPose.muscles)
-                        fixed (float* pSrc = EyesAndMouth)
-                        {
-                            UnsafeUtility.MemCpy(
-                                pDst + (EyeAndMouthSize / sizeof(float)),
-                                pSrc,
-                                EyeAndMountCountInBytes
-                            );
-                        }
+                        UnsafeUtility.MemCpy(pDst + EyesAndMouthOffset, pSrc, EyeAndMountCountInBytes);
                     }
-
+                }
+                if (ApplyScaledTransform || applyingScale.Equals(SavedScale))
+                {
                     // Scale must be applied on transform
                     Player.AvatarTransform.localScale = applyingScale;
-
-                    // HumanPoseHandler must stay on main thread
-                    PoseHandler.SetHumanPose(ref HumanPose);
+                    SavedScale = applyingScale;
                 }
+                // HumanPoseHandler must stay on main thread
+                PoseHandler.SetHumanPose(ref HumanPose);
             }
         }
-
         /// <summary>
         /// Copies 95 floats from <paramref name="src"/> to <paramref name="dst"/> using a fast memcpy.
         /// </summary>
@@ -210,6 +218,7 @@ namespace Basis.Scripts.Networking.Receivers
             _staged.Clear();
             BufferHolder.ClearAndRelease();
             interpolationTime = 0f;
+            ApplyScaledTransform = true;
         }
 
         /// <summary>
@@ -234,11 +243,7 @@ namespace Basis.Scripts.Networking.Receivers
 
                 if (isSameAvatar)
                 {
-                    NetworkBehaviours[message.Key].OnNetworkMessageReceived(
-                        playerIdMessage.playerID,
-                        Remote.payload,
-                        message.Value.Method
-                    );
+                    NetworkBehaviours[message.Key].OnNetworkMessageReceived(playerIdMessage.playerID, Remote.payload, message.Value.Method);
                     keysToRemove.Add(message.Key);
                 }
                 else
@@ -256,6 +261,7 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 NextMessages.Remove(key);
             }
+            ApplyScaledTransform = true;
         }
 
         /// <summary>
@@ -326,15 +332,12 @@ namespace Basis.Scripts.Networking.Receivers
         /// <summary>
         /// Receives a request to switch the remote player's avatar and triggers creation.
         /// </summary>
-        /// <param name="ServerAvatarChangeMessage">Avatar change payload from the server.</param>
-        public async void ReceiveAvatarChangeRequest(ServerAvatarChangeMessage ServerAvatarChangeMessage)
+        /// <param name="SACM">Avatar change payload from the server.</param>
+        public async void ReceiveAvatarChangeRequest(ServerAvatarChangeMessage SACM)
         {
-            RemotePlayer.CACM = ServerAvatarChangeMessage.clientAvatarChangeMessage;
-            BasisLoadableBundle BasisLoadableBundle =
-                BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(
-                    ServerAvatarChangeMessage.clientAvatarChangeMessage.byteArray);
-
-            await RemotePlayer.CreateAvatar(ServerAvatarChangeMessage.clientAvatarChangeMessage.loadMode, BasisLoadableBundle);
+            RemotePlayer.CACM = SACM.clientAvatarChangeMessage;
+            BasisLoadableBundle Bundle = BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(SACM.clientAvatarChangeMessage.byteArray);
+            await RemotePlayer.CreateAvatar(SACM.clientAvatarChangeMessage.loadMode, Bundle);
         }
 
         /// <summary>
@@ -385,7 +388,9 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             if (!BufferHolder.HasFirst || !BufferHolder.HasLast)
+            {
                 return;
+            }
 
             // Advance window while we've consumed it and have staged frames
             while (interpolationTime >= 1f && _staged.Count != 0)
@@ -405,7 +410,9 @@ namespace Basis.Scripts.Networking.Receivers
                 TrySetLastFromStaging();
 
                 if (!(BufferHolder.HasFirst && BufferHolder.HasLast))
+                {
                     break;
+                }
             }
 
             // If staging backlog is large, drop old frames to reduce latency
@@ -443,7 +450,10 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         private void TrySetLastFromStaging()
         {
-            if (!BufferHolder.HasFirst) return;
+            if (!BufferHolder.HasFirst)
+            {
+                return;
+            }
 
             while (_staged.Count > 0)
             {
@@ -462,37 +472,14 @@ namespace Basis.Scripts.Networking.Receivers
         }
 
         /// <summary>
-        /// Updates <see cref="interpolationTime"/> using the effective window duration.
-        /// Falls back to ~60Hz if per-frame intervals are unavailable.
-        /// </summary>
-        private void ComputeInterpolationFraction(float unscaledDeltaTime)
-        {
-            var first = BufferHolder.First;
-            var last = BufferHolder.Last;
-
-            double windowDuration =
-                last.SecondsInterval > 0 ? last.SecondsInterval :
-                first.SecondsInterval > 0 ? first.SecondsInterval :
-                (1.0 / 60.0);
-
-            if (windowDuration <= 1e-6) windowDuration = 1e-3;
-
-            double step = Math.Max(unscaledDeltaTime, 0.0);
-            interpolationTime += (float)(step / windowDuration);
-            if (interpolationTime > 1f) interpolationTime = 1f;
-            if (interpolationTime < 0f) interpolationTime = 0f;
-        }
-
-        /// <summary>
         /// Drops the oldest <paramref name="count"/> staged frames and returns them to the pool.
         /// </summary>
         private void DropOldestFromStaging(int count)
         {
             count = Mathf.Min(count, _staged.Count);
-            for (int i = 0; i < count; i++)
+            for (int Index = 0; Index < count; Index++)
             {
-                var b = _staged[i];
-                BasisAvatarBufferPool.Release(b);
+                BasisAvatarBufferPool.Release(_staged[Index]);
             }
             _staged.RemoveRange(0, count);
         }

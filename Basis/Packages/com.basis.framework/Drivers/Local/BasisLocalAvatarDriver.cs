@@ -116,6 +116,7 @@ namespace Basis.Scripts.Drivers
                 player.BasisAvatar.Animator.runtimeAnimatorController = RAC;
             }
             player.BasisAvatar.Animator.applyRootMotion = false;
+            player.BasisAvatar.HumanScale = player.BasisAvatar.Animator.humanScale;
 
             // Enter T-Pose for calibration
             PutAvatarIntoTPose();
