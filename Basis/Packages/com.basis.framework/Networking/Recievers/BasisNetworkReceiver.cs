@@ -169,6 +169,7 @@ namespace Basis.Scripts.Networking.Receivers
                     // Scale must be applied on transform
                     Player.AvatarTransform.localScale = applyingScale;
                     SavedScale = applyingScale;
+                    ApplyScaledTransform = false;
                 }
                 // HumanPoseHandler must stay on main thread
                 PoseHandler.SetHumanPose(ref HumanPose);
