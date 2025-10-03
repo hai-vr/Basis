@@ -2199,7 +2199,7 @@ MonoBehaviour:
     blendshapes:
     - MouthCornerPullLeft
     onlyFirstMatch: 0
-  - address: FT/MouthCornerSlantRight
+  - address: FT/v2/MouthCornerSlantRight
     inStart: 0
     inEnd: 1
     outStart: 0
@@ -2232,7 +2232,7 @@ MonoBehaviour:
     blendshapes:
     - MouthCornerSlantRight
     onlyFirstMatch: 0
-  - address: FT/MouthCornerSlantLeft
+  - address: FT/v2/MouthCornerSlantLeft
     inStart: 0
     inEnd: 1
     outStart: 0

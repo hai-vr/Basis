@@ -3,19 +3,21 @@ using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
+    /// This is a developer class designed to flood face tracking data in order to test complex networking scenarios.
+    [AddComponentMenu("HVR.Basis/Comms/Assist/Random Acquisition")]
     public class RandomAcquisition : MonoBehaviour
     {
         public float updatesPerSecond = 30;
 
         private AcquisitionService _acquisiton;
-        private Dictionary<string, AcquisitionForAddress> _dict;
+        private Dictionary<int, AcquisitionForAddress> _dict;
         private float _time;
 
         private void Awake()
         {
             _acquisiton = AcquisitionService.SceneInstance;
             var field = typeof(AcquisitionService).GetField("_addressUpdated", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            _dict = (Dictionary<string, AcquisitionForAddress>)field.GetValue(_acquisiton);
+            _dict = (Dictionary<int, AcquisitionForAddress>)field.GetValue(_acquisiton);
 
             _time = float.MinValue;
         }

@@ -89,6 +89,7 @@ namespace HVR.Basis.Comms
     public class RequestedFeature
     {
         public string identifier;
+        public int address;
         public float lower;
         public float upper;
     }

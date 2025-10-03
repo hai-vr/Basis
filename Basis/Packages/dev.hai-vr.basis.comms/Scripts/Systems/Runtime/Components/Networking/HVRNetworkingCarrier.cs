@@ -6,6 +6,7 @@ using UnityEngine;
 namespace HVR.Basis.Comms
 {
     [AddComponentMenu("HVR.Basis/Comms/Internal/HVR Networking Carrier")]
+    [HelpURL("https://docs.hai-vr.dev/docs/basis/avatar-customization")]
     public class HVRNetworkingCarrier : BasisAvatarMonoBehaviour, IHVRTransmitter, IHVRInitializable
     {
         private bool _networkReady;

@@ -15,22 +15,23 @@ namespace HVR.Osushi
     internal static class OsushiUtil
     {
         private static string[] paths = {
-            "BrowInnerUpLeft", "BrowInnerUpRight", "BrowLowererLeft", "BrowLowererRight", "BrowOuterUpLeft",
-            "BrowOuterUpRight", "BrowPinchLeft", "BrowPinchRight", "CheekPuffSuckLeft", "CheekPuffSuckRight",
-            "CheekSquintLeft", "CheekSquintRight", "EyeLeftX", "EyeLidLeft", "EyeLidRight", "EyeRightX",
-            "EyeSquintLeft", "EyeSquintRight", "EyeY", "JawClench", "JawMandibleRaise", "JawOpen", "JawX", "JawZ",
-            "LipFunnelLowerLeft", "LipFunnelLowerRight", "LipFunnelUpperLeft", "LipFunnelUpperRight",
-            "LipPuckerLowerLeft", "LipPuckerLowerRight", "LipPuckerUpperLeft", "LipPuckerUpperRight",
-            "LipSuckCornerLeft", "LipSuckCornerRight", "LipSuckLowerLeft", "LipSuckLowerRight", "LipSuckUpperLeft",
-            "LipSuckUpperRight", "MouthClosed", "MouthCornerPullLeft", "MouthCornerPullRight", "MouthDimpleLeft",
-            "MouthDimpleRight", "MouthFrownLeft", "MouthFrownRight", "MouthLowerDownLeft", "MouthLowerDownRight",
-            "MouthLowerX", "MouthPressLeft", "MouthPressRight", "MouthRaiserLower", "MouthRaiserUpper",
+            "BrowDownLeft", "BrowDownRight", "BrowInnerUp", "BrowInnerUpLeft", "BrowInnerUpRight", "BrowLowererLeft",
+            "BrowLowererRight", "BrowOuterUpLeft", "BrowOuterUpRight", "BrowPinchLeft", "BrowPinchRight",
+            "CheekPuffSuck", "CheekPuffSuckLeft", "CheekPuffSuckRight", "CheekSquintLeft", "CheekSquintRight",
+            "EyeLeftX", "EyeLidLeft", "EyeLidRight", "EyeRightX", "EyeSquintLeft", "EyeSquintRight", "EyeY",
+            "JawClench", "JawMandibleRaise", "JawOpen", "JawX", "JawZ", "LipFunnel", "LipFunnelLowerLeft",
+            "LipFunnelLowerRight", "LipFunnelUpperLeft", "LipFunnelUpperRight", "LipPucker", "LipPuckerLowerLeft",
+            "LipPuckerLowerRight", "LipPuckerUpperLeft", "LipPuckerUpperRight", "LipSuckCornerLeft",
+            "LipSuckCornerRight", "LipSuckLower", "LipSuckLowerLeft", "LipSuckLowerRight", "LipSuckUpper",
+            "LipSuckUpperLeft", "LipSuckUpperRight", "MouthClosed", "MouthCornerPullLeft", "MouthCornerPullRight",
+            "MouthCornerSlantLeft", "MouthCornerSlantRight", "MouthDimpleLeft", "MouthDimpleRight", "MouthFrownLeft",
+            "MouthFrownRight", "MouthLowerDownLeft", "MouthLowerDownRight", "MouthLowerX", "MouthPressLeft",
+            "MouthPressRight", "MouthRaiserLower", "MouthRaiserUpper", "MouthSmileLeft", "MouthSmileRight",
             "MouthStretchLeft", "MouthStretchRight", "MouthTightenerLeft", "MouthTightenerRight",
             "MouthUpperDeepenLeft", "MouthUpperDeepenRight", "MouthUpperUpLeft", "MouthUpperUpRight", "MouthUpperX",
             "NasalConstrictLeft", "NasalConstrictRight", "NasalDilationLeft", "NasalDilationRight", "NeckFlexLeft",
             "NeckFlexRight", "NoseSneerLeft", "NoseSneerRight", "SoftPalateClose", "ThroatSwallow", "TongueArchY",
             "TongueOut", "TongueRoll", "TongueShape", "TongueTwistLeft", "TongueTwistRight", "TongueX", "TongueY",
-            "CheekPuffSuck", "MouthSmileLeft", "MouthSmileRight", "BrowDownLeft", "BrowDownRight"
         };
 
         internal static OsushiNode CreateFaceTrackingNodes()

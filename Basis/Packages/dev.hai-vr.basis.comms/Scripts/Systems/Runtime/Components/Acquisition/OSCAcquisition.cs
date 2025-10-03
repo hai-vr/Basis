@@ -55,7 +55,7 @@ namespace HVR.Basis.Comms
         {
             if (!isActiveAndEnabled) return;
 
-            acquisitionService.Submit(address, value);
+            acquisitionService.Submit(HVRAddress.AddressToId(address), value);
         }
     }
 }
