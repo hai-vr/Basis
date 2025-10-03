@@ -138,8 +138,6 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             }
         }
-        public bool ApplyScaledTransform = true;
-        public float3 SavedScale = float3.zero;
         /// <summary>
         /// Main-thread application step. Pulls posed outputs from the driver and applies
         /// body position/rotation/muscles to the avatar via <see cref="PoseHandler"/>.
@@ -164,13 +162,8 @@ namespace Basis.Scripts.Networking.Receivers
                         UnsafeUtility.MemCpy(pDst + EyesAndMouthOffset, pSrc, EyeAndMountCountInBytes);
                     }
                 }
-                if (ApplyScaledTransform || applyingScale.Equals(SavedScale))
-                {
-                    // Scale must be applied on transform
-                    Player.AvatarTransform.localScale = applyingScale;
-                    SavedScale = applyingScale;
-                    ApplyScaledTransform = false;
-                }
+                // Scale must be applied on transform
+                Player.AvatarTransform.localScale = applyingScale;
                 // HumanPoseHandler must stay on main thread
                 PoseHandler.SetHumanPose(ref HumanPose);
             }
@@ -219,7 +212,6 @@ namespace Basis.Scripts.Networking.Receivers
             _staged.Clear();
             BufferHolder.ClearAndRelease();
             interpolationTime = 0f;
-            ApplyScaledTransform = true;
         }
 
         /// <summary>
@@ -262,7 +254,6 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 NextMessages.Remove(key);
             }
-            ApplyScaledTransform = true;
         }
 
         /// <summary>
