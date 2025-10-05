@@ -408,15 +408,6 @@ namespace Basis.Scripts.BasisSdk.Players
                 1,
                 BasisLocalMicrophoneDriver.processBufferArray.Length);
         }
-
-        /// <summary>
-        /// Per-frame late-update hook for facial blink simulation.
-        /// </summary>
-        public void SimulateOnLateUpdate()
-        {
-            FacialBlinkDriver.Simulate();
-        }
-
         /// <summary>
         /// Main per-frame simulation entry point, executed on render/update.
         /// Performs movement, bone simulation, T-pose driving, IK targets, animator evaluation, hands,

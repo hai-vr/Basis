@@ -43,10 +43,15 @@ public static class BasisRemoteNetworkDriver
     /// <summary>Initialize the driver with a fixed capacity of 1024. Must be called before SetInputs/Compute/Apply/GetOutputs.</summary>
     public static void Initialize(int muscleCount, Allocator allocator = Allocator.Persistent)
     {
-        if (_initialized) return;
+        if (_initialized)
+        {
+            return;
+        }
 
         if (muscleCount <= 0)
+        {
             throw new ArgumentOutOfRangeException(nameof(muscleCount));
+        }
 
         _allocator = allocator;
         _muscleCount = muscleCount;
@@ -86,10 +91,16 @@ public static class BasisRemoteNetworkDriver
     /// <summary>Dispose all native allocations. Call on shutdown/domain unload.</summary>
     public static void Shutdown()
     {
-        if (!_initialized) return;
+        if (!_initialized)
+        {
+            return;
+        }
 
         // Make sure no jobs are still using our arrays
-        if (!oneEuroJob.IsCompleted) oneEuroJob.Complete();
+        if (!oneEuroJob.IsCompleted)
+        {
+            oneEuroJob.Complete();
+        }
 
         DisposeAll();
         _activeCount = 0;
@@ -98,11 +109,12 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>Write inputs for a given index (0..FixedCapacity-1) for this frame.</summary>
-    public static void SetInputs( int index, float humanScale,float3 prevPos, float3 targetPos, float3 prevScale, float3 targetScale,
-        quaternion prevRot, quaternion targetRot, float interpolationTime, NativeArray<float> prevMuscles,NativeArray<float> targetMuscles)
+    public static void SetInputs( int index, float humanScale, float3 prevPos, float3 targetPos, float3 prevScale, float3 targetScale, quaternion prevRot, quaternion targetRot, float interpolationTime, NativeArray<float> prevMuscles, NativeArray<float> targetMuscles)
     {
         if ((uint)index >= FixedCapacity)
+        {
             throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
+        }
 
         _humanScales[index] = humanScale;
         _prevPositions[index] = prevPos;
@@ -119,7 +131,10 @@ public static class BasisRemoteNetworkDriver
         FastCopyMuscles(targetMuscles, 0, _targetMuscles, baseOffset, _muscleCount);
 
         // Advance active count if needed
-        if (index + 1 > _activeCount) _activeCount = index + 1;
+        if (index + 1 > _activeCount)
+        {
+            _activeCount = index + 1;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -134,7 +149,10 @@ public static class BasisRemoteNetworkDriver
     public static void Compute()
     {
         int num = _activeCount;
-        if (num <= 0) return;
+        if (num <= 0)
+        {
+            return;
+        }
 
         var avatarJob = new UpdateAllAvatarsJob
         {
@@ -187,14 +205,127 @@ public static class BasisRemoteNetworkDriver
         oneEuroJob = JobHandle.CombineDependencies(euroJobHandle, scaledBodyJob);
     }
 
+    /// <summary>Completes all scheduled work for this frame.</summary>
+    public static void Apply()
+    {
+        if (!_initialized)
+        {
+            return;
+        }
+
+        oneEuroJob.Complete(); // also fences scaledBody + transform jobs via combined deps
+    }
+
+    /// <summary>Read back the computed outputs for an index after Apply().</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool GetOutputs_NoAlloc(int index,out float3 outPos,out float3 outScale,out quaternion outRot,out float3 BodyPosition,float[] outMuscles)
+    {
+        // minimal guards; no allocations
+        if ((uint)index >= FixedCapacity)
+        {
+            outPos = Vector3.zero;
+            outScale = Vector3.one;
+            outRot = Quaternion.identity;
+            BodyPosition = Vector3.zero;
+            outMuscles = default;
+            return false;
+        }
+        if (outMuscles == null || outMuscles.Length != _muscleCount)
+        {
+            outPos = Vector3.zero;
+            outScale = Vector3.one;
+            outRot = Quaternion.identity;
+            BodyPosition = Vector3.zero;
+            outMuscles = default;
+            return false;
+        }
+
+        outPos = _outPositions[index];
+        outScale = _outScales[index];
+        outRot = _outRotations[index];
+
+        int baseOffset = index * _muscleCount;
+
+        unsafe
+        {
+            // source: NativeArray<float> (contiguous)
+            float* src = (float*)euroValuesOutput.GetUnsafeReadOnlyPtr() + baseOffset;
+
+            // dest: managed float[] pinned just for the copy
+            fixed (float* dst = outMuscles)
+            {
+                UnsafeUtility.MemCpy(dst, src, _muscleCount * sizeof(float));
+            }
+        }
+        BodyPosition = _scaledBodyPositions[index];
+        return true;
+    }
+
+    static void AllocateAll(int capacity)
+    {
+        // Transform data
+        _prevPositions = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _targetPositions = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _prevScales = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _targetScales = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _prevRotations = new NativeArray<quaternion>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _targetRotations = new NativeArray<quaternion>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _interpolationTimes = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.ClearMemory);
+
+        _outPositions = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _outScales = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _outRotations = new NativeArray<quaternion>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+
+        // New: human scale + scaled body
+        _humanScales = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _scaledBodyPositions = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+
+        // Muscles (flattened)
+        int flat = capacity * _muscleCount;
+        _prevMuscles = new NativeArray<float>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
+        _targetMuscles = new NativeArray<float>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
+        _outMuscles = new NativeArray<float>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
+
+        // Euro filter buffers (flattened)
+        euroValuesOutput = new NativeArray<float>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
+        positionFilters = new NativeArray<float2>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
+        derivativeFilters = new NativeArray<float2>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
+    }
+
+    static void DisposeAll()
+    {
+        // Dispose safely
+        if (_prevPositions.IsCreated) _prevPositions.Dispose();
+        if (_targetPositions.IsCreated) _targetPositions.Dispose();
+        if (_prevScales.IsCreated) _prevScales.Dispose();
+        if (_targetScales.IsCreated) _targetScales.Dispose();
+        if (_prevRotations.IsCreated) _prevRotations.Dispose();
+        if (_targetRotations.IsCreated) _targetRotations.Dispose();
+        if (_interpolationTimes.IsCreated) _interpolationTimes.Dispose();
+
+        if (_outPositions.IsCreated) _outPositions.Dispose();
+        if (_outScales.IsCreated) _outScales.Dispose();
+        if (_outRotations.IsCreated) _outRotations.Dispose();
+
+        if (_humanScales.IsCreated) _humanScales.Dispose();
+        if (_scaledBodyPositions.IsCreated) _scaledBodyPositions.Dispose();
+
+        if (_prevMuscles.IsCreated) _prevMuscles.Dispose();
+        if (_targetMuscles.IsCreated) _targetMuscles.Dispose();
+        if (_outMuscles.IsCreated) _outMuscles.Dispose();
+
+        if (euroValuesOutput.IsCreated) euroValuesOutput.Dispose();
+        if (positionFilters.IsCreated) positionFilters.Dispose();
+        if (derivativeFilters.IsCreated) derivativeFilters.Dispose();
+    }
     /*
-     * BasicOneEuroFilterParallelJob.cs
-     * Author: Dario Mazzanti (dario.mazzanti@iit.it), 2016
-     *
-     * This Unity C# utility is based on the C++ implementation of the OneEuroFilter algorithm by Nicolas Roussel (http://www.lifl.fr/~casiez/1euro/OneEuroFilter.cc)
-     * More info on the 1€ filter by Géry Casiez at http://www.lifl.fr/~casiez/1euro/
-     *
-     */
+ * BasicOneEuroFilterParallelJob.cs
+ * Author: Dario Mazzanti (dario.mazzanti@iit.it), 2016
+ *
+ * This Unity C# utility is based on the C++ implementation of the OneEuroFilter algorithm by Nicolas Roussel (http://www.lifl.fr/~casiez/1euro/OneEuroFilter.cc)
+ * More info on the 1€ filter by Géry Casiez at http://www.lifl.fr/~casiez/1euro/
+ *
+ */
     [BurstCompile]
     public struct BasisOneEuroFilterParallelJob : IJobParallelFor
     {
@@ -309,7 +440,7 @@ public static class BasisRemoteNetworkDriver
         {
             int playerIndex = index / MuscleCountPerAvatar;
             float t = InterpolationTimes[playerIndex];
-            OutputMuscles[index] = math.lerp( PreviousMuscles[index], TargetMuscles[index],t);
+            OutputMuscles[index] = math.lerp(PreviousMuscles[index], TargetMuscles[index], t);
         }
     }
 
@@ -323,14 +454,14 @@ public static class BasisRemoteNetworkDriver
 
         [WriteOnly] public NativeArray<float3> ScaledBodyPositions;
 
-        public void Execute(int i)
+        public void Execute(int Index)
         {
             const float eps = 1e-6f;
 
-            float3 applyScale = OutputScales[i];
+            float3 applyScale = OutputScales[Index];
 
             // Sanitize baseScale: avoid 0 / NaN / Inf before reciprocal
-            float baseScale = HumanScales[i];
+            float baseScale = HumanScales[Index];
             bool baseBad = !math.isfinite(baseScale) | (math.abs(baseScale) <= eps);
             // If bad, fall back to 1.0; else use reciprocal
             float invBase = math.select(math.rcp(baseScale), 1f, baseBad);
@@ -347,117 +478,7 @@ public static class BasisRemoteNetworkDriver
             // Optional: clamp to avoid exploding values if inputs are extreme
             // safeDiv = math.clamp(safeDiv, -1e6f, 1e6f);
 
-            ScaledBodyPositions[i] = OutputPositions[i] * safeDiv;
+            ScaledBodyPositions[Index] = OutputPositions[Index] * safeDiv;
         }
-    }
-
-    /// <summary>Completes all scheduled work for this frame.</summary>
-    public static void Apply()
-    {
-        if (!_initialized) return;
-        oneEuroJob.Complete(); // also fences scaledBody + transform jobs via combined deps
-    }
-
-    /// <summary>Read back the computed outputs for an index after Apply().</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool GetOutputs_NoAlloc(int index,out float3 outPos,out float3 outScale,out quaternion outRot,out float3 BodyPosition,float[] outMuscles)
-    {
-        // minimal guards; no allocations
-        if ((uint)index >= FixedCapacity)
-        {
-            outPos = Vector3.zero;
-            outScale = Vector3.one;
-            outRot = Quaternion.identity;
-            BodyPosition = Vector3.zero;
-            outMuscles = default;
-            return false;
-        }
-        if (outMuscles == null || outMuscles.Length != _muscleCount)
-        {
-            outPos = Vector3.zero;
-            outScale = Vector3.one;
-            outRot = Quaternion.identity;
-            BodyPosition = Vector3.zero;
-            outMuscles = default;
-            return false;
-        }
-
-        outPos = _outPositions[index];
-        outScale = _outScales[index];
-        outRot = _outRotations[index];
-
-        int baseOffset = index * _muscleCount;
-
-        unsafe
-        {
-            // source: NativeArray<float> (contiguous)
-            float* src = (float*)euroValuesOutput.GetUnsafeReadOnlyPtr() + baseOffset;
-
-            // dest: managed float[] pinned just for the copy
-            fixed (float* dst = outMuscles)
-            {
-                UnsafeUtility.MemCpy(dst, src, _muscleCount * sizeof(float));
-            }
-        }
-        BodyPosition = _scaledBodyPositions[index];
-        return true;
-    }
-
-    static void AllocateAll(int capacity)
-    {
-        // Transform data
-        _prevPositions = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
-        _targetPositions = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
-        _prevScales = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
-        _targetScales = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
-        _prevRotations = new NativeArray<quaternion>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
-        _targetRotations = new NativeArray<quaternion>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
-        _interpolationTimes = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.ClearMemory);
-
-        _outPositions = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
-        _outScales = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
-        _outRotations = new NativeArray<quaternion>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
-
-        // New: human scale + scaled body
-        _humanScales = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
-        _scaledBodyPositions = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
-
-        // Muscles (flattened)
-        int flat = capacity * _muscleCount;
-        _prevMuscles = new NativeArray<float>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
-        _targetMuscles = new NativeArray<float>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
-        _outMuscles = new NativeArray<float>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
-
-        // Euro filter buffers (flattened)
-        euroValuesOutput = new NativeArray<float>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
-        positionFilters = new NativeArray<float2>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
-        derivativeFilters = new NativeArray<float2>(flat, _allocator, NativeArrayOptions.UninitializedMemory);
-    }
-
-    static void DisposeAll()
-    {
-        // Dispose safely
-        if (_prevPositions.IsCreated) _prevPositions.Dispose();
-        if (_targetPositions.IsCreated) _targetPositions.Dispose();
-        if (_prevScales.IsCreated) _prevScales.Dispose();
-        if (_targetScales.IsCreated) _targetScales.Dispose();
-        if (_prevRotations.IsCreated) _prevRotations.Dispose();
-        if (_targetRotations.IsCreated) _targetRotations.Dispose();
-        if (_interpolationTimes.IsCreated) _interpolationTimes.Dispose();
-
-        if (_outPositions.IsCreated) _outPositions.Dispose();
-        if (_outScales.IsCreated) _outScales.Dispose();
-        if (_outRotations.IsCreated) _outRotations.Dispose();
-
-        if (_humanScales.IsCreated) _humanScales.Dispose();
-        if (_scaledBodyPositions.IsCreated) _scaledBodyPositions.Dispose();
-
-        if (_prevMuscles.IsCreated) _prevMuscles.Dispose();
-        if (_targetMuscles.IsCreated) _targetMuscles.Dispose();
-        if (_outMuscles.IsCreated) _outMuscles.Dispose();
-
-        if (euroValuesOutput.IsCreated) euroValuesOutput.Dispose();
-        if (positionFilters.IsCreated) positionFilters.Dispose();
-        if (derivativeFilters.IsCreated) derivativeFilters.Dispose();
     }
 }

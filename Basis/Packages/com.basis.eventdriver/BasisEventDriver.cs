@@ -162,7 +162,7 @@ public class BasisEventDriver : MonoBehaviour
         // Local player late simulation
         if (BasisLocalPlayer.PlayerReady)
         {
-            BasisLocalPlayer.Instance.SimulateOnLateUpdate();
+            BasisLocalPlayer.Instance.FacialBlinkDriver.Simulate(TimeAsDouble);
         }
 
 #if UNITY_SERVER
@@ -175,7 +175,7 @@ public class BasisEventDriver : MonoBehaviour
         BasisNetworkManagement.SimulateNetworkApply();
 
         // JigglePhysics: schedule/complete passes
-        JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, Time.fixedDeltaTime);
+        JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime);
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
         JigglePhysics.SchedulePose(TimeAsDouble);
         if (SMModuleDebugOptions.UseGizmos)

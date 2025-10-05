@@ -120,11 +120,14 @@ namespace Basis.Scripts.Networking.Receivers
                 double step = Math.Max(unscaledDeltaTime, 0.0);
                 interpolationTime += (float)(step / windowDuration);
 
-                if (interpolationTime > 1f) interpolationTime = 1f;
-                if (interpolationTime < 0f) interpolationTime = 0f;
-
-                //  Player.
-
+                if (interpolationTime > 1f)
+                {
+                    interpolationTime = 1f;
+                }
+                if (interpolationTime < 0f)
+                {
+                    interpolationTime = 0f;
+                }
                 if (Player.BasisAvatar != null && Player.BasisAvatar.Animator != null)
                 {
                     BasisRemoteNetworkDriver.SetInputs(
@@ -162,10 +165,13 @@ namespace Basis.Scripts.Networking.Receivers
                         UnsafeUtility.MemCpy(pDst + EyesAndMouthOffset, pSrc, EyeAndMountCountInBytes);
                     }
                 }
-                // Scale must be applied on transform
-                Player.AvatarTransform.localScale = applyingScale;
-                // HumanPoseHandler must stay on main thread
-                PoseHandler.SetHumanPose(ref HumanPose);
+                if (Player.AvatarTransform != null)
+                {
+                    // Scale must be applied on transform
+                    Player.AvatarTransform.localScale = applyingScale;
+                    // HumanPoseHandler must stay on main thread
+                    PoseHandler.SetHumanPose(ref HumanPose);
+                }
             }
         }
         /// <summary>
@@ -276,9 +282,9 @@ namespace Basis.Scripts.Networking.Receivers
             if (_staged != null)
             {
                 int Count = _staged.Count;
-                for (int i = 0; i < Count; i++)
+                for (int Index = 0; Index < Count; Index++)
                 {
-                    var b = _staged[i];
+                    var b = _staged[Index];
                     BasisAvatarBufferPool.Release(b);
                 }
                 _staged.Clear();
@@ -289,7 +295,7 @@ namespace Basis.Scripts.Networking.Receivers
                 BasisAvatarBufferPool.Release(buffer);
             }
 
-            if (RemotePlayer != null && HasEvents && RemotePlayer.RemoteAvatarDriver != null)
+            if (HasEvents && RemotePlayer != null && RemotePlayer.RemoteAvatarDriver != null)
             {
                 RemotePlayer.RemoteAvatarDriver.CalibrationComplete -= OnCalibration;
                 HasEvents = false;
