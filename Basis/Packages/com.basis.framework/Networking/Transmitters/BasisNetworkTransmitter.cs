@@ -232,7 +232,7 @@ namespace Basis.Scripts.Networking.Transmitters
                 Player.OnAvatarSwitched += SendOutAvatarChange;
                 AfterAvatarChanges += SendOutLatest;
                 BasisNetworkPlayer.OnRemotePlayerJoined += Rebuild;
-                BasisNetworkPlayer.OnRemotePlayerJoined += Rebuild;
+                BasisNetworkPlayer.OnRemotePlayerLeft += Rebuild;
                 HasEvents = true;
             }
         }
@@ -343,6 +343,10 @@ namespace Basis.Scripts.Networking.Transmitters
                 Player.OnAvatarSwitchedFallBack -= OnAvatarCalibrationLocal;
                 Player.OnAvatarSwitched -= OnAvatarCalibrationLocal;
                 Player.OnAvatarSwitched -= SendOutAvatarChange;
+
+                BasisNetworkPlayer.OnRemotePlayerJoined -= Rebuild;
+                BasisNetworkPlayer.OnRemotePlayerLeft -= Rebuild;
+
                 AfterAvatarChanges -= SendOutLatest;
 
                 if (!distanceJobHandle.IsCompleted) distanceJobHandle.Complete();
