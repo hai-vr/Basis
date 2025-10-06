@@ -221,7 +221,10 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
     public void OnDrawGizmos()
     {
+#if UNITY_SERVER
+#else
         JigglePhysics.OnDrawGizmos();
-    //    BasisLocalPlayer.Instance.BasisLocalFootDriver.DrawGizmos();
+        //    BasisLocalPlayer.Instance.BasisLocalFootDriver.DrawGizmos();
+#endif
     }
 }
