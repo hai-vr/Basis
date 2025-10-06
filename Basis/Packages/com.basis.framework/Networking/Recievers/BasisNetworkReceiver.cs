@@ -211,7 +211,7 @@ namespace Basis.Scripts.Networking.Receivers
                 BasisDebug.LogError("Remote Player was not found During Initalization!!");
                 return;
             }
-            if (RemotePlayer.RemoteAvatarDriver != null)
+            if (RemotePlayer.RemoteAvatarDriver == null)
             {
                 BasisDebug.LogError("Remote Player RemoteAvatarDriver was not found During Initalization!!");
                 return;

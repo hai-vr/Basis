@@ -279,10 +279,22 @@ namespace Basis.Scripts.Networking.Receivers
 #if UNITY_SERVER
             return;
 #endif
-            if (BasisNetworkReceiver != null)
+            if (BasisNetworkReceiver == null)
             {
-                LoadAudioSource(BasisNetworkReceiver, BasisNetworkReceiver.RemotePlayer.MouthTransform);
+                BasisDebug.LogError("Missing Network Receiver Audio Receiver!", BasisDebug.LogTag.Remote);
+                return;
             }
+            if (BasisNetworkReceiver.RemotePlayer == null)
+            {
+                BasisDebug.LogError("RemotePlayer was null in Audio Receiver", BasisDebug.LogTag.Remote);
+                return;
+            }
+            if (BasisNetworkReceiver.RemotePlayer.MouthTransform == null)
+            {
+                BasisDebug.LogError("Mouth Transform Does not exist in Audio Receiver!", BasisDebug.LogTag.Remote);
+                return;
+            }
+            LoadAudioSource(BasisNetworkReceiver, BasisNetworkReceiver.RemotePlayer.MouthTransform);
         }
 
         /// <summary>
