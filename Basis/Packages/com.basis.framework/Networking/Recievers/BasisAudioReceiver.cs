@@ -239,7 +239,15 @@ namespace Basis.Scripts.Networking.Receivers
 #endif
             if (audioSource != null && networkedPlayer != null && networkedPlayer.Player != null)
             {
-                visemeDriver.TryInitialize(networkedPlayer.Player);
+               if(visemeDriver.TryInitialize(networkedPlayer.Player))
+                {
+
+                }
+               else
+                {
+                    BasisDebug.LogWarning("Cant Setup Viseme Audio Driver Does not meet Critera");
+
+                }
 
                 if (BasisRemoteVisemeAudioDriver == null)
                 {
@@ -248,10 +256,6 @@ namespace Basis.Scripts.Networking.Receivers
 
                 BasisRemoteVisemeAudioDriver.BasisAudioReceiver = this;
                 BasisRemoteVisemeAudioDriver.Initalize(visemeDriver);
-            }
-            else
-            {
-                BasisDebug.LogError("Cant Setup Viseme Audio Driver,");
             }
         }
 
