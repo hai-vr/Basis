@@ -183,13 +183,10 @@ public class BasisEventDriver : MonoBehaviour
             JigglePhysics.ScheduleRender();
         }
         JigglePhysics.CompletePose();
-#if UNITY_SERVER
-#else
         if (SMModuleDebugOptions.UseGizmos)
         {
             JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
         }
-#endif
 
 
 #if UNITY_SERVER
