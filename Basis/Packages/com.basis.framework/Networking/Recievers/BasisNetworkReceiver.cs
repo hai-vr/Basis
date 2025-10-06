@@ -330,22 +330,18 @@ namespace Basis.Scripts.Networking.Receivers
                 int missing = serverSilentUnits - localUnits;
                 if (missing > 0)
                 {
-                    for (int i = 0; i < missing; i++)
+                    for (int Index = 0; Index < missing; Index++)
                     {
                         AudioReceiverModule.OnDecodeSilence();
                         Player.AudioReceived?.Invoke(false);
                     }
                 }
             }
-
-            BasisNetworkProfiler.AddToCounter(
-                BasisNetworkProfilerCounter.ServerAudioSegment,
-                msg.audioSegmentData.LengthUsed);
-
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment,msg.audioSegmentData.LengthUsed);
             AudioReceiverModule.OnDecode(msg.audioSegmentData.buffer, msg.audioSegmentData.LengthUsed);
             Player.AudioReceived?.Invoke(true);
         }
-
+        /*
         /// <summary>
         /// Handles a silent voice segment for this remote player.
         /// </summary>
@@ -356,7 +352,7 @@ namespace Basis.Scripts.Networking.Receivers
             AudioReceiverModule.OnDecodeSilence();
             Player.AudioReceived?.Invoke(false);
         }
-
+        */
         /// <summary>
         /// Receives a request to switch the remote player's avatar and triggers creation.
         /// </summary>
