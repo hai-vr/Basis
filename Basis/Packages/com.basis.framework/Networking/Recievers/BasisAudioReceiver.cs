@@ -355,6 +355,9 @@ namespace Basis.Scripts.Networking.Receivers
         private int _cachedOutputRate = -1;
         private float _resampleRatio = 1f;
         private float[] _resampleScratch; // big enough for the largest frames we output
+        // Count local silence in 20 ms "units"
+        public volatile int _silentUnits20ms;   // thread-safe-ish; prefer Interlocked ops
+        public double _silentMsAccum;           // accumulate fractional callback durations
 
         /// <summary>
         /// Unity audio callback. Mixes buffered mono voice into the provided interleaved output buffer.
@@ -363,16 +366,34 @@ namespace Basis.Scripts.Networking.Receivers
         /// <param name="data">Interleaved output buffer to write into.</param>
         /// <param name="channels">Number of output channels.</param>
         /// <param name="length">Total sample count in <paramref name="data"/> (interleaved).</param>
-        public void OnAudioFilterRead(float[] data, int channels, int length)
+        public void OnAudioFilterRead(float[] data, int channels,int length)
         {
-            // Unity’s official signature is (float[] data, int channels); this variant includes 'length'.
             int frames = length / channels;
+            double msThisCallback = 1000.0 * frames / outputSampleRate;
 
             if (InOrderRead.IsEmpty)
             {
                 Array.Clear(data, 0, length);
+
+                // accumulate time and convert to 20ms units
+                _silentMsAccum += msThisCallback;
+                int newUnits = (int)(_silentMsAccum / 20.0); // how many full 20ms chunks fit
+                if (newUnits > 0)
+                {
+                    // make local counter reflect total observed units this silence run
+                    // only increment the delta to avoid double counting
+                    int delta = newUnits - _silentUnits20ms;
+                    if (delta > 0)
+                        System.Threading.Interlocked.Add(ref _silentUnits20ms, delta);
+
+                    _silentMsAccum -= newUnits * 20.0; // keep remainder for next callback
+                }
                 return;
             }
+
+            // got audio: reset local silence tracking
+            System.Threading.Interlocked.Exchange(ref _silentUnits20ms, 0);
+            _silentMsAccum = 0.0;
 
             if (_cachedOutputRate != outputSampleRate)
             {

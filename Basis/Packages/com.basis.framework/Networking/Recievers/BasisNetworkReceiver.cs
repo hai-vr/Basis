@@ -319,10 +319,30 @@ namespace Basis.Scripts.Networking.Receivers
         /// Handles a non-silent voice segment for this remote player.
         /// </summary>
         /// <param name="audioSegment">Decoded server audio segment message.</param>
-        public void ReceiveNetworkAudio(ServerAudioSegmentMessage audioSegment)
+        public void ReceiveNetworkAudio(ServerAudioSegmentMessage msg)
         {
-            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, audioSegment.audioSegmentData.LengthUsed);
-            AudioReceiverModule.OnDecode(audioSegment.audioSegmentData.buffer, audioSegment.audioSegmentData.LengthUsed);
+            int serverSilentUnits = msg.audioSegmentData.TotalPlayedInSilence; // each = 20ms
+
+            if (serverSilentUnits > 0 && AudioReceiverModule != null)
+            {
+                // How many 20ms silent frames are we missing locally?
+                int localUnits = System.Threading.Interlocked.Exchange(ref AudioReceiverModule._silentUnits20ms, 0);
+                int missing = serverSilentUnits - localUnits;
+                if (missing > 0)
+                {
+                    for (int i = 0; i < missing; i++)
+                    {
+                        AudioReceiverModule.OnDecodeSilence();
+                        Player.AudioReceived?.Invoke(false);
+                    }
+                }
+            }
+
+            BasisNetworkProfiler.AddToCounter(
+                BasisNetworkProfilerCounter.ServerAudioSegment,
+                msg.audioSegmentData.LengthUsed);
+
+            AudioReceiverModule.OnDecode(msg.audioSegmentData.buffer, msg.audioSegmentData.LengthUsed);
             Player.AudioReceived?.Invoke(true);
         }
 
