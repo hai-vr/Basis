@@ -206,9 +206,19 @@ namespace Basis.Scripts.Networking.Receivers
         public override void Initialize()
         {
             RemotePlayer = (BasisRemotePlayer)Player;
-            AudioReceiverModule.Initalize(this);
+            if (RemotePlayer == null)
+            {
+                BasisDebug.LogError("Remote Player was not found During Initalization!!");
+                return;
+            }
+            if (RemotePlayer.RemoteAvatarDriver != null)
+            {
+                BasisDebug.LogError("Remote Player RemoteAvatarDriver was not found During Initalization!!");
+                return;
+            }
 
-            if (!HasEvents && RemotePlayer?.RemoteAvatarDriver != null)
+            AudioReceiverModule.Initalize(this);
+            if (!HasEvents)
             {
                 RemotePlayer.RemoteAvatarDriver.CalibrationComplete += OnCalibration;
                 HasEvents = true;
