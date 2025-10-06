@@ -121,7 +121,9 @@ namespace Basis.Scripts.Networking.Transmitters
         public void HandleResults()
         {
             if (!DistanceResults.IsCreated || MicrophoneRangeIndex == null || MicrophoneRangeIndex.Length != DistanceResults.Length)
+            {
                 return;
+            }
 
             DistanceResults.CopyTo(MicrophoneRangeIndex);
             HearingResults.CopyTo(HearingIndex);
@@ -146,7 +148,10 @@ namespace Basis.Scripts.Networking.Transmitters
                 try
                 {
                     var Rec = BasisNetworkPlayers.ReceiversSnapshot[Index];
-                    if (Rec == null) continue;
+                    if (Rec == null)
+                    {
+                        continue;
+                    }
 
                     // avatar LOD/range
                     if (Rec.RemotePlayer.InAvatarRange != AvatarIndex[Index])

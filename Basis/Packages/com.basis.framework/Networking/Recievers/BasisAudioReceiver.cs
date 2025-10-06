@@ -71,7 +71,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// <summary>
         /// Indicates whether an audio transform/source has been successfully created.
         /// </summary>
-        public volatile bool HasTransform = false;
+        public volatile bool HasAudioSource = false;
 
         /// <summary>
         /// Owning network receiver (player/session context).
@@ -100,7 +100,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// <param name="length">Payload length in bytes.</param>
         public void OnDecode(byte[] data, int length)
         {
-            if (HasTransform)
+            if (HasAudioSource)
             {
                 pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.NetworkSampleRate, false);
                 InOrderRead.Add(pcmBuffer, pcmLength, true);
@@ -115,7 +115,7 @@ namespace Basis.Scripts.Networking.Receivers
         {
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
-                if (HasTransform)
+                if (HasAudioSource)
                 {
                     if (InOrderRead.HasRealAudio)
                     {
@@ -140,7 +140,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void OnDecodeSilence()
         {
-            if (HasTransform)
+            if (HasAudioSource)
             {
                 InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
                 AudioSourceSet();
@@ -158,19 +158,14 @@ namespace Basis.Scripts.Networking.Receivers
             if (AudioSourceTransform == null)
             {
                 AudioSourceTransform = BasisAudioRemoteSource.RequestAudio(MouthParent).transform;
+                AudioSourceTransform.SetLocalPositionAndRotation(Vector3.zero,Quaternion.identity);
                 AudioSourceTransform.name = $"[Audio] {BasisNetworkReceiver.Player.DisplayName}";
-
-                if (audioSource == null)
-                {
-                    audioSource = BasisHelpers.GetOrAddComponent<AudioSource>(AudioSourceTransform.gameObject);
-                    audioSource.loop = true;
-                    audioSource.clip = BasisAudioClipPool.Get(networkedPlayer.playerId);
-                }
-
+                audioSource = BasisHelpers.GetOrAddComponent<AudioSource>(AudioSourceTransform.gameObject);
+                audioSource.clip = BasisAudioClipPool.Get(networkedPlayer.playerId);
+                audioSource.loop = true;
                 audioSource.Play();
-                HasTransform = true;
+                HasAudioSource = true;
             }
-
             IsPlaying = true;
             AvatarChanged(networkedPlayer);
 
@@ -183,7 +178,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void UnloadAudioSource()
         {
-            HasTransform = false;
+            HasAudioSource = false;
 
             if (audioSource != null && audioSource.clip != null)
             {
@@ -194,9 +189,10 @@ namespace Basis.Scripts.Networking.Receivers
             if (AudioSourceTransform != null)
             {
                 BasisAudioRemoteSource.Return(AudioSourceTransform.gameObject);
-                AudioSourceTransform = null;
-                BasisRemoteVisemeAudioDriver = null;
             }
+
+            AudioSourceTransform = null;
+            BasisRemoteVisemeAudioDriver = null;
 
             IsPlaying = false;
         }
@@ -213,10 +209,7 @@ namespace Basis.Scripts.Networking.Receivers
 #endif
             outputSampleRate = AudioSettings.outputSampleRate;
 
-            if (silentData == null)
-            {
-                silentData = new float[RemoteOpusSettings.FrameSize];
-            }
+            silentData ??= new float[RemoteOpusSettings.FrameSize];
 
             BasisNetworkReceiver = networkedPlayer;
         }
@@ -244,7 +237,7 @@ namespace Basis.Scripts.Networking.Receivers
 #if UNITY_SERVER
             return;
 #endif
-            if (audioSource != null)
+            if (audioSource != null && networkedPlayer != null && networkedPlayer.Player != null)
             {
                 visemeDriver.TryInitialize(networkedPlayer.Player);
 
@@ -255,6 +248,10 @@ namespace Basis.Scripts.Networking.Receivers
 
                 BasisRemoteVisemeAudioDriver.BasisAudioReceiver = this;
                 BasisRemoteVisemeAudioDriver.Initalize(visemeDriver);
+            }
+            else
+            {
+                BasisDebug.LogError("Cant Setup Viseme Audio Driver,");
             }
         }
 
@@ -300,7 +297,7 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (audioSource == null)
             {
-                Debug.LogWarning("AudioSource is null. Cannot apply volume settings.");
+                Debug.LogError("AudioSource is null. Cannot apply volume settings.");
                 return;
             }
 
