@@ -115,6 +115,19 @@ public static class BasisNetworkMessageProcessor
 
 
                 case BasisNetworkCommons.ServerStatisticsChannel:
+
+                    if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid) == false)
+                    {
+                        BNL.LogError($"User UUID not found for peer: {peer}");
+                        return;
+                    }
+
+                    if (NetworkServer.AuthIdentity.IsNetPeerAdmin(uuid) == false)
+                    {
+                        BNL.LogError($"Unauthorized admin access attempt by UUID: {uuid}");
+                        return;
+                    }
+
                     if (reader.GetBool())
                     {
                         BNL.Log("requested Server StatisticsChannel");
