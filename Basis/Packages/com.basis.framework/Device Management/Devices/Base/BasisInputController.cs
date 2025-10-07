@@ -1,3 +1,4 @@
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
@@ -91,7 +92,11 @@ public abstract class BasisInputController : BasisInput
     /// </summary>
     public void ComputeRaycastDirection(Vector3 Position)
     {
-        RaycastCoord.position = Position;
-        RaycastCoord.rotation = HandFinal.rotation * ActiveRaycastOffset;
+        var parent = BasisLocalPlayer.Instance.transform;
+        Matrix4x4 parentMatrix = parent.localToWorldMatrix;
+        Quaternion OutGoingRotation = HandFinal.rotation * ActiveRaycastOffset;
+
+        RaycastCoord.position = parentMatrix.MultiplyPoint3x4(Position);
+        RaycastCoord.rotation = parentMatrix.rotation * OutGoingRotation;
     }
 }
