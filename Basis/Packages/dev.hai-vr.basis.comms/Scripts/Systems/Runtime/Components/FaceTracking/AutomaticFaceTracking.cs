@@ -10,6 +10,7 @@ using UnityEngine.AddressableAssets;
 namespace HVR.Basis.Comms
 {
     [AddComponentMenu("HVR.Basis/Automatic Face Tracking")]
+    [HelpURL("https://docs.hai-vr.dev/docs/basis/avatar-customization/face-tracking")]
     public class AutomaticFaceTracking : MonoBehaviour, IHVRInitializable
     {
         [SerializeField] internal bool useCustomMultiplier;
@@ -46,9 +47,6 @@ namespace HVR.Basis.Comms
             {
                 _avatar = HVRCommsUtil.GetAvatar(this);
             }
-
-            _ueHandle ??= Addressables.LoadAssetAsync<BlendshapeActuationDefinitionFile>("HVR.Basis.Comms.FaceTracking.DefaultUnifiedExpressionsDefinitionFile").WaitForCompletion();
-            _arKitHandle ??= Addressables.LoadAssetAsync<BlendshapeActuationDefinitionFile>("HVR.Basis.Comms.FaceTracking.DefaultARKitDefinitionFile").WaitForCompletion();
         }
 
         public void OnHVRAvatarReady(bool isWearer)
@@ -65,11 +63,9 @@ namespace HVR.Basis.Comms
         {
             var smrs = _avatar.GetComponentsInChildren<SkinnedMeshRenderer>(true);
 
-            if (useOverrideDefinitionFiles && overrideDefinitionFiles != null && overrideDefinitionFiles.Length != 0)
+            var files = ResolveFilesOrNull(smrs, out namingConvention);
+            if (files != null)
             {
-                namingConvention = NamingConvention.UserDefined;
-
-                var files = AppendSupplemental(overrideDefinitionFiles);
                 var foundSmrs = FindSkinnedMeshes(files, smrs);
                 if (foundSmrs.Count > 0)
                 {
@@ -79,20 +75,30 @@ namespace HVR.Basis.Comms
             }
             else
             {
-                namingConvention = GuessNamingConvention(smrs);
-
-                if (namingConvention is NamingConvention.UnifiedExpressions or NamingConvention.ARKit)
-                {
-                    var files = AppendSupplemental(new []{ namingConvention == NamingConvention.UnifiedExpressions ? _ueHandle : _arKitHandle });
-                    var foundSmrs = FindSkinnedMeshes(files, smrs);
-                    if (foundSmrs.Count > 0)
-                    {
-                        SetupFaceTracking(files, foundSmrs);
-                    }
-                    else Failed();
-                }
-                else Failed();
+                Failed();
             }
+        }
+
+        public BlendshapeActuationDefinitionFile[] ResolveFilesOrNull(SkinnedMeshRenderer[] smrs, out NamingConvention resolvedNamingConvention)
+        {
+            _ueHandle ??= Addressables.LoadAssetAsync<BlendshapeActuationDefinitionFile>("HVR.Basis.Comms.FaceTracking.DefaultUnifiedExpressionsDefinitionFile").WaitForCompletion();
+            _arKitHandle ??= Addressables.LoadAssetAsync<BlendshapeActuationDefinitionFile>("HVR.Basis.Comms.FaceTracking.DefaultARKitDefinitionFile").WaitForCompletion();
+
+            if (useOverrideDefinitionFiles && overrideDefinitionFiles != null && overrideDefinitionFiles.Length != 0)
+            {
+                resolvedNamingConvention = NamingConvention.UserDefined;
+                return AppendSupplemental(overrideDefinitionFiles);
+            }
+            else
+            {
+                resolvedNamingConvention = GuessNamingConvention(smrs);
+                if (resolvedNamingConvention is NamingConvention.UnifiedExpressions or NamingConvention.ARKit)
+                {
+                    return AppendSupplemental(new[] { resolvedNamingConvention == NamingConvention.UnifiedExpressions ? _ueHandle : _arKitHandle });
+                }
+            }
+
+            return null;
         }
 
         private BlendshapeActuationDefinitionFile[] AppendSupplemental(BlendshapeActuationDefinitionFile[] initial)
@@ -166,7 +172,7 @@ namespace HVR.Basis.Comms
             return go;
         }
 
-        internal enum NamingConvention
+        public enum NamingConvention
         {
             Unknown,
             UnifiedExpressions,
@@ -193,7 +199,7 @@ namespace HVR.Basis.Comms
             return NamingConvention.Unknown;
         }
 
-        private List<SkinnedMeshRenderer> FindSkinnedMeshes(BlendshapeActuationDefinitionFile[] definitionFiles, SkinnedMeshRenderer[] smrs)
+        public List<SkinnedMeshRenderer> FindSkinnedMeshes(BlendshapeActuationDefinitionFile[] definitionFiles, SkinnedMeshRenderer[] smrs)
         {
             var foundSmrs = new HashSet<SkinnedMeshRenderer>();
             foreach (var definitionFile in definitionFiles)

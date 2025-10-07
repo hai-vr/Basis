@@ -19,7 +19,18 @@ namespace HVR.Basis.Comms
         private const string EyeLeftX = "FT/v2/EyeLeftX";
         private const string EyeRightX = "FT/v2/EyeRightX";
         private const string EyeY = "FT/v2/EyeY";
-        private static readonly string[] OurAddresses = { EyeLeftX, EyeRightX, EyeY };
+        private readonly int EyeLeftXAddress;
+        private readonly int EyeRightXAddress;
+        private readonly int EyeYAddress;
+        private int[] OurAddresses;
+
+        public EyeTrackingBoneActuation()
+        {
+            EyeLeftXAddress = HVRAddress.AddressToId(EyeLeftX);
+            EyeRightXAddress = HVRAddress.AddressToId(EyeRightX);
+            EyeYAddress = HVRAddress.AddressToId(EyeY);
+            OurAddresses = new[] { EyeLeftXAddress, EyeRightXAddress, EyeYAddress };
+        }
 
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private AcquisitionService acquisition;
@@ -96,7 +107,7 @@ namespace HVR.Basis.Comms
             }
         }
 
-        private void OnAddressUpdated(string address, float value)
+        private void OnAddressUpdated(int address, float value)
         {
             // FIXME: Temp fix, we'll need to hook to NetworkReady instead.
             // This is a quick fix so that we don't need to reupload the avatar.
@@ -106,26 +117,20 @@ namespace HVR.Basis.Comms
                 _eyeFollowDriverLateInit.IsEnabled = false;
             }
 
-            switch (address)
+            if (address == EyeLeftXAddress)
             {
-                case EyeLeftX:
-                {
-                    _fEyeLeftX = value;
-                    if (featureInterpolator != null) featureInterpolator.SubmitAbsolute(0, value);
-                    break;
-                }
-                case EyeRightX:
-                {
-                    _fEyeRightX = value;
-                    if (featureInterpolator != null) featureInterpolator.SubmitAbsolute(1, value);
-                    break;
-                }
-                case EyeY:
-                {
-                    _fEyeY = value;
-                    if (featureInterpolator != null) featureInterpolator.SubmitAbsolute(2, value);
-                    break;
-                }
+                _fEyeLeftX = value;
+                if (featureInterpolator != null) featureInterpolator.SubmitAbsolute(0, value);
+            }
+            else if (address == EyeRightXAddress)
+            {
+                _fEyeRightX = value;
+                if (featureInterpolator != null) featureInterpolator.SubmitAbsolute(1, value);
+            }
+            else if (address == EyeYAddress)
+            {
+                _fEyeY = value;
+                if (featureInterpolator != null) featureInterpolator.SubmitAbsolute(2, value);
             }
         }
 /* this should not be required? (lD)

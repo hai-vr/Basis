@@ -120,11 +120,14 @@ namespace Basis.Scripts.Networking.Receivers
                 double step = Math.Max(unscaledDeltaTime, 0.0);
                 interpolationTime += (float)(step / windowDuration);
 
-                if (interpolationTime > 1f) interpolationTime = 1f;
-                if (interpolationTime < 0f) interpolationTime = 0f;
-
-                //  Player.
-
+                if (interpolationTime > 1f)
+                {
+                    interpolationTime = 1f;
+                }
+                if (interpolationTime < 0f)
+                {
+                    interpolationTime = 0f;
+                }
                 if (Player.BasisAvatar != null && Player.BasisAvatar.Animator != null)
                 {
                     BasisRemoteNetworkDriver.SetInputs(
@@ -138,8 +141,6 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             }
         }
-        public bool ApplyScaledTransform = true;
-        public float3 SavedScale = float3.zero;
         /// <summary>
         /// Main-thread application step. Pulls posed outputs from the driver and applies
         /// body position/rotation/muscles to the avatar via <see cref="PoseHandler"/>.
@@ -164,14 +165,13 @@ namespace Basis.Scripts.Networking.Receivers
                         UnsafeUtility.MemCpy(pDst + EyesAndMouthOffset, pSrc, EyeAndMountCountInBytes);
                     }
                 }
-                if (ApplyScaledTransform || applyingScale.Equals(SavedScale))
+                if (Player.AvatarTransform != null)
                 {
                     // Scale must be applied on transform
                     Player.AvatarTransform.localScale = applyingScale;
-                    SavedScale = applyingScale;
+                    // HumanPoseHandler must stay on main thread
+                    PoseHandler.SetHumanPose(ref HumanPose);
                 }
-                // HumanPoseHandler must stay on main thread
-                PoseHandler.SetHumanPose(ref HumanPose);
             }
         }
         /// <summary>
@@ -206,9 +206,19 @@ namespace Basis.Scripts.Networking.Receivers
         public override void Initialize()
         {
             RemotePlayer = (BasisRemotePlayer)Player;
-            AudioReceiverModule.Initalize(this);
+            if (RemotePlayer == null)
+            {
+                BasisDebug.LogError("Remote Player was not found During Initalization!!");
+                return;
+            }
+            if (RemotePlayer.RemoteAvatarDriver == null)
+            {
+                BasisDebug.LogError("Remote Player RemoteAvatarDriver was not found During Initalization!!");
+                return;
+            }
 
-            if (!HasEvents && RemotePlayer?.RemoteAvatarDriver != null)
+            AudioReceiverModule.Initalize(this);
+            if (!HasEvents)
             {
                 RemotePlayer.RemoteAvatarDriver.CalibrationComplete += OnCalibration;
                 HasEvents = true;
@@ -218,7 +228,6 @@ namespace Basis.Scripts.Networking.Receivers
             _staged.Clear();
             BufferHolder.ClearAndRelease();
             interpolationTime = 0f;
-            ApplyScaledTransform = true;
         }
 
         /// <summary>
@@ -261,7 +270,6 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 NextMessages.Remove(key);
             }
-            ApplyScaledTransform = true;
         }
 
         /// <summary>
@@ -284,9 +292,9 @@ namespace Basis.Scripts.Networking.Receivers
             if (_staged != null)
             {
                 int Count = _staged.Count;
-                for (int i = 0; i < Count; i++)
+                for (int Index = 0; Index < Count; Index++)
                 {
-                    var b = _staged[i];
+                    var b = _staged[Index];
                     BasisAvatarBufferPool.Release(b);
                 }
                 _staged.Clear();
@@ -297,7 +305,7 @@ namespace Basis.Scripts.Networking.Receivers
                 BasisAvatarBufferPool.Release(buffer);
             }
 
-            if (RemotePlayer != null && HasEvents && RemotePlayer.RemoteAvatarDriver != null)
+            if (HasEvents && RemotePlayer != null && RemotePlayer.RemoteAvatarDriver != null)
             {
                 RemotePlayer.RemoteAvatarDriver.CalibrationComplete -= OnCalibration;
                 HasEvents = false;
@@ -311,13 +319,29 @@ namespace Basis.Scripts.Networking.Receivers
         /// Handles a non-silent voice segment for this remote player.
         /// </summary>
         /// <param name="audioSegment">Decoded server audio segment message.</param>
-        public void ReceiveNetworkAudio(ServerAudioSegmentMessage audioSegment)
+        public void ReceiveNetworkAudio(ServerAudioSegmentMessage msg)
         {
-            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, audioSegment.audioSegmentData.LengthUsed);
-            AudioReceiverModule.OnDecode(audioSegment.audioSegmentData.buffer, audioSegment.audioSegmentData.LengthUsed);
+            int serverSilentUnits = msg.audioSegmentData.TotalPlayedInSilence; // each = 20ms
+
+            if (serverSilentUnits > 0 && AudioReceiverModule != null)
+            {
+                // How many 20ms silent frames are we missing locally?
+                int localUnits = System.Threading.Interlocked.Exchange(ref AudioReceiverModule._silentUnits20ms, 0);
+                int missing = serverSilentUnits - localUnits;
+                if (missing > 0)
+                {
+                    for (int Index = 0; Index < missing; Index++)
+                    {
+                        AudioReceiverModule.OnDecodeSilence();
+                        Player.AudioReceived?.Invoke(false);
+                    }
+                }
+            }
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment,msg.audioSegmentData.LengthUsed);
+            AudioReceiverModule.OnDecode(msg.audioSegmentData.buffer, msg.audioSegmentData.LengthUsed);
             Player.AudioReceived?.Invoke(true);
         }
-
+        /*
         /// <summary>
         /// Handles a silent voice segment for this remote player.
         /// </summary>
@@ -328,7 +352,7 @@ namespace Basis.Scripts.Networking.Receivers
             AudioReceiverModule.OnDecodeSilence();
             Player.AudioReceived?.Invoke(false);
         }
-
+        */
         /// <summary>
         /// Receives a request to switch the remote player's avatar and triggers creation.
         /// </summary>

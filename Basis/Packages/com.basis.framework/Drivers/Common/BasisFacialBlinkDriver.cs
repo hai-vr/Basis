@@ -62,12 +62,12 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Absolute time at which the next blink should start.
         /// </summary>
-        private float nextBlinkTime;
+        private double nextBlinkTime;
 
         /// <summary>
         /// Absolute time when the current blink started.
         /// </summary>
-        private float blinkStartTime;
+        private double blinkStartTime;
 
         /// <summary>
         /// Internal flag indicating the opening phase after a blink.
@@ -77,7 +77,7 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Absolute time when the opening transition started.
         /// </summary>
-        private float visemeStartTime;
+        private double visemeStartTime;
 
         /// <summary>
         /// Player whose face visibility is observed.
@@ -88,6 +88,11 @@ namespace Basis.Scripts.Drivers
         /// Whether updates are currently enabled (e.g., face visible and renderer present).
         /// </summary>
         private bool IsEnabled;
+
+        /// <summary>
+        /// blendshape mesh count on avatar faceblinkmesh
+        /// </summary>
+        public int MeshblendShapeCount;
 
         /// <summary>
         /// Initializes the blink driver with player and avatar data and wires face visibility callbacks.
@@ -111,9 +116,10 @@ namespace Basis.Scripts.Drivers
             }
 
             blendShapeCount = blendShapeIndex.Count;
+            MeshblendShapeCount = meshRenderer.sharedMesh.blendShapeCount;
 
             // Start blinking
-            SetNextBlinkTime();
+            SetNextBlinkTime(Time.time);
 
             // Observe face visibility
             if (LinkedPlayer != null && LinkedPlayer.FaceRenderer != null)
@@ -179,56 +185,67 @@ namespace Basis.Scripts.Drivers
         /// Advances blink timing and writes blendshape weights for close/open phases.
         /// Should be called once per frame.
         /// </summary>
-        public void Simulate()
+        public void Simulate(double Time)// Time.time
         {
             if (IsEnabled && meshRenderer != null)
             {
-                float CurrentTIme = Time.time;
-
                 // Start a blink if scheduled
-                if (!isBlinking && CurrentTIme >= nextBlinkTime)
+                if (!isBlinking && Time >= nextBlinkTime)
                 {
                     isBlinking = true;
-                    blinkStartTime = Time.time;
+                    blinkStartTime = Time;
 
                     // Reset weights (closing will raise them)
                     for (int Index = 0; Index < blendShapeCount; Index++)
                     {
-                        meshRenderer.SetBlendShapeWeight(blendShapeIndex[Index], 0);
+                        int ConvertedIndex = blendShapeIndex[Index];
+                        if (MeshblendShapeCount >= ConvertedIndex)
+                        {
+                            meshRenderer.SetBlendShapeWeight(blendShapeIndex[Index], 0);
+                        }
                     }
 
                     isVisemeClosing = true;
-                    visemeStartTime = Time.time;
+                    visemeStartTime = Time;
                 }
                 // Closing phase (eyes moving from open -> closed)
                 else if (isBlinking)
                 {
-                    float Time = (CurrentTIme - blinkStartTime) / blinkDuration;
-                    float blendWeight = math.lerp(0, 100, Time);
+                    float CalCulatedTime = (float)((Time - blinkStartTime) / blinkDuration);
+                    float blendWeight = math.lerp(0, 100, CalCulatedTime);
 
                     for (int Index = 0; Index < blendShapeCount; Index++)
                     {
-                        meshRenderer.SetBlendShapeWeight(blendShapeIndex[Index], blendWeight);
+                        int ConvertedIndex = blendShapeIndex[Index];
+                        if (MeshblendShapeCount >= ConvertedIndex)
+                        {
+
+                            meshRenderer.SetBlendShapeWeight(ConvertedIndex, blendWeight);
+                        }
                     }
 
-                    if (Time >= 1f)
+                    if (CalCulatedTime >= 1f)
                     {
                         isBlinking = false;
-                        SetNextBlinkTime(); // Schedule the next blink after eyes are closed/opened
+                        SetNextBlinkTime(Time); // Schedule the next blink after eyes are closed/opened
                     }
                 }
                 // Opening phase (eyes moving from closed -> open)
                 else if (isVisemeClosing)
                 {
-                    float Time = (CurrentTIme - visemeStartTime) / visemeTransitionDuration;
-                    float blendWeight = Mathf.Lerp(100, 0, Time);
+                    float CalCulatedTime = (float)((Time - visemeStartTime) / visemeTransitionDuration);
+                    float blendWeight = Mathf.Lerp(100, 0, CalCulatedTime);
 
                     for (int Index = 0; Index < blendShapeCount; Index++)
                     {
-                        meshRenderer.SetBlendShapeWeight(blendShapeIndex[Index], blendWeight);
+                        int ConvertedIndex = blendShapeIndex[Index];
+                        if (MeshblendShapeCount >= ConvertedIndex)
+                        {
+                            meshRenderer.SetBlendShapeWeight(blendShapeIndex[Index], blendWeight);
+                        }
                     }
 
-                    if (Time >= 1f)
+                    if (CalCulatedTime >= 1f)
                     {
                         isVisemeClosing = false;
                     }
@@ -239,9 +256,9 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Randomizes the absolute time for the next blink within <see cref="minBlinkInterval"/> and <see cref="maxBlinkInterval"/>.
         /// </summary>
-        public void SetNextBlinkTime()
+        public void SetNextBlinkTime(double Time)
         {
-            nextBlinkTime = Time.time + UnityEngine.Random.Range(minBlinkInterval, maxBlinkInterval);
+            nextBlinkTime = Time + UnityEngine.Random.Range(minBlinkInterval, maxBlinkInterval);
         }
     }
 }

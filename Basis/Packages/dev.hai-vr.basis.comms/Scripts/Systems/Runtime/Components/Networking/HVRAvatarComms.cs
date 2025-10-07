@@ -9,6 +9,7 @@ using UnityEngine;
 namespace HVR.Basis.Comms
 {
     [AddComponentMenu("HVR.Basis/Comms/Internal/HVR Avatar Comms")]
+    [HelpURL("https://docs.hai-vr.dev/docs/basis/avatar-customization")]
     public class HVRAvatarComms : BasisAvatarMonoBehaviour
     {
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
@@ -18,7 +19,7 @@ namespace HVR.Basis.Comms
 
         private bool _isWearer;
 
-        private readonly List<string> _addresses = new();
+        private readonly List<int> _addresses = new();
         private readonly List<MutualizedInterpolationRange> _ranges = new();
         private readonly List<HVRNeedsInterpolationCallback> _needsInterpolation = new();
         private readonly List<HVRToSubmitLater> _toStoreLater = new();

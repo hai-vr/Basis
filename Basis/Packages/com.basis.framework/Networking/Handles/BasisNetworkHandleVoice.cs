@@ -83,7 +83,8 @@ public static class BasisNetworkHandleVoice
 
                     if (audioUpdate.audioSegmentData.LengthUsed == 0)
                     {
-                        player.ReceiveSilentNetworkAudio(audioUpdate);
+                        BasisDebug.LogError("Audio Segment Data Length was zero this is now unsupported", BasisDebug.LogTag.Voice);
+                     //   player.ReceiveSilentNetworkAudio(audioUpdate);
                     }
                     else
                     {

@@ -4,7 +4,7 @@ namespace Basis.Scripts.Networking.Receivers
 {
     public static class BasisAudioRemoteSource
     {
-        const string AudioSource = "Packages/com.basis.sdk/Prefabs/Players/AudioSource.prefab";
+        public const string AudioSource = "Packages/com.basis.sdk/Prefabs/Players/AudioSource.prefab";
         private static GameObject LoadableAudioSource;
         public static UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> Loadable;
         public static void Initalize()
@@ -14,7 +14,10 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public static void DeInitalize()
         {
-            Loadable.Release();
+            if (Loadable.IsValid())
+            {
+                Loadable.Release();
+            }
         }
         public static GameObject RequestAudio(Transform Parent)
         {

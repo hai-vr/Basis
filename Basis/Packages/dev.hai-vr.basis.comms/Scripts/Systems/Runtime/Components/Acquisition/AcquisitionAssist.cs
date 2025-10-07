@@ -18,10 +18,10 @@ namespace HVR.Basis.Comms
             if (acquisitionService == null) acquisitionService = AcquisitionService.SceneInstance;
         }
 
-        private void OnAddressUpdated(string address, float value)
+        private void OnAddressUpdated(int address, float value)
         {
             if (!isActiveAndEnabled) return;
-            
+
             acquisitionService.Submit(address, value);
         }
     }

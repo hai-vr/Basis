@@ -294,7 +294,26 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                 state.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
                 state.SyncMessage.avatarSerialization = message.AvatarMessage;
-                state.HasNewDataFrom.SetAll(true);
+
+                // Mark all *other* players as having new data FROM this sender (id)
+                foreach (var kvp in playerStates)
+                {
+                    if (kvp.Key == id)
+                    {
+                        continue;
+                    }
+
+                    var other = kvp.Value;
+                    if (!other.IsActive)
+                    {
+                        continue;
+                    }
+
+                    lock (other)
+                    {
+                        other.HasNewDataFrom?.Set(id, true);
+                    }
+                }
             }
 
             QueuedMessagePool.Return(message);
