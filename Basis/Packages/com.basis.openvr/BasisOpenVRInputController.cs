@@ -23,6 +23,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         public TrackedDevicePose_t deviceGamePose = new TrackedDevicePose_t();
         public SteamVR_Utils.RigidTransform DeviceLocalSpace;
         public EVRCompositorError result;
+        public Vector3 RaycastOffset = new Vector3(0, 0.05f, 0.05f);
         public void Initialize(OpenVRDevice device, string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, SteamVR_Input_Sources SteamVR_Input_Sources)
         {
             HandBiasSplay = -0.8f;
@@ -212,7 +213,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             ControlOnlyAsHand();
             ComputeRaycastDirection(wristWorldPos + (UnscaledDeviceCoord.rotation * (RaycastOffset * avatarScale)));
         }
-        public Vector3 RaycastOffset = new Vector3(0,0.05f,0.05f);
         public override void ShowTrackedVisual()
         {
             ShowTrackedVisualDefaultImplementation();

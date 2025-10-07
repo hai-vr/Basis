@@ -90,11 +90,6 @@ namespace Basis.Scripts.Device_Management.Devices
         public BasisUIRaycast BasisUIRaycast;
 
         /// <summary>
-        /// Fired after control data is pushed to drivers each frame.
-        /// </summary>
-        public event SimulationHandler AfterControlApply;
-
-        /// <summary>
         /// Capabilities and matching data for the concrete device.
         /// </summary>
         public DeviceSupportInformation DeviceMatchSettings;
@@ -463,7 +458,6 @@ namespace Basis.Scripts.Device_Management.Devices
                 BasisPointRaycaster.UpdateRaycast();
                 BasisUIRaycast.HandleUIRaycast();
             }
-            AfterControlApply?.Invoke();
         }
 
         /// <summary>
