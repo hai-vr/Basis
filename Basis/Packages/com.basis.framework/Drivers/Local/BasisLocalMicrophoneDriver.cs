@@ -551,12 +551,13 @@ public static class BasisLocalMicrophoneDriver
     public static void ChangeMicrophoneVolume(float ui)
     {
         ui = Mathf.Clamp01(ui);
-        float db = Mathf.Lerp(-60f, 18f, ui);
+        const float minDb = -60f;
+        const float maxDb = 0f;
+        float db = Mathf.Lerp(minDb, maxDb, ui);
         Volume = DbToAmp(db);
         VAJ.Volume = Volume;
-        BasisDebug.Log($"Set Microphone Gain To {db:F1} dB (amp {Volume:F3})");
+        BasisDebug.Log($"Set Microphone Gain To {db:F1} dB (amp {Volume:F3})", BasisDebug.LogTag.Voice);
     }
-
     public static void ApplyDeNoise()
     {
 #if !UNITY_ANDROID && !UNITY_STANDALONE_LINUX
