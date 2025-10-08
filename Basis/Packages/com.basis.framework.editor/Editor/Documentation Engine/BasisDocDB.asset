@@ -8196,6 +8196,107 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisVolumeAdjustmentJob
+    MemberName: Volume
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Linear amplitude multiplier (already mapped from UI in driver).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisVolumeAdjustmentJob
+    MemberName: LimitThreshold
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Limiter threshold (e.g., 0.95) and soft knee width (e.g., 0.05).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.BasisAvatarBuffer
+    MemberName: EnsureAllocated
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Ensure NativeArray is allocated correctly; does not clear existing values.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.
+    MemberName: Reset
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - false
+    ParamDocs: []
+    Summary: Reset fields to defaults. Optionally zero the muscle array.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Networking.NetworkedAvatar.BasisAvatarBufferPool
+    MemberName: BasisAvatarBufferPool
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Thread-safe pool for BasisAvatarBuffer (class). Guards null + double-release.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: Basis.Scripts.Networking.BasisNetworkConnection
     MemberName: BasisNetworkConnection
     Kind: Type
@@ -9488,6 +9589,66 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: 
+    MemberName: AdaptiveCirlceId
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Adaptive Circle Id
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: AdaptiveCircleCreated
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Spawned
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: LocalHandle
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Addressable
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: SMModuleDistanceBasedReductions
     MemberName: MicrophoneRange
     Kind: Field
@@ -9946,36 +10107,10 @@ MonoBehaviour:
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: " <summary>\n <summary>\n Run after Input control apply, before `AfterControlApply`\n
-      </summary>"
+    Summary: Run after Input control apply, before `AfterControlApply` alloc free,
+      uses camera raycasting when required of it.
     Remarks: 
     Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.UI.
-    MemberName: FirstHitInMask
-    Kind: Method
-    ParamCount: 3
-    ParamNames:
-    - hitInfo
-    - float.PositiveInfinity
-    - Physics.AllLayers
-    ParamDocs:
-    - 
-    - 
-    - 
-    Summary: Gets the closest raycast hit up to maxDistance that is in the layerMask
-    Remarks: 
-    Returns: true on valid hit
     Value: 
     Examples: []
     TypeParamNames: []
@@ -10454,6 +10589,66 @@ MonoBehaviour:
     ParamDocs: []
     Summary: Creates or loads the default asset bundle or addressable scene, depending
       on configuration.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: LocalHandle
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Addressable
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: NetworkGraph
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Spawned
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: NetworkGraphId
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Adaptive Circle Id
     Remarks: 
     Returns: 
     Value: 
@@ -14323,6 +14518,27 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
+    MemberName: MeshblendShapeCount
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Whether updates are currently enabled (e.g., face visible and renderer
+      present).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
     MemberName: Initialize
     Kind: Method
     ParamCount: 2
@@ -14332,8 +14548,8 @@ MonoBehaviour:
     ParamDocs:
     - The owning BasisPlayer.
     - Avatar providing blink mesh and viseme indices.
-    Summary: Whether updates are currently enabled (e.g., face visible and renderer
-      present).
+    Summary: Initializes the blink driver with player and avatar data and wires face
+      visibility callbacks.
     Remarks: 
     Returns: 
     Value: 
@@ -14416,8 +14632,9 @@ MonoBehaviour:
   - TypeFullName: Basis.Scripts.Drivers.
     MemberName: Simulate
     Kind: Method
-    ParamCount: 0
-    ParamNames: []
+    ParamCount: 1
+    ParamNames:
+    - Time
     ParamDocs: []
     Summary: "Advances blink timing and writes blendshape weights for close/open
       phases.\n Should be called once per frame."
@@ -14437,8 +14654,9 @@ MonoBehaviour:
   - TypeFullName: Basis.Scripts.Drivers.
     MemberName: SetNextBlinkTime
     Kind: Method
-    ParamCount: 0
-    ParamNames: []
+    ParamCount: 1
+    ParamNames:
+    - Time
     ParamDocs: []
     Summary: Randomizes the absolute time for the next blink within minBlinkInterval
       and maxBlinkInterval.
@@ -20070,255 +20288,13 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: BasisLocalMicrophoneDriver
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: "Captures microphone audio into a ring buffer, optionally denoises it,
-      adjusts volume via a Burst job,\n computes rolling RMS to detect voice activity,
-      and raises main-thread callbacks for UI/UX.\n Uses a background processing
-      thread and a ManualResetEvent to decouple capture from processing."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: HasEvents
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Ring-buffer head index into the circular clip samples.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: PacketSize
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Network packet size in samples (derived from SampleRate).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: UseDenoiser
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Flag for enabling the RNNoise denoiser on processed audio frames.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: OnPausedAction
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Invoked when pause state changes; argument is the new paused state.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: isRunning
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: True when the selected microphone has successfully started recording.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: MicrophoneState
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Signal used to wake the processing thread once a full frame is available.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: OnHasAudio
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Raised on the processing thread when a frame is considered voice-active.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: OnHasSilence
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Raised on the processing thread when a frame is considered silence.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: clip
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Unity microphone recording clip (circular buffer).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: IsInitialize
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Whether the driver has been initialized.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: MicrophoneDevice
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Name of the active microphone device.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
     MemberName: Volume
     Kind: Field
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Current volume gain applied by the Burst job.
+    Summary: "Linear amplitude multiplier (derived from dB mapping in ChangeMicrophoneVolume).\n
+      May be > 1.0 to boost quiet mics."
     Remarks: 
     Returns: 
     Value: 
@@ -20332,13 +20308,13 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: rmsIndex
+  - TypeFullName: 
+    MemberName: LimitThreshold
     Kind: Field
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Backing buffer that mirrors data read from clip each update.
+    Summary: Limiter threshold and knee for safety when Volume/AGC > 1.0.
     Remarks: 
     Returns: 
     Value: 
@@ -20352,13 +20328,13 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: averageRms
+  - TypeFullName: 
+    MemberName: DenoiseMakeupDb
     Kind: Field
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Mean of the rolling RMS window.
+    Summary: Denoiser makeup and wet/dry.
     Remarks: 
     Returns: 
     Value: 
@@ -20372,371 +20348,13 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: RNNoise.NET.Denoiser
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: RNNoise denoiser instance (requires 48 kHz input).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: minFreq
+  - TypeFullName: 
+    MemberName: UseAGC
     Kind: Field
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Device-reported minimum frequency; 0/0 indicates "any". Defaults to
-      48 kHz.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: maxFreq
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Device-reported maximum frequency; defaults to 48 kHz if unspecified.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: SampleRate
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Frame size in samples used by processing/transmit (derived by LocalOpusSettings.EnsureProcessBuffer).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: MainThreadOnHasAudio
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Flag to schedule MainThreadOnHasAudio on the next MicrophoneUpdate call.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: MainThreadOnHasSilence
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Main-thread callback mirroring OnHasSilence for UI/gameplay logic.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisLocalMicrophoneDriver
-    MemberName: isPaused
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Coarse-grain lock for init/deinit and scheduling of main-thread events.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: Initialize
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Property wrapper that persists pause, resets microphones, and invokes
-      OnPausedAction.
-    Remarks: 
-    Returns: True if initialization succeeded or was already initialized.
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: DeInitialize
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: "Shuts down the driver: stops processing thread, unregisters events,
-      stops microphone,\n completes/cleans Burst resources, disposes denoiser, and
-      clears buffers."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: ResetMicrophones
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - newMicrophone
-    ParamDocs:
-    - Device name to select; falls back to the first device if not found.
-    Summary: Subscribes to microphone device/volume/denoiser and boot-mode events
-      once.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: HandleBasisVolumeAdjustmentJob
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Stops the current microphone device (if any). Call only under processingLock.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: ToggleIsPaused
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Toggles paused state (persists preference, restarts/cleans devices accordingly).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: MicrophoneUpdate
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: "Called on the main thread to poll the microphone ring buffer position,\n
-      copy fresh data, and signal the processing thread when at least one frame is
-      available.\n Also dispatches scheduled main-thread audio/silence callbacks."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: StopProcessingThread
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Starts the background processing thread that consumes frames when signaled
-      by processingEvent.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: ProcessAudioData
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - posSnapshot
-    ParamDocs:
-    - Snapshot of the current microphone position to compute available samples.
-    Summary: "Consumes available audio frames from the ring buffer, applies volume
-      gain and optional denoise,\n updates RMS windows, and raises audio/silence
-      events. Advances the head index by SampleRate per frame."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: AdjustVolume
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Runs the Burst volume adjustment job over processBufferArray.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: GetRMS
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Computes RMS of the current frame buffer.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: GetDataLength
-    Kind: Method
-    ParamCount: 3
-    ParamNames:
-    - len
-    - h
-    - pos
-    ParamDocs: []
-    Summary: Computes available samples between ring-buffer head and the device write
-      position.
+    Summary: Optional AGC.
     Remarks: 
     Returns: 
     Value: 
@@ -20755,72 +20373,10 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - volume
+    - ui
     ParamDocs: []
-    Summary: Adjusts microphone gain and updates the Burst job parameter; persists
-      to logs.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: ApplyDeNoise
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: "Applies RNNoise denoising to the current frame buffer (48 kHz expected).\n
-      No-op on Android/Linux where the binding is unavailable."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: RollingRMS
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Updates a rolling RMS window and computes averageRms.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: IsTransmitWorthy
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Determines whether the current rolling window indicates voice activity
-      above the silence threshold.
+    Summary: "UI volume in [0..1] is mapped to dB, then converted to linear. Range:
+      \u221260 dB \u2026 +18 dB."
     Remarks: 
     Returns: 
     Value: 
@@ -25864,7 +25420,7 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Networking.Receivers.BasisAudioReceiver
-    MemberName: HasTransform
+    MemberName: HasAudioSource
     Kind: Field
     ParamCount: 0
     ParamNames: []
@@ -26661,7 +26217,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - audioSegment
+    - msg
     ParamDocs:
     - Decoded server audio segment message.
     Summary: Handles a non-silent voice segment for this remote player.
@@ -26705,7 +26261,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - ServerAvatarChangeMessage
+    - SACM
     ParamDocs:
     - Avatar change payload from the server.
     Summary: Receives a request to switch the remote player's avatar and triggers
@@ -26789,10 +26345,21 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: 
-    MemberName: targetScale
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
+    MemberName: SetInputs
+    Kind: Method
+    ParamCount: 11
+    ParamNames:
+    - index
+    - humanScale
+    - prevPos
+    - targetPos
+    - prevScale
+    - targetScale
+    - prevRot
+    - targetRot
+    - interpolationTime
+    - prevMuscles
+    - targetMuscles
     ParamDocs: []
     Summary: Write inputs for a given index (0..FixedCapacity-1) for this frame.
     Remarks: 
@@ -26815,26 +26382,6 @@ MonoBehaviour:
     ParamNames: []
     ParamDocs: []
     Summary: Run the batched jobs once for the current frame.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: ComputeScaledBodyJob
-    MemberName: ComputeScaledBodyJob
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Guarded divide + scaled body position (Burst).
     Remarks: 
     Returns: 
     Value: 
@@ -26881,6 +26428,26 @@ MonoBehaviour:
     - outMuscles
     ParamDocs: []
     Summary: Read back the computed outputs for an index after Apply().
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: ComputeScaledBodyJob
+    MemberName: ComputeScaledBodyJob
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Guarded divide + scaled body position (Burst).
     Remarks: 
     Returns: 
     Value: 
@@ -28190,7 +27757,7 @@ MonoBehaviour:
       Tracks measured eye heights and arm spans for both the user (player) and the
       avatar,\n along with precomputed scale ratios and the currently selected height/scale
       pair."
-    Remarks: "Use PickRatio(BasisSelectedHeightMode) to populate the\n SelectedPlayerHeight,
+    Remarks: "Use PickHeightMode(BasisSelectedHeightMode) to populate the\n SelectedPlayerHeight,
       SelectedAvatarHeight,\n SelectedPlayerToDefaultScale, and SelectedAvatarToAvatarDefaultScale
       fields\n based on the chosen mode (ArmSpan, EyeHeight, or Custom).\n \n\n\n
       Note on the `Custom` branch: the scale computation uses\n BasisLocalPlayer.DefaultAvatarEyeHeight
@@ -28350,7 +27917,7 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeightInformation
-    MemberName: EyeRatioPlayerToDefaultScale
+    MemberName: value
     Kind: Field
     ParamCount: 0
     ParamNames: []
@@ -28371,150 +27938,7 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeightInformation
-    MemberName: EyeRatioAvatarToAvatarDefaultScale
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Ratio mapping the avatar's measured eye height to the avatar's default
-      reference scale.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeightInformation
-    MemberName: ArmRatioPlayerToDefaultScale
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Ratio mapping the player's measured arm span to a default reference
-      scale.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeightInformation
-    MemberName: ArmRatioAvatarToAvatarDefaultScale
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Ratio mapping the avatar's measured arm span to the avatar's default
-      reference scale.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeightInformation
-    MemberName: SelectedPlayerHeight
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The player height (meters) currently selected by PickRatio(BasisSelectedHeightMode).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeightInformation
-    MemberName: SelectedAvatarHeight
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The avatar height (meters) currently selected by PickRatio(BasisSelectedHeightMode).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeightInformation
-    MemberName: SelectedPlayerToDefaultScale
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The player-to-default scale currently selected by PickRatio(BasisSelectedHeightMode).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeightInformation
-    MemberName: SelectedAvatarToAvatarDefaultScale
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The avatar-to-avatar-default scale currently selected by PickRatio(BasisSelectedHeightMode).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeightInformation
-    MemberName: PickRatio
+    MemberName: PickHeightMode
     Kind: Method
     ParamCount: 1
     ParamNames:
@@ -28524,29 +27948,6 @@ MonoBehaviour:
       or BasisSelectedHeightMode.Custom."
     Summary: Chooses the active height metrics and scale ratios based on the provided
       mode.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.
-    MemberName: CopyTo
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - ApplyTo
-    ParamDocs:
-    - Target instance to receive copied values.
-    Summary: Copies the core height fields and ratios from this instance into the
-      target.
     Remarks: 
     Returns: 
     Value: 
@@ -29012,7 +28413,7 @@ MonoBehaviour:
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Character controller for movement, collisions, and physics.
+    Summary: Places a foot Down. not done yet, i give up - dooly
     Remarks: 
     Returns: 
     Value: 
@@ -29322,26 +28723,6 @@ MonoBehaviour:
     ParamDocs: []
     Summary: Pushes microphone audio samples into the viseme driver for lip-sync
       processing.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.
-    MemberName: SimulateOnLateUpdate
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Per-frame late-update hook for facial blink simulation.
     Remarks: 
     Returns: 
     Value: 
@@ -31754,26 +31135,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
-    MemberName: SimulationHandler
-    Kind: Event
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Fired after control data is pushed to drivers each frame.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisInput
     MemberName: DeviceMatchSettings
     Kind: Field
     ParamCount: 0
@@ -32241,10 +31602,11 @@ MonoBehaviour:
   - TypeFullName: Basis.Scripts.Device_Management.Devices.
     MemberName: SetRealTrackers
     Kind: Method
-    ParamCount: 2
+    ParamCount: 3
     ParamNames:
     - hasTracked
     - HasLayer
+    - DeviceID
     ParamDocs:
     - Whether this control is actively tracked by hardware.
     - Whether a rig layer is available for this control.
@@ -32712,26 +32074,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisInputController
-    MemberName: BasisCalibratedCoords
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Raw unmodified hand coordinates before final calibration.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisInputController
     MemberName: ActiveRaycastOffset
     Kind: Field
     ParamCount: 0
@@ -32797,8 +32139,10 @@ MonoBehaviour:
   - TypeFullName: 
     MemberName: ControlOnlyAsHand
     Kind: Method
-    ParamCount: 0
-    ParamNames: []
+    ParamCount: 2
+    ParamNames:
+    - Position
+    - Rotation
     ParamDocs: []
     Summary: "Forces the control system to only use this device\u2019s hand data
       (ignores other inputs)."
@@ -32818,8 +32162,9 @@ MonoBehaviour:
   - TypeFullName: 
     MemberName: ComputeRaycastDirection
     Kind: Method
-    ParamCount: 0
-    ParamNames: []
+    ParamCount: 1
+    ParamNames:
+    - Position
     ParamDocs: []
     Summary: "Computes the raycast origin/direction using the hand\u2019s final transform
       and active offset."
@@ -34513,8 +33858,8 @@ MonoBehaviour:
     ParamNames: []
     ParamDocs: []
     Summary: "Headless input driver that simulates a CenterEye device for server/headless
-      builds.\n Generates gentle movement/look input and periodically respawns the
-      player."
+      builds.\n Generates gentle movement/look input with mode-based behavior and
+      periodic respawns.\n Includes controls to stop and resume movement at runtime."
     Remarks: 
     Returns: 
     Value: 
@@ -34528,73 +33873,14 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput
-    MemberName: Camera
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Reference to the local player camera (if present in headless).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput
-    MemberName: AvatarDriver
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Local avatar driver for pose/scale info.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput
-    MemberName: Instance
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Singleton-like access to the active headless input.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput
-    MemberName: BasisLocalVirtualSpineDriver
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput+BehaviorMode
+    MemberName: StopMovement
     Kind: Method
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Virtual spine helper for headless posture.
+    Summary: Immediately stops headless movement and prevents new movement until
+      released.
     Remarks: 
     Returns: 
     Value: 
@@ -34609,202 +33895,53 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput
-    MemberName: HasEyeEvents
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Whether events for eye/local avatar have been wired.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput
-    MemberName: respawnInterval
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Seconds between automatic player respawns.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.BasisHeadlessInput
-    MemberName: Initialize
+    MemberName: ResumeMovement
     Kind: Method
-    ParamCount: 2
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Allows movement again and resumes normal behavior.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.
+    MemberName: ToggleMovement
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Toggles movement lock/unlock.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.
+    MemberName: StopForSeconds
+    Kind: Method
+    ParamCount: 1
     ParamNames:
-    - Eye"
-    - '"BasisDesktopManagement"'
-    ParamDocs:
-    - Logical device ID shown in logs.
-    - Subsystem identifier string.
-    Summary: Initializes a headless, CenterEye-style input and hooks events.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.
-    MemberName: OnDestroy
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
+    - seconds
     ParamDocs: []
-    Summary: Unhooks event handlers and deinitializes virtual spine.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.
-    MemberName: PlayerInitialized
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Refreshes cached references after avatar changes.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.
-    MemberName: OnDisable
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Ensures cleanup on disable.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.
-    MemberName: DoPollData
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: "Main per-frame simulation: smooth random inputs, update movement/pose,\n
-      and write into BasisInputState + bone control."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.
-    MemberName: ShowTrackedVisual
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Picks a new random movement/axis set and orientation to lerp toward.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.
-    MemberName: PlayHaptic
-    Kind: Method
-    ParamCount: 3
-    ParamNames:
-    - 0.25F
-    - 0.5F
-    - 0.5F
-    ParamDocs: []
-    Summary: No haptics in headless.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.Headless.
-    MemberName: PlaySoundEffect
-    Kind: Method
-    ParamCount: 2
-    ParamNames:
-    - SoundEffectName
-    - Volume
-    ParamDocs: []
-    Summary: Routes UI sounds to common default implementation.
+    Summary: Stops movement for a number of seconds, then resumes automatically.
     Remarks: 
     Returns: 
     Value: 
@@ -35890,6 +35027,30 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.BasisProcessingAvatarOptions
+    MemberName: doNotAutoRenameBones
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "When checked, the Basis SDK will not automatically rename bones which
+      conflict with the avatar Humanoid bones.\n This serves as an opt-out, and we
+      expect this to be used during testing if Basis migrates away from the Animation
+      Rigging package.\n The Animation Rigging package is reason why we need to rename
+      duplicated humanoid bone names in the first place."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: BasisProgressReport+void
     MemberName: ReportProgress
     Kind: Method
@@ -36305,6 +35466,48 @@ MonoBehaviour:
     ParamDocs: []
     Summary: Event triggered when the avatar is ready for further initialization
       or data queries.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.void
+    MemberName: ProcessingAvatarOptions
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Processing options used when the avatar is processed. This is always
+      null after the avatar is processed.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.void
+    MemberName: HumanScale
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: the animators humanScale, Cached here to stop requesting it from the
+      animator per frame.
     Remarks: 
     Returns: 
     Value: 
@@ -38015,6 +37218,26 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisOpenXRHandInput
+    MemberName: BasisCalibratedCoords
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Raw unmodified hand coordinates before final calibration.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: 
     MemberName: OnHandUpdate
     Kind: Method
@@ -38628,6 +37851,26 @@ MonoBehaviour:
     ParamNames: []
     ParamDocs: []
     Summary: Requests data by id
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Network.Core.BasisNetworkCommons
+    MemberName: ServerStatisticsChannel
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Server Statistics Channel
     Remarks: 
     Returns: 
     Value: 
@@ -42540,6 +41783,26 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: BasisNetworkCore.Serializable.SerializableBasis+ServerStatisticMessage
+    MemberName: ServerStatisticMessage
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Snapshot of server/client stats. Fixed layout for easy wire format.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: SerializableBasis+UnLoadResource
     MemberName: Mode
     Kind: Field
@@ -42547,6 +41810,204 @@ MonoBehaviour:
     ParamNames: []
     ParamDocs: []
     Summary: 0 = Game object, 1 = Scene,
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.BasisNetworking.BasisNetworkStatistics
+    MemberName: BasisNetworkStatistics
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "High-throughput, thread-safe network statistics with striped counters
+      to minimize contention.\n Tracks inbound/outbound counts and bytes per 0..255
+      message index,\n and supports compact encoding/decoding to/from byte arrays
+      (optionally using Brotli)."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.BasisNetworking.
+    MemberName: RecordInbound
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - index
+    - bytesEncoded
+    ParamDocs: []
+    Summary: Record one inbound message for `index`, adding its encoded byte length.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.BasisNetworking.
+    MemberName: RecordOutbound
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - index
+    - bytesEncoded
+    ParamDocs: []
+    Summary: Record one outbound message for `index`, adding its encoded byte length.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.BasisNetworking.
+    MemberName: GetSnapshot
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Non-destructive snapshot. Values may change during read, but each read
+      is atomic.\n Back-compat note:\n   - Snapshot.PerIndex and Snapshot.TotalCalls
+      are inbound.\n   - Snapshot.OutPerIndex and Snapshot.OutTotalCalls are outbound."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.BasisNetworking.
+    MemberName: SnapshotAndReset
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Atomic cut: collect and reset all counters without losing increments.\n
+      Back-compat note:\n   - Snapshot.PerIndex/TotalCalls are inbound; OutPerIndex/OutTotalCalls
+      are outbound."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.BasisNetworking.
+    MemberName: Clear
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Zero everything.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.BasisNetworking.
+    MemberName: SnapshotResetEncode
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - true
+    - 6
+    ParamDocs: []
+    Summary: " <summary>\n Take an atomic cut *and* reset the live counters, then
+      encode & (optionally) compress.\n </summary>"
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.BasisNetworking.
+    MemberName: EncodeCurrent
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - true
+    - 6
+    ParamDocs: []
+    Summary: Encode a non-destructive snapshot (no reset). Useful for debugging.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisNetworkServer.BasisNetworking.
+    MemberName: Decode
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - data
+    - true
+    ParamDocs: []
+    Summary: Decode snapshot bytes (after optional decompression).
     Remarks: 
     Returns: 
     Value: 
