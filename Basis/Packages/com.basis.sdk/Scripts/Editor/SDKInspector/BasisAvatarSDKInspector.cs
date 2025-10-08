@@ -525,7 +525,35 @@ public partial class BasisAvatarSDKInspector : Editor
             ScheduleCallback = false;
         }
         BasisDebug.Log("LoadAvatar Called", BasisDebug.LogTag.Editor);
-        var inSceneItem = GameObject.Instantiate(Avatar.gameObject);
+
+        var jigglesToReset = new List<MonoBehaviour>();
+        foreach (MonoBehaviour jiggle in Avatar.gameObject.GetComponentsInChildren<MonoBehaviour>(false))
+        {
+            if (jiggle != null
+                && jiggle.GetType().FullName == "GatorDragonGames.JigglePhysics.JiggleRig"
+                && jiggle.enabled)
+            {
+                jigglesToReset.Add(jiggle);
+            }
+        }
+        GameObject inSceneItem;
+        if (jigglesToReset.Count > 0)
+        {
+            BasisDebug.Log("Enabled Jiggles were found when Test in Editor was entered. We will disable the avatar in order to reset the Jiggle transforms.", BasisDebug.LogTag.Editor);
+            Avatar.gameObject.SetActive(false);
+            // It's a bit of a hack, but waiting three frames works.
+            await Awaitable.NextFrameAsync();
+            await Awaitable.NextFrameAsync();
+            await Awaitable.NextFrameAsync();
+            inSceneItem = GameObject.Instantiate(Avatar.gameObject);
+            Avatar.gameObject.SetActive(true);
+            inSceneItem.SetActive(true);
+        }
+        else
+        {
+            inSceneItem = GameObject.Instantiate(Avatar.gameObject);
+        }
+
         BasisAssetBundlePipeline.DestroyEditorOnlyInAvatar(inSceneItem);
         OnBeforeTestInEditor?.Invoke(inSceneItem);
         BasisAssetBundlePipeline.PostProcessAvatar(inSceneItem);
