@@ -32,8 +32,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             leftHandToIKRotationOffset = new Vector3(170, 0, -120);
             rightHandToIKRotationOffset = new Vector3(170, 0, 120);
 
-            // default position offsets (tweak as needed; mirrored on X by default).
-            // set to zero if you prefer to tune in inspector.
             leftHandToIKPositionOffset = new Vector3(0, 0.05f, -0.02f);
             rightHandToIKPositionOffset = new Vector3(0, 0.05f, -0.02f);
 
@@ -208,9 +206,9 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             HandFinal.rotation = wristWorldRot;
             HandFinal.position = wristWorldPos;
+            ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
 
             UpdateRaycastOffset();
-            ControlOnlyAsHand();
             ComputeRaycastDirection(wristWorldPos + (UnscaledDeviceCoord.rotation * (RaycastOffset * avatarScale)));
         }
         public override void ShowTrackedVisual()

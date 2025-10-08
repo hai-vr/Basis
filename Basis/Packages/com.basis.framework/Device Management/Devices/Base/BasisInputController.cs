@@ -78,12 +78,12 @@ public abstract class BasisInputController : BasisInput
     /// <summary>
     /// Forces the control system to only use this device’s hand data (ignores other inputs).
     /// </summary>
-    public void ControlOnlyAsHand()
+    public void ControlOnlyAsHand(Vector3 Position,Quaternion Rotation)
     {
         if (hasRoleAssigned && Control.HasTracked != BasisHasTracked.HasNoTracker)
         {
-            Control.IncomingData.position = HandFinal.position;
-            Control.IncomingData.rotation = HandFinal.rotation;
+            Control.IncomingData.position = Position;
+            Control.IncomingData.rotation = Rotation;
         }
     }
 
