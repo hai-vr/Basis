@@ -22,7 +22,6 @@ namespace Basis.Scripts.UI.NamePlate
         public Mesh bakedMesh;
         public MeshRenderer Renderer;
         private WaitForSeconds cachedReturnDelay;
-        private WaitForEndOfFrame cachedEndOfFrame;
         public Color CurrentColor;
         public Transform Self;
         public float InteractRange = 2f;
@@ -34,7 +33,6 @@ namespace Basis.Scripts.UI.NamePlate
         public void Initalize(BasisRemotePlayer RemotePlayer)
         {
             cachedReturnDelay = new WaitForSeconds(BasisRemoteNamePlateDriver.returnDelay);
-            cachedEndOfFrame = new WaitForEndOfFrame();
             BasisRemotePlayer = RemotePlayer;
             BasisRemotePlayer.RemoteNamePlate = this;
             BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport += ProgressReport;
