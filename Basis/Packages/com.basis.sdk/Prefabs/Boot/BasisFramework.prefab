@@ -79,6 +79,7 @@ MonoBehaviour:
       UseInverseOffset: 0
       Color: {r: 0, g: 0, b: 1, a: 1}
       hasTrackerDriver: 1
+      DevicesWithRoles: []
       hasRigLayer: 1
       IncomingData:
         rotation: {x: 0, y: 0, z: 0, w: 0}
@@ -106,15 +107,17 @@ MonoBehaviour:
       IsInitalized: 0
       HasEvents: 0
       AudioSegmentData:
+        TotalPlayedInSilence: 0
         buffer: 
         TotalLength: 0
         LengthUsed: 0
       SilentSegmentData:
+        TotalPlayedInSilence: 0
         buffer: 
         TotalLength: 0
         LengthUsed: 0
+      SilentForHowLong: 0
     IndexLength: 0
-    BatchSize: 0
     MicrophoneRangeIndex: 
     LastMicrophoneRangeIndex: 
     HearingIndex: 
@@ -126,6 +129,8 @@ MonoBehaviour:
     SmallestDistanceToAnotherPlayer: 0
     UnClampedInterval: 0
     DefaultInterval: 0
+    TalkingPoints: 
+    requiresRebuild: 0
 --- !u!114 &3490227392973501680
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -275,6 +280,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SettingsNames:
   - voicedenoiser
+  - selectedvolumemicrophone
+  - selectedmicrophone
+  - microphone
+  - agcrelease
+  - agcattack
+  - agcmaxgaindb
+  - agctargetrms
+  - agc
+  - denoisewet
+  - denoisemakeupdb
+  - limitknee
+  - limitthreshold
 --- !u!114 &9218905915079737845
 MonoBehaviour:
   m_ObjectHideFlags: 0
