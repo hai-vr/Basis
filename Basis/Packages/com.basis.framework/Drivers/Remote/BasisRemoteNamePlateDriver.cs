@@ -93,7 +93,7 @@ namespace Basis.Scripts.UI.NamePlate
         public void Awake()
         {
             Instance = this;
-            if (BasisDeviceManagement.IsMobile())
+            if (BasisDeviceManagement.IsMobilehardware())
             {
                 SelectedNamePlateMaterial = OpaqueNamePlateMaterial;
             }

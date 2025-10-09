@@ -2,6 +2,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using System;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 
 namespace Basis.Scripts.Device_Management.Devices.Desktop
 {
@@ -22,7 +23,9 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         /// Identifier string for the desktop eye device.
         /// </summary>
         public const string DesktopEye = "Desktop Eye";
-
+        public const string OnScreenControls = "OnScreenControls";
+        public bool AlwaysSpawnHeadsUpControls;
+        public GameObject Controls;
         /// <summary>
         /// Starts the Basis SDK for desktop mode.  
         /// If no <see cref="BasisAvatarEyeInput"/> exists, it creates one and attaches it
@@ -45,6 +48,24 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 BasisAvatarEyeInput.Initialize(DesktopEye, nameof(BasisDesktopManagement));
                 BasisDeviceManagement.Instance.TryAdd(BasisAvatarEyeInput);
             }
+            if (BasisDeviceManagement.IsMobilehardware() || AlwaysSpawnHeadsUpControls)
+            {
+                UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> op = Addressables.InstantiateAsync(OnScreenControls, BasisLocalCameraDriver.Instance.transform, true);
+                Controls = op.WaitForCompletion();
+                Controls.transform.SetLocalPositionAndRotation(new Vector3(0, 0, 0.4f), Quaternion.identity);
+                if(AlwaysSpawnHeadsUpControls)
+                {
+                    BasisCursorManagement.ForceIgnoreCursorRequests = true;
+                }
+                //BasisUIBase BasisUIBase = BasisHelpers.GetOrAddComponent<BasisUIBase>(RAC);
+            }
+            else
+            {
+                if (Controls != null)
+                {
+                    Addressables.ReleaseInstance(Controls);
+                }
+            }
 
             BasisCursorManagement.LockCursor(nameof(BasisAvatarEyeInput));
         }
@@ -64,6 +85,10 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
             BasisAvatarEyeInput.Instance = null;
             BasisAvatarEyeInput = null;
+            if (Controls != null)
+            {
+                Addressables.ReleaseInstance(Controls);
+            }
         }
 
         /// <summary>

@@ -636,7 +636,7 @@ namespace Basis.Scripts.Device_Management
 #if UNITY_SERVER
             return BasisConstants.Headless;
 #else
-            if (IsMobile())
+            if (Application.isMobilePlatform) // try to boot vr first on standalone devices.
             {
                 // On mobile we assume OpenXR (tunable per project).
                 return BasisConstants.OpenXRLoader;
@@ -651,7 +651,7 @@ namespace Basis.Scripts.Device_Management
         /// <summary>
         /// Indicates whether the current runtime is a mobile platform (Android).
         /// </summary>
-        public static bool IsMobile() => Application.platform == RuntimePlatform.Android;
+        public static bool IsMobilehardware() => Application.isMobilePlatform;
 
         /// <summary>
         /// Returns <c>true</c> when the current static mode equals <see cref="BasisConstants.Desktop"/>.
