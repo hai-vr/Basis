@@ -1,3 +1,4 @@
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using System;
@@ -7,6 +8,7 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.Jobs;
 
 /// <summary>
@@ -105,8 +107,6 @@ public class BasisLocalHandDriver
     /// <summary>Resolved pose for current right little target.</summary>
     public BasisPoseDataAdditional RightLittleAdditional;
 
-    // --- Burst job scratch ---
-
     /// <summary>Flattened atlas coordinates for nearest-neighbor search (persistent).</summary>
     public NativeArray<Vector2> CoordKeysArray;
     /// <summary>Per-key distances to target (temp per query).</summary>
@@ -126,19 +126,9 @@ public class BasisLocalHandDriver
     /// </summary>
     public void Dispose()
     {
-        // Dispose NativeArrays if allocated
-        if (CoordKeysArray.IsCreated)
-        {
-            CoordKeysArray.Dispose();
-        }
-        if (DistancesArray.IsCreated)
-        {
-            DistancesArray.Dispose();
-        }
-        if (closestIndexArray.IsCreated)
-        {
-            closestIndexArray.Dispose();
-        }
+        if (CoordKeysArray.IsCreated) CoordKeysArray.Dispose();
+        if (DistancesArray.IsCreated) DistancesArray.Dispose();
+        if (closestIndexArray.IsCreated) closestIndexArray.Dispose();
     }
 
     /// <summary>
@@ -148,6 +138,7 @@ public class BasisLocalHandDriver
     public void Initialize()
     {
         Dispose();
+
         float epsilon = 0.05f; // approximate-duplicate guard
         List<Vector2> points = new List<Vector2>();
 
@@ -198,6 +189,7 @@ public class BasisLocalHandDriver
     /// <summary>
     /// Rebuilds pose atlas by sampling Unity HumanPose muscles on a hidden duplicate of the provided animator.
     /// Captures TPose finger muscle blocks, bakes poses for every coordinate, and fills <see cref="CoordToPose"/>.
+    /// Resets all per-finger caches to avoid stale data when swapping animators.
     /// </summary>
     /// <param name="OriginalAnimator">Source animator with humanoid avatar to sample.</param>
     public void ReInitialize(Animator OriginalAnimator)
@@ -205,6 +197,7 @@ public class BasisLocalHandDriver
         BasisTransformMapping Mapping = new BasisTransformMapping();
         GameObject CopyOfOrigionally = GameObject.Instantiate(OriginalAnimator.gameObject);
         CopyOfOrigionally.gameObject.SetActive(false);
+
         if (CopyOfOrigionally.TryGetComponent(out Animator Animator) == false)
         {
             GameObject.Destroy(CopyOfOrigionally);
@@ -217,8 +210,15 @@ public class BasisLocalHandDriver
         }
 
         // Aggregate all finger transforms & masks
-        Transform[] allTransforms = AggregateFingerTransforms(Mapping.LeftThumb, Mapping.LeftIndex, Mapping.LeftMiddle, Mapping.LeftRing, Mapping.LeftLittle, Mapping.RightThumb, Mapping.RightIndex, Mapping.RightMiddle, Mapping.RightRing, Mapping.RightLittle);
-        bool[] allHasProximal = AggregateHasProximal(Mapping.HasLeftThumb, Mapping.HasLeftIndex, Mapping.HasLeftMiddle, Mapping.HasLeftRing, Mapping.HasLeftLittle, Mapping.HasRightThumb, Mapping.HasRightIndex, Mapping.HasRightMiddle, Mapping.HasRightRing, Mapping.HasRightLittle);
+        Transform[] allTransforms = AggregateFingerTransforms(
+            Mapping.LeftThumb, Mapping.LeftIndex, Mapping.LeftMiddle, Mapping.LeftRing, Mapping.LeftLittle,
+            Mapping.RightThumb, Mapping.RightIndex, Mapping.RightMiddle, Mapping.RightRing, Mapping.RightLittle);
+
+        bool[] allHasProximal = AggregateHasProximal(
+            Mapping.HasLeftThumb, Mapping.HasLeftIndex, Mapping.HasLeftMiddle, Mapping.HasLeftRing, Mapping.HasLeftLittle,
+            Mapping.HasRightThumb, Mapping.HasRightIndex, Mapping.HasRightMiddle, Mapping.HasRightRing, Mapping.HasRightLittle);
+
+        PutAvatarIntoTPose(Animator);
 
         // Get TPose muscles
         HumanPoseHandler poseHandler = new HumanPoseHandler(Animator.avatar, Animator.transform);
@@ -249,7 +249,6 @@ public class BasisLocalHandDriver
         {
             AddPose(Poses[Index]);
         }
-
         void AddPose(Vector2 coord)
         {
             BasisPoseDataAdditional poseAdd = new BasisPoseDataAdditional
@@ -259,8 +258,54 @@ public class BasisLocalHandDriver
             };
             CoordToPose.TryAdd(poseAdd.Coord, poseAdd);
         }
-
         GameObject.Destroy(CopyOfOrigionally);
+        ResetFingerCaches();
+    }
+
+    public void PutAvatarIntoTPose(Animator Anim)
+    {
+        if (BasisLocalAvatarDriver.SavedruntimeAnimatorController == null)
+        {
+            BasisLocalAvatarDriver.SavedruntimeAnimatorController = Anim.runtimeAnimatorController;
+        }
+        UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<RuntimeAnimatorController> op =
+            Addressables.LoadAssetAsync<RuntimeAnimatorController>(BasisLocalAvatarDriver.TPose);
+        RuntimeAnimatorController RAC = op.WaitForCompletion();
+        Anim.runtimeAnimatorController = RAC;
+        float desiredTime = Time.deltaTime;
+        Anim.Update(desiredTime);
+    }
+
+    /// <summary>
+    /// Resets all per-finger caches so the next UpdateFingers() forces fresh lookups against the new atlas.
+    /// </summary>
+    void ResetFingerCaches()
+    {
+        Vector2 sentinel = new Vector2(-1.1f, -1.1f);
+
+        LastLeftThumbPercentage = sentinel;
+        LastLeftIndexPercentage = sentinel;
+        LastLeftMiddlePercentage = sentinel;
+        LastLeftRingPercentage = sentinel;
+        LastLeftLittlePercentage = sentinel;
+
+        LastRightThumbPercentage = sentinel;
+        LastRightIndexPercentage = sentinel;
+        LastRightMiddlePercentage = sentinel;
+        LastRightRingPercentage = sentinel;
+        LastRightLittlePercentage = sentinel;
+
+        LeftThumbAdditional = new BasisPoseDataAdditional { PoseData = Current, Coord = Vector2.zero };
+        LeftIndexAdditional = new BasisPoseDataAdditional { PoseData = Current, Coord = Vector2.zero };
+        LeftMiddleAdditional = new BasisPoseDataAdditional { PoseData = Current, Coord = Vector2.zero };
+        LeftRingAdditional = new BasisPoseDataAdditional { PoseData = Current, Coord = Vector2.zero };
+        LeftLittleAdditional = new BasisPoseDataAdditional { PoseData = Current, Coord = Vector2.zero };
+
+        RightThumbAdditional = new BasisPoseDataAdditional { PoseData = Current, Coord = Vector2.zero };
+        RightIndexAdditional = new BasisPoseDataAdditional { PoseData = Current, Coord = Vector2.zero };
+        RightMiddleAdditional = new BasisPoseDataAdditional { PoseData = Current, Coord = Vector2.zero };
+        RightRingAdditional = new BasisPoseDataAdditional { PoseData = Current, Coord = Vector2.zero };
+        RightLittleAdditional = new BasisPoseDataAdditional { PoseData = Current, Coord = Vector2.zero };
     }
 
     /// <summary>
@@ -270,6 +315,7 @@ public class BasisLocalHandDriver
     /// <param name="DeltaTime">Frame delta time (seconds).</param>
     public void UpdateFingers(float DeltaTime)
     {
+        var Map = BasisLocalAvatarDriver.References;
         // Find nearest baked pose using two-stage job: distance + min reduction
         bool GetClosestValue(Vector2 percentage, out BasisPoseDataAdditional result)
         {
@@ -322,7 +368,6 @@ public class BasisLocalHandDriver
 
         // Apply to transforms
         float Percentage = LerpSpeed * DeltaTime;
-        var Map = BasisLocalAvatarDriver.References;
 
         // Left
         UpdateFingerPoses(Map.LeftThumb, LeftThumbAdditional.PoseData.LeftThumb, ref Current.LeftThumb, Map.HasLeftThumb, Percentage);
