@@ -57,7 +57,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 {
                     BasisCursorManagement.ForceIgnoreCursorRequests = true;
                 }
-                //BasisUIBase BasisUIBase = BasisHelpers.GetOrAddComponent<BasisUIBase>(RAC);
+                Cursor.lockState = CursorLockMode.Confined;
+                Cursor.visible = true;
             }
             else
             {

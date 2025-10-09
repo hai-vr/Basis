@@ -110,7 +110,6 @@ public static class BasisLocalMicrophoneDriver
 
     // Temp buffers for denoiser wet/dry and chunking
     private static float[] _denoiseDry; // copy of pre-denoise frame
-    private static float[] _tmp480;     // 480-sample scratch (allocated on demand)
 
     // ---------------------------------------------------------
 
@@ -167,7 +166,6 @@ public static class BasisLocalMicrophoneDriver
             processBufferArray = null;
             rmsValues = null;
             _denoiseDry = null;
-            _tmp480 = null;
 
             IsInitialize = false;
             BasisDebug.Log("Microphone Driver Deinitialized.");

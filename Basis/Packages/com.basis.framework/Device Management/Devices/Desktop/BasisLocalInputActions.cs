@@ -93,7 +93,11 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
             BasisLocalCameraDriver.InstanceExists += SetupCamera;
 
-            if (!BasisDeviceManagement.IsMobilehardware())
+            if (BasisDeviceManagement.IsCurrentModeVR() && BasisDeviceManagement.IsMobilehardware())
+            {
+
+            }
+            else
             {
                 EnableActions();
                 AddCallbacks();
@@ -104,7 +108,11 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         {
             BasisLocalCameraDriver.InstanceExists -= SetupCamera;
 
-            if (!BasisDeviceManagement.IsMobilehardware())
+            if (BasisDeviceManagement.IsCurrentModeVR() && BasisDeviceManagement.IsMobilehardware())
+            {
+
+            }
+            else
             {
                 RemoveCallbacks();
                 DisableActions();

@@ -169,7 +169,7 @@ namespace Basis.Scripts.UI
                         HasHoverONInput = true;
                         MovementLock.Add(nameof(BasisInputModuleHandler));
                         CrouchingLock.Add(nameof(BasisInputModuleHandler));
-                        if (BasisDeviceManagement.IsCurrentModeVR() || ForceKeyboard)
+                        if (KeyboardRequired())
                         {
                             if (BasisVirtualKeyboard.HasInstance == false)
                             {
@@ -187,7 +187,7 @@ namespace Basis.Scripts.UI
                             HasHoverONInput = true;
                             MovementLock.Add(nameof(BasisInputModuleHandler));
                             CrouchingLock.Add(nameof(BasisInputModuleHandler));
-                            if (BasisDeviceManagement.IsCurrentModeVR() || ForceKeyboard)
+                            if (KeyboardRequired())
                             {
                                 if (BasisVirtualKeyboard.HasInstance == false)
                                 {
@@ -211,6 +211,10 @@ namespace Basis.Scripts.UI
                     ExecuteEvents.Execute(EventSystem.currentSelectedGameObject, data, ExecuteEvents.submitHandler);
                 }
             }
+        }
+        public bool KeyboardRequired()
+        {
+            return (BasisDeviceManagement.IsCurrentModeVR() || ForceKeyboard || BasisDeviceManagement.IsCurrentModeVR() == false && BasisDeviceManagement.IsMobilehardware());
         }
 
         /// <summary>
