@@ -176,6 +176,10 @@ public struct BasisRemoteBoneJob : IJobParallelFor
         float3 eyeP = headP + math.mul(headR, sc.offsets_scaled_CenterEye);
         float3 mouthP = headP + math.mul(headR, sc.offsets_scaled_Mouth);
 
+        // already computed hipsR (current hips world rot relative to TPose composition)
+        float3 avatarUp = math.mul(hipsR, new float3(0f, 1f, 0f));
+        float diffAvatarUp = math.dot(mouthP - hipsP, avatarUp);
+
         Out[i] = new RemoteFrameOutput
         {
             pos_Head = headP,
@@ -193,9 +197,8 @@ public struct BasisRemoteBoneJob : IJobParallelFor
             rot_Hips = hipsR,
             rot_CenterEye = headR,
             rot_Mouth = headR,
-
             // Used for vertical offsetting of the nameplate UI
-            diffHipToHeadMouthY = sc.tposeLocal_scaled_Mouth.y - sc.tposeLocal_scaled_Hips.y
+            diffHipToHeadMouthY = diffAvatarUp
         };
     }
 }
