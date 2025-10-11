@@ -157,9 +157,15 @@ namespace Basis.Scripts.BasisCharacterController
                     isSnapTurning = isAboveThreshold;
                     rotationAmount = isSnapTurning ? math.sign(Rotation.x) * SnapTurnAngle : 0f;
                 }
-                else rotationAmount = 0f;
+                else
+                {
+                    rotationAmount = 0f;
+                }
             }
-            else rotationAmount = Rotation.x * RotationSpeed * deltaTime;
+            else
+            {
+                rotationAmount = Rotation.x * RotationSpeed * deltaTime;
+            }
 
             Vector3 pivot = BasisLocalBoneDriver.EyeControl.OutgoingWorldData.position;
             Vector3 directionToPivot = CurrentPosition - pivot;
