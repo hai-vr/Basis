@@ -367,6 +367,7 @@ namespace Basis.Scripts.BasisSdk.Players
         {
             if (HasEvents)
             {
+               LocalCharacterDriver?.DeInitalize();
                 OnLocalAvatarChanged -= OnCalibration;
                 SceneManager.sceneLoaded -= OnSceneLoadedCallback;
                 HasEvents = false;

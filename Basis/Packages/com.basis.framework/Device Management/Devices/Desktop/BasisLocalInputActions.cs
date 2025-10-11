@@ -67,6 +67,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         #endregion
 
         private readonly BasisLocks.LockContext CrouchingLock = BasisLocks.GetContext(BasisLocks.Crouching);
+        /// <summary>Whether crouch is currently held down.</summary>
+        public bool IsJumpHeld { get; private set; }
 
         /// <summary>Whether crouch is currently held down.</summary>
         public bool IsCrouchHeld { get; private set; }
@@ -368,8 +370,16 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             AvatarEyeInput?.SetLookRotationVector(Vector2.zero);
         }
 
-        public void OnJumpActionPerformed(InputAction.CallbackContext ctx) => LocalCharacterDriver.HandleJump();
-        public void OnJumpActionCancelled(InputAction.CallbackContext ctx) { }
+        public void OnJumpActionPerformed(InputAction.CallbackContext ctx)
+        {
+            IsJumpHeld = true;
+            LocalCharacterDriver.HandleJumpRequest();
+        }
+
+        public void OnJumpActionCancelled(InputAction.CallbackContext ctx)
+        {
+            IsJumpHeld = false;
+        }
 
         public void OnCrouchPerformed(InputAction.CallbackContext ctx)
         {

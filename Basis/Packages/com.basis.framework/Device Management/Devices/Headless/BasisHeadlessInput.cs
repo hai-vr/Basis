@@ -234,7 +234,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
             float dt = Time.unscaledDeltaTime;
             if(ForceJump)
             {
-                BasisLocalPlayer.Instance.LocalCharacterDriver.HandleJump();
+                BasisLocalPlayer.Instance.LocalCharacterDriver.HandleJumpRequest();
             }
             // If movement is locked, override locomotion and inputs but keep pose updates
             if (movementLocked)
@@ -313,7 +313,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
             // --- Jump cooldown ---
             if (Time.unscaledTime >= nextJumpTime)
             {
-                BasisLocalPlayer.Instance.LocalCharacterDriver.HandleJump();
+                BasisLocalPlayer.Instance.LocalCharacterDriver.HandleJumpRequest();
                 ScheduleNextJump();
             }
 

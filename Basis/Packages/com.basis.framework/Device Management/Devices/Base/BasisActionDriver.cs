@@ -428,7 +428,7 @@ public static class BasisActionDriver
     {
         if (current.PrimaryButtonGetState)
         {
-            BasisLocalPlayer.Instance.LocalCharacterDriver.HandleJump();
+            BasisLocalPlayer.Instance.LocalCharacterDriver.HandleJumpRequest();
         }
     }
 
