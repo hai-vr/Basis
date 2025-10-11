@@ -37,8 +37,7 @@ public class BasisOpenXRTracker : BasisInput
         ConvertToScaledDeviceCoord();
         ControlOnlyAsDevice();
 
-        float avatarScale = BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
-        ComputeRaycastDirection(ScaledDeviceCoord.position * avatarScale, ScaledDeviceCoord.rotation, Quaternion.identity);
+        ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
         UpdatePlayerControl();
     }
     public override void ShowTrackedVisual()

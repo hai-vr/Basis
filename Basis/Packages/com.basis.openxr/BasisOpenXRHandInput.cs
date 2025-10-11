@@ -128,7 +128,8 @@ public class BasisOpenXRHandInput : BasisInputController
         ConvertToScaledDeviceCoord();
         ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
         UpdateRaycastOffset();
-        ComputeRaycastDirection(pointerPosition.action.ReadValue<Vector3>(), HandFinal.rotation, ActiveRaycastOffset);
+        float avatarScale = BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
+        ComputeRaycastDirection(pointerPosition.action.ReadValue<Vector3>() * avatarScale, HandFinal.rotation, ActiveRaycastOffset);
         UpdatePlayerControl();
     }
     /// <summary>
