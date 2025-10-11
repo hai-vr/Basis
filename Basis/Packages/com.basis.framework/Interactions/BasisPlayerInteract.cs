@@ -409,7 +409,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
         private void AddInput(BasisInput input)
         {
-            GameObject interactOrigin = new GameObject("Interact Origin");
+            GameObject interactOrigin = new GameObject($"{input.name} Line Renderer");
 
             LineRenderer lineRenderer = interactOrigin.AddComponent<LineRenderer>();
 
@@ -417,7 +417,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // TODO: pass up max hits for config 
             BasisHoverSphere hoverSphere = new BasisHoverSphere(input.RaycastCoord.position, hoverRadius, 128, Mask, !IsDesktopCenterEye(input), OnlySortClosest);
 
-            interactOrigin.transform.SetParent(input.transform);
+            interactOrigin.transform.SetParent(BasisLocalPlayer.Instance.transform);
             interactOrigin.layer = IgnoreRaycasting;
             interactOrigin.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             lineRenderer.enabled = false;
