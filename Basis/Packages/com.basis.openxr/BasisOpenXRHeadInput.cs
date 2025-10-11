@@ -47,8 +47,8 @@ public class BasisOpenXRHeadInput : BasisInput
 
         ConvertToScaledDeviceCoord();
         ControlOnlyAsDevice();
-        UpdatePlayerControl();
         ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
+        UpdatePlayerControl();
     }
     public override void ShowTrackedVisual()
     {

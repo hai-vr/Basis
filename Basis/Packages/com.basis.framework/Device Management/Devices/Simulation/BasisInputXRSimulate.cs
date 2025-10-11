@@ -77,8 +77,8 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
                 }
             }
 
-            UpdatePlayerControl();
             ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
+            UpdatePlayerControl();
         }
 
         /// <summary>

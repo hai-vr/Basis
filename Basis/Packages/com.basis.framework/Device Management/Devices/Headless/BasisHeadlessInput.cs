@@ -279,6 +279,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
                 ScaledDeviceCoord.rotation = currentRotation;
 
                 ControlOnlyAsDevice();
+                ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
                 UpdatePlayerControl();
                 return; // skip normal AI behavior while locked
             }
@@ -380,8 +381,8 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
 
             // Drive our CenterEye bone
             ControlOnlyAsDevice();
-            UpdatePlayerControl();
             ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
+            UpdatePlayerControl();
         }
 
         // --- Target/update helpers --------------------------------------------
