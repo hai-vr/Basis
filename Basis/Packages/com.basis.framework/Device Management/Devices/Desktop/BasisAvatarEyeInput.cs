@@ -265,6 +265,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
             ControlOnlyAsDevice();
             UpdatePlayerControl();
+
+            ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation,Quaternion.identity);
         }
 
         /// <summary>

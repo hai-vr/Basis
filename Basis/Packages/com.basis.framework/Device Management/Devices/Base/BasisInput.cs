@@ -7,7 +7,6 @@ using Basis.Scripts.UI;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
-using static Basis.Scripts.BasisSdk.Players.BasisPlayer;
 
 namespace Basis.Scripts.Device_Management.Devices
 {
@@ -68,7 +67,6 @@ namespace Basis.Scripts.Device_Management.Devices
         /// Device pose after scaling/elevation adjustments.
         /// </summary>
         public BasisCalibratedCoords ScaledDeviceCoord = new BasisCalibratedCoords();
-
         /// <summary>
         /// Common/normalized device identifier (used for matching visual models, capabilities).
         /// </summary>
@@ -187,7 +185,18 @@ namespace Basis.Scripts.Device_Management.Devices
                 BasisDebug.Log("has device events assigned already " + UniqueDeviceIdentifier, BasisDebug.LogTag.Input);
             }
         }
+        /// <summary>
+        /// Computes the raycast origin/direction using the hand’s final transform and active offset.
+        /// </summary>
+        public void ComputeRaycastDirection(Vector3 Position, Quaternion rotation, Quaternion ActiveRaycastOffset)
+        {
+            var parent = BasisLocalPlayer.Instance.transform;
+            Matrix4x4 parentMatrix = parent.localToWorldMatrix;
+            Quaternion OutGoingRotation = rotation * ActiveRaycastOffset;//HandFinal.rotation
 
+            RaycastCoord.position = parentMatrix.MultiplyPoint3x4(Position);
+            RaycastCoord.rotation = parentMatrix.rotation * OutGoingRotation;
+        }
         /// <summary>
         /// Get the currently assigned tracked role (if any).
         /// </summary>

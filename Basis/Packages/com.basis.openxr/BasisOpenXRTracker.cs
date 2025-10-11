@@ -1,3 +1,4 @@
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
@@ -36,6 +37,8 @@ public class BasisOpenXRTracker : BasisInput
         ConvertToScaledDeviceCoord();
         ControlOnlyAsDevice();
         UpdatePlayerControl();
+        float avatarScale = BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
+        ComputeRaycastDirection(ScaledDeviceCoord.position * avatarScale, ScaledDeviceCoord.rotation, Quaternion.identity);
     }
     public override void ShowTrackedVisual()
     {

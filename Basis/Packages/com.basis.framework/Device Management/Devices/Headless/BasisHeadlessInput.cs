@@ -381,6 +381,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
             // Drive our CenterEye bone
             ControlOnlyAsDevice();
             UpdatePlayerControl();
+            ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
         }
 
         // --- Target/update helpers --------------------------------------------

@@ -209,7 +209,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
 
             UpdateRaycastOffset();
-            ComputeRaycastDirection(wristWorldPos + (UnscaledDeviceCoord.rotation * (RaycastOffset * avatarScale)));
+            ComputeRaycastDirection(wristWorldPos + (UnscaledDeviceCoord.rotation * (RaycastOffset * avatarScale)),HandFinal.rotation,ActiveRaycastOffset);
         }
         public override void ShowTrackedVisual()
         {

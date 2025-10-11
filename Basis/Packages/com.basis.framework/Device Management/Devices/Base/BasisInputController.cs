@@ -86,17 +86,4 @@ public abstract class BasisInputController : BasisInput
             Control.IncomingData.rotation = Rotation;
         }
     }
-
-    /// <summary>
-    /// Computes the raycast origin/direction using the hand’s final transform and active offset.
-    /// </summary>
-    public void ComputeRaycastDirection(Vector3 Position)
-    {
-        var parent = BasisLocalPlayer.Instance.transform;
-        Matrix4x4 parentMatrix = parent.localToWorldMatrix;
-        Quaternion OutGoingRotation = HandFinal.rotation * ActiveRaycastOffset;
-
-        RaycastCoord.position = parentMatrix.MultiplyPoint3x4(Position);
-        RaycastCoord.rotation = parentMatrix.rotation * OutGoingRotation;
-    }
 }
