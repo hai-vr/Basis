@@ -121,7 +121,7 @@ public struct RemoteFrameOutput
     /// <summary>
     /// Vertical delta between hips and mouth in scaled TPose space (used for UI placement).
     /// </summary>
-    public float diffHipToHeadMouthY;
+    public float HeightAvatarHipCoord;
 }
 
 /// <summary>
@@ -176,7 +176,7 @@ public struct BasisRemoteBoneJob : IJobParallelFor
         float3 eyeP = headP + math.mul(headR, sc.offsets_scaled_CenterEye);
         float3 mouthP = headP + math.mul(headR, sc.offsets_scaled_Mouth);
 
-        float3 RotationIgnoredMouthP = headP + sc.offsets_scaled_Mouth;
+        float3 RotationIgnoredMouthP = hipsP + sc.offsets_scaled_Mouth;
         Out[i] = new RemoteFrameOutput
         {
             pos_Head = headP,
@@ -195,7 +195,7 @@ public struct BasisRemoteBoneJob : IJobParallelFor
             rot_CenterEye = headR,
             rot_Mouth = headR,
             // Used for vertical offsetting of the nameplate UI
-            diffHipToHeadMouthY = RotationIgnoredMouthP.y - hipsP.y
+            HeightAvatarHipCoord = sc.tposeLocal_scaled_Hips.y * 1.2f
         };
     }
 }
@@ -288,9 +288,6 @@ struct ApplyMouthJob : IJobParallelForTransform
 [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public struct MappedNameplateApplyJob : IJobParallelForTransform
 {
-    /// <summary>Precomputed vertical scale coefficient (1 + 1/1.25).</summary>
-    private const float kY = 1.8f;
-
     /// <summary>Camera world position used to bill-board the plate (yaw-only).</summary>
     public float3 CameraPosition;
 
@@ -304,7 +301,7 @@ public struct MappedNameplateApplyJob : IJobParallelForTransform
         float3 hips = data.pos_Hips;
 
         // y = hips.y + diff * 1.8
-        float3 nameplatePos = new float3(hips.x, hips.y + data.diffHipToHeadMouthY * kY, hips.z);
+        float3 nameplatePos = new float3(hips.x, hips.y + data.HeightAvatarHipCoord, hips.z);
 
         // Face the camera (yaw only) with zero-distance guard.
         float3 toCam = CameraPosition - nameplatePos;
