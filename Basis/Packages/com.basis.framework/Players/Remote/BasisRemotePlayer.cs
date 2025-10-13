@@ -32,11 +32,6 @@ namespace Basis.Scripts.BasisSdk.Players
         [SerializeField]
         public BasisRemoteEyeDriver RemoteEyeDriver = new BasisRemoteEyeDriver();
 
-        // Intentionally disabled:
-        // [Header("Bone Driver")]
-        // [SerializeField]
-        // public BasisRemoteBoneDriver RemoteBoneDriver = new BasisRemoteBoneDriver();
-
         /// <summary>
         /// Driver responsible for avatar-specific remote updates (e.g., bone jobs hookup).
         /// </summary>

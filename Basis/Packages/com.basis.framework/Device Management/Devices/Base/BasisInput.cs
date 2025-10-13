@@ -624,7 +624,7 @@ namespace Basis.Scripts.Device_Management.Devices
             if (hasRoleAssigned && trackedRole != BasisBoneTrackedRole.CenterEye)
             {
                 //this solves hands being removed and there tracker states
-               SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer, UniqueDeviceIdentifier);
+                SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer, UniqueDeviceIdentifier);
             }
             if (BasisUIRaycast != null)
             {
@@ -633,6 +633,9 @@ namespace Basis.Scripts.Device_Management.Devices
                 {
                     GameObject.Destroy(BasisUIRaycast.highlightQuadInstance.gameObject);
                 }
+            }
+            if (BasisPointRaycaster != null)
+            {
                 GameObject.Destroy(BasisPointRaycaster.gameObject);
             }
         }

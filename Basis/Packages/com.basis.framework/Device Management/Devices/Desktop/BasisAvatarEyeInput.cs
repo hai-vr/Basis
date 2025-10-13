@@ -120,7 +120,10 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             {
                 BasisLocalPlayer.OnLocalAvatarChanged += PlayerInitialized;
                 BasisCursorManagement.OnCursorStateChange += OnCursorStateChange;
-                BasisPointRaycaster.UseWorldPosition = false;
+                if (HasRaycaster)
+                {
+                    BasisPointRaycaster.UseWorldPosition = false;
+                }
                 BasisVirtualSpine.Initialize();
                 HasEyeEvents = true;
             }
@@ -199,11 +202,13 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         /// Applies yaw/pitch rotation based on the given input vector.  
         /// Handles mouse-look simulation for the eye.
         /// </summary>
-        /// <param name="lookVector">Delta vector from input system.</param>
+        /// <param name="lookVector">Delta vsector from input system.</param>
         public void HandleLookRotation(Vector2 lookVector)
         {
-            BasisPointRaycaster.ScreenPoint = Mouse.current.position.value;
-
+            if (HasRaycaster)
+            {
+                BasisPointRaycaster.ScreenPoint = Mouse.current.position.value;
+            }
             if (!isActiveAndEnabled || LookRotationLock)
             {
                 return;
@@ -212,7 +217,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             rotationX += lookVector.x * rotationSpeed; // yaw
             rotationY -= lookVector.y * rotationSpeed; // pitch (invert Y)
         }
-
         /// <summary>
         /// Main polling loop for updating eye input state.  
         /// Calculates eye position/rotation based on avatar head, crouching, and input deltas.
