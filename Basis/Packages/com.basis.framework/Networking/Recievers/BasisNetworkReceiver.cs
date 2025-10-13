@@ -96,7 +96,7 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 //we dont log this one when a player joins for example the first frame will be null.
                 //this should also negate large or tiny / negative calcs
-               // BasisDebug.LogError($"BasisAvatar for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
+                // BasisDebug.LogError($"BasisAvatar for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
                 return;
             }
             if (Player.BasisAvatar.Animator == null)
@@ -145,7 +145,7 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     interpolationTime = 0f;
                 }
-                BasisRemoteNetworkDriver.SetInputs(
+                PassedSimulate = BasisRemoteNetworkDriver.SetInputs(
                     playerId, Player.BasisAvatar.HumanScale,
                     first.Position, last.Position,
                     first.Scale, last.Scale,
@@ -153,7 +153,6 @@ namespace Basis.Scripts.Networking.Receivers
                     interpolationTime,
                     first.Muscles, last.Muscles
                 );
-                PassedSimulate = true;
             }
         }
         public bool PassedSimulate = false;
@@ -164,8 +163,9 @@ namespace Basis.Scripts.Networking.Receivers
         [BurstCompile]
         public void Apply()
         {
-            if (PassedSimulate && BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out float3 applyingScale, out var applyingRotation, out float3 scaledBody, Muscles))
+            if (PassedSimulate)
             {
+                BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out float3 applyingScale, out var applyingRotation, out float3 scaledBody, Muscles);
                 HumanPose.bodyPosition = scaledBody;
                 HumanPose.bodyRotation = applyingRotation;
 
