@@ -176,6 +176,7 @@ public struct BasisRemoteBoneJob : IJobParallelFor
         float3 eyeP = headP + math.mul(headR, sc.offsets_scaled_CenterEye);
         float3 mouthP = headP + math.mul(headR, sc.offsets_scaled_Mouth);
 
+        float3 RotationIgnoredMouthP = headP + sc.offsets_scaled_Mouth;
         Out[i] = new RemoteFrameOutput
         {
             pos_Head = headP,
@@ -194,7 +195,7 @@ public struct BasisRemoteBoneJob : IJobParallelFor
             rot_CenterEye = headR,
             rot_Mouth = headR,
             // Used for vertical offsetting of the nameplate UI
-            diffHipToHeadMouthY = mouthP.y - hipsP.y
+            diffHipToHeadMouthY = RotationIgnoredMouthP.y - hipsP.y
         };
     }
 }
