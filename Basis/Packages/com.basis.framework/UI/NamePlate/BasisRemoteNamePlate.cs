@@ -4,6 +4,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections;
+using System.Threading;
 using TMPro;
 using UnityEngine;
 namespace Basis.Scripts.UI.NamePlate
@@ -15,7 +16,12 @@ namespace Basis.Scripts.UI.NamePlate
         public TextMeshPro LoadingText;
         public BasisRemotePlayer BasisRemotePlayer;
         public bool HasRendererCheckWiredUp = false;
-        public bool IsVisible = true;
+        private int _isVisible = 1; // 1 = true, 0 = false
+        public bool IsVisible
+        {
+            get => Interlocked.CompareExchange(ref _isVisible, 1, 1) == 1;
+            private set => Interlocked.Exchange(ref _isVisible, value ? 1 : 0);
+        }
         public bool HasProgressBarVisible = false;
         public Mesh bakedMesh;
         public MeshRenderer Renderer;
@@ -23,9 +29,8 @@ namespace Basis.Scripts.UI.NamePlate
         public Transform Self;
         public float InteractRange = 2f;
         private Coroutine colorCoroutine;
-    [SerializeField] float silenceHold = 0.25f;   // how long to wait after last audio before fading back
-    [SerializeField] float ease = 12f;            // higher = snappier easing
-    [SerializeField] float maxStep = 1f;          // optional clamp for very low FPS spikes
+        private static readonly int ColorId = Shader.PropertyToID("_BaseColor"); // or "_Color" for Built-in RP
+        private MaterialPropertyBlock mpb;
         /// <summary>
         /// can only be called once after that the text is nuked and a mesh render is just used with a filter
         /// </summary>
@@ -42,12 +47,9 @@ namespace Basis.Scripts.UI.NamePlate
             Self = this.transform;
             BasisRemoteNamePlateDriver.Instance.GenerateTextFactory(BasisRemotePlayer, this);
             LoadingText.enableVertexGradient = false;
-
             mpb = new MaterialPropertyBlock();
             Renderer.GetPropertyBlock(mpb, 0);
         }
-        private static readonly int ColorId = Shader.PropertyToID("_BaseColor"); // or "_Color" for Built-in RP
-        private MaterialPropertyBlock mpb;
         private void SetPlateColor(Color c)
         {
             mpb.SetColor(ColorId, c);
