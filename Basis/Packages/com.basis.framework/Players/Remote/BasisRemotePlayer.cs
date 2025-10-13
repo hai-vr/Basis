@@ -196,9 +196,7 @@ namespace Basis.Scripts.BasisSdk.Players
             if (BasisAvatar == null)
             {
                 this.CACM = CACM;
-                BasisLoadableBundle BasisLoadedBundle =
-                    BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(CACM.byteArray);
-
+                BasisLoadableBundle BasisLoadedBundle = BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(CACM.byteArray);
                 if (BasisLoadedBundle != null)
                 {
                     await CreateAvatar(CACM.loadMode, BasisLoadedBundle);
@@ -244,8 +242,7 @@ namespace Basis.Scripts.BasisSdk.Players
             }
 
             // Fetch per-player visibility settings.
-            BasisPlayerSettingsData BasisPlayerSettingsData =
-                await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
+            BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
 
             // Remember last requested avatar and mode for potential reloads.
             AlwaysRequestedAvatar = BasisLoadableBundle;
@@ -258,19 +255,9 @@ namespace Basis.Scripts.BasisSdk.Players
             }
             else
             {
-                BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(
-                    this,
+                BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,
                     BasisAvatarFactory.LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation,
-                    Vector3.zero,
-                    Quaternion.identity);
-            }
-
-            // Early-outs if network pose buffers indicate we already have data.
-            if (NetworkReceiver != null)
-            {
-                if (NetworkReceiver.PoseHandler == null) return;
-                if (NetworkReceiver.BufferHolder.HasFirst) return;
-                if (NetworkReceiver.BufferHolder.HasLast) return;
+                    Vector3.zero,Quaternion.identity);
             }
 
             LastComputedMeshLod = -1;

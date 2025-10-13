@@ -52,13 +52,7 @@ namespace Basis.Scripts.Networking.Receivers
         [SerializeField] public BasisRemoteAvatarBufferHolder BufferHolder = new BasisRemoteAvatarBufferHolder();
 
         /// <summary>Whether we've subscribed to avatar-driver events.</summary>
-        public bool HasEvents = false;
-
-        /// <summary>Whether this receiver should keep consuming avatar frames.</summary>
-        public bool HasAvatarQueue;
-
-        /// <summary>Used to log only the first error of repeated errors.</summary>
-        public bool LogFirstError = false;
+        public bool hasEvents = false;
 
         /// <summary>
         /// Eye (L/R up/down, L/R left/right) + mouth open/smile block, overlaid on muscles.
@@ -93,12 +87,35 @@ namespace Basis.Scripts.Networking.Receivers
         /// <param name="unscaledDeltaTime">Unscaled delta time for interpolation.</param>
         public void Compute(float unscaledDeltaTime)
         {
+            if (Player == null)
+            {
+                BasisDebug.LogError($"Player for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
+                return;
+            }
+            if (Player.BasisAvatar == null)
+            {
+                //we dont log this one when a player joins for example the first frame will be null.
+                //this should also negate large or tiny / negative calcs
+               // BasisDebug.LogError($"BasisAvatar for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
+                return;
+            }
+            if (Player.BasisAvatar.Animator == null)
+            {
+                BasisDebug.LogError($"Animator for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
+                return;
+            }
+            if (Player.AvatarTransform == null)
+            {
+                BasisDebug.LogError($"AvatarTransform for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
+                return;
+            }
             // 1) Pull network packets to main-thread staging
             PumpQueueToStaging();
 
             // 2) Ensure we have a valid interpolation window (First -> Last)
 
             BuildOrAdvanceWindow();
+
             HasBufferHolds = BufferHolder.HasFirst && BufferHolder.HasLast;
 
             // 3) If we have a window, compute interpolation fraction and feed the compute phase
@@ -128,19 +145,18 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     interpolationTime = 0f;
                 }
-                if (Player.BasisAvatar != null && Player.BasisAvatar.Animator != null)
-                {
-                    BasisRemoteNetworkDriver.SetInputs(
-                        playerId, Player.BasisAvatar.HumanScale,
-                        first.Position, last.Position,
-                        first.Scale, last.Scale,
-                        first.Rotation, last.Rotation,
-                        interpolationTime,
-                        first.Muscles, last.Muscles
-                    );
-                }
+                BasisRemoteNetworkDriver.SetInputs(
+                    playerId, Player.BasisAvatar.HumanScale,
+                    first.Position, last.Position,
+                    first.Scale, last.Scale,
+                    first.Rotation, last.Rotation,
+                    interpolationTime,
+                    first.Muscles, last.Muscles
+                );
+                PassedSimulate = true;
             }
         }
+        public bool PassedSimulate = false;
         /// <summary>
         /// Main-thread application step. Pulls posed outputs from the driver and applies
         /// body position/rotation/muscles to the avatar via <see cref="PoseHandler"/>.
@@ -148,7 +164,7 @@ namespace Basis.Scripts.Networking.Receivers
         [BurstCompile]
         public void Apply()
         {
-            if (HasBufferHolds && BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out float3 applyingScale, out var applyingRotation, out float3 scaledBody, Muscles))
+            if (PassedSimulate && BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out var outPos, out float3 applyingScale, out var applyingRotation, out float3 scaledBody, Muscles))
             {
                 HumanPose.bodyPosition = scaledBody;
                 HumanPose.bodyRotation = applyingRotation;
@@ -165,13 +181,11 @@ namespace Basis.Scripts.Networking.Receivers
                         UnsafeUtility.MemCpy(pDst + EyesAndMouthOffset, pSrc, EyeAndMountCountInBytes);
                     }
                 }
-                if (Player.AvatarTransform != null)
-                {
-                    // Scale must be applied on transform
-                    Player.AvatarTransform.localScale = applyingScale;
-                    // HumanPoseHandler must stay on main thread
-                    PoseHandler.SetHumanPose(ref HumanPose);
-                }
+                // Scale must be applied on transform
+                Player.AvatarTransform.localScale = applyingScale;
+                // HumanPoseHandler must stay on main thread
+                PoseHandler.SetHumanPose(ref HumanPose);
+                PassedSimulate = false;
             }
         }
         /// <summary>
@@ -218,16 +232,14 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             AudioReceiverModule.Initalize(this);
-            if (!HasEvents)
-            {
-                RemotePlayer.RemoteAvatarDriver.CalibrationComplete += OnCalibration;
-                HasEvents = true;
-            }
-
-            HasAvatarQueue = true;
             _staged.Clear();
             BufferHolder.ClearAndRelease();
             interpolationTime = 0f;
+            if (!hasEvents)
+            {
+                RemotePlayer.RemoteAvatarDriver.CalibrationComplete += OnCalibration;
+                hasEvents = true;
+            }
         }
 
         /// <summary>
@@ -305,14 +317,13 @@ namespace Basis.Scripts.Networking.Receivers
                 BasisAvatarBufferPool.Release(buffer);
             }
 
-            if (HasEvents && RemotePlayer != null && RemotePlayer.RemoteAvatarDriver != null)
+            if (hasEvents && RemotePlayer != null && RemotePlayer.RemoteAvatarDriver != null)
             {
                 RemotePlayer.RemoteAvatarDriver.CalibrationComplete -= OnCalibration;
-                HasEvents = false;
+                hasEvents = false;
             }
 
             AudioReceiverModule?.OnDestroy();
-            HasAvatarQueue = false;
         }
 
         /// <summary>
@@ -341,18 +352,6 @@ namespace Basis.Scripts.Networking.Receivers
             AudioReceiverModule.OnDecode(msg.audioSegmentData.buffer, msg.audioSegmentData.LengthUsed);
             Player.AudioReceived?.Invoke(true);
         }
-        /*
-        /// <summary>
-        /// Handles a silent voice segment for this remote player.
-        /// </summary>
-        /// <param name="audioSilentSegment">Server audio segment message with zero payload.</param>
-        public void ReceiveSilentNetworkAudio(ServerAudioSegmentMessage audioSilentSegment)
-        {
-            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, 1);
-            AudioReceiverModule.OnDecodeSilence();
-            Player.AudioReceived?.Invoke(false);
-        }
-        */
         /// <summary>
         /// Receives a request to switch the remote player's avatar and triggers creation.
         /// </summary>
@@ -411,7 +410,9 @@ namespace Basis.Scripts.Networking.Receivers
                 TrySetLastFromStaging();
             }
 
-            if (!BufferHolder.HasFirst || !BufferHolder.HasLast)
+            HasBufferHolds = BufferHolder.HasFirst && BufferHolder.HasLast;
+
+            if (HasBufferHolds == false)
             {
                 return;
             }

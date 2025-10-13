@@ -113,7 +113,8 @@ public static class BasisRemoteNetworkDriver
     {
         if ((uint)index >= FixedCapacity)
         {
-            throw new IndexOutOfRangeException($"index {index} is out of range [0,{FixedCapacity - 1}]");
+            BasisDebug.LogError($"index {index} is out of range [0,{FixedCapacity - 1}]");
+            return;
         }
 
         _humanScales[index] = humanScale;
@@ -228,18 +229,9 @@ public static class BasisRemoteNetworkDriver
             outRot = Quaternion.identity;
             BodyPosition = Vector3.zero;
             outMuscles = default;
+            BasisDebug.LogError($"Index has Exceeded Fixed Capacity {FixedCapacity}");
             return false;
         }
-        if (outMuscles == null || outMuscles.Length != _muscleCount)
-        {
-            outPos = Vector3.zero;
-            outScale = Vector3.one;
-            outRot = Quaternion.identity;
-            BodyPosition = Vector3.zero;
-            outMuscles = default;
-            return false;
-        }
-
         outPos = _outPositions[index];
         outScale = _outScales[index];
         outRot = _outRotations[index];
