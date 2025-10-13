@@ -344,13 +344,12 @@ namespace Basis.Scripts.Networking.Receivers
                     for (int Index = 0; Index < missing; Index++)
                     {
                         AudioReceiverModule.OnDecodeSilence();
-                        Player.AudioReceived?.Invoke(false);
                     }
                 }
             }
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment,msg.audioSegmentData.LengthUsed);
             AudioReceiverModule.OnDecode(msg.audioSegmentData.buffer, msg.audioSegmentData.LengthUsed);
-            Player.AudioReceived?.Invoke(true);
+            Player.AudioReceived?.Invoke();
         }
         /// <summary>
         /// Receives a request to switch the remote player's avatar and triggers creation.

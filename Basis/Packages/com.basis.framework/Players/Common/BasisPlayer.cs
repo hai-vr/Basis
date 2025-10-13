@@ -117,7 +117,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// Callback invoked when audio data is received for this player.
         /// </summary>
-        public Action<bool> AudioReceived;
+        public Action AudioReceived;
 
         /// <summary>
         /// Delegate signature for simulation hooks (e.g., pre-bone simulation).

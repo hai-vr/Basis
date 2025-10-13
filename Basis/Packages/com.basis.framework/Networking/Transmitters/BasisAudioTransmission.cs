@@ -116,7 +116,7 @@ namespace Basis.Scripts.Networking.Transmitters
             AudioSegmentData.Serialize(writer);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, AudioSegmentData.LengthUsed);
-            SendOutVoice(writer, true);
+            SendOutVoice(writer);
             SilentForHowLong = 0;
         }
 
@@ -134,12 +134,12 @@ namespace Basis.Scripts.Networking.Transmitters
             SilentForHowLong++; //how long in sample size this way on the remote side we
         }
 
-        public void SendOutVoice(NetDataWriter writer, bool State)
+        public void SendOutVoice(NetDataWriter writer)
         {
             BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Sequenced);
             if (BasisLocalPlayer.Instance != null)
             {
-                BasisLocalPlayer.Instance.AudioReceived?.Invoke(State);
+                BasisLocalPlayer.Instance.AudioReceived?.Invoke();
             }
         }
     }
