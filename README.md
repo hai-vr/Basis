@@ -49,10 +49,9 @@ This project is currently using Unity 6 (open the project through Unity Hub to s
 Other Unity versions may work, but will require changes and adaptations.
 Currently, OPENXR and SteamVR are supported, as well as OPENXR Quest.
 
-As a note, to boot args for basis are:
+As a note, command line args for basis are:
 
 to disable booting a VR mode.
-
  --disable-OpenVRLoader
  --disable-OpenXRLoader
 
