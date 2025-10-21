@@ -74,6 +74,7 @@ namespace Basis
                 BasisServerReductionSystemEvents.Shutdown();
                 if (config.EnableStatistics) BasisStatistics.StopWorkerThread();
                 await BasisServerSideLogging.ShutdownAsync();
+                BasisServerReductionSystemEvents.Shutdown();
                 BNL.Log("Server shut down successfully.");
             };
             if (config.EnableConsole)
