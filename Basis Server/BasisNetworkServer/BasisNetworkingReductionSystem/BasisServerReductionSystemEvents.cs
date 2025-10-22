@@ -297,11 +297,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     {
                         continue;
                     }
-
-                    lock (other)
-                    {
-                        other.HasNewDataFrom?.Set(id, true);
-                    }
+                    other.HasNewDataFrom?.Set(id, true);
                 }
             }
 
