@@ -109,7 +109,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         };
         public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
         {
-            EnsureTransmitterIsInitialized(transmitter, animator);
+            transmitter.PoseHandler ??= new HumanPoseHandler(animator.avatar, animator.transform);
+
             EnsureInitialized(); // our compressor init
 
             // Get current pose from Animator
@@ -231,12 +232,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             ushort compressed = (ushort)(normalized * BasisMuscleRange.UShortRangeDifference);
             BasisUnityBitPackerExtensionsUnsafe.WriteUShort(compressed, ref message.array, ref offset);
-        }
-
-        private static void EnsureTransmitterIsInitialized(BasisNetworkTransmitter transmitter, Animator animator)
-        {
-            if (transmitter.PoseHandler == null)
-                transmitter.PoseHandler = new HumanPoseHandler(animator.avatar, animator.transform);
         }
 
         // ==============================
