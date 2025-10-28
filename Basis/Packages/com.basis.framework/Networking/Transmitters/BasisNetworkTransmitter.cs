@@ -114,6 +114,10 @@ namespace Basis.Scripts.Networking.Transmitters
                     UnClampedInterval = DefaultInterval * CalculatedIntervalBase;
                     intervalSeconds = Mathf.Clamp(UnClampedInterval, DefaultInterval, Message.SlowestSendRate);
                 }
+                else
+                {
+                    BasisDebug.LogError("Missing Basis Avatar Cant Send Network Update",BasisDebug.LogTag.System);
+                }
                 // account for overshoot
                 timer -= intervalSeconds;
             }

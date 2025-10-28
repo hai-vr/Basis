@@ -2,11 +2,11 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Receivers;
 using LiteNetLib;
 using static SerializableBasis;
-using System.Collections.Generic;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using System.Collections.Concurrent;
 public static class BasisNetworkHandleAvatar
 {
-    public static Queue<ServerSideSyncPlayerMessage> Message = new Queue<ServerSideSyncPlayerMessage>();
+    public static ConcurrentQueue<ServerSideSyncPlayerMessage> Message = new ConcurrentQueue<ServerSideSyncPlayerMessage>();
     public static void HandleAvatarUpdate(NetPacketReader Reader)
     {
         if (Message.TryDequeue(out ServerSideSyncPlayerMessage SSM) == false)

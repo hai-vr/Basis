@@ -84,13 +84,13 @@ namespace Basis.Scripts.Networking.Receivers
             // 2) Ensure we have a valid interpolation window (First -> Last)
             BuildOrAdvanceWindow();
 
-            HasBufferHolds = BufferHolder.HasFirst && BufferHolder.HasLast;
+            HasBufferHolds = BufferHolder.HasCurrentBuffer && BufferHolder.HasNextBuffer;
 
             // 3) If we have a window, compute interpolation fraction and feed the compute phase
             if (HasBufferHolds)
             {
-                var first = BufferHolder.First;
-                var last = BufferHolder.Last;
+                var first = BufferHolder.RequestCurrent();
+                var last = BufferHolder.RequestNext();
 
                 // Extra guard: refuse to simulate if either muscle array is invalid
                 if (!IsValidMuscleArray(first.Muscles) || !IsValidMuscleArray(last.Muscles))
@@ -107,8 +107,8 @@ namespace Basis.Scripts.Networking.Receivers
                     }
 
                     // If we fixed them here, store back so Holder keeps the repaired arrays
-                    BufferHolder.First = first;
-                    BufferHolder.Last = last;
+                    BufferHolder.SetCurrent(ref first);
+                    BufferHolder.SetNext(ref last);
                 }
 
                 double windowDuration =
@@ -271,7 +271,6 @@ namespace Basis.Scripts.Networking.Receivers
                 NextMessages.Remove(key);
             }
         }
-
         private bool IsPastAvatar(byte messageIndex, byte currentIndex)
         {
             int diff = (currentIndex - messageIndex + 256) % 256;
@@ -280,8 +279,6 @@ namespace Basis.Scripts.Networking.Receivers
 
         public override void DeInitialize()
         {
-            BufferHolder.ClearAndRelease();
-
             if (_staged != null)
             {
                 int Count = _staged.Count;
@@ -296,6 +293,9 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 BasisAvatarBufferPool.Release(buffer);
             }
+
+            BufferHolder.ClearAndRelease();
+
 
             if (hasEvents && RemotePlayer != null && RemotePlayer.RemoteAvatarDriver != null)
             {
@@ -367,34 +367,26 @@ namespace Basis.Scripts.Networking.Receivers
         private void BuildOrAdvanceWindow()
         {
             // Seed First if missing
-            if (!BufferHolder.HasFirst)
+            if (!BufferHolder.HasCurrentBuffer)
                 TrySeedFirstFromStaging();
 
             // Fill Last if missing
-            if (!BufferHolder.HasLast)
+            if (!BufferHolder.HasNextBuffer)
                 TrySetLastFromStaging();
 
-            HasBufferHolds = BufferHolder.HasFirst && BufferHolder.HasLast;
+            HasBufferHolds = BufferHolder.HasCurrentBuffer && BufferHolder.HasNextBuffer;
             if (!HasBufferHolds) return;
 
             // Advance window while consumed and we have staged frames
             while (interpolationTime >= 1f && _staged.Count != 0)
             {
-                if (BufferHolder.HasFirst)
-                {
-                    BasisAvatarBufferPool.Release(BufferHolder.First);
-                    BufferHolder.HasFirst = false;
-                }
+                BufferHolder.NextBecomesCurrent();
 
-                BufferHolder.First = BufferHolder.Last;
-                BufferHolder.HasFirst = true;
-
-                BufferHolder.HasLast = false;
                 interpolationTime = 0f;
 
                 TrySetLastFromStaging();
 
-                if (!(BufferHolder.HasFirst && BufferHolder.HasLast))
+                if (!(BufferHolder.HasCurrentBuffer && BufferHolder.HasNextBuffer))
                     break;
             }
 
@@ -415,8 +407,8 @@ namespace Basis.Scripts.Networking.Receivers
 
                 if (ValidateOrFixup(ref first))
                 {
-                    BufferHolder.First = first;
-                    BufferHolder.HasFirst = true;
+                    BufferHolder.SetCurrent(ref first);
+                    BufferHolder.HasCurrentBuffer = true;
                     return;
                 }
 
@@ -426,7 +418,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         private void TrySetLastFromStaging()
         {
-            if (!BufferHolder.HasFirst) return;
+            if (!BufferHolder.HasCurrentBuffer) return;
 
             while (_staged.Count > 0)
             {
@@ -435,8 +427,8 @@ namespace Basis.Scripts.Networking.Receivers
 
                 if (ValidateOrFixup(ref last))
                 {
-                    BufferHolder.Last = last;
-                    BufferHolder.HasLast = true;
+                    BufferHolder.SetNext(ref last);
+                    BufferHolder.HasNextBuffer = true;
                     return;
                 }
 

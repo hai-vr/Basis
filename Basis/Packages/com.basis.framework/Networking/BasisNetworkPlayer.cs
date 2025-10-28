@@ -246,6 +246,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
         public static async Task<BasisOwnershipResult> SetOwnerAsync(BasisNetworkPlayer FutureOwner, string IOwnThis)
         {
+            if (FutureOwner == null)
+            {
+                BasisDebug.LogError("Missing Future Player!");
+                return new(false, 0);
+            }
             if (FutureOwner.hasID)
             {
                 return await BasisNetworkOwnership.TakeOwnershipAsync(IOwnThis, FutureOwner.playerId);
