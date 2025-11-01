@@ -130,7 +130,7 @@ namespace UnityEngine.Animations.Rigging
                 AffineTransform hint = new AffineTransform(hintPosition.Get(stream), HintRot);
                 Vector3 BendNormalOutput = BendNormal.Get(stream);
                 //   BasisDebug.Log("Output Normal is " + BendNormalOutput);
-                BasisAnimationRuntimeUtils.SolveTwoBoneIKLegsAndTorso(stream, root, mid, tip, target, hint, hintWeight.Get(stream), targetOffset, BendNormalOutput);
+                BasisAnimationRuntimeUtils.SolveTwoBone(stream, root, mid, tip, target, hint, hintWeight.Get(stream), targetOffset, BendNormalOutput);
             }
             else
             {
