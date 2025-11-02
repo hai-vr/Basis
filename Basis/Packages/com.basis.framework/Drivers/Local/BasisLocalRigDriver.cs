@@ -130,8 +130,6 @@ namespace Basis.Scripts.Drivers
 
         /// <summary>Position filters per tracked role (One Euro).</summary>
         private readonly Dictionary<BasisBoneTrackedRole, OneEuroFilterVector3> posFilters = new();
-        /// <summary>Rotation filters per tracked role (One Euro).</summary>
-        private readonly Dictionary<BasisBoneTrackedRole, OneEuroFilterQuaternion> rotFilters = new();
 
         /// <summary>Monotonic time accumulator for filter evaluation.</summary>
         private float _timeAccumulator;
@@ -586,7 +584,7 @@ namespace Basis.Scripts.Drivers
                 controls.Add(LeftLowerArm);
             }
             WriteUpEvents(controls, LeftHandLayer);
-            BasisAnimationRiggingHelper.CreateTwoBoneHand(localPlayer, Hands, references.Hips, references.chest, references.leftUpperArm, references.leftLowerArm, references.leftHand, BasisBoneTrackedRole.LeftHand, BasisBoneTrackedRole.LeftLowerArm, true, out LeftHandTwoBoneIK);
+            BasisAnimationRiggingHelper.CreateTwoBoneHand(localPlayer, Hands, references.Hips, references.chest, references.leftUpperArm, references.leftLowerArm, references.leftHand,references.TposeLeftHand.rotation, BasisBoneTrackedRole.LeftHand, BasisBoneTrackedRole.LeftLowerArm, true, out LeftHandTwoBoneIK);
         }
 
         /// <summary>
@@ -605,7 +603,7 @@ namespace Basis.Scripts.Drivers
                 controls.Add(RightLowerArm);
             }
             WriteUpEvents(controls, RightHandLayer);
-            BasisAnimationRiggingHelper.CreateTwoBoneHand(localPlayer, Hands, references.Hips, references.chest, references.RightUpperArm, references.RightLowerArm, references.rightHand, BasisBoneTrackedRole.RightHand, BasisBoneTrackedRole.RightLowerArm, true, out RightHandTwoBoneIK);
+            BasisAnimationRiggingHelper.CreateTwoBoneHand(localPlayer, Hands, references.Hips, references.chest, references.RightUpperArm, references.RightLowerArm, references.rightHand, references.TposeRightHand.rotation, BasisBoneTrackedRole.RightHand, BasisBoneTrackedRole.RightLowerArm, true, out RightHandTwoBoneIK);
         }
 
         /// <summary>
