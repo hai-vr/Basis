@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
 using UnityEngine.Playables;
@@ -126,11 +127,6 @@ namespace Basis.Scripts.Drivers
         private BasisTransformMapping references;
         /// <summary>Two-bone IK used for the head chain (chest/neck/head).</summary>
         private BasisTwoBoneIKConstraint HeadTwoBoneIK;
-
-
-        public BasisIKConstraint[] Constraints;
-        public Rig ConstraintsRig;
-        public RigLayer ConstraintsLayer;
 
         // === Per-role smoothers ===
 
@@ -491,23 +487,118 @@ namespace Basis.Scripts.Drivers
             }
             BasisLocalBoneControl.HasEvents = true;
         }
+        public HumanBodyBones[] HumanBones;
+        public BasisIKConstraint[] Constraints;
+        public Rig ConstraintsRig;
+        public RigLayer ConstraintsLayer;
+        private int[] _boneToIndex;
         public void SetupOverrides()
         {
-            List<BasisIKConstraint> ConstraintsList = new List<BasisIKConstraint>();
+            var constraintsList = new List<BasisIKConstraint>(55);
+            var humanBodyBonesList = new List<HumanBodyBones>(55);
 
+            GameObject rigGO = CreateOrGetRig("Override Constraints", true, out ConstraintsRig, out ConstraintsLayer);
+
+            // Build once; do NOT do this per frame.
             foreach (HumanBodyBones bone in (HumanBodyBones[])Enum.GetValues(typeof(HumanBodyBones)))
             {
-                if (bone == HumanBodyBones.LastBone)
+                if (UseableBodyBone(bone))
                 {
-                    continue;
-                }
-                GameObject Rig = CreateOrGetRig($"Override Constraints {bone}", true, out ConstraintsRig, out ConstraintsLayer);
-                if (GenerateOverrideComponent(Rig, bone, out var constraint))
-                {
-                    ConstraintsList.Add(constraint);
+                    if (GenerateOverrideComponent(rigGO, bone, out var constraint))
+                    {
+                        constraintsList.Add(constraint);
+                        humanBodyBonesList.Add(bone);
+                    }
                 }
             }
-            Constraints = ConstraintsList.ToArray();
+
+            Constraints = constraintsList.ToArray();
+            HumanBones = humanBodyBonesList.ToArray();
+
+            // Build direct lookup table
+            int max = (int)HumanBodyBones.LastBone;
+            _boneToIndex = new int[max];
+            for (int i = 0; i < max; i++) _boneToIndex[i] = -1;
+
+            for (int i = 0; i < HumanBones.Length; i++)
+                _boneToIndex[(int)HumanBones[i]] = i;
+        }
+        public static bool UseableBodyBone(HumanBodyBones bone)
+        {
+            switch (bone)
+            {
+                case HumanBodyBones.LastBone:
+                case HumanBodyBones.LeftEye:
+                case HumanBodyBones.RightEye:
+                    return false;
+
+                // Left hand fingers
+                case HumanBodyBones.LeftThumbProximal:
+                case HumanBodyBones.LeftThumbIntermediate:
+                case HumanBodyBones.LeftThumbDistal:
+                case HumanBodyBones.LeftIndexProximal:
+                case HumanBodyBones.LeftIndexIntermediate:
+                case HumanBodyBones.LeftIndexDistal:
+                case HumanBodyBones.LeftMiddleProximal:
+                case HumanBodyBones.LeftMiddleIntermediate:
+                case HumanBodyBones.LeftMiddleDistal:
+                case HumanBodyBones.LeftRingProximal:
+                case HumanBodyBones.LeftRingIntermediate:
+                case HumanBodyBones.LeftRingDistal:
+                case HumanBodyBones.LeftLittleProximal:
+                case HumanBodyBones.LeftLittleIntermediate:
+                case HumanBodyBones.LeftLittleDistal:
+
+                // Right hand fingers
+                case HumanBodyBones.RightThumbProximal:
+                case HumanBodyBones.RightThumbIntermediate:
+                case HumanBodyBones.RightThumbDistal:
+                case HumanBodyBones.RightIndexProximal:
+                case HumanBodyBones.RightIndexIntermediate:
+                case HumanBodyBones.RightIndexDistal:
+                case HumanBodyBones.RightMiddleProximal:
+                case HumanBodyBones.RightMiddleIntermediate:
+                case HumanBodyBones.RightMiddleDistal:
+                case HumanBodyBones.RightRingProximal:
+                case HumanBodyBones.RightRingIntermediate:
+                case HumanBodyBones.RightRingDistal:
+                case HumanBodyBones.RightLittleProximal:
+                case HumanBodyBones.RightLittleIntermediate:
+                case HumanBodyBones.RightLittleDistal:
+                    return false;
+
+                default:
+                    return true;
+            }
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetOverrideUsage(HumanBodyBones bone, bool enabled)
+        {
+            int idx = FastIndexOf(bone);
+            if (idx < 0) return; // not present
+
+            Constraints[idx].weight = enabled ? 1f : 0f;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetOverrideData(HumanBodyBones bone, in Vector3 position, in Quaternion rotation)
+        {
+            int idx = FastIndexOf(bone);
+            if (idx < 0) return; // not present
+
+            BasisIKConstraint c = Constraints[idx];
+            BasisIKConstraintData d = c.data;
+            d.TargetPosition = position;
+            d.TargetRotationEuler = rotation;
+            c.data = d;
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private int FastIndexOf(HumanBodyBones bone)
+        {
+            // Avoids dictionary/hash; pure array index is branch-light and GC-free.
+            int raw = (int)bone;
+            if ((uint)raw >= (uint)_boneToIndex.Length) return -1;
+            return _boneToIndex[raw];
         }
         public bool GenerateOverrideComponent(GameObject Rig, HumanBodyBones Role, out BasisIKConstraint Constraint)
         {

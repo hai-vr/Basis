@@ -1,7 +1,3 @@
-using UnityEngine;
-using UnityEngine.Animations;
-using UnityEngine.Animations.Rigging;
-
 namespace UnityEngine.Animations.Rigging
 {
     /// <summary>
@@ -9,7 +5,7 @@ namespace UnityEngine.Animations.Rigging
     /// Added: calibration offset (position + quaternion) to bake T-pose offsets.
     /// </summary>
     [System.Serializable]
-    public struct BasisHipsHeadIKConstraintData : IAnimationJobData, BasisIHipsHeadIKConstraintData
+    public struct BasisIKConstraintData : IAnimationJobData, BasisIHipsHeadIKConstraintData
     {
         [SerializeField] Transform m_target;
 
@@ -57,7 +53,7 @@ namespace UnityEngine.Animations.Rigging
     }
 
     [Unity.Burst.BurstCompile]
-    public struct BasisHipsHeadIKConstraintJob : IWeightedAnimationJob
+    public struct BasisIKConstraintJob : IWeightedAnimationJob
     {
         public ReadWriteTransformHandle handletarget;
 
@@ -103,13 +99,11 @@ namespace UnityEngine.Animations.Rigging
         }
     }
 
-    public class BasisHipsHeadIKConstraintJobBinder<T>
-        : AnimationJobBinder<BasisHipsHeadIKConstraintJob, T>
-        where T : struct, IAnimationJobData, BasisIHipsHeadIKConstraintData
+    public class BasisIKConstraintJobBinder<T>: AnimationJobBinder<BasisIKConstraintJob, T>where T : struct, IAnimationJobData, BasisIHipsHeadIKConstraintData
     {
-        public override BasisHipsHeadIKConstraintJob Create(Animator animator, ref T data, Component component)
+        public override BasisIKConstraintJob Create(Animator animator, ref T data, Component component)
         {
-            var job = new BasisHipsHeadIKConstraintJob
+            var job = new BasisIKConstraintJob
             {
                 handletarget = ReadWriteTransformHandle.Bind(animator, data.target),
 
@@ -125,7 +119,7 @@ namespace UnityEngine.Animations.Rigging
             return job;
         }
 
-        public override void Destroy(BasisHipsHeadIKConstraintJob job)
+        public override void Destroy(BasisIKConstraintJob job)
         {
             // Nothing allocated with Allocator here.
         }
@@ -135,9 +129,9 @@ namespace UnityEngine.Animations.Rigging
     [AddComponentMenu("Animation Rigging/Hips + Head IK Constraint")]
     [HelpURL("https://docs.unity3d.com/Packages/com.unity.animation.rigging@1.3/manual/index.html")]
     public class BasisIKConstraint
-        : RigConstraint<BasisHipsHeadIKConstraintJob,
-                        BasisHipsHeadIKConstraintData,
-                        BasisHipsHeadIKConstraintJobBinder<BasisHipsHeadIKConstraintData>>
+        : RigConstraint<BasisIKConstraintJob,
+                        BasisIKConstraintData,
+                        BasisIKConstraintJobBinder<BasisIKConstraintData>>
     {
         // No extra editor/debug state – this constraint only drives hips, with T-pose calibration offsets.
     }
