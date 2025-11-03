@@ -11,61 +11,61 @@ namespace UnityEngine.Animations.Rigging
     [System.Serializable]
     public struct BasisHipsHeadIKConstraintData : IAnimationJobData, BasisIHipsHeadIKConstraintData
     {
-        [SerializeField] Transform m_Hips;
+        [SerializeField] Transform m_target;
 
         // Live targets
-        [SyncSceneToStream, SerializeField] public Vector3 hipsTargetPosition;
+        [SyncSceneToStream, SerializeField] public Vector3 TargetPosition;
         // NOTE: kept your original naming/comment, but this is a Quaternion (x,y,z,w), not Euler angles.
-        [SyncSceneToStream, SerializeField] public Quaternion hipsTargetRotationEuler; // degrees
+        [SyncSceneToStream, SerializeField] public Quaternion TargetRotationEuler; // degrees
 
         // Calibration offsets (applied on top of the target each frame)
-        [SyncSceneToStream, SerializeField] public Quaternion hipsOffsetRotation;
+        [SyncSceneToStream, SerializeField] public Quaternion OffsetRotation;
 
-        public Transform hips { get => m_Hips; set => m_Hips = value; }
+        public Transform target { get => m_target; set => m_target = value; }
 
         // Property name bindings so the binder can hook Vector/Quat Properties.
-        string BasisIHipsHeadIKConstraintData.hipsTargetPositionVector3Property
-            => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(hipsTargetPosition));
+        string BasisIHipsHeadIKConstraintData.TargetPositionVector3Property
+            => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPosition));
         // Kept the original name suffix ("Vector3Property") to avoid breaking changes,
         // even though it's bound as a Vector4Property.
-        string BasisIHipsHeadIKConstraintData.hipsTargetRotationVector3Property
-            => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(hipsTargetRotationEuler));
-        string BasisIHipsHeadIKConstraintData.hipsOffsetRotationVector4Property
-            => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(hipsOffsetRotation));
+        string BasisIHipsHeadIKConstraintData.TargetRotationVector3Property
+            => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotationEuler));
+        string BasisIHipsHeadIKConstraintData.OffsetRotationVector4Property
+            => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotation));
 
         // IAnimationJobData
-        bool IAnimationJobData.IsValid() => m_Hips != null;
+        bool IAnimationJobData.IsValid() => m_target != null;
 
         void IAnimationJobData.SetDefaultValues()
         {
-            m_Hips = null;
+            m_target = null;
 
-            hipsTargetPosition = Vector3.zero;
-            hipsTargetRotationEuler = Quaternion.identity;
-            hipsOffsetRotation = Quaternion.identity;
+            TargetPosition = Vector3.zero;
+            TargetRotationEuler = Quaternion.identity;
+            OffsetRotation = Quaternion.identity;
         }
     }
 
     public interface BasisIHipsHeadIKConstraintData
     {
-        Transform hips { get; }
+        Transform target { get; }
 
         // Existing targets
-        string hipsTargetPositionVector3Property { get; }
-        string hipsTargetRotationVector3Property { get; }
-        string hipsOffsetRotationVector4Property { get; }
+        string TargetPositionVector3Property { get; }
+        string TargetRotationVector3Property { get; }
+        string OffsetRotationVector4Property { get; }
     }
 
     [Unity.Burst.BurstCompile]
     public struct BasisHipsHeadIKConstraintJob : IWeightedAnimationJob
     {
-        public ReadWriteTransformHandle hips;
+        public ReadWriteTransformHandle handletarget;
 
         // Targets
-        public Vector3Property hipsTargetPosition;
-        public Vector4Property hipsTargetRotation;
+        public Vector3Property TargetPosition;
+        public Vector4Property TargetRotation;
 
-        public Vector4Property hipsOffsetRotation;
+        public Vector4Property OffsetRotation;
 
         public FloatProperty jobWeight { get; set; }
 
@@ -76,16 +76,16 @@ namespace UnityEngine.Animations.Rigging
             float w = jobWeight.Get(stream);
             if (w <= 0f)
             {
-                BasisAnimationRuntimeUtils.PassThrough(stream, hips);
+                BasisAnimationRuntimeUtils.PassThrough(stream, handletarget);
                 return;
             }
 
             // Read targets
-            Vector3 targetPos = hipsTargetPosition.Get(stream);
-            Vector4 targetRotV4 = hipsTargetRotation.Get(stream);
+            Vector3 targetPos = TargetPosition.Get(stream);
+            Vector4 targetRotV4 = TargetRotation.Get(stream);
             Quaternion targetRot = Vector4ToRotation(targetRotV4);
 
-            Vector4 offsetRotV4 = hipsOffsetRotation.Get(stream);
+            Vector4 offsetRotV4 = OffsetRotation.Get(stream);
             Quaternion offsetRot = Vector4ToRotation(offsetRotV4);
 
             // Rotation: target followed by offset (apply offset in target's space).
@@ -93,8 +93,8 @@ namespace UnityEngine.Animations.Rigging
             Quaternion finalRot = targetRot * offsetRot;
 
             // Apply directly
-            hips.SetPosition(stream, targetPos);
-            hips.SetRotation(stream, finalRot);
+            handletarget.SetPosition(stream, targetPos);
+            handletarget.SetRotation(stream, finalRot);
         }
 
         public static Quaternion Vector4ToRotation(Vector4 r)
@@ -111,15 +111,15 @@ namespace UnityEngine.Animations.Rigging
         {
             var job = new BasisHipsHeadIKConstraintJob
             {
-                hips = ReadWriteTransformHandle.Bind(animator, data.hips),
+                handletarget = ReadWriteTransformHandle.Bind(animator, data.target),
 
                 // Targets
-                hipsTargetPosition = Vector3Property.Bind(
-                    animator, component, data.hipsTargetPositionVector3Property),
-                hipsTargetRotation = Vector4Property.Bind(
-                    animator, component, data.hipsTargetRotationVector3Property),
-                hipsOffsetRotation = Vector4Property.Bind(
-                    animator, component, data.hipsOffsetRotationVector4Property),
+                TargetPosition = Vector3Property.Bind(
+                    animator, component, data.TargetPositionVector3Property),
+                TargetRotation = Vector4Property.Bind(
+                    animator, component, data.TargetRotationVector3Property),
+                OffsetRotation = Vector4Property.Bind(
+                    animator, component, data.OffsetRotationVector4Property),
             };
 
             return job;
@@ -134,7 +134,7 @@ namespace UnityEngine.Animations.Rigging
     [DisallowMultipleComponent]
     [AddComponentMenu("Animation Rigging/Hips + Head IK Constraint")]
     [HelpURL("https://docs.unity3d.com/Packages/com.unity.animation.rigging@1.3/manual/index.html")]
-    public class BasisHipsHeadIKConstraint
+    public class BasisIKConstraint
         : RigConstraint<BasisHipsHeadIKConstraintJob,
                         BasisHipsHeadIKConstraintData,
                         BasisHipsHeadIKConstraintJobBinder<BasisHipsHeadIKConstraintData>>

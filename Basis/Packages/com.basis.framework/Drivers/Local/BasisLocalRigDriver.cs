@@ -5,6 +5,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
@@ -47,7 +48,7 @@ namespace Basis.Scripts.Drivers
         // === IK Constraints ===
 
         /// <summary>Spine IK constraint (hips/head targets).</summary>
-        public BasisHipsHeadIKConstraint SpineIK;
+        public BasisIKConstraint SpineIK;
         /// <summary>Left foot two-bone IK.</summary>
         public BasisTwoBoneIKConstraint LeftFootTwoBoneIK;
         /// <summary>Right foot two-bone IK.</summary>
@@ -125,6 +126,11 @@ namespace Basis.Scripts.Drivers
         private BasisTransformMapping references;
         /// <summary>Two-bone IK used for the head chain (chest/neck/head).</summary>
         private BasisTwoBoneIKConstraint HeadTwoBoneIK;
+
+
+        public BasisIKConstraint[] Constraints;
+        public Rig ConstraintsRig;
+        public RigLayer ConstraintsLayer;
 
         // === Per-role smoothers ===
 
@@ -321,8 +327,8 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void ApplySpineIKTarget(BasisCalibratedCoords hip)
         {
-            SpineIK.data.hipsTargetPosition = hip.position;
-            SpineIK.data.hipsTargetRotationEuler = hip.rotation;
+            SpineIK.data.TargetPosition = hip.position;
+            SpineIK.data.TargetRotationEuler = hip.rotation;
         }
 
         /// <summary>
@@ -476,11 +482,43 @@ namespace Basis.Scripts.Drivers
 
             LeftToe(driver);
             RightToe(driver);
+
+            SetupOverrides();
+
             if (references.Hips.gameObject.TryGetComponent<RigTransform>(out RigTransform RigTransform) == false)
             {
                 RigTransform Hips = references.Hips.gameObject.AddComponent<RigTransform>();
             }
             BasisLocalBoneControl.HasEvents = true;
+        }
+        public void SetupOverrides()
+        {
+            List<BasisIKConstraint> ConstraintsList = new List<BasisIKConstraint>();
+
+            foreach (HumanBodyBones bone in (HumanBodyBones[])Enum.GetValues(typeof(HumanBodyBones)))
+            {
+                if (bone == HumanBodyBones.LastBone)
+                {
+                    continue;
+                }
+                GameObject Rig = CreateOrGetRig($"Override Constraints {bone}", true, out ConstraintsRig, out ConstraintsLayer);
+                if (GenerateOverrideComponent(Rig, bone, out var constraint))
+                {
+                    ConstraintsList.Add(constraint);
+                }
+            }
+            Constraints = ConstraintsList.ToArray();
+        }
+        public bool GenerateOverrideComponent(GameObject Rig, HumanBodyBones Role, out BasisIKConstraint Constraint)
+        {
+            if (BasisLocalAvatarDriver.References.GetTransform(Role, out Transform Reference))
+            {
+                BasisAnimationRiggingHelper.CreateIkConstraint(localPlayer, Rig, Reference, Role, out Constraint);
+                Constraint.weight = 0;
+                return true;
+            }
+            Constraint = null;
+            return false;
         }
 
         /// <summary>
@@ -535,7 +573,7 @@ namespace Basis.Scripts.Drivers
                 controls.Add(Head);
             }
             WriteUpEvents(controls, RigSpineLayer);
-            BasisAnimationRiggingHelper.CreateSpine(localPlayer, spineRig, references.Hips, references.head, BasisBoneTrackedRole.Hips, out SpineIK);
+            BasisAnimationRiggingHelper.CreateIkConstraint(localPlayer, spineRig, references.Hips, BasisBoneTrackedRole.Hips, out SpineIK);
         }
 
         /// <summary>

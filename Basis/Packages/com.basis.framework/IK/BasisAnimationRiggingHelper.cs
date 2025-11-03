@@ -133,17 +133,20 @@ public static class BasisAnimationRiggingHelper
         newObject.transform.SetParent(parent);
         return newObject;
     }
-    public static void CreateSpine(BasisLocalPlayer player, GameObject parent, Transform hips, Transform head, BasisBoneTrackedRole hipRole, out BasisHipsHeadIKConstraint SpineIKConstraint)
+    public static void CreateIkConstraint(BasisLocalPlayer player, GameObject parent, Transform BindTo, BasisBoneTrackedRole Role, out BasisIKConstraint IKConstraint)
     {
-        player.LocalBoneDriver.FindBone(out BasisLocalBoneControl hipControl, hipRole);
-
-        var boneRole = CreateAndSetParent(parent.transform, $"Bone Role {hipRole.ToString()}");
-        SpineIKConstraint = BasisHelpers.GetOrAddComponent<BasisHipsHeadIKConstraint>(boneRole);
-
-        // Set the transform references FIRST
-        SpineIKConstraint.data.hips = hips;
-        //SpineIKConstraint.data.hipsOffsetRotation = Quaternion.identity;
-        SpineIKConstraint.data.hipsOffsetRotation = hips.rotation;
-        GeneratedRequiredTransforms(player, head);
+        var boneRole = CreateAndSetParent(parent.transform, $"Bone Role {Role}");
+        IKConstraint = BasisHelpers.GetOrAddComponent<BasisIKConstraint>(boneRole);
+        IKConstraint.data.target = BindTo;
+        IKConstraint.data.TargetRotationEuler = Quaternion.identity;
+        IKConstraint.data.OffsetRotation = BindTo.rotation;
+    }
+    public static void CreateIkConstraint(BasisLocalPlayer player, GameObject parent, Transform BindTo, HumanBodyBones Role, out BasisIKConstraint IKConstraint)
+    {
+        var boneRole = CreateAndSetParent(parent.transform, $"Bone Role {Role}");
+        IKConstraint = BasisHelpers.GetOrAddComponent<BasisIKConstraint>(boneRole);
+        IKConstraint.data.target = BindTo;
+        IKConstraint.data.TargetRotationEuler = Quaternion.identity;
+        IKConstraint.data.OffsetRotation = BindTo.rotation;
     }
 }
