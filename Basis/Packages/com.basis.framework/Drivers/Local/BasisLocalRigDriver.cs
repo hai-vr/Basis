@@ -136,6 +136,11 @@ namespace Basis.Scripts.Drivers
         /// <summary>Monotonic time accumulator for filter evaluation.</summary>
         private float _timeAccumulator;
 
+        public HumanBodyBones[] HumanBones;
+        public BasisIKConstraint[] Constraints;
+        public Rig ConstraintsRig;
+        public RigLayer ConstraintsLayer;
+        private int[] _boneToIndex;
         /// <summary>
         /// Fetches or creates a One Euro position filter for a specific role
         /// and keeps its parameters in sync with the public fields.
@@ -487,11 +492,6 @@ namespace Basis.Scripts.Drivers
             }
             BasisLocalBoneControl.HasEvents = true;
         }
-        public HumanBodyBones[] HumanBones;
-        public BasisIKConstraint[] Constraints;
-        public Rig ConstraintsRig;
-        public RigLayer ConstraintsLayer;
-        private int[] _boneToIndex;
         public void SetupOverrides()
         {
             var constraintsList = new List<BasisIKConstraint>(55);
@@ -575,7 +575,10 @@ namespace Basis.Scripts.Drivers
         public void SetOverrideUsage(HumanBodyBones bone, bool enabled)
         {
             int idx = FastIndexOf(bone);
-            if (idx < 0) return; // not present
+            if (idx < 0)
+            {
+                return; // not present
+            }
 
             Constraints[idx].weight = enabled ? 1f : 0f;
         }
@@ -584,7 +587,10 @@ namespace Basis.Scripts.Drivers
         public void SetOverrideData(HumanBodyBones bone, in Vector3 position, in Quaternion rotation)
         {
             int idx = FastIndexOf(bone);
-            if (idx < 0) return; // not present
+            if (idx < 0)
+            {
+                return; // not present
+            }
 
             BasisIKConstraint c = Constraints[idx];
             BasisIKConstraintData d = c.data;
