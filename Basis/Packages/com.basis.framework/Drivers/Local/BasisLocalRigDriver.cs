@@ -138,6 +138,7 @@ namespace Basis.Scripts.Drivers
 
         public HumanBodyBones[] HumanBones;
         public BasisIKConstraint[] Constraints;
+        public bool[] isActive;
         public Rig ConstraintsRig;
         public RigLayer ConstraintsLayer;
         private int[] _boneToIndex;
@@ -513,6 +514,7 @@ namespace Basis.Scripts.Drivers
         /// </remarks>
         public void SetupOverrides()
         {
+            var isActiveList = new List<bool>(55);
             var constraintsList = new List<BasisIKConstraint>(55);
             var humanBodyBonesList = new List<HumanBodyBones>(55);
 
@@ -527,12 +529,14 @@ namespace Basis.Scripts.Drivers
                     {
                         constraintsList.Add(constraint);
                         humanBodyBonesList.Add(bone);
+                        isActiveList.Add(false);
                     }
                 }
             }
 
             Constraints = constraintsList.ToArray();
             HumanBones = humanBodyBonesList.ToArray();
+            isActive = isActiveList.ToArray();
 
             // Build direct lookup table
             int max = (int)HumanBodyBones.LastBone;
@@ -541,6 +545,16 @@ namespace Basis.Scripts.Drivers
 
             for (int i = 0; i < HumanBones.Length; i++)
                 _boneToIndex[(int)HumanBones[i]] = i;
+
+            DisableOverrides();
+        }
+        /// <summary>
+        /// we will automatically disable the overrides when you switch a avatar.
+        /// </summary>
+        public void DisableOverrides()
+        {
+            ConstraintsLayer.active = false;
+            BasisDebug.Log("Disabling Overrides of Avatar Constraints", BasisDebug.LogTag.Avatar);
         }
         /// <summary>
         /// Returns whether a humanoid bone should have an override constraint generated for it.
@@ -633,8 +647,17 @@ namespace Basis.Scripts.Drivers
             {
                 return; // not present
             }
-
+            isActive[idx] = enabled;
             Constraints[idx].weight = enabled ? 1f : 0f;
+
+            if (isActive.Any(x => x))
+            {
+                ConstraintsLayer.active = true;
+            }
+            else
+            {
+                DisableOverrides();
+            }
         }
         /// <summary>
         /// Writes target position and rotation for a bone’s override constraint in world space.
