@@ -492,6 +492,25 @@ namespace Basis.Scripts.Drivers
             }
             BasisLocalBoneControl.HasEvents = true;
         }
+        /// <summary>
+        /// Builds the “override constraints” rig and all per-bone override components,
+        /// then caches fast lookup structures for zero-alloc access at runtime.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This method:
+        /// </para>
+        /// <list type="number">
+        ///   <item><description>Creates or finds the <c>Rig "Override Constraints"</c> and its <see cref="RigLayer"/>.</description></item>
+        ///   <item><description>Iterates every <see cref="HumanBodyBones"/> value and, for each <see cref="UseableBodyBone(HumanBodyBones)"/> that returns <c>true</c>, creates a <see cref="BasisIKConstraint"/> via <c>GenerateOverrideComponent</c>.</description></item>
+        ///   <item><description>Populates <see cref="Constraints"/> and <see cref="HumanBones"/> with a 1:1 mapping order.</description></item>
+        ///   <item><description>Builds <see cref="_boneToIndex"/> so <see cref="FastIndexOf(HumanBodyBones)"/> is O(1) without allocations.</description></item>
+        /// </list>
+        /// <para>
+        /// Call once after <see cref="Initialize(BasisLocalPlayer, BasisTransformMapping)"/> and before any calls to
+        /// <see cref="SetOverrideUsage(HumanBodyBones, bool)"/> or <see cref="SetOverrideData(HumanBodyBones, in Vector3, in Quaternion)"/>.
+        /// </para>
+        /// </remarks>
         public void SetupOverrides()
         {
             var constraintsList = new List<BasisIKConstraint>(55);
@@ -523,6 +542,18 @@ namespace Basis.Scripts.Drivers
             for (int i = 0; i < HumanBones.Length; i++)
                 _boneToIndex[(int)HumanBones[i]] = i;
         }
+        /// <summary>
+        /// Returns whether a humanoid bone should have an override constraint generated for it.
+        /// </summary>
+        /// <param name="bone">The humanoid bone to test.</param>
+        /// <returns>
+        /// <c>true</c> if the bone is supported by the override system; otherwise <c>false</c>.
+        /// Eyes, finger segments, and <see cref="HumanBodyBones.LastBone"/> are excluded.
+        /// </returns>
+        /// <remarks>
+        /// Used by <see cref="SetupOverrides"/> to skip non-useful or unstable targets (e.g., fingers, eyes)
+        /// and keep the override rig lightweight.
+        /// </remarks>
         public static bool UseableBodyBone(HumanBodyBones bone)
         {
             switch (bone)
@@ -571,6 +602,29 @@ namespace Basis.Scripts.Drivers
                     return true;
             }
         }
+        /// <summary>
+        /// Enables or disables the override constraint for a specific humanoid bone.
+        /// </summary>
+        /// <param name="bone">Bone whose override you want to toggle.</param>
+        /// <param name="enabled">
+        /// <c>true</c> to apply the override (constraint weight set to 1);
+        /// <c>false</c> to deactivate it (weight set to 0).
+        /// </param>
+        /// <remarks>
+        /// <para>
+        /// No-ops if the bone has no generated override (e.g., filtered by
+        /// <see cref="UseableBodyBone(HumanBodyBones)"/> or the avatar lacks that transform).
+        /// </para>
+        /// <para>
+        /// Requires <see cref="SetupOverrides"/> to have been called to initialize the lookup tables.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// // Force the head to follow externally supplied pose data:
+        /// driver.SetOverrideUsage(HumanBodyBones.Head, true);
+        /// </code>
+        /// </example>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideUsage(HumanBodyBones bone, bool enabled)
         {
@@ -582,7 +636,32 @@ namespace Basis.Scripts.Drivers
 
             Constraints[idx].weight = enabled ? 1f : 0f;
         }
-
+        /// <summary>
+        /// Writes target position and rotation for a bone’s override constraint in world space.
+        /// </summary>
+        /// <param name="bone">The humanoid bone to update.</param>
+        /// <param name="position">World-space target position for the constraint.</param>
+        /// <param name="rotation">World-space target rotation for the constraint.</param>
+        /// <remarks>
+        /// <para>
+        /// Updates the underlying <see cref="BasisIKConstraint.data"/> struct and assigns it back to ensure
+        /// Unity’s serialization observes the change.
+        /// </para>
+        /// <para>
+        /// This method is allocation-free and is a no-op if the bone has no corresponding constraint
+        /// (e.g., because it was filtered or missing on the avatar).
+        /// </para>
+        /// <para>
+        /// Typically paired with <see cref="SetOverrideUsage(HumanBodyBones, bool)"/> to ensure the written target is actually used.
+        /// </para>
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var pos = trackedHead.position;
+        /// var rot = trackedHead.rotation;
+        /// driver.SetOverrideData(HumanBodyBones.Head, pos, rot);
+        /// </code>
+        /// </example>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideData(HumanBodyBones bone, in Vector3 position, in Quaternion rotation)
         {
@@ -598,6 +677,22 @@ namespace Basis.Scripts.Drivers
             d.TargetRotationEuler = rotation;
             c.data = d;
         }
+        /// <summary>
+        /// Gets the index into <see cref="HumanBones"/> / <see cref="Constraints"/> for a given bone in O(1) time.
+        /// </summary>
+        /// <param name="bone">The humanoid bone to look up.</param>
+        /// <returns>
+        /// The index of the bone within the parallel arrays, or <c>-1</c> if the bone
+        /// is not present (not useable, filtered out, or missing on the avatar).
+        /// </returns>
+        /// <remarks>
+        /// <para>
+        /// Uses the precomputed <see cref="_boneToIndex"/> table created by <see cref="SetupOverrides"/>.
+        /// </para>
+        /// <para>
+        /// Designed for hot paths: branch-light and GC-free.
+        /// </para>
+        /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int FastIndexOf(HumanBodyBones bone)
         {
