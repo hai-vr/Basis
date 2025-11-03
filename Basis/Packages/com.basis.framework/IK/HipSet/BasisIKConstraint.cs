@@ -5,7 +5,7 @@ namespace UnityEngine.Animations.Rigging
     /// Added: calibration offset (position + quaternion) to bake T-pose offsets.
     /// </summary>
     [System.Serializable]
-    public struct BasisIKConstraintData : IAnimationJobData, BasisIHipsHeadIKConstraintData
+    public struct BasisIKConstraintData : IAnimationJobData, BasisIIKConstraintData
     {
         [SerializeField] Transform m_target;
 
@@ -20,13 +20,13 @@ namespace UnityEngine.Animations.Rigging
         public Transform target { get => m_target; set => m_target = value; }
 
         // Property name bindings so the binder can hook Vector/Quat Properties.
-        string BasisIHipsHeadIKConstraintData.TargetPositionVector3Property
+        string BasisIIKConstraintData.TargetPositionVector3Property
             => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPosition));
         // Kept the original name suffix ("Vector3Property") to avoid breaking changes,
         // even though it's bound as a Vector4Property.
-        string BasisIHipsHeadIKConstraintData.TargetRotationVector3Property
+        string BasisIIKConstraintData.TargetRotationVector3Property
             => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotationEuler));
-        string BasisIHipsHeadIKConstraintData.OffsetRotationVector4Property
+        string BasisIIKConstraintData.OffsetRotationVector4Property
             => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotation));
 
         // IAnimationJobData
@@ -42,7 +42,7 @@ namespace UnityEngine.Animations.Rigging
         }
     }
 
-    public interface BasisIHipsHeadIKConstraintData
+    public interface BasisIIKConstraintData
     {
         Transform target { get; }
 
@@ -99,7 +99,7 @@ namespace UnityEngine.Animations.Rigging
         }
     }
 
-    public class BasisIKConstraintJobBinder<T>: AnimationJobBinder<BasisIKConstraintJob, T>where T : struct, IAnimationJobData, BasisIHipsHeadIKConstraintData
+    public class BasisIKConstraintJobBinder<T>: AnimationJobBinder<BasisIKConstraintJob, T>where T : struct, IAnimationJobData, BasisIIKConstraintData
     {
         public override BasisIKConstraintJob Create(Animator animator, ref T data, Component component)
         {
