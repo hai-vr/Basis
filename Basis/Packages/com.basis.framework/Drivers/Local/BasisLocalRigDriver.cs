@@ -550,6 +550,7 @@ namespace Basis.Scripts.Drivers
         }
         /// <summary>
         /// we will automatically disable the overrides when you switch a avatar.
+        /// you will need to listen for a avatar change event and reanable.
         /// </summary>
         public void DisableOverrides()
         {
