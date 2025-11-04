@@ -87,7 +87,6 @@ public class JiggleRig : MonoBehaviour {
             {
                 return animatedParameters;
             }
-
             set
             {
                 animatedParameters = value;
