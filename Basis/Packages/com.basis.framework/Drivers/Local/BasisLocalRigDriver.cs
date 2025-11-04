@@ -153,13 +153,6 @@ namespace Basis.Scripts.Drivers
 
             BasisFullIKConstraint.data.TargetPositionHips = hipsPos;
             BasisFullIKConstraint.data.TargetRotationEulerHips = hipsCoords.rotation;
-            // Hands
-            FilterAndApplyTarget(LeftHandTwoBoneIK, BasisBoneTrackedRole.LeftHand);
-            FilterAndApplyTarget(RightHandTwoBoneIK, BasisBoneTrackedRole.RightHand);
-
-            // Toes (apply translation constraint)
-            FilterAndApplyTarget(LeftToeConstraint, BasisBoneTrackedRole.LeftToes);
-            FilterAndApplyTarget(RightToeConstraint, BasisBoneTrackedRole.RightToes);
 
             // Direction for knee/neck hints relative to hips orientation (unchanged)
             Vector3 Direction = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation * Vector3.right;
@@ -196,6 +189,14 @@ namespace Basis.Scripts.Drivers
 
             BasisAnimationRiggingHelper.SetHandCollisionScale(LeftHandTwoBoneIK, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
             BasisAnimationRiggingHelper.SetHandCollisionScale(RightHandTwoBoneIK, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
+
+            // Hands
+            FilterAndApplyTarget(LeftHandTwoBoneIK, BasisBoneTrackedRole.LeftHand);
+            FilterAndApplyTarget(RightHandTwoBoneIK, BasisBoneTrackedRole.RightHand);
+
+            // Toes (apply translation constraint)
+            FilterAndApplyTarget(LeftToeConstraint, BasisBoneTrackedRole.LeftToes);
+            FilterAndApplyTarget(RightToeConstraint, BasisBoneTrackedRole.RightToes);
 
             // BasisLocalPlayer.Instance.BasisLocalFootDriver.Update();
 
@@ -343,9 +344,9 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void CleanupBeforeContinue()
         {
-            if (Rig != null)
+            if (MainRig != null)
             {
-                GameObject.Destroy(Rig.gameObject);
+                GameObject.Destroy(MainRig.gameObject);
             }
             if (LeftHandRig != null)
             {
@@ -373,7 +374,7 @@ namespace Basis.Scripts.Drivers
                 GameObject.Destroy(RightToeRig.gameObject);
             }
         }
-        public Rig Rig;
+        public Rig MainRig;
         public RigLayer RigLayer;
         public BasisFullIKConstraint BasisFullIKConstraint;
         /// <summary>
@@ -397,7 +398,7 @@ namespace Basis.Scripts.Drivers
         }
         public void SetupManipulation(BasisLocalBoneDriver driver)
         {
-            GameObject GameobjectHeadRig = CreateOrGetRig("Main IK", true, out Rig, out RigLayer);
+            GameObject GameobjectHeadRig = CreateOrGetRig("Main IK", true, out MainRig, out RigLayer);
             Transform[] Root = new Transform[3];
             Transform[] Middle = new Transform[3];
             Transform[] Tip = new Transform[3];
@@ -447,7 +448,7 @@ namespace Basis.Scripts.Drivers
             Roles[2] = BasisBoneTrackedRole.RightFoot;
             hintRoles[2] = BasisBoneTrackedRole.RightLowerLeg;
 
-            BasisAnimationRiggingHelper.CreateMainIKRIG(localPlayer, GameobjectHeadRig, Root, Middle, Tip, Roles, hintRoles, new bool[] { true, true, true }, out BasisFullIKConstraint, references.Hips, BasisBoneTrackedRole.Hips);
+            BasisAnimationRiggingHelper.CreateMainIKRIG(localPlayer, GameobjectHeadRig, Root, Middle, Tip, Roles, hintRoles, out BasisFullIKConstraint, references.Hips, BasisBoneTrackedRole.Hips);
 
             BasisFullIKConstraint.data.enabledHead = true;
             BasisFullIKConstraint.data.enabledHips = true;
@@ -472,7 +473,14 @@ namespace Basis.Scripts.Drivers
                 BasisFullIKConstraint.data.EnableRightLeg = RightFoot.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             }
 
-            RigLayer.active = true;
+            if (driver.FindBone(out BasisLocalBoneControl head, BasisBoneTrackedRole.Head))
+            {
+                head.OnHasRigChanged += delegate
+                {
+                    RigLayer.active = head.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                };
+                RigLayer.active = head.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+            }
         }
         /// <summary>
         /// Builds the “override constraints” rig and packs per-bone overrides into ⌈N/23⌉ BasisIK23Constraint batches.

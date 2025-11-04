@@ -35,7 +35,6 @@ public static class BasisAnimationRiggingHelper
         Transform[] tip,
         BasisBoneTrackedRole[] TargetRole,
         BasisBoneTrackedRole[] BendRole,
-        bool[] UseBoneRole,
         out BasisFullIKConstraint constraint,
         Transform hips, 
         BasisBoneTrackedRole hipsTargetRole =  BasisBoneTrackedRole.Hips
@@ -43,12 +42,16 @@ public static class BasisAnimationRiggingHelper
     {
         // --- sanity checks (keep them cheap & defensive)
         if (root == null || mid == null || tip == null ||
-            TargetRole == null || BendRole == null || UseBoneRole == null)
+            TargetRole == null || BendRole == null)
+        {
             throw new System.ArgumentNullException("IK arrays cannot be null.");
+        }
 
         if (root.Length < 3 || mid.Length < 3 || tip.Length < 3 ||
-            TargetRole.Length < 3 || BendRole.Length < 3 || UseBoneRole.Length < 3)
+            TargetRole.Length < 3 || BendRole.Length < 3)
+        {
             throw new System.ArgumentException("Expected at least 3 elements for Head, LeftLowerLeg, RightLowerLeg.");
+        }
 
         // --- make holder and component
         var go = CreateAndSetParent(parent.transform, $"Full IK ({parent.name})");
@@ -66,15 +69,14 @@ public static class BasisAnimationRiggingHelper
 
         data.m_CalibratedOffsetHead = Vector3.zero;
         data.m_CalibratedRotationHead = tip[IDX_HEAD] ? tip[IDX_HEAD].rotation : Quaternion.identity;
-        data.enabledHead = UseBoneRole[IDX_HEAD];
 
-        if (UseBoneRole[IDX_HEAD] && player.LocalBoneDriver.FindBone(out BasisLocalBoneControl headTarget, TargetRole[IDX_HEAD]))
+        if ( player.LocalBoneDriver.FindBone(out BasisLocalBoneControl headTarget, TargetRole[IDX_HEAD]))
         {
             data.TargetPositionHead = headTarget.OutgoingWorldData.position;
             data.TargetRotationHead = headTarget.OutgoingWorldData.rotation;
         }
 
-        if (UseBoneRole[IDX_HEAD] && player.LocalBoneDriver.FindBone(out BasisLocalBoneControl headHint, BendRole[IDX_HEAD]))
+        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl headHint, BendRole[IDX_HEAD]))
         {
             data.HintPositionHead = headHint.OutgoingWorldData.position;
             data.HintRotationHead = headHint.OutgoingWorldData.rotation;
@@ -92,15 +94,14 @@ public static class BasisAnimationRiggingHelper
 
         data.m_CalibratedOffsetLeftLowerLeg = Vector3.zero;
         data.m_CalibratedRotationLeftLowerLeg = tip[IDX_LLEG] ? tip[IDX_LLEG].rotation : Quaternion.identity;
-        data.EnableLeftLeg = UseBoneRole[IDX_LLEG];
 
-        if (UseBoneRole[IDX_LLEG] && player.LocalBoneDriver.FindBone(out BasisLocalBoneControl lTarget, TargetRole[IDX_LLEG]))
+        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl lTarget, TargetRole[IDX_LLEG]))
         {
             data.TargetPositionLeftLowerLeg = lTarget.OutgoingWorldData.position;
             data.TargetRotationLeftLowerLeg = lTarget.OutgoingWorldData.rotation;
         }
 
-        if (UseBoneRole[IDX_LLEG] && player.LocalBoneDriver.FindBone(out BasisLocalBoneControl lHint, BendRole[IDX_LLEG]))
+        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl lHint, BendRole[IDX_LLEG]))
         {
             data.HintPositionLeftLowerLeg = lHint.OutgoingWorldData.position;
             data.HintRotationLeftLowerLeg = lHint.OutgoingWorldData.rotation;
@@ -117,15 +118,14 @@ public static class BasisAnimationRiggingHelper
 
         data.m_CalibratedOffsetRightLowerLeg = Vector3.zero;
         data.m_CalibratedRotationRightLowerLeg = tip[IDX_RLEG] ? tip[IDX_RLEG].rotation : Quaternion.identity;
-        data.EnableRightLeg = UseBoneRole[IDX_RLEG];
 
-        if (UseBoneRole[IDX_RLEG] && player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rTarget, TargetRole[IDX_RLEG]))
+        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rTarget, TargetRole[IDX_RLEG]))
         {
             data.TargetPositionRightLowerLeg = rTarget.OutgoingWorldData.position;
             data.TargetRotationRightLowerLeg = rTarget.OutgoingWorldData.rotation;
         }
 
-        if (UseBoneRole[IDX_RLEG] && player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rHint, BendRole[IDX_RLEG]))
+        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rHint, BendRole[IDX_RLEG]))
         {
             data.HintPositionRightLowerLeg = rHint.OutgoingWorldData.position;
             data.HintRotationRightLowerLeg = rHint.OutgoingWorldData.rotation;
@@ -137,7 +137,6 @@ public static class BasisAnimationRiggingHelper
         // HIPS (optional minimal driver)
         // -----------------------------
         data.hips = hips;
-        data.enabledHips = hips != null;
 
         if (hips != null && player.LocalBoneDriver.FindBone(out BasisLocalBoneControl hipsCtrl, hipsTargetRole))
         {
