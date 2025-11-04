@@ -78,11 +78,6 @@ public static class BasisAnimationRiggingHelper
         {
             data.HintPositionHead = headHint.OutgoingWorldData.position;
             data.HintRotationHead = headHint.OutgoingWorldData.rotation;
-            data.hintWeightHead = true;
-        }
-        else
-        {
-            data.hintWeightHead = false;
         }
 
         // optional: default bend plane
@@ -109,11 +104,6 @@ public static class BasisAnimationRiggingHelper
         {
             data.HintPositionLeftLowerLeg = lHint.OutgoingWorldData.position;
             data.HintRotationLeftLowerLeg = lHint.OutgoingWorldData.rotation;
-            data.hintWeightLeftLowerLeg = true;
-        }
-        else
-        {
-            data.hintWeightLeftLowerLeg = false;
         }
 
         data.m_HintDirectionLeftLowerLeg = Vector3.forward; // pick your preferred knee plane
@@ -139,11 +129,6 @@ public static class BasisAnimationRiggingHelper
         {
             data.HintPositionRightLowerLeg = rHint.OutgoingWorldData.position;
             data.HintRotationRightLowerLeg = rHint.OutgoingWorldData.rotation;
-            data.hintWeightRightLowerLeg = true;
-        }
-        else
-        {
-            data.hintWeightRightLowerLeg = false;
         }
 
         data.m_HintDirectionRightLowerLeg = Vector3.forward;

@@ -416,7 +416,7 @@ namespace Basis.Scripts.Drivers
             {
                 if (references.Haschest)
                 {
-                    Root[0] = references.Upperchest;
+                    Root[0] = references.chest;
                     Middle[0] = references.neck;
                     Tip[0] = references.head;
 
@@ -425,7 +425,7 @@ namespace Basis.Scripts.Drivers
                 }
                 else
                 {
-                    Root[0] = null;
+                    Root[0] = references.spine;
                     Middle[0] = references.neck;
                     Tip[0] = references.head;
 
