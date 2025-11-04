@@ -147,6 +147,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public void HandleResults()
         {
             // Ensure all mirrors exist and match lengths before copying
+            if (!DistanceResults.IsCreated || !HearingResults.IsCreated || !AvatarResults.IsCreated || !distances.IsCreated)
                 return;
 
             if (MicrophoneRangeIndex == null || HearingIndex == null || AvatarIndex == null || CalculatedDistances == null)
