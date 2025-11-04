@@ -82,9 +82,6 @@ public static class BasisAnimationRiggingHelper
             data.HintRotationHead = headHint.OutgoingWorldData.rotation;
         }
 
-        // optional: default bend plane
-        data.m_HintDirectionHead = Vector3.up;
-
         // -----------------------------
         // LEFT LOWER LEG
         // -----------------------------
@@ -107,8 +104,6 @@ public static class BasisAnimationRiggingHelper
             data.HintRotationLeftLowerLeg = lHint.OutgoingWorldData.rotation;
         }
 
-        data.m_HintDirectionLeftLowerLeg = Vector3.forward; // pick your preferred knee plane
-
         // -----------------------------
         // RIGHT LOWER LEG
         // -----------------------------
@@ -130,8 +125,6 @@ public static class BasisAnimationRiggingHelper
             data.HintPositionRightLowerLeg = rHint.OutgoingWorldData.position;
             data.HintRotationRightLowerLeg = rHint.OutgoingWorldData.rotation;
         }
-
-        data.m_HintDirectionRightLowerLeg = Vector3.forward;
 
         // -----------------------------
         // HIPS (optional minimal driver)

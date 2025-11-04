@@ -24,7 +24,7 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetHead;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationHead;
 
-        [SyncSceneToStream, SerializeField] public Vector3 m_HintDirectionHead;
+        [SyncSceneToStream, SerializeField] public Vector3 m_HintDirection;
 
         public Transform rootHead { get => m_RootHead; set => m_RootHead = value; }
         public Transform midHead { get => m_MidHead; set => m_MidHead = value; }
@@ -39,7 +39,7 @@ namespace UnityEngine.Animations.Rigging
         public string TargetRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotationHead));
         public string HintPositionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionHead));
         public string HintRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationHead));
-        public string HintDirectionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintDirectionHead));
+        public string HintDirectionProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintDirection));
 
         // ---------- Left Lower Leg ----------
         [SerializeField] Transform m_RootLeftLowerLeg;
@@ -57,8 +57,6 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetLeftLowerLeg;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftLowerLeg;
 
-        [SyncSceneToStream, SerializeField] public Vector3 m_HintDirectionLeftLowerLeg;
-
         public Transform rootLeftLowerLeg { get => m_RootLeftLowerLeg; set => m_RootLeftLowerLeg = value; }
         public Transform midLeftLowerLeg { get => m_MidLeftLowerLeg; set => m_MidLeftLowerLeg = value; }
         public Transform tipLeftLowerLeg { get => m_TipLeftLowerLeg; set => m_TipLeftLowerLeg = value; }
@@ -72,7 +70,6 @@ namespace UnityEngine.Animations.Rigging
         public string TargetRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotationLeftLowerLeg));
         public string HintPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionLeftLowerLeg));
         public string HintRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationLeftLowerLeg));
-        public string HintDirectionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintDirectionLeftLowerLeg));
 
         // ---------- Right Lower Leg ----------
         [SerializeField] Transform m_RootRightLowerLeg;
@@ -90,8 +87,6 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightLowerLeg;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightLowerLeg;
 
-        [SyncSceneToStream, SerializeField] public Vector3 m_HintDirectionRightLowerLeg;
-
         public Transform rootRightLowerLeg { get => m_RootRightLowerLeg; set => m_RootRightLowerLeg = value; }
         public Transform midRightLowerLeg { get => m_MidRightLowerLeg; set => m_MidRightLowerLeg = value; }
         public Transform tipRightLowerLeg { get => m_TipRightLowerLeg; set => m_TipRightLowerLeg = value; }
@@ -105,7 +100,6 @@ namespace UnityEngine.Animations.Rigging
         public string TargetRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotationRightLowerLeg));
         public string HintPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionRightLowerLeg));
         public string HintRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationRightLowerLeg));
-        public string HintDirectionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintDirectionRightLowerLeg));
 
         // ---------- Hips (minimal driver) ----------
         [SerializeField] Transform m_Hips;
@@ -153,7 +147,7 @@ namespace UnityEngine.Animations.Rigging
             m_CalibratedOffsetHead = m_CalibratedOffsetLeftLowerLeg = m_CalibratedOffsetRightLowerLeg = Vector3.zero;
             m_CalibratedRotationHead = m_CalibratedRotationLeftLowerLeg = m_CalibratedRotationRightLowerLeg = Quaternion.identity;
 
-            m_HintDirectionHead = m_HintDirectionLeftLowerLeg = m_HintDirectionRightLowerLeg = Vector3.up;
+            m_HintDirection = m_HintDirection = m_HintDirection = Vector3.up;
 
             TargetPositionHips = Vector3.zero;
             TargetRotationEulerHips = Quaternion.identity;
@@ -189,14 +183,14 @@ namespace UnityEngine.Animations.Rigging
 
         // ----- Left Lower Leg -----
         public ReadWriteTransformHandle rootLeftLowerLeg, midLeftLowerLeg, tipLeftLowerLeg;
-        public Vector3Property targetPositionLeftLowerLeg, hintPositionLeftLowerLeg, bendNormalLeftLowerLeg;
+        public Vector3Property targetPositionLeftLowerLeg, hintPositionLeftLowerLeg;
         public Vector4Property targetRotationLeftLowerLeg, hintRotationLeftLowerLeg;
         public AffineTransform targetOffsetLeftLowerLeg;
         public BoolProperty hintWeightLeftLowerLeg, enabledLeftLowerLeg;
 
         // ----- Right Lower Leg -----
         public ReadWriteTransformHandle rootRightLowerLeg, midRightLowerLeg, tipRightLowerLeg;
-        public Vector3Property targetPositionRightLowerLeg, hintPositionRightLowerLeg, bendNormalRightLowerLeg;
+        public Vector3Property targetPositionRightLowerLeg, hintPositionRightLowerLeg;
         public Vector4Property targetRotationRightLowerLeg, hintRotationRightLowerLeg;
         public AffineTransform targetOffsetRightLowerLeg;
         public BoolProperty hintWeightRightLowerLeg, enabledRightLowerLeg;
@@ -253,11 +247,11 @@ namespace UnityEngine.Animations.Rigging
 
             SolveOne(stream, enabledLeftLowerLeg, rootLeftLowerLeg, midLeftLowerLeg, tipLeftLowerLeg,
                 targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
-                hintWeightLeftLowerLeg, targetOffsetLeftLowerLeg, bendNormalLeftLowerLeg);
+                hintWeightLeftLowerLeg, targetOffsetLeftLowerLeg, bendNormalHead);
 
             SolveOne(stream, enabledRightLowerLeg, rootRightLowerLeg, midRightLowerLeg, tipRightLowerLeg,
                 targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
-                hintWeightRightLowerLeg, targetOffsetRightLowerLeg, bendNormalRightLowerLeg);
+                hintWeightRightLowerLeg, targetOffsetRightLowerLeg, bendNormalHead);
         }
 
         static void SolveOne(
@@ -347,7 +341,7 @@ namespace UnityEngine.Animations.Rigging
                 targetRotationHead = Vector4Property.Bind(animator, component, data.TargetRotationPropertyHead),
                 hintPositionHead = Vector3Property.Bind(animator, component, data.HintPositionPropertyHead),
                 hintRotationHead = Vector4Property.Bind(animator, component, data.HintRotationPropertyHead),
-                bendNormalHead = Vector3Property.Bind(animator, component, data.HintDirectionPropertyHead),
+                bendNormalHead = Vector3Property.Bind(animator, component, data.HintDirectionProperty),
 
                 hintWeightHead = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyHead),
                 enabledHead = BoolProperty.Bind(animator, component, data.EnabledPropertyHead),
@@ -363,7 +357,6 @@ namespace UnityEngine.Animations.Rigging
                 targetRotationLeftLowerLeg = Vector4Property.Bind(animator, component, data.TargetRotationPropertyLeftLowerLeg),
                 hintPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.HintPositionPropertyLeftLowerLeg),
                 hintRotationLeftLowerLeg = Vector4Property.Bind(animator, component, data.HintRotationPropertyLeftLowerLeg),
-                bendNormalLeftLowerLeg = Vector3Property.Bind(animator, component, data.HintDirectionPropertyLeftLowerLeg),
 
                 hintWeightLeftLowerLeg = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyLeftLowerLeg),
                 enabledLeftLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyLeftLowerLeg),
@@ -379,7 +372,6 @@ namespace UnityEngine.Animations.Rigging
                 targetRotationRightLowerLeg = Vector4Property.Bind(animator, component, data.TargetRotationPropertyRightLowerLeg),
                 hintPositionRightLowerLeg = Vector3Property.Bind(animator, component, data.HintPositionPropertyRightLowerLeg),
                 hintRotationRightLowerLeg = Vector4Property.Bind(animator, component, data.HintRotationPropertyRightLowerLeg),
-                bendNormalRightLowerLeg = Vector3Property.Bind(animator, component, data.HintDirectionPropertyRightLowerLeg),
 
                 hintWeightRightLowerLeg = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyRightLowerLeg),
                 enabledRightLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyRightLowerLeg),

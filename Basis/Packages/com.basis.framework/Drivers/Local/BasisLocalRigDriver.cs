@@ -59,10 +59,6 @@ namespace Basis.Scripts.Drivers
         public Rig LeftHandRig;
         /// <summary>Right hand rig group.</summary>
         public Rig RightHandRig;
-        /// <summary>Left foot rig group.</summary>
-        public Rig LeftFootRig;
-        /// <summary>Right foot rig group.</summary>
-        public Rig RightFootRig;
 
         /// <summary>Layer controlling left hand rig.</summary>
         public RigLayer LeftHandLayer;
@@ -154,6 +150,7 @@ namespace Basis.Scripts.Drivers
 
             // Direction for knee/neck hints relative to hips orientation (unchanged)
             Vector3 Direction = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation * Vector3.right;
+            BasisFullIKConstraint.data.m_HintDirection = Direction;
 
             var data = GetCoordsForRole(BasisBoneTrackedRole.Head);
             BasisFullIKConstraint.data.TargetPositionHead = data.position;
@@ -170,17 +167,14 @@ namespace Basis.Scripts.Drivers
             data = GetCoordsForRole(BasisBoneTrackedRole.Chest);
             BasisFullIKConstraint.data.HintPositionHead = data.position;
             BasisFullIKConstraint.data.HintRotationHead = data.rotation;
-            BasisFullIKConstraint.data.m_HintDirectionHead = Direction;
 
             data = GetCoordsForRole(BasisBoneTrackedRole.LeftLowerLeg);
             BasisFullIKConstraint.data.HintPositionLeftLowerLeg = data.position;
             BasisFullIKConstraint.data.HintRotationLeftLowerLeg = data.rotation;
-            BasisFullIKConstraint.data.m_HintDirectionLeftLowerLeg = Direction;
 
             data = GetCoordsForRole(BasisBoneTrackedRole.RightLowerLeg);
             BasisFullIKConstraint.data.HintPositionRightLowerLeg = data.position;
             BasisFullIKConstraint.data.HintRotationRightLowerLeg = data.rotation;
-            BasisFullIKConstraint.data.m_HintDirectionRightLowerLeg = Direction;
 
             FilterAndApplyHint(LeftHandTwoBoneIK, BasisBoneTrackedRole.LeftLowerArm);
             FilterAndApplyHint(RightHandTwoBoneIK, BasisBoneTrackedRole.RightLowerArm);
@@ -352,15 +346,6 @@ namespace Basis.Scripts.Drivers
             {
                 GameObject.Destroy(RightHandRig.gameObject);
             }
-            if (LeftFootRig != null)
-            {
-                GameObject.Destroy(LeftFootRig.gameObject);
-            }
-            if (RightFootRig != null)
-            {
-                GameObject.Destroy(RightFootRig.gameObject);
-            }
-
             if (LeftToeRig != null)
             {
                 GameObject.Destroy(LeftToeRig.gameObject);
