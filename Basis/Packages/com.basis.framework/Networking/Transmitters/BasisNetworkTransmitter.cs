@@ -6,6 +6,7 @@ using Basis.Scripts.TransformBinders.BoneControl;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Burst;
@@ -167,7 +168,7 @@ namespace Basis.Scripts.Networking.Transmitters
                     Rec.RemotePlayer.ChangeMeshLOD(CalculatedDistances[Index], SMModuleDistanceBasedReductions.MeshLod);
 
                     // voice start/stop
-                    if (Rec.AudioReceiverModule.IsPlaying != HearingIndex[Index])
+                    if (Rec.AudioReceiverModule.HasAudioSource != HearingIndex[Index])
                     {
                         if (HearingIndex[Index])
                         {
@@ -193,28 +194,74 @@ namespace Basis.Scripts.Networking.Transmitters
         /// <summary>Lets the server know who can hear us.</summary>
         public void MicrophoneOutputCheck()
         {
-            if (AreBoolArraysEqual(MicrophoneRangeIndex, LastMicrophoneRangeIndex) == false)
+            // Basic validation (cheap and catches footguns)
+            if (MicrophoneRangeIndex == null || LastMicrophoneRangeIndex == null || HearingIndexToId == null)
             {
-                TalkingPoints.Clear();
-                Array.Copy(MicrophoneRangeIndex, LastMicrophoneRangeIndex, IndexLength);
-                for (int Index = 0; Index < IndexLength; Index++)
-                {
-                    if (MicrophoneRangeIndex[Index])
-                    {
-                        TalkingPoints.Add(HearingIndexToId[Index]);
-                    }
-                }
-                HasReasonToSendAudio = TalkingPoints.Count != 0;
+                return;
+            }
 
-                VoiceReceiversMessage VRM = new VoiceReceiversMessage
+            if (MicrophoneRangeIndex.Length != IndexLength || LastMicrophoneRangeIndex.Length != IndexLength ||HearingIndexToId.Length != IndexLength)
+            {
+                BasisDebug.LogError("MicrophoneOutputCheck: length mismatch.", BasisDebug.LogTag.Voice);
+                return;
+            }
+
+            // Fast exit if nothing changed
+            if (AreBoolArraysEqual(MicrophoneRangeIndex, LastMicrophoneRangeIndex))
+            {
+                return;
+            }
+
+            // Rebuild talking points (ensure capacity to avoid repeated allocations)
+            if (TalkingPoints.Capacity < IndexLength)
+            {
+                TalkingPoints.Capacity = IndexLength;
+            }
+
+            TalkingPoints.Clear();
+
+            // Single pass: build active receivers
+            for (int Index = 0; Index < IndexLength; Index++)
+            {
+                if (MicrophoneRangeIndex[Index])
                 {
-                    users = TalkingPoints.ToArray()
-                };
+                    TalkingPoints.Add(HearingIndexToId[Index]);
+                }
+            }
+
+            // Track whether we have anyone to send to (still send zero to mean "nobody")
+            HasReasonToSendAudio = TalkingPoints.Count != 0;
+
+            // Copy current -> last for next tick
+            Array.Copy(MicrophoneRangeIndex, LastMicrophoneRangeIndex, IndexLength);
+
+            // --- Serialize & send without allocating a new int[] ---
+            int count = TalkingPoints.Count;
+            ushort[] pooled = ArrayPool<ushort>.Shared.Rent(count);
+            try
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    pooled[i] = TalkingPoints[i];
+                }
+
+                var vrm = new VoiceReceiversMessage { users = pooled.AsSpan(0, count).ToArray() };
+                // If VoiceReceiversMessage can take ReadOnlySpan<int>, expose an overload to avoid the .ToArray().
+                // Otherwise we keep this ToArray() but avoid list->array allocation growth churn.
+
                 MicrophoneWriter.Reset();
-                BasisDebug.Log("Sending out Microphone Check Data", BasisDebug.LogTag.Voice);
-                VRM.Serialize(MicrophoneWriter);
-                BasisNetworkConnection.LocalPlayerPeer.Send(MicrophoneWriter, BasisNetworkCommons.AudioRecipientsChannel, DeliveryMethod.ReliableOrdered);
+#if BASIS_DEBUG || UNITY_EDITOR
+                BasisDebug.Log($"Sending Microphone Check Data (count={count})", BasisDebug.LogTag.Voice);
+#endif
+                vrm.Serialize(MicrophoneWriter);
+
+                BasisNetworkConnection.LocalPlayerPeer.Send( MicrophoneWriter, BasisNetworkCommons.AudioRecipientsChannel,DeliveryMethod.ReliableOrdered);
+
                 BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, MicrophoneWriter.Length);
+            }
+            finally
+            {
+                ArrayPool<ushort>.Shared.Return(pooled, clearArray: false);
             }
         }
         public static bool AreBoolArraysEqual(bool[] array1, bool[] array2)
