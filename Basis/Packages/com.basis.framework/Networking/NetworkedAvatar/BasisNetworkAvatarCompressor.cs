@@ -135,7 +135,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             transmitter.ClearAdditional();
         }
 
-        public static void InitalAvatarData(Animator animator, out StoredAvatarData StoredAvatarData)
+        public static void InitalAvatarData(Animator animator, out BasisStoredAvatarData StoredAvatarData)
         {
             EnsureInitialized();
 
@@ -143,12 +143,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             var humanPose = new HumanPose();
             poseHandler.GetHumanPose(ref humanPose);
 
-            StoredAvatarData = new StoredAvatarData();
+            StoredAvatarData = new BasisStoredAvatarData();
             CompressAvatarData(StoredAvatarData, humanPose, animator);
         }
 
         [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
-        public static void CompressAvatarData(StoredAvatarData AvatarData, HumanPose pose, Animator animator)
+        public static void CompressAvatarData(BasisStoredAvatarData AvatarData, HumanPose pose, Animator animator)
         {
             EnsureInitialized();
 
