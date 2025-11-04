@@ -1,5 +1,3 @@
-using static UnityEditor.ShaderData;
-
 namespace UnityEngine.Animations.Rigging
 {
     /// <summary>
