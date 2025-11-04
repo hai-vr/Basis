@@ -236,7 +236,6 @@ namespace Basis.Scripts.Networking.Transmitters
 
             if (!HasEvents)
             {
-                Player.OnAvatarSwitchedFallBack += OnAvatarCalibrationLocal;
                 Player.OnAvatarSwitched += OnAvatarCalibrationLocal;
                 Player.OnAvatarSwitched += SendOutAvatarChange;
                 AfterAvatarChanges += SendOutLatest;
@@ -349,7 +348,6 @@ namespace Basis.Scripts.Networking.Transmitters
 
             if (HasEvents)
             {
-                Player.OnAvatarSwitchedFallBack -= OnAvatarCalibrationLocal;
                 Player.OnAvatarSwitched -= OnAvatarCalibrationLocal;
                 Player.OnAvatarSwitched -= SendOutAvatarChange;
 

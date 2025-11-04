@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
@@ -135,13 +136,6 @@ namespace Basis.Scripts.Drivers
 
         /// <summary>Monotonic time accumulator for filter evaluation.</summary>
         private float _timeAccumulator;
-
-        public HumanBodyBones[] HumanBones;
-        public BasisIKConstraint[] Constraints;
-        public bool[] isActive;
-        public Rig ConstraintsRig;
-        public RigLayer ConstraintsLayer;
-        private int[] _boneToIndex;
         /// <summary>
         /// Fetches or creates a One Euro position filter for a specific role
         /// and keeps its parameters in sync with the public fields.
@@ -227,7 +221,7 @@ namespace Basis.Scripts.Drivers
             BasisAnimationRiggingHelper.SetHandCollisionScale(LeftHandTwoBoneIK, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
             BasisAnimationRiggingHelper.SetHandCollisionScale(RightHandTwoBoneIK, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
 
-           // BasisLocalPlayer.Instance.BasisLocalFootDriver.Update();
+            // BasisLocalPlayer.Instance.BasisLocalFootDriver.Update();
 
             if (Builder != null)
             {
@@ -493,61 +487,89 @@ namespace Basis.Scripts.Drivers
             }
             BasisLocalBoneControl.HasEvents = true;
         }
+        public HumanBodyBones[] HumanBones;
+        public bool[] isActive;
+        public Rig ConstraintsRig;
+        public RigLayer ConstraintsLayer;
+
+        // NEW: batched constraints and slot mapping
+        public BasisIK23Constraint[] Batches;
+
+        private BasisConstraintSlotIndex[] _boneToSlot; // size = (int)HumanBodyBones.LastBone
+
         /// <summary>
-        /// Builds the “override constraints” rig and all per-bone override components,
-        /// then caches fast lookup structures for zero-alloc access at runtime.
+        /// Builds the “override constraints” rig and packs per-bone overrides into ⌈N/23⌉ BasisIK23Constraint batches.
+        /// Caches O(1) lookup so hot paths stay GC-free.
         /// </summary>
-        /// <remarks>
-        /// <para>
-        /// This method:
-        /// </para>
-        /// <list type="number">
-        ///   <item><description>Creates or finds the <c>Rig "Override Constraints"</c> and its <see cref="RigLayer"/>.</description></item>
-        ///   <item><description>Iterates every <see cref="HumanBodyBones"/> value and, for each <see cref="UseableBodyBone(HumanBodyBones)"/> that returns <c>true</c>, creates a <see cref="BasisIKConstraint"/> via <c>GenerateOverrideComponent</c>.</description></item>
-        ///   <item><description>Populates <see cref="Constraints"/> and <see cref="HumanBones"/> with a 1:1 mapping order.</description></item>
-        ///   <item><description>Builds <see cref="_boneToIndex"/> so <see cref="FastIndexOf(HumanBodyBones)"/> is O(1) without allocations.</description></item>
-        /// </list>
-        /// <para>
-        /// Call once after <see cref="Initialize(BasisLocalPlayer, BasisTransformMapping)"/> and before any calls to
-        /// <see cref="SetOverrideUsage(HumanBodyBones, bool)"/> or <see cref="SetOverrideData(HumanBodyBones, in Vector3, in Quaternion)"/>.
-        /// </para>
-        /// </remarks>
         public void SetupOverrides()
         {
             var isActiveList = new List<bool>(55);
-            var constraintsList = new List<BasisIKConstraint>(55);
             var humanBodyBonesList = new List<HumanBodyBones>(55);
 
             GameObject rigGO = CreateOrGetRig("Override Constraints", true, out ConstraintsRig, out ConstraintsLayer);
 
-            // Build once; do NOT do this per frame.
+            // Choose bones (skip eyes/fingers/LastBone) — matches old behavior
             foreach (HumanBodyBones bone in (HumanBodyBones[])Enum.GetValues(typeof(HumanBodyBones)))
             {
                 if (UseableBodyBone(bone))
                 {
-                    if (GenerateOverrideComponent(rigGO, bone, out var constraint))
+                    // only include if transform exists on current avatar
+                    if (ResolveHumanoidBoneTransform(bone) != null)
                     {
-                        constraintsList.Add(constraint);
                         humanBodyBonesList.Add(bone);
                         isActiveList.Add(false);
                     }
                 }
             }
 
-            Constraints = constraintsList.ToArray();
             HumanBones = humanBodyBonesList.ToArray();
             isActive = isActiveList.ToArray();
 
-            // Build direct lookup table
-            int max = (int)HumanBodyBones.LastBone;
-            _boneToIndex = new int[max];
-            for (int i = 0; i < max; i++) _boneToIndex[i] = -1;
+            // Build direct slot lookup table
+            _boneToSlot = new BasisConstraintSlotIndex[(int)HumanBodyBones.LastBone];
+            for (int i = 0; i < _boneToSlot.Length; i++) _boneToSlot[i].Batch = -1;
 
-            for (int i = 0; i < HumanBones.Length; i++)
-                _boneToIndex[(int)HumanBones[i]] = i;
+            // Create batches
+            int count = HumanBones.Length;
+            int per = BasisIK23ConstraintData.Count;
+            int batchCount = (count + per - 1) / per;
+            Batches = new BasisIK23Constraint[batchCount];
 
-            DisableOverrides();
+            BasisIK23ConstraintTargetBinder.InitReflectionCache();
+
+            int boneIdx = 0;
+            for (int b = 0; b < batchCount; b++)
+            {
+                var go = new GameObject($"IK23 Batch {b:00}");
+                go.transform.SetParent(rigGO.transform, false);
+
+                var comp = go.AddComponent<BasisIK23Constraint>();
+                var data = comp.data; // struct copy
+
+                for (int slot = 0; slot < per && boneIdx < count; slot++, boneIdx++)
+                {
+                    HumanBodyBones bone = HumanBones[boneIdx];
+
+                    Transform t = ResolveHumanoidBoneTransform(bone);
+                    // write private m_targetN quickly
+                    BasisIK23ConstraintTargetBinder.SetTargetTransform(ref data, slot, t);
+
+                    // default disabled
+                    data.SetWeight(slot, false);
+                    data.SetOffsetRotation(slot, t.rotation);
+                    data.SetTargetRotation(slot, t.rotation);
+                    // map bone -> slot
+                    _boneToSlot[(int)bone] = new BasisConstraintSlotIndex { Batch = (short)b, Slot = (short)slot };
+                }
+
+                comp.data = data; // push back for binder
+                Batches[b] = comp;
+            }
+
+            DisableOverrides(); // start inactive until any bone is enabled
+            BasisDebug.Log($"Built override batches: {batchCount}", BasisDebug.LogTag.Avatar);
         }
+
         /// <summary>
         /// we will automatically disable the overrides when you switch a avatar.
         /// you will need to listen for a avatar change event and reanable.
@@ -557,18 +579,10 @@ namespace Basis.Scripts.Drivers
             ConstraintsLayer.active = false;
             BasisDebug.Log("Disabling Overrides of Avatar Constraints", BasisDebug.LogTag.Avatar);
         }
+
         /// <summary>
         /// Returns whether a humanoid bone should have an override constraint generated for it.
         /// </summary>
-        /// <param name="bone">The humanoid bone to test.</param>
-        /// <returns>
-        /// <c>true</c> if the bone is supported by the override system; otherwise <c>false</c>.
-        /// Eyes, finger segments, and <see cref="HumanBodyBones.LastBone"/> are excluded.
-        /// </returns>
-        /// <remarks>
-        /// Used by <see cref="SetupOverrides"/> to skip non-useful or unstable targets (e.g., fingers, eyes)
-        /// and keep the override rig lightweight.
-        /// </remarks>
         public static bool UseableBodyBone(HumanBodyBones bone)
         {
             switch (bone)
@@ -617,125 +631,71 @@ namespace Basis.Scripts.Drivers
                     return true;
             }
         }
+
         /// <summary>
-        /// Enables or disables the override constraint for a specific humanoid bone.
+        /// Enable/disable a bone override (per-slot weight 1/0).
         /// </summary>
-        /// <param name="bone">Bone whose override you want to toggle.</param>
-        /// <param name="enabled">
-        /// <c>true</c> to apply the override (constraint weight set to 1);
-        /// <c>false</c> to deactivate it (weight set to 0).
-        /// </param>
-        /// <remarks>
-        /// <para>
-        /// No-ops if the bone has no generated override (e.g., filtered by
-        /// <see cref="UseableBodyBone(HumanBodyBones)"/> or the avatar lacks that transform).
-        /// </para>
-        /// <para>
-        /// Requires <see cref="SetupOverrides"/> to have been called to initialize the lookup tables.
-        /// </para>
-        /// </remarks>
-        /// <example>
-        /// <code>
-        /// // Force the head to follow externally supplied pose data:
-        /// driver.SetOverrideUsage(HumanBodyBones.Head, true);
-        /// </code>
-        /// </example>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideUsage(HumanBodyBones bone, bool enabled)
         {
-            int idx = FastIndexOf(bone);
-            if (idx < 0)
-            {
-                return; // not present
-            }
-            isActive[idx] = enabled;
-            Constraints[idx].weight = enabled ? 1f : 0f;
+            if (!TryGetSlot(bone, out int bi, out int si)) return;
 
-            if (isActive.Any(x => x))
-            {
-                ConstraintsLayer.active = true;
-            }
-            else
-            {
-                DisableOverrides();
-            }
+            int idx = Array.IndexOf(HumanBones, bone);
+            if (idx >= 0) isActive[idx] = enabled;
+
+            var comp = Batches[bi];
+            var d = comp.data;
+            d.SetWeight(si, enabled);
+            comp.data = d;
+
+            // activate layer only if any slot is active
+            ConstraintsLayer.active = isActive.Any(x => x);
+            if (!ConstraintsLayer.active) DisableOverrides();
         }
+
         /// <summary>
-        /// Writes target position and rotation for a bone’s override constraint in world space.
+        /// Writes world-space target for a bone’s override slot (position + rotation).
         /// </summary>
-        /// <param name="bone">The humanoid bone to update.</param>
-        /// <param name="position">World-space target position for the constraint.</param>
-        /// <param name="rotation">World-space target rotation for the constraint.</param>
-        /// <remarks>
-        /// <para>
-        /// Updates the underlying <see cref="BasisIKConstraint.data"/> struct and assigns it back to ensure
-        /// Unity’s serialization observes the change.
-        /// </para>
-        /// <para>
-        /// This method is allocation-free and is a no-op if the bone has no corresponding constraint
-        /// (e.g., because it was filtered or missing on the avatar).
-        /// </para>
-        /// <para>
-        /// Typically paired with <see cref="SetOverrideUsage(HumanBodyBones, bool)"/> to ensure the written target is actually used.
-        /// </para>
-        /// </remarks>
-        /// <example>
-        /// <code>
-        /// var pos = trackedHead.position;
-        /// var rot = trackedHead.rotation;
-        /// driver.SetOverrideData(HumanBodyBones.Head, pos, rot);
-        /// </code>
-        /// </example>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideData(HumanBodyBones bone, in Vector3 position, in Quaternion rotation)
         {
-            int idx = FastIndexOf(bone);
-            if (idx < 0)
-            {
-                return; // not present
-            }
+            if (!TryGetSlot(bone, out int bi, out int si)) return;
 
-            BasisIKConstraint c = Constraints[idx];
-            BasisIKConstraintData d = c.data;
-            d.TargetPosition = position;
-            d.TargetRotationEuler = rotation;
-            c.data = d;
+            var comp = Batches[bi];
+            var d = comp.data;
+            d.SetTargetPosition(si, position);
+            d.SetTargetRotation(si, rotation);
+            comp.data = d;
         }
-        /// <summary>
-        /// Gets the index into <see cref="HumanBones"/> / <see cref="Constraints"/> for a given bone in O(1) time.
-        /// </summary>
-        /// <param name="bone">The humanoid bone to look up.</param>
-        /// <returns>
-        /// The index of the bone within the parallel arrays, or <c>-1</c> if the bone
-        /// is not present (not useable, filtered out, or missing on the avatar).
-        /// </returns>
-        /// <remarks>
-        /// <para>
-        /// Uses the precomputed <see cref="_boneToIndex"/> table created by <see cref="SetupOverrides"/>.
-        /// </para>
-        /// <para>
-        /// Designed for hot paths: branch-light and GC-free.
-        /// </para>
-        /// </remarks>
+
+        // === Helpers used by the override system ===
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int FastIndexOf(HumanBodyBones bone)
+        private bool TryGetSlot(HumanBodyBones bone, out int batch, out int slot)
         {
-            // Avoids dictionary/hash; pure array index is branch-light and GC-free.
             int raw = (int)bone;
-            if ((uint)raw >= (uint)_boneToIndex.Length) return -1;
-            return _boneToIndex[raw];
-        }
-        public bool GenerateOverrideComponent(GameObject Rig, HumanBodyBones Role, out BasisIKConstraint Constraint)
-        {
-            if (BasisLocalAvatarDriver.References.GetTransform(Role, out Transform Reference))
+            if (_boneToSlot == null || (uint)raw >= (uint)_boneToSlot.Length)
             {
-                BasisAnimationRiggingHelper.CreateIkConstraint(localPlayer, Rig, Reference, Role, out Constraint);
-                Constraint.weight = 0;
-                return true;
+                batch = slot = -1; return false;
             }
-            Constraint = null;
-            return false;
+            var s = _boneToSlot[raw];
+            if (s.Batch < 0) { batch = slot = -1; return false; }
+            batch = s.Batch; slot = s.Slot; return true;
         }
+
+        private Transform ResolveHumanoidBoneTransform(HumanBodyBones bone)
+        {
+            // Prefer your references map if available
+            if (BasisLocalAvatarDriver.References != null &&
+                BasisLocalAvatarDriver.References.GetTransform(bone, out Transform refT))
+                return refT;
+
+            // Fallback to Animator
+            var animator = localPlayer?.BasisAvatar?.Animator;
+            return animator != null ? animator.GetBoneTransform(bone) : null;
+        }
+
+        // (old FastIndexOf and GenerateOverrideComponent are no longer used)
 
         /// <summary>
         /// Creates head/neck/chest rig and two-bone IK based on available references.
@@ -838,7 +798,7 @@ namespace Basis.Scripts.Drivers
                 controls.Add(LeftLowerArm);
             }
             WriteUpEvents(controls, LeftHandLayer);
-            BasisAnimationRiggingHelper.CreateTwoBoneHand(localPlayer, Hands, references.Hips, references.chest, references.leftUpperArm, references.leftLowerArm, references.leftHand,references.TposeLeftHand.rotation, BasisBoneTrackedRole.LeftHand, BasisBoneTrackedRole.LeftLowerArm, true, out LeftHandTwoBoneIK);
+            BasisAnimationRiggingHelper.CreateTwoBoneHand(localPlayer, Hands, references.Hips, references.chest, references.leftUpperArm, references.leftLowerArm, references.leftHand, references.TposeLeftHand.rotation, BasisBoneTrackedRole.LeftHand, BasisBoneTrackedRole.LeftLowerArm, true, out LeftHandTwoBoneIK);
         }
 
         /// <summary>
@@ -950,8 +910,6 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Applies a hint weight to the appropriate constraint given a tracked role.
         /// </summary>
-        /// <param name="RoleWithHint">The role whose hint should be toggled.</param>
-        /// <param name="weight">True to enable the hint; false to disable.</param>
         public void ApplyHint(BasisBoneTrackedRole RoleWithHint, bool weight)
         {
             try
@@ -1018,11 +976,6 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Creates a new rig GameObject and layer (or retrieves an existing one) under the animator.
         /// </summary>
-        /// <param name="Role">Human-readable role label used in the rig name.</param>
-        /// <param name="Enabled">Initial active state of the layer.</param>
-        /// <param name="Rig">Out: the created or found <see cref="UnityEngine.Animations.Rigging.Rig"/>.</param>
-        /// <param name="RigLayer">Out: the created or found <see cref="UnityEngine.Animations.Rigging.RigLayer"/>.</param>
-        /// <returns>The rig GameObject.</returns>
         public GameObject CreateOrGetRig(string Role, bool Enabled, out Rig Rig, out RigLayer RigLayer)
         {
             foreach (RigLayer Layer in Builder.layers)

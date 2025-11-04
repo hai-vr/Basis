@@ -93,6 +93,7 @@ namespace Basis.Scripts.Drivers
             var JiggleRigs = player.BasisAvatar.GetComponentsInChildren<JiggleRig>();
             foreach (JiggleRig Rig in JiggleRigs)
             {
+                Rig.HasAnimatedParameters = false;
                 Rig.OnInitialize();
             }
 
