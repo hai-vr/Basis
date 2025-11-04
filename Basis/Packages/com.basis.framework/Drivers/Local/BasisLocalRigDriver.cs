@@ -5,13 +5,11 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
 using UnityEngine.Playables;
-using UnityEngine.UIElements;
 namespace Basis.Scripts.Drivers
 {
     /// <summary>
@@ -197,8 +195,6 @@ namespace Basis.Scripts.Drivers
             // Toes (apply translation constraint)
             FilterAndApplyTarget(LeftToeConstraint, BasisBoneTrackedRole.LeftToes);
             FilterAndApplyTarget(RightToeConstraint, BasisBoneTrackedRole.RightToes);
-
-            // BasisLocalPlayer.Instance.BasisLocalFootDriver.Update();
 
             if (Builder != null)
             {
