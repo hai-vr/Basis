@@ -102,7 +102,6 @@ namespace Basis.Scripts.Drivers
 
             player.LocalRigDriver.CleanupBeforeContinue();
             player.LocalRigDriver.AdditionalTransforms.Clear();
-            player.LocalRigDriver.Rigs.Clear();
             GameObject AvatarAnimatorParent = player.BasisAvatar.Animator.gameObject;
             ScaleAvatarModification.ReInitalize(player.BasisAvatar.Animator);
 
