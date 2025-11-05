@@ -7,17 +7,6 @@ using UnityEngine.Animations.Rigging;
 
 public static class BasisAnimationRiggingHelper
 {
-    public static BasisApplyTranslation Damp(BasisLocalPlayer player, GameObject Parent, Transform Source, BasisBoneTrackedRole Role)
-    {
-        player.LocalBoneDriver.FindBone(out BasisLocalBoneControl Target, Role);
-        GameObject DTData = CreateAndSetParent(Parent.transform, $"Bone Role {Role}");
-        BasisApplyTranslation DT = BasisHelpers.GetOrAddComponent<BasisApplyTranslation>(DTData);
-
-        DT.data.constrainedObject = Source;
-        GeneratedRequiredTransforms(player, Source);
-        return DT;
-    }
-    // convenient indices into the arrays
     private const int IDX_HEAD = 0;
     private const int IDX_LLEG = 1;
     private const int IDX_RLEG = 2;
@@ -37,7 +26,8 @@ public static class BasisAnimationRiggingHelper
         BasisBoneTrackedRole[] BendRole,
         out BasisFullIKConstraint constraint,
         Transform hips, 
-        BasisBoneTrackedRole hipsTargetRole =  BasisBoneTrackedRole.Hips
+        BasisBoneTrackedRole hipsTargetRole,
+         Transform LeftToe, Transform RightToe
     )
     {
         // --- sanity checks (keep them cheap & defensive)
@@ -140,6 +130,12 @@ public static class BasisAnimationRiggingHelper
 
         // write back
         constraint.data = data;
+
+        constraint.data.leftDriven = LeftToe;
+        constraint.data.rightDriven = RightToe;
+
+        GeneratedRequiredTransforms(player, LeftToe);
+        GeneratedRequiredTransforms(player, RightToe);
 
         // If you have any extra setup that needs the tips (like creating targets), do it now.
         GeneratedRequiredTransforms(player, tip[0]);

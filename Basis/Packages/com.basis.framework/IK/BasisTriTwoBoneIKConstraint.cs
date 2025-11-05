@@ -1,9 +1,13 @@
+using UnityEngine;
+using UnityEngine.Animations.Rigging;
+
 namespace UnityEngine.Animations.Rigging
 {
     /// <summary>
-    /// Combined constraint:
+    /// Full IK + integrated dual "damped TR" driver, so everything runs in one job pass.
     /// - Three TwoBoneIK chains (Head, LeftLowerLeg, RightLowerLeg)
     /// - Minimal Hips driver (position + rotation) with calibration offset rotation
+    /// - Two optional "driven" transforms (Left/Right) that take world-space TR from streamed properties
     /// </summary>
     [System.Serializable]
     public struct BasisFullIKConstraintData : IAnimationJobData
@@ -103,16 +107,10 @@ namespace UnityEngine.Animations.Rigging
 
         // ---------- Hips (minimal driver) ----------
         [SerializeField] Transform m_Hips;
-        [SyncSceneToStream, SerializeField]
-        public Vector3 TargetPositionHips;
-        // Stored as Quaternion (x,y,z,w) – the original suffix "Euler" is preserved for backward compat.
-        [SyncSceneToStream, SerializeField]
-        public Quaternion TargetRotationEulerHips;
-        // Calibration offset (applied on top of target each frame)
-        [SyncSceneToStream, SerializeField]
-        public Quaternion OffsetRotationHips;
-        [SyncSceneToStream, SerializeField]
-        bool m_EnabledHips;
+        [SyncSceneToStream, SerializeField] public Vector3 TargetPositionHips;
+        [SyncSceneToStream, SerializeField] public Quaternion TargetRotationEulerHips; // kept name for compat
+        [SyncSceneToStream, SerializeField] public Quaternion OffsetRotationHips;
+        [SyncSceneToStream, SerializeField] bool m_EnabledHips;
 
         public Transform hips { get => m_Hips; set => m_Hips = value; }
         public bool enabledHips { get => m_EnabledHips; set => m_EnabledHips = value; }
@@ -122,14 +120,47 @@ namespace UnityEngine.Animations.Rigging
         public string OffsetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotationHips));
         public string EnabledPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_EnabledHips));
 
+        // ---------- Integrated Dual "Driven TR" (ex-damped) ----------
+        [SerializeField] Transform m_LeftDriven;
+        [SerializeField] Transform m_RightDriven;
+
+        [SyncSceneToStream, SerializeField] public Vector3 OutGoingLeftToePosition;
+        [SyncSceneToStream, SerializeField] public Quaternion OutGoingLeftToeRotation;
+
+        [SyncSceneToStream, SerializeField] public Vector3 OutGoingRightToePosition;
+        [SyncSceneToStream, SerializeField] public Quaternion OutGoingRightToeRotation;
+
+        [SyncSceneToStream, SerializeField] bool m_LeftDrivenEnabled;
+        [SyncSceneToStream, SerializeField] bool m_RightDrivenEnabled;
+
+        public Transform leftDriven { get => m_LeftDriven; set => m_LeftDriven = value; }
+        public Transform rightDriven { get => m_RightDriven; set => m_RightDriven = value; }
+        public bool LeftToggleEnabled { get => m_LeftDrivenEnabled; set => m_LeftDrivenEnabled = value; }
+        public bool RightToggleEnabled { get => m_RightDrivenEnabled; set => m_RightDrivenEnabled = value; }
+
+        public string LeftDrivenEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftDrivenEnabled));
+        public string RightDrivenEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_RightDrivenEnabled));
+        public string LeftDrivenTargetPosProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingLeftToePosition));
+        public string LeftDrivenTargetRotProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingLeftToeRotation));
+        public string RightDrivenTargetPosProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingRightToePosition));
+        public string RightDrivenTargetRotProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingRightToeRotation));
+
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
             bool hipsValid = m_Hips != null;
-            bool head = (m_TipHead && m_MidHead && m_RootHead && m_TipHead.IsChildOf(m_MidHead) && m_MidHead.IsChildOf(m_RootHead));
-            bool lLeg = (m_TipLeftLowerLeg && m_MidLeftLowerLeg && m_RootLeftLowerLeg && m_TipLeftLowerLeg.IsChildOf(m_MidLeftLowerLeg) && m_MidLeftLowerLeg.IsChildOf(m_RootLeftLowerLeg));
-            bool rLeg = (m_TipRightLowerLeg && m_MidRightLowerLeg && m_RootRightLowerLeg && m_TipRightLowerLeg.IsChildOf(m_MidRightLowerLeg) && m_MidRightLowerLeg.IsChildOf(m_RootRightLowerLeg));
-            return head || lLeg || rLeg || hipsValid;
+
+            bool head = (m_TipHead && m_MidHead && m_RootHead &&
+                         m_TipHead.IsChildOf(m_MidHead) && m_MidHead.IsChildOf(m_RootHead));
+
+            bool lLeg = (m_TipLeftLowerLeg && m_MidLeftLowerLeg && m_RootLeftLowerLeg &&
+                         m_TipLeftLowerLeg.IsChildOf(m_MidLeftLowerLeg) && m_MidLeftLowerLeg.IsChildOf(m_RootLeftLowerLeg));
+
+            bool rLeg = (m_TipRightLowerLeg && m_MidRightLowerLeg && m_RootRightLowerLeg &&
+                         m_TipRightLowerLeg.IsChildOf(m_MidRightLowerLeg) && m_MidRightLowerLeg.IsChildOf(m_RootRightLowerLeg));
+
+            // Any of these being valid is enough to run.
+            return head || lLeg || rLeg || hipsValid || (m_LeftDriven != null) || (m_RightDriven != null);
         }
 
         void IAnimationJobData.SetDefaultValues()
@@ -147,15 +178,22 @@ namespace UnityEngine.Animations.Rigging
             m_CalibratedOffsetHead = m_CalibratedOffsetLeftLowerLeg = m_CalibratedOffsetRightLowerLeg = Vector3.zero;
             m_CalibratedRotationHead = m_CalibratedRotationLeftLowerLeg = m_CalibratedRotationRightLowerLeg = Quaternion.identity;
 
-            m_HintDirection = m_HintDirection = m_HintDirection = Vector3.up;
+            m_HintDirection = Vector3.up;
 
             TargetPositionHips = Vector3.zero;
             TargetRotationEulerHips = Quaternion.identity;
             OffsetRotationHips = Quaternion.identity;
+
+            // Integrated driven TR defaults
+            m_LeftDriven = m_RightDriven = null;
+            OutGoingLeftToePosition = OutGoingRightToePosition = Vector3.zero;
+            OutGoingLeftToeRotation = OutGoingRightToeRotation = Quaternion.identity;
+            m_LeftDrivenEnabled = m_RightDrivenEnabled = false;
         }
     }
 
-    [DisallowMultipleComponent, AddComponentMenu("Animation Rigging/Basis Full IK Constraint (Head + Legs + Hips)")]
+    [DisallowMultipleComponent]
+    [AddComponentMenu("Animation Rigging/Basis Full IK Constraint (Head + Legs + Hips + Driven TR)")]
     [HelpURL("https://docs.unity3d.com/Packages/com.unity.animation.rigging@1.3/manual/index.html")]
     public class BasisFullIKConstraint
         : RigConstraint<BasisFullIKConstraintJob, BasisFullIKConstraintData, BasisFullIKConstraintJobBinder>
@@ -168,6 +206,10 @@ namespace UnityEngine.Animations.Rigging
             m_Data.hintWeightLeftLowerLeg = m_Data.hintWeightLeftLowerLeg;
             m_Data.hintWeightRightLowerLeg = m_Data.hintWeightRightLowerLeg;
             m_Data.enabledHips = m_Data.enabledHips;
+
+            // new toggles
+            m_Data.LeftToggleEnabled = m_Data.LeftToggleEnabled;
+            m_Data.RightToggleEnabled = m_Data.RightToggleEnabled;
         }
     }
 
@@ -202,6 +244,12 @@ namespace UnityEngine.Animations.Rigging
         public Vector4Property offsetRotationHips;
         public BoolProperty enabledHips;
 
+        // ----- Integrated Dual "Driven TR" (ex-damped) -----
+        public ReadWriteTransformHandle leftDrivenHandle, rightDrivenHandle;
+        public Vector3Property leftDrivenTargetPos, rightDrivenTargetPos;
+        public Vector4Property leftDrivenTargetRot, rightDrivenTargetRot;
+        public BoolProperty LeftToggle, RightToggle;
+
         public FloatProperty jobWeight { get; set; }
 
         public void ProcessRootMotion(AnimationStream stream) { }
@@ -212,35 +260,35 @@ namespace UnityEngine.Animations.Rigging
             if (w <= 0f)
             {
                 if (hipsHandle.IsValid(stream))
-                {
                     BasisAnimationRuntimeUtils.PassThrough(stream, hipsHandle);
-                }
+
                 Pass(stream, rootHead, midHead, tipHead);
                 Pass(stream, rootLeftLowerLeg, midLeftLowerLeg, tipLeftLowerLeg);
                 Pass(stream, rootRightLowerLeg, midRightLowerLeg, tipRightLowerLeg);
+
+                if (leftDrivenHandle.IsValid(stream))
+                    BasisAnimationRuntimeUtils.PassThrough(stream, leftDrivenHandle);
+                if (rightDrivenHandle.IsValid(stream))
+                    BasisAnimationRuntimeUtils.PassThrough(stream, rightDrivenHandle);
+
                 return;
             }
 
-            // Hips minimal driver
+            // --- Hips minimal driver ---
             if (enabledHips.Get(stream) && hipsHandle.IsValid(stream))
             {
                 Vector3 hipPos = targetPositionHips.Get(stream);
                 Quaternion hipRot = V4ToQuat(targetRotationHips.Get(stream));
                 Quaternion hipOff = V4ToQuat(offsetRotationHips.Get(stream));
-                Quaternion final = hipRot * hipOff; // apply offset in target space
-
                 hipsHandle.SetPosition(stream, hipPos);
-                hipsHandle.SetRotation(stream, final);
+                hipsHandle.SetRotation(stream, hipRot * hipOff); // apply offset in target space
             }
-            else
+            else if (hipsHandle.IsValid(stream))
             {
-                if (hipsHandle.IsValid(stream))
-                {
-                    BasisAnimationRuntimeUtils.PassThrough(stream, hipsHandle);
-                }
+                BasisAnimationRuntimeUtils.PassThrough(stream, hipsHandle);
             }
 
-            // Tri TwoBoneIK
+            // --- Tri TwoBoneIK solves ---
             SolveOne(stream, enabledHead, rootHead, midHead, tipHead,
                 targetPositionHead, targetRotationHead, hintPositionHead, hintRotationHead,
                 hintWeightHead, targetOffsetHead, bendNormalHead);
@@ -252,6 +300,10 @@ namespace UnityEngine.Animations.Rigging
             SolveOne(stream, enabledRightLowerLeg, rootRightLowerLeg, midRightLowerLeg, tipRightLowerLeg,
                 targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
                 hintWeightRightLowerLeg, targetOffsetRightLowerLeg, bendNormalHead);
+
+            // --- Integrated "damped TR" application (world-space) ---
+            ApplyDrivenTR(stream, LeftToggle, leftDrivenHandle, leftDrivenTargetPos, leftDrivenTargetRot);
+            ApplyDrivenTR(stream, RightToggle, rightDrivenHandle, rightDrivenTargetPos, rightDrivenTargetRot);
         }
 
         static void SolveOne(
@@ -262,80 +314,89 @@ namespace UnityEngine.Animations.Rigging
             Vector3Property hintPosProp, Vector4Property hintRotProp,
             BoolProperty hintWeightProp, AffineTransform targetOffset, Vector3Property bendNormalProp)
         {
-            // If the constraint is disabled, just pass through (safe-checked inside Pass)
             if (!enabledProp.Get(stream))
             {
                 Pass(stream, root, mid, tip);
                 return;
             }
 
-            // Ensure all transform handles are valid before solving
             bool rootValid = root.IsValid(stream);
             bool midValid = mid.IsValid(stream);
             bool tipValid = tip.IsValid(stream);
-
             if (!(rootValid && midValid && tipValid))
             {
-                // If anything's invalid, don't attempt to solve; just pass through safely
                 Pass(stream, root, mid, tip);
                 return;
             }
 
-            // Safe to read properties & solve
             Quaternion tRot = V4ToQuat(targetRotProp.Get(stream));
             Quaternion hRot = V4ToQuat(hintRotProp.Get(stream));
 
             AffineTransform target = new AffineTransform(targetPosProp.Get(stream), tRot);
             AffineTransform hint = new AffineTransform(hintPosProp.Get(stream), hRot);
-
             Vector3 bendNormal = bendNormalProp.Get(stream);
 
             BasisAnimationRuntimeUtils.SolveTwoBone(
-                stream, root, mid, tip, target, hint,
-                hintWeightProp.Get(stream), targetOffset, bendNormal
+                stream, root, mid, tip,
+                target, hint,
+                hintWeightProp.Get(stream),
+                targetOffset, bendNormal
             );
+        }
+
+        static void ApplyDrivenTR(
+            AnimationStream stream,
+            BoolProperty enabledProp,
+            ReadWriteTransformHandle handle,
+            Vector3Property targetPosProp,
+            Vector4Property targetRotProp)
+        {
+            if (!handle.IsValid(stream))
+                return;
+
+            if (enabledProp.Get(stream))
+            {
+                var pos = targetPosProp.Get(stream);
+                var rot = V4ToQuat(targetRotProp.Get(stream));
+                handle.SetPosition(stream, pos);
+                handle.SetRotation(stream, rot);
+            }
+            else
+            {
+                BasisAnimationRuntimeUtils.PassThrough(stream, handle);
+            }
         }
 
         static void Pass(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip)
         {
-            if (root.IsValid(stream))
-            {
-                BasisAnimationRuntimeUtils.PassThrough(stream, root);
-            }
-            if (mid.IsValid(stream))
-            {
-                BasisAnimationRuntimeUtils.PassThrough(stream, mid);
-            }
-            if (tip.IsValid(stream))
-            {
-                BasisAnimationRuntimeUtils.PassThrough(stream, tip);
-            }
+            if (root.IsValid(stream)) BasisAnimationRuntimeUtils.PassThrough(stream, root);
+            if (mid.IsValid(stream)) BasisAnimationRuntimeUtils.PassThrough(stream, mid);
+            if (tip.IsValid(stream)) BasisAnimationRuntimeUtils.PassThrough(stream, tip);
         }
 
         static Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
     }
+
     public class BasisFullIKConstraintJobBinder : AnimationJobBinder<BasisFullIKConstraintJob, BasisFullIKConstraintData>
     {
-        private static ReadWriteTransformHandle SafeBindHandle(Animator animator, Transform t, string fieldName)
-        {
-            return t != null ? ReadWriteTransformHandle.Bind(animator, t) : default;
-        }
+        private static ReadWriteTransformHandle SafeBindHandle(Animator animator, Transform t) =>
+            t != null ? ReadWriteTransformHandle.Bind(animator, t) : default;
 
         public override BasisFullIKConstraintJob Create(Animator animator, ref BasisFullIKConstraintData data, Component component)
         {
             var job = new BasisFullIKConstraintJob
             {
                 // Hips
-                hipsHandle = SafeBindHandle(animator, data.hips, nameof(data.hips)),
+                hipsHandle = SafeBindHandle(animator, data.hips),
                 targetPositionHips = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHips),
                 targetRotationHips = Vector4Property.Bind(animator, component, data.TargetRotationPropertyHips),
                 offsetRotationHips = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyHips),
                 enabledHips = BoolProperty.Bind(animator, component, data.EnabledPropertyHips),
 
                 // Head
-                rootHead = SafeBindHandle(animator, data.rootHead, nameof(data.rootHead)),
-                midHead = SafeBindHandle(animator, data.midHead, nameof(data.midHead)),
-                tipHead = SafeBindHandle(animator, data.tipHead, nameof(data.tipHead)),
+                rootHead = SafeBindHandle(animator, data.rootHead),
+                midHead = SafeBindHandle(animator, data.midHead),
+                tipHead = SafeBindHandle(animator, data.tipHead),
 
                 targetPositionHead = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHead),
                 targetRotationHead = Vector4Property.Bind(animator, component, data.TargetRotationPropertyHead),
@@ -349,9 +410,9 @@ namespace UnityEngine.Animations.Rigging
                 targetOffsetHead = new AffineTransform(data.m_CalibratedOffsetHead, data.m_CalibratedRotationHead),
 
                 // Left Lower Leg
-                rootLeftLowerLeg = SafeBindHandle(animator, data.rootLeftLowerLeg, nameof(data.rootLeftLowerLeg)),
-                midLeftLowerLeg = SafeBindHandle(animator, data.midLeftLowerLeg, nameof(data.midLeftLowerLeg)),
-                tipLeftLowerLeg = SafeBindHandle(animator, data.tipLeftLowerLeg, nameof(data.tipLeftLowerLeg)),
+                rootLeftLowerLeg = SafeBindHandle(animator, data.rootLeftLowerLeg),
+                midLeftLowerLeg = SafeBindHandle(animator, data.midLeftLowerLeg),
+                tipLeftLowerLeg = SafeBindHandle(animator, data.tipLeftLowerLeg),
 
                 targetPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.TargetPositionPropertyLeftLowerLeg),
                 targetRotationLeftLowerLeg = Vector4Property.Bind(animator, component, data.TargetRotationPropertyLeftLowerLeg),
@@ -364,9 +425,9 @@ namespace UnityEngine.Animations.Rigging
                 targetOffsetLeftLowerLeg = new AffineTransform(data.m_CalibratedOffsetLeftLowerLeg, data.m_CalibratedRotationLeftLowerLeg),
 
                 // Right Lower Leg
-                rootRightLowerLeg = SafeBindHandle(animator, data.rootRightLowerLeg, nameof(data.rootRightLowerLeg)),
-                midRightLowerLeg = SafeBindHandle(animator, data.midRightLowerLeg, nameof(data.midRightLowerLeg)),
-                tipRightLowerLeg = SafeBindHandle(animator, data.tipRightLowerLeg, nameof(data.tipRightLowerLeg)),
+                rootRightLowerLeg = SafeBindHandle(animator, data.rootRightLowerLeg),
+                midRightLowerLeg = SafeBindHandle(animator, data.midRightLowerLeg),
+                tipRightLowerLeg = SafeBindHandle(animator, data.tipRightLowerLeg),
 
                 targetPositionRightLowerLeg = Vector3Property.Bind(animator, component, data.TargetPositionPropertyRightLowerLeg),
                 targetRotationRightLowerLeg = Vector4Property.Bind(animator, component, data.TargetRotationPropertyRightLowerLeg),
@@ -377,10 +438,23 @@ namespace UnityEngine.Animations.Rigging
                 enabledRightLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyRightLowerLeg),
 
                 targetOffsetRightLowerLeg = new AffineTransform(data.m_CalibratedOffsetRightLowerLeg, data.m_CalibratedRotationRightLowerLeg),
+
+                // Integrated Dual "Driven TR"
+                leftDrivenHandle = SafeBindHandle(animator, data.leftDriven),
+                rightDrivenHandle = SafeBindHandle(animator, data.rightDriven),
+
+                leftDrivenTargetPos = Vector3Property.Bind(animator, component, data.LeftDrivenTargetPosProperty),
+                leftDrivenTargetRot = Vector4Property.Bind(animator, component, data.LeftDrivenTargetRotProperty),
+                rightDrivenTargetPos = Vector3Property.Bind(animator, component, data.RightDrivenTargetPosProperty),
+                rightDrivenTargetRot = Vector4Property.Bind(animator, component, data.RightDrivenTargetRotProperty),
+
+                LeftToggle = BoolProperty.Bind(animator, component, data.LeftDrivenEnabledProperty),
+                RightToggle = BoolProperty.Bind(animator, component, data.RightDrivenEnabledProperty),
             };
 
             return job;
         }
+
         public override void Destroy(BasisFullIKConstraintJob job) { }
     }
 }
