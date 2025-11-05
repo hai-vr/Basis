@@ -42,20 +42,6 @@ namespace Basis.Scripts.Drivers
         [Tooltip("Cutoff for derivative smoothing.")]
         [Range(0.01f, 10f)]
         public float DerivativeCutoff = 3f;
-        /// <summary>Left hand two-bone IK (hand variant).</summary>
-        public BasisTwoBoneIKConstraintHand LeftHandTwoBoneIK;
-        /// <summary>Right hand two-bone IK (hand variant).</summary>
-        public BasisTwoBoneIKConstraintHand RightHandTwoBoneIK;
-
-        /// <summary>Left hand rig group.</summary>
-        public Rig LeftHandRig;
-        /// <summary>Right hand rig group.</summary>
-        public Rig RightHandRig;
-
-        /// <summary>Layer controlling left hand rig.</summary>
-        public RigLayer LeftHandLayer;
-        /// <summary>Layer controlling right hand rig.</summary>
-        public RigLayer RightHandLayer;
 
         /// <summary>RigBuilder used to manage layers and build the playable graph.</summary>
         public RigBuilder Builder;
@@ -250,14 +236,6 @@ namespace Basis.Scripts.Drivers
             if (MainRig != null)
             {
                 GameObject.Destroy(MainRig.gameObject);
-            }
-            if (LeftHandRig != null)
-            {
-                GameObject.Destroy(LeftHandRig.gameObject);
-            }
-            if (RightHandRig != null)
-            {
-                GameObject.Destroy(RightHandRig.gameObject);
             }
         }
         /// <summary>
@@ -676,22 +654,6 @@ namespace Basis.Scripts.Drivers
             {
                 BasisDebug.Log($"{e.Message} {e.StackTrace}");
             }
-        }
-
-        /// <summary>
-        /// Wires change events from controls to a rig layer so the layer auto-activates
-        /// when any control reports an active rig layer.
-        /// </summary>
-        public void WriteUpEvents(List<BasisLocalBoneControl> Controls, RigLayer Layer)
-        {
-            foreach (var control in Controls)
-            {
-                control.OnHasRigChanged += delegate
-                {
-                    Layer.active = Controls.Any(control => control.HasRigLayer == BasisHasRigLayer.HasRigLayer);
-                };
-            }
-            Layer.active = Controls.Any(control => control.HasRigLayer == BasisHasRigLayer.HasRigLayer);
         }
 
         /// <summary>
