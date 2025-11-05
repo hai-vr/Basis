@@ -50,8 +50,8 @@ namespace UnityEngine.Animations.Rigging
         [SerializeField] Transform m_MidLeftLowerLeg;
         [SerializeField] Transform m_TipLeftLowerLeg;
 
-        [SyncSceneToStream, SerializeField] public Vector3 TargetPositionLeftLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion TargetRotationLeftLowerLeg;
+        [SyncSceneToStream, SerializeField] public Vector3 LeftFootTargetPosition;
+        [SyncSceneToStream, SerializeField] public Quaternion LeftFootTargetRotation;
         [SyncSceneToStream, SerializeField] public Vector3 HintPositionLeftLowerLeg;
         [SyncSceneToStream, SerializeField] public Quaternion HintRotationLeftLowerLeg;
 
@@ -70,8 +70,8 @@ namespace UnityEngine.Animations.Rigging
 
         public string EnabledPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_EnabledLeftLowerLeg));
         public string HintWeightBoolPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintWeightLeftLowerLeg));
-        public string TargetPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPositionLeftLowerLeg));
-        public string TargetRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotationLeftLowerLeg));
+        public string TargetPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftFootTargetPosition));
+        public string TargetRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftFootTargetRotation));
         public string HintPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionLeftLowerLeg));
         public string HintRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationLeftLowerLeg));
 
@@ -80,8 +80,8 @@ namespace UnityEngine.Animations.Rigging
         [SerializeField] Transform m_MidRightLowerLeg;
         [SerializeField] Transform m_TipRightLowerLeg;
 
-        [SyncSceneToStream, SerializeField] public Vector3 TargetPositionRightLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion TargetRotationRightLowerLeg;
+        [SyncSceneToStream, SerializeField] public Vector3 RightFootTargetPosition;
+        [SyncSceneToStream, SerializeField] public Quaternion RightFootTargetRotation;
         [SyncSceneToStream, SerializeField] public Vector3 HintPositionRightLowerLeg;
         [SyncSceneToStream, SerializeField] public Quaternion HintRotationRightLowerLeg;
 
@@ -100,8 +100,8 @@ namespace UnityEngine.Animations.Rigging
 
         public string EnabledPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_EnabledRightLowerLeg));
         public string HintWeightBoolPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintWeightRightLowerLeg));
-        public string TargetPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPositionRightLowerLeg));
-        public string TargetRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotationRightLowerLeg));
+        public string TargetPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightFootTargetPosition));
+        public string TargetRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightFootTargetRotation));
         public string HintPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionRightLowerLeg));
         public string HintRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationRightLowerLeg));
 

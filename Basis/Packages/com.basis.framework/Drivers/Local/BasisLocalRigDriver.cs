@@ -140,107 +140,62 @@ namespace Basis.Scripts.Drivers
             // Direction for knee/neck hints relative to hips orientation (unchanged)
             BasisFullIKConstraint.data.m_HintDirection = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation * Vector3.right;
 
-            var data = GetCoordsForRole(BasisBoneTrackedRole.Head);
+            var data = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
             BasisFullIKConstraint.data.TargetPositionHead = data.position;
             BasisFullIKConstraint.data.TargetRotationHead = data.rotation;
 
-            data = GetCoordsForRole(BasisBoneTrackedRole.LeftFoot);
-            BasisFullIKConstraint.data.TargetPositionLeftLowerLeg = data.position;
-            BasisFullIKConstraint.data.TargetRotationLeftLowerLeg = data.rotation;
+            data = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
+            BasisFullIKConstraint.data.LeftFootTargetPosition = data.position;
+            BasisFullIKConstraint.data.LeftFootTargetRotation = data.rotation;
 
-            data = GetCoordsForRole(BasisBoneTrackedRole.RightFoot);
-            BasisFullIKConstraint.data.TargetPositionRightLowerLeg = data.position;
-            BasisFullIKConstraint.data.TargetRotationRightLowerLeg = data.rotation;
+            data = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
+            BasisFullIKConstraint.data.RightFootTargetPosition = data.position;
+            BasisFullIKConstraint.data.RightFootTargetRotation = data.rotation;
 
-            data = GetCoordsForRole(BasisBoneTrackedRole.Chest);
+            data = BasisLocalBoneDriver.ChestControl.OutgoingWorldData;
             BasisFullIKConstraint.data.HintPositionHead = data.position;
             BasisFullIKConstraint.data.HintRotationHead = data.rotation;
 
-            data = GetCoordsForRole(BasisBoneTrackedRole.LeftLowerLeg);
+            data =  BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
             BasisFullIKConstraint.data.HintPositionLeftLowerLeg = data.position;
             BasisFullIKConstraint.data.HintRotationLeftLowerLeg = data.rotation;
 
-            data = GetCoordsForRole(BasisBoneTrackedRole.RightLowerLeg);
+            data = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
             BasisFullIKConstraint.data.HintPositionRightLowerLeg = data.position;
             BasisFullIKConstraint.data.HintRotationRightLowerLeg = data.rotation;
-
-            FilterAndApplyHint(LeftHandTwoBoneIK, BasisBoneTrackedRole.LeftLowerArm);
-            FilterAndApplyHint(RightHandTwoBoneIK, BasisBoneTrackedRole.RightLowerArm);
 
             BasisAnimationRiggingHelper.SetHandCollisionScale(LeftHandTwoBoneIK, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
             BasisAnimationRiggingHelper.SetHandCollisionScale(RightHandTwoBoneIK, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
 
-            // Hands
-            FilterAndApplyTarget(LeftHandTwoBoneIK, BasisBoneTrackedRole.LeftHand);
-            FilterAndApplyTarget(RightHandTwoBoneIK, BasisBoneTrackedRole.RightHand);
+            var LeftHandControl = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData;
+            LeftHandTwoBoneIK.data.TargetPosition = LeftHandControl.position;
+            LeftHandTwoBoneIK.data.TargetRotation = LeftHandControl.rotation;
 
+            var RightHandControl = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData;
+            RightHandTwoBoneIK.data.TargetPosition = RightHandControl.position;
+            RightHandTwoBoneIK.data.TargetRotation = RightHandControl.rotation;
 
-            var outgoinglefttoe = BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData;
+            var LeftLowerArmControl = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData;
+            LeftHandTwoBoneIK.data.HintPosition = LeftLowerArmControl.position;
+            LeftHandTwoBoneIK.data.HintRotation = LeftLowerArmControl.rotation;
+
+            var RightLowerArmControl = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData;
+            RightHandTwoBoneIK.data.HintPosition = RightLowerArmControl.position;
+            RightHandTwoBoneIK.data.HintRotation = RightLowerArmControl.rotation;
+
             var OutGoingRightToe = BasisLocalBoneDriver.RightToeControl.OutgoingWorldData;
-
             BasisFullIKConstraint.data.OutGoingRightToePosition = OutGoingRightToe.position;
             BasisFullIKConstraint.data.OutGoingRightToeRotation = OutGoingRightToe.rotation;
 
-            BasisFullIKConstraint.data.OutGoingLeftToePosition = outgoinglefttoe.position;
-            BasisFullIKConstraint.data.OutGoingLeftToeRotation = outgoinglefttoe.rotation;
+            var OutGoingLeftToe = BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData;
+            BasisFullIKConstraint.data.OutGoingLeftToePosition = OutGoingLeftToe.position;
+            BasisFullIKConstraint.data.OutGoingLeftToeRotation = OutGoingLeftToe.rotation;
 
             if (Builder != null)
             {
                 // --- Do IK on animator ---
                 Builder.SyncLayers();
                 PlayableGraph.Evaluate(DeltaTime);
-            }
-        }
-        /// <summary>
-        /// Filters and applies a target to a hand two-bone IK constraint.
-        /// </summary>
-        private void FilterAndApplyTarget(BasisTwoBoneIKConstraintHand constraint, BasisBoneTrackedRole role)
-        {
-            var data = GetCoordsForRole(role);
-            constraint.data.TargetPosition = data.position;
-            constraint.data.TargetRotation = data.rotation;
-        }
-        /// <summary>
-        /// Filters and applies a hint to a hand two-bone IK constraint.
-        /// </summary>
-        private void FilterAndApplyHint(BasisTwoBoneIKConstraintHand constraint, BasisBoneTrackedRole role)
-        {
-            var data = GetCoordsForRole(role);
-            constraint.data.HintPosition = data.position;
-            constraint.data.HintRotation = data.rotation;
-        }
-
-        /// <summary>
-        /// Maps a tracked role to its outgoing world-space calibrated coordinates from the local bone driver.
-        /// </summary>
-        private BasisCalibratedCoords GetCoordsForRole(BasisBoneTrackedRole role)
-        {
-            // Map roles to driver controls
-            switch (role)
-            {
-                case BasisBoneTrackedRole.Head: return BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
-                case BasisBoneTrackedRole.Hips: return BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
-
-                case BasisBoneTrackedRole.LeftHand: return BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData;
-                case BasisBoneTrackedRole.RightHand: return BasisLocalBoneDriver.RightHandControl.OutgoingWorldData;
-
-                case BasisBoneTrackedRole.LeftLowerArm: return BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData;
-                case BasisBoneTrackedRole.RightLowerArm: return BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData;
-
-                case BasisBoneTrackedRole.LeftFoot: return BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
-                case BasisBoneTrackedRole.RightFoot: return BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
-
-                case BasisBoneTrackedRole.LeftLowerLeg: return BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
-                case BasisBoneTrackedRole.RightLowerLeg: return BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
-
-                case BasisBoneTrackedRole.LeftToes: return BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData;
-                case BasisBoneTrackedRole.RightToes: return BasisLocalBoneDriver.RightToeControl.OutgoingWorldData;
-
-                case BasisBoneTrackedRole.Chest: return BasisLocalBoneDriver.ChestControl.OutgoingWorldData;
-
-                default:
-                    // Fallback: return identity to avoid null ref
-                    return new BasisCalibratedCoords { position = Vector3.zero, rotation = Quaternion.identity };
             }
         }
 
@@ -378,8 +333,6 @@ namespace Basis.Scripts.Drivers
 
             BasisFullIKConstraint.data.enabledHead = true;
             BasisFullIKConstraint.data.enabledHips = true;
-
-            List<BasisLocalBoneControl> controls = new List<BasisLocalBoneControl>();
 
             if (driver.FindBone(out BasisLocalBoneControl LeftFoot, BasisBoneTrackedRole.LeftFoot))
             {

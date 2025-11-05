@@ -84,8 +84,8 @@ public static class BasisAnimationRiggingHelper
 
         if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl lTarget, TargetRole[IDX_LLEG]))
         {
-            data.TargetPositionLeftLowerLeg = lTarget.OutgoingWorldData.position;
-            data.TargetRotationLeftLowerLeg = lTarget.OutgoingWorldData.rotation;
+            data.LeftFootTargetPosition = lTarget.OutgoingWorldData.position;
+            data.LeftFootTargetRotation = lTarget.OutgoingWorldData.rotation;
         }
 
         if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl lHint, BendRole[IDX_LLEG]))
@@ -106,8 +106,8 @@ public static class BasisAnimationRiggingHelper
 
         if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rTarget, TargetRole[IDX_RLEG]))
         {
-            data.TargetPositionRightLowerLeg = rTarget.OutgoingWorldData.position;
-            data.TargetRotationRightLowerLeg = rTarget.OutgoingWorldData.rotation;
+            data.RightFootTargetPosition = rTarget.OutgoingWorldData.position;
+            data.RightFootTargetRotation = rTarget.OutgoingWorldData.rotation;
         }
 
         if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rHint, BendRole[IDX_RLEG]))
