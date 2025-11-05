@@ -135,7 +135,7 @@ public static class BasisAnimationRiggingHelper
         {
             data.TargetPositionHips = hipsCtrl.OutgoingWorldData.position;
             data.TargetRotationEulerHips = hipsCtrl.OutgoingWorldData.rotation;   // Quaternion
-            data.OffsetRotationHips = Quaternion.identity;                   // set your T-pose offset if needed
+            data.OffsetRotationHips = hips.rotation;                   // set your T-pose offset if needed
         }
 
         // write back
