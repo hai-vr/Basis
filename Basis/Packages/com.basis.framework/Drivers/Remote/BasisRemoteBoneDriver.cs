@@ -38,8 +38,6 @@ public static class BoneIdx
 /// </summary>
 public struct TposeAndOffsetDataJob
 {
-    /// <summary>Unscaled TPose local position of the head.</summary>
-    public float3 tposeLocal_unscaled_Head;
     /// <summary>Unscaled TPose local position of the neck.</summary>
     public float3 tposeLocal_unscaled_Neck;
     /// <summary>Unscaled TPose local position of the chest.</summary>
@@ -115,7 +113,7 @@ public struct RemoteScaleCache
 public struct RemoteFrameOutput
 {
     /// <summary>World positions for the pose.</summary>
-    public float3 pos_Head, pos_Neck, pos_Chest, pos_Spine, pos_Hips, pos_CenterEye, pos_Mouth;
+    public float3 pos_Head, pos_Neck, pos_Spine, pos_Hips, pos_CenterEye, pos_Mouth;
     /// <summary>World rotations for the pose.</summary>
     public quaternion rot_Head, rot_Neck, rot_Chest, rot_Spine, rot_Hips, rot_CenterEye, rot_Mouth;
     /// <summary>
@@ -162,7 +160,7 @@ public struct BasisRemoteBoneJob : IJobParallelFor
         GeneratedScales[i] = sc;
 
         // Compose world rotations (TPose→current)
-        quaternion headR = math.mul(f.tposeHeadRot, f.headWRot);
+        quaternion headR = math.mul(f.headWRot, f.tposeHeadRot);
         quaternion hipsR = math.mul(f.tposeHipsRot, f.hipsWRot);
 
         // Convert to avatar-local positions relative to rootWorld
@@ -175,13 +173,10 @@ public struct BasisRemoteBoneJob : IJobParallelFor
         float3 spineP = chestP + math.mul(headR, sc.offsets_scaled_Spine);
         float3 eyeP = headP + math.mul(headR, sc.offsets_scaled_CenterEye);
         float3 mouthP = headP + math.mul(headR, sc.offsets_scaled_Mouth);
-
-        float3 RotationIgnoredMouthP = hipsP + sc.offsets_scaled_Mouth;
         Out[i] = new RemoteFrameOutput
         {
             pos_Head = headP,
             pos_Neck = neckP,
-            pos_Chest = chestP,
             pos_Spine = spineP,
             pos_Hips = hipsP,
             pos_CenterEye = eyeP,
@@ -521,7 +516,6 @@ public static class RemoteBoneJobSystem
 
         var a = new TposeAndOffsetDataJob
         {
-            tposeLocal_unscaled_Head = tHead,
             tposeLocal_unscaled_Neck = tNeck,
             tposeLocal_unscaled_Chest = tChest,
             tposeLocal_unscaled_Spine = tSpine,

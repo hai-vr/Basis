@@ -370,9 +370,9 @@ public static class BasisRemoteNetworkDriver
 
         private static float Alpha(float cutoff, float frequency)
         {
-            float te = 1.0f / frequency;
-            float tau = 1.0f / (2.0f * Mathf.PI * math.max(cutoff, 1e-4f));
-            return 1.0f / (1.0f + tau / te);
+            float te = 1f / frequency;
+            float tau = 1f / (2f * math.PI * math.max(cutoff, 1e-4f));
+            return 1f / (1f + tau / te);
         }
     }
 
