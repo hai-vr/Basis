@@ -260,7 +260,8 @@ namespace UnityEngine.Animations.Rigging
 
             OutGoingLeftToePosition = OutGoingRightToePosition = Vector3.zero;
             OutGoingLeftToeRotation = OutGoingRightToeRotation = Quaternion.identity;
-            m_LeftToeEnabled = m_RightToeEnabled = false;
+            m_LeftToeEnabled = false;
+            m_RightToeEnabled = false;
 
             // Chest/hand capsule defaults (left)
             m_ChestCapsuleStart = m_ChestCapsuleEnd = null;
@@ -378,9 +379,14 @@ namespace UnityEngine.Animations.Rigging
                 Pass(stream, rootRightHand, midRightHand, tipRightHand);
 
                 if (leftDrivenHandle.IsValid(stream))
+                {
                     BasisAnimationRuntimeUtils.PassThrough(stream, leftDrivenHandle);
+                }
+
                 if (rightDrivenHandle.IsValid(stream))
+                {
                     BasisAnimationRuntimeUtils.PassThrough(stream, rightDrivenHandle);
+                }
 
                 return;
             }

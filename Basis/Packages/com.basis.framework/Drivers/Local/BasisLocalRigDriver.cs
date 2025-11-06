@@ -303,13 +303,13 @@ namespace Basis.Scripts.Drivers
             Roles[2] = BasisBoneTrackedRole.RightFoot;
             hintRoles[2] = BasisBoneTrackedRole.RightLowerLeg;
 
-            BasisAnimationRiggingHelper.CreateMainIKRIG(localPlayer, GameobjectHeadRig, Root, Middle, Tip, Roles, hintRoles, out BasisFullIKConstraint,
+            BasisAnimationRiggingHelper.CreateMainIKRIG(localPlayer,
+                GameobjectHeadRig, Root, Middle, Tip, Roles, hintRoles, out BasisFullIKConstraint,
                 references.Hips, BasisBoneTrackedRole.Hips,
                 references.leftToes, references.rightToes,
                 references.chest,references.neck,
                 references.leftUpperArm,references.leftLowerArm,references.leftHand,
-                references.RightUpperArm, references.RightLowerArm, references.rightHand
-                 );
+                references.RightUpperArm, references.RightLowerArm, references.rightHand);
 
             BasisFullIKConstraint.data.enabledHead = true;
             BasisFullIKConstraint.data.enabledHips = true;
