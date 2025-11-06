@@ -365,9 +365,9 @@ namespace UnityEngine.Animations.Rigging
         public string ProtectElbowBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ProtectElbow));
         public bool hintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
         public bool enabledHead { get => m_HeadEnabled; set => m_HeadEnabled = value; }
-        public bool hintWeightLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
+        public bool HintWeightLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
         public bool EnableLeftLeg { get => m_LeftLowerLegEnabled; set => m_LeftLowerLegEnabled = value; }
-        public bool hintWeightRightLowerLeg { get => m_HintRightLowerLegEnabled; set => m_HintRightLowerLegEnabled = value; }
+        public bool HintWeightRightLowerLeg { get => m_HintRightLowerLegEnabled; set => m_HintRightLowerLegEnabled = value; }
         public bool EnableRightLeg { get => m_RightLowerLegEnabled; set => m_RightLowerLegEnabled = value; }
         public bool enabledHips { get => m_HipsEnabled; set => m_HipsEnabled = value; }
         public bool LeftToeEnabled { get => m_LeftToeEnabled; set => m_LeftToeEnabled = value; }
@@ -633,8 +633,8 @@ namespace UnityEngine.Animations.Rigging
             base.OnValidate();
             // force serialize dirty for animated bools
             m_Data.hintWeightHead = m_Data.hintWeightHead;
-            m_Data.hintWeightLeftLowerLeg = m_Data.hintWeightLeftLowerLeg;
-            m_Data.hintWeightRightLowerLeg = m_Data.hintWeightRightLowerLeg;
+            m_Data.HintWeightLeftLowerLeg = m_Data.HintWeightLeftLowerLeg;
+            m_Data.HintWeightRightLowerLeg = m_Data.HintWeightRightLowerLeg;
             m_Data.enabledHips = m_Data.enabledHips;
 
             // new toggles
