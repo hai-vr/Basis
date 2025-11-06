@@ -24,7 +24,7 @@ public static class BasisAnimationRiggingHelper
         Transform[] tip,
         BasisBoneTrackedRole[] TargetRole,
         BasisBoneTrackedRole[] BendRole,
-        out BasisFullIKConstraint BasisFullIKConstraint,
+        out BasisFullBodyIK BasisFullIKConstraint,
         Transform hips, 
         BasisBoneTrackedRole hipsTargetRole,
          Transform LeftToe, Transform RightToe,
@@ -48,7 +48,7 @@ public static class BasisAnimationRiggingHelper
 
         // --- make holder and component
         var go = CreateAndSetParent(parent.transform, $"Full IK ({parent.name})");
-        BasisFullIKConstraint = BasisHelpers.GetOrAddComponent<BasisFullIKConstraint>(go);
+        BasisFullIKConstraint = BasisHelpers.GetOrAddComponent<BasisFullBodyIK>(go);
 
         // cache data ref — easier to see what we’re setting
         var data = BasisFullIKConstraint.data;
@@ -196,7 +196,7 @@ public static class BasisAnimationRiggingHelper
         GeneratedRequiredTransforms(player, tipLeft);
         GeneratedRequiredTransforms(player, tipRight);
     }
-    public static void SetHandCollisionScale(BasisFullIKConstraint TwoBoneIKConstraint, float Scale)
+    public static void SetHandCollisionScale(BasisFullBodyIK TwoBoneIKConstraint, float Scale)
     {
         //1.6m is the default values for below.
         TwoBoneIKConstraint.data.collisionSkin = 0.05f * Scale;

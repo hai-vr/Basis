@@ -68,7 +68,7 @@ namespace Basis.Scripts.Drivers
 
         public Rig MainRig;
         public RigLayer RigLayer;
-        public BasisFullIKConstraint BasisFullIKConstraint;
+        public BasisFullBodyIK BasisFullIKConstraint;
 
         private BasisConstraintSlotIndex[] _boneToSlot; // size = (int)HumanBodyBones.LastBone
         /// <summary>
@@ -403,8 +403,8 @@ namespace Basis.Scripts.Drivers
 
             // Create batches
             int count = HumanBones.Length;
-            int per = BasisFullIKConstraintData.Count;
-            BasisIK23ConstraintTargetBinder.InitReflectionCache();
+            int per = BasisFullBodyData.Count;
+            BasisFullBodyTargetBinder.InitReflectionCache();
 
             int boneIdx = 0;
             var data = BasisFullIKConstraint.data;
@@ -415,7 +415,7 @@ namespace Basis.Scripts.Drivers
                 Transform t = ResolveHumanoidBoneTransform(bone);
 
                 // write private m_targetN quickly
-                BasisIK23ConstraintTargetBinder.SetTargetTransform(ref data, slot, t);
+                BasisFullBodyTargetBinder.SetTargetTransform(ref data, slot, t);
 
                 // default disabled
                 data.SetWeight(slot, false);

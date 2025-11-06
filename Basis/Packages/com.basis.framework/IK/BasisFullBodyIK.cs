@@ -7,7 +7,7 @@ namespace UnityEngine.Animations.Rigging
     /// All driven via a single job.
     /// </summary>
     [System.Serializable]
-    public struct BasisFullIKConstraintData : IAnimationJobData, IBasisIK23ConstraintData
+    public struct BasisFullBodyData : IAnimationJobData, IBasisFullBodyData
     {
         public const int Count = 23;
         // Target transforms (one per slot). Null entries are simply skipped.
@@ -613,7 +613,7 @@ namespace UnityEngine.Animations.Rigging
             }
         }
     }
-    public interface IBasisIK23ConstraintData
+    public interface IBasisFullBodyData
     {
         int count { get; }
         Transform GetTarget(int index);
@@ -624,9 +624,9 @@ namespace UnityEngine.Animations.Rigging
         string GetWeightFloatProperty(int index);
     }
     [DisallowMultipleComponent]
-    [AddComponentMenu("Animation Rigging/Basis Full IK Constraint (Head + Legs + Hips + Driven TR + Hands)")]
+    [AddComponentMenu("Animation Rigging/Basis FullBody IK")]
     [HelpURL("https://docs.unity3d.com/Packages/com.unity.animation.rigging@1.3/manual/index.html")]
-    public class BasisFullIKConstraint : RigConstraint<BasisFullIKConstraintJob, BasisFullIKConstraintData, BasisFullIKConstraintJobBinder>
+    public class BasisFullBodyIK : RigConstraint<BasisFullIKConstraintJob, BasisFullBodyData, BasisFullBodyJobBinder>
     {
         protected override void OnValidate()
         {
@@ -1034,12 +1034,12 @@ namespace UnityEngine.Animations.Rigging
         }
     }
 
-    public class BasisFullIKConstraintJobBinder : AnimationJobBinder<BasisFullIKConstraintJob, BasisFullIKConstraintData>
+    public class BasisFullBodyJobBinder : AnimationJobBinder<BasisFullIKConstraintJob, BasisFullBodyData>
     {
         private static ReadOnlyTransformHandle SafeBindRO(Animator animator, Transform t) =>
             t != null ? ReadOnlyTransformHandle.Bind(animator, t) : default;
 
-        public override BasisFullIKConstraintJob Create(Animator animator, ref BasisFullIKConstraintData data, Component component)
+        public override BasisFullIKConstraintJob Create(Animator animator, ref BasisFullBodyData data, Component component)
         {
             var job = new BasisFullIKConstraintJob
             {
