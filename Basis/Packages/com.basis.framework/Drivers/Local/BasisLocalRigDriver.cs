@@ -240,10 +240,8 @@ namespace Basis.Scripts.Drivers
                 BasisBoneTrackedRole.RightLowerLeg
             };
 
-            BasisAnimationRiggingHelper.CreateMainIKRIG(
-                localPlayer,
-                rigGO,
-                roots, middles, tips, roles, hintRoles, out BasisFullIKConstraint,
+            BasisAnimationRiggingHelper.CreateBasisFullBodyRIG(
+                localPlayer,rigGO,roots, middles, tips, roles, hintRoles, out BasisFullIKConstraint,
                 references.Hips, BasisBoneTrackedRole.Hips,
                 references.leftToes, references.rightToes,
                 references.chest, references.neck,

@@ -16,7 +16,7 @@ public static class BasisAnimationRiggingHelper
     /// root/mid/tip must be length >= 3: [Head, LeftLowerLeg, RightLowerLeg]
     /// TargetRole/BendRole/UseBoneRole correspond index-by-index to those same chains.
     /// </summary>
-    public static void CreateMainIKRIG(
+    public static void CreateBasisFullBodyRIG(
         BasisLocalPlayer player,
         GameObject parent,
         Transform[] root,
