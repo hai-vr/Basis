@@ -7,30 +7,131 @@ namespace UnityEngine.Animations.Rigging
     [System.Serializable]
     public struct BasisFullIKConstraintData : IAnimationJobData
     {
-        // ---------- Head ----------
+        [SerializeField] Transform m_Hips;
         [SerializeField] Transform m_RootHead;
         [SerializeField] Transform m_MidHead;
         [SerializeField] Transform m_TipHead;
+
+        [SerializeField] Transform m_RootLeftLowerLeg;
+        [SerializeField] Transform m_MidLeftLowerLeg;
+        [SerializeField] Transform m_TipLeftLowerLeg;
+        [SerializeField] Transform m_RootRightLowerLeg;
+        [SerializeField] Transform m_MidRightLowerLeg;
+        [SerializeField] Transform m_TipRightLowerLeg;
+
+        [SerializeField] Transform m_LeftDriven;
+        [SerializeField] Transform m_RightDriven;
+
+        [SerializeField] Transform m_RootLeftHand;
+        [SerializeField] Transform m_MidLeftHand;
+        [SerializeField] Transform m_TipLeftHand;
+
+        [SerializeField] Transform m_RootRightHand;
+        [SerializeField] Transform m_MidRightHand;
+        [SerializeField] Transform m_TipRightHand;
+
+        // Chest capsule for RIGHT hand
+        [SyncSceneToStream, SerializeField] Transform m_ChestCapsuleStart;
+        [SyncSceneToStream, SerializeField] Transform m_ChestCapsuleEnd;
+
 
         [SyncSceneToStream, SerializeField] public Vector3 TargetPositionHead;
         [SyncSceneToStream, SerializeField] public Quaternion TargetRotationHead;
         [SyncSceneToStream, SerializeField] public Vector3 HintPositionHead;
         [SyncSceneToStream, SerializeField] public Quaternion HintRotationHead;
 
-        [SyncSceneToStream, SerializeField] bool m_HintWeightHead;
-        [SyncSceneToStream, SerializeField] bool m_EnabledHead;
-
         [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetHead;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationHead;
 
         [SyncSceneToStream, SerializeField] public Vector3 m_HintDirection;
+        [SyncSceneToStream, SerializeField] public Vector3 LeftFootTargetPosition;
+        [SyncSceneToStream, SerializeField] public Quaternion LeftFootTargetRotation;
+        [SyncSceneToStream, SerializeField] public Vector3 HintPositionLeftLowerLeg;
+        [SyncSceneToStream, SerializeField] public Quaternion HintRotationLeftLowerLeg;
+
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetLeftLowerLeg;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftLowerLeg;
+        [SyncSceneToStream, SerializeField] public Vector3 RightFootTargetPosition;
+        [SyncSceneToStream, SerializeField] public Quaternion RightFootTargetRotation;
+        [SyncSceneToStream, SerializeField] public Vector3 HintPositionRightLowerLeg;
+        [SyncSceneToStream, SerializeField] public Quaternion HintRotationRightLowerLeg;
+
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightLowerLeg;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightLowerLeg;
+        [SyncSceneToStream, SerializeField] public Vector3 TargetPositionHips;
+        [SyncSceneToStream, SerializeField] public Quaternion TargetRotationEulerHips; // (compat name)
+        [SyncSceneToStream, SerializeField] public Quaternion OffsetRotationHips;
+
+        [SyncSceneToStream, SerializeField] public Vector3 OutGoingLeftToePosition;
+        [SyncSceneToStream, SerializeField] public Quaternion OutGoingLeftToeRotation;
+
+        [SyncSceneToStream, SerializeField] public Vector3 OutGoingRightToePosition;
+        [SyncSceneToStream, SerializeField] public Quaternion OutGoingRightToeRotation;
+        [SyncSceneToStream, SerializeField] public Vector3 TargetPositionLeftHand;
+        [SyncSceneToStream, SerializeField] public Quaternion TargetRotationLeftHand;
+        [SyncSceneToStream, SerializeField] public Vector3 HintPositionLeftHand;
+        [SyncSceneToStream, SerializeField] public Quaternion HintRotationLeftHand;
+
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetLeftHand;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftHand;
+
+        // Hand capsule (tip local)
+        [SyncSceneToStream, SerializeField] Vector3 m_HandLocalStart;
+        [SyncSceneToStream, SerializeField] Vector3 m_HandLocalEnd;
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetLeftHandHint; // optional spare if desired
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftHandHint;
+
+        [SyncSceneToStream, SerializeField] public Vector3 TargetPositionRightHand;
+        [SyncSceneToStream, SerializeField] public Quaternion TargetRotationRightHand;
+        [SyncSceneToStream, SerializeField] public Vector3 HintPositionRightHand;
+        [SyncSceneToStream, SerializeField] public Quaternion HintRotationRightHand;
+
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightHand;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightHand;
+
+
+        [SyncSceneToStream, SerializeField] bool m_LeftDrivenEnabled;
+        [SyncSceneToStream, SerializeField] bool m_RightDrivenEnabled;
+        [SyncSceneToStream, SerializeField] float m_HandSkin;
+        [SyncSceneToStream, SerializeField] bool m_UseHandCapsule;
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_HandRadius;
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_ChestRadius;
+        [SyncSceneToStream, SerializeField, Min(0f)] float m_CollisionSkin;
+        [SyncSceneToStream, SerializeField] bool m_CollisionsEnabled;
+        [SyncSceneToStream, SerializeField] bool m_ProtectElbow;
+
+        [SyncSceneToStream, SerializeField] bool m_HintWeightRightHand;
+        [SyncSceneToStream, SerializeField] bool m_EnabledRightHand;
+        [SyncSceneToStream, SerializeField] bool m_HintWeightLeftHand;
+        [SyncSceneToStream, SerializeField] bool m_EnabledLeftHand;
+        [SyncSceneToStream, SerializeField] bool m_EnabledHips;
+        [SyncSceneToStream, SerializeField] bool m_HintWeightHead;
+        [SyncSceneToStream, SerializeField] bool m_EnabledHead;
+        [SyncSceneToStream, SerializeField] bool m_HintWeightLeftLowerLeg;
+        [SyncSceneToStream, SerializeField] bool m_EnabledLeftLowerLeg;
+        [SyncSceneToStream, SerializeField] bool m_HintWeightRightLowerLeg;
+        [SyncSceneToStream, SerializeField] bool m_EnabledRightLowerLeg;
 
         public Transform rootHead { get => m_RootHead; set => m_RootHead = value; }
         public Transform midHead { get => m_MidHead; set => m_MidHead = value; }
         public Transform tipHead { get => m_TipHead; set => m_TipHead = value; }
-
-        public bool hintWeightHead { get => m_HintWeightHead; set => m_HintWeightHead = value; }
-        public bool enabledHead { get => m_EnabledHead; set => m_EnabledHead = value; }
+        public Transform rootLeftLowerLeg { get => m_RootLeftLowerLeg; set => m_RootLeftLowerLeg = value; }
+        public Transform midLeftLowerLeg { get => m_MidLeftLowerLeg; set => m_MidLeftLowerLeg = value; }
+        public Transform tipLeftLowerLeg { get => m_TipLeftLowerLeg; set => m_TipLeftLowerLeg = value; }
+        public Transform rootRightLowerLeg { get => m_RootRightLowerLeg; set => m_RootRightLowerLeg = value; }
+        public Transform midRightLowerLeg { get => m_MidRightLowerLeg; set => m_MidRightLowerLeg = value; }
+        public Transform tipRightLowerLeg { get => m_TipRightLowerLeg; set => m_TipRightLowerLeg = value; }
+        public Transform hips { get => m_Hips; set => m_Hips = value; }
+        public Transform leftDriven { get => m_LeftDriven; set => m_LeftDriven = value; }
+        public Transform rightDriven { get => m_RightDriven; set => m_RightDriven = value; }
+        public Transform rootLeftHand { get => m_RootLeftHand; set => m_RootLeftHand = value; }
+        public Transform midLeftHand { get => m_MidLeftHand; set => m_MidLeftHand = value; }
+        public Transform tipLeftHand { get => m_TipLeftHand; set => m_TipLeftHand = value; }
+        public Transform chestCapsuleStart { get => m_ChestCapsuleStart; set => m_ChestCapsuleStart = value; }
+        public Transform chestCapsuleEnd { get => m_ChestCapsuleEnd; set => m_ChestCapsuleEnd = value; }
+        public Transform rootRightHand { get => m_RootRightHand; set => m_RootRightHand = value; }
+        public Transform midRightHand { get => m_MidRightHand; set => m_MidRightHand = value; }
+        public Transform tipRightHand { get => m_TipRightHand; set => m_TipRightHand = value; }
 
         public string EnabledPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_EnabledHead));
         public string HintWeightBoolPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintWeightHead));
@@ -39,232 +140,43 @@ namespace UnityEngine.Animations.Rigging
         public string HintPositionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionHead));
         public string HintRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationHead));
         public string HintDirectionProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintDirection));
-
-        // ---------- Left Lower Leg ----------
-        [SerializeField] Transform m_RootLeftLowerLeg;
-        [SerializeField] Transform m_MidLeftLowerLeg;
-        [SerializeField] Transform m_TipLeftLowerLeg;
-
-        [SyncSceneToStream, SerializeField] public Vector3 LeftFootTargetPosition;
-        [SyncSceneToStream, SerializeField] public Quaternion LeftFootTargetRotation;
-        [SyncSceneToStream, SerializeField] public Vector3 HintPositionLeftLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion HintRotationLeftLowerLeg;
-
-        [SyncSceneToStream, SerializeField] bool m_HintWeightLeftLowerLeg;
-        [SyncSceneToStream, SerializeField] bool m_EnabledLeftLowerLeg;
-
-        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetLeftLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftLowerLeg;
-
-        public Transform rootLeftLowerLeg { get => m_RootLeftLowerLeg; set => m_RootLeftLowerLeg = value; }
-        public Transform midLeftLowerLeg { get => m_MidLeftLowerLeg; set => m_MidLeftLowerLeg = value; }
-        public Transform tipLeftLowerLeg { get => m_TipLeftLowerLeg; set => m_TipLeftLowerLeg = value; }
-
-        public bool hintWeightLeftLowerLeg { get => m_HintWeightLeftLowerLeg; set => m_HintWeightLeftLowerLeg = value; }
-        public bool EnableLeftLeg { get => m_EnabledLeftLowerLeg; set => m_EnabledLeftLowerLeg = value; }
-
         public string EnabledPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_EnabledLeftLowerLeg));
         public string HintWeightBoolPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintWeightLeftLowerLeg));
         public string TargetPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftFootTargetPosition));
         public string TargetRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftFootTargetRotation));
         public string HintPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionLeftLowerLeg));
         public string HintRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationLeftLowerLeg));
-
-        // ---------- Right Lower Leg ----------
-        [SerializeField] Transform m_RootRightLowerLeg;
-        [SerializeField] Transform m_MidRightLowerLeg;
-        [SerializeField] Transform m_TipRightLowerLeg;
-
-        [SyncSceneToStream, SerializeField] public Vector3 RightFootTargetPosition;
-        [SyncSceneToStream, SerializeField] public Quaternion RightFootTargetRotation;
-        [SyncSceneToStream, SerializeField] public Vector3 HintPositionRightLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion HintRotationRightLowerLeg;
-
-        [SyncSceneToStream, SerializeField] bool m_HintWeightRightLowerLeg;
-        [SyncSceneToStream, SerializeField] bool m_EnabledRightLowerLeg;
-
-        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightLowerLeg;
-
-        public Transform rootRightLowerLeg { get => m_RootRightLowerLeg; set => m_RootRightLowerLeg = value; }
-        public Transform midRightLowerLeg { get => m_MidRightLowerLeg; set => m_MidRightLowerLeg = value; }
-        public Transform tipRightLowerLeg { get => m_TipRightLowerLeg; set => m_TipRightLowerLeg = value; }
-
-        public bool hintWeightRightLowerLeg { get => m_HintWeightRightLowerLeg; set => m_HintWeightRightLowerLeg = value; }
-        public bool EnableRightLeg { get => m_EnabledRightLowerLeg; set => m_EnabledRightLowerLeg = value; }
-
         public string EnabledPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_EnabledRightLowerLeg));
         public string HintWeightBoolPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintWeightRightLowerLeg));
         public string TargetPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightFootTargetPosition));
         public string TargetRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightFootTargetRotation));
         public string HintPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionRightLowerLeg));
         public string HintRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationRightLowerLeg));
-
-        // ---------- Hips (minimal driver) ----------
-        [SerializeField] Transform m_Hips;
-        [SyncSceneToStream, SerializeField] public Vector3 TargetPositionHips;
-        [SyncSceneToStream, SerializeField] public Quaternion TargetRotationEulerHips; // (compat name)
-        [SyncSceneToStream, SerializeField] public Quaternion OffsetRotationHips;
-        [SyncSceneToStream, SerializeField] bool m_EnabledHips;
-
-        public Transform hips { get => m_Hips; set => m_Hips = value; }
-        public bool enabledHips { get => m_EnabledHips; set => m_EnabledHips = value; }
-
         public string TargetPositionPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPositionHips));
         public string TargetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotationEulerHips));
         public string OffsetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotationHips));
         public string EnabledPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_EnabledHips));
-
-        // ---------- Integrated Dual "Driven TR" ----------
-        [SerializeField] Transform m_LeftDriven;
-        [SerializeField] Transform m_RightDriven;
-
-        [SyncSceneToStream, SerializeField] public Vector3 OutGoingLeftToePosition;
-        [SyncSceneToStream, SerializeField] public Quaternion OutGoingLeftToeRotation;
-
-        [SyncSceneToStream, SerializeField] public Vector3 OutGoingRightToePosition;
-        [SyncSceneToStream, SerializeField] public Quaternion OutGoingRightToeRotation;
-
-        [SyncSceneToStream, SerializeField] bool m_LeftDrivenEnabled;
-        [SyncSceneToStream, SerializeField] bool m_RightDrivenEnabled;
-
-        public Transform leftDriven { get => m_LeftDriven; set => m_LeftDriven = value; }
-        public Transform rightDriven { get => m_RightDriven; set => m_RightDriven = value; }
-        public bool LeftToggleEnabled { get => m_LeftDrivenEnabled; set => m_LeftDrivenEnabled = value; }
-        public bool RightToggleEnabled { get => m_RightDrivenEnabled; set => m_RightDrivenEnabled = value; }
-
         public string LeftDrivenEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftDrivenEnabled));
         public string RightDrivenEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_RightDrivenEnabled));
         public string LeftDrivenTargetPosProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingLeftToePosition));
         public string LeftDrivenTargetRotProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingLeftToeRotation));
         public string RightDrivenTargetPosProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingRightToePosition));
         public string RightDrivenTargetRotProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingRightToeRotation));
-
-        // ---------- Left Hand (TwoBone + collisions) ----------
-        [SerializeField] Transform m_RootLeftHand;
-        [SerializeField] Transform m_MidLeftHand;
-        [SerializeField] Transform m_TipLeftHand;
-
-        [SyncSceneToStream, SerializeField] public Vector3 TargetPositionLeftHand;
-        [SyncSceneToStream, SerializeField] public Quaternion TargetRotationLeftHand;
-        [SyncSceneToStream, SerializeField] public Vector3 HintPositionLeftHand;
-        [SyncSceneToStream, SerializeField] public Quaternion HintRotationLeftHand;
-
-        [SyncSceneToStream, SerializeField] bool m_HintWeightLeftHand;
-        [SyncSceneToStream, SerializeField] bool m_EnabledLeftHand;
-
-        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetLeftHand;
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftHand;
-
-        // Chest capsule for LEFT hand
-        [SyncSceneToStream, SerializeField] Transform m_ChestCapsuleStartLeft;
-        [SyncSceneToStream, SerializeField] Transform m_ChestCapsuleEndLeft;
-        [SyncSceneToStream, SerializeField, Min(0f)] float m_ChestRadiusLeft;
-        [SyncSceneToStream, SerializeField, Min(0f)] float m_CollisionSkinLeft;
-        [SyncSceneToStream, SerializeField] bool m_CollisionsEnabledLeft;
-
-        // Hand capsule (tip local)
-        [SyncSceneToStream, SerializeField] Vector3 m_HandLocalStartLeft;
-        [SyncSceneToStream, SerializeField] Vector3 m_HandLocalEndLeft;
-        [SyncSceneToStream, SerializeField, Min(0f)] float m_HandRadiusLeft;
-        [SyncSceneToStream, SerializeField] float m_HandSkinLeft;
-        [SyncSceneToStream, SerializeField] bool m_UseHandCapsuleLeft;
-
-        [SyncSceneToStream, SerializeField] bool m_ProtectElbowLeft;
-
-        public Transform rootLeftHand { get => m_RootLeftHand; set => m_RootLeftHand = value; }
-        public Transform midLeftHand { get => m_MidLeftHand; set => m_MidLeftHand = value; }
-        public Transform tipLeftHand { get => m_TipLeftHand; set => m_TipLeftHand = value; }
-
-        public bool hintWeightLeftHand { get => m_HintWeightLeftHand; set => m_HintWeightLeftHand = value; }
-        public bool enabledLeftHand { get => m_EnabledLeftHand; set => m_EnabledLeftHand = value; }
-
-        public Transform chestCapsuleStartLeft { get => m_ChestCapsuleStartLeft; set => m_ChestCapsuleStartLeft = value; }
-        public Transform chestCapsuleEndLeft { get => m_ChestCapsuleEndLeft; set => m_ChestCapsuleEndLeft = value; }
-        public float chestRadiusLeft { get => m_ChestRadiusLeft; set => m_ChestRadiusLeft = value; }
-        public float collisionSkinLeft { get => m_CollisionSkinLeft; set => m_CollisionSkinLeft = value; }
-        public bool collisionsEnabledLeft { get => m_CollisionsEnabledLeft; set => m_CollisionsEnabledLeft = value; }
-
-        public Vector3 handLocalStartLeft { get => m_HandLocalStartLeft; set => m_HandLocalStartLeft = value; }
-        public Vector3 handLocalEndLeft { get => m_HandLocalEndLeft; set => m_HandLocalEndLeft = value; }
-        public float handRadiusLeft { get => m_HandRadiusLeft; set => m_HandRadiusLeft = value; }
-        public float handSkinLeft { get => m_HandSkinLeft; set => m_HandSkinLeft = value; }
-        public bool useHandCapsuleLeft { get => m_UseHandCapsuleLeft; set => m_UseHandCapsuleLeft = value; }
-        public bool protectElbowLeft { get => m_ProtectElbowLeft; set => m_ProtectElbowLeft = value; }
-
         public string EnabledPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_EnabledLeftHand));
         public string HintWeightBoolPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintWeightLeftHand));
         public string TargetPositionPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPositionLeftHand));
         public string TargetRotationPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotationLeftHand));
         public string HintPositionPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionLeftHand));
         public string HintRotationPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationLeftHand));
-
-        public string ChestRadiusFloatPropertyLeft => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestRadiusLeft));
-        public string CollisionSkinFloatPropertyLeft => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollisionSkinLeft));
-        public string CollisionsEnabledBoolPropertyLeft => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollisionsEnabledLeft));
-
-        public string HandLocalStartVector3PropertyLeft => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandLocalStartLeft));
-        public string HandLocalEndVector3PropertyLeft => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandLocalEndLeft));
-        public string HandRadiusFloatPropertyLeft => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandRadiusLeft));
-        public string HandSkinFloatPropertyLeft => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandSkinLeft));
-        public string UseHandCapsuleBoolPropertyLeft => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UseHandCapsuleLeft));
-        public string ProtectElbowBoolPropertyLeft => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ProtectElbowLeft));
-
-        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetLeftHandHint; // optional spare if desired
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftHandHint;
-
-        // ---------- Right Hand (TwoBone + collisions) ----------
-        [SerializeField] Transform m_RootRightHand;
-        [SerializeField] Transform m_MidRightHand;
-        [SerializeField] Transform m_TipRightHand;
-
-        [SyncSceneToStream, SerializeField] public Vector3 TargetPositionRightHand;
-        [SyncSceneToStream, SerializeField] public Quaternion TargetRotationRightHand;
-        [SyncSceneToStream, SerializeField] public Vector3 HintPositionRightHand;
-        [SyncSceneToStream, SerializeField] public Quaternion HintRotationRightHand;
-
-        [SyncSceneToStream, SerializeField] bool m_HintWeightRightHand;
-        [SyncSceneToStream, SerializeField] bool m_EnabledRightHand;
-
-        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightHand;
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightHand;
-
-        // Chest capsule for RIGHT hand
-        [SyncSceneToStream, SerializeField] Transform m_ChestCapsuleStartRight;
-        [SyncSceneToStream, SerializeField] Transform m_ChestCapsuleEndRight;
-        [SyncSceneToStream, SerializeField, Min(0f)] float m_ChestRadiusRight;
-        [SyncSceneToStream, SerializeField, Min(0f)] float m_CollisionSkinRight;
-        [SyncSceneToStream, SerializeField] bool m_CollisionsEnabledRight;
-
-        // Hand capsule (tip local)
-        [SyncSceneToStream, SerializeField] Vector3 m_HandLocalStartRight;
-        [SyncSceneToStream, SerializeField] Vector3 m_HandLocalEndRight;
-        [SyncSceneToStream, SerializeField, Min(0f)] float m_HandRadiusRight;
-        [SyncSceneToStream, SerializeField] float m_HandSkinRight;
-        [SyncSceneToStream, SerializeField] bool m_UseHandCapsuleRight;
-
-        [SyncSceneToStream, SerializeField] bool m_ProtectElbowRight;
-
-        public Transform rootRightHand { get => m_RootRightHand; set => m_RootRightHand = value; }
-        public Transform midRightHand { get => m_MidRightHand; set => m_MidRightHand = value; }
-        public Transform tipRightHand { get => m_TipRightHand; set => m_TipRightHand = value; }
-
-        public bool hintWeightRightHand { get => m_HintWeightRightHand; set => m_HintWeightRightHand = value; }
-        public bool enabledRightHand { get => m_EnabledRightHand; set => m_EnabledRightHand = value; }
-
-        public Transform chestCapsuleStartRight { get => m_ChestCapsuleStartRight; set => m_ChestCapsuleStartRight = value; }
-        public Transform chestCapsuleEndRight { get => m_ChestCapsuleEndRight; set => m_ChestCapsuleEndRight = value; }
-        public float chestRadiusRight { get => m_ChestRadiusRight; set => m_ChestRadiusRight = value; }
-        public float collisionSkinRight { get => m_CollisionSkinRight; set => m_CollisionSkinRight = value; }
-        public bool collisionsEnabledRight { get => m_CollisionsEnabledRight; set => m_CollisionsEnabledRight = value; }
-
-        public Vector3 handLocalStartRight { get => m_HandLocalStartRight; set => m_HandLocalStartRight = value; }
-        public Vector3 handLocalEndRight { get => m_HandLocalEndRight; set => m_HandLocalEndRight = value; }
-        public float handRadiusRight { get => m_HandRadiusRight; set => m_HandRadiusRight = value; }
-        public float handSkinRight { get => m_HandSkinRight; set => m_HandSkinRight = value; }
-        public bool useHandCapsuleRight { get => m_UseHandCapsuleRight; set => m_UseHandCapsuleRight = value; }
-        public bool protectElbowRight { get => m_ProtectElbowRight; set => m_ProtectElbowRight = value; }
-
+        public string ChestRadiusFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestRadius));
+        public string CollisionSkinFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollisionSkin));
+        public string CollisionsEnabledBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollisionsEnabled));
+        public string HandLocalStartVector3Property => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandLocalStart));
+        public string HandLocalEndVector3Property => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandLocalEnd));
+        public string HandRadiusFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandRadius));
+        public string HandSkinFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandSkin));
+        public string UseHandCapsuleBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UseHandCapsule));
+        public string ProtectElbowBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ProtectElbow));
         public string EnabledPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_EnabledRightHand));
         public string HintWeightBoolPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintWeightRightHand));
         public string TargetPositionPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPositionRightHand));
@@ -272,16 +184,31 @@ namespace UnityEngine.Animations.Rigging
         public string HintPositionPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionRightHand));
         public string HintRotationPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationRightHand));
 
-        public string ChestRadiusFloatPropertyRight => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestRadiusRight));
-        public string CollisionSkinFloatPropertyRight => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollisionSkinRight));
-        public string CollisionsEnabledBoolPropertyRight => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollisionsEnabledRight));
+        public bool hintWeightHead { get => m_HintWeightHead; set => m_HintWeightHead = value; }
+        public bool enabledHead { get => m_EnabledHead; set => m_EnabledHead = value; }
+        public bool hintWeightLeftLowerLeg { get => m_HintWeightLeftLowerLeg; set => m_HintWeightLeftLowerLeg = value; }
+        public bool EnableLeftLeg { get => m_EnabledLeftLowerLeg; set => m_EnabledLeftLowerLeg = value; }
+        public bool hintWeightRightLowerLeg { get => m_HintWeightRightLowerLeg; set => m_HintWeightRightLowerLeg = value; }
+        public bool EnableRightLeg { get => m_EnabledRightLowerLeg; set => m_EnabledRightLowerLeg = value; }
+        public bool enabledHips { get => m_EnabledHips; set => m_EnabledHips = value; }
+        public bool LeftToggleEnabled { get => m_LeftDrivenEnabled; set => m_LeftDrivenEnabled = value; }
+        public bool RightToggleEnabled { get => m_RightDrivenEnabled; set => m_RightDrivenEnabled = value; }
+        public bool hintWeightLeftHand { get => m_HintWeightLeftHand; set => m_HintWeightLeftHand = value; }
+        public bool enabledLeftHand { get => m_EnabledLeftHand; set => m_EnabledLeftHand = value; }
+        public bool protectElbow { get => m_ProtectElbow; set => m_ProtectElbow = value; }
+        public bool hintWeightRightHand { get => m_HintWeightRightHand; set => m_HintWeightRightHand = value; }
+        public bool enabledRightHand { get => m_EnabledRightHand; set => m_EnabledRightHand = value; }
+        public float handRadius { get => m_HandRadius; set => m_HandRadius = value; }
+        public float handSkin { get => m_HandSkin; set => m_HandSkin = value; }
+        public bool useHandCapsule { get => m_UseHandCapsule; set => m_UseHandCapsule = value; }
+        public float chestRadius { get => m_ChestRadius; set => m_ChestRadius = value; }
+        public float collisionSkin { get => m_CollisionSkin; set => m_CollisionSkin = value; }
+        public bool collisionsEnabled { get => m_CollisionsEnabled; set => m_CollisionsEnabled = value; }
 
-        public string HandLocalStartVector3PropertyRight => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandLocalStartRight));
-        public string HandLocalEndVector3PropertyRight => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandLocalEndRight));
-        public string HandRadiusFloatPropertyRight => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandRadiusRight));
-        public string HandSkinFloatPropertyRight => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandSkinRight));
-        public string UseHandCapsuleBoolPropertyRight => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UseHandCapsuleRight));
-        public string ProtectElbowBoolPropertyRight => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ProtectElbowRight));
+        public Vector3 handLocalStartLeft { get => m_HandLocalStart; set => m_HandLocalStart = value; }
+        public Vector3 handLocalEndLeft { get => m_HandLocalEnd; set => m_HandLocalEnd = value; }
+        public Vector3 handLocalStartRight { get => m_HandLocalStart; set => m_HandLocalStart = value; }
+        public Vector3 handLocalEndRight { get => m_HandLocalEnd; set => m_HandLocalEnd = value; }
 
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
@@ -344,28 +271,19 @@ namespace UnityEngine.Animations.Rigging
             m_LeftDrivenEnabled = m_RightDrivenEnabled = false;
 
             // Chest/hand capsule defaults (left)
-            m_ChestCapsuleStartLeft = m_ChestCapsuleEndLeft = null;
-            m_ChestRadiusLeft = 0.18f; m_CollisionSkinLeft = 0.02f; m_CollisionsEnabledLeft = true;
-            m_HandLocalStartLeft = new Vector3(0f, 0f, -0.05f);
-            m_HandLocalEndLeft = new Vector3(0f, 0f, 0.08f);
-            m_HandRadiusLeft = 0.05f; m_HandSkinLeft = 0.01f; m_UseHandCapsuleLeft = true;
-            m_ProtectElbowLeft = true;
-
-            // Chest/hand capsule defaults (right)
-            m_ChestCapsuleStartRight = m_ChestCapsuleEndRight = null;
-            m_ChestRadiusRight = 0.18f; m_CollisionSkinRight = 0.02f; m_CollisionsEnabledRight = true;
-            m_HandLocalStartRight = new Vector3(0f, 0f, -0.05f);
-            m_HandLocalEndRight = new Vector3(0f, 0f, 0.08f);
-            m_HandRadiusRight = 0.05f; m_HandSkinRight = 0.01f; m_UseHandCapsuleRight = true;
-            m_ProtectElbowRight = true;
+            m_ChestCapsuleStart = m_ChestCapsuleEnd = null;
+            m_ChestRadius = 0.18f; m_CollisionSkin = 0.02f; m_CollisionsEnabled = true;
+            m_HandLocalStart = new Vector3(0f, 0f, -0.05f);
+            m_HandLocalEnd = new Vector3(0f, 0f, 0.08f);
+            m_HandRadius = 0.05f; m_HandSkin = 0.01f; m_UseHandCapsule = true;
+            m_ProtectElbow = true;
         }
     }
 
     [DisallowMultipleComponent]
     [AddComponentMenu("Animation Rigging/Basis Full IK Constraint (Head + Legs + Hips + Driven TR + Hands)")]
     [HelpURL("https://docs.unity3d.com/Packages/com.unity.animation.rigging@1.3/manual/index.html")]
-    public class BasisFullIKConstraint
-        : RigConstraint<BasisFullIKConstraintJob, BasisFullIKConstraintData, BasisFullIKConstraintJobBinder>
+    public class BasisFullIKConstraint : RigConstraint<BasisFullIKConstraintJob, BasisFullIKConstraintData, BasisFullIKConstraintJobBinder>
     {
         protected override void OnValidate()
         {
@@ -385,8 +303,7 @@ namespace UnityEngine.Animations.Rigging
             m_Data.hintWeightRightHand = m_Data.hintWeightRightHand;
             m_Data.enabledLeftHand = m_Data.enabledLeftHand;
             m_Data.enabledRightHand = m_Data.enabledRightHand;
-            m_Data.protectElbowLeft = m_Data.protectElbowLeft;
-            m_Data.protectElbowRight = m_Data.protectElbowRight;
+            m_Data.protectElbow = m_Data.protectElbow;
         }
     }
 
@@ -434,13 +351,9 @@ namespace UnityEngine.Animations.Rigging
         public AffineTransform targetOffsetLeftHand;
         public BoolProperty hintWeightLeftHand, enabledLeftHand;
 
-        public ReadOnlyTransformHandle chestStartLeft, chestEndLeft;
-        public FloatProperty chestRadiusLeft, collisionSkinLeft;
-        public BoolProperty collisionsEnabledLeft;
+        public ReadOnlyTransformHandle chestStart, chestEnd;
 
-        public Vector3Property handLocalStartLeft, handLocalEndLeft;
-        public FloatProperty handRadiusLeft, handSkinLeft;
-        public BoolProperty useHandCapsuleLeft, protectElbowLeft;
+        public Vector3Property handLocalStart, handLocalEnd;
 
         // ----- Right Hand (TwoBone + collisions) -----
         public ReadWriteTransformHandle rootRightHand, midRightHand, tipRightHand;
@@ -449,14 +362,11 @@ namespace UnityEngine.Animations.Rigging
         public AffineTransform targetOffsetRightHand;
         public BoolProperty hintWeightRightHand, enabledRightHand;
 
-        public ReadOnlyTransformHandle chestStartRight, chestEndRight;
-        public FloatProperty chestRadiusRight, collisionSkinRight;
-        public BoolProperty collisionsEnabledRight;
+        public FloatProperty handRadius, handSkin;
+        public BoolProperty useHandCapsule, protectElbow;
 
-        public Vector3Property handLocalStartRight, handLocalEndRight;
-        public FloatProperty handRadiusRight, handSkinRight;
-        public BoolProperty useHandCapsuleRight, protectElbowRight;
-
+        public FloatProperty chestRadius, collisionSkin;
+        public BoolProperty collisionsEnabled;
         public FloatProperty jobWeight { get; set; }
 
         public void ProcessRootMotion(AnimationStream stream) { }
@@ -516,17 +426,17 @@ namespace UnityEngine.Animations.Rigging
                 enabledLeftHand, rootLeftHand, midLeftHand, tipLeftHand,
                 targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand,
                 hintWeightLeftHand, targetOffsetLeftHand,
-                chestStartLeft, chestEndLeft, chestRadiusLeft, collisionSkinLeft, collisionsEnabledLeft,
-                handLocalStartLeft, handLocalEndLeft, handRadiusLeft, handSkinLeft, useHandCapsuleLeft,
-                protectElbowLeft);
+                chestStart, chestEnd, chestRadius, collisionSkin, collisionsEnabled,
+                handLocalStart, handLocalEnd, handRadius, handSkin, useHandCapsule,
+                protectElbow);
 
             SolveHand(stream,
                 enabledRightHand, rootRightHand, midRightHand, tipRightHand,
                 targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand,
                 hintWeightRightHand, targetOffsetRightHand,
-                chestStartRight, chestEndRight, chestRadiusRight, collisionSkinRight, collisionsEnabledRight,
-                handLocalStartRight, handLocalEndRight, handRadiusRight, handSkinRight, useHandCapsuleRight,
-                protectElbowRight);
+                chestStart, chestEnd, chestRadius, collisionSkin, collisionsEnabled,
+                handLocalStart, handLocalEnd, handRadius, handSkin, useHandCapsule,
+                protectElbow);
 
             // --- Integrated "damped TR" application (world-space) ---
             ApplyDrivenTR(stream, LeftToggle, leftDrivenHandle, leftDrivenTargetPos, leftDrivenTargetRot);
@@ -778,20 +688,10 @@ namespace UnityEngine.Animations.Rigging
 
                 targetOffsetLeftHand = new AffineTransform(data.m_CalibratedOffsetLeftHand, data.m_CalibratedRotationLeftHand),
 
-                chestStartLeft = SafeBindRO(animator, data.chestCapsuleStartLeft),
-                chestEndLeft = SafeBindRO(animator, data.chestCapsuleEndLeft),
+                chestStart = SafeBindRO(animator, data.chestCapsuleStart),
+                chestEnd = SafeBindRO(animator, data.chestCapsuleEnd),
 
-                chestRadiusLeft = FloatProperty.Bind(animator, component, data.ChestRadiusFloatPropertyLeft),
-                collisionSkinLeft = FloatProperty.Bind(animator, component, data.CollisionSkinFloatPropertyLeft),
-                collisionsEnabledLeft = BoolProperty.Bind(animator, component, data.CollisionsEnabledBoolPropertyLeft),
-
-                handLocalStartLeft = Vector3Property.Bind(animator, component, data.HandLocalStartVector3PropertyLeft),
-                handLocalEndLeft = Vector3Property.Bind(animator, component, data.HandLocalEndVector3PropertyLeft),
-                handRadiusLeft = FloatProperty.Bind(animator, component, data.HandRadiusFloatPropertyLeft),
-                handSkinLeft = FloatProperty.Bind(animator, component, data.HandSkinFloatPropertyLeft),
-                useHandCapsuleLeft = BoolProperty.Bind(animator, component, data.UseHandCapsuleBoolPropertyLeft),
-
-                protectElbowLeft = BoolProperty.Bind(animator, component, data.ProtectElbowBoolPropertyLeft),
+                protectElbow = BoolProperty.Bind(animator, component, data.ProtectElbowBoolProperty),
 
                 // Right Hand
                 rootRightHand = SafeBindHandle(animator, data.rootRightHand),
@@ -808,20 +708,16 @@ namespace UnityEngine.Animations.Rigging
 
                 targetOffsetRightHand = new AffineTransform(data.m_CalibratedOffsetRightHand, data.m_CalibratedRotationRightHand),
 
-                chestStartRight = SafeBindRO(animator, data.chestCapsuleStartRight),
-                chestEndRight = SafeBindRO(animator, data.chestCapsuleEndRight),
+                handLocalStart = Vector3Property.Bind(animator, component, data.HandLocalStartVector3Property),
+                handLocalEnd = Vector3Property.Bind(animator, component, data.HandLocalEndVector3Property),
 
-                chestRadiusRight = FloatProperty.Bind(animator, component, data.ChestRadiusFloatPropertyRight),
-                collisionSkinRight = FloatProperty.Bind(animator, component, data.CollisionSkinFloatPropertyRight),
-                collisionsEnabledRight = BoolProperty.Bind(animator, component, data.CollisionsEnabledBoolPropertyRight),
+                chestRadius = FloatProperty.Bind(animator, component, data.ChestRadiusFloatProperty),
+                collisionSkin = FloatProperty.Bind(animator, component, data.CollisionSkinFloatProperty),
+                collisionsEnabled = BoolProperty.Bind(animator, component, data.CollisionsEnabledBoolProperty),
 
-                handLocalStartRight = Vector3Property.Bind(animator, component, data.HandLocalStartVector3PropertyRight),
-                handLocalEndRight = Vector3Property.Bind(animator, component, data.HandLocalEndVector3PropertyRight),
-                handRadiusRight = FloatProperty.Bind(animator, component, data.HandRadiusFloatPropertyRight),
-                handSkinRight = FloatProperty.Bind(animator, component, data.HandSkinFloatPropertyRight),
-                useHandCapsuleRight = BoolProperty.Bind(animator, component, data.UseHandCapsuleBoolPropertyRight),
-
-                protectElbowRight = BoolProperty.Bind(animator, component, data.ProtectElbowBoolPropertyRight),
+                handRadius = FloatProperty.Bind(animator, component, data.HandRadiusFloatProperty),
+                handSkin = FloatProperty.Bind(animator, component, data.HandSkinFloatProperty),
+                useHandCapsule = BoolProperty.Bind(animator, component, data.UseHandCapsuleBoolProperty),
             };
 
             return job;

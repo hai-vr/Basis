@@ -24,10 +24,13 @@ public static class BasisAnimationRiggingHelper
         Transform[] tip,
         BasisBoneTrackedRole[] TargetRole,
         BasisBoneTrackedRole[] BendRole,
-        out BasisFullIKConstraint constraint,
+        out BasisFullIKConstraint BasisFullIKConstraint,
         Transform hips, 
         BasisBoneTrackedRole hipsTargetRole,
-         Transform LeftToe, Transform RightToe
+         Transform LeftToe, Transform RightToe,
+         Transform ChestStart, Transform ChestEnd,
+         Transform rootLeft, Transform midLeft, Transform tipLeft,
+         Transform rootRight, Transform midRight, Transform tipRight
     )
     {
         // --- sanity checks (keep them cheap & defensive)
@@ -45,10 +48,10 @@ public static class BasisAnimationRiggingHelper
 
         // --- make holder and component
         var go = CreateAndSetParent(parent.transform, $"Full IK ({parent.name})");
-        constraint = BasisHelpers.GetOrAddComponent<BasisFullIKConstraint>(go);
+        BasisFullIKConstraint = BasisHelpers.GetOrAddComponent<BasisFullIKConstraint>(go);
 
         // cache data ref — easier to see what we’re setting
-        var data = constraint.data;
+        var data = BasisFullIKConstraint.data;
 
         // -----------------------------
         // HEAD
@@ -129,10 +132,58 @@ public static class BasisAnimationRiggingHelper
         }
 
         // write back
-        constraint.data = data;
+        BasisFullIKConstraint.data = data;
 
-        constraint.data.leftDriven = LeftToe;
-        constraint.data.rightDriven = RightToe;
+        BasisFullIKConstraint.data.leftDriven = LeftToe;
+        BasisFullIKConstraint.data.rightDriven = RightToe;
+
+        BasisFullIKConstraint.data.m_CalibratedOffsetLeftHand = new Vector3(0, 0, 0);
+        BasisFullIKConstraint.data.m_CalibratedOffsetRightHand = new Vector3(0, 0, 0);
+
+        BasisFullIKConstraint.data.m_CalibratedRotationLeftHand = tipLeft.rotation;
+        BasisFullIKConstraint.data.m_CalibratedRotationRightHand = tipRight.rotation;
+
+        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl leftHandControl, BasisBoneTrackedRole.LeftHand))
+        {
+            var outgoing = leftHandControl.OutgoingWorldData;
+            BasisFullIKConstraint.data.TargetPositionLeftHand = outgoing.position;
+            BasisFullIKConstraint.data.TargetRotationLeftHand = outgoing.rotation;
+        }
+        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rightHandControl, BasisBoneTrackedRole.RightHand))
+        {
+            var outgoing = rightHandControl.OutgoingWorldData;
+            BasisFullIKConstraint.data.TargetPositionRightHand = outgoing.position;
+            BasisFullIKConstraint.data.TargetRotationRightHand = outgoing.rotation;
+        }
+        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl leftHintControl, BasisBoneTrackedRole.LeftLowerArm))
+        {
+            var outgoing = leftHintControl.OutgoingWorldData;
+            BasisFullIKConstraint.data.HintPositionLeftHand = outgoing.position;
+            BasisFullIKConstraint.data.HintRotationLeftHand = outgoing.rotation;
+        }
+        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rightHintControl, BasisBoneTrackedRole.RightLowerArm))
+        {
+            var outgoing = rightHintControl.OutgoingWorldData;
+            BasisFullIKConstraint.data.HintPositionRightHand = outgoing.position;
+            BasisFullIKConstraint.data.HintRotationRightHand = outgoing.rotation;
+        }
+        BasisFullIKConstraint.data.rootLeftHand = rootLeft;
+        BasisFullIKConstraint.data.midLeftHand = midLeft;
+        BasisFullIKConstraint.data.tipLeftHand = tipLeft;
+
+
+        BasisFullIKConstraint.data.rootRightHand = rootRight;
+        BasisFullIKConstraint.data.midRightHand = midRight;
+        BasisFullIKConstraint.data.tipRightHand = tipRight;
+
+
+        BasisFullIKConstraint.data.collisionsEnabled = true;
+        BasisFullIKConstraint.data.chestCapsuleEnd = ChestEnd;
+        BasisFullIKConstraint.data.chestCapsuleStart = ChestStart;
+        BasisFullIKConstraint.data.useHandCapsule = true;
+        BasisFullIKConstraint.data.protectElbow = true;
+
+        SetHandCollisionScale(BasisFullIKConstraint, player.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
 
         GeneratedRequiredTransforms(player, LeftToe);
         GeneratedRequiredTransforms(player, RightToe);
@@ -141,71 +192,11 @@ public static class BasisAnimationRiggingHelper
         GeneratedRequiredTransforms(player, tip[0]);
         GeneratedRequiredTransforms(player, tip[1]);
         GeneratedRequiredTransforms(player, tip[2]);
+
+        GeneratedRequiredTransforms(player, tipLeft);
+        GeneratedRequiredTransforms(player, tipRight);
     }
-
-public static void CreateTwoBone(BasisLocalPlayer player, GameObject Parent, Transform root, Transform mid, Transform tip, BasisBoneTrackedRole TargetRole, BasisBoneTrackedRole BendRole, bool UseBoneRole, out BasisTwoBoneIKConstraint TwoBoneIKConstraint)
-    {
-        player.LocalBoneDriver.FindBone(out BasisLocalBoneControl TargetControl, TargetRole);
-
-        GameObject BoneRole = CreateAndSetParent(Parent.transform, $"Bone Role {TargetRole}");
-        TwoBoneIKConstraint = BasisHelpers.GetOrAddComponent<BasisTwoBoneIKConstraint>(BoneRole);
-
-        TwoBoneIKConstraint.data.M_CalibratedOffset = Vector3.zero;
-        TwoBoneIKConstraint.data.M_CalibratedRotation = tip.rotation;
-
-        TwoBoneIKConstraint.data.TargetPosition = TargetControl.OutgoingWorldData.position;
-        TwoBoneIKConstraint.data.TargetRotation = TargetControl.OutgoingWorldData.rotation;
-        if (UseBoneRole && player.LocalBoneDriver.FindBone(out BasisLocalBoneControl HintControl, BendRole))
-        {
-            Quaternion HintRotation = HintControl.OutgoingWorldData.rotation;
-            TwoBoneIKConstraint.data.HintPosition = HintControl.OutgoingWorldData.position;
-            TwoBoneIKConstraint.data.HintRotation = HintRotation;
-        }
-        TwoBoneIKConstraint.data.root = root;
-        TwoBoneIKConstraint.data.mid = mid;
-        TwoBoneIKConstraint.data.tip = tip;
-
-        GeneratedRequiredTransforms(player, tip);
-    }
-
-    public static void CreateTwoBoneHand(BasisLocalPlayer player, GameObject Parent, Transform ChestStart, Transform ChestEnd, Transform root, Transform mid, Transform tip, Quaternion Rotation, BasisBoneTrackedRole TargetRole, BasisBoneTrackedRole BendRole, bool UseBoneRole, out BasisTwoBoneIKConstraintHand TwoBoneIKConstraint)
-    {
-        if (!player.LocalBoneDriver.FindBone(out BasisLocalBoneControl TargetControl, TargetRole))
-        {
-            BasisDebug.LogError($"Missing Targeted Role {TargetRole}", BasisDebug.LogTag.IK);
-            TwoBoneIKConstraint = null;
-        }
-        else
-        {
-            GameObject BoneRole = CreateAndSetParent(Parent.transform, $"Bone Role {TargetRole}");
-            TwoBoneIKConstraint = BasisHelpers.GetOrAddComponent<BasisTwoBoneIKConstraintHand>(BoneRole);
-
-            TwoBoneIKConstraint.data.M_CalibratedOffset = new Vector3(0, 0, 0);
-            TwoBoneIKConstraint.data.M_CalibratedRotation = Rotation;
-
-            TwoBoneIKConstraint.data.TargetPosition = TargetControl.OutgoingWorldData.position;
-            TwoBoneIKConstraint.data.TargetRotation = TargetControl.OutgoingWorldData.rotation;
-
-            if (UseBoneRole && player.LocalBoneDriver.FindBone(out BasisLocalBoneControl HintControl, BendRole))
-            {
-                var outgoing = HintControl.OutgoingWorldData;
-                TwoBoneIKConstraint.data.HintPosition = outgoing.position;
-                TwoBoneIKConstraint.data.HintRotation = outgoing.rotation;
-            }
-
-            TwoBoneIKConstraint.data.root = root;
-            TwoBoneIKConstraint.data.mid = mid;
-            TwoBoneIKConstraint.data.tip = tip;
-            TwoBoneIKConstraint.data.collisionsEnabled = true;
-            TwoBoneIKConstraint.data.chestCapsuleEnd = ChestEnd;
-            TwoBoneIKConstraint.data.chestCapsuleStart = ChestStart;
-            TwoBoneIKConstraint.data.useHandCapsule = true;
-            TwoBoneIKConstraint.data.protectElbow = true;
-            SetHandCollisionScale(TwoBoneIKConstraint, player.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
-            GeneratedRequiredTransforms(player, tip);
-        }
-    }
-    public static void SetHandCollisionScale(BasisTwoBoneIKConstraintHand TwoBoneIKConstraint, float Scale)
+    public static void SetHandCollisionScale(BasisFullIKConstraint TwoBoneIKConstraint, float Scale)
     {
         //1.6m is the default values for below.
         TwoBoneIKConstraint.data.collisionSkin = 0.05f * Scale;
