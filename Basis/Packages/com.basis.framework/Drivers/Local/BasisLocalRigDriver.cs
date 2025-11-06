@@ -344,17 +344,17 @@ namespace Basis.Scripts.Drivers
             {
                 LeftToes.OnHasRigChanged += delegate
                 {
-                    BasisFullIKConstraint.data.RightToggleEnabled = LeftToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                    BasisFullIKConstraint.data.RightToeEnabled = LeftToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
                 };
-                BasisFullIKConstraint.data.RightToggleEnabled = LeftToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                BasisFullIKConstraint.data.RightToeEnabled = LeftToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             }
             if (driver.FindBone(out BasisLocalBoneControl RightToes, BasisBoneTrackedRole.RightToes))
             {
                 RightToes.OnHasRigChanged += delegate
                 {
-                    BasisFullIKConstraint.data.LeftToggleEnabled = RightToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                    BasisFullIKConstraint.data.LeftToeEnabled = RightToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
                 };
-                BasisFullIKConstraint.data.LeftToggleEnabled = RightToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                BasisFullIKConstraint.data.LeftToeEnabled = RightToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             }
             if (driver.FindBone(out BasisLocalBoneControl LeftHand, BasisBoneTrackedRole.LeftHand))
             {
