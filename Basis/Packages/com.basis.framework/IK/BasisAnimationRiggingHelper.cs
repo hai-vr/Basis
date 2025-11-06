@@ -134,8 +134,8 @@ public static class BasisAnimationRiggingHelper
         // write back
         BasisFullIKConstraint.data = data;
 
-        BasisFullIKConstraint.data.leftDriven = LeftToe;
-        BasisFullIKConstraint.data.rightDriven = RightToe;
+        BasisFullIKConstraint.data.LeftToe = LeftToe;
+        BasisFullIKConstraint.data.RightToe = RightToe;
 
         BasisFullIKConstraint.data.m_CalibratedOffsetLeftHand = new Vector3(0, 0, 0);
         BasisFullIKConstraint.data.m_CalibratedOffsetRightHand = new Vector3(0, 0, 0);

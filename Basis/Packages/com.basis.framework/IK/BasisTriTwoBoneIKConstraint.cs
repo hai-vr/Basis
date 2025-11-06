@@ -19,8 +19,8 @@ namespace UnityEngine.Animations.Rigging
         [SerializeField] Transform m_MidRightLowerLeg;
         [SerializeField] Transform m_TipRightLowerLeg;
 
-        [SerializeField] Transform m_LeftDriven;
-        [SerializeField] Transform m_RightDriven;
+        [SerializeField] Transform m_LeftToe;
+        [SerializeField] Transform m_RightToe;
 
         [SerializeField] Transform m_RootLeftHand;
         [SerializeField] Transform m_MidLeftHand;
@@ -122,13 +122,13 @@ namespace UnityEngine.Animations.Rigging
         public Transform midRightLowerLeg { get => m_MidRightLowerLeg; set => m_MidRightLowerLeg = value; }
         public Transform tipRightLowerLeg { get => m_TipRightLowerLeg; set => m_TipRightLowerLeg = value; }
         public Transform hips { get => m_Hips; set => m_Hips = value; }
-        public Transform leftDriven { get => m_LeftDriven; set => m_LeftDriven = value; }
-        public Transform rightDriven { get => m_RightDriven; set => m_RightDriven = value; }
+        public Transform chestCapsuleStart { get => m_ChestCapsuleStart; set => m_ChestCapsuleStart = value; }
+        public Transform chestCapsuleEnd { get => m_ChestCapsuleEnd; set => m_ChestCapsuleEnd = value; }
+        public Transform LeftToe { get => m_LeftToe; set => m_LeftToe = value; }
+        public Transform RightToe { get => m_RightToe; set => m_RightToe = value; }
         public Transform rootLeftHand { get => m_RootLeftHand; set => m_RootLeftHand = value; }
         public Transform midLeftHand { get => m_MidLeftHand; set => m_MidLeftHand = value; }
         public Transform tipLeftHand { get => m_TipLeftHand; set => m_TipLeftHand = value; }
-        public Transform chestCapsuleStart { get => m_ChestCapsuleStart; set => m_ChestCapsuleStart = value; }
-        public Transform chestCapsuleEnd { get => m_ChestCapsuleEnd; set => m_ChestCapsuleEnd = value; }
         public Transform rootRightHand { get => m_RootRightHand; set => m_RootRightHand = value; }
         public Transform midRightHand { get => m_MidRightHand; set => m_MidRightHand = value; }
         public Transform tipRightHand { get => m_TipRightHand; set => m_TipRightHand = value; }
@@ -231,7 +231,7 @@ namespace UnityEngine.Animations.Rigging
                           m_TipRightHand.IsChildOf(m_MidRightHand) && m_MidRightHand.IsChildOf(m_RootRightHand));
 
             // Any of these being valid is enough to run.
-            return head || lLeg || rLeg || lHand || rHand || hipsValid || (m_LeftDriven != null) || (m_RightDriven != null);
+            return head || lLeg || rLeg || lHand || rHand || hipsValid || (m_LeftToe != null) || (m_RightToe != null);
         }
 
         void IAnimationJobData.SetDefaultValues()
@@ -265,7 +265,9 @@ namespace UnityEngine.Animations.Rigging
             OffsetRotationHips = Quaternion.identity;
 
             // Integrated driven TR defaults
-            m_LeftDriven = m_RightDriven = null;
+            m_LeftToe = null;
+            m_RightToe = null;
+
             OutGoingLeftToePosition = OutGoingRightToePosition = Vector3.zero;
             OutGoingLeftToeRotation = OutGoingRightToeRotation = Quaternion.identity;
             m_LeftDrivenEnabled = m_RightDrivenEnabled = false;
@@ -439,8 +441,8 @@ namespace UnityEngine.Animations.Rigging
                 protectElbow);
 
             // --- Integrated "damped TR" application (world-space) ---
-            ApplyDrivenTR(stream, LeftToggle, leftDrivenHandle, leftDrivenTargetPos, leftDrivenTargetRot);
-            ApplyDrivenTR(stream, RightToggle, rightDrivenHandle, rightDrivenTargetPos, rightDrivenTargetRot);
+            ApplyToeRotation(stream, LeftToggle, leftDrivenHandle, leftDrivenTargetPos, leftDrivenTargetRot);
+            ApplyToeRotation(stream, RightToggle, rightDrivenHandle, rightDrivenTargetPos, rightDrivenTargetRot);
         }
 
         // === Helpers ===
@@ -564,7 +566,7 @@ namespace UnityEngine.Animations.Rigging
             }
         }
 
-        static void ApplyDrivenTR(
+        static void ApplyToeRotation(
             AnimationStream stream,
             BoolProperty enabledProp,
             ReadWriteTransformHandle handle,
@@ -662,8 +664,8 @@ namespace UnityEngine.Animations.Rigging
                 targetOffsetRightLowerLeg = new AffineTransform(data.m_CalibratedOffsetRightLowerLeg, data.m_CalibratedRotationRightLowerLeg),
 
                 // Integrated Dual "Driven TR"
-                leftDrivenHandle = SafeBindHandle(animator, data.leftDriven),
-                rightDrivenHandle = SafeBindHandle(animator, data.rightDriven),
+                leftDrivenHandle = SafeBindHandle(animator, data.LeftToe),
+                rightDrivenHandle = SafeBindHandle(animator, data.RightToe),
 
                 leftDrivenTargetPos = Vector3Property.Bind(animator, component, data.LeftDrivenTargetPosProperty),
                 leftDrivenTargetRot = Vector4Property.Bind(animator, component, data.LeftDrivenTargetRotProperty),
