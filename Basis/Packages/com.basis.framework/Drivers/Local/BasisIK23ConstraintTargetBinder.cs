@@ -18,21 +18,24 @@ namespace Basis.Scripts.Drivers
         public static void InitReflectionCache()
         {
             if (s_Initialized) return;
-            var t = typeof(UnityEngine.Animations.Rigging.BasisIK23ConstraintData);
-            s_TargetFields = new FieldInfo[BasisIK23ConstraintData.Count];
+            var t = typeof(UnityEngine.Animations.Rigging.BasisFullIKConstraintData);
+            s_TargetFields = new FieldInfo[UnityEngine.Animations.Rigging.BasisFullIKConstraintData.Count];
             for (int i = 0; i < s_TargetFields.Length; i++)
             {
                 string name = "m_target" + i;
                 var f = t.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
                 if (f == null)
+                {
                     throw new MissingFieldException($"{t.Name} missing field {name}. Did the constraint definition change?");
+                }
+
                 s_TargetFields[i] = f;
             }
             s_Initialized = true;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void SetTargetTransform(ref BasisIK23ConstraintData data, int slot, Transform tr)
+        public static void SetTargetTransform(ref BasisFullIKConstraintData data, int slot, Transform tr)
         {
             var fi = s_TargetFields[slot];
             var dataRef = __makeref(data);

@@ -66,9 +66,6 @@ namespace Basis.Scripts.Drivers
         public Rig ConstraintsRig;
         public RigLayer ConstraintsLayer;
 
-        // NEW: batched constraints and slot mapping
-        public BasisIK23Constraint[] Batches;
-
         public Rig MainRig;
         public RigLayer RigLayer;
         public BasisFullIKConstraint BasisFullIKConstraint;
@@ -403,47 +400,33 @@ namespace Basis.Scripts.Drivers
 
             // Build direct slot lookup table
             _boneToSlot = new BasisConstraintSlotIndex[(int)HumanBodyBones.LastBone];
-            for (int i = 0; i < _boneToSlot.Length; i++) _boneToSlot[i].Batch = -1;
 
             // Create batches
             int count = HumanBones.Length;
-            int per = BasisIK23ConstraintData.Count;
-            int batchCount = (count + per - 1) / per;
-            Batches = new BasisIK23Constraint[batchCount];
-
+            int per = BasisFullIKConstraintData.Count;
             BasisIK23ConstraintTargetBinder.InitReflectionCache();
 
             int boneIdx = 0;
-            for (int b = 0; b < batchCount; b++)
+            var data = BasisFullIKConstraint.data;
+            for (int slot = 0; slot < per && boneIdx < count; slot++, boneIdx++)
             {
-                var go = new GameObject($"IK23 Batch {b:00}");
-                go.transform.SetParent(rigGO.transform, false);
+                HumanBodyBones bone = HumanBones[boneIdx];
 
-                var comp = go.AddComponent<BasisIK23Constraint>();
-                var data = comp.data; // struct copy
+                Transform t = ResolveHumanoidBoneTransform(bone);
 
-                for (int slot = 0; slot < per && boneIdx < count; slot++, boneIdx++)
-                {
-                    HumanBodyBones bone = HumanBones[boneIdx];
+                // write private m_targetN quickly
+                BasisIK23ConstraintTargetBinder.SetTargetTransform(ref data, slot, t);
 
-                    Transform t = ResolveHumanoidBoneTransform(bone);
-                    // write private m_targetN quickly
-                    BasisIK23ConstraintTargetBinder.SetTargetTransform(ref data, slot, t);
-
-                    // default disabled
-                    data.SetWeight(slot, false);
-                    data.SetOffsetRotation(slot, t.rotation);
-                    data.SetTargetRotation(slot, t.rotation);
-                    // map bone -> slot
-                    _boneToSlot[(int)bone] = new BasisConstraintSlotIndex { Batch = (short)b, Slot = (short)slot };
-                }
-
-                comp.data = data; // push back for binder
-                Batches[b] = comp;
+                // default disabled
+                data.SetWeight(slot, false);
+                data.SetOffsetRotation(slot, t.rotation);
+                data.SetTargetRotation(slot, t.rotation);
+                // map bone -> slot
+                _boneToSlot[(int)bone] = new BasisConstraintSlotIndex { Slot = (short)slot };
             }
+            BasisFullIKConstraint.data = data;
 
             DisableOverrides(); // start inactive until any bone is enabled
-            BasisDebug.Log($"Built override batches: {batchCount}", BasisDebug.LogTag.Avatar);
         }
 
         /// <summary>
@@ -514,15 +497,14 @@ namespace Basis.Scripts.Drivers
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideUsage(HumanBodyBones bone, bool enabled)
         {
-            if (!TryGetSlot(bone, out int bi, out int si)) return;
+            if (!TryGetSlot(bone, out int si)) return;
 
             int idx = Array.IndexOf(HumanBones, bone);
             if (idx >= 0) isActive[idx] = enabled;
 
-            var comp = Batches[bi];
-            var d = comp.data;
+            var d = BasisFullIKConstraint.data;
             d.SetWeight(si, enabled);
-            comp.data = d;
+            BasisFullIKConstraint.data = d;
 
             // activate layer only if any slot is active
             ConstraintsLayer.active = isActive.Any(x => x);
@@ -535,28 +517,22 @@ namespace Basis.Scripts.Drivers
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideData(HumanBodyBones bone, in Vector3 position, in Quaternion rotation)
         {
-            if (!TryGetSlot(bone, out int bi, out int si)) return;
+            if (!TryGetSlot(bone,out int si)) return;
 
-            var comp = Batches[bi];
-            var d = comp.data;
+            var d = BasisFullIKConstraint.data;
             d.SetTargetPosition(si, position);
             d.SetTargetRotation(si, rotation);
-            comp.data = d;
+            BasisFullIKConstraint.data = d;
         }
 
         // === Helpers used by the override system ===
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool TryGetSlot(HumanBodyBones bone, out int batch, out int slot)
+        private bool TryGetSlot(HumanBodyBones bone, out int slot)
         {
             int raw = (int)bone;
-            if (_boneToSlot == null || (uint)raw >= (uint)_boneToSlot.Length)
-            {
-                batch = slot = -1; return false;
-            }
             var s = _boneToSlot[raw];
-            if (s.Batch < 0) { batch = slot = -1; return false; }
-            batch = s.Batch; slot = s.Slot; return true;
+            slot = s.Slot; return true;
         }
 
         private Transform ResolveHumanoidBoneTransform(HumanBodyBones bone)
