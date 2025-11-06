@@ -210,17 +210,10 @@ namespace Basis.Scripts.Drivers
                 PlayableGraph.Evaluate(deltaTime);
             }
         }
-
-        // ------------------------------------------
-        // Rig setup
-        // ------------------------------------------
-        public void SetBodySettings(BasisLocalBoneDriver driver)
+        public void Spine(GameObject MainRig)
         {
-            var rigGO = CreateOrGetRig("Main IK", true, out MainRig, out RigLayer);
-
             // Spine chain selection
             ChooseSpine(out var root0, out var mid0, out var tip0);
-
             // Build arrays for legs and head chain
             var roots = new[] { root0, references.LeftUpperLeg, references.RightUpperLeg };
             var middles = new[] { mid0, references.LeftLowerLeg, references.RightLowerLeg };
@@ -241,7 +234,7 @@ namespace Basis.Scripts.Drivers
             };
 
             BasisAnimationRiggingHelper.CreateBasisFullBodyRIG(
-                localPlayer,rigGO,roots, middles, tips, roles, hintRoles, out BasisFullIKConstraint,
+                localPlayer, MainRig, roots, middles, tips, roles, hintRoles, out BasisFullIKConstraint,
                 references.Hips, BasisBoneTrackedRole.Hips,
                 references.leftToes, references.rightToes,
                 references.chest, references.neck,
@@ -255,83 +248,62 @@ namespace Basis.Scripts.Drivers
             d.enabledHips = true;
 
             // Legs enabled by presence
-            if (driver.FindBone(out BasisLocalBoneControl leftFoot, BasisBoneTrackedRole.LeftFoot))
+            BasisLocalBoneDriver.LeftFootControl.OnHasRigChanged += () =>
             {
-                leftFoot.OnHasRigChanged += () =>
-                {
-                    var dd = BasisFullIKConstraint.data;
-                    dd.EnableLeftLeg = leftFoot.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                    BasisFullIKConstraint.data = dd;
-                };
-                d.EnableLeftLeg = leftFoot.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-            }
+                var dd = BasisFullIKConstraint.data;
+                dd.EnableLeftLeg = BasisLocalBoneDriver.LeftFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                BasisFullIKConstraint.data = dd;
+            };
+            d.EnableLeftLeg = BasisLocalBoneDriver.LeftFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
-            if (driver.FindBone(out BasisLocalBoneControl rightFoot, BasisBoneTrackedRole.RightFoot))
+            BasisLocalBoneDriver.RightFootControl.OnHasRigChanged += () =>
             {
-                rightFoot.OnHasRigChanged += () =>
-                {
-                    var dd = BasisFullIKConstraint.data;
-                    dd.EnableRightLeg = rightFoot.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                    BasisFullIKConstraint.data = dd;
-                };
-                d.EnableRightLeg = rightFoot.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-            }
+                var dd = BasisFullIKConstraint.data;
+                dd.EnableRightLeg = BasisLocalBoneDriver.RightFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                BasisFullIKConstraint.data = dd;
+            };
+            d.EnableRightLeg = BasisLocalBoneDriver.RightFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             // Head-driven layer activity
-            if (driver.FindBone(out BasisLocalBoneControl head, BasisBoneTrackedRole.Head))
+            BasisLocalBoneDriver.HeadControl.OnHasRigChanged += () =>
             {
-                head.OnHasRigChanged += () =>
-                {
-                    RigLayer.active = head.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                };
-                RigLayer.active = head.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-            }
+                RigLayer.active = BasisLocalBoneDriver.HeadControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+            };
+            RigLayer.active = BasisLocalBoneDriver.HeadControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             // Toes (fixed: left controls left, right controls right)
-            if (driver.FindBone(out BasisLocalBoneControl leftToes, BasisBoneTrackedRole.LeftToes))
+            BasisLocalBoneDriver.LeftToeControl.OnHasRigChanged += () =>
             {
-                leftToes.OnHasRigChanged += () =>
-                {
-                    var dd = BasisFullIKConstraint.data;
-                    dd.LeftToeEnabled = leftToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                    BasisFullIKConstraint.data = dd;
-                };
-                d.LeftToeEnabled = leftToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-            }
+                var dd = BasisFullIKConstraint.data;
+                dd.LeftToeEnabled = BasisLocalBoneDriver.LeftToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                BasisFullIKConstraint.data = dd;
+            };
+            d.LeftToeEnabled = BasisLocalBoneDriver.LeftToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
-            if (driver.FindBone(out BasisLocalBoneControl rightToes, BasisBoneTrackedRole.RightToes))
+            BasisLocalBoneDriver.RightToeControl.OnHasRigChanged += () =>
             {
-                rightToes.OnHasRigChanged += () =>
-                {
-                    var dd = BasisFullIKConstraint.data;
-                    dd.RightToeEnabled = rightToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                    BasisFullIKConstraint.data = dd;
-                };
-                d.RightToeEnabled = rightToes.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-            }
+                var dd = BasisFullIKConstraint.data;
+                dd.RightToeEnabled = BasisLocalBoneDriver.RightToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                BasisFullIKConstraint.data = dd;
+            };
+            d.RightToeEnabled = BasisLocalBoneDriver.RightToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             // Hands
-            if (driver.FindBone(out BasisLocalBoneControl leftHand, BasisBoneTrackedRole.LeftHand))
+            BasisLocalBoneDriver.LeftHandControl.OnHasRigChanged += () =>
             {
-                leftHand.OnHasRigChanged += () =>
-                {
-                    var dd = BasisFullIKConstraint.data;
-                    dd.enabledLeftHand = leftHand.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                    BasisFullIKConstraint.data = dd;
-                };
-                d.enabledLeftHand = leftHand.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-            }
+                var dd = BasisFullIKConstraint.data;
+                dd.enabledLeftHand = BasisLocalBoneDriver.LeftHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                BasisFullIKConstraint.data = dd;
+            };
+            d.enabledLeftHand = BasisLocalBoneDriver.LeftHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
-            if (driver.FindBone(out BasisLocalBoneControl rightHand, BasisBoneTrackedRole.RightHand))
+            BasisLocalBoneDriver.RightHandControl.OnHasRigChanged += () =>
             {
-                rightHand.OnHasRigChanged += () =>
-                {
-                    var dd = BasisFullIKConstraint.data;
-                    dd.enabledRightHand = rightHand.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                    BasisFullIKConstraint.data = dd;
-                };
-                d.enabledRightHand = rightHand.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-            }
+                var dd = BasisFullIKConstraint.data;
+                dd.enabledRightHand = BasisLocalBoneDriver.RightHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                BasisFullIKConstraint.data = dd;
+            };
+            d.enabledRightHand = BasisLocalBoneDriver.RightHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             BasisFullIKConstraint.data = d;
 
@@ -388,6 +360,15 @@ namespace Basis.Scripts.Drivers
 
             BasisFullIKConstraint.data = d;
 
+        }
+        // ------------------------------------------
+        // Rig setup
+        // ------------------------------------------
+        public void SetBodySettings(BasisLocalBoneDriver driver)
+        {
+            var rigGO = CreateOrGetRig("Main IK", true, out MainRig, out RigLayer);
+
+            Spine(rigGO);
             // Ensure a RigTransform exists on hips
             if (!references.Hips.gameObject.TryGetComponent<RigTransform>(out _))
             {

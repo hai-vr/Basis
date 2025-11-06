@@ -1,5 +1,3 @@
-using System;
-using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Animations.Rigging;
@@ -7,8 +5,6 @@ using UnityEngine.Animations.Rigging;
 public static class BasisAnimationRuntimeUtils
 {
     const float k_SqrEpsilon = 1e-8f;
-
-    // ---------- ARMS (unchanged) ----------
     public static void SolveTwoBoneIKArms(
         AnimationStream stream,
         ReadWriteTransformHandle root,
@@ -89,165 +85,6 @@ public static class BasisAnimationRuntimeUtils
         }
 
         tip.SetRotation(stream, tRotation);
-    }
-
-    // ---------- LEGS/TORSO (STABILIZED FOR TRACKER) ----------
-    public static void SolveTwoBoneIKLegsAndTorso_Stabilized(
-        AnimationStream stream,
-        ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
-        AffineTransform target, AffineTransform hint, bool hasHint, AffineTransform targetOffset,
-        Vector3 bendNormalPrev,                 // previous/seed normal (input from property)
-        Vector3 trackerForwardWorld,            // physical tracker forward (world)
-        float trackerBlend,                     // 0..1
-        float minAxisSqrMag,                    // epsilon
-        float maxMidDeltaDeg                    // per-eval clamp
-    )
-    {
-        Vector3 aPosition = root.GetPosition(stream);
-        Vector3 bPosition = mid.GetPosition(stream);
-        Vector3 cPosition = tip.GetPosition(stream);
-
-        Vector3 targetPos = target.translation;
-        Quaternion targetRot = target.rotation;
-
-        Vector3 tPosition = targetPos + targetOffset.translation;
-        Quaternion tRotation = targetRot * targetOffset.rotation;
-
-        Vector3 ab = bPosition - aPosition;
-        Vector3 bc = cPosition - bPosition;
-        Vector3 ac = cPosition - aPosition;
-        Vector3 at = tPosition - aPosition;
-
-        float abLen = ab.magnitude;
-        float bcLen = bc.magnitude;
-        float acLen = ac.magnitude;
-        float atLen = at.magnitude;
-
-        float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-        float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
-
-        // 1) Build a robust bend axis ----------------------------
-        // Base candidates
-        Vector3 axisFromHint = hasHint ? Vector3.Cross(hint.translation - aPosition, bc) : Vector3.zero;
-        Vector3 axisFromTarget = Vector3.Cross(at, bc);
-
-        // Tracker-derived pole: project tracker forward into plane orthogonal to AC, then cross with BC
-        Vector3 trackerFwd = trackerForwardWorld;
-        if (trackerFwd.sqrMagnitude < k_SqrEpsilon) trackerFwd = Vector3.forward;
-
-        Vector3 acNorm = ac.sqrMagnitude > k_SqrEpsilon ? ac.normalized : Vector3.up;
-        Vector3 trackerFwdProj = trackerFwd - acNorm * Vector3.Dot(trackerFwd, acNorm);
-        if (trackerFwdProj.sqrMagnitude < k_SqrEpsilon)
-        {
-            // if forward is parallel to AC, try tracker right using world-up
-            Vector3 alt = Vector3.Cross(acNorm, Vector3.up);
-            if (alt.sqrMagnitude < k_SqrEpsilon) alt = Vector3.Cross(acNorm, Vector3.right);
-            trackerFwdProj = alt.normalized;
-        }
-        else trackerFwdProj.Normalize();
-
-        Vector3 axisFromTracker = Vector3.Cross(trackerFwdProj, bc);
-
-        // Blend & fallback
-        Vector3 axisCandidate = Vector3.zero;
-
-        // Priority: tracker orientation (stable), then hint, then target
-        axisCandidate += trackerBlend * axisFromTracker;
-        axisCandidate += (1f - trackerBlend) * (hasHint ? axisFromHint : axisFromTarget);
-
-        if (axisCandidate.sqrMagnitude < minAxisSqrMag)
-        {
-            axisCandidate = hasHint ? axisFromHint : axisFromTarget;
-            if (axisCandidate.sqrMagnitude < minAxisSqrMag)
-                axisCandidate = Vector3.Cross(ab, bc); // current pose plane
-            if (axisCandidate.sqrMagnitude < minAxisSqrMag)
-                axisCandidate = Vector3.up;            // ultimate fallback
-        }
-
-        // Stabilize sign by nudging toward previous bend normal
-        if (bendNormalPrev.sqrMagnitude > k_SqrEpsilon)
-        {
-            if (Vector3.Dot(axisCandidate, bendNormalPrev) < 0f)
-                axisCandidate = -axisCandidate;
-            // mild slerp for continuity
-            axisCandidate = Vector3.Slerp(bendNormalPrev.normalized, axisCandidate.normalized, 0.5f);
-        }
-
-        Vector3 axis = axisCandidate.normalized;
-
-        // 2) Rotate mid around axis with delta clamp --------------
-        float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
-        float halfAngleDeg = halfAngle * Mathf.Rad2Deg;
-        float clampedHalfDeg = Mathf.Clamp(halfAngleDeg, -maxMidDeltaDeg, maxMidDeltaDeg);
-        float clampedHalfRad = clampedHalfDeg * Mathf.Deg2Rad;
-
-        float sin = Mathf.Sin(clampedHalfRad);
-        float cos = Mathf.Cos(clampedHalfRad);
-        Quaternion deltaR = new Quaternion(axis.x * sin, axis.y * sin, axis.z * sin, cos);
-        mid.SetRotation(stream, deltaR * mid.GetRotation(stream));
-
-        // 3) Aim AC toward AT at root -----------------------------
-        cPosition = tip.GetPosition(stream);
-        ac = cPosition - aPosition;
-        root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
-
-        // 4) Optional pole alignment using hint position ----------
-        if (hasHint)
-        {
-            float acSqrMag = ac.sqrMagnitude;
-            if (acSqrMag > 0f)
-            {
-                bPosition = mid.GetPosition(stream);
-                cPosition = tip.GetPosition(stream);
-                ab = bPosition - aPosition;
-                ac = cPosition - aPosition;
-
-                Vector3 acN = ac / Mathf.Sqrt(acSqrMag);
-                Vector3 ah = hint.translation - aPosition;
-                Vector3 abProj = ab - acN * Vector3.Dot(ab, acN);
-                Vector3 ahProj = ah - acN * Vector3.Dot(ah, acN);
-
-                float maxReach = abLen + bcLen;
-                if (abProj.sqrMagnitude > (maxReach * maxReach * 0.001f) && ahProj.sqrMagnitude > 0f)
-                {
-                    Quaternion hintR = QuaternionExt.FromToRotation(abProj, ahProj);
-                    hintR = QuaternionExt.NormalizeSafe(hintR);
-                    root.SetRotation(stream, hintR * root.GetRotation(stream));
-                }
-            }
-        }
-
-        tip.SetRotation(stream, tRotation);
-    }
-
-    // ---------- Helpers, inverse, misc ----------
-    public static void InverseSolveTwoBoneIK(
-        AnimationStream stream,
-        ReadOnlyTransformHandle root,
-        ReadOnlyTransformHandle mid,
-        ReadOnlyTransformHandle tip,
-        ReadWriteTransformHandle target,
-        ReadWriteTransformHandle hint,
-        float posWeight,
-        float rotWeight,
-        float hintWeight,
-        AffineTransform targetOffset
-    )
-    {
-        Vector3 rootPosition = root.GetPosition(stream);
-        Vector3 midPosition = mid.GetPosition(stream);
-        tip.GetGlobalTR(stream, out var tipPosition, out var tipRotation);
-        target.GetGlobalTR(stream, out var targetPosition, out var targetRotation);
-        bool isHintValid = hint.IsValid(stream);
-        Vector3 hintPosition = Vector3.zero;
-        if (isHintValid) hintPosition = hint.GetPosition(stream);
-
-        InverseSolveTwoBoneIK(rootPosition, midPosition, tipPosition, tipRotation, ref targetPosition,
-            ref targetRotation, ref hintPosition, isHintValid, posWeight, rotWeight, hintWeight, targetOffset);
-
-        target.SetPosition(stream, targetPosition);
-        target.SetRotation(stream, targetRotation);
-        hint.SetPosition(stream, hintPosition);
     }
 
     public static void InverseSolveTwoBoneIK(
@@ -398,24 +235,6 @@ public static class BasisAnimationRuntimeUtils
         float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (aLen1 * aLen2) / 2.0f, -1.0f, 1.0f);
         return Mathf.Acos(c);
     }
-
-    public static float SqrDistance(Vector3 lhs, Vector3 rhs) => (rhs - lhs).sqrMagnitude;
-    public static float Square(float value) => value * value;
-    public static Vector3 Lerp(Vector3 a, Vector3 b, Vector3 t) => Vector3.Scale(a, Vector3.one - t) + Vector3.Scale(b, t);
-    public static float Select(float a, float b, float c) => (c > 0f) ? b : a;
-    public static Vector3 Select(Vector3 a, Vector3 b, Vector3 c) => new Vector3(Select(a.x, b.x, c.x), Select(a.y, b.y, c.y), Select(a.z, b.z, c.z));
-
-    public static Vector3 ProjectOnPlane(Vector3 vector, Vector3 planeNormal)
-    {
-        float sqrMag = Vector3.Dot(planeNormal, planeNormal);
-        var dot = Vector3.Dot(vector, planeNormal);
-        return new Vector3(
-            vector.x - planeNormal.x * dot / sqrMag,
-            vector.y - planeNormal.y * dot / sqrMag,
-            vector.z - planeNormal.z * dot / sqrMag
-        );
-    }
-
     public static void PassThrough(AnimationStream stream, ReadWriteTransformHandle handle)
     {
         handle.GetLocalTRS(stream, out Vector3 position, out Quaternion rotation, out Vector3 scale);

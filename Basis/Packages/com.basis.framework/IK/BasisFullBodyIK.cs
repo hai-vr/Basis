@@ -998,13 +998,6 @@ namespace UnityEngine.Animations.Rigging
         }
 
         static Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
-        static void Pass(AnimationStream stream, ReadWriteTransformHandle h)
-        {
-            if (h.IsValid(stream))
-            {
-                BasisAnimationRuntimeUtils.PassThrough(stream, h);
-            }
-        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static void Apply(AnimationStream stream, ReadWriteTransformHandle h, Vector3Property p, Vector4Property r, Vector4Property o, BoolProperty sw)
