@@ -172,8 +172,8 @@ public static class BasisMenuItemsEditor
             avatarDriver.leftShoulder, avatarDriver.RightShoulder,
             avatarDriver.leftLowerArm,avatarDriver.RightLowerArm,
             avatarDriver.LeftLowerLeg, avatarDriver.RightLowerLeg,
-            avatarDriver.leftFoot, avatarDriver.leftToes,
-            avatarDriver.rightFoot, avatarDriver.rightToes
+            avatarDriver.leftFoot, avatarDriver.leftToe,
+            avatarDriver.rightFoot, avatarDriver.rightToe
         };
         int bodyPartsCount = bodyParts.Length;
         // Create an array of the BasisInputXRSimulate instances
@@ -207,8 +207,8 @@ public static class BasisMenuItemsEditor
             avatarDriver.leftShoulder, avatarDriver.RightShoulder,
             avatarDriver.leftLowerArm,avatarDriver.RightLowerArm,
             avatarDriver.LeftLowerLeg, avatarDriver.RightLowerLeg,
-            avatarDriver.leftFoot, avatarDriver.leftToes,
-            avatarDriver.rightFoot, avatarDriver.rightToes
+            avatarDriver.leftFoot, avatarDriver.leftToe,
+            avatarDriver.rightFoot, avatarDriver.rightToe
         };
         int bodyPartsCount = bodyParts.Length;
         // Create an array of the BasisInputXRSimulate instances

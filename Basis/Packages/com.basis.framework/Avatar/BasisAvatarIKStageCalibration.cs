@@ -228,12 +228,12 @@ namespace Basis.Scripts.Avatar
         { BasisBoneTrackedRole.LeftUpperLeg,Mapping.LeftUpperLeg },
         { BasisBoneTrackedRole.LeftLowerLeg,Mapping. LeftLowerLeg },
         { BasisBoneTrackedRole.LeftFoot, Mapping.leftFoot },
-        { BasisBoneTrackedRole.LeftToes,Mapping. leftToes },
+        { BasisBoneTrackedRole.LeftToes,Mapping. leftToe },
 
         { BasisBoneTrackedRole.RightUpperLeg, Mapping.RightUpperLeg },
         { BasisBoneTrackedRole.RightLowerLeg,Mapping. RightLowerLeg },
         { BasisBoneTrackedRole.RightFoot, Mapping.rightFoot },
-        { BasisBoneTrackedRole.RightToes,Mapping. rightToes },
+        { BasisBoneTrackedRole.RightToes,Mapping. rightToe },
             };
 
             return transforms;

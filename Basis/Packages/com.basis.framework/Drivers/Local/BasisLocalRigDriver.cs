@@ -305,7 +305,6 @@ namespace Basis.Scripts.Drivers
             // Create batches
             int count = HumanBones.Length;
             int per = BasisFullBodyData.Count;
-            BasisFullBodyTargetBinder.InitReflectionCache();
 
             int boneIdx = 0;
             d = BasisFullIKConstraint.data;
@@ -315,9 +314,6 @@ namespace Basis.Scripts.Drivers
                 var bone = HumanBones[boneIdx];
                 var t = ResolveHumanoidBoneTransform(bone);
                 if (t == null) { slot--; continue; } // keep slot usage tight if a bone vanishes
-
-                // write private m_targetN quickly
-                BasisFullBodyTargetBinder.SetTargetTransform(ref d, slot, t);
 
                 // default disabled; keep current orientation as offset
                 d.SetWeight(slot, false);

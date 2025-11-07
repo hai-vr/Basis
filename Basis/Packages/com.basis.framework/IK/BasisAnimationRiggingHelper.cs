@@ -20,9 +20,9 @@ public static class BasisAnimationRiggingHelper
 
         // cache data ref — easier to see what we’re setting
         var data = BasisFullIKConstraint.data;
-        data.rootHead = BasisTransformMapping.chest;
-        data.midHead = BasisTransformMapping.neck;
-        data.tipHead = BasisTransformMapping.head;
+        data.chest = BasisTransformMapping.chest;
+        data.neck = BasisTransformMapping.neck;
+        data.head = BasisTransformMapping.head;
 
         data.m_CalibratedOffsetHead = Vector3.zero;
         data.m_CalibratedRotationHead = BasisTransformMapping.head.rotation;
@@ -36,6 +36,12 @@ public static class BasisAnimationRiggingHelper
         data.LeftUpperLeg = BasisTransformMapping.LeftUpperLeg;
         data.LeftLowerLeg = BasisTransformMapping.LeftLowerLeg;
         data.leftFoot = BasisTransformMapping.leftFoot;
+
+        data.Spine = BasisTransformMapping.spine;
+        data.LeftShoulder = BasisTransformMapping.leftShoulder;
+        data.RightShoulder = BasisTransformMapping.RightShoulder;
+
+        data.UpperChest = BasisTransformMapping.Upperchest;
 
         data.m_CalibratedOffsetLeftFoot = Vector3.zero;
         data.m_CalibratedRotationLeftFoot = BasisTransformMapping.leftFoot.rotation;
@@ -68,8 +74,8 @@ public static class BasisAnimationRiggingHelper
         // write back
         BasisFullIKConstraint.data = data;
 
-        BasisFullIKConstraint.data.LeftToe = BasisTransformMapping.leftToes;
-        BasisFullIKConstraint.data.RightToe = BasisTransformMapping.rightToes;
+        BasisFullIKConstraint.data.LeftToe = BasisTransformMapping.leftToe;
+        BasisFullIKConstraint.data.RightToe = BasisTransformMapping.rightToe;
 
         BasisFullIKConstraint.data.m_CalibratedOffsetLeftHand = new Vector3(0, 0, 0);
         BasisFullIKConstraint.data.m_CalibratedOffsetRightHand = new Vector3(0, 0, 0);
@@ -79,21 +85,24 @@ public static class BasisAnimationRiggingHelper
 
         BasisFullIKConstraint.data.TargetPositionLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.position;
         BasisFullIKConstraint.data.TargetRotationLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.rotation;
+
         BasisFullIKConstraint.data.TargetPositionRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.position;
         BasisFullIKConstraint.data.TargetRotationRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.rotation;
+
         BasisFullIKConstraint.data.HintPositionLeftHand = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.position;
         BasisFullIKConstraint.data.HintRotationLeftHand = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.rotation;
+
         BasisFullIKConstraint.data.HintPositionRightHand = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.position;
         BasisFullIKConstraint.data.HintRotationRightHand = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.rotation;
-        BasisFullIKConstraint.data.rootLeftHand = BasisTransformMapping.leftUpperArm;
-        BasisFullIKConstraint.data.midLeftHand = BasisTransformMapping.leftLowerArm;
-        BasisFullIKConstraint.data.tipLeftHand = BasisTransformMapping.leftHand;
-        BasisFullIKConstraint.data.rootRightHand = BasisTransformMapping.RightUpperArm;
-        BasisFullIKConstraint.data.midRightHand = BasisTransformMapping.RightLowerArm;
-        BasisFullIKConstraint.data.tipRightHand = BasisTransformMapping.rightHand;
+
+        BasisFullIKConstraint.data.leftUpperArm = BasisTransformMapping.leftUpperArm;
+        BasisFullIKConstraint.data.leftLowerArm = BasisTransformMapping.leftLowerArm;
+        BasisFullIKConstraint.data.LeftHand = BasisTransformMapping.leftHand;
+        BasisFullIKConstraint.data.RightUpperArm = BasisTransformMapping.RightUpperArm;
+        BasisFullIKConstraint.data.RightLowerArm = BasisTransformMapping.RightLowerArm;
+        BasisFullIKConstraint.data.RightHand = BasisTransformMapping.rightHand;
+
         BasisFullIKConstraint.data.collisionsEnabled = true;
-        BasisFullIKConstraint.data.chestCapsuleEnd = BasisTransformMapping.neck;
-        BasisFullIKConstraint.data.chestCapsuleStart = BasisTransformMapping.chest;
         BasisFullIKConstraint.data.useHandCapsule = true;
         BasisFullIKConstraint.data.protectElbow = true;
         BasisFullIKConstraint.data.enabledHead = true;
@@ -101,8 +110,8 @@ public static class BasisAnimationRiggingHelper
 
         SetHandCollisionScale(BasisFullIKConstraint, player.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
 
-        GeneratedRequiredTransforms(player, BasisTransformMapping.leftToes);
-        GeneratedRequiredTransforms(player, BasisTransformMapping.rightToes);
+        GeneratedRequiredTransforms(player, BasisTransformMapping.leftToe);
+        GeneratedRequiredTransforms(player, BasisTransformMapping.rightToe);
         GeneratedRequiredTransforms(player, BasisTransformMapping.Hips);
         GeneratedRequiredTransforms(player, BasisTransformMapping.leftHand);
         GeneratedRequiredTransforms(player, BasisTransformMapping.rightHand);

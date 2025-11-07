@@ -50,7 +50,7 @@ namespace Basis.Scripts.Common
         public bool HasLeftLowerLeg;
         public Transform leftFoot;
         public bool HasleftFoot;
-        public Transform leftToes;
+        public Transform leftToe;
         public bool HasleftToes;
 
         public Transform RightUpperLeg;
@@ -59,7 +59,7 @@ namespace Basis.Scripts.Common
         public bool HasRightLowerLeg;
         public Transform rightFoot;
         public bool HasrightFoot;
-        public Transform rightToes;
+        public Transform rightToe;
         public bool HasrightToes;
 
         // Finger bones
@@ -160,8 +160,8 @@ namespace Basis.Scripts.Common
             references.HasLeftLowerLeg = BoolState(references.LeftLowerLeg);
             references.leftFoot = anim.GetBoneTransform(HumanBodyBones.LeftFoot);
             references.HasleftFoot = BoolState(references.leftFoot);
-            references.leftToes = anim.GetBoneTransform(HumanBodyBones.LeftToes);
-            references.HasleftToes = BoolState(references.leftToes);
+            references.leftToe = anim.GetBoneTransform(HumanBodyBones.LeftToes);
+            references.HasleftToes = BoolState(references.leftToe);
 
             references.RightUpperLeg = anim.GetBoneTransform(HumanBodyBones.RightUpperLeg);
             references.HasRightUpperLeg = BoolState(references.RightUpperLeg);
@@ -169,8 +169,8 @@ namespace Basis.Scripts.Common
             references.HasRightLowerLeg = BoolState(references.RightLowerLeg);
             references.rightFoot = anim.GetBoneTransform(HumanBodyBones.RightFoot);
             references.HasrightFoot = BoolState(references.rightFoot);
-            references.rightToes = anim.GetBoneTransform(HumanBodyBones.RightToes);
-            references.HasrightToes = BoolState(references.rightToes);
+            references.rightToe = anim.GetBoneTransform(HumanBodyBones.RightToes);
+            references.HasrightToes = BoolState(references.rightToe);
 
             references.LeftThumb[0] = anim.GetBoneTransform(HumanBodyBones.LeftThumbProximal);
             references.HasLeftThumb[0] = BoolState(references.LeftThumb[0]);
@@ -316,7 +316,7 @@ namespace Basis.Scripts.Common
                     transform = leftFoot;
                     return HasleftFoot;
                 case HumanBodyBones.LeftToes:
-                    transform = leftToes;
+                    transform = leftToe;
                     return HasleftToes;
 
                 case HumanBodyBones.RightUpperLeg:
@@ -329,7 +329,7 @@ namespace Basis.Scripts.Common
                     transform = rightFoot;
                     return HasrightFoot;
                 case HumanBodyBones.RightToes:
-                    transform = rightToes;
+                    transform = rightToe;
                     return HasrightToes;
 
                 // Left Thumb bones
