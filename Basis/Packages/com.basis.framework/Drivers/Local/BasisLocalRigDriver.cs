@@ -133,25 +133,25 @@ namespace Basis.Scripts.Drivers
             var hipsPos = GetPosFilter(BasisBoneTrackedRole.Hips).Filter(hipsCoords.position, _timeAccumulator);
 
             var d = BasisFullIKConstraint.data;
-            d.TargetPositionHips = hipsPos;
-            d.TargetRotationEulerHips = hipsCoords.rotation;
+            d.PositionHips = hipsPos;
+            d.RotationEulerHips = hipsCoords.rotation;
 
             // Global hint direction (knee/neck)
             d.m_HintDirection = Hips.OutgoingWorldData.rotation * Vector3.right;
 
             // Head
             var data = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
-            d.TargetPositionHead = data.position;
-            d.TargetRotationHead = data.rotation;
+            d.PositionHead = data.position;
+            d.RotationHead = data.rotation;
 
             // Feet
             data = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
-            d.LeftFootTargetPosition = data.position;
-            d.LeftFootTargetRotation = data.rotation;
+            d.LeftFootPosition = data.position;
+            d.LeftFootRotation = data.rotation;
 
             data = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
-            d.RightFootTargetPosition = data.position;
-            d.RightFootTargetRotation = data.rotation;
+            d.RightFootPosition = data.position;
+            d.RightFootRotation = data.rotation;
 
             // Chest (as head hint)
             data = BasisLocalBoneDriver.ChestControl.OutgoingWorldData;
@@ -171,12 +171,12 @@ namespace Basis.Scripts.Drivers
             BasisAnimationRiggingHelper.SetHandCollisionScale(BasisFullIKConstraint, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
 
             var leftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData;
-            d.TargetPositionLeftHand = leftHand.position;
-            d.TargetRotationLeftHand = leftHand.rotation;
+            d.PositionLeftHand = leftHand.position;
+            d.RotationLeftHand = leftHand.rotation;
 
             var rightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData;
-            d.TargetPositionRightHand = rightHand.position;
-            d.TargetRotationRightHand = rightHand.rotation;
+            d.PositionRightHand = rightHand.position;
+            d.RotationRightHand = rightHand.rotation;
 
             // Hand hints (forearms)
             var leftLowerArm = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData;

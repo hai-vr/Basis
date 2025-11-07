@@ -86,32 +86,32 @@ public static class BasisAnimationRiggingHelper
         // Targets & hints
         // ----------------------------
         // Head
-        data.TargetPositionHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
-        data.TargetRotationHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;
+        data.PositionHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
+        data.RotationHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;
         data.HintPositionHead = BasisLocalBoneDriver.ChestControl.OutgoingWorldData.position;
         data.HintRotationHead = BasisLocalBoneDriver.ChestControl.OutgoingWorldData.rotation;
 
         // Left leg / foot
-        data.LeftFootTargetPosition = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.position;
-        data.LeftFootTargetRotation = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation;
+        data.LeftFootPosition = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.position;
+        data.LeftFootRotation = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation;
         data.HintPositionLeftLowerLeg = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData.position;
         data.HintRotationLeftLowerLeg = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData.rotation;
 
         // Right leg / foot
-        data.RightFootTargetPosition = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.position;
-        data.RightFootTargetRotation = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation;
+        data.RightFootPosition = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.position;
+        data.RightFootRotation = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation;
         data.HintPositionRightLowerLeg = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.position;
         data.HintRotationRightLowerLeg = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.rotation;
 
         // Hips
-        data.TargetPositionHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
-        data.TargetRotationEulerHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation;
+        data.PositionHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
+        data.RotationEulerHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation;
 
         // Hands
-        data.TargetPositionLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.position;
-        data.TargetRotationLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.rotation;
-        data.TargetPositionRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.position;
-        data.TargetRotationRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.rotation;
+        data.PositionLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.position;
+        data.RotationLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.rotation;
+        data.PositionRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.position;
+        data.RotationRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.rotation;
 
         data.HintPositionLeftHand = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.position;
         data.HintRotationLeftHand = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.rotation;
