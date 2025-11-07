@@ -306,7 +306,7 @@ public static class BasisAnimationRuntimeUtils
         tip.SetRotation(stream, tRotation);
     }
     public static Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
-    public static void SolveOne(
+    public static void SolveLegs(
     AnimationStream stream,
     BoolProperty enabledProp,
     ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
@@ -338,6 +338,72 @@ public static class BasisAnimationRuntimeUtils
             target, hint,
             hintWeightProp.Get(stream),
             targetOffset, bendNormal
+        );
+    }
+    public static void SolveHipsAndSpine(
+        AnimationStream stream,
+
+        // --- Hips minimal driver ---
+        BoolProperty enabledHips,
+        ReadWriteTransformHandle HandleHips,
+        Vector3Property targetPositionHips,
+        Vector4Property targetRotationHips,
+        Vector4Property offsetRotationHips,
+
+        // --- Head + Legs (classic TwoBone) ---
+        BoolProperty enabledHead,
+        ReadWriteTransformHandle HandleChest,
+        ReadWriteTransformHandle HandleNeck,
+        ReadWriteTransformHandle HandleHead,
+        Vector3Property targetPositionHead,
+        Vector4Property targetRotationHead,
+        Vector3Property hintPositionHead,
+        Vector4Property hintRotationHead,
+        BoolProperty hintWeightHead,
+        AffineTransform targetOffsetHead,
+        Vector3Property bendNormalHead
+    )
+    {
+        if (enabledHips.Get(stream) && HandleHips.IsValid(stream))
+        {
+            Vector3 hipPos = targetPositionHips.Get(stream);
+            Quaternion hipRot = V4ToQuat(targetRotationHips.Get(stream));
+            Quaternion hipOff = V4ToQuat(offsetRotationHips.Get(stream));
+
+            HandleHips.SetPosition(stream, hipPos);
+            HandleHips.SetRotation(stream, hipRot * hipOff); // apply offset in target space
+        }
+        else if (HandleHips.IsValid(stream))
+        {
+            BasisAnimationRuntimeUtils.PassThrough(stream, HandleHips);
+        }
+        if (!enabledHead.Get(stream))
+        {
+            Pass(stream, HandleChest, HandleNeck, HandleHead);
+            return;
+        }
+
+        if (!(HandleChest.IsValid(stream) && HandleNeck.IsValid(stream) && HandleHead.IsValid(stream)))
+        {
+            Pass(stream, HandleChest, HandleNeck, HandleHead);
+            return;
+        }
+
+        Quaternion tRot = V4ToQuat(targetRotationHead.Get(stream));
+        Quaternion hRot = V4ToQuat(hintRotationHead.Get(stream));
+
+        AffineTransform target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+        AffineTransform hint = new AffineTransform(hintPositionHead.Get(stream), hRot);
+        Vector3 bendNormal = bendNormalHead.Get(stream);
+
+        BasisAnimationRuntimeUtils.SolveTwoBone(
+            stream,
+            HandleChest, HandleNeck, HandleHead,
+            target,
+            hint,
+            hintWeightHead.Get(stream),
+            targetOffsetHead,
+            bendNormal
         );
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -478,10 +544,5 @@ public static class BasisAnimationRuntimeUtils
         {
             BasisAnimationRuntimeUtils.PassThrough(stream, handle);
         }
-    }
-
-    internal static void Apply(AnimationStream stream, object handleSpine, Vector3Property p7, Vector4Property r7, Vector4Property o7, BoolProperty w7)
-    {
-        throw new NotImplementedException();
     }
 }

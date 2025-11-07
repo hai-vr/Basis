@@ -723,30 +723,35 @@ chestRadius, collisionSkin;
                 return;
             }
 
-            // --- Hips minimal driver ---
-            if (enabledHips.Get(stream) && HandleHips.IsValid(stream))
-            {
-                Vector3 hipPos = targetPositionHips.Get(stream);
-                Quaternion hipRot = V4ToQuat(targetRotationHips.Get(stream));
-                Quaternion hipOff = V4ToQuat(offsetRotationHips.Get(stream));
-                HandleHips.SetPosition(stream, hipPos);
-                HandleHips.SetRotation(stream, hipRot * hipOff); // apply offset in target space
-            }
-            else if (HandleHips.IsValid(stream))
-            {
-                BasisAnimationRuntimeUtils.PassThrough(stream, HandleHips);
-            }
+            BasisAnimationRuntimeUtils.SolveHipsAndSpine(
+                stream,
 
-            // --- Head + Legs (classic TwoBone) ---
-            BasisAnimationRuntimeUtils.SolveOne(stream, enabledHead, HandleChest, HandleNeck, HandleHead,
-                targetPositionHead, targetRotationHead, hintPositionHead, hintRotationHead,
-                hintWeightHead, targetOffsetHead, bendNormalHead);
+                // --- Hips ---
+                enabledHips,
+                HandleHips,
+                targetPositionHips,
+                targetRotationHips,
+                offsetRotationHips,
 
-            BasisAnimationRuntimeUtils.SolveOne(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
+                // --- Head + Legs ---
+                enabledHead,
+                HandleChest,
+                HandleNeck,
+                HandleHead,
+                targetPositionHead,
+                targetRotationHead,
+                hintPositionHead,
+                hintRotationHead,
+                hintWeightHead,
+                targetOffsetHead,
+                bendNormalHead
+            );
+
+            BasisAnimationRuntimeUtils.SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
                 targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
                 hintWeightLeftLowerLeg, targetOffsetLeftLowerLeg, bendNormalHead);
 
-            BasisAnimationRuntimeUtils.SolveOne(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
+            BasisAnimationRuntimeUtils.SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
                 targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
                 hintWeightRightLowerLeg, targetOffsetRightLowerLeg, bendNormalHead);
 
@@ -805,8 +810,6 @@ chestRadius, collisionSkin;
 
             BasisAnimationRuntimeUtils.Apply(stream, HandleUpperChest, p54, r54, o54, w54);
         }
-        static Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
-
     }
 
     public class BasisFullBodyJobBinder : AnimationJobBinder<BasisFullIKConstraintJob, BasisFullBodyData>
