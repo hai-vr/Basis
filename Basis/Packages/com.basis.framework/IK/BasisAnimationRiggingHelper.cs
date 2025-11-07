@@ -1,201 +1,134 @@
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
-using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
 
 public static class BasisAnimationRiggingHelper
 {
-    private const int IDX_HEAD = 0;
-    private const int IDX_LLEG = 1;
-    private const int IDX_RLEG = 2;
-
     /// <summary>
     /// Build the combined Full IK constraint from arrays of joints and roles.
     /// root/mid/tip must be length >= 3: [Head, LeftLowerLeg, RightLowerLeg]
     /// TargetRole/BendRole/UseBoneRole correspond index-by-index to those same chains.
     /// </summary>
-    public static void CreateBasisFullBodyRIG(
-        BasisLocalPlayer player,
-        GameObject parent,
-        Transform[] root,
-        Transform[] mid,
-        Transform[] tip,
-        BasisBoneTrackedRole[] TargetRole,
-        BasisBoneTrackedRole[] BendRole,
-        out BasisFullBodyIK BasisFullIKConstraint,
-        Transform hips, 
-        BasisBoneTrackedRole hipsTargetRole,
-         Transform LeftToe, Transform RightToe,
-         Transform ChestStart, Transform ChestEnd,
-         Transform rootLeft, Transform midLeft, Transform tipLeft,
-         Transform rootRight, Transform midRight, Transform tipRight
-    )
+    public static void CreateBasisFullBodyRIG(BasisLocalPlayer player, GameObject parent, BasisTransformMapping BasisTransformMapping, out BasisFullBodyIK BasisFullIKConstraint)
     {
-        // --- sanity checks (keep them cheap & defensive)
-        if (root == null || mid == null || tip == null ||
-            TargetRole == null || BendRole == null)
-        {
-            throw new System.ArgumentNullException("IK arrays cannot be null.");
-        }
-
-        if (root.Length < 3 || mid.Length < 3 || tip.Length < 3 ||
-            TargetRole.Length < 3 || BendRole.Length < 3)
-        {
-            throw new System.ArgumentException("Expected at least 3 elements for Head, LeftLowerLeg, RightLowerLeg.");
-        }
-
         // --- make holder and component
         var go = CreateAndSetParent(parent.transform, $"Full IK ({parent.name})");
         BasisFullIKConstraint = BasisHelpers.GetOrAddComponent<BasisFullBodyIK>(go);
 
         // cache data ref — easier to see what we’re setting
         var data = BasisFullIKConstraint.data;
-
-        // -----------------------------
-        // HEAD
-        // -----------------------------
-        data.rootHead = root[IDX_HEAD];
-        data.midHead = mid[IDX_HEAD];
-        data.tipHead = tip[IDX_HEAD];
+        data.rootHead = BasisTransformMapping.chest;
+        data.midHead = BasisTransformMapping.neck;
+        data.tipHead = BasisTransformMapping.head;
 
         data.m_CalibratedOffsetHead = Vector3.zero;
-        data.m_CalibratedRotationHead = tip[IDX_HEAD] ? tip[IDX_HEAD].rotation : Quaternion.identity;
+        data.m_CalibratedRotationHead = BasisTransformMapping.head.rotation;
 
-        if ( player.LocalBoneDriver.FindBone(out BasisLocalBoneControl headTarget, TargetRole[IDX_HEAD]))
-        {
-            data.TargetPositionHead = headTarget.OutgoingWorldData.position;
-            data.TargetRotationHead = headTarget.OutgoingWorldData.rotation;
-        }
+        data.TargetPositionHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
+        data.TargetRotationHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;
 
-        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl headHint, BendRole[IDX_HEAD]))
-        {
-            data.HintPositionHead = headHint.OutgoingWorldData.position;
-            data.HintRotationHead = headHint.OutgoingWorldData.rotation;
-        }
+        data.HintPositionHead = BasisLocalBoneDriver.ChestControl.OutgoingWorldData.position;
+        data.HintRotationHead = BasisLocalBoneDriver.ChestControl.OutgoingWorldData.rotation;
 
-        // -----------------------------
-        // LEFT LOWER LEG
-        // -----------------------------
-        data.rootLeftLowerLeg = root[IDX_LLEG];
-        data.midLeftLowerLeg = mid[IDX_LLEG];
-        data.tipLeftLowerLeg = tip[IDX_LLEG];
+        data.LeftUpperLeg = BasisTransformMapping.LeftUpperLeg;
+        data.LeftLowerLeg = BasisTransformMapping.LeftLowerLeg;
+        data.leftFoot = BasisTransformMapping.leftFoot;
 
-        data.m_CalibratedOffsetLeftLowerLeg = Vector3.zero;
-        data.m_CalibratedRotationLeftLowerLeg = tip[IDX_LLEG] ? tip[IDX_LLEG].rotation : Quaternion.identity;
+        data.m_CalibratedOffsetLeftFoot = Vector3.zero;
+        data.m_CalibratedRotationLeftFoot = BasisTransformMapping.leftFoot.rotation;
 
-        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl lTarget, TargetRole[IDX_LLEG]))
-        {
-            data.LeftFootTargetPosition = lTarget.OutgoingWorldData.position;
-            data.LeftFootTargetRotation = lTarget.OutgoingWorldData.rotation;
-        }
+        data.LeftFootTargetPosition = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.position;
+        data.LeftFootTargetRotation = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation;
 
-        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl lHint, BendRole[IDX_LLEG]))
-        {
-            data.HintPositionLeftLowerLeg = lHint.OutgoingWorldData.position;
-            data.HintRotationLeftLowerLeg = lHint.OutgoingWorldData.rotation;
-        }
+        data.HintPositionLeftLowerLeg = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData.position;
+        data.HintRotationLeftLowerLeg = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData.rotation;
 
-        // -----------------------------
-        // RIGHT LOWER LEG
-        // -----------------------------
-        data.rootRightLowerLeg = root[IDX_RLEG];
-        data.midRightLowerLeg = mid[IDX_RLEG];
-        data.tipRightLowerLeg = tip[IDX_RLEG];
+        data.RightUpperLeg = BasisTransformMapping.RightUpperLeg;
+        data.RightLowerLeg = BasisTransformMapping.RightLowerLeg;
+        data.RightFoot = BasisTransformMapping.rightFoot;
 
-        data.m_CalibratedOffsetRightLowerLeg = Vector3.zero;
-        data.m_CalibratedRotationRightLowerLeg = tip[IDX_RLEG] ? tip[IDX_RLEG].rotation : Quaternion.identity;
+        data.m_CalibratedOffsetRightLeftLeg = Vector3.zero;
+        data.m_CalibratedRotationRightLeftLeg = BasisTransformMapping.rightFoot.rotation;
 
-        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rTarget, TargetRole[IDX_RLEG]))
-        {
-            data.RightFootTargetPosition = rTarget.OutgoingWorldData.position;
-            data.RightFootTargetRotation = rTarget.OutgoingWorldData.rotation;
-        }
+        data.RightFootTargetPosition = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.position;
+        data.RightFootTargetRotation = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation;
 
-        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rHint, BendRole[IDX_RLEG]))
-        {
-            data.HintPositionRightLowerLeg = rHint.OutgoingWorldData.position;
-            data.HintRotationRightLowerLeg = rHint.OutgoingWorldData.rotation;
-        }
+        data.HintPositionRightLowerLeg = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.position;
+        data.HintRotationRightLowerLeg = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.rotation;
 
-        // -----------------------------
-        // HIPS (optional minimal driver)
-        // -----------------------------
-        data.hips = hips;
+        data.hips = BasisTransformMapping.Hips;
 
-        if (hips != null && player.LocalBoneDriver.FindBone(out BasisLocalBoneControl hipsCtrl, hipsTargetRole))
-        {
-            data.TargetPositionHips = hipsCtrl.OutgoingWorldData.position;
-            data.TargetRotationEulerHips = hipsCtrl.OutgoingWorldData.rotation;   // Quaternion
-            data.OffsetRotationHips = hips.rotation;                   // set your T-pose offset if needed
-        }
+        data.TargetPositionHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
+        data.TargetRotationEulerHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation;
+        data.OffsetRotationHips = BasisTransformMapping.Hips.rotation;
 
         // write back
         BasisFullIKConstraint.data = data;
 
-        BasisFullIKConstraint.data.LeftToe = LeftToe;
-        BasisFullIKConstraint.data.RightToe = RightToe;
+        BasisFullIKConstraint.data.LeftToe = BasisTransformMapping.leftToes;
+        BasisFullIKConstraint.data.RightToe = BasisTransformMapping.rightToes;
 
         BasisFullIKConstraint.data.m_CalibratedOffsetLeftHand = new Vector3(0, 0, 0);
         BasisFullIKConstraint.data.m_CalibratedOffsetRightHand = new Vector3(0, 0, 0);
 
-        BasisFullIKConstraint.data.m_CalibratedRotationLeftHand = tipLeft.rotation;
-        BasisFullIKConstraint.data.m_CalibratedRotationRightHand = tipRight.rotation;
+        BasisFullIKConstraint.data.m_CalibratedRotationLeftHand = BasisTransformMapping.leftHand.rotation;
+        BasisFullIKConstraint.data.m_CalibratedRotationRightHand = BasisTransformMapping.rightHand.rotation;
 
-        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl leftHandControl, BasisBoneTrackedRole.LeftHand))
-        {
-            var outgoing = leftHandControl.OutgoingWorldData;
-            BasisFullIKConstraint.data.TargetPositionLeftHand = outgoing.position;
-            BasisFullIKConstraint.data.TargetRotationLeftHand = outgoing.rotation;
-        }
-        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rightHandControl, BasisBoneTrackedRole.RightHand))
-        {
-            var outgoing = rightHandControl.OutgoingWorldData;
-            BasisFullIKConstraint.data.TargetPositionRightHand = outgoing.position;
-            BasisFullIKConstraint.data.TargetRotationRightHand = outgoing.rotation;
-        }
-        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl leftHintControl, BasisBoneTrackedRole.LeftLowerArm))
-        {
-            var outgoing = leftHintControl.OutgoingWorldData;
-            BasisFullIKConstraint.data.HintPositionLeftHand = outgoing.position;
-            BasisFullIKConstraint.data.HintRotationLeftHand = outgoing.rotation;
-        }
-        if (player.LocalBoneDriver.FindBone(out BasisLocalBoneControl rightHintControl, BasisBoneTrackedRole.RightLowerArm))
-        {
-            var outgoing = rightHintControl.OutgoingWorldData;
-            BasisFullIKConstraint.data.HintPositionRightHand = outgoing.position;
-            BasisFullIKConstraint.data.HintRotationRightHand = outgoing.rotation;
-        }
-        BasisFullIKConstraint.data.rootLeftHand = rootLeft;
-        BasisFullIKConstraint.data.midLeftHand = midLeft;
-        BasisFullIKConstraint.data.tipLeftHand = tipLeft;
-
-
-        BasisFullIKConstraint.data.rootRightHand = rootRight;
-        BasisFullIKConstraint.data.midRightHand = midRight;
-        BasisFullIKConstraint.data.tipRightHand = tipRight;
-
-
+        BasisFullIKConstraint.data.TargetPositionLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.position;
+        BasisFullIKConstraint.data.TargetRotationLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.rotation;
+        BasisFullIKConstraint.data.TargetPositionRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.position;
+        BasisFullIKConstraint.data.TargetRotationRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.rotation;
+        BasisFullIKConstraint.data.HintPositionLeftHand = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.position;
+        BasisFullIKConstraint.data.HintRotationLeftHand = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.rotation;
+        BasisFullIKConstraint.data.HintPositionRightHand = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.position;
+        BasisFullIKConstraint.data.HintRotationRightHand = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.rotation;
+        BasisFullIKConstraint.data.rootLeftHand = BasisTransformMapping.leftUpperArm;
+        BasisFullIKConstraint.data.midLeftHand = BasisTransformMapping.leftLowerArm;
+        BasisFullIKConstraint.data.tipLeftHand = BasisTransformMapping.leftHand;
+        BasisFullIKConstraint.data.rootRightHand = BasisTransformMapping.RightUpperArm;
+        BasisFullIKConstraint.data.midRightHand = BasisTransformMapping.RightLowerArm;
+        BasisFullIKConstraint.data.tipRightHand = BasisTransformMapping.rightHand;
         BasisFullIKConstraint.data.collisionsEnabled = true;
-        BasisFullIKConstraint.data.chestCapsuleEnd = ChestEnd;
-        BasisFullIKConstraint.data.chestCapsuleStart = ChestStart;
+        BasisFullIKConstraint.data.chestCapsuleEnd = BasisTransformMapping.neck;
+        BasisFullIKConstraint.data.chestCapsuleStart = BasisTransformMapping.chest;
         BasisFullIKConstraint.data.useHandCapsule = true;
         BasisFullIKConstraint.data.protectElbow = true;
+        BasisFullIKConstraint.data.enabledHead = true;
+        BasisFullIKConstraint.data.enabledHips = true;
 
         SetHandCollisionScale(BasisFullIKConstraint, player.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
 
-        GeneratedRequiredTransforms(player, LeftToe);
-        GeneratedRequiredTransforms(player, RightToe);
-
-        // If you have any extra setup that needs the tips (like creating targets), do it now.
-        GeneratedRequiredTransforms(player, tip[0]);
-        GeneratedRequiredTransforms(player, tip[1]);
-        GeneratedRequiredTransforms(player, tip[2]);
-
-        GeneratedRequiredTransforms(player, tipLeft);
-        GeneratedRequiredTransforms(player, tipRight);
+        GeneratedRequiredTransforms(player, BasisTransformMapping.leftToes);
+        GeneratedRequiredTransforms(player, BasisTransformMapping.rightToes);
+        GeneratedRequiredTransforms(player, BasisTransformMapping.Hips);
+        GeneratedRequiredTransforms(player, BasisTransformMapping.leftHand);
+        GeneratedRequiredTransforms(player, BasisTransformMapping.rightHand);
     }
+    public static void ChooseSpine(BasisTransformMapping BasisTransformMapping, out Transform root, out Transform middle, out Transform tip)
+    {
+        if (BasisTransformMapping.HasUpperchest)
+        {
+            root = BasisTransformMapping.Upperchest;
+            middle = BasisTransformMapping.neck;
+            tip = BasisTransformMapping.head;
+        }
+        else if (BasisTransformMapping.Haschest)
+        {
+            root = BasisTransformMapping.chest;
+            middle = BasisTransformMapping.neck;
+            tip = BasisTransformMapping.head;
+        }
+        else
+        {
+            root = BasisTransformMapping.spine;
+            middle = BasisTransformMapping.neck;
+            tip = BasisTransformMapping.head;
+        }
+    }
+
     public static void SetHandCollisionScale(BasisFullBodyIK TwoBoneIKConstraint, float Scale)
     {
         //1.6m is the default values for below.
@@ -230,7 +163,6 @@ public static class BasisAnimationRiggingHelper
             }
         }
     }
-
     public static GameObject CreateAndSetParent(Transform parent, string name)
     {
         Transform[] Children = parent.transform.GetComponentsInChildren<Transform>();

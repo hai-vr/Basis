@@ -38,7 +38,7 @@ namespace Basis.Scripts.Drivers
         public PlayableGraph PlayableGraph;
 
         private BasisLocalPlayer localPlayer;
-        private BasisTransformMapping references;
+        private BasisTransformMapping BasisTransformMapping;
 
         private readonly Dictionary<BasisBoneTrackedRole, OneEuroFilterVector3> posFilters = new();
         private float _timeAccumulator;
@@ -78,7 +78,7 @@ namespace Basis.Scripts.Drivers
         public void Initialize(BasisLocalPlayer localPlayer, BasisTransformMapping references)
         {
             this.localPlayer = localPlayer;
-            this.references = references;
+            this.BasisTransformMapping = references;
             _timeAccumulator = 0f;
         }
 
@@ -212,40 +212,10 @@ namespace Basis.Scripts.Drivers
         }
         public void Spine(GameObject MainRig)
         {
-            // Spine chain selection
-            ChooseSpine(out var root0, out var mid0, out var tip0);
-            // Build arrays for legs and head chain
-            var roots = new[] { root0, references.LeftUpperLeg, references.RightUpperLeg };
-            var middles = new[] { mid0, references.LeftLowerLeg, references.RightLowerLeg };
-            var tips = new[] { tip0, references.leftFoot, references.rightFoot };
-
-            var roles = new[]
-            {
-                BasisBoneTrackedRole.Head,
-                BasisBoneTrackedRole.LeftFoot,
-                BasisBoneTrackedRole.RightFoot
-            };
-
-            var hintRoles = new[]
-            {
-                BasisBoneTrackedRole.Chest,
-                BasisBoneTrackedRole.LeftLowerLeg,
-                BasisBoneTrackedRole.RightLowerLeg
-            };
-
-            BasisAnimationRiggingHelper.CreateBasisFullBodyRIG(
-                localPlayer, MainRig, roots, middles, tips, roles, hintRoles, out BasisFullIKConstraint,
-                references.Hips, BasisBoneTrackedRole.Hips,
-                references.leftToes, references.rightToes,
-                references.chest, references.neck,
-                references.leftUpperArm, references.leftLowerArm, references.leftHand,
-                references.RightUpperArm, references.RightLowerArm, references.rightHand
-            );
+            BasisAnimationRiggingHelper.CreateBasisFullBodyRIG(localPlayer, MainRig, BasisTransformMapping, out BasisFullIKConstraint);
 
             // Base enables
             var d = BasisFullIKConstraint.data;
-            d.enabledHead = true;
-            d.enabledHips = true;
 
             // Legs enabled by presence
             BasisLocalBoneDriver.LeftFootControl.OnHasRigChanged += () =>
@@ -370,36 +340,13 @@ namespace Basis.Scripts.Drivers
 
             Spine(rigGO);
             // Ensure a RigTransform exists on hips
-            if (!references.Hips.gameObject.TryGetComponent<RigTransform>(out _))
+            if (!BasisTransformMapping.Hips.gameObject.TryGetComponent<RigTransform>(out _))
             {
-                references.Hips.gameObject.AddComponent<RigTransform>();
+                BasisTransformMapping.Hips.gameObject.AddComponent<RigTransform>();
             }
 
             BasisLocalBoneControl.HasEvents = true;
         }
-
-        private void ChooseSpine(out Transform root, out Transform middle, out Transform tip)
-        {
-            if (references.HasUpperchest)
-            {
-                root = references.Upperchest;
-                middle = references.neck;
-                tip = references.head;
-            }
-            else if (references.Haschest)
-            {
-                root = references.chest;
-                middle = references.neck;
-                tip = references.head;
-            }
-            else
-            {
-                root = references.spine;
-                middle = references.neck;
-                tip = references.head;
-            }
-        }
-
         // ------------------------------------------
         // Bone selection
         // ------------------------------------------
@@ -494,9 +441,10 @@ namespace Basis.Scripts.Drivers
         private Transform ResolveHumanoidBoneTransform(HumanBodyBones bone)
         {
             // Prefer references map if available
-            if (BasisLocalAvatarDriver.References != null &&
-                BasisLocalAvatarDriver.References.GetTransform(bone, out Transform refT))
+            if (BasisLocalAvatarDriver.References != null && BasisLocalAvatarDriver.References.GetTransform(bone, out Transform refT))
+            {
                 return refT;
+            }
 
             // Fallback to Animator
             var animator = localPlayer?.BasisAvatar?.Animator;
@@ -510,16 +458,19 @@ namespace Basis.Scripts.Drivers
         {
             // Clear all
             foreach (BasisBoneTrackedRole role in Enum.GetValues(typeof(BasisBoneTrackedRole)))
+            {
                 ApplyHint(role, false);
+            }
 
             var dm = BasisDeviceManagement.Instance;
-            if (dm?.AllInputDevices == null) return;
 
             for (int i = 0; i < dm.AllInputDevices.Count; i++)
             {
                 var input = dm.AllInputDevices[i];
                 if (input != null && input.TryGetRole(out BasisBoneTrackedRole role))
+                {
                     ApplyHint(role, true);
+                }
             }
         }
 

@@ -233,14 +233,14 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Quaternion LeftFootTargetRotation;
         [SyncSceneToStream, SerializeField] public Vector3 HintPositionLeftLowerLeg;
         [SyncSceneToStream, SerializeField] public Quaternion HintRotationLeftLowerLeg;
-        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetLeftLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftLowerLeg;
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetLeftFoot;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftFoot;
         [SyncSceneToStream, SerializeField] public Vector3 RightFootTargetPosition;
         [SyncSceneToStream, SerializeField] public Quaternion RightFootTargetRotation;
         [SyncSceneToStream, SerializeField] public Vector3 HintPositionRightLowerLeg;
         [SyncSceneToStream, SerializeField] public Quaternion HintRotationRightLowerLeg;
-        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightLowerLeg;
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightLeftLeg;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightLeftLeg;
         [SyncSceneToStream, SerializeField] public Vector3 TargetPositionHips;
         [SyncSceneToStream, SerializeField] public Quaternion TargetRotationEulerHips;
         [SyncSceneToStream, SerializeField] public Quaternion OffsetRotationHips;
@@ -295,12 +295,12 @@ namespace UnityEngine.Animations.Rigging
         public Transform rootHead { get => m_RootHead; set => m_RootHead = value; }
         public Transform midHead { get => m_MidHead; set => m_MidHead = value; }
         public Transform tipHead { get => m_TipHead; set => m_TipHead = value; }
-        public Transform rootLeftLowerLeg { get => m_RootLeftLowerLeg; set => m_RootLeftLowerLeg = value; }
-        public Transform midLeftLowerLeg { get => m_MidLeftLowerLeg; set => m_MidLeftLowerLeg = value; }
-        public Transform tipLeftLowerLeg { get => m_TipLeftLowerLeg; set => m_TipLeftLowerLeg = value; }
-        public Transform rootRightLowerLeg { get => m_RootRightLowerLeg; set => m_RootRightLowerLeg = value; }
-        public Transform midRightLowerLeg { get => m_MidRightLowerLeg; set => m_MidRightLowerLeg = value; }
-        public Transform tipRightLowerLeg { get => m_TipRightLowerLeg; set => m_TipRightLowerLeg = value; }
+        public Transform LeftUpperLeg { get => m_RootLeftLowerLeg; set => m_RootLeftLowerLeg = value; }
+        public Transform LeftLowerLeg { get => m_MidLeftLowerLeg; set => m_MidLeftLowerLeg = value; }
+        public Transform leftFoot { get => m_TipLeftLowerLeg; set => m_TipLeftLowerLeg = value; }
+        public Transform RightUpperLeg { get => m_RootRightLowerLeg; set => m_RootRightLowerLeg = value; }
+        public Transform RightLowerLeg { get => m_MidRightLowerLeg; set => m_MidRightLowerLeg = value; }
+        public Transform RightFoot { get => m_TipRightLowerLeg; set => m_TipRightLowerLeg = value; }
         public Transform hips { get => m_Hips; set => m_Hips = value; }
         public Transform chestCapsuleStart { get => m_ChestCapsuleStart; set => m_ChestCapsuleStart = value; }
         public Transform chestCapsuleEnd { get => m_ChestCapsuleEnd; set => m_ChestCapsuleEnd = value; }
@@ -432,8 +432,8 @@ namespace UnityEngine.Animations.Rigging
             m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
             m_EnabledLeftHand = m_EnabledRightHand = true;
 
-            m_CalibratedOffsetHead = m_CalibratedOffsetLeftLowerLeg = m_CalibratedOffsetRightLowerLeg = Vector3.zero;
-            m_CalibratedRotationHead = m_CalibratedRotationLeftLowerLeg = m_CalibratedRotationRightLowerLeg = Quaternion.identity;
+            m_CalibratedOffsetHead = m_CalibratedOffsetLeftFoot = m_CalibratedOffsetRightLeftLeg = Vector3.zero;
+            m_CalibratedRotationHead = m_CalibratedRotationLeftFoot = m_CalibratedRotationRightLeftLeg = Quaternion.identity;
 
             m_CalibratedOffsetLeftHand = m_CalibratedOffsetRightHand = Vector3.zero;
             m_CalibratedRotationLeftHand = m_CalibratedRotationRightHand = Quaternion.identity;
@@ -1060,9 +1060,9 @@ namespace UnityEngine.Animations.Rigging
                 targetOffsetHead = new AffineTransform(data.m_CalibratedOffsetHead, data.m_CalibratedRotationHead),
 
                 // Left Lower Leg
-                rootLeftLowerLeg = BindHandle(animator, data.rootLeftLowerLeg),
-                midLeftLowerLeg = BindHandle(animator, data.midLeftLowerLeg),
-                tipLeftLowerLeg = BindHandle(animator, data.tipLeftLowerLeg),
+                rootLeftLowerLeg = BindHandle(animator, data.LeftUpperLeg),
+                midLeftLowerLeg = BindHandle(animator, data.LeftLowerLeg),
+                tipLeftLowerLeg = BindHandle(animator, data.leftFoot),
 
                 targetPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.TargetPositionPropertyLeftLowerLeg),
                 targetRotationLeftLowerLeg = Vector4Property.Bind(animator, component, data.TargetRotationPropertyLeftLowerLeg),
@@ -1072,12 +1072,12 @@ namespace UnityEngine.Animations.Rigging
                 hintWeightLeftLowerLeg = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyLeftLowerLeg),
                 enabledLeftLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyLeftLowerLeg),
 
-                targetOffsetLeftLowerLeg = new AffineTransform(data.m_CalibratedOffsetLeftLowerLeg, data.m_CalibratedRotationLeftLowerLeg),
+                targetOffsetLeftLowerLeg = new AffineTransform(data.m_CalibratedOffsetLeftFoot, data.m_CalibratedRotationLeftFoot),
 
                 // Right Lower Leg
-                rootRightLowerLeg = BindHandle(animator, data.rootRightLowerLeg),
-                midRightLowerLeg = BindHandle(animator, data.midRightLowerLeg),
-                tipRightLowerLeg = BindHandle(animator, data.tipRightLowerLeg),
+                rootRightLowerLeg = BindHandle(animator, data.RightUpperLeg),
+                midRightLowerLeg = BindHandle(animator, data.RightLowerLeg),
+                tipRightLowerLeg = BindHandle(animator, data.RightFoot),
 
                 targetPositionRightLowerLeg = Vector3Property.Bind(animator, component, data.TargetPositionPropertyRightLowerLeg),
                 targetRotationRightLowerLeg = Vector4Property.Bind(animator, component, data.TargetRotationPropertyRightLowerLeg),
@@ -1087,7 +1087,7 @@ namespace UnityEngine.Animations.Rigging
                 hintWeightRightLowerLeg = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyRightLowerLeg),
                 enabledRightLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyRightLowerLeg),
 
-                targetOffsetRightLowerLeg = new AffineTransform(data.m_CalibratedOffsetRightLowerLeg, data.m_CalibratedRotationRightLowerLeg),
+                targetOffsetRightLowerLeg = new AffineTransform(data.m_CalibratedOffsetRightLeftLeg, data.m_CalibratedRotationRightLeftLeg),
 
                 // Integrated Dual "Driven TR"
                 leftDrivenHandle = BindHandle(animator, data.LeftToe),
