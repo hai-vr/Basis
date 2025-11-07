@@ -269,13 +269,7 @@ namespace Basis.Scripts.Drivers
                 BasisFullIKConstraint.data = dd;
             };
             d.enabledRightHand = BasisLocalBoneDriver.RightHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-
-            BasisFullIKConstraint.data = d;
-
             int per = BasisFullBodyData.Count;
-
-            d = BasisFullIKConstraint.data;
-
             for (int slot = 0; slot < per; slot++)
             {
                 var t = ResolveHumanoidBoneTransform((HumanBodyBones)slot);
