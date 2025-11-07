@@ -10,7 +10,7 @@ namespace UnityEngine.Animations.Rigging
     [System.Serializable]
     public struct BasisFullBodyData : IAnimationJobData, IBasisFullBodyData
     {
-        public const int Count = 23;
+        public const int Count = 22;
 
         // Live target positions (Vector3) pushed every frame from the manager.
         [SyncSceneToStream, SerializeField]
@@ -19,7 +19,7 @@ namespace UnityEngine.Animations.Rigging
             TargetPosition5, TargetPosition6, TargetPosition7, TargetPosition8, TargetPosition9,
             TargetPosition10, TargetPosition11, TargetPosition12, TargetPosition13, TargetPosition14,
             TargetPosition15, TargetPosition16, TargetPosition17, TargetPosition18, TargetPosition19,
-            TargetPosition20, TargetPosition21;
+            TargetPosition20, TargetPosition54;
 
         // Live target rotations (Quaternion) — stored as Quaternion on the component; bound as Vector4 by the job.
         [SyncSceneToStream, SerializeField]
@@ -28,7 +28,7 @@ namespace UnityEngine.Animations.Rigging
             TargetRotation5, TargetRotation6, TargetRotation7, TargetRotation8, TargetRotation9,
             TargetRotation10, TargetRotation11, TargetRotation12, TargetRotation13, TargetRotation14,
             TargetRotation15, TargetRotation16, TargetRotation17, TargetRotation18, TargetRotation19,
-            TargetRotation20, TargetRotation21;
+            TargetRotation20, TargetRotation54;
 
         // Calibration offsets (applied on top of target each frame) — final = target * offset
         [SyncSceneToStream, SerializeField]
@@ -37,7 +37,7 @@ namespace UnityEngine.Animations.Rigging
             OffsetRotation5, OffsetRotation6, OffsetRotation7, OffsetRotation8, OffsetRotation9,
             OffsetRotation10, OffsetRotation11, OffsetRotation12, OffsetRotation13, OffsetRotation14,
             OffsetRotation15, OffsetRotation16, OffsetRotation17, OffsetRotation18, OffsetRotation19,
-            OffsetRotation20, OffsetRotation21;
+            OffsetRotation20, OffsetRotation54;
 
         // Per-slot enable/weights (0..1). Allows toggling bones independently within a single job.
         [SyncSceneToStream, SerializeField]
@@ -46,9 +46,7 @@ namespace UnityEngine.Animations.Rigging
             Weight5, Weight6, Weight7, Weight8, Weight9,
             Weight10, Weight11, Weight12, Weight13, Weight14,
             Weight15, Weight16, Weight17, Weight18, Weight19,
-            Weight20, Weight21;
-
-        public int count => Count;
+            Weight20, Weight54;
 
         // Property name helpers for binding
         public string GetTargetPositionVector3Property(int index) => index switch
@@ -74,7 +72,7 @@ namespace UnityEngine.Animations.Rigging
             18 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPosition18)),
             19 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPosition19)),
             20 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPosition20)),
-            21 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPosition21)),
+            54 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetPosition54)),
             _ => string.Empty
         };
 
@@ -101,7 +99,7 @@ namespace UnityEngine.Animations.Rigging
             18 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotation18)),
             19 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotation19)),
             20 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotation20)),
-            21 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotation21)),
+            54 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(TargetRotation54)),
             _ => string.Empty
         };
 
@@ -128,7 +126,7 @@ namespace UnityEngine.Animations.Rigging
             18 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotation18)),
             19 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotation19)),
             20 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotation20)),
-            21 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotation21)),
+            54 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotation54)),
             _ => string.Empty
         };
 
@@ -155,7 +153,7 @@ namespace UnityEngine.Animations.Rigging
             18 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(Weight18)),
             19 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(Weight19)),
             20 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(Weight20)),
-            21 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(Weight21)),
+            54 => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(Weight54)),
             _ => string.Empty
         };
         [SerializeField] Transform m_Hips;
@@ -275,8 +273,8 @@ namespace UnityEngine.Animations.Rigging
         public Transform RightLowerArm { get => m_RightLowerArm; set => m_RightLowerArm = value; }
         public Transform RightHand { get => m_rightHand; set => m_rightHand = value; }
 
-        public Transform Spine { get => m_Spine; set => m_Spine = value; }
-        public Transform UpperChest { get => m_UpperChest; set => m_UpperChest = value; }
+        public Transform spine { get => m_Spine; set => m_Spine = value; }
+        public Transform upperChest { get => m_UpperChest; set => m_UpperChest = value; }
         public Transform LeftShoulder { get => m_LeftShoulder; set => m_LeftShoulder = value; }
         public Transform RightShoulder { get => m_RightShoulder; set => m_RightShoulder = value; }
         public string EnabledPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HeadEnabled));
@@ -432,28 +430,28 @@ namespace UnityEngine.Animations.Rigging
             TargetPosition5 = TargetPosition6 = TargetPosition7 = TargetPosition8 = TargetPosition9 =
             TargetPosition10 = TargetPosition11 = TargetPosition12 = TargetPosition13 = TargetPosition14 =
             TargetPosition15 = TargetPosition16 = TargetPosition17 = TargetPosition18 = TargetPosition19 =
-            TargetPosition20 = TargetPosition21 = Vector3.zero;
+            TargetPosition20 = TargetPosition54 = Vector3.zero;
 
             // Rotations
             TargetRotation0 = TargetRotation1 = TargetRotation2 = TargetRotation3 = TargetRotation4 =
             TargetRotation5 = TargetRotation6 = TargetRotation7 = TargetRotation8 = TargetRotation9 =
             TargetRotation10 = TargetRotation11 = TargetRotation12 = TargetRotation13 = TargetRotation14 =
             TargetRotation15 = TargetRotation16 = TargetRotation17 = TargetRotation18 = TargetRotation19 =
-            TargetRotation20 = TargetRotation21 = Quaternion.identity;
+            TargetRotation20 = TargetRotation54 = Quaternion.identity;
 
             // Offsets
             OffsetRotation0 = OffsetRotation1 = OffsetRotation2 = OffsetRotation3 = OffsetRotation4 =
             OffsetRotation5 = OffsetRotation6 = OffsetRotation7 = OffsetRotation8 = OffsetRotation9 =
             OffsetRotation10 = OffsetRotation11 = OffsetRotation12 = OffsetRotation13 = OffsetRotation14 =
             OffsetRotation15 = OffsetRotation16 = OffsetRotation17 = OffsetRotation18 = OffsetRotation19 =
-            OffsetRotation20 = OffsetRotation21 = Quaternion.identity;
+            OffsetRotation20 = OffsetRotation54 = Quaternion.identity;
 
             // Weights default to disabled
             Weight0 = Weight1 = Weight2 = Weight3 = Weight4 =
             Weight5 = Weight6 = Weight7 = Weight8 = Weight9 =
             Weight10 = Weight11 = Weight12 = Weight13 = Weight14 =
             Weight15 = Weight16 = Weight17 = Weight18 = Weight19 =
-            Weight20 = Weight21 = false;
+            Weight20 = Weight54 = false;
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetTargetPosition(int idx, in Vector3 v)
@@ -481,7 +479,9 @@ namespace UnityEngine.Animations.Rigging
                 case 18: TargetPosition18 = v; break;
                 case 19: TargetPosition19 = v; break;
                 case 20: TargetPosition20 = v; break;
-                case 21: TargetPosition21 = v; break;
+                case 54: TargetPosition54 = v; break;
+                default:
+                    break;
             }
         }
 
@@ -511,7 +511,9 @@ namespace UnityEngine.Animations.Rigging
                 case 18: TargetRotation18 = q; break;
                 case 19: TargetRotation19 = q; break;
                 case 20: TargetRotation20 = q; break;
-                case 21: TargetRotation21 = q; break;
+                case 54: TargetRotation54 = q; break;
+                default:
+                    break;
             }
         }
 
@@ -541,7 +543,9 @@ namespace UnityEngine.Animations.Rigging
                 case 18: OffsetRotation18 = q; break;
                 case 19: OffsetRotation19 = q; break;
                 case 20: OffsetRotation20 = q; break;
-                case 21: OffsetRotation21 = q; break;
+                case 54: OffsetRotation54 = q; break;
+                default:
+                    break;
             }
         }
 
@@ -571,14 +575,14 @@ namespace UnityEngine.Animations.Rigging
                 case 18: Weight18 = State; break;
                 case 19: Weight19 = State; break;
                 case 20: Weight20 = State; break;
-                case 21: Weight21 = State; break;
+                case 54: Weight54 = State; break;
+                default:
+                    break;
             }
         }
     }
     public interface IBasisFullBodyData
     {
-        int count { get; }
-
         string GetTargetPositionVector3Property(int index);
         string GetTargetRotationVector4Property(int index);
         string GetOffsetRotationVector4Property(int index);
@@ -634,7 +638,7 @@ targetPositionRightHand, hintPositionRightHand,
 handLocalStart, handLocalEnd,
 p0, p1, p2, p3, p4, p5, p6, p7, p8, p9,
 p10, p11, p12, p13, p14, p15, p16, p17, p18, p19,
-p20, p21;
+p20, p54;
 
         public Vector4Property targetRotationHead, hintRotationHead,
 targetRotationLeftLowerLeg, hintRotationLeftLowerLeg,
@@ -645,10 +649,10 @@ targetRotationLeftHand, hintRotationLeftHand,
 targetRotationRightHand, hintRotationRightHand,
 r0, r1, r2, r3, r4, r5, r6, r7, r8, r9,
 r10, r11, r12, r13, r14, r15, r16, r17, r18, r19,
-r20, r21,
+r20, r54,
 o0, o1, o2, o3, o4, o5, o6, o7, o8, o9,
 o10, o11, o12, o13, o14, o15, o16, o17, o18, o19,
-o20, o21;
+o20, o54;
 
         public AffineTransform targetOffsetHead,
 targetOffsetLeftLowerLeg,
@@ -668,7 +672,7 @@ useHandCapsule, protectElbow,
 collisionsEnabled,
 w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
 w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
-w20, w21;
+w20, w54;
 
         public FloatProperty
 handRadius, handSkin,
@@ -765,26 +769,26 @@ chestRadius, collisionSkin;
             BasisAnimationRuntimeUtils.Apply(stream, HandleSpine, p7, r7, o7, w7);
 
             BasisAnimationRuntimeUtils.Apply(stream, HandleChest, p8, r8, o8, w8);
-            BasisAnimationRuntimeUtils.Apply(stream, HandleUpperChest, p9, r9, o9, w9);
+            BasisAnimationRuntimeUtils.Apply(stream, HandleNeck, p9, r9, o9, w9);
 
-            BasisAnimationRuntimeUtils.Apply(stream, HandleNeck, p10, r10, o10, w10);
-            BasisAnimationRuntimeUtils.Apply(stream, HandleHead, p11, r11, o11, w11);
+            BasisAnimationRuntimeUtils.Apply(stream, HandleHead, p10, r10, o10, w10);
 
-            BasisAnimationRuntimeUtils.Apply(stream, HandleLeftShoulder, p12, r12, o12, w12);
-            BasisAnimationRuntimeUtils.Apply(stream, HandleRightShoulder, p13, r13, o13, w13);
+            BasisAnimationRuntimeUtils.Apply(stream, HandleLeftShoulder, p11, r11, o11, w11);
+            BasisAnimationRuntimeUtils.Apply(stream, HandleRightShoulder, p12, r12, o12, w12);
 
-            BasisAnimationRuntimeUtils.Apply(stream, HandleLeftUpperArm, p14, r14, o14, w14);
+            BasisAnimationRuntimeUtils.Apply(stream, HandleLeftUpperArm, p13, r13, o13, w13);
+            BasisAnimationRuntimeUtils.Apply(stream, HandleRightUpperArm, p14, r14, o14, w14);
+
             BasisAnimationRuntimeUtils.Apply(stream, HandleRightUpperArm, p15, r15, o15, w15);
+            BasisAnimationRuntimeUtils.Apply(stream, HandleRightLowerArm, p16, r16, o16, w16);
 
-            BasisAnimationRuntimeUtils.Apply(stream, HandleLeftLowerArm, p16, r16, o16, w16);
-            BasisAnimationRuntimeUtils.Apply(stream, HandleRightLowerArm, p17, r17, o17, w17);
+            BasisAnimationRuntimeUtils.Apply(stream, HandleLeftHand, p17, r17, o17, w17);
+            BasisAnimationRuntimeUtils.Apply(stream, HandleRightHand, p18, r18, o18, w18);
 
-            BasisAnimationRuntimeUtils.Apply(stream, HandleLeftHand, p18, r18, o18, w18);
-            BasisAnimationRuntimeUtils.Apply(stream, HandleRightHand, p19, r19, o19, w19);
+            BasisAnimationRuntimeUtils.Apply(stream, HandleLeftToe, p19, r19, o19, w19);
+            BasisAnimationRuntimeUtils.Apply(stream, HandleRightToe, p20, r20, o20, w20);
 
-            BasisAnimationRuntimeUtils.Apply(stream, HandleLeftToe, p20, r20, o20, w20);
-            BasisAnimationRuntimeUtils.Apply(stream, HandleRightToe, p21, r21, o21, w21);
-
+            BasisAnimationRuntimeUtils.Apply(stream, HandleUpperChest, p54, r54, o54, w54);
         }
         static Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
 
@@ -821,8 +825,8 @@ chestRadius, collisionSkin;
                 HandleRightLowerArm = BindHandle(animator, data.RightLowerArm),
                 HandleRightHand = BindHandle(animator, data.RightHand),
 
-                HandleSpine = BindHandle(animator, data.Spine),
-                HandleUpperChest = BindHandle(animator, data.UpperChest),
+                HandleSpine = BindHandle(animator, data.spine),
+                HandleUpperChest = BindHandle(animator, data.upperChest),
                 HandleLeftShoulder = BindHandle(animator, data.LeftShoulder),
                 HandleRightShoulder = BindHandle(animator, data.RightShoulder),
 
@@ -926,7 +930,7 @@ chestRadius, collisionSkin;
             job.p18 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(18));
             job.p19 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(19));
             job.p20 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(20));
-            job.p21 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(21));
+            job.p54 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(54));
             // Bind rotations (as Vector4)
             job.r0 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(0));
             job.r1 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(1));
@@ -949,7 +953,7 @@ chestRadius, collisionSkin;
             job.r18 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(18));
             job.r19 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(19));
             job.r20 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(20));
-            job.r21 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(21));
+            job.r54 = Vector4Property.Bind(animator, component, data.GetTargetRotationVector4Property(54));
             // Bind offsets
             job.o0 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(0));
             job.o1 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(1));
@@ -972,7 +976,7 @@ chestRadius, collisionSkin;
             job.o18 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(18));
             job.o19 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(19));
             job.o20 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(20));
-            job.o21 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(21));
+            job.o54 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(54));
 
             // Bind per-slot weights
             job.w0 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(0));
@@ -996,7 +1000,7 @@ chestRadius, collisionSkin;
             job.w18 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(18));
             job.w19 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(19));
             job.w20 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(20));
-            job.w21 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(21));
+            job.w54 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(54));
             return job;
         }
         static ReadWriteTransformHandle BindHandle(Animator animator, Transform t)

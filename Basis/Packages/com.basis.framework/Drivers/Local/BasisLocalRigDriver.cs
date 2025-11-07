@@ -43,14 +43,9 @@ namespace Basis.Scripts.Drivers
         private readonly Dictionary<BasisBoneTrackedRole, OneEuroFilterVector3> posFilters = new();
         private float _timeAccumulator;
 
-        public HumanBodyBones[] HumanBones;
-        public bool[] isActive;
-
         public Rig MainRig;
         public RigLayer RigLayer;
         public BasisFullBodyIK BasisFullIKConstraint;
-
-        private BasisConstraintSlotIndex[] _boneToSlot; // size = (int)HumanBodyBones.LastBone
 
         // ------------------------------------------
         // Filters
@@ -277,51 +272,19 @@ namespace Basis.Scripts.Drivers
 
             BasisFullIKConstraint.data = d;
 
-            // Collect usable bones that exist on the avatar
-            var activeList = new List<bool>(55);
-            var boneList = new List<HumanBodyBones>(55);
-
-            foreach (HumanBodyBones bone in (HumanBodyBones[])Enum.GetValues(typeof(HumanBodyBones)))
-            {
-                if (!UseableBodyBone(bone)) continue;
-
-                if (ResolveHumanoidBoneTransform(bone) != null)
-                {
-                    boneList.Add(bone);
-                    activeList.Add(false);
-                }
-            }
-
-            HumanBones = boneList.ToArray();
-            isActive = activeList.ToArray();
-
-            // Direct slot lookup table (initialize with sentinel -1)
-            _boneToSlot = new BasisConstraintSlotIndex[(int)HumanBodyBones.LastBone];
-            for (int i = 0; i < _boneToSlot.Length; i++)
-            {
-                _boneToSlot[i].Slot = -1;
-            }
-
-            // Create batches
-            int count = HumanBones.Length;
             int per = BasisFullBodyData.Count;
 
-            int boneIdx = 0;
             d = BasisFullIKConstraint.data;
 
-            for (int slot = 0; slot < per && boneIdx < count; slot++, boneIdx++)
+            for (int slot = 0; slot < per; slot++)
             {
-                var bone = HumanBones[boneIdx];
-                var t = ResolveHumanoidBoneTransform(bone);
+                var t = ResolveHumanoidBoneTransform((HumanBodyBones)slot);
                 if (t == null) { slot--; continue; } // keep slot usage tight if a bone vanishes
 
                 // default disabled; keep current orientation as offset
                 d.SetWeight(slot, false);
                 d.SetOffsetRotation(slot, t.rotation);
                 d.SetTargetRotation(slot, t.rotation);
-
-                // map bone -> slot
-                _boneToSlot[(int)bone] = new BasisConstraintSlotIndex { Slot = (short)slot };
             }
 
             BasisFullIKConstraint.data = d;
@@ -343,97 +306,22 @@ namespace Basis.Scripts.Drivers
 
             BasisLocalBoneControl.HasEvents = true;
         }
-        // ------------------------------------------
-        // Bone selection
-        // ------------------------------------------
-        public static bool UseableBodyBone(HumanBodyBones bone)
-        {
-            switch (bone)
-            {
-                case HumanBodyBones.LastBone:
-                case HumanBodyBones.LeftEye:
-                case HumanBodyBones.RightEye:
-                    return false;
-
-                // Exclude all fingers
-                case HumanBodyBones.LeftThumbProximal:
-                case HumanBodyBones.LeftThumbIntermediate:
-                case HumanBodyBones.LeftThumbDistal:
-                case HumanBodyBones.LeftIndexProximal:
-                case HumanBodyBones.LeftIndexIntermediate:
-                case HumanBodyBones.LeftIndexDistal:
-                case HumanBodyBones.LeftMiddleProximal:
-                case HumanBodyBones.LeftMiddleIntermediate:
-                case HumanBodyBones.LeftMiddleDistal:
-                case HumanBodyBones.LeftRingProximal:
-                case HumanBodyBones.LeftRingIntermediate:
-                case HumanBodyBones.LeftRingDistal:
-                case HumanBodyBones.LeftLittleProximal:
-                case HumanBodyBones.LeftLittleIntermediate:
-                case HumanBodyBones.LeftLittleDistal:
-                case HumanBodyBones.RightThumbProximal:
-                case HumanBodyBones.RightThumbIntermediate:
-                case HumanBodyBones.RightThumbDistal:
-                case HumanBodyBones.RightIndexProximal:
-                case HumanBodyBones.RightIndexIntermediate:
-                case HumanBodyBones.RightIndexDistal:
-                case HumanBodyBones.RightMiddleProximal:
-                case HumanBodyBones.RightMiddleIntermediate:
-                case HumanBodyBones.RightMiddleDistal:
-                case HumanBodyBones.RightRingProximal:
-                case HumanBodyBones.RightRingIntermediate:
-                case HumanBodyBones.RightRingDistal:
-                case HumanBodyBones.RightLittleProximal:
-                case HumanBodyBones.RightLittleIntermediate:
-                case HumanBodyBones.RightLittleDistal:
-                    return false;
-
-                default:
-                    return true;
-            }
-        }
-
-        // ------------------------------------------
-        // Overrides API
-        // ------------------------------------------
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideUsage(HumanBodyBones bone, bool enabled)
         {
-            if (!TryGetSlot(bone, out int si)) return;
-
-            int idx = Array.IndexOf(HumanBones, bone);
-            if (idx >= 0) isActive[idx] = enabled;
-
             var d = BasisFullIKConstraint.data;
-            d.SetWeight(si, enabled);
+            d.SetWeight((int)bone, enabled);
             BasisFullIKConstraint.data = d;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideData(HumanBodyBones bone, in Vector3 position, in Quaternion rotation)
         {
-            if (!TryGetSlot(bone, out int si)) return;
-
             var d = BasisFullIKConstraint.data;
-            d.SetTargetPosition(si, position);
-            d.SetTargetRotation(si, rotation);
+            d.SetTargetPosition((int)bone, position);
+            d.SetTargetRotation((int)bone, rotation);
             BasisFullIKConstraint.data = d;
         }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool TryGetSlot(HumanBodyBones bone, out int slot)
-        {
-            slot = -1;
-            int raw = (int)bone;
-            if (_boneToSlot == null || raw < 0 || raw >= _boneToSlot.Length) return false;
-
-            var s = _boneToSlot[raw].Slot;
-            if (s < 0) return false;
-
-            slot = s;
-            return true;
-        }
-
         private Transform ResolveHumanoidBoneTransform(HumanBodyBones bone)
         {
             // Prefer references map if available
