@@ -719,9 +719,9 @@ chestRadius, collisionSkin;
                 // --- Head + Legs ---
                 enabledSpineIK,
                 HandleHips,
-                HandleSpine,
+              //  HandleSpine,
                 HandleChest,
-                HandleUpperChest,
+               // HandleUpperChest,
                 HandleNeck,
                 HandleHead,
                 targetPositionHead,

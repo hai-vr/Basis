@@ -16,9 +16,9 @@ public static class BasisAnimationFullBodyIK
         BoolProperty EnableSpineIK,
 
         ReadWriteTransformHandle HandleHips,
-        ReadWriteTransformHandle HandleSpine,
+     //   ReadWriteTransformHandle HandleSpine,
         ReadWriteTransformHandle HandleChest,
-        ReadWriteTransformHandle HandleUpperChest,
+//        ReadWriteTransformHandle HandleUpperChest,
         ReadWriteTransformHandle HandleNeck,
         ReadWriteTransformHandle HandleHead,
         Vector3Property targetPositionHead,
