@@ -608,23 +608,31 @@ namespace Basis.Scripts.BasisSdk.Interactions
             Vector3 inPos = interactingInput.BoneControl.OutgoingWorldData.position;
             Quaternion inRot = interactingInput.BoneControl.OutgoingWorldData.rotation;
 
-            if (BasisDeviceManagement.IsUserInDesktop()) {
+
+            if (BasisDeviceManagement.IsUserInDesktop())
+            {
                 PollDesktopControl(Inputs.desktopCenterEye.Source);
-            }else{
+            }
+            else
+            {
                 // If trigger pulled on opposing input, scale object based on hand distance
                 if (enableScaleWithGesture && opposingInput.Source.CurrentInputState.Trigger >= 0.9f)
                 {
-                    float distanceBetweenHands = BasisPickupHelpers.GetNormalizedDistanceBetweenHands();
-                    if (_previousDistance == -1 ){
+
+                    float distanceBetweenHands = BasisPickupHelpers.GetNormalizedDistanceBetweenHands(Inputs);
+                    if (_previousDistance == -1)
+                    {
                         _previousDistance = distanceBetweenHands;
-                    }else{
+                    }
+                    else
+                    {
                         float delta = math.abs(_previousDistance - distanceBetweenHands);
                         if (delta > 0.001f)
                         {
-                            var scaleDirection =  distanceBetweenHands > _previousDistance  ? BasisTransform.Direction.Embiggen : BasisTransform.Direction.Ensmallen;
+                            var scaleDirection = distanceBetweenHands > _previousDistance ? BasisTransform.Direction.Embiggen : BasisTransform.Direction.Ensmallen;
                             float minScale = (minScalePercent / 100) * _scaleAtStart.x;
                             float maxScale = (maxScalePercent / 100) * _scaleAtStart.x;
-                            float stepSize = math.abs(minScale-maxScale)/100f;
+                            float stepSize = math.abs(minScale - maxScale) / 100f;
                             BasisTransform.ScaleObjectBetween(
                                 transform,
                                 scaleDirection,
@@ -635,7 +643,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         }
                         _previousDistance = distanceBetweenHands;
                     }
-                }else{
+                }
+                else
+                {
                     _previousDistance = -1;
                 }
             }

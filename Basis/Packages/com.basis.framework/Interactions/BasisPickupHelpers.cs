@@ -1,18 +1,19 @@
+using Basis.Scripts.BasisSdk.Interactions;
+using Unity.Mathematics;
 using UnityEngine;
-        using UnityEngine.XR;
+public class BasisPickupHelpers
+{
+    public static float GetDistanceBetweenHands(BasisInputSources Inputs)
+    {
+        float3 Left = Inputs.leftHand.Source.UnscaledDeviceCoord.position;
+        float3 Right = Inputs.rightHand.Source.UnscaledDeviceCoord.position;
+        float Distance = math.distance(Left, Right);
+        return Distance;
+    }
 
-        public class BasisPickupHelpers
-        {
-            public static float GetDistanceBetweenHands()
-            {
-                var left = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand).TryGetFeatureValue(CommonUsages.devicePosition, out Vector3 leftPosition) ? leftPosition : Vector3.zero;
-                var right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand).TryGetFeatureValue(CommonUsages.devicePosition, out Vector3 rightPosition) ? rightPosition : Vector3.zero;
-                return (left - right).sqrMagnitude;
-            }
-
-            public static float GetNormalizedDistanceBetweenHands(float min = 0.02f, float max = 0.5f)
-            {
-                var distance = GetDistanceBetweenHands();
-                return Mathf.InverseLerp(min, max, distance);
-            }
-        }
+    public static float GetNormalizedDistanceBetweenHands(BasisInputSources BasisInputSources,float min = 0.02f, float max = 0.5f)
+    {
+        var distance = GetDistanceBetweenHands(BasisInputSources);
+        return Mathf.InverseLerp(min, max, distance);
+    }
+}
