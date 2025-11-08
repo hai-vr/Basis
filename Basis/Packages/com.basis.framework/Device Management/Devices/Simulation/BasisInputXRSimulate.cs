@@ -74,6 +74,8 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
                     // Apply pose to incoming data for the bone control
                     Control.IncomingData.position = ScaledDeviceCoord.position;
                     Control.IncomingData.rotation = ScaledDeviceCoord.rotation;
+                    this.transform.name = Control.name;
+                    this.FollowMovement.name = $"{Control.name} Moveable transform";
                 }
             }
 
