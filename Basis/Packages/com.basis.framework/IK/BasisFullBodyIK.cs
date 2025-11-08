@@ -267,6 +267,8 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_HintRightHandEnabled;
         [SyncSceneToStream, SerializeField] bool m_HintLeftHandEnabled;
 
+        [SyncSceneToStream, SerializeField] bool m_HaisIKEnabled;
+
         public Transform chest { get => m_chest; set => m_chest = value; }
         public Transform neck { get => m_neck; set => m_neck = value; }
         public Transform head { get => m_head; set => m_head = value; }
@@ -339,6 +341,8 @@ namespace UnityEngine.Animations.Rigging
         public string HandSkinFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandSkin));
         public string UseHandCapsuleBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UseHandCapsule));
         public string ProtectElbowBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ProtectElbow));
+
+        public string HaisIKboolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HaisIKEnabled));
         public bool hintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
         public bool HintWeightLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
@@ -359,6 +363,8 @@ namespace UnityEngine.Animations.Rigging
         public float chestRadius { get => m_ChestRadius; set => m_ChestRadius = value; }
         public float collisionSkin { get => m_CollisionSkin; set => m_CollisionSkin = value; }
         public bool collisionsEnabled { get => m_CollisionsEnabled; set => m_CollisionsEnabled = value; }
+
+        public bool HaisIKEnabled { get => m_HaisIKEnabled; set => m_HaisIKEnabled = value; }
 
         public Vector3 handLocalStartLeft { get => m_HandLocalStart; set => m_HandLocalStart = value; }
         public Vector3 handLocalEndLeft { get => m_HandLocalEnd; set => m_HandLocalEnd = value; }
@@ -679,7 +685,7 @@ leftToeEnabled, RightToeEnabled,
 hintWeightLeftHand, enabledLeftHand,
 hintWeightRightHand, enabledRightHand,
 useHandCapsule, protectElbow,
-collisionsEnabled,
+collisionsEnabled, HaisIKEnabled,
 w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
 w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
 w20, w54;
@@ -708,55 +714,108 @@ chestRadius, collisionSkin;
 
                 return;
             }
-            BasisAnimationFullBodyIK.SolveHipsAndSpine(stream,
+            if (HaisIKEnabled.Get(stream))
+            {
+                BasisAnimationFullBodyIK.SolveHipsAndSpine(stream,
 
-                // --- Hips ---
-                targetPositionHips,
-                targetRotationHips,
-                offsetRotationHips,
+    // --- Hips ---
+    targetPositionHips,
+    targetRotationHips,
+    offsetRotationHips,
 
-                // --- Head + Legs ---
-                enabledSpineIK,
-                HandleHips,
-              //  HandleSpine,
-                HandleChest,
-               // HandleUpperChest,
-                HandleNeck,
-                HandleHead,
-                targetPositionHead,
-                targetRotationHead,
-                hintPositionHead,
-                hintRotationHead,
-                hintWeightHead,
-                targetOffsetHead,
-                bendNormalHead
-            );
+    // --- Head + Legs ---
+    enabledSpineIK,
+    HandleHips,
+    //  HandleSpine,
+    HandleChest,
+    // HandleUpperChest,
+    HandleNeck,
+    HandleHead,
+    targetPositionHead,
+    targetRotationHead,
+    hintPositionHead,
+    hintRotationHead,
+    hintWeightHead,
+    targetOffsetHead,
+    bendNormalHead
+);
 
-            BasisAnimationRuntimeUtils.SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
-                targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
-                hintWeightLeftLowerLeg, targetOffsetLeftLowerLeg, bendNormalHead);
+                BasisAnimationRuntimeUtils.SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
+    targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
+    hintWeightLeftLowerLeg, targetOffsetLeftLowerLeg, bendNormalHead);
 
-            BasisAnimationRuntimeUtils.SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
-                targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
-                hintWeightRightLowerLeg, targetOffsetRightLowerLeg, bendNormalHead);
+                BasisAnimationRuntimeUtils.SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
+                    targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
+                    hintWeightRightLowerLeg, targetOffsetRightLowerLeg, bendNormalHead);
 
-            // --- Hands (TwoBone with capsules + elbow protection) ---
-            BasisAnimationRuntimeUtils.SolveHand(stream,
-                enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
-                targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand,
-                hintWeightLeftHand, targetOffsetLeftHand,
-                HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
-                handLocalStart, handLocalEnd, handRadius, handSkin, useHandCapsule,
-                protectElbow);
+                // --- Hands (TwoBone with capsules + elbow protection) ---
+                BasisAnimationRuntimeUtils.SolveHand(stream,
+                    enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
+                    targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand,
+                    hintWeightLeftHand, targetOffsetLeftHand,
+                    HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
+                    handLocalStart, handLocalEnd, handRadius, handSkin, useHandCapsule,
+                    protectElbow);
 
-            BasisAnimationRuntimeUtils.SolveHand(stream,
-                enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,
-                targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand,
-                hintWeightRightHand, targetOffsetRightHand,
-                HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
-                handLocalStart, handLocalEnd, handRadius, handSkin, useHandCapsule,
-                protectElbow);
+                BasisAnimationRuntimeUtils.SolveHand(stream,
+                    enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,
+                    targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand,
+                    hintWeightRightHand, targetOffsetRightHand,
+                    HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
+                    handLocalStart, handLocalEnd, handRadius, handSkin, useHandCapsule,
+                    protectElbow);
+            }
+            else
+            {
+                BasisAnimationFullBodyIK.SolveHipsAndSpine(stream,
 
+                    // --- Hips ---
+                    targetPositionHips,
+                    targetRotationHips,
+                    offsetRotationHips,
+
+                    // --- Head + Legs ---
+                    enabledSpineIK,
+                    HandleHips,
+                    //  HandleSpine,
+                    HandleChest,
+                    // HandleUpperChest,
+                    HandleNeck,
+                    HandleHead,
+                    targetPositionHead,
+                    targetRotationHead,
+                    hintPositionHead,
+                    hintRotationHead,
+                    hintWeightHead,
+                    targetOffsetHead,
+                    bendNormalHead
+                );
+
+                BasisAnimationRuntimeUtils.SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
+                    targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
+                    hintWeightLeftLowerLeg, targetOffsetLeftLowerLeg, bendNormalHead);
+
+                BasisAnimationRuntimeUtils.SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
+                    targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
+                    hintWeightRightLowerLeg, targetOffsetRightLowerLeg, bendNormalHead);
+
+                // --- Hands (TwoBone with capsules + elbow protection) ---
+                BasisAnimationRuntimeUtils.SolveHand(stream,
+                    enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
+                    targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand,
+                    hintWeightLeftHand, targetOffsetLeftHand,
+                    HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
+                    handLocalStart, handLocalEnd, handRadius, handSkin, useHandCapsule,
+                    protectElbow);
+
+                BasisAnimationRuntimeUtils.SolveHand(stream,
+                    enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,
+                    targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand,
+                    hintWeightRightHand, targetOffsetRightHand,
+                    HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
+                    handLocalStart, handLocalEnd, handRadius, handSkin, useHandCapsule,
+                    protectElbow);
+            }
             // --- Integrated "damped TR" application (world-space) ---
             BasisAnimationRuntimeUtils.ApplyToeRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetPos, leftDrivenTargetRot);
             BasisAnimationRuntimeUtils.ApplyToeRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetPos, rightDrivenTargetRot);
@@ -908,6 +967,8 @@ chestRadius, collisionSkin;
                 targetOffsetRightLowerLeg = new AffineTransform(data.m_CalibratedOffsetRightLeftLeg, data.m_CalibratedRotationRightLeftLeg),
                 targetOffsetLeftHand = new AffineTransform(data.m_CalibratedOffsetLeftHand, data.m_CalibratedRotationLeftHand),
                 targetOffsetRightHand = new AffineTransform(data.m_CalibratedOffsetRightHand, data.m_CalibratedRotationRightHand),
+
+                HaisIKEnabled = BoolProperty.Bind(animator, component, data.HaisIKboolProperty)
 
             };
 
