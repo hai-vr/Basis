@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.Animations;
 using UnityEngine.Animations.Rigging;
+
 public static class BasisAnimationFullBodyIK
 {
     public static void SolveHipsAndSpine(
@@ -29,37 +30,31 @@ public static class BasisAnimationFullBodyIK
         Vector3Property bendNormalHead
     )
     {
+        // Early out: pass-through if spine IK disabled
         if (!EnableSpineIK.Get(stream))
         {
             Pass(stream, HandleChest, HandleNeck, HandleHead);
             BasisAnimationRuntimeUtils.PassThrough(stream, HandleHips);
             return;
         }
-        else
-        {
-            if (HandleHips.IsValid(stream))
-            {
-                Vector3 hipPos = targetPositionHips.Get(stream);
-                Quaternion hipRot = V4ToQuat(targetRotationHips.Get(stream));
-                Quaternion hipOff = V4ToQuat(offsetRotationHips.Get(stream));
 
-                HandleHips.SetPosition(stream, hipPos);
-                HandleHips.SetRotation(stream, hipRot * hipOff); // apply offset in target space
-            }
-        }
+        // Apply hips driver if valid
+        ApplyHipsDriver(stream, HandleHips, targetPositionHips, targetRotationHips, offsetRotationHips);
 
-        if (!(HandleChest.IsValid(stream) && HandleNeck.IsValid(stream) && HandleHead.IsValid(stream)))
+        // Validate required upper chain handles (Burst-safe: no params/arrays)
+        if (!AreValid3(stream, HandleChest, HandleNeck, HandleHead))
         {
             Pass(stream, HandleChest, HandleNeck, HandleHead);
             return;
         }
 
-        Quaternion tRot = V4ToQuat(targetRotationHead.Get(stream));
-        Quaternion hRot = V4ToQuat(hintRotationHead.Get(stream));
+        // Build target + hint transforms
+        var tRot = V4ToQuat(targetRotationHead.Get(stream));
+        var hRot = V4ToQuat(hintRotationHead.Get(stream));
 
-        AffineTransform target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-        AffineTransform hint = new AffineTransform(hintPositionHead.Get(stream), hRot);
-        Vector3 bendNormal = bendNormalHead.Get(stream);
+        var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+        var hint = new AffineTransform(hintPositionHead.Get(stream), hRot);
+        var bendNormal = bendNormalHead.Get(stream);
 
         SolveTwoBoneSpine(
             stream,
@@ -71,39 +66,48 @@ public static class BasisAnimationFullBodyIK
             bendNormal
         );
     }
+
     public static float TriangleAngle(float aLen, float aLen1, float aLen2)
     {
-        float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (aLen1 * aLen2) / 2.0f, -1.0f, 1.0f);
+        // Law of cosines with clamped domain to avoid NaNs
+        float denom = 2.0f * aLen1 * aLen2;
+        if (denom <= Mathf.Epsilon)
+            return 0f;
+
+        float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / denom, -1.0f, 1.0f);
         return Mathf.Acos(c);
     }
-    const float k_SqrEpsilon = 1e-8f;
+
+    private const float k_SqrEpsilon = 1e-8f;
+
     /// <summary>
-    /// Evaluates the Two-Bone IK algorithm.
+    /// Two-bone IK specialized for a spine-like chain (root-mid-tip).
     /// </summary>
-    /// <param name="stream">The animation stream to work on.</param>
-    /// <param name="root">The transform handle for the root transform.</param>
-    /// <param name="mid">The transform handle for the mid transform.</param>
-    /// <param name="tip">The transform handle for the tip transform.</param>
-    /// <param name="target">The transform handle for the target transform.</param>
-    /// <param name="hint">The transform handle for the hint transform.</param>
-    /// <param name="HasHint">The weight for which hint transform has an effect on IK calculations. This is a value in between 0 and 1.</param>
-    /// <param name="targetOffset">The offset applied to the target transform.</param>
-    public static void SolveTwoBoneSpine(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool HasHint, AffineTransform targetOffset, Vector3 BendNormal)
+    public static void SolveTwoBoneSpine(
+        AnimationStream stream,
+        ReadWriteTransformHandle root,
+        ReadWriteTransformHandle mid,
+        ReadWriteTransformHandle tip,
+        AffineTransform target,
+        AffineTransform hint,
+        bool hasHint,
+        AffineTransform targetOffset,
+        Vector3 bendNormal)
     {
-        Vector3 aPosition = root.GetPosition(stream);
-        Vector3 bPosition = mid.GetPosition(stream);
-        Vector3 cPosition = tip.GetPosition(stream);
+        // Read current joint positions
+        Vector3 aPos = root.GetPosition(stream);
+        Vector3 bPos = mid.GetPosition(stream);
+        Vector3 cPos = tip.GetPosition(stream);
 
-        Vector3 targetPos = target.translation;
-        Quaternion targetRot = target.rotation;
+        // Target with offset applied in target space
+        Vector3 tPos = target.translation + targetOffset.translation;
+        Quaternion tRot = target.rotation * targetOffset.rotation;
 
-        Vector3 tPosition = targetPos + targetOffset.translation;
-        Quaternion tRotation = targetRot * targetOffset.rotation;
-
-        Vector3 ab = bPosition - aPosition;
-        Vector3 bc = cPosition - bPosition;
-        Vector3 ac = cPosition - aPosition;
-        Vector3 at = tPosition - aPosition;
+        // Current bone vectors
+        Vector3 ab = bPos - aPos;
+        Vector3 bc = cPos - bPos;
+        Vector3 ac = cPos - aPos;
+        Vector3 at = tPos - aPos;
 
         float abLen = ab.magnitude;
         float bcLen = bc.magnitude;
@@ -112,50 +116,35 @@ public static class BasisAnimationFullBodyIK
 
         float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
         float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
-        Vector3 axis;
-        if (HasHint)
-        {
-            axis = Vector3.Cross(hint.translation - aPosition, bc);
 
-            if (axis.sqrMagnitude < k_SqrEpsilon)
-            {
-                axis = Vector3.Cross(at, bc);
-            }
+        // Compute rotation axis for mid joint bend
+        Vector3 axis = ComputeIkAxis(aPos, bc, at, hint.translation, bendNormal, hasHint);
 
-            if (axis.sqrMagnitude < k_SqrEpsilon)
-            {
-                axis = BendNormal;
-            }
-        }
-        else
-        {
-            axis = BendNormal;
-        }
-
-        axis = Vector3.Normalize(axis);
-
+        // Rotate mid joint by half the angle delta (distributes motion)
         float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
-        float sin = Mathf.Sin(halfAngle);
-        float cos = Mathf.Cos(halfAngle);
-        Quaternion deltaR = new Quaternion(axis.x * sin, axis.y * sin, axis.z * sin, cos);
-        mid.SetRotation(stream, deltaR * mid.GetRotation(stream));
+        float s = Mathf.Sin(halfAngle);
+        float c = Mathf.Cos(halfAngle);
+        Quaternion deltaMid = new Quaternion(axis.x * s, axis.y * s, axis.z * s, c);
+        mid.SetRotation(stream, deltaMid * mid.GetRotation(stream));
 
-        cPosition = tip.GetPosition(stream);
-        ac = cPosition - aPosition;
+        // Re-evaluate and swing root so AC aligns with AT
+        cPos = tip.GetPosition(stream);
+        ac = cPos - aPos;
         root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
 
-        if (HasHint)
+        // Optional hint orientation to control elbow-like twist around AC
+        if (hasHint)
         {
             float acSqrMag = ac.sqrMagnitude;
             if (acSqrMag > 0f)
             {
-                bPosition = mid.GetPosition(stream);
-                cPosition = tip.GetPosition(stream);
-                ab = bPosition - aPosition;
-                ac = cPosition - aPosition;
+                bPos = mid.GetPosition(stream);
+                cPos = tip.GetPosition(stream);
+                ab = bPos - aPos;
+                ac = cPos - aPos;
 
                 Vector3 acNorm = ac / Mathf.Sqrt(acSqrMag);
-                Vector3 ah = hint.translation - aPosition;
+                Vector3 ah = hint.translation - aPos;
                 Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
                 Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
 
@@ -169,13 +158,81 @@ public static class BasisAnimationFullBodyIK
             }
         }
 
-        tip.SetRotation(stream, tRotation);
+        // Set tip rotation to match target orientation (+offset)
+        tip.SetRotation(stream, tRot);
     }
+
     public static void Pass(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip)
     {
         if (root.IsValid(stream)) BasisAnimationRuntimeUtils.PassThrough(stream, root);
         if (mid.IsValid(stream)) BasisAnimationRuntimeUtils.PassThrough(stream, mid);
         if (tip.IsValid(stream)) BasisAnimationRuntimeUtils.PassThrough(stream, tip);
     }
+
     public static Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    // Burst-safe fixed-arity validity check (no params/no arrays)
+    private static bool AreValid3(
+        AnimationStream stream,
+        ReadWriteTransformHandle a,
+        ReadWriteTransformHandle b,
+        ReadWriteTransformHandle c)
+    {
+        // Single-bitwise & avoids short-circuiting; either is fine for Burst
+        return a.IsValid(stream) & b.IsValid(stream) & c.IsValid(stream);
+    }
+
+    private static void ApplyHipsDriver(
+        AnimationStream stream,
+        ReadWriteTransformHandle hips,
+        Vector3Property targetPos,
+        Vector4Property targetRot,
+        Vector4Property offsetRot)
+    {
+        if (!hips.IsValid(stream))
+            return;
+
+        Vector3 hipPos = targetPos.Get(stream);
+        Quaternion hipRot = V4ToQuat(targetRot.Get(stream));
+        Quaternion hipOff = V4ToQuat(offsetRot.Get(stream));
+
+        hips.SetPosition(stream, hipPos);
+        hips.SetRotation(stream, hipRot * hipOff); // apply offset in target space
+    }
+
+    private static Vector3 ComputeIkAxis(
+        Vector3 rootPos,
+        Vector3 bc,
+        Vector3 at,
+        Vector3 hintPos,
+        Vector3 bendNormal,
+        bool hasHint)
+    {
+        Vector3 axis;
+        if (hasHint)
+        {
+            axis = Vector3.Cross(hintPos - rootPos, bc);
+            if (axis.sqrMagnitude < k_SqrEpsilon)
+                axis = Vector3.Cross(at, bc);
+            if (axis.sqrMagnitude < k_SqrEpsilon)
+                axis = bendNormal;
+        }
+        else
+        {
+            axis = bendNormal;
+        }
+
+        float mag2 = axis.sqrMagnitude;
+        if (mag2 < k_SqrEpsilon)
+        {
+            // Deterministic fallback to avoid NaNs/garbage under Burst
+            return Vector3.forward;
+        }
+
+        return axis / Mathf.Sqrt(mag2);
+    }
 }
