@@ -3,7 +3,6 @@ using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
 using LiteNetLib;
-using System;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Unity.Burst;
@@ -12,7 +11,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-using static Basis.Scripts.Networking.Transmitters.BasisNetworkTransmitter;
 using static SerializableBasis;
 
 namespace Basis.Scripts.Networking.NetworkedAvatar
@@ -79,7 +77,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         static readonly bool[] IS_BYTE = new bool[]
         {
             // Spine/Chest/Head (0..14) -> 6,7,8 true; rest false
-            false,false,false,false,false,false, true, true, true, false,false,false,false,false,false,
+            false,false,false,false,false,false, false, false, false, false,false,false,false,false,false,
 
             // Left Leg (15..22): only 27 true
             false,false,false,false,false,false, true, false,
