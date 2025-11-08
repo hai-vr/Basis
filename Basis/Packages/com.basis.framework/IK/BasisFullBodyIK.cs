@@ -249,10 +249,9 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField, Min(0f)] public float m_CollisionSkin;
         [SyncSceneToStream, SerializeField] bool m_CollisionsEnabled;
         [SyncSceneToStream, SerializeField] bool m_ProtectElbow;
-        [SyncSceneToStream, SerializeField] bool m_HipsEnabled;
 
         [SyncSceneToStream, SerializeField] bool m_HintHeadEnabled;
-        [SyncSceneToStream, SerializeField] bool m_HeadEnabled;
+        [SyncSceneToStream, SerializeField] bool m_SpineIKEnabled;
 
         [SyncSceneToStream, SerializeField] public bool m_LeftToeEnabled;
         [SyncSceneToStream, SerializeField] public bool m_RightToeEnabled;
@@ -292,7 +291,7 @@ namespace UnityEngine.Animations.Rigging
         public Transform upperChest { get => m_UpperChest; set => m_UpperChest = value; }
         public Transform LeftShoulder { get => m_LeftShoulder; set => m_LeftShoulder = value; }
         public Transform RightShoulder { get => m_RightShoulder; set => m_RightShoulder = value; }
-        public string EnabledPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HeadEnabled));
+        public string EnabledPropertySpineIK => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_SpineIKEnabled));
         public string HintWeightBoolPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintHeadEnabled));
         public string TargetPositionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHead));
         public string TargetRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHead));
@@ -314,7 +313,6 @@ namespace UnityEngine.Animations.Rigging
         public string TargetPositionPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHips));
         public string TargetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationEulerHips));
         public string OffsetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotationHips));
-        public string EnabledPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HipsEnabled));
         public string LeftToeEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftToeEnabled));
         public string RightToeEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_RightToeEnabled));
         public string LeftDrivenTargetPosProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OutGoingLeftToePosition));
@@ -343,12 +341,11 @@ namespace UnityEngine.Animations.Rigging
         public string UseHandCapsuleBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UseHandCapsule));
         public string ProtectElbowBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ProtectElbow));
         public bool hintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
-        public bool enabledHead { get => m_HeadEnabled; set => m_HeadEnabled = value; }
+        public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
         public bool HintWeightLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
         public bool EnableLeftLeg { get => m_LeftLowerLegEnabled; set => m_LeftLowerLegEnabled = value; }
         public bool HintWeightRightLowerLeg { get => m_HintRightLowerLegEnabled; set => m_HintRightLowerLegEnabled = value; }
         public bool EnableRightLeg { get => m_RightLowerLegEnabled; set => m_RightLowerLegEnabled = value; }
-        public bool enabledHips { get => m_HipsEnabled; set => m_HipsEnabled = value; }
         public bool LeftToeEnabled { get => m_LeftToeEnabled; set => m_LeftToeEnabled = value; }
         public bool RightToeEnabled { get => m_RightToeEnabled; set => m_RightToeEnabled = value; }
         public bool hintWeightLeftHand { get => m_HintLeftHandEnabled; set => m_HintLeftHandEnabled = value; }
@@ -405,8 +402,7 @@ namespace UnityEngine.Animations.Rigging
             m_Hips = null;
 
             m_HintHeadEnabled = m_HintLeftLowerLegEnabled = m_HintRightLowerLegEnabled = true;
-            m_HeadEnabled = m_LeftLowerLegEnabled = m_RightLowerLegEnabled = true;
-            m_HipsEnabled = true;
+            m_SpineIKEnabled = m_LeftLowerLegEnabled = m_RightLowerLegEnabled = true;
 
             m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
             m_EnabledLeftHand = m_EnabledRightHand = true;
@@ -615,7 +611,7 @@ namespace UnityEngine.Animations.Rigging
             m_Data.hintWeightHead = m_Data.hintWeightHead;
             m_Data.HintWeightLeftLowerLeg = m_Data.HintWeightLeftLowerLeg;
             m_Data.HintWeightRightLowerLeg = m_Data.HintWeightRightLowerLeg;
-            m_Data.enabledHips = m_Data.enabledHips;
+            m_Data.EnabledSpineIK = m_Data.EnabledSpineIK;
 
             // new toggles
             m_Data.LeftToeEnabled = m_Data.LeftToeEnabled;
@@ -676,10 +672,10 @@ targetOffsetLeftHand,
 targetOffsetRightHand;
 
         public BoolProperty
-hintWeightHead, enabledHead,
+hintWeightHead, enabledSpineIK,
 hintWeightLeftLowerLeg, enabledLeftLowerLeg,
 hintWeightRightLowerLeg, enabledRightLowerLeg,
-enabledHips,
+
 leftToeEnabled, RightToeEnabled,
 hintWeightLeftHand, enabledLeftHand,
 hintWeightRightHand, enabledRightHand,
@@ -700,42 +696,32 @@ chestRadius, collisionSkin;
             float w = jobWeight.Get(stream);
             if (w <= 0f)
             {
-                if (HandleHips.IsValid(stream))
-                    BasisAnimationRuntimeUtils.PassThrough(stream, HandleHips);
+
+                BasisAnimationRuntimeUtils.Pass(stream, HandleHips, HandleLeftToe, HandleRightToe);
 
                 BasisAnimationRuntimeUtils.Pass(stream, HandleChest, HandleNeck, HandleHead);
+
                 BasisAnimationRuntimeUtils.Pass(stream, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot);
                 BasisAnimationRuntimeUtils.Pass(stream, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot);
 
                 BasisAnimationRuntimeUtils.Pass(stream, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand);
                 BasisAnimationRuntimeUtils.Pass(stream, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand);
 
-                if (HandleLeftToe.IsValid(stream))
-                {
-                    BasisAnimationRuntimeUtils.PassThrough(stream, HandleLeftToe);
-                }
-
-                if (HandleRightToe.IsValid(stream))
-                {
-                    BasisAnimationRuntimeUtils.PassThrough(stream, HandleRightToe);
-                }
-
                 return;
             }
-
-            BasisAnimationRuntimeUtils.SolveHipsAndSpine(
-                stream,
+            BasisAnimationFullBodyIK.SolveHipsAndSpine(stream,
 
                 // --- Hips ---
-                enabledHips,
-                HandleHips,
                 targetPositionHips,
                 targetRotationHips,
                 offsetRotationHips,
 
                 // --- Head + Legs ---
-                enabledHead,
+                enabledSpineIK,
+                HandleHips,
+                HandleSpine,
                 HandleChest,
+                HandleUpperChest,
                 HandleNeck,
                 HandleHead,
                 targetPositionHead,
@@ -891,8 +877,7 @@ chestRadius, collisionSkin;
 
                 targetRotationRightHand = Vector4Property.Bind(animator, component, data.TargetRotationPropertyRightHand),
                 hintRotationRightHand = Vector4Property.Bind(animator, component, data.HintRotationPropertyRightHand),
-                enabledHips = BoolProperty.Bind(animator, component, data.EnabledPropertyHips),
-                enabledHead = BoolProperty.Bind(animator, component, data.EnabledPropertyHead),
+                enabledSpineIK = BoolProperty.Bind(animator, component, data.EnabledPropertySpineIK),
                 hintWeightHead = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyHead),
 
                 enabledLeftLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyLeftLowerLeg),

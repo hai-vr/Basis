@@ -124,7 +124,7 @@ public static class BasisAnimationRiggingHelper
         data.collisionsEnabled = true;
         data.useHandCapsule = true;
         data.protectElbow = true;
-        data.enabledHead = true;
+        data.EnabledSpineIK = true;
         data.enabledHips = true;
 
         // ----------------------------
