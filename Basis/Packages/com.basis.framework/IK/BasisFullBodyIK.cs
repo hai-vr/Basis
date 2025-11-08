@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using static UnityEngine.Rendering.VirtualTexturing.Debugging;
 
 namespace UnityEngine.Animations.Rigging
 {
@@ -903,6 +902,7 @@ chestRadius, collisionSkin;
                 collisionSkin = FloatProperty.Bind(animator, component, data.CollisionSkinFloatProperty),
                 handRadius = FloatProperty.Bind(animator, component, data.HandRadiusFloatProperty),
                 handSkin = FloatProperty.Bind(animator, component, data.HandSkinFloatProperty),
+
                 targetOffsetHead = new AffineTransform(data.m_CalibratedOffsetHead, data.m_CalibratedRotationHead),
                 targetOffsetLeftLowerLeg = new AffineTransform(data.m_CalibratedOffsetLeftFoot, data.m_CalibratedRotationLeftFoot),
                 targetOffsetRightLowerLeg = new AffineTransform(data.m_CalibratedOffsetRightLeftLeg, data.m_CalibratedRotationRightLeftLeg),
