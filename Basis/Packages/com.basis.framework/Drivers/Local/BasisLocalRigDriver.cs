@@ -1,4 +1,4 @@
-using Basis.Scripts.BasisSdk.Helpers;
+u using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
@@ -249,11 +249,11 @@ namespace Basis.Scripts.Drivers
                     d.SetWeight(slot, false);
                     d.SetOffsetRotation(slot, t.rotation);
                     d.SetTargetRotation(slot, t.rotation);
-                } // keep slot usage tight if a bone vanishes
+                }
                 else
                 {
-                    slot--; continue;
-                } // keep slot usage tight if a bone vanishes
+                    continue;
+                }
             }
             BasisFullIKConstraint.data = d;
         }
