@@ -148,7 +148,7 @@ namespace Basis.Scripts.Drivers
                 HeadScale = Vector3.one;
             }
 
-            player.LocalRigDriver.SetBodySettings(player.LocalBoneDriver);
+            player.LocalRigDriver.SetBodySettings();
 
 
             CalculateTransformPositions(player, player.LocalBoneDriver);

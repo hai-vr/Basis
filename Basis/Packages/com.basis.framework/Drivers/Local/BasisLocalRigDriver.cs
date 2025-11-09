@@ -20,18 +20,20 @@ namespace Basis.Scripts.Drivers
     [Serializable]
     public class BasisLocalRigDriver
     {
-        [Header("Smoothing (One Euro Filter)")]
-        [Tooltip("Lower = more smoothing; Higher = more responsive.")]
-        [Range(0.01f, 10f)]
-        public float MinCutoff = 5.5f;
+        /// <summary>
+        /// Lower = more smoothing; Higher = more responsive. (0.01f, 10f)
+        /// </summary>
+        public static float MinCutoff = 5.5f;
 
-        [Tooltip("How much to raise cutoff when motion is fast (reduces lag during quick moves).")]
-        [Range(0f, 10f)]
-        public float Beta = 3.25f;
+        /// <summary>
+        /// How much to raise cutoff when motion is fast (reduces lag during quick moves). (0f, 10f)
+        /// </summary>
+        public static float Beta = 3.25f;
 
-        [Tooltip("Cutoff for derivative smoothing.")]
-        [Range(0.01f, 10f)]
-        public float DerivativeCutoff = 3f;
+        /// <summary>
+        /// Cutoff for derivative smoothing. (0.01f, 10f)
+        /// </summary>
+        public static float DerivativeCutoff = 3f;
 
         public RigBuilder Builder;
         public List<RigTransform> AdditionalTransforms = new List<RigTransform>();
@@ -40,32 +42,12 @@ namespace Basis.Scripts.Drivers
         private BasisLocalPlayer localPlayer;
         private BasisTransformMapping BasisTransformMapping;
 
-        private readonly Dictionary<BasisBoneTrackedRole, OneEuroFilterVector3> posFilters = new();
+        private OneEuroFilterVector3 posFilters = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
         private float _timeAccumulator;
 
         public Rig MainRig;
         public RigLayer RigLayer;
         public BasisFullBodyIK BasisFullIKConstraint;
-
-        // ------------------------------------------
-        // Filters
-        // ------------------------------------------
-        private OneEuroFilterVector3 GetPosFilter(BasisBoneTrackedRole role)
-        {
-            if (!posFilters.TryGetValue(role, out var f))
-            {
-                f = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
-                posFilters[role] = f;
-            }
-            else
-            {
-                // keep runtime params in sync
-                f.minCutoff = MinCutoff;
-                f.beta = Beta;
-                f.dCutoff = DerivativeCutoff;
-            }
-            return f;
-        }
 
         // ------------------------------------------
         // Lifecycle
@@ -124,16 +106,23 @@ namespace Basis.Scripts.Drivers
         // ------------------------------------------
         public void SimulateIKDestinations(float deltaTime)
         {
-            if (BasisFullIKConstraint == null) return;
+            if (BasisFullIKConstraint == null || Builder == null)
+            {
+                return;
+            }
 
             _timeAccumulator += Mathf.Max(deltaTime, 1e-6f);
             var Hips = BasisLocalBoneDriver.HipsControl;
             // Hips (filtered)
             var hipsCoords = Hips.OutgoingWorldData;
-            var hipsPos = GetPosFilter(BasisBoneTrackedRole.Hips).Filter(hipsCoords.position, _timeAccumulator);
+            posFilters.minCutoff = MinCutoff;
+            posFilters.beta = Beta;
+            posFilters.dCutoff = DerivativeCutoff;
+
+            var hipspos = posFilters.Filter(hipsCoords.position, _timeAccumulator);
 
             var d = BasisFullIKConstraint.data;
-            d.PositionHips = hipsPos;
+            d.PositionHips = hipspos;
             d.RotationEulerHips = hipsCoords.rotation;
 
             // Global hint direction (knee/neck)
@@ -198,12 +187,8 @@ namespace Basis.Scripts.Drivers
 
             BasisFullIKConstraint.data = d;
 
-            // Manual evaluation
-            if (Builder != null)
-            {
-                Builder.SyncLayers();
-                PlayableGraph.Evaluate(deltaTime);
-            }
+            Builder.SyncLayers();
+            PlayableGraph.Evaluate(deltaTime);
         }
         public void Spine(GameObject MainRig)
         {
@@ -273,21 +258,23 @@ namespace Basis.Scripts.Drivers
             for (int slot = 0; slot < per; slot++)
             {
                 var t = ResolveHumanoidBoneTransform((HumanBodyBones)slot);
-                if (t == null) { slot--; continue; } // keep slot usage tight if a bone vanishes
-
-                // default disabled; keep current orientation as offset
-                d.SetWeight(slot, false);
-                d.SetOffsetRotation(slot, t.rotation);
-                d.SetTargetRotation(slot, t.rotation);
+                if (t != null)
+                {                 // default disabled; keep current orientation as offset
+                    d.SetWeight(slot, false);
+                    d.SetOffsetRotation(slot, t.rotation);
+                    d.SetTargetRotation(slot, t.rotation);
+                } // keep slot usage tight if a bone vanishes
+                else
+                {
+                    slot--; continue;
+                } // keep slot usage tight if a bone vanishes
             }
-
             BasisFullIKConstraint.data = d;
-
         }
         // ------------------------------------------
         // Rig setup
         // ------------------------------------------
-        public void SetBodySettings(BasisLocalBoneDriver driver)
+        public void SetBodySettings()
         {
             var rigGO = CreateOrGetRig("Main IK", true, out MainRig, out RigLayer);
 
