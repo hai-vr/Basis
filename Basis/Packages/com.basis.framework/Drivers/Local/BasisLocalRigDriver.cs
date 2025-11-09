@@ -9,7 +9,6 @@ using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
 using UnityEngine.Playables;
-
 namespace Basis.Scripts.Drivers
 {
     /// <summary>
@@ -38,20 +37,13 @@ namespace Basis.Scripts.Drivers
         public RigBuilder Builder;
         public List<RigTransform> AdditionalTransforms = new List<RigTransform>();
         public PlayableGraph PlayableGraph;
-
         private BasisLocalPlayer localPlayer;
         private BasisTransformMapping BasisTransformMapping;
-
         private OneEuroFilterVector3 posFilters = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
         private float _timeAccumulator;
-
         public Rig MainRig;
         public RigLayer RigLayer;
         public BasisFullBodyIK BasisFullIKConstraint;
-
-        // ------------------------------------------
-        // Lifecycle
-        // ------------------------------------------
         public void Initialize(BasisLocalPlayer localPlayer, BasisTransformMapping references)
         {
             this.localPlayer = localPlayer;
@@ -62,7 +54,9 @@ namespace Basis.Scripts.Drivers
         public void BuildBuilder()
         {
             if (localPlayer?.BasisAvatar?.Animator == null || Builder == null)
+            {
                 return;
+            }
 
             PlayableGraph = localPlayer.BasisAvatar.Animator.playableGraph;
             PlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
@@ -73,24 +67,31 @@ namespace Basis.Scripts.Drivers
 
         public void OnTPose(bool currentlyTposing)
         {
-            if (Builder == null) return;
-
-            if (currentlyTposing)
+            if (Builder == null)
             {
-                foreach (var layer in Builder.layers) layer.active = false;
+                BasisDebug.LogWarning("Trying To Tpose while builder was null!");
                 return;
             }
 
+            if (currentlyTposing)
+            {
+                foreach (var layer in Builder.layers)
+                {
+                    layer.active = false;
+                }
+                return;
+            }
             // Notify controls when exiting T-pose
             var driver = BasisLocalPlayer.Instance?.LocalBoneDriver;
-            if (driver?.Controls == null) return;
-
+            if (driver?.Controls == null)
+            {
+                return;
+            }
             foreach (var control in driver.Controls)
             {
                 control?.OnHasRigChanged?.Invoke();
             }
         }
-
         public void CleanupBeforeContinue()
         {
             if (MainRig != null)
@@ -100,10 +101,6 @@ namespace Basis.Scripts.Drivers
                 RigLayer = default;
             }
         }
-
-        // ------------------------------------------
-        // Per-frame simulation
-        // ------------------------------------------
         public void SimulateIKDestinations(float deltaTime)
         {
             if (BasisFullIKConstraint == null || Builder == null)
@@ -200,17 +197,13 @@ namespace Basis.Scripts.Drivers
             // Legs enabled by presence
             BasisLocalBoneDriver.LeftFootControl.OnHasRigChanged += () =>
             {
-                var dd = BasisFullIKConstraint.data;
-                dd.EnableLeftLeg = BasisLocalBoneDriver.LeftFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                BasisFullIKConstraint.data = dd;
+                d.EnableLeftLeg = BasisLocalBoneDriver.LeftFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
             d.EnableLeftLeg = BasisLocalBoneDriver.LeftFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             BasisLocalBoneDriver.RightFootControl.OnHasRigChanged += () =>
             {
-                var dd = BasisFullIKConstraint.data;
-                dd.EnableRightLeg = BasisLocalBoneDriver.RightFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                BasisFullIKConstraint.data = dd;
+                d.EnableRightLeg = BasisLocalBoneDriver.RightFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
             d.EnableRightLeg = BasisLocalBoneDriver.RightFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
@@ -224,42 +217,35 @@ namespace Basis.Scripts.Drivers
             // Toes (fixed: left controls left, right controls right)
             BasisLocalBoneDriver.LeftToeControl.OnHasRigChanged += () =>
             {
-                var dd = BasisFullIKConstraint.data;
-                dd.LeftToeEnabled = BasisLocalBoneDriver.LeftToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                BasisFullIKConstraint.data = dd;
+                d.LeftToeEnabled = BasisLocalBoneDriver.LeftToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
             d.LeftToeEnabled = BasisLocalBoneDriver.LeftToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             BasisLocalBoneDriver.RightToeControl.OnHasRigChanged += () =>
             {
-                var dd = BasisFullIKConstraint.data;
-                dd.RightToeEnabled = BasisLocalBoneDriver.RightToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                BasisFullIKConstraint.data = dd;
+                d.RightToeEnabled = BasisLocalBoneDriver.RightToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
             d.RightToeEnabled = BasisLocalBoneDriver.RightToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             // Hands
             BasisLocalBoneDriver.LeftHandControl.OnHasRigChanged += () =>
             {
-                var dd = BasisFullIKConstraint.data;
-                dd.enabledLeftHand = BasisLocalBoneDriver.LeftHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                BasisFullIKConstraint.data = dd;
+                d.enabledLeftHand = BasisLocalBoneDriver.LeftHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
             d.enabledLeftHand = BasisLocalBoneDriver.LeftHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             BasisLocalBoneDriver.RightHandControl.OnHasRigChanged += () =>
             {
-                var dd = BasisFullIKConstraint.data;
-                dd.enabledRightHand = BasisLocalBoneDriver.RightHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
-                BasisFullIKConstraint.data = dd;
+                d.enabledRightHand = BasisLocalBoneDriver.RightHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
             d.enabledRightHand = BasisLocalBoneDriver.RightHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+
             int per = BasisFullBodyData.Count;
             for (int slot = 0; slot < per; slot++)
             {
                 var t = ResolveHumanoidBoneTransform((HumanBodyBones)slot);
                 if (t != null)
-                {                 // default disabled; keep current orientation as offset
+                {
                     d.SetWeight(slot, false);
                     d.SetOffsetRotation(slot, t.rotation);
                     d.SetTargetRotation(slot, t.rotation);
@@ -271,20 +257,10 @@ namespace Basis.Scripts.Drivers
             }
             BasisFullIKConstraint.data = d;
         }
-        // ------------------------------------------
-        // Rig setup
-        // ------------------------------------------
         public void SetBodySettings()
         {
             var rigGO = CreateOrGetRig("Main IK", true, out MainRig, out RigLayer);
-
             Spine(rigGO);
-            // Ensure a RigTransform exists on hips
-            if (!BasisTransformMapping.Hips.gameObject.TryGetComponent<RigTransform>(out _))
-            {
-                BasisTransformMapping.Hips.gameObject.AddComponent<RigTransform>();
-            }
-
             BasisLocalBoneControl.HasEvents = true;
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -315,10 +291,6 @@ namespace Basis.Scripts.Drivers
             var animator = localPlayer?.BasisAvatar?.Animator;
             return animator != null ? animator.GetBoneTransform(bone) : null;
         }
-
-        // ------------------------------------------
-        // Calibration / hints
-        // ------------------------------------------
         public void CalibrateRoles()
         {
             // Clear all
@@ -338,7 +310,6 @@ namespace Basis.Scripts.Drivers
                 }
             }
         }
-
         public void ApplyHint(BasisBoneTrackedRole roleWithHint, bool weight)
         {
             try
@@ -381,10 +352,6 @@ namespace Basis.Scripts.Drivers
                 BasisDebug.Log($"{e.Message} {e.StackTrace}");
             }
         }
-
-        // ------------------------------------------
-        // Rig creation
-        // ------------------------------------------
         public GameObject CreateOrGetRig(string role, bool enabled, out Rig rig, out RigLayer rigLayer)
         {
             rig = null;
@@ -402,7 +369,6 @@ namespace Basis.Scripts.Drivers
                     }
                 }
             }
-
             var anim = localPlayer.BasisAvatar.Animator;
 
             GameObject rigGO = BasisAnimationRiggingHelper.CreateAndSetParent(anim.transform, $"Rig {role}");
