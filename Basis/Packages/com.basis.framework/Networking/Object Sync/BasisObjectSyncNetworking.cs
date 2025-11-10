@@ -5,7 +5,6 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Compression;
 using BasisSerializer.OdinSerializer;
 using LiteNetLib;
-using System;
 using UnityEngine;
 public class BasisObjectSyncNetworking : BasisNetworkBehaviour
 {
@@ -37,8 +36,11 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
         {
             BasisPickupInteractable.RigidRef.isKinematic = false;
         }
+        if (buffer == null || buffer.Length < BasisPositionRotationScale.Size)
+        {
+            buffer = new byte[BasisPositionRotationScale.Size];
+        }
     }
-
     public void OnDisable()
     {
         if (BasisPickupInteractable != null)
@@ -56,13 +58,6 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
     }
     public override void OnNetworkReady()
     {
-        if (BasisPickupInteractable != null)
-        {
-            if (BasisPickupInteractable.RigidRef != null)
-            {
-                BasisPickupInteractable.RigidRef.isKinematic = false;
-            }
-        }
         ControlState();
     }
 
@@ -80,10 +75,10 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
         // Allow interact if we arent connected or if we own it locally
         if (IsOwnedLocallyOnClient)
         {
-            return true; 
+            return true;
         }
         // NOTE: this is called 2 times per frame on interact start, once to tell HoverEnd that it will be interacting, and again for the actual interact check
-        if (CanNetworkSteal &&  (pendingStealRequest == null || pendingStealRequest == input))
+        if (CanNetworkSteal && (pendingStealRequest == null || pendingStealRequest == input))
         {
             pendingStealRequest = input;
             return true;
@@ -102,7 +97,16 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
             pendingStealRequest = null;
         }
     }
-
+    public void SetIsKinematicOnPickup(bool state)
+    {
+        if (BasisPickupInteractable != null)
+        {
+            if (BasisPickupInteractable.RigidRef != null)
+            {
+                BasisPickupInteractable.RigidRef.isKinematic = state;
+            }
+        }
+    }
     public override void OnOwnershipTransfer(ushort NetIdNewOwner)
     {
         ControlState();
@@ -121,6 +125,7 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
                 // still reset the request, we dont care if we actually picked up
                 pendingStealRequest = null;
             }
+            SetIsKinematicOnPickup(false);
         }
         else
         {
@@ -130,6 +135,7 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
             {
                 BasisPickupInteractable.Drop();
             }
+            SetIsKinematicOnPickup(true);
         }
     }
     public override void OnNetworkMessage(ushort PlayerID, byte[] buffer, DeliveryMethod DeliveryMethod)
@@ -140,12 +146,13 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
             BTU.TargetRotation = BasisCompression.QuaternionCompressor.DecompressQuaternion(LocalLastData.Rotation);
             BTU.LerpMultipliers = CatchupLerp;
             BTU.TargetPosition = LocalLastData.DeCompress();
+            BTU.TargetScales = LocalLastData.DecompressScale();
         }
     }
     public void SendNetworkSync()
     {
         transform.GetLocalPositionAndRotation(out UnityEngine.Vector3 Position, out UnityEngine.Quaternion Temp);
-        LocalLastData.Compress(Position, BasisCompression.QuaternionCompressor.CompressQuaternion(ref Temp));
+        LocalLastData.Compress(Position, BasisCompression.QuaternionCompressor.CompressQuaternion(ref Temp), transform.localScale);
         LocalLastData.ToBytes(buffer, 0);
         SendCustomNetworkEvent(buffer, DeliveryMethod.Sequenced);
     }
