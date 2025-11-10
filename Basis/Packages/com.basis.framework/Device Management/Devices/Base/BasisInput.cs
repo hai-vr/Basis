@@ -425,7 +425,7 @@ namespace Basis.Scripts.Device_Management.Devices
                         hasRoleAssigned = false;
                         if (TryGetRole(out BasisBoneTrackedRole Role))
                         {
-                            BasisLocalPlayer.Instance.LocalRigDriver.ApplyHint(Role, false);
+                            BasisLocalPlayer.Instance.LocalRigDriver.ApplyIkState(Role, false);
                         }
                         Control.HasTracked = hasTracked;
                         Control.HasRigLayer = HasLayer;
@@ -444,7 +444,7 @@ namespace Basis.Scripts.Device_Management.Devices
                     hasRoleAssigned = true;
                     if (TryGetRole(out BasisBoneTrackedRole Role))
                     {
-                        BasisLocalPlayer.Instance.LocalRigDriver.ApplyHint(Role, true);
+                        BasisLocalPlayer.Instance.LocalRigDriver.ApplyIkState(Role, true);
                     }
                     Control.HasTracked = hasTracked;
                     Control.HasRigLayer = HasLayer;

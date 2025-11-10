@@ -1,10 +1,8 @@
-using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.UIElements;
 
 /// <summary>
 /// Base class for hand controller input devices.

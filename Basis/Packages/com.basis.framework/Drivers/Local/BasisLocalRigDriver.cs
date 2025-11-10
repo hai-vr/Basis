@@ -296,7 +296,7 @@ namespace Basis.Scripts.Drivers
             // Clear all
             foreach (BasisBoneTrackedRole role in Enum.GetValues(typeof(BasisBoneTrackedRole)))
             {
-                ApplyHint(role, false);
+                ApplyIkState(role, false);
             }
 
             var dm = BasisDeviceManagement.Instance;
@@ -306,11 +306,11 @@ namespace Basis.Scripts.Drivers
                 var input = dm.AllInputDevices[i];
                 if (input != null && input.TryGetRole(out BasisBoneTrackedRole role))
                 {
-                    ApplyHint(role, true);
+                    ApplyIkState(role, true);
                 }
             }
         }
-        public void ApplyHint(BasisBoneTrackedRole roleWithHint, bool weight)
+        public void ApplyIkState(BasisBoneTrackedRole roleWithHint, bool Enabled)
         {
             try
             {
@@ -319,28 +319,66 @@ namespace Basis.Scripts.Drivers
                 switch (roleWithHint)
                 {
                     case BasisBoneTrackedRole.Chest:
-                        d.hintWeightHead = weight;
+                        d.hintWeightHead = Enabled;
                         break;
 
                     case BasisBoneTrackedRole.RightLowerLeg:
-                        d.HintWeightRightLowerLeg = weight;
+                        d.HintWeightRightLowerLeg = Enabled;
                         break;
 
                     case BasisBoneTrackedRole.LeftLowerLeg:
-                        d.HintWeightLeftLowerLeg = weight;
+                        d.HintWeightLeftLowerLeg = Enabled;
                         break;
 
                     // Upper/lower arms both control the hand hint under the 3-bone model
                     case BasisBoneTrackedRole.RightUpperArm:
                     case BasisBoneTrackedRole.RightLowerArm:
-                        d.hintWeightRightHand = weight;
+                        d.hintWeightRightHand = Enabled;
                         break;
 
                     case BasisBoneTrackedRole.LeftUpperArm:
                     case BasisBoneTrackedRole.LeftLowerArm:
-                        d.hintWeightLeftHand = weight;
+                        d.hintWeightLeftHand = Enabled;
                         break;
-
+                    case BasisBoneTrackedRole.CenterEye:
+                        break;
+                    case BasisBoneTrackedRole.Head:
+                        d.EnabledSpineIK = Enabled;
+                        break;
+                    case BasisBoneTrackedRole.Neck:
+                        break;
+                    case BasisBoneTrackedRole.Hips:
+                        break;
+                    case BasisBoneTrackedRole.Spine:
+                        break;
+                    case BasisBoneTrackedRole.LeftUpperLeg:
+                        break;
+                    case BasisBoneTrackedRole.RightUpperLeg:
+                        break;
+                    case BasisBoneTrackedRole.LeftFoot:
+                        d.EnableLeftLeg = Enabled;
+                        break;
+                    case BasisBoneTrackedRole.RightFoot:
+                        d.EnableRightLeg = Enabled;
+                        break;
+                    case BasisBoneTrackedRole.LeftShoulder:
+                        break;
+                    case BasisBoneTrackedRole.RightShoulder:
+                        break;
+                    case BasisBoneTrackedRole.LeftHand:
+                        d.enabledLeftHand = Enabled;
+                        break;
+                    case BasisBoneTrackedRole.RightHand:
+                        d.enabledRightHand = Enabled;
+                        break;
+                    case BasisBoneTrackedRole.LeftToes:
+                        d.LeftToeEnabled = Enabled;
+                        break;
+                    case BasisBoneTrackedRole.RightToes:
+                        d.RightToeEnabled = Enabled;
+                        break;
+                    case BasisBoneTrackedRole.Mouth:
+                        break;
                     default:
                         break;
                 }
