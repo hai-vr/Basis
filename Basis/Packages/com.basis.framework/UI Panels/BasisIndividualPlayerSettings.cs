@@ -31,22 +31,38 @@ public class BasisIndividualPlayerSettings : BasisUIBase
     public float step = 0.05f; // The interval between values
     public override void DestroyEvent()
     {
+        CheckThenUnAssign();
         BasisCursorManagement.LockCursor(CursorRequest);
+    }
+    public void OnDisable()
+    {
+        CheckThenUnAssign();
+    }
+    public void OnDestroy()
+    {
+        CheckThenUnAssign();
+    }
+    public void CheckThenUnAssign()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
 
     public override void InitalizeEvent()
     {
         BasisCursorManagement.UnlockCursor(CursorRequest);
     }
-
+    public static BasisIndividualPlayerSettings Instance;
     public static async void OpenPlayerSettings(BasisRemotePlayer RemotePlayer)
     {
         BasisUIManagement.CloseAllMenus();
         BasisUIBase Base = OpenMenuNow(Path);
         var PlayerSettings = (BasisIndividualPlayerSettings)Base;
+        Instance = PlayerSettings;
         await PlayerSettings.Initalize(RemotePlayer);
     }
-
     public async Task Initalize(BasisRemotePlayer remotePlayer)
     {
         RemotePlayer = remotePlayer;

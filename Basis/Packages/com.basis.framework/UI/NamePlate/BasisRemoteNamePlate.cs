@@ -271,7 +271,7 @@ namespace Basis.Scripts.UI.NamePlate
         }
         public void WasPressed(BasisInput input)
         {
-            if (BasisRemotePlayer != null)
+            if (BasisRemotePlayer != null && BasisIndividualPlayerSettings.Instance == null)
             {
                 input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume);
                 BasisIndividualPlayerSettings.OpenPlayerSettings(BasisRemotePlayer);
