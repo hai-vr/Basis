@@ -207,8 +207,8 @@ namespace UnityEngine.Animations.Rigging
         // Right Leg
         [SyncSceneToStream, SerializeField] public Vector3 RightFootPosition;
         [SyncSceneToStream, SerializeField] public Quaternion RightFootRotation;
-        [SyncSceneToStream, SerializeField] public Vector3 HintPositionRightLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion HintRotationRightLowerLeg;
+        [SyncSceneToStream, SerializeField] public Vector3 HintPositionRightFoot;
+        [SyncSceneToStream, SerializeField] public Quaternion HintRotationRightFoot;
         [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightFoot;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightFoot;
 
@@ -309,8 +309,8 @@ namespace UnityEngine.Animations.Rigging
         public string HintWeightBoolPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintRightLowerLegEnabled));
         public string TargetPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightFootPosition));
         public string TargetRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightFootRotation));
-        public string HintPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionRightLowerLeg));
-        public string HintRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationRightLowerLeg));
+        public string HintPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionRightFoot));
+        public string HintRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationRightFoot));
         public string TargetPositionPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHips));
         public string TargetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationEulerHips));
         public string OffsetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotationHips));
@@ -671,8 +671,8 @@ o10, o11, o12, o13, o14, o15, o16, o17, o18, o19,
 o20, o54;
 
         public AffineTransform targetOffsetHead,
-targetOffsetLeftLeg,
-targetOffsetRightLeg,
+targetOffsetLeftFoot,
+targetOffsetRightFoot,
 targetOffsetLeftHand,
 targetOffsetRightHand;
 
@@ -742,11 +742,11 @@ chestRadius, collisionSkin;
 
                 BasisAnimationRuntimeUtils.SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
     targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
-    hintWeightLeftLowerLeg, targetOffsetLeftLeg, bendNormalHead);
+    hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
 
                 BasisAnimationRuntimeUtils.SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
                     targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
-                    hintWeightRightLowerLeg, targetOffsetRightLeg, bendNormalHead);
+                    hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
 
                 // --- Hands (TwoBone with capsules + elbow protection) ---
                 BasisAnimationRuntimeUtils.SolveHand(stream,
@@ -793,11 +793,11 @@ chestRadius, collisionSkin;
 
                 BasisAnimationRuntimeUtils.SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
                     targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
-                    hintWeightLeftLowerLeg, targetOffsetLeftLeg, bendNormalHead);
+                    hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
 
                 BasisAnimationRuntimeUtils.SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
                     targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
-                    hintWeightRightLowerLeg, targetOffsetRightLeg, bendNormalHead);
+                    hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
 
                 // --- Hands (TwoBone with capsules + elbow protection) ---
                 BasisAnimationRuntimeUtils.SolveHand(stream,
@@ -964,8 +964,8 @@ chestRadius, collisionSkin;
 
                 targetOffsetHead = new AffineTransform(data.m_CalibratedOffsetHead, data.m_CalibratedRotationHead),
 
-                targetOffsetLeftLeg = new AffineTransform(data.m_CalibratedOffsetLeftFoot, data.m_CalibratedRotationLeftFoot),
-                targetOffsetRightLeg = new AffineTransform(data.m_CalibratedOffsetRightFoot, data.m_CalibratedRotationRightFoot),
+                targetOffsetLeftFoot = new AffineTransform(data.m_CalibratedOffsetLeftFoot, data.m_CalibratedRotationLeftFoot),
+                targetOffsetRightFoot = new AffineTransform(data.m_CalibratedOffsetRightFoot, data.m_CalibratedRotationRightFoot),
 
                 targetOffsetLeftHand = new AffineTransform(data.m_CalibratedOffsetLeftHand, data.m_CalibratedRotationLeftHand),
                 targetOffsetRightHand = new AffineTransform(data.m_CalibratedOffsetRightHand, data.m_CalibratedRotationRightHand),

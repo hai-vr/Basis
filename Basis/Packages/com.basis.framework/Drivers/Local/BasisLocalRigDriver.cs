@@ -150,8 +150,8 @@ namespace Basis.Scripts.Drivers
             d.HintRotationLeftLowerLeg = data.rotation;
 
             data = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
-            d.HintPositionRightLowerLeg = data.position;
-            d.HintRotationRightLowerLeg = data.rotation;
+            d.HintPositionRightFoot = data.position;
+            d.HintRotationRightFoot = data.rotation;
 
             // Hands (targets)
             BasisAnimationRiggingHelper.SetHandCollisionScale(BasisFullIKConstraint, localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale);

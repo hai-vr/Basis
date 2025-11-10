@@ -12,7 +12,7 @@ public static class BasisAnimationRiggingHelper
     /// root/mid/tip must be length >= 3: [Head, LeftLowerLeg, RightLowerLeg]
     /// TargetRole/BendRole/UseBoneRole correspond index-by-index to those same chains.
     /// </summary>
-    public static void CreateBasisFullBodyRIG(BasisLocalPlayer player,GameObject parent,BasisTransformMapping Mapping, out BasisFullBodyIK BasisFullIKConstraint)
+    public static void CreateBasisFullBodyRIG(BasisLocalPlayer player, GameObject parent, BasisTransformMapping Mapping, out BasisFullBodyIK BasisFullIKConstraint)
     {
         // Holder + component
         var go = CreateAndSetParent(parent.transform, $"Full IK ({parent.name})");
@@ -100,8 +100,8 @@ public static class BasisAnimationRiggingHelper
         // Right leg / foot
         data.RightFootPosition = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.position;
         data.RightFootRotation = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation;
-        data.HintPositionRightLowerLeg = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.position;
-        data.HintRotationRightLowerLeg = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.rotation;
+        data.HintPositionRightFoot = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.position;
+        data.HintRotationRightFoot = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.rotation;
 
         // Hips
         data.PositionHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
@@ -135,20 +135,47 @@ public static class BasisAnimationRiggingHelper
         // ----------------------------
         SetHandCollisionScale(BasisFullIKConstraint, player.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
 
+        GeneratedRequiredTransforms(player, Mapping.head);
+
         GeneratedRequiredTransforms(player, Mapping.leftFoot);
         GeneratedRequiredTransforms(player, Mapping.rightFoot);
 
-        GeneratedRequiredTransforms(player, Mapping.Hips);
-
-        GeneratedRequiredTransforms(player, Mapping.head);
-
         GeneratedRequiredTransforms(player, Mapping.leftHand);
         GeneratedRequiredTransforms(player, Mapping.rightHand);
+    }
+    public static void GeneratedRequiredTransforms(BasisLocalPlayer player,Transform baseLevel)
+    {
+        if (baseLevel == null)
+        {
+            return;
+        }
 
+        Transform hips = BasisLocalAvatarDriver.References.Hips;
+        Transform current = baseLevel;
 
+        // Stop when we reach either the hips or the player root.
+        while (current != null && current != hips && current != player.transform)
+        {
+            AddRigTransformIfMissing(player, current);
+            current = current.parent;
+        }
+
+        AddRigTransformIfMissing(player, hips);
     }
 
+    private static void AddRigTransformIfMissing(BasisLocalPlayer player, Transform t)
+    {
+        if (!t.TryGetComponent<RigTransform>(out var rig))
+        {
+            rig = t.gameObject.AddComponent<RigTransform>();
+        }
 
+        var list = player.LocalRigDriver.AdditionalTransforms;
+        if (!list.Contains(rig))
+        {
+            list.Add(rig);
+        }
+    }
     public static void SetHandCollisionScale(BasisFullBodyIK TwoBoneIKConstraint, float Scale)
     {
         //1.6m is the default values for below.
@@ -156,32 +183,6 @@ public static class BasisAnimationRiggingHelper
         TwoBoneIKConstraint.data.handRadius = 0.01f * Scale;
         TwoBoneIKConstraint.data.handSkin = 0.03f * Scale;
         TwoBoneIKConstraint.data.chestRadius = 0.07f * Scale;
-    }
-    public static void GeneratedRequiredTransforms(BasisLocalPlayer player, Transform BaseLevel)
-    {
-        // Go up the hierarchy until you hit the TopLevelParent
-        if (BaseLevel != null)
-        {
-            Transform currentTransform = BaseLevel.parent;
-            while (currentTransform != null && currentTransform != BasisLocalAvatarDriver.References.Hips)
-            {
-                // Add component if the current transform doesn't have it
-                if (currentTransform.TryGetComponent<RigTransform>(out RigTransform RigTransform))
-                {
-                    if (player.LocalRigDriver.AdditionalTransforms.Contains(RigTransform) == false)
-                    {
-                        player.LocalRigDriver.AdditionalTransforms.Add(RigTransform);
-                    }
-                }
-                else
-                {
-                    RigTransform = currentTransform.gameObject.AddComponent<RigTransform>();
-                    player.LocalRigDriver.AdditionalTransforms.Add(RigTransform);
-                }
-                // Move to the parent for the next iteration
-                currentTransform = currentTransform.parent;
-            }
-        }
     }
     public static GameObject CreateAndSetParent(Transform parent, string name)
     {
