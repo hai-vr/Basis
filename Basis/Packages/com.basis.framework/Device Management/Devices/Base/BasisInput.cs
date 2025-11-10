@@ -185,6 +185,18 @@ namespace Basis.Scripts.Device_Management.Devices
                 BasisDebug.Log("has device events assigned already " + UniqueDeviceIdentifier, BasisDebug.LogTag.Input);
             }
         }
+        public void ComputeUnscaledDeviceCoord(ref BasisCalibratedCoords coords,Vector3 position)
+        {
+            if (SMModuleSitStand.IsSteatedMode)
+            {
+                position.y += SMModuleSitStand.MissingHeightDelta;
+                coords.position = position;
+            }
+            else
+            {
+                coords.position = position;
+            }
+        }
         /// <summary>
         /// Computes the raycast origin/direction using the hand’s final transform and active offset.
         /// </summary>

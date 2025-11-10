@@ -39,8 +39,9 @@ namespace Basis.Scripts.BasisSdk.Players
 
         /// <summary>
         /// Fallback height (meters) used when no measurement is available.
+        /// not the total height but the eye height
         /// </summary>
-        public const float FallbackSize = 1.7f;
+        public const float FallbackSize = 1.61f;
 
         /// <summary>
         /// Default measured eye height for the player (meters).

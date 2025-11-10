@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 using UnityEngine.XR.Hands;
 using UnityEngine.XR.Hands.Gestures;
 public class BasisOpenXRHandInput : BasisInputController
@@ -122,9 +123,15 @@ public class BasisOpenXRHandInput : BasisInputController
         CurrentInputState.PrimaryButtonGetState = PrimaryButton.action?.ReadValue<float>() > TriggerDownAmount;
         CurrentInputState.SecondaryButtonGetState = SecondaryButton.action?.ReadValue<float>() > TriggerDownAmount;
         CurrentInputState.Trigger = Trigger.action?.ReadValue<float>() ?? 0f;
-        UnscaledDeviceCoord.position = DeviceActionPosition.action.ReadValue<Vector3>();
-        UnscaledDeviceCoord.rotation = DeviceActionRotation.action.ReadValue<Quaternion>();
 
+        if (DeviceActionPosition != null)
+        {
+            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, DeviceActionPosition.action.ReadValue<Vector3>());
+        }
+        if (DeviceActionRotation != null)
+        {
+            UnscaledDeviceCoord.rotation = DeviceActionRotation.action.ReadValue<Quaternion>();
+        }
         ConvertToScaledDeviceCoord();
         ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
         UpdateRaycastOffset();
@@ -152,14 +159,16 @@ public class BasisOpenXRHandInput : BasisInputController
                     {
                         UpdateHandPose(subsystem.leftHand, BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, out HandRaw.position, out HandRaw.rotation);
                         HandFinal.rotation = HandleHandFinalRotation(HandRaw.rotation);
-                        HandFinal.position = HandRaw.position * avatarScale;
+
+
+                        HandFinal.position = ChangeHandYHeight(HandRaw.position) * avatarScale;
                     }
                     else
                     {
                         HandRaw.position = PalmPoseActionPosition.action.ReadValue<Vector3>();
                         HandRaw.rotation = PalmPoseActionRotation.action.ReadValue<Quaternion>();
                         HandFinal.rotation = math.mul(HandRaw.rotation, Quaternion.Euler(LeftHandPalmCorrection));
-                        HandFinal.position = HandRaw.position * avatarScale;
+                        HandFinal.position = ChangeHandYHeight(HandRaw.position) * avatarScale;
                         FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand);
                         if (UseIKPositionOffset)
                         {
@@ -172,14 +181,14 @@ public class BasisOpenXRHandInput : BasisInputController
                     {
                         UpdateHandPose(subsystem.rightHand, BasisLocalPlayer.Instance.LocalHandDriver.RightHand, out HandRaw.position, out HandRaw.rotation);
                         HandFinal.rotation = HandleHandFinalRotation(HandRaw.rotation);
-                        HandFinal.position = HandRaw.position * avatarScale;
+                        HandFinal.position = ChangeHandYHeight(HandRaw.position) * avatarScale;
                     }
                     else
                     {
                         HandRaw.position = PalmPoseActionPosition.action.ReadValue<Vector3>();
                         HandRaw.rotation = PalmPoseActionRotation.action.ReadValue<Quaternion>();
                         HandFinal.rotation = math.mul(HandRaw.rotation, Quaternion.Euler(RightHandPalmCorrection));
-                        HandFinal.position = HandRaw.position * avatarScale;
+                        HandFinal.position = ChangeHandYHeight(HandRaw.position) * avatarScale;
                         FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.RightHand);
                         if (UseIKPositionOffset)
                         {

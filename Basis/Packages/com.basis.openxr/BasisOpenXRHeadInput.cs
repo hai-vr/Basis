@@ -42,7 +42,7 @@ public class BasisOpenXRHeadInput : BasisInput
 
     public override void DoPollData()
     {
-        UnscaledDeviceCoord.position = Position.action.ReadValue<Vector3>();
+        ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, Position.action.ReadValue<Vector3>());
         UnscaledDeviceCoord.rotation = Rotation.action.ReadValue<Quaternion>();
 
         ConvertToScaledDeviceCoord();

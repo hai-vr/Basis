@@ -261,7 +261,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             Vector3 eyeWorld = tposeHeadWorld + rotatedEyeOffset;
 
             // Output transforms
-            UnscaledDeviceCoord.position = eyeWorld;
+            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, eyeWorld);
             UnscaledDeviceCoord.rotation = targetRot;
 
             ScaledDeviceCoord.position = UnscaledDeviceCoord.position;

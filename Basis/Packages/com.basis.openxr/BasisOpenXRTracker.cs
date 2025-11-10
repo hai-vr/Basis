@@ -31,8 +31,15 @@ public class BasisOpenXRTracker : BasisInput
     }
     public override void DoPollData()
     {
-        if (Position.action != null) UnscaledDeviceCoord.position = Position.action.ReadValue<Vector3>();
-        if (Rotation.action != null) UnscaledDeviceCoord.rotation = Rotation.action.ReadValue<Quaternion>();
+        if (Position.action != null)
+        {
+            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, Position.action.ReadValue<Vector3>());
+        }
+
+        if (Rotation.action != null)
+        {
+            UnscaledDeviceCoord.rotation = Rotation.action.ReadValue<Quaternion>();
+        }
 
         ConvertToScaledDeviceCoord();
         ControlOnlyAsDevice();

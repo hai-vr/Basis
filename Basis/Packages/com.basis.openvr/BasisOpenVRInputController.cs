@@ -153,7 +153,8 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             BonePositions = skeletonAction.bonePositions;
             BoneRotations = skeletonAction.boneRotations;
 
-            UnscaledDeviceCoord.position = DeviceLocalSpace.pos;
+
+            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, DeviceLocalSpace.pos);
             UnscaledDeviceCoord.rotation = DeviceLocalSpace.rot;
 
             // ------- Compute world-space wrist & root (for IK)

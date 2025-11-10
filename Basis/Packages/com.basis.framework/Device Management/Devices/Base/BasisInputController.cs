@@ -4,6 +4,7 @@ using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 /// <summary>
 /// Base class for hand controller input devices.
@@ -84,6 +85,18 @@ public abstract class BasisInputController : BasisInput
         {
             Control.IncomingData.position = Position;
             Control.IncomingData.rotation = Rotation;
+        }
+    }
+    public Vector3 ChangeHandYHeight(Vector3 position)
+    {
+        if (SMModuleSitStand.IsSteatedMode)
+        {
+            position.y += SMModuleSitStand.MissingHeightDelta;
+            return position;
+        }
+        else
+        {
+            return position;
         }
     }
 }

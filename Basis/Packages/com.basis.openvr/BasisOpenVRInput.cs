@@ -32,7 +32,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                     {
                         deviceTransform = new SteamVR_Utils.RigidTransform(deviceGamePose.mDeviceToAbsoluteTracking);
 
-                        UnscaledDeviceCoord.position = deviceTransform.pos;
+                        ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, deviceTransform.pos);
                         UnscaledDeviceCoord.rotation = deviceTransform.rot;
 
                         ConvertToScaledDeviceCoord();
