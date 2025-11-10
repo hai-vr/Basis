@@ -292,6 +292,7 @@ MonoBehaviour:
   - denoisemakeupdb
   - limitknee
   - limitthreshold
+  - microphonemode
 --- !u!114 &9218905915079737845
 MonoBehaviour:
   m_ObjectHideFlags: 0

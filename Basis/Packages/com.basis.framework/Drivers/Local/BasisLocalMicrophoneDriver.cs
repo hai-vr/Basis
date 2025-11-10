@@ -5,11 +5,6 @@ using Basis.Scripts.Device_Management;
 using System.Threading;
 using Unity.Collections;
 using Unity.Jobs;
-using Basis.Scripts.BasisSdk.Players;
-
-//
-// BasisLocalMicrophoneDriver (revised)
-//
 public static class BasisLocalMicrophoneDriver
 {
     private static int head = 0;
@@ -127,6 +122,7 @@ public static class BasisLocalMicrophoneDriver
                 SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
                 ResetMicrophones(SMDMicrophone.SelectedMicrophone);
                 ConfigureDenoiser(SMDMicrophone.SelectedDenoiserMicrophone);
+
                 StartProcessingThread();
                 IsInitialize = true;
                 return true;
