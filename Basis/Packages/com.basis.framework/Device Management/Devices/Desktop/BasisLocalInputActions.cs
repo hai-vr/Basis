@@ -354,7 +354,10 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         {
             var sensitivity = IsMonoStableInput(ctx.control.device) ? JoystickSensitivity : MouseSensitivity;
             var lookDelta = ctx.ReadValue<Vector2>() * (deltaCoefficient * sensitivity);
-
+            if(SMModuleControllerSettings.HasInvertedMouse)
+            {
+                lookDelta.y *= -1f;
+            }
             if (IsCrouchHeld)
             {
                 LocalCharacterDriver.SetCrouchBlendDelta(lookDelta.y);

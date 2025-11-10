@@ -355,6 +355,7 @@ MonoBehaviour:
   SettingsNames:
   - joystickdeadzone
   - snapturnangle
+  - invertmouse
 --- !u!114 &8531479666972516414
 MonoBehaviour:
   m_ObjectHideFlags: 0
