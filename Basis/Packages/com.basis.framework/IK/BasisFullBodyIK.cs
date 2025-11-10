@@ -209,8 +209,8 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Quaternion RightFootRotation;
         [SyncSceneToStream, SerializeField] public Vector3 HintPositionRightLowerLeg;
         [SyncSceneToStream, SerializeField] public Quaternion HintRotationRightLowerLeg;
-        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightLeftLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightLeftLeg;
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightFoot;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightFoot;
 
         // Toes
         [SyncSceneToStream, SerializeField] public Vector3 OutGoingLeftToePosition;
@@ -412,8 +412,8 @@ namespace UnityEngine.Animations.Rigging
             m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
             m_EnabledLeftHand = m_EnabledRightHand = true;
 
-            m_CalibratedOffsetHead = m_CalibratedOffsetLeftFoot = m_CalibratedOffsetRightLeftLeg = Vector3.zero;
-            m_CalibratedRotationHead = m_CalibratedRotationLeftFoot = m_CalibratedRotationRightLeftLeg = Quaternion.identity;
+            m_CalibratedOffsetHead = m_CalibratedOffsetLeftFoot = m_CalibratedOffsetRightFoot = Vector3.zero;
+            m_CalibratedRotationHead = m_CalibratedRotationLeftFoot = m_CalibratedRotationRightFoot = Quaternion.identity;
 
             m_CalibratedOffsetLeftHand = m_CalibratedOffsetRightHand = Vector3.zero;
             m_CalibratedRotationLeftHand = m_CalibratedRotationRightHand = Quaternion.identity;
@@ -671,8 +671,8 @@ o10, o11, o12, o13, o14, o15, o16, o17, o18, o19,
 o20, o54;
 
         public AffineTransform targetOffsetHead,
-targetOffsetLeftLowerLeg,
-targetOffsetRightLowerLeg,
+targetOffsetLeftLeg,
+targetOffsetRightLeg,
 targetOffsetLeftHand,
 targetOffsetRightHand;
 
@@ -742,11 +742,11 @@ chestRadius, collisionSkin;
 
                 BasisAnimationRuntimeUtils.SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
     targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
-    hintWeightLeftLowerLeg, targetOffsetLeftLowerLeg, bendNormalHead);
+    hintWeightLeftLowerLeg, targetOffsetLeftLeg, bendNormalHead);
 
                 BasisAnimationRuntimeUtils.SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
                     targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
-                    hintWeightRightLowerLeg, targetOffsetRightLowerLeg, bendNormalHead);
+                    hintWeightRightLowerLeg, targetOffsetRightLeg, bendNormalHead);
 
                 // --- Hands (TwoBone with capsules + elbow protection) ---
                 BasisAnimationRuntimeUtils.SolveHand(stream,
@@ -793,11 +793,11 @@ chestRadius, collisionSkin;
 
                 BasisAnimationRuntimeUtils.SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
                     targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
-                    hintWeightLeftLowerLeg, targetOffsetLeftLowerLeg, bendNormalHead);
+                    hintWeightLeftLowerLeg, targetOffsetLeftLeg, bendNormalHead);
 
                 BasisAnimationRuntimeUtils.SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
                     targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
-                    hintWeightRightLowerLeg, targetOffsetRightLowerLeg, bendNormalHead);
+                    hintWeightRightLowerLeg, targetOffsetRightLeg, bendNormalHead);
 
                 // --- Hands (TwoBone with capsules + elbow protection) ---
                 BasisAnimationRuntimeUtils.SolveHand(stream,
@@ -963,8 +963,10 @@ chestRadius, collisionSkin;
                 handSkin = FloatProperty.Bind(animator, component, data.HandSkinFloatProperty),
 
                 targetOffsetHead = new AffineTransform(data.m_CalibratedOffsetHead, data.m_CalibratedRotationHead),
-                targetOffsetLeftLowerLeg = new AffineTransform(data.m_CalibratedOffsetLeftFoot, data.m_CalibratedRotationLeftFoot),
-                targetOffsetRightLowerLeg = new AffineTransform(data.m_CalibratedOffsetRightLeftLeg, data.m_CalibratedRotationRightLeftLeg),
+
+                targetOffsetLeftLeg = new AffineTransform(data.m_CalibratedOffsetLeftFoot, data.m_CalibratedRotationLeftFoot),
+                targetOffsetRightLeg = new AffineTransform(data.m_CalibratedOffsetRightFoot, data.m_CalibratedRotationRightFoot),
+
                 targetOffsetLeftHand = new AffineTransform(data.m_CalibratedOffsetLeftHand, data.m_CalibratedRotationLeftHand),
                 targetOffsetRightHand = new AffineTransform(data.m_CalibratedOffsetRightHand, data.m_CalibratedRotationRightHand),
 

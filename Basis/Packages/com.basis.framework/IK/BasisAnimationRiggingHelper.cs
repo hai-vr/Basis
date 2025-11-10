@@ -70,8 +70,8 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedOffsetLeftFoot = Vector3.zero;
         data.m_CalibratedRotationLeftFoot = Mapping.leftFoot.rotation;
 
-        data.m_CalibratedOffsetRightLeftLeg = Vector3.zero; // keeping original field name
-        data.m_CalibratedRotationRightLeftLeg = Mapping.rightFoot.rotation;
+        data.m_CalibratedOffsetRightFoot = Vector3.zero; // keeping original field name
+        data.m_CalibratedRotationRightFoot = Mapping.rightFoot.rotation;
 
         // Hands
         data.m_CalibratedOffsetLeftHand = Vector3.zero;
