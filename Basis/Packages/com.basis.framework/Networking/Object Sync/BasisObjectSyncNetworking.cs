@@ -5,6 +5,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Compression;
 using BasisSerializer.OdinSerializer;
 using LiteNetLib;
+using System;
 using UnityEngine;
 public class BasisObjectSyncNetworking : BasisNetworkBehaviour
 {
@@ -30,18 +31,21 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
         {
             BasisPickupInteractable.CanHoverInjected.Add(CanHover);
             BasisPickupInteractable.CanInteractInjected.Add(CanInteract);
+            BasisPickupInteractable.OnInteractStartEvent += OnInteractStartEvent;
         }
         if (BasisPickupInteractable.RigidRef != null)
         {
             BasisPickupInteractable.RigidRef.isKinematic = false;
         }
     }
+
     public void OnDisable()
     {
         if (BasisPickupInteractable != null)
         {
             BasisPickupInteractable.CanHoverInjected.Remove(CanHover);
             BasisPickupInteractable.CanInteractInjected.Remove(CanInteract);
+            BasisPickupInteractable.OnInteractStartEvent -= OnInteractStartEvent;
         }
     }
     public override void OnDestroy()
@@ -76,17 +80,20 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
         // Allow interact if we arent connected or if we own it locally
         if (IsOwnedLocallyOnClient)
         {
-            return true;
+            return true; 
         }
         // NOTE: this is called 2 times per frame on interact start, once to tell HoverEnd that it will be interacting, and again for the actual interact check
-        if (CanNetworkSteal && !IsOwnedLocallyOnClient && pendingStealRequest == null)
+        if (CanNetworkSteal &&  (pendingStealRequest == null || pendingStealRequest == input))
         {
             pendingStealRequest = input;
-            CanInteractAsync(); // ControlState handles the ownership transfer logic here
+            return true;
         }
         return false;
     }
-
+    private void OnInteractStartEvent(BasisInput input)
+    {
+        CanInteractAsync(); // ControlState handles the ownership transfer logic here
+    }
     private async void CanInteractAsync()
     {
         var result = await TakeOwnershipAsync(5000); // 5 second timeout 
