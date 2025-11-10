@@ -1,4 +1,4 @@
-u using Basis.Scripts.BasisSdk.Helpers;
+using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
@@ -39,7 +39,7 @@ namespace Basis.Scripts.Drivers
         public PlayableGraph PlayableGraph;
         private BasisLocalPlayer localPlayer;
         private BasisTransformMapping BasisTransformMapping;
-        private OneEuroFilterVector3 posFilters = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private OneEuroFilterVector3 OneEuroFilter = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
         private float _timeAccumulator;
         public Rig MainRig;
         public RigLayer RigLayer;
@@ -112,11 +112,11 @@ namespace Basis.Scripts.Drivers
             var Hips = BasisLocalBoneDriver.HipsControl;
             // Hips (filtered)
             var hipsCoords = Hips.OutgoingWorldData;
-            posFilters.minCutoff = MinCutoff;
-            posFilters.beta = Beta;
-            posFilters.dCutoff = DerivativeCutoff;
+            OneEuroFilter.minCutoff = MinCutoff;
+            OneEuroFilter.beta = Beta;
+            OneEuroFilter.dCutoff = DerivativeCutoff;
 
-            var hipspos = posFilters.Filter(hipsCoords.position, _timeAccumulator);
+            var hipspos = OneEuroFilter.Filter(hipsCoords.position, _timeAccumulator);
 
             var d = BasisFullIKConstraint.data;
             d.PositionHips = hipspos;
@@ -192,20 +192,20 @@ namespace Basis.Scripts.Drivers
             BasisAnimationRiggingHelper.CreateBasisFullBodyRIG(localPlayer, MainRig, BasisTransformMapping, out BasisFullIKConstraint);
 
             // Base enables
-            var d = BasisFullIKConstraint.data;
+            var data = BasisFullIKConstraint.data;
 
             // Legs enabled by presence
             BasisLocalBoneDriver.LeftFootControl.OnHasRigChanged += () =>
             {
-                d.EnableLeftLeg = BasisLocalBoneDriver.LeftFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                data.EnableLeftLeg = BasisLocalBoneDriver.LeftFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
-            d.EnableLeftLeg = BasisLocalBoneDriver.LeftFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+            data.EnableLeftLeg = BasisLocalBoneDriver.LeftFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             BasisLocalBoneDriver.RightFootControl.OnHasRigChanged += () =>
             {
-                d.EnableRightLeg = BasisLocalBoneDriver.RightFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                data.EnableRightLeg = BasisLocalBoneDriver.RightFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
-            d.EnableRightLeg = BasisLocalBoneDriver.RightFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+            data.EnableRightLeg = BasisLocalBoneDriver.RightFootControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             // Head-driven layer activity
             BasisLocalBoneDriver.HeadControl.OnHasRigChanged += () =>
@@ -217,28 +217,28 @@ namespace Basis.Scripts.Drivers
             // Toes (fixed: left controls left, right controls right)
             BasisLocalBoneDriver.LeftToeControl.OnHasRigChanged += () =>
             {
-                d.LeftToeEnabled = BasisLocalBoneDriver.LeftToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                data.LeftToeEnabled = BasisLocalBoneDriver.LeftToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
-            d.LeftToeEnabled = BasisLocalBoneDriver.LeftToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+            data.LeftToeEnabled = BasisLocalBoneDriver.LeftToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             BasisLocalBoneDriver.RightToeControl.OnHasRigChanged += () =>
             {
-                d.RightToeEnabled = BasisLocalBoneDriver.RightToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                data.RightToeEnabled = BasisLocalBoneDriver.RightToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
-            d.RightToeEnabled = BasisLocalBoneDriver.RightToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+            data.RightToeEnabled = BasisLocalBoneDriver.RightToeControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             // Hands
             BasisLocalBoneDriver.LeftHandControl.OnHasRigChanged += () =>
             {
-                d.enabledLeftHand = BasisLocalBoneDriver.LeftHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                data.enabledLeftHand = BasisLocalBoneDriver.LeftHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
-            d.enabledLeftHand = BasisLocalBoneDriver.LeftHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+            data.enabledLeftHand = BasisLocalBoneDriver.LeftHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             BasisLocalBoneDriver.RightHandControl.OnHasRigChanged += () =>
             {
-                d.enabledRightHand = BasisLocalBoneDriver.RightHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+                data.enabledRightHand = BasisLocalBoneDriver.RightHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
             };
-            d.enabledRightHand = BasisLocalBoneDriver.RightHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+            data.enabledRightHand = BasisLocalBoneDriver.RightHandControl.HasRigLayer == BasisHasRigLayer.HasRigLayer;
 
             int per = BasisFullBodyData.Count;
             for (int slot = 0; slot < per; slot++)
@@ -246,16 +246,16 @@ namespace Basis.Scripts.Drivers
                 var t = ResolveHumanoidBoneTransform((HumanBodyBones)slot);
                 if (t != null)
                 {
-                    d.SetWeight(slot, false);
-                    d.SetOffsetRotation(slot, t.rotation);
-                    d.SetTargetRotation(slot, t.rotation);
+                    data.SetWeight(slot, false);
+                    data.SetOffsetRotation(slot, t.rotation);
+                    data.SetTargetRotation(slot, t.rotation);
                 }
                 else
                 {
                     continue;
                 }
             }
-            BasisFullIKConstraint.data = d;
+            BasisFullIKConstraint.data = data;
         }
         public void SetBodySettings()
         {
