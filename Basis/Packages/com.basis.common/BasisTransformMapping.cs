@@ -103,13 +103,17 @@ namespace Basis.Scripts.Common
             {
                 references = new BasisTransformMapping();
             }
-            if (!anim.isHuman)
+            if (anim.isHuman)
+            {
+
+            }
+            else
             {
                 BasisDebug.LogError("We need a Humanoid Animator");
                 return false;
             }
             references.Forwards = anim.transform.forward;
-            references.Upwards = anim.transform.forward;
+            references.Upwards = anim.transform.up;
 
             references.AnimatorRoot = AnimatorRoot;
             references.HasAnimatorRoot = BoolState(references.AnimatorRoot);
