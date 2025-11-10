@@ -158,10 +158,10 @@ namespace Basis.Scripts.Networking.Receivers
         /// <param name="MouthParent">Transform to parent the audio source under (e.g., mouth).</param>
         public async void LoadAudioSource(BasisNetworkPlayer networkedPlayer, Transform MouthParent)
         {
-            if (AudioSourceTransform == null)
+            if (AudioSourceTransform == null || audioSource == null)
             {
                 AudioSourceTransform = BasisAudioRemoteSource.RequestAudio(MouthParent).transform;
-                AudioSourceTransform.SetLocalPositionAndRotation(Vector3.zero,Quaternion.identity);
+                AudioSourceTransform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
                 AudioSourceTransform.name = $"[Audio] {BasisNetworkReceiver.Player.DisplayName}";
                 audioSource = BasisHelpers.GetOrAddComponent<AudioSource>(AudioSourceTransform.gameObject);
                 audioSource.clip = BasisAudioClipPool.Get(networkedPlayer.playerId);
@@ -171,8 +171,16 @@ namespace Basis.Scripts.Networking.Receivers
             HasAudioSource = true;
             AvatarChanged(networkedPlayer);
 
-            var BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(networkedPlayer.Player.UUID);
-            ChangeRemotePlayersVolumeSettings(BasisPlayerSettingsData.VolumeLevel);
+            try
+            {
+                var BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(networkedPlayer.Player.UUID);
+                ChangeRemotePlayersVolumeSettings(BasisPlayerSettingsData.VolumeLevel);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError($"{ex}", BasisDebug.LogTag.Remote);
+                ChangeRemotePlayersVolumeSettings(1);
+            }
         }
 
         /// <summary>
