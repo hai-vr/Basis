@@ -586,7 +586,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public override void InputUpdate()
         {
             if (!GetActiveInteracting(out BasisInputWrapper interactingInput)) return;
-            GetOppositeInteracting(out BasisInputWrapper opposingInput);
 
             Vector3 inPos = interactingInput.BoneControl.OutgoingWorldData.position;
             Quaternion inRot = interactingInput.BoneControl.OutgoingWorldData.rotation;
@@ -599,32 +598,34 @@ namespace Basis.Scripts.BasisSdk.Interactions
             else
             {
                 // If trigger pulled on opposing input, scale object based on hand distance
-                if (enableScaleWithGesture && opposingInput.Source.CurrentInputState.Trigger >= 0.9f)
+                if (enableScaleWithGesture && GetOppositeInteracting(out BasisInputWrapper opposingInput))
                 {
-
-                    float distanceBetweenHands = BasisPickupHelpers.GetNormalizedDistanceBetweenHands(Inputs);
-                    if (_previousDistance == -1)
+                    if (opposingInput.Source.CurrentInputState.Trigger >= 0.9f)
                     {
-                        _previousDistance = distanceBetweenHands;
-                    }
-                    else
-                    {
-                        float delta = math.abs(_previousDistance - distanceBetweenHands);
-                        if (delta > 0.001f)
+                        float distanceBetweenHands = BasisPickupHelpers.GetNormalizedDistanceBetweenHands(Inputs);
+                        if (_previousDistance == -1)
                         {
-                            var scaleDirection = distanceBetweenHands > _previousDistance ? BasisTransform.Direction.Embiggen : BasisTransform.Direction.Ensmallen;
-                            float minScale = (minScalePercent / 100) * _scaleAtStart.x;
-                            float maxScale = (maxScalePercent / 100) * _scaleAtStart.x;
-                            float stepSize = math.abs(minScale - maxScale) / 100f;
-                            BasisTransform.ScaleObjectBetween(
-                                transform,
-                                scaleDirection,
-                                stepSize,
-                                minScale,
-                                maxScale
-                                );
+                            _previousDistance = distanceBetweenHands;
                         }
-                        _previousDistance = distanceBetweenHands;
+                        else
+                        {
+                            float delta = math.abs(_previousDistance - distanceBetweenHands);
+                            if (delta > 0.001f)
+                            {
+                                var scaleDirection = distanceBetweenHands > _previousDistance ? BasisTransform.Direction.Embiggen : BasisTransform.Direction.Ensmallen;
+                                float minScale = (minScalePercent / 100) * _scaleAtStart.x;
+                                float maxScale = (maxScalePercent / 100) * _scaleAtStart.x;
+                                float stepSize = math.abs(minScale - maxScale) / 100f;
+                                BasisTransform.ScaleObjectBetween(
+                                    transform,
+                                    scaleDirection,
+                                    stepSize,
+                                    minScale,
+                                    maxScale
+                                    );
+                            }
+                            _previousDistance = distanceBetweenHands;
+                        }
                     }
                 }
                 else
