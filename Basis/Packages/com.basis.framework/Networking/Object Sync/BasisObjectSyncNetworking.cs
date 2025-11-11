@@ -99,12 +99,9 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
     }
     public void SetIsKinematicOnPickup(bool state)
     {
-        if (BasisPickupInteractable != null)
+        if (BasisPickupInteractable != null && BasisPickupInteractable.RigidRef != null)
         {
-            if (BasisPickupInteractable.RigidRef != null)
-            {
-                BasisPickupInteractable.RigidRef.isKinematic = state;
-            }
+            BasisPickupInteractable.RigidRef.isKinematic = state;
         }
     }
     public override void OnOwnershipTransfer(ushort NetIdNewOwner)
