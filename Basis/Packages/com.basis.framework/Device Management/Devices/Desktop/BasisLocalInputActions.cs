@@ -7,6 +7,7 @@ using Basis.Scripts.Common;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Interactions;
+using Basis.Scripts.UI;
 
 namespace Basis.Scripts.Device_Management.Devices.Desktop
 {
@@ -295,8 +296,11 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
         public void StartGoingLeft()
         {
-            manualMoveVector.x = -1;
-            ApplyManualMovement();
+            if (BasisInputModuleHandler.Instance.HasHoverONInput == false)
+            {
+                manualMoveVector.x = -1;
+                ApplyManualMovement();
+            }
         }
 
         public void StopGoingLeft()
@@ -304,11 +308,13 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             if (manualMoveVector.x < 0) manualMoveVector.x = 0;
             ApplyManualMovement();
         }
-
         public void StartGoingRight()
         {
-            manualMoveVector.x = 1;
-            ApplyManualMovement();
+            if (BasisInputModuleHandler.Instance.HasHoverONInput == false)
+            {
+                manualMoveVector.x = 1;
+                ApplyManualMovement();
+            }
         }
 
         public void StopGoingRight()
