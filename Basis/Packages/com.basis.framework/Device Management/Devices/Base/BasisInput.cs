@@ -187,7 +187,7 @@ namespace Basis.Scripts.Device_Management.Devices
         }
         public void ComputeUnscaledDeviceCoord(ref BasisCalibratedCoords coords,Vector3 position)
         {
-            if (SMModuleSitStand.IsSteatedMode)
+            if (SMModuleSitStand.IsSteatedMode && BasisDeviceManagement.IsCurrentModeVR())
             {
                 position.y += SMModuleSitStand.MissingHeightDelta;
                 coords.position = position;

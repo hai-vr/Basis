@@ -1,4 +1,6 @@
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Unity.Mathematics;
@@ -87,7 +89,7 @@ public abstract class BasisInputController : BasisInput
     }
     public Vector3 ChangeHandYHeight(Vector3 position)
     {
-        if (SMModuleSitStand.IsSteatedMode)
+        if (SMModuleSitStand.IsSteatedMode && BasisDeviceManagement.IsCurrentModeVR())
         {
             position.y += SMModuleSitStand.MissingHeightDelta;
             return position;
