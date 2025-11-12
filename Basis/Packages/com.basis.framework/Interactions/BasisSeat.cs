@@ -337,7 +337,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public override void OnInteractEnd(BasisInput input)
         {
             _interactingInput = null;
-            base.OnInteractEnd(input);
+        }
+        /// <summary>
+        /// this one actually does the callback.
+        /// </summary>
+        public void OnExitSeat()
+        {
+            base.OnInteractEnd(null);
         }
         #endregion Basis Integration
     }
