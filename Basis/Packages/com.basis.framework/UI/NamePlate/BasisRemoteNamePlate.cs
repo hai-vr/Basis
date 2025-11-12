@@ -27,7 +27,6 @@ namespace Basis.Scripts.UI.NamePlate
         public MeshRenderer Renderer;
         public Color CurrentColor;
         public Transform Self;
-        public float InteractRange = 2f;
         private Coroutine colorCoroutine;
         private static readonly int ColorId = Shader.PropertyToID("_BaseColor"); // or "_Color" for Built-in RP
         private MaterialPropertyBlock mpb;

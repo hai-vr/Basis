@@ -22,7 +22,6 @@ public class ExampleButtonInteractable : BasisInteractableObject
     [Header("References")]
     public Collider ColliderRef;
     public MeshRenderer RendererRef;
-    public float InteractRange = 1f;
 
     private BasisInputWrapper _inputSource;
     // Ignore provided list localy, but keep it updated for other scripts 

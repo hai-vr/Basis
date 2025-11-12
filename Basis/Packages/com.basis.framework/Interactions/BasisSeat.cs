@@ -1,5 +1,4 @@
 using Basis.Scripts.Device_Management.Devices;
-using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
@@ -279,10 +278,15 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // Can only hover when not already hovering or interacting.
             return _checkUsabilityWithState(input, BasisInteractInputState.Ignored);
         }
-
+        public bool canInteract = true;
+        private bool IsSeatTaken = false;
+        public void SetSeatOccupied(bool seatOccupied)
+        {
+            IsSeatTaken = seatOccupied;
+        }
         public override bool CanInteract(BasisInput input)
         {
-            return true;
+            return canInteract && IsSeatTaken == false;
         }
 
         public override bool IsHoveredBy(BasisInput input)
@@ -326,6 +330,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public override void OnInteractStart(BasisInput input)
         {
             _interactingInput = input;
+            OnInteractStartEvent?.Invoke(input);
             Basis.Scripts.BasisSdk.Players.BasisLocalPlayer.Instance.LocalSeatDriver.Sit(this);
         }
 

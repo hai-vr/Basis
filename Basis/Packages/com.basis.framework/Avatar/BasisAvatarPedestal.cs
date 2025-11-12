@@ -47,11 +47,6 @@ public class BasisAvatarPedestal : BasisInteractableObject
     public bool WasJustPressed = false;
 
     /// <summary>
-    /// Maximum interaction range in world units for hovering or interacting.
-    /// </summary>
-    public float InteractRange = 1f;
-
-    /// <summary>
     /// Bundle definition used for loading an avatar when not using direct references.
     /// </summary>
     public BasisLoadableBundle LoadableBundle;
