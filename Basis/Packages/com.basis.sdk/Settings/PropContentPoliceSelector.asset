@@ -326,3 +326,5 @@ MonoBehaviour:
   - TMPro.TextContainer
   - Basis.Scripts.UI.BasisGraphicUIRayCaster
   - BasisZoneSwitchCCMode
+  - BasisSeatSync
+  - Basis.Scripts.BasisSdk.Interactions.BasisSeat
