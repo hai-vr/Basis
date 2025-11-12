@@ -212,10 +212,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // pull out the leg joints you need
             var leftUpper = tpose[HumanBodyBones.LeftUpperLeg];
             var leftLower = tpose[HumanBodyBones.LeftLowerLeg];
-            var rightUpper = tpose[HumanBodyBones.RightUpperLeg];
-            var rightLower = tpose[HumanBodyBones.RightLowerLeg];
             var leftFoot = tpose[HumanBodyBones.LeftFoot];
-            var rightFoot = tpose[HumanBodyBones.RightFoot];
             var leftToe = tpose[HumanBodyBones.LeftToes];
 
             Matrix4x4 dat = Player.AvatarTransform.localToWorldMatrix;
@@ -224,14 +221,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             Vector3 LUL_World = Vector3.Scale(scale, leftUpper.position);
             Vector3 LLL_World = Vector3.Scale(scale, leftLower.position);
-            Vector3 RUL_World = Vector3.Scale(scale, rightUpper.position);
-            Vector3 RLL_World = Vector3.Scale(scale, rightLower.position);
             Vector3 LF_World = Vector3.Scale(scale, leftFoot.position);
-            Vector3 RF_World = Vector3.Scale(scale, rightFoot.position);
             Vector3 LT_World = Vector3.Scale(scale, leftToe.position);
 
             // finally call your leg placement helper
-            hipsWorldPos = ApplyRemoteLeg(leftLower.rotation, leftUpper.rotation, LF_World, LLL_World, RF_World, RLL_World, LUL_World, RUL_World, LT_World);
+            hipsWorldPos = ApplyRemoteLeg(scale, leftLower.rotation, leftUpper.rotation, LF_World, LLL_World, LUL_World, LT_World);
         }
         public Vector3 Convert(Matrix4x4 m)
         {
@@ -242,22 +236,24 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
         public Vector3 AdditionalOffset = Vector3.zero;
         /// <summary>
-        /// BasisLocalBoneDriver.LeftLowerLegControl.TposeLocalScaled
-        /// LeftUpperLegControl
+        /// 
         /// </summary>
-        /// <param name="this"></param>
-        /// <param name="TposeLocalScaledRotation"></param>
+        /// <param name="scale"></param>
+        /// <param name="LeftLowerLegControlRotation"></param>
+        /// <param name="LeftUpperLegControlRotation"></param>
+        /// <param name="LeftFootControl"></param>
+        /// <param name="LeftLowerLegControl"></param>
+        /// <param name="RightFootControl"></param>
+        /// <param name="RightLowerLegControl"></param>
+        /// <param name="LeftUpperLegControl"></param>
+        /// <param name="RightUpperLegControl"></param>
+        /// <param name="LeftToeControl"></param>
         /// <returns></returns>
-        public Vector3 ApplyRemoteLeg(
-            Quaternion LeftLowerLegControlRotation, Quaternion LeftUpperLegControlRotation
-            , Vector3 LeftFootControl, Vector3 LeftLowerLegControl, Vector3 RightFootControl, Vector3 RightLowerLegControl, Vector3 LeftUpperLegControl
-            , Vector3 RightUpperLegControl, Vector3 LeftToeControl)
+        public Vector3 ApplyRemoteLeg(Vector3 scale,Quaternion LeftLowerLegControlRotation, Quaternion LeftUpperLegControlRotation,Vector3 LeftFootControl, Vector3 LeftLowerLegControl,  Vector3 LeftUpperLegControl, Vector3 LeftToeControl)
         {
 
             Vector3 leftLowerLegOffset = LeftFootControl - LeftLowerLegControl;
-            Vector3 rightLowerLegOffset = RightFootControl - RightLowerLegControl;
             Vector3 leftUpperLegOffset = LeftLowerLegControl - LeftUpperLegControl;
-            Vector3 rightUpperLegOffset = RightLowerLegControl - RightUpperLegControl;
             float footThickness = Mathf.Max(LeftFootControl.y, LeftToeControl.y);
 
             float upperLegLength = leftUpperLegOffset.magnitude;
@@ -291,12 +287,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
             float lowerLegAngleVsSpineRadians = lowerLegAngleVsSeatRadians - Mathf.Deg2Rad * ((float)SpineAngleDegrees + LegAngleDegrees);
             Vector3 targetLowerLegDirRelToHips = new Vector3(0.0f, Mathf.Cos(lowerLegAngleVsSpineRadians), -Mathf.Sin(lowerLegAngleVsSpineRadians));
-            Quaternion desiredLeftLowerLegRot = AlignAroundLocalX(
-                LeftLowerLegControlRotation,
-                leftLowerLegOffset,
-                targetLowerLegDirRelToHips
-            );
-            float lowerLegVerticalTravelRatio = Vector3.Dot(LowerLegDir, @SpineRotation * desiredLeftLowerLegRot * Vector3.down);
+            Quaternion desiredLeftLowerLegRot = AlignAroundLocalX(LeftLowerLegControlRotation,leftLowerLegOffset,targetLowerLegDirRelToHips);
+            float lowerLegVerticalTravelRatio = Vector3.Dot(LowerLegDir, SpineRotation * desiredLeftLowerLegRot * Vector3.down);
             float availableLowerLegVerticalTravel = Vector3.Distance(targetFoot + LowerLegDir * lowerLegFootRadius, targetKnee + LowerLegDir * lowerLegKneeRadius);
             float characterLowerLegVerticalTravel = lowerLegLength * lowerLegVerticalTravelRatio;
             if (characterLowerLegVerticalTravel >= availableLowerLegVerticalTravel)
@@ -308,7 +300,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 }
                 targetBack = ClosestPointOnSphere(targetBack, targetKnee, upperLegLength);
             }
-            targetBack += AdditionalOffset;
+            targetBack += Vector3.Scale(scale, AdditionalOffset);
             Vector3 pelvisWorldPos = transform.TransformPoint(targetBack);
 
             return pelvisWorldPos;
