@@ -14,6 +14,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Unity.Mathematics;
 using UnityEngine;
 using static BasisNetworkGenericMessages;
 using static BasisNetworkPrimitiveCompression;
@@ -431,6 +432,32 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             {
                 BasisDebug.LogError("Not Implemented Remote GetBonePosition", BasisDebug.LogTag.Networking);
                 return Quaternion.identity;
+            }
+        }
+        public bool HasOverridenDestination { get; private set; } = false;
+        public float3 OverridenPosition { get; private set; } = float3.zero;
+        public Quaternion OverridenRotation { get; private set; } = Quaternion.identity;
+        public void OverridenDestinationOfRoot(bool hasOverridenDestination)
+        {
+            if (Player.IsLocal)
+            {
+                BasisDebug.LogError("cant set root for localplayer use  BasisLocalPlayer.Instance.LocalRigDriver.SetOverrideUsage(HumanBodyBones.Hips, enabled);", BasisDebug.LogTag.Networking);
+            }
+            else
+            {
+                HasOverridenDestination = hasOverridenDestination;
+            }
+        }
+        public void ProvidedDestinationOfRoot(float3 Position,Quaternion Rotation)
+        {
+            if (Player.IsLocal)
+            {
+                BasisDebug.LogError("cant set root for localplayer use BasisLocalPlayer.Instance.LocalRigDriver.SetOverrideData(Overidenbone, Position, Rotation);", BasisDebug.LogTag.Networking);
+            }
+            else
+            {
+                OverridenPosition = Position;
+                OverridenRotation = Rotation;
             }
         }
 

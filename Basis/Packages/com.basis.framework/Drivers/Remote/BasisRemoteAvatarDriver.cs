@@ -140,8 +140,8 @@ namespace Basis.Scripts.Drivers
                 remotePlayerRoot: player.BasisAvatar.Animator.transform,
                 head: player.RemoteAvatarDriver.References.head,
                 hips: player.RemoteAvatarDriver.References.Hips,
-                tposeHead: player.RemoteAvatarDriver.References.TposeHead,
-                tposeHips: player.RemoteAvatarDriver.References.TposeHips,
+                tposeHead: player.RemoteAvatarDriver.References.Tpose[HumanBodyBones.Head],
+                tposeHips: player.RemoteAvatarDriver.References.Tpose[HumanBodyBones.Hips],
                 authoredCenterEyeWorld: BasisHelpers.ConvertFromLocalSpace(
                     BasisHelpers.AvatarPositionConversion(player.BasisAvatar.AvatarEyePosition),
                     player.BasisAvatar.Animator.transform.position

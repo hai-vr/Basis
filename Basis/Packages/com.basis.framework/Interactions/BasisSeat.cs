@@ -1,4 +1,7 @@
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.Networking.Receivers;
+using System;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
@@ -197,7 +200,160 @@ namespace Basis.Scripts.BasisSdk.Interactions
             };
             return mesh;
         }
+        public void CalculateSeatPositionRotation(BasisRemotePlayer Player, out Quaternion hipsWorldRot, out Vector3 hipsWorldPos)
+        {
+            // seat orientation
+            Quaternion seatQuat = transform.rotation;
+            hipsWorldRot = seatQuat * SpineRotation;
 
+            var refs = Player.RemoteAvatarDriver.References;
+            // grab T-pose dictionary once
+            var tpose = refs.Tpose;
+            // pull out the leg joints you need
+            var leftUpper = tpose[HumanBodyBones.LeftUpperLeg];
+            var leftLower = tpose[HumanBodyBones.LeftLowerLeg];
+            var rightUpper = tpose[HumanBodyBones.RightUpperLeg];
+            var rightLower = tpose[HumanBodyBones.RightLowerLeg];
+            var leftFoot = tpose[HumanBodyBones.LeftFoot];
+            var rightFoot = tpose[HumanBodyBones.RightFoot];
+            var leftToe = tpose[HumanBodyBones.LeftToes];
+
+            Matrix4x4 dat = Player.AvatarTransform.localToWorldMatrix;
+
+            Vector3 scale = Convert(dat);
+
+            Vector3 LUL_World = Vector3.Scale(scale, leftUpper.position);
+            Vector3 LLL_World = Vector3.Scale(scale, leftLower.position);
+            Vector3 RUL_World = Vector3.Scale(scale, rightUpper.position);
+            Vector3 RLL_World = Vector3.Scale(scale, rightLower.position);
+            Vector3 LF_World = Vector3.Scale(scale, leftFoot.position);
+            Vector3 RF_World = Vector3.Scale(scale, rightFoot.position);
+            Vector3 LT_World = Vector3.Scale(scale, leftToe.position);
+
+            // finally call your leg placement helper
+            hipsWorldPos = AdditionalOffset + ApplyRemoteLeg(leftLower.rotation, leftUpper.rotation, LF_World, LLL_World, RF_World, RLL_World, LUL_World, RUL_World, LT_World);
+        }
+        public Vector3 Convert(Matrix4x4 m)
+        {
+            Vector3 sx = new Vector3(m.m00, m.m10, m.m20);
+            Vector3 sy = new Vector3(m.m01, m.m11, m.m21);
+            Vector3 sz = new Vector3(m.m02, m.m12, m.m22);
+            return new Vector3(sx.magnitude, sy.magnitude, sz.magnitude);
+        }
+        public Vector3 AdditionalOffset = Vector3.zero;
+        /// <summary>
+        /// BasisLocalBoneDriver.LeftLowerLegControl.TposeLocalScaled
+        /// LeftUpperLegControl
+        /// </summary>
+        /// <param name="this"></param>
+        /// <param name="TposeLocalScaledRotation"></param>
+        /// <returns></returns>
+        public Vector3 ApplyRemoteLeg(
+            Quaternion LeftLowerLegControlRotation, Quaternion LeftUpperLegControlRotation
+            , Vector3 LeftFootControl,Vector3 LeftLowerLegControl,Vector3 RightFootControl, Vector3 RightLowerLegControl, Vector3 LeftUpperLegControl
+            , Vector3 RightUpperLegControl, Vector3 LeftToeControl)
+        {
+
+          Vector3  leftLowerLegOffset = LeftFootControl - LeftLowerLegControl;
+            Vector3 rightLowerLegOffset = RightFootControl - RightLowerLegControl;
+            Vector3 leftUpperLegOffset = LeftLowerLegControl - LeftUpperLegControl;
+            Vector3 rightUpperLegOffset = RightLowerLegControl - RightUpperLegControl;
+            float footThickness = Mathf.Max(LeftFootControl.y, LeftToeControl.y);
+
+           float upperLegLength = leftUpperLegOffset.magnitude;
+            float lowerLegLength = leftLowerLegOffset.magnitude;
+            float totalLegLength = upperLegLength + lowerLegLength;
+            float spineBackThickness = totalLegLength * 0.14f;
+            float upperLegBackRadius = totalLegLength * 0.14f;
+            float upperLegKneeRadius = totalLegLength * 0.08f;
+            float lowerLegKneeRadius = totalLegLength * 0.10f;
+            float lowerLegFootRadius = totalLegLength * 0.06f;
+            // Calculate the desired upper leg rotations based on the thickness of the legs.
+            float upperLegAngleVsSeatRadians = Mathf.Asin((upperLegBackRadius - upperLegKneeRadius) / upperLegLength);
+            // Calculate the desired lower leg rotations based on the thickness of the legs.
+            float lowerLegAngleVsSeatRadians = Mathf.Asin((lowerLegKneeRadius - lowerLegFootRadius) / lowerLegLength);
+            Vector3 targetFoot = Foot + (LowerLegPerp * lowerLegFootRadius) - (LowerLegDir * footThickness);
+            Vector3 targetKnee = Knee + (UpperLegPerp * upperLegKneeRadius) + (UpperLegDir * GetAdjustmentScalar(LegAngleDegrees, lowerLegKneeRadius, upperLegKneeRadius, upperLegLength));
+            Vector3 targetBack = Back + (UpperLegPerp * upperLegBackRadius) + (UpperLegDir * GetAdjustmentScalar(180.0f - (float)SpineAngleDegrees, spineBackThickness, upperLegBackRadius, upperLegLength));
+            float upperLegAngleVsSpineRadians = upperLegAngleVsSeatRadians + Mathf.Deg2Rad * (float)SpineAngleDegrees;
+            Vector3 targetUpperLegDirRelToHips = new Vector3(0.0f, Mathf.Cos(upperLegAngleVsSpineRadians), Mathf.Sin(upperLegAngleVsSpineRadians));
+            Quaternion desiredLeftUpperLegRot = AlignAroundLocalX(LeftUpperLegControlRotation, leftUpperLegOffset, targetUpperLegDirRelToHips);
+            float upperLegHorizontalTravelRatio = Vector3.Dot(UpperLegDir, SpineRotation * desiredLeftUpperLegRot * Vector3.down);
+            float availableUpperLegHorizontalTravel = Vector3.Distance(targetKnee - UpperLegPerp * upperLegKneeRadius, targetBack - UpperLegPerp * upperLegBackRadius);
+            float characterUpperLegHorizontalTravel = upperLegLength * upperLegHorizontalTravelRatio;
+            if (characterUpperLegHorizontalTravel < availableUpperLegHorizontalTravel)
+            {
+                targetBack += UpperLegDir * (availableUpperLegHorizontalTravel - characterUpperLegHorizontalTravel);
+            }
+            else
+            {
+                targetKnee += UpperLegDir * (characterUpperLegHorizontalTravel - availableUpperLegHorizontalTravel);
+            }
+            float lowerLegAngleVsSpineRadians = lowerLegAngleVsSeatRadians - Mathf.Deg2Rad * ((float)SpineAngleDegrees + LegAngleDegrees);
+            Vector3 targetLowerLegDirRelToHips = new Vector3(0.0f, Mathf.Cos(lowerLegAngleVsSpineRadians), -Mathf.Sin(lowerLegAngleVsSpineRadians));
+            Quaternion desiredLeftLowerLegRot = AlignAroundLocalX(
+                LeftLowerLegControlRotation,
+                leftLowerLegOffset,
+                targetLowerLegDirRelToHips
+            );
+            float lowerLegVerticalTravelRatio = Vector3.Dot(LowerLegDir, @SpineRotation * desiredLeftLowerLegRot * Vector3.down);
+            float availableLowerLegVerticalTravel = Vector3.Distance(targetFoot + LowerLegDir * lowerLegFootRadius, targetKnee + LowerLegDir * lowerLegKneeRadius);
+            float characterLowerLegVerticalTravel = lowerLegLength * lowerLegVerticalTravelRatio;
+            if (characterLowerLegVerticalTravel >= availableLowerLegVerticalTravel)
+            {
+                targetKnee += LowerLegDir * (availableLowerLegVerticalTravel - characterLowerLegVerticalTravel);
+                if (characterUpperLegHorizontalTravel > availableUpperLegHorizontalTravel)
+                {
+                    targetKnee = ClosestPointOnSphere(targetKnee, targetFoot, lowerLegLength);
+                }
+                targetBack = ClosestPointOnSphere(targetBack, targetKnee, upperLegLength);
+            }
+            Vector3 pelvisWorldPos = transform.TransformPoint(targetBack);
+
+            return pelvisWorldPos;
+        }
+        public static Vector3 ClosestPointOnSphere(Vector3 point, Vector3 sphereCenter, float sphereRadius)
+        {
+            Vector3 dir = point - sphereCenter;
+            dir.Normalize();
+            return sphereCenter + dir * sphereRadius;
+        }
+        public static float GetAdjustmentScalar(float angle, float alignedOffset, float perpOffset, float limit)
+        {
+            if (angle > 90.001f)
+            {
+                return Mathf.Min(alignedOffset / Mathf.Sin(angle * Mathf.Deg2Rad) - perpOffset / Mathf.Tan(angle * Mathf.Deg2Rad), limit);
+            }
+            return Mathf.Min(alignedOffset * Mathf.Sin(angle * Mathf.Deg2Rad), limit);
+        }
+
+        /// <summary>
+        /// Aligns the local align direction (usually +Y) of the provided quaternion to point as closely as possible
+        /// to the provided target direction, by rotating around the quaternion's local X axis.
+        /// The returned rotation is parent-relative, it should be applied on the left side of the original quaternion.
+        /// </summary>
+        public static Quaternion AlignAroundLocalX(Quaternion quat, Vector3 localAlign, Vector3 targetNormalized)
+        {
+            Vector3 x = quat * Vector3.right;
+            // Project target onto the local YZ plane with the local +X as the normal vector.
+            Vector3 targetProj = targetNormalized - Vector3.Dot(targetNormalized, x) * x;
+            if (targetProj.sqrMagnitude < 1e-6f)
+            {
+                BasisDebug.LogWarning("BasisLocalSeatDriver.AlignYAroundLocalX: Failed to align legs to the seat, the local X axis is not sideways enough.");
+                return quat;
+            }
+            targetProj.Normalize();
+            // Project dest onto the same plane.
+            Vector3 localAlignProj = localAlign - Vector3.Dot(localAlign, x) * x;
+            localAlignProj.Normalize();
+            // Find signed angle between current Y and targetProj in the local YZ plane around the local X axis.
+            float angle = Mathf.Rad2Deg * Mathf.Atan2(
+                Vector3.Dot(Vector3.Cross(localAlignProj, targetProj), x),
+                Vector3.Dot(localAlignProj, targetProj)
+            );
+            // Calculate rotation within a sandwich to allow it to be applied in parent space.
+            return quat * Quaternion.AngleAxis(angle, Vector3.right) * Quaternion.Inverse(quat);
+        }
         public void HighlightSeat(bool hover)
         {
             if (_seatHighlightObject == null)

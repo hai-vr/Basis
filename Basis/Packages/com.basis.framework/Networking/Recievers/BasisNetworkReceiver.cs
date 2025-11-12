@@ -159,9 +159,16 @@ namespace Basis.Scripts.Networking.Receivers
             ApplyingScale = applyingScale;
             ApplyingRotation = applyingRotation;
 
-            HumanPose.bodyPosition = scaledBody;
-            HumanPose.bodyRotation = applyingRotation;
-
+            if (HasOverridenDestination)
+            {
+                HumanPose.bodyPosition = ComputeScaledBody(OverridenPosition, applyingScale, Player.BasisAvatar.HumanScale);
+                HumanPose.bodyRotation = OverridenRotation;
+            }
+            else
+            {
+                HumanPose.bodyPosition = scaledBody;
+                HumanPose.bodyRotation = applyingRotation;
+            }
             // Copy all 95 muscles
             Memcpy95(Muscles, HumanPose.muscles);
 
@@ -182,6 +189,12 @@ namespace Basis.Scripts.Networking.Receivers
             PoseHandler.SetHumanPose(ref HumanPose);
 
             PassedSimulate = false;
+        }
+        public float3 ComputeScaledBody(float3 outputPosition, float3 outputScale, float humanScale)
+        {
+
+            float3 targetPos = outputPosition / outputScale / humanScale;
+            return targetPos;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

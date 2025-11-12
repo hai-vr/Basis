@@ -2,7 +2,9 @@ using Basis;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.Networking.Receivers;
 using LiteNetLib;
 using UnityEngine;
 public class BasisSeatSync : BasisNetworkBehaviour
@@ -89,7 +91,32 @@ public class BasisSeatSync : BasisNetworkBehaviour
             SetSeatStateLocal(false, player.playerId);
         }
     }
-
+    public void LateUpdate()
+    {
+        ProvidedRemotePlayerTarget();
+    }
+    public void ProvidedRemotePlayerTarget()
+    {
+        if (Seat != null && HasUser(out ushort storedid))
+        {
+            if (GetLocalPlayerIdSafe(out ushort localid))
+            {
+                if (localid == storedid)
+                {
+                    //if we are not localid
+                }
+                else
+                {
+                    if (BasisNetworkPlayers.RemotePlayers.TryGetValue(storedid, out BasisNetworkReceiver Rec))
+                    {
+                        Seat.CalculateSeatPositionRotation(Rec.RemotePlayer, out Quaternion seatQuat, out Vector3 hips);
+                        Rec.OverridenDestinationOfRoot(true);
+                        Rec.ProvidedDestinationOfRoot(hips, seatQuat);
+                    }
+                }
+            }
+        }
+    }
     public override void OnDestroy()
     {
         if (Seat != null)
