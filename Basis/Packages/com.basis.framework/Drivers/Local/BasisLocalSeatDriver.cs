@@ -1,5 +1,6 @@
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
+using System;
 using UnityEngine;
 
 namespace Basis.Scripts.Drivers
@@ -16,7 +17,7 @@ namespace Basis.Scripts.Drivers
 
         private BasisSeat _seat;
         public bool IsSeated { get { return _seat != null; } }
-
+        public bool hasEvent = false;
         /// <summary>
         /// Initialize the driver with the owning local player.
         /// </summary>
@@ -25,6 +26,46 @@ namespace Basis.Scripts.Drivers
             // This could also be accomplished via BasisLocalPlayer.Instance,
             // but passing it in directly makes this class more self-contained.
             LocalPlayer = localPlayer;
+        }
+        private Vector3 leftLowerLegOffset;
+        private Vector3 rightLowerLegOffset;
+        private Vector3 leftUpperLegOffset;
+        private Vector3 rightUpperLegOffset;
+        private float footThickness;
+        private float upperLegLength;
+        private float lowerLegLength;
+        private float totalLegLength;
+        private float spineBackThickness;
+        private float upperLegBackRadius;
+        private float upperLegKneeRadius;
+        private float lowerLegKneeRadius;
+        private float lowerLegFootRadius;
+        private float upperLegAngleVsSeatRadians;
+        private float lowerLegAngleVsSeatRadians;
+        private void GrabLatestTposeLocalScaleData()
+        {
+            leftLowerLegOffset = BasisLocalBoneDriver.LeftFootControl.TposeLocalScaled.position - BasisLocalBoneDriver.LeftLowerLegControl.TposeLocalScaled.position;
+            rightLowerLegOffset = BasisLocalBoneDriver.RightFootControl.TposeLocalScaled.position - BasisLocalBoneDriver.RightLowerLegControl.TposeLocalScaled.position;
+            leftUpperLegOffset = BasisLocalBoneDriver.LeftLowerLegControl.TposeLocalScaled.position - BasisLocalBoneDriver.LeftUpperLegControl.TposeLocalScaled.position;
+            rightUpperLegOffset = BasisLocalBoneDriver.RightLowerLegControl.TposeLocalScaled.position - BasisLocalBoneDriver.RightUpperLegControl.TposeLocalScaled.position;
+            footThickness = Mathf.Max(BasisLocalBoneDriver.LeftFootControl.TposeLocalScaled.position.y, BasisLocalBoneDriver.LeftToeControl.TposeLocalScaled.position.y);
+            // Note: This algorithm assumes that the left and right legs are symmetrical.
+            // This should be the case on 99.999% of avatars, and solving otherwise is too complex.
+            upperLegLength = leftUpperLegOffset.magnitude;
+            lowerLegLength = leftLowerLegOffset.magnitude;
+            // TODO: These could be supplied by avatars, or calculated from them, in the future.
+            // For example, a character with a big butt should have upperLegBackThickness increased.
+            // For now, just estimate these values based on the total leg length.
+            totalLegLength = upperLegLength + lowerLegLength;
+            spineBackThickness = totalLegLength * 0.14f;
+            upperLegBackRadius = totalLegLength * 0.14f;
+            upperLegKneeRadius = totalLegLength * 0.08f;
+            lowerLegKneeRadius = totalLegLength * 0.10f;
+            lowerLegFootRadius = totalLegLength * 0.06f;
+            // Calculate the desired upper leg rotations based on the thickness of the legs.
+            upperLegAngleVsSeatRadians = Mathf.Asin((upperLegBackRadius - upperLegKneeRadius) / upperLegLength);
+            // Calculate the desired lower leg rotations based on the thickness of the legs.
+            lowerLegAngleVsSeatRadians = Mathf.Asin((lowerLegKneeRadius - lowerLegFootRadius) / lowerLegLength);
         }
 
         /// <summary>
@@ -46,6 +87,12 @@ namespace Basis.Scripts.Drivers
             LocalPlayer.LocalCharacterDriver.MovementLock.Add(nameof(BasisLocalSeatDriver));
             _setAllOverrideUsages(true);
             LocalPlayer.OnPreSimulateBones += OnSimulate;
+            GrabLatestTposeLocalScaleData();
+            if (hasEvent == false)
+            {
+                BasisLocalPlayer.OnPlayersHeightChangedNextFrame += GrabLatestTposeLocalScaleData;
+                hasEvent = true;
+            }
             OnSimulate();
         }
 
@@ -65,6 +112,12 @@ namespace Basis.Scripts.Drivers
             LocalPlayer.transform.rotation = Quaternion.identity;
             LocalPlayer.AvatarTransform.rotation = Quaternion.identity;
             LocalPlayer.LocalAnimatorDriver.HandleTeleport();
+            GrabLatestTposeLocalScaleData();
+            if (hasEvent)
+            {
+                BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= GrabLatestTposeLocalScaleData;
+                hasEvent = false;
+            }
             _seat = null;
         }
 
@@ -81,47 +134,29 @@ namespace Basis.Scripts.Drivers
                 Stand();
                 return;
             }
-            Vector3 leftLowerLegOffset = BasisLocalBoneDriver.LeftFootControl.TposeLocalScaled.position - BasisLocalBoneDriver.LeftLowerLegControl.TposeLocalScaled.position;
-            Vector3 rightLowerLegOffset = BasisLocalBoneDriver.RightFootControl.TposeLocalScaled.position - BasisLocalBoneDriver.RightLowerLegControl.TposeLocalScaled.position;
-            Vector3 leftUpperLegOffset = BasisLocalBoneDriver.LeftLowerLegControl.TposeLocalScaled.position - BasisLocalBoneDriver.LeftUpperLegControl.TposeLocalScaled.position;
-            Vector3 rightUpperLegOffset = BasisLocalBoneDriver.RightLowerLegControl.TposeLocalScaled.position - BasisLocalBoneDriver.RightUpperLegControl.TposeLocalScaled.position;
-            // Note: This algorithm assumes that the left and right legs are symmetrical.
-            // This should be the case on 99.999% of avatars, and solving otherwise is too complex.
-            float upperLegLength = leftUpperLegOffset.magnitude;
-            float lowerLegLength = leftLowerLegOffset.magnitude;
-            float footThickness = Mathf.Max(BasisLocalBoneDriver.LeftFootControl.TposeLocalScaled.position.y, BasisLocalBoneDriver.LeftToeControl.TposeLocalScaled.position.y);
-            // TODO: These could be supplied by avatars, or calculated from them, in the future.
-            // For example, a character with a big butt should have upperLegBackThickness increased.
-            // For now, just estimate these values based on the total leg length.
-            float totalLegLength = upperLegLength + lowerLegLength;
-            float spineBackThickness = totalLegLength * 0.14f;
-            float upperLegBackRadius = totalLegLength * 0.14f;
-            float upperLegKneeRadius = totalLegLength * 0.08f;
-            float lowerLegKneeRadius = totalLegLength * 0.10f;
-            float lowerLegFootRadius = totalLegLength * 0.06f;
+
+
             // Calculate targeting information for the seat in the object's local space.
             Vector3 targetFoot = _seat.Foot + (_seat.LowerLegPerp * lowerLegFootRadius) - (_seat.LowerLegDir * footThickness);
             // The IK position for the knees is more complicated. It needs to be adjusted by both the upper leg and
             // lower leg offsets. For perpendicular upper and lower legs, this would be trivial, you just add the
             // vectors together. Otherwise some trigonometry is required. The knee offset can be found by adding the
             // upper leg offset with the upper leg direction multiplied by an adjustment scalar, sliding it forward.
-            Vector3 targetKnee = _seat.Knee + (_seat.UpperLegPerp * upperLegKneeRadius) + (_seat.UpperLegDir * _getAdjustmentScalar(
+            Vector3 targetKnee = _seat.Knee + (_seat.UpperLegPerp * upperLegKneeRadius) + (_seat.UpperLegDir * GetAdjustmentScalar(
                 _seat.LegAngleDegrees, lowerLegKneeRadius, upperLegKneeRadius, upperLegLength));
             // targetBack needs to be similarly adjusted, but with the spine, and fitting within instead of around the seat.
-            Vector3 targetBack = _seat.Back + (_seat.UpperLegPerp * upperLegBackRadius) + (_seat.UpperLegDir * _getAdjustmentScalar(
+            Vector3 targetBack = _seat.Back + (_seat.UpperLegPerp * upperLegBackRadius) + (_seat.UpperLegDir * GetAdjustmentScalar(
                 180.0f - (float)_seat.SpineAngleDegrees, spineBackThickness, upperLegBackRadius, upperLegLength));
-            // Calculate the desired upper leg rotations based on the thickness of the legs.
             // Positive numbers here mean the back of the leg near the hips is thicker than near the knee.
-            float upperLegAngleVsSeatRadians = Mathf.Asin((upperLegBackRadius - upperLegKneeRadius) / upperLegLength);
             float upperLegAngleVsSpineRadians = upperLegAngleVsSeatRadians + Mathf.Deg2Rad * (float)_seat.SpineAngleDegrees;
             // This code assumes that the hips have a rest T-pose with the local +Y axis pointing up.
             Vector3 targetUpperLegDirRelToHips = new Vector3(0.0f, Mathf.Cos(upperLegAngleVsSpineRadians), Mathf.Sin(upperLegAngleVsSpineRadians));
-            Quaternion desiredLeftUpperLegRot = _alignAroundLocalX(
+            Quaternion desiredLeftUpperLegRot = AlignAroundLocalX(
                 BasisLocalBoneDriver.LeftUpperLegControl.TposeLocalScaled.rotation,
                 leftUpperLegOffset,
                 targetUpperLegDirRelToHips
             );
-            Quaternion desiredRightUpperLegRot = _alignAroundLocalX(
+            Quaternion desiredRightUpperLegRot = AlignAroundLocalX(
                 BasisLocalBoneDriver.RightUpperLegControl.TposeLocalScaled.rotation,
                 rightUpperLegOffset,
                 targetUpperLegDirRelToHips
@@ -142,15 +177,14 @@ namespace Basis.Scripts.Drivers
                 targetKnee += _seat.UpperLegDir * (characterUpperLegHorizontalTravel - availableUpperLegHorizontalTravel);
             }
             // Calculate the desired lower leg rotations based on the thickness of the legs.
-            float lowerLegAngleVsSeatRadians = Mathf.Asin((lowerLegKneeRadius - lowerLegFootRadius) / lowerLegLength);
             float lowerLegAngleVsSpineRadians = lowerLegAngleVsSeatRadians - Mathf.Deg2Rad * ((float)_seat.SpineAngleDegrees + _seat.LegAngleDegrees);
             Vector3 targetLowerLegDirRelToHips = new Vector3(0.0f, Mathf.Cos(lowerLegAngleVsSpineRadians), -Mathf.Sin(lowerLegAngleVsSpineRadians));
-            Quaternion desiredLeftLowerLegRot = _alignAroundLocalX(
+            Quaternion desiredLeftLowerLegRot = AlignAroundLocalX(
                 BasisLocalBoneDriver.LeftLowerLegControl.TposeLocalScaled.rotation,
                 leftLowerLegOffset,
                 targetLowerLegDirRelToHips
             );
-            Quaternion desiredRightLowerLegRot = _alignAroundLocalX(
+            Quaternion desiredRightLowerLegRot = AlignAroundLocalX(
                 BasisLocalBoneDriver.RightLowerLegControl.TposeLocalScaled.rotation,
                 rightLowerLegOffset,
                 targetLowerLegDirRelToHips
@@ -173,30 +207,30 @@ namespace Basis.Scripts.Drivers
                 if (characterUpperLegHorizontalTravel > availableUpperLegHorizontalTravel)
                 {
                     // If both legs are too long, we need to find a new knee point that satisfies both constraints.
-                    targetKnee = _closestPointOnSphere(targetKnee, targetFoot, lowerLegLength);
+                    targetKnee = ClosestPointOnSphere(targetKnee, targetFoot, lowerLegLength);
                 }
                 // Wherever targetKnee ends up, targetBack needs to be exactly upperLegLength away.
-                targetBack = _closestPointOnSphere(targetBack, targetKnee, upperLegLength);
+                targetBack = ClosestPointOnSphere(targetBack, targetKnee, upperLegLength);
             }
             // Re-calculate the desired rotations now that the target points have been adjusted.
             targetUpperLegDirRelToHips = Quaternion.Inverse(_seat.SpineRotation) * (targetKnee - targetBack);
             targetLowerLegDirRelToHips = Quaternion.Inverse(_seat.SpineRotation) * (targetFoot - targetKnee);
-            desiredLeftUpperLegRot = _alignAroundLocalX(
+            desiredLeftUpperLegRot = AlignAroundLocalX(
                 BasisLocalBoneDriver.LeftUpperLegControl.TposeLocalScaled.rotation,
                 leftUpperLegOffset,
                 targetUpperLegDirRelToHips
             );
-            desiredRightUpperLegRot = _alignAroundLocalX(
+            desiredRightUpperLegRot = AlignAroundLocalX(
                 BasisLocalBoneDriver.RightUpperLegControl.TposeLocalScaled.rotation,
                 rightUpperLegOffset,
                 targetUpperLegDirRelToHips
             );
-            desiredLeftLowerLegRot = _alignAroundLocalX(
+            desiredLeftLowerLegRot = AlignAroundLocalX(
                 BasisLocalBoneDriver.LeftLowerLegControl.TposeLocalScaled.rotation,
                 leftLowerLegOffset,
                 targetLowerLegDirRelToHips
             );
-            desiredRightLowerLegRot = _alignAroundLocalX(
+            desiredRightLowerLegRot = AlignAroundLocalX(
                 BasisLocalBoneDriver.RightLowerLegControl.TposeLocalScaled.rotation,
                 rightLowerLegOffset,
                 targetLowerLegDirRelToHips
@@ -210,16 +244,6 @@ namespace Basis.Scripts.Drivers
                 desiredRightLowerLegRot
             );
         }
-
-        private float _getAdjustmentScalar(float angle, float alignedOffset, float perpOffset, float limit)
-        {
-            if (angle > 90.001f)
-            {
-                return Mathf.Min(alignedOffset / Mathf.Sin(angle * Mathf.Deg2Rad) - perpOffset / Mathf.Tan(angle * Mathf.Deg2Rad), limit);
-            }
-            return Mathf.Min(alignedOffset * Mathf.Sin(angle * Mathf.Deg2Rad), limit);
-        }
-
         private void _applyLocalLegPose(
             Vector3 pelvisPos,
             Quaternion leftUpperLegRot,
@@ -262,13 +286,21 @@ namespace Basis.Scripts.Drivers
                 BasisLocalBoneDriver.RightLowerLegControl.TposeLocalScaled.position,
                 hipsWorldRot * rightLowerLegRot);
         }
+        private static float GetAdjustmentScalar(float angle, float alignedOffset, float perpOffset, float limit)
+        {
+            if (angle > 90.001f)
+            {
+                return Mathf.Min(alignedOffset / Mathf.Sin(angle * Mathf.Deg2Rad) - perpOffset / Mathf.Tan(angle * Mathf.Deg2Rad), limit);
+            }
+            return Mathf.Min(alignedOffset * Mathf.Sin(angle * Mathf.Deg2Rad), limit);
+        }
 
         /// <summary>
         /// Aligns the local align direction (usually +Y) of the provided quaternion to point as closely as possible
         /// to the provided target direction, by rotating around the quaternion's local X axis.
         /// The returned rotation is parent-relative, it should be applied on the left side of the original quaternion.
         /// </summary>
-        private Quaternion _alignAroundLocalX(Quaternion quat, Vector3 localAlign, Vector3 targetNormalized)
+        private static Quaternion AlignAroundLocalX(Quaternion quat, Vector3 localAlign, Vector3 targetNormalized)
         {
             Vector3 x = quat * Vector3.right;
             // Project target onto the local YZ plane with the local +X as the normal vector.
@@ -291,7 +323,7 @@ namespace Basis.Scripts.Drivers
             return quat * Quaternion.AngleAxis(angle, Vector3.right) * Quaternion.Inverse(quat);
         }
 
-        private Vector3 _closestPointOnSphere(Vector3 point, Vector3 sphereCenter, float sphereRadius)
+        private static Vector3 ClosestPointOnSphere(Vector3 point, Vector3 sphereCenter, float sphereRadius)
         {
             Vector3 dir = point - sphereCenter;
             dir.Normalize();
