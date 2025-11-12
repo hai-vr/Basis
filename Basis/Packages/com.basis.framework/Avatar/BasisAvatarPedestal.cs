@@ -202,8 +202,12 @@ public class BasisAvatarPedestal : BasisInteractableObject
     /// </summary>
     public void WasPressed()
     {
-        if (Avatar != null && WasJustPressed == false &&
-            UniqueID != BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation)
+        if(Avatar == null && ShowAvatarMode == ShowAvatarOnPedestal.RealAvatar)
+        {
+            BasisDebug.LogError("Avatar Was null!");
+            return;
+        }
+        if (WasJustPressed == false && UniqueID != BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation)
         {
             WasJustPressed = true;
 

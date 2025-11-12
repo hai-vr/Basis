@@ -231,7 +231,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             Vector3 LT_World = Vector3.Scale(scale, leftToe.position);
 
             // finally call your leg placement helper
-            hipsWorldPos = AdditionalOffset + ApplyRemoteLeg(leftLower.rotation, leftUpper.rotation, LF_World, LLL_World, RF_World, RLL_World, LUL_World, RUL_World, LT_World);
+            hipsWorldPos = ApplyRemoteLeg(leftLower.rotation, leftUpper.rotation, LF_World, LLL_World, RF_World, RLL_World, LUL_World, RUL_World, LT_World);
         }
         public Vector3 Convert(Matrix4x4 m)
         {
@@ -250,17 +250,17 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <returns></returns>
         public Vector3 ApplyRemoteLeg(
             Quaternion LeftLowerLegControlRotation, Quaternion LeftUpperLegControlRotation
-            , Vector3 LeftFootControl,Vector3 LeftLowerLegControl,Vector3 RightFootControl, Vector3 RightLowerLegControl, Vector3 LeftUpperLegControl
+            , Vector3 LeftFootControl, Vector3 LeftLowerLegControl, Vector3 RightFootControl, Vector3 RightLowerLegControl, Vector3 LeftUpperLegControl
             , Vector3 RightUpperLegControl, Vector3 LeftToeControl)
         {
 
-          Vector3  leftLowerLegOffset = LeftFootControl - LeftLowerLegControl;
+            Vector3 leftLowerLegOffset = LeftFootControl - LeftLowerLegControl;
             Vector3 rightLowerLegOffset = RightFootControl - RightLowerLegControl;
             Vector3 leftUpperLegOffset = LeftLowerLegControl - LeftUpperLegControl;
             Vector3 rightUpperLegOffset = RightLowerLegControl - RightUpperLegControl;
             float footThickness = Mathf.Max(LeftFootControl.y, LeftToeControl.y);
 
-           float upperLegLength = leftUpperLegOffset.magnitude;
+            float upperLegLength = leftUpperLegOffset.magnitude;
             float lowerLegLength = leftLowerLegOffset.magnitude;
             float totalLegLength = upperLegLength + lowerLegLength;
             float spineBackThickness = totalLegLength * 0.14f;
@@ -308,6 +308,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 }
                 targetBack = ClosestPointOnSphere(targetBack, targetKnee, upperLegLength);
             }
+            targetBack += AdditionalOffset;
             Vector3 pelvisWorldPos = transform.TransformPoint(targetBack);
 
             return pelvisWorldPos;
