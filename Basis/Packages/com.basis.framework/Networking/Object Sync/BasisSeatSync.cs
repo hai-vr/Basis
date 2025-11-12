@@ -91,32 +91,77 @@ public class BasisSeatSync : BasisNetworkBehaviour
             SetSeatStateLocal(false, player.playerId);
         }
     }
-    public void LateUpdate()
+    private BasisNetworkReceiver _currentRemoteRec;
+    private ushort _currentUserId = ushort.MaxValue;
+    public void Update()
     {
-        ProvidedRemotePlayerTarget();
+        ProvideRemotePlayerTarget();
     }
-    public void ProvidedRemotePlayerTarget()
+
+    public void ProvideRemotePlayerTarget()
     {
-        if (Seat != null && HasUser(out ushort storedid))
+        // If there is no seat, just clear any previous override.
+        if (Seat == null)
         {
-            if (GetLocalPlayerIdSafe(out ushort localid))
-            {
-                if (localid == storedid)
-                {
-                    //if we are not localid
-                }
-                else
-                {
-                    if (BasisNetworkPlayers.RemotePlayers.TryGetValue(storedid, out BasisNetworkReceiver Rec))
-                    {
-                        Seat.CalculateSeatPositionRotation(Rec.RemotePlayer, out Quaternion seatQuat, out Vector3 hips);
-                        Rec.OverridenDestinationOfRoot(true);
-                        Rec.ProvidedDestinationOfRoot(hips, seatQuat);
-                    }
-                }
-            }
+            ClearCurrentRemote();
+            return;
         }
+
+        // If there is no user in this seat, clear override.
+        if (!HasUser(out ushort storedId))
+        {
+            ClearCurrentRemote();
+            return;
+        }
+
+        // If we can't get local id, or something is wrong, clear override.
+        if (!GetLocalPlayerIdSafe(out ushort localId))
+        {
+            ClearCurrentRemote();
+            return;
+        }
+
+        // If it's us sitting in that seat, we don't want to override any remote.
+        if (localId == storedId)
+        {
+            ClearCurrentRemote();
+            return;
+        }
+
+        // Try to get the remote player by id.
+        if (!BasisNetworkPlayers.RemotePlayers.TryGetValue(storedId, out BasisNetworkReceiver rec))
+        {
+            // ID no longer exists in dictionary (disconnected / removed).
+            ClearCurrentRemote();
+            return;
+        }
+
+        // If the player in the seat changed, clear the old one and store the new one.
+        if (_currentUserId != storedId || _currentRemoteRec != rec)
+        {
+            ClearCurrentRemote(); // turn off override on the previous receiver
+            _currentUserId = storedId;
+            _currentRemoteRec = rec;
+        }
+
+        // Now drive the current remote receiver.
+        Seat.CalculateSeatPositionRotation(rec.RemotePlayer, out Quaternion seatQuat, out Vector3 hips);
+        rec.OverridenDestinationOfRoot(true);
+        rec.ProvidedDestinationOfRoot(hips, seatQuat);
     }
+
+    private void ClearCurrentRemote()
+    {
+        if (_currentRemoteRec != null)
+        {
+            // Assuming false turns off the override.
+            _currentRemoteRec.OverridenDestinationOfRoot(false);
+            _currentRemoteRec = null;
+        }
+
+        _currentUserId = ushort.MaxValue;
+    }
+
     public override void OnDestroy()
     {
         if (Seat != null)

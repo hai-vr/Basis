@@ -171,8 +171,10 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         OnPickupUse -= OnPickupUseCapture;
 
         base.OnDestroy();
-
-        AddressableResourceProcess.ReleaseGameobject(this.gameObject);
+        if (this.gameObject != null)
+        {
+            AddressableResourceProcess.ReleaseGameobject(this.gameObject);
+        }
     }
 
     /// <summary>

@@ -147,11 +147,9 @@ namespace Basis.Scripts.Drivers
             // lower leg offsets. For perpendicular upper and lower legs, this would be trivial, you just add the
             // vectors together. Otherwise some trigonometry is required. The knee offset can be found by adding the
             // upper leg offset with the upper leg direction multiplied by an adjustment scalar, sliding it forward.
-            Vector3 targetKnee = _seat.Knee + (_seat.UpperLegPerp * upperLegKneeRadius) + (_seat.UpperLegDir * BasisSeat.GetAdjustmentScalar(
-                _seat.LegAngleDegrees, lowerLegKneeRadius, upperLegKneeRadius, upperLegLength));
+            Vector3 targetKnee = _seat.Knee + (_seat.UpperLegPerp * upperLegKneeRadius) + (_seat.UpperLegDir * BasisSeat.GetAdjustmentScalar(_seat.LegAngleDegrees, lowerLegKneeRadius, upperLegKneeRadius, upperLegLength));
             // targetBack needs to be similarly adjusted, but with the spine, and fitting within instead of around the seat.
-            Vector3 targetBack = _seat.Back + (_seat.UpperLegPerp * upperLegBackRadius) + (_seat.UpperLegDir * BasisSeat.GetAdjustmentScalar(
-                180.0f - (float)_seat.SpineAngleDegrees, spineBackThickness, upperLegBackRadius, upperLegLength));
+            Vector3 targetBack = _seat.Back + (_seat.UpperLegPerp * upperLegBackRadius) + (_seat.UpperLegDir * BasisSeat.GetAdjustmentScalar(180.0f - (float)_seat.SpineAngleDegrees, spineBackThickness, upperLegBackRadius, upperLegLength));
             // Positive numbers here mean the back of the leg near the hips is thicker than near the knee.
             float upperLegAngleVsSpineRadians = upperLegAngleVsSeatRadians + Mathf.Deg2Rad * (float)_seat.SpineAngleDegrees;
             // This code assumes that the hips have a rest T-pose with the local +Y axis pointing up.

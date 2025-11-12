@@ -1,6 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
-using Basis.Scripts.Networking.Receivers;
 using System;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -201,7 +200,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return mesh;
         }
         /// <summary>
-        /// this is hacky atm
+        /// this is hacky atm needs calculation
         /// </summary>
         private Vector3 Position = new Vector3(0, 0.19f, -0.1f);
         public void CalculateSeatPositionRotation(BasisRemotePlayer Player, out Quaternion hipsWorldRot, out Vector3 hipsWorldPos)
