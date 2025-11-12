@@ -200,6 +200,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
             };
             return mesh;
         }
+        /// <summary>
+        /// this is hacky atm
+        /// </summary>
+        private Vector3 Position = new Vector3(0, 0.2f, -0.1f);
         public void CalculateSeatPositionRotation(BasisRemotePlayer Player, out Quaternion hipsWorldRot, out Vector3 hipsWorldPos)
         {
             // seat orientation
@@ -225,7 +229,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
             Vector3 LT_World = Vector3.Scale(scale, leftToe.position);
 
             // finally call your leg placement helper
-            hipsWorldPos = ApplyRemoteLeg(scale, leftLower.rotation, leftUpper.rotation, LF_World, LLL_World, LUL_World, LT_World);
+            Vector3 difference = Vector3.Scale(scale, Position);
+
+            hipsWorldPos = ApplyRemoteLeg(difference, leftLower.rotation, leftUpper.rotation, LF_World, LLL_World, LUL_World, LT_World);
         }
         public Vector3 Convert(Matrix4x4 m)
         {
@@ -234,7 +240,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             Vector3 sz = new Vector3(m.m02, m.m12, m.m22);
             return new Vector3(sx.magnitude, sy.magnitude, sz.magnitude);
         }
-        public Vector3 AdditionalOffset = Vector3.zero;
         /// <summary>
         /// 
         /// </summary>
@@ -243,13 +248,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <param name="LeftUpperLegControlRotation"></param>
         /// <param name="LeftFootControl"></param>
         /// <param name="LeftLowerLegControl"></param>
-        /// <param name="RightFootControl"></param>
-        /// <param name="RightLowerLegControl"></param>
         /// <param name="LeftUpperLegControl"></param>
-        /// <param name="RightUpperLegControl"></param>
         /// <param name="LeftToeControl"></param>
         /// <returns></returns>
-        public Vector3 ApplyRemoteLeg(Vector3 scale,Quaternion LeftLowerLegControlRotation, Quaternion LeftUpperLegControlRotation,Vector3 LeftFootControl, Vector3 LeftLowerLegControl,  Vector3 LeftUpperLegControl, Vector3 LeftToeControl)
+        public Vector3 ApplyRemoteLeg(Vector3 Difference, Quaternion LeftLowerLegControlRotation, Quaternion LeftUpperLegControlRotation, Vector3 LeftFootControl, Vector3 LeftLowerLegControl, Vector3 LeftUpperLegControl, Vector3 LeftToeControl)
         {
 
             Vector3 leftLowerLegOffset = LeftFootControl - LeftLowerLegControl;
@@ -287,7 +289,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
             float lowerLegAngleVsSpineRadians = lowerLegAngleVsSeatRadians - Mathf.Deg2Rad * ((float)SpineAngleDegrees + LegAngleDegrees);
             Vector3 targetLowerLegDirRelToHips = new Vector3(0.0f, Mathf.Cos(lowerLegAngleVsSpineRadians), -Mathf.Sin(lowerLegAngleVsSpineRadians));
-            Quaternion desiredLeftLowerLegRot = AlignAroundLocalX(LeftLowerLegControlRotation,leftLowerLegOffset,targetLowerLegDirRelToHips);
+            Quaternion desiredLeftLowerLegRot = AlignAroundLocalX(LeftLowerLegControlRotation, leftLowerLegOffset, targetLowerLegDirRelToHips);
             float lowerLegVerticalTravelRatio = Vector3.Dot(LowerLegDir, SpineRotation * desiredLeftLowerLegRot * Vector3.down);
             float availableLowerLegVerticalTravel = Vector3.Distance(targetFoot + LowerLegDir * lowerLegFootRadius, targetKnee + LowerLegDir * lowerLegKneeRadius);
             float characterLowerLegVerticalTravel = lowerLegLength * lowerLegVerticalTravelRatio;
@@ -300,7 +302,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 }
                 targetBack = ClosestPointOnSphere(targetBack, targetKnee, upperLegLength);
             }
-            targetBack += Vector3.Scale(scale, AdditionalOffset);
+            targetBack += Difference;
             Vector3 pelvisWorldPos = transform.TransformPoint(targetBack);
 
             return pelvisWorldPos;
