@@ -203,7 +203,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <summary>
         /// this is hacky atm
         /// </summary>
-        private Vector3 Position = new Vector3(0, 0.2f, -0.1f);
+        private Vector3 Position = new Vector3(0, 0.19f, -0.1f);
         public void CalculateSeatPositionRotation(BasisRemotePlayer Player, out Quaternion hipsWorldRot, out Vector3 hipsWorldPos)
         {
             // seat orientation
