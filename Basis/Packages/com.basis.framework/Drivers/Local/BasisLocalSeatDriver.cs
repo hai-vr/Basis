@@ -1,5 +1,7 @@
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management.Devices.Desktop;
 using System;
 using UnityEngine;
 
@@ -85,6 +87,8 @@ namespace Basis.Scripts.Drivers
             BasisLocalVirtualSpineDriver.HipsFreezeToTpose = true;
             LocalPlayer.LocalCharacterDriver.IsEnabled = false;
             LocalPlayer.LocalCharacterDriver.MovementLock.Add(nameof(BasisLocalSeatDriver));
+            LocalPlayer.LocalCharacterDriver.CrouchingLock.Add(nameof(BasisLocalSeatDriver));
+
             _setAllOverrideUsages(true);
             LocalPlayer.OnPreSimulateBones += OnSimulate;
             GrabLatestTposeLocalScaleData();
@@ -107,6 +111,7 @@ namespace Basis.Scripts.Drivers
             BasisLocalVirtualSpineDriver.HipsFreezeToTpose = false;
             LocalPlayer.OnPreSimulateBones -= OnSimulate;
             LocalPlayer.LocalCharacterDriver.MovementLock.Remove(nameof(BasisLocalSeatDriver));
+            LocalPlayer.LocalCharacterDriver.CrouchingLock.Remove(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.IsEnabled = true;
             _setAllOverrideUsages(false);
             LocalPlayer.transform.rotation = Quaternion.identity;
