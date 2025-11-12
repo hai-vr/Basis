@@ -26,13 +26,6 @@ public class BasisSeatSync : BasisNetworkBehaviour
         return ActivePlayerID.hasPlayerId && GetLocalPlayerIdSafe(out ushort id) && ActivePlayerID.ThePlayerID == id;
     }
 
-    /// <summary>Sets the occupant ID and occupancy flag (no Seat side-effects here).</summary>
-    public void SetPlayerID(ushort id, bool state)
-    {
-        ActivePlayerID.hasPlayerId = state;
-        ActivePlayerID.ThePlayerID = id;
-    }
-
     /// <summary>Returns whether a user occupies the seat and outputs their ID (0 if none).</summary>
     public bool HasUser(out ushort id)
     {
@@ -93,9 +86,7 @@ public class BasisSeatSync : BasisNetworkBehaviour
             {
                 Stand();
             }
-
-            // Clear occupancy locally without rebroadcasting.
-            SetSeatStateLocal(false, 0);
+            SetSeatStateLocal(false, player.playerId);
         }
     }
 
@@ -140,19 +131,23 @@ public class BasisSeatSync : BasisNetworkBehaviour
     /// </summary>
     private void OnInteractEndEvent(BasisInput input)
     {
-        if (!GetLocalPlayerIdSafe(out ushort id))
+        if (GetLocalPlayerIdSafe(out ushort id))
+        {
+            if (IsLocallyEntered())
+            {
+                SetSeatState(false, id);
+            }
+            else
+            {
+                BasisDebug.LogWarning("we dont belong to this seat!", BasisDebug.LogTag.Networking);
+                return;
+            }
+        }
+        else
         {
             BasisDebug.LogError("Missing LocalPlayer", BasisDebug.LogTag.Networking);
             return;
         }
-
-        if (!IsLocallyEntered())
-        {
-            BasisDebug.LogWarning("we dont belong to this seat!", BasisDebug.LogTag.Networking);
-            return;
-        }
-
-        SetSeatState(false, id);
     }
 
     /// <summary>
@@ -223,7 +218,8 @@ public class BasisSeatSync : BasisNetworkBehaviour
     /// </summary>
     private void SetSeatStateLocal(bool inSeat, ushort playerId)
     {
-        SetPlayerID(playerId, inSeat);
+        ActivePlayerID.hasPlayerId = inSeat;
+        ActivePlayerID.ThePlayerID = playerId;
 
         if (Seat != null)
         {

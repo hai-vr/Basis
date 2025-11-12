@@ -55,6 +55,8 @@ namespace Basis.Scripts.Drivers
         public void Stand()
         {
             if (LocalPlayer == null || _seat == null) return;
+
+            _seat.OnInteractEnd(null);
             BasisLocalVirtualSpineDriver.HipsFreezeToTpose = false;
             LocalPlayer.OnPreSimulateBones -= OnSimulate;
             LocalPlayer.LocalCharacterDriver.MovementLock.Remove(nameof(BasisLocalSeatDriver));

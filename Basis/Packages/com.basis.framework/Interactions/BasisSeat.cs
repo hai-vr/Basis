@@ -330,13 +330,14 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public override void OnInteractStart(BasisInput input)
         {
             _interactingInput = input;
-            OnInteractStartEvent?.Invoke(input);
             Basis.Scripts.BasisSdk.Players.BasisLocalPlayer.Instance.LocalSeatDriver.Sit(this);
+            base.OnInteractStart(input);
         }
 
         public override void OnInteractEnd(BasisInput input)
         {
             _interactingInput = null;
+            base.OnInteractEnd(input);
         }
         #endregion Basis Integration
     }
