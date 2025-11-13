@@ -72,24 +72,29 @@ public static class BasisPlayerSettingsManager
         {
             var path = GetPath(key);
             if (File.Exists(path))
-                return await TryLoad(path, originalUuid).ConfigureAwait(false)
-                       ?? await RecreateDefaults().ConfigureAwait(false);
+            {
+                return await TryLoad(path, originalUuid)  ??  RecreateDefaults();
+            }
 
             // --- Create defaults atomically with writes ---
             var sem = writeLocks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
-            await sem.WaitAsync().ConfigureAwait(false);
+            await sem.WaitAsync();
             try
             {
                 // Another writer might have produced the file while we were waiting.
                 if (File.Exists(path))
-                    return await TryLoad(path, originalUuid).ConfigureAwait(false)
-                           ?? await RecreateDefaults().ConfigureAwait(false);
+                {
+                    return await TryLoad(path, originalUuid)??  RecreateDefaults();
+                }
 
                 var defaults = new BasisPlayerSettingsData(originalUuid, 1.0f, true, true);
-                await SaveAsync(path, defaults).ConfigureAwait(false);
+                await SaveAsync(path, defaults);
                 return defaults;
             }
-            finally { sem.Release(); }
+            finally
+            {
+                sem.Release();
+            }
         }
         finally
         {
@@ -118,7 +123,7 @@ public static class BasisPlayerSettingsManager
             return null;
         }
 
-        async Task<BasisPlayerSettingsData> RecreateDefaults()
+        BasisPlayerSettingsData RecreateDefaults()
         {
             var d = new BasisPlayerSettingsData(originalUuid, 1.0f, true, true);
             // No SetPlayerSettings here; SaveAsync already did atomic write under lock.
