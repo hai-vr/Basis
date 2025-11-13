@@ -317,19 +317,8 @@
                 },
                 {
                     "name": "",
-                    "id": "a95c71b1-1450-4c6e-a426-c2f0091358ce",
-                    "path": "<Touchscreen>/touch*/position",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": ";All",
-                    "action": "Look",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "c1a60e84-8b06-414d-adaf-b0f812a69117",
-                    "path": "<Pen>/position",
+                    "id": "2dc4c75f-a714-42cd-97d2-189fd040766c",
+                    "path": "<Touchscreen>/delta",
                     "interactions": "",
                     "processors": "",
                     "groups": ";All",
@@ -627,6 +616,26 @@
                 },
                 {
                     "devicePath": "<Mouse>",
+                    "isOptional": true,
+                    "isOR": false
+                },
+                {
+                    "devicePath": "<Touchscreen>",
+                    "isOptional": true,
+                    "isOR": false
+                },
+                {
+                    "devicePath": "<Gamepad>",
+                    "isOptional": true,
+                    "isOR": false
+                },
+                {
+                    "devicePath": "<Joystick>",
+                    "isOptional": true,
+                    "isOR": false
+                },
+                {
+                    "devicePath": "<Pointer>",
                     "isOptional": true,
                     "isOR": false
                 }
