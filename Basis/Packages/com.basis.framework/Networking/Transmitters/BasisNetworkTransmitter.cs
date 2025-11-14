@@ -58,7 +58,8 @@ namespace Basis.Scripts.Networking.Transmitters
         public bool[] LastMicrophoneRangeIndex;
         public bool[] HearingIndex;
         public bool[] AvatarIndex;
-        public ushort[] HearingIndexToId; // aligned to ReceiversSnapshot order
+        public ushort[] HearingIndexToId;      // aligned to ReceiversSnapshot order
+        public ushort[] LastHearingIndexToId;  // previous ID mapping for change detection (NEW)
         public AdditionalAvatarData[] AdditionalAvatarData;
         public Dictionary<byte, AdditionalAvatarData> SendingOutAvatarData = new Dictionary<byte, AdditionalAvatarData>();
         public float[] CalculatedDistances; // squared distances mirror
@@ -105,10 +106,7 @@ namespace Basis.Scripts.Networking.Transmitters
                     {
                         ScheduleCheck();
 
-                        // If compression reads avatar state, do it consistently before/after job completion.
-                        // Here we do compression AFTER scheduling and BEFORE completing the job is okay
-                        // only if it doesn't mutate bones read by ScheduleCheck. If it does, move this call
-                        // either before ScheduleCheck() or after distanceJobHandle.Complete().
+                        // Compression – assumes it doesn't mutate bones read by the job
                         BasisNetworkAvatarCompressor.Compress(this, Player.BasisAvatar.Animator);
 
                         // complete distance job
@@ -169,7 +167,7 @@ namespace Basis.Scripts.Networking.Transmitters
             AvatarResults.CopyTo(PrevAvatarResults);
 
             MicrophoneOutputCheck();
-           IterationOverRemotePlayers();
+            IterationOverRemotePlayers();
         }
 
         /// <summary>How far we can hear locally.</summary>
@@ -224,19 +222,47 @@ namespace Basis.Scripts.Networking.Transmitters
         public void MicrophoneOutputCheck()
         {
             // Basic validation
-            if (MicrophoneRangeIndex == null || LastMicrophoneRangeIndex == null || HearingIndexToId == null)
+            if (MicrophoneRangeIndex == null || LastMicrophoneRangeIndex == null ||
+                HearingIndexToId == null || LastHearingIndexToId == null)
             {
+                // On invalid state, make sure we don't think we have recipients.
+                HasReasonToSendAudio = false;
+                SendEmptyRecipientsIfNeeded();
                 return;
             }
 
-            if (MicrophoneRangeIndex.Length != IndexLength || LastMicrophoneRangeIndex.Length != IndexLength || HearingIndexToId.Length != IndexLength)
+            if (IndexLength < 0)
+            {
+                HasReasonToSendAudio = false;
+                SendEmptyRecipientsIfNeeded();
+                return;
+            }
+
+            if (MicrophoneRangeIndex.Length != IndexLength ||
+                LastMicrophoneRangeIndex.Length != IndexLength ||
+                HearingIndexToId.Length != IndexLength ||
+                LastHearingIndexToId.Length != IndexLength)
             {
                 BasisDebug.LogError("MicrophoneOutputCheck: length mismatch.", BasisDebug.LogTag.Voice);
+                // Flush server state to "no recipients" so we don't leak stale targets.
+                HasReasonToSendAudio = false;
+                SendEmptyRecipientsIfNeeded();
                 return;
             }
 
-            // Fast exit if nothing changed
-            if (AreBoolArraysEqual(MicrophoneRangeIndex, LastMicrophoneRangeIndex))
+            // Detect change in either range mask OR ID mapping.
+            bool changed = false;
+            for (int i = 0; i < IndexLength; i++)
+            {
+                if (MicrophoneRangeIndex[i] != LastMicrophoneRangeIndex[i] ||
+                    HearingIndexToId[i] != LastHearingIndexToId[i])
+                {
+                    changed = true;
+                    break;
+                }
+            }
+
+            if (!changed)
             {
                 return;
             }
@@ -251,7 +277,8 @@ namespace Basis.Scripts.Networking.Transmitters
 
             for (int Index = 0; Index < IndexLength; Index++)
             {
-                if (MicrophoneRangeIndex[Index])
+                // Skip invalid IDs (0 = no valid receiver)
+                if (MicrophoneRangeIndex[Index] && HearingIndexToId[Index] != 0)
                 {
                     TalkingPoints.Add(HearingIndexToId[Index]); // IDs aligned to snapshot order
                 }
@@ -259,8 +286,9 @@ namespace Basis.Scripts.Networking.Transmitters
 
             HasReasonToSendAudio = TalkingPoints.Count != 0;
 
-            // Copy current -> last for next tick
+            // Copy current -> last for next tick (both mask and IDs)
             Array.Copy(MicrophoneRangeIndex, LastMicrophoneRangeIndex, IndexLength);
+            Array.Copy(HearingIndexToId, LastHearingIndexToId, IndexLength);
 
             // Serialize & send using a reusable buffer (no pool + ToArray dance)
             int count = TalkingPoints.Count;
@@ -278,7 +306,6 @@ namespace Basis.Scripts.Networking.Transmitters
 
             var vrm = new VoiceReceiversMessage
             {
-                // NOTE: if VoiceReceiversMessage can be upgraded, expose a Span-based setter to avoid this copy.
                 users = CreateExactSizedArray(recipientsBuffer, count)
             };
 
@@ -286,11 +313,46 @@ namespace Basis.Scripts.Networking.Transmitters
 #if BASIS_DEBUG || UNITY_EDITOR
             BasisDebug.Log($"Sending Microphone Check Data (count={count})", BasisDebug.LogTag.Voice);
 #endif
-            vrm.Serialize(MicrophoneWriter);
-
-            BasisNetworkConnection.LocalPlayerPeer.Send(MicrophoneWriter,BasisNetworkCommons.AudioRecipientsChannel,DeliveryMethod.ReliableOrdered);
+            SendVoiceRecipients(MicrophoneWriter, vrm);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, MicrophoneWriter.Length);
+        }
+
+        private void SendEmptyRecipientsIfNeeded()
+        {
+            // If server still thinks we have recipients, send an explicit empty set.
+            if (!HasReasonToSendAudio)
+            {
+                return;
+            }
+
+            TalkingPoints.Clear();
+            var vrm = new VoiceReceiversMessage
+            {
+                users = Array.Empty<ushort>()
+            };
+
+            MicrophoneWriter.Reset();
+            BasisDebug.Log("Sending empty Microphone Check Data (flush)", BasisDebug.LogTag.Voice);
+            SendVoiceRecipients(MicrophoneWriter, vrm);
+
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, MicrophoneWriter.Length);
+        }
+
+        private void SendVoiceRecipients(NetDataWriter writer, VoiceReceiversMessage message)
+        {
+            message.Serialize(writer);
+
+            // For "state snapshots" like recipients, Sequenced is usually better:
+            // only the newest matters, older ones can be dropped.
+            const DeliveryMethod delivery = DeliveryMethod.ReliableOrdered;
+            // If you want old behavior, swap back to:
+            // const DeliveryMethod delivery = DeliveryMethod.ReliableOrdered;
+
+            BasisNetworkConnection.LocalPlayerPeer.Send(
+                writer,
+                BasisNetworkCommons.AudioRecipientsChannel,
+                delivery);
         }
 
         private static ushort[] CreateExactSizedArray(ushort[] src, int count)
@@ -357,6 +419,7 @@ namespace Basis.Scripts.Networking.Transmitters
                 AvatarIndex = new bool[ReceiverCount];
                 CalculatedDistances = new float[ReceiverCount];
                 HearingIndexToId = new ushort[ReceiverCount];
+                LastHearingIndexToId = new ushort[ReceiverCount]; // NEW
 
                 IndexLength = ReceiverCount;
                 requiresRebuild = false;
@@ -379,12 +442,13 @@ namespace Basis.Scripts.Networking.Transmitters
                 }
                 else
                 {
-                    // Use reference position as fallback to avoid uninitialized memory in job
                     targetPositions[Index] = distanceJob.referencePosition;
+
                     if (Remote != null)
                         BasisDebug.LogError($"Missing Mouth for {Remote.playerId}");
                 }
 
+                // 0 == "invalid / no receiver"
                 HearingIndexToId[Index] = rid;
             }
 
