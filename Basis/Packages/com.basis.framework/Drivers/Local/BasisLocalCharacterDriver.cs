@@ -69,10 +69,25 @@ namespace Basis.Scripts.BasisCharacterController
         public bool IsCrouching => CrouchBlend <= LocalAnimatorDriver.CrouchThreshold;
         public bool IsRunning => CurrentSpeed > DefaultMovementSpeed;
         public bool UseMaxSpeed => BasisLocalInputActions.Instance.IsRunHeld;
+
+        public bool IsEnabled
+        {
+            get
+            {
+                return isEnabled;
+            }
+
+            set
+            {
+                isEnabled = value;
+                characterController.enabled = value;
+            }
+        }
+
         public BasisLocks.LockContext MovementLock = BasisLocks.GetContext(BasisLocks.Movement);
         public BasisLocks.LockContext CrouchingLock = BasisLocks.GetContext(BasisLocks.Crouching);
         public Transform BasisLocalPlayerTransform;
-        public bool IsEnabled = true;
+        private bool isEnabled = true;
         public float CurrentSpeed;
         public void DeInitalize()
         {
