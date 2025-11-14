@@ -331,18 +331,16 @@ namespace BasisServerHandle
 
         private static List<NetPeer> GetTargetPeers(ushort[] userIds)
         {
-            NetPeer[] allPeers = NetworkServer.AuthenticatedPeers.Values.ToArray();
             var peers = new List<NetPeer>(userIds.Length);
-
             foreach (var userId in userIds)
             {
-                for (int i = 0; i < allPeers.Length; i++)
+                if (NetworkServer.AuthenticatedPeers.TryGetValue(userId, out var found))
                 {
-                    if (allPeers[i].Id == userId)
-                    {
-                        peers.Add(allPeers[i]);
-                        break;
-                    }
+                    peers.Add(found);
+                }
+                else
+                {
+                    BNL.LogError($"[VoiceMessage] Could not find peer with ID: {userId}");
                 }
             }
 
