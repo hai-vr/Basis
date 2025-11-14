@@ -246,7 +246,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void OnCalibration()
         {
-            AudioReceiverModule.AvatarChanged(this);
+            AudioReceiverModule.AvatarChanged(this,true);
 
             // Track which keys got successfully sent
             List<byte> keysToRemove = new List<byte>();

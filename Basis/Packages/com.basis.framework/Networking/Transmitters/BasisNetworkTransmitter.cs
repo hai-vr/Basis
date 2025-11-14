@@ -7,6 +7,7 @@ using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
@@ -84,7 +85,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public void AddAdditional(AdditionalAvatarData AvatarData) => SendingOutAvatarData[AvatarData.messageIndex] = AvatarData;
         public void ClearAdditional() => SendingOutAvatarData.Clear();
 
-        void SendOutLatest()
+        public void SendOutLatest()
         {
             timer += Time.deltaTime;
 
@@ -168,7 +169,7 @@ namespace Basis.Scripts.Networking.Transmitters
             AvatarResults.CopyTo(PrevAvatarResults);
 
             MicrophoneOutputCheck();
-            IterationOverRemotePlayers();
+           IterationOverRemotePlayers();
         }
 
         /// <summary>How far we can hear locally.</summary>

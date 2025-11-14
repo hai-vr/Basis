@@ -6,6 +6,7 @@ using OpusSharp.Core;
 using OpusSharp.Core.Extensions;
 using System;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using UnityEngine;
 namespace Basis.Scripts.Networking.Receivers
 {
@@ -156,7 +157,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         /// <param name="networkedPlayer">The networked player whose voice we render.</param>
         /// <param name="MouthParent">Transform to parent the audio source under (e.g., mouth).</param>
-        public async void LoadAudioSource(BasisNetworkPlayer networkedPlayer, Transform MouthParent)
+        public async Task LoadAudioSource(BasisNetworkPlayer networkedPlayer, Transform MouthParent)
         {
             if (AudioSourceTransform == null || audioSource == null)
             {
@@ -169,7 +170,9 @@ namespace Basis.Scripts.Networking.Receivers
                 audioSource.Play();
             }
             HasAudioSource = true;
-            AvatarChanged(networkedPlayer);
+            AvatarChanged(networkedPlayer,false);
+
+            ChangeRemotePlayersVolumeSettings(1);
 
             try
             {
@@ -179,7 +182,6 @@ namespace Basis.Scripts.Networking.Receivers
             catch (Exception ex)
             {
                 BasisDebug.LogError($"{ex}", BasisDebug.LogTag.Remote);
-                ChangeRemotePlayersVolumeSettings(1);
             }
         }
 
@@ -240,14 +242,14 @@ namespace Basis.Scripts.Networking.Receivers
         /// Called when the remote player's avatar changes; refreshes viseme setup.
         /// </summary>
         /// <param name="networkedPlayer">The player whose avatar changed.</param>
-        public void AvatarChanged(BasisNetworkPlayer networkedPlayer)
+        public void AvatarChanged(BasisNetworkPlayer networkedPlayer,bool WasFromCalibration)
         {
 #if UNITY_SERVER
             return;
 #endif
             if (audioSource == null)
             {
-                BasisDebug.LogWarning("Avatar Changed no Audio Source", BasisDebug.LogTag.Voice);
+                BasisDebug.LogWarning($"Avatar Changed no Audio Source was from calibration? {WasFromCalibration}", BasisDebug.LogTag.Voice);
                 return;
             }
             if (networkedPlayer == null)
@@ -336,7 +338,11 @@ namespace Basis.Scripts.Networking.Receivers
                 BasisDebug.LogError("Mouth Transform Does not exist in Audio Receiver!", BasisDebug.LogTag.Remote);
                 return;
             }
-            LoadAudioSource(BasisNetworkReceiver, BasisNetworkReceiver.RemotePlayer.MouthTransform);
+            LoadAudioSource();
+        }
+        public async void LoadAudioSource()
+        {
+            await LoadAudioSource(BasisNetworkReceiver, BasisNetworkReceiver.RemotePlayer.MouthTransform);
         }
 
         /// <summary>
@@ -355,7 +361,7 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     OpusDecoderExtensions.SetGain(decoder, 1024);
                 }
-                Debug.LogError("AudioSource is null. Cannot apply volume settings.");
+                BasisDebug.LogError("AudioSource is null. Cannot apply volume settings.", BasisDebug.LogTag.Remote);
                 return;
             }
             audioSource.spatialize = spatialize;
