@@ -457,6 +457,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::BasisOnScreenControls
   LeftControl: {fileID: 6766510806088972412}
   RightControl: {fileID: 8101319109796677167}
+  Space: {fileID: 6361308149813959932}
+  C: {fileID: 5910906443257955024}
+  Escape: {fileID: 1077335849586971303}
+  V: {fileID: 8063753361424838751}
 --- !u!1 &4273683156722761131
 GameObject:
   m_ObjectHideFlags: 0
