@@ -8,6 +8,8 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Interactions;
 using Basis.Scripts.UI;
+using System;
+using UnityEngine.InputSystem.Users;
 
 namespace Basis.Scripts.Device_Management.Devices.Desktop
 {
@@ -33,6 +35,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public InputActionReference RunButton;
         public InputActionReference Escape;
         public InputActionReference PrimaryButtonGetState;
+        public InputActionReference PointerAction;
 
         [Header("Mode Switching")]
         public InputActionReference DesktopSwitch;
@@ -89,12 +92,20 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             {
                 Instance = this;
             }
-
-            // Optimize Input System flags
             InputSystem.settings.SetInternalFeatureFlag("USE_OPTIMIZED_CONTROLS", true);
             InputSystem.settings.SetInternalFeatureFlag("USE_READ_VALUE_CACHING", true);
-
             BasisLocalCameraDriver.InstanceExists += SetupCamera;
+            // Create user (or you may already have one from PlayerInput, etc.)
+            var user = InputUser.CreateUserWithoutPairedDevices();
+
+            foreach (var device in InputSystem.devices)
+            {
+                if (device is Keyboard || device is Mouse || device is Gamepad || device is Pointer)
+                {
+                    BasisDebug.Log($"Giving access to {device.displayName}", BasisDebug.LogTag.Input);
+                    InputUser.PerformPairingWithDevice(device, user);
+                }
+            }
 
             if (BasisDeviceManagement.IsCurrentModeVR() && BasisDeviceManagement.IsMobilehardware())
             {
@@ -151,6 +162,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
         private void EnableActions()
         {
+            PointerAction.action.Enable();
             DesktopSwitch.action.Enable();
             XRSwitch.action.Enable();
             VRSwitch.action.Enable();
@@ -171,6 +183,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
         private void DisableActions()
         {
+            PointerAction.action.Disable();
             DesktopSwitch.action.Disable();
             XRSwitch.action.Disable();
             VRSwitch.action.Disable();
@@ -192,6 +205,9 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         private void AddCallbacks()
         {
             // Register all performed/canceled handlers
+            PointerAction.action.performed += OnPointerPerformed;
+            PointerAction.action.canceled += OnPointerCancelled;
+
             CrouchAction.action.performed += OnCrouchPerformed;
             CrouchAction.action.canceled += OnCrouchCancelled;
 
@@ -240,6 +256,9 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         private void RemoveCallbacks()
         {
             // Unregister all callbacks
+            PointerAction.action.performed -= OnPointerPerformed;
+            PointerAction.action.canceled -= OnPointerCancelled;
+
             CrouchAction.action.performed -= OnCrouchPerformed;
             CrouchAction.action.canceled -= OnCrouchCancelled;
 
@@ -339,7 +358,16 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         #endregion
 
         #region Input Action Handlers
+        public Vector2 Pointer;
+        private void OnPointerCancelled(InputAction.CallbackContext context)
+        {
+            Pointer = Vector2.zero;
+        }
 
+        private void OnPointerPerformed(InputAction.CallbackContext context)
+        {
+            Pointer = context.ReadValue<Vector2>();
+        }
         public void OnMoveActionPerformed(InputAction.CallbackContext ctx)
         {
             LocalCharacterDriver.SetMovementVector(ctx.ReadValue<Vector2>());
@@ -359,8 +387,12 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public void OnLookActionPerformed(InputAction.CallbackContext ctx)
         {
             var sensitivity = IsMonoStableInput(ctx.control.device) ? JoystickSensitivity : MouseSensitivity;
-            var lookDelta = ctx.ReadValue<Vector2>() * (deltaCoefficient * sensitivity);
-            if(SMModuleControllerSettings.HasInvertedMouse)
+            OnLookAction(ctx.ReadValue<Vector2>(), sensitivity);
+        }
+        public void OnLookAction(Vector2 Delta,float sensitivity)
+        {
+            var lookDelta = Delta * (deltaCoefficient * sensitivity);
+            if (SMModuleControllerSettings.HasInvertedMouse)
             {
                 lookDelta.y *= -1f;
             }

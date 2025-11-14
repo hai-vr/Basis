@@ -657,7 +657,6 @@ namespace Basis.Scripts.Device_Management
         /// Returns <c>true</c> when the current static mode equals <see cref="BasisConstants.Desktop"/>.
         /// </summary>
         public static bool IsUserInDesktop() => string.Equals(StaticCurrentMode, BasisConstants.Desktop, StringComparison.Ordinal);
-
         /// <summary>
         /// Returns <c>true</c> when the current static mode indicates a VR/XR loader.
         /// </summary>

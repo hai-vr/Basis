@@ -62,7 +62,6 @@ MonoBehaviour:
       name: 
       HasLineDraw: 0
       LineDrawIndex: 0
-      HasTarget: 0
       Offset:
         x: 0
         y: 0
@@ -72,9 +71,7 @@ MonoBehaviour:
         y: 0
         z: 0
       GizmoReference: -1
-      HasGizmo: 0
       TposeGizmoReference: -1
-      TposeHasGizmo: 0
       HasVirtualOverride: 0
       UseInverseOffset: 0
       Color: {r: 0, g: 0, b: 1, a: 1}
@@ -518,6 +515,7 @@ MonoBehaviour:
   RunButton: {fileID: 4166653571123788975, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
   Escape: {fileID: -8104914591799447859, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
   PrimaryButtonGetState: {fileID: 647096541409930546, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
+  PointerAction: {fileID: -5417877143265962151, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
   DesktopSwitch: {fileID: -1278911692722073990, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
   VRSwitch: {fileID: -3383292816080654074, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
   XRSwitch: {fileID: 3096343990557684458, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
@@ -541,6 +539,7 @@ MonoBehaviour:
     secondaryTrigger: 0
     primary2DAxis: {x: 0, y: 0}
     secondary2DAxis: {x: 0, y: 0}
+  Pointer: {x: 0, y: 0}
 --- !u!114 &8830384322729445313
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -599,9 +598,9 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_ActionEvents: []
-  m_NeverAutoSwitchControlSchemes: 0
+  m_NeverAutoSwitchControlSchemes: 1
   m_DefaultControlScheme: All
-  m_DefaultActionMap: Player
+  m_DefaultActionMap: f00afc78-a030-47bb-ae9a-e2bab910633d
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
 --- !u!114 &1625421887690667428

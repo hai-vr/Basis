@@ -1,5 +1,6 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.UI.UI_Panels;
 using System;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -52,13 +53,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             {
                 UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> op = Addressables.InstantiateAsync(OnScreenControls, BasisLocalCameraDriver.Instance.transform, true);
                 Controls = op.WaitForCompletion();
-                Controls.transform.SetLocalPositionAndRotation(new Vector3(0, 0, 0.4f), Quaternion.identity);
-                if(AlwaysSpawnHeadsUpControls)
-                {
-                    BasisCursorManagement.ForceIgnoreCursorRequests = true;
-                }
-                Cursor.lockState = CursorLockMode.Confined;
-                Cursor.visible = true;
+                Controls.transform.SetLocalPositionAndRotation(new Vector3(0, 0, 0.3f), Quaternion.identity);
+
             }
             else
             {
@@ -67,7 +63,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                     Addressables.ReleaseInstance(Controls);
                 }
             }
-
             BasisCursorManagement.LockCursor(nameof(BasisAvatarEyeInput));
         }
 

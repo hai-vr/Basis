@@ -194,7 +194,8 @@ namespace Basis.Scripts.UI
         
         private void UpdateRayCastResult()
         {
-            RaycastResult.gameObject = PhysicHit.transform.gameObject;
+            var physicshit = PhysicHit.transform.gameObject;
+            RaycastResult.gameObject = physicshit;
             RaycastResult.distance = PhysicHit.distance;
             if (BasisPointRaycaster.UseWorldPosition)
             {
@@ -205,7 +206,7 @@ namespace Basis.Scripts.UI
                 // we assign screenpoint manually example in BasisLocalCameraDriver
             }
             RaycastResult.screenPosition = BasisPointRaycaster.ScreenPoint;
-            FoundCanvas = PhysicHit.transform.gameObject.GetComponentInParent<Canvas>();
+            FoundCanvas = physicshit.GetComponentInParent<Canvas>();
             if (FoundCanvas != null)
             {
                 RaycastResult.sortingLayer = FoundCanvas.sortingLayerID;

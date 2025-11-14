@@ -205,10 +205,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         /// <param name="lookVector">Delta vsector from input system.</param>
         public void HandleLookRotation(Vector2 lookVector)
         {
-            if (HasRaycaster)
-            {
-                BasisPointRaycaster.ScreenPoint = Mouse.current.position.value;
-            }
             if (!isActiveAndEnabled || LookRotationLock)
             {
                 return;
@@ -219,11 +215,19 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         }
         /// <summary>
         /// Main polling loop for updating eye input state.  
-        /// Calculates eye position/rotation based on avatar head, crouching, and input deltas.
+        /// Calculates eye position/rotation based on avatar head, crouching, and inputs deltas.
         /// </summary>
         public override void DoPollData()
         {
-            if (!hasRoleAssigned) return;
+            if (!hasRoleAssigned)
+            {
+                return;
+            }
+
+            if (HasRaycaster)
+            {
+                BasisPointRaycaster.ScreenPoint = BasisLocalInputActions.Instance.Pointer;
+            }
 
             if (!LookRotationVector.Equals(Vector2.zero))
             {
