@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 4494292021840262793}
   - component: {fileID: 5725633349513894560}
   - component: {fileID: 1488654443174357740}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: OptimizedRenderer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -61,6 +61,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -82,6 +84,7 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
@@ -97,7 +100,7 @@ GameObject:
   - component: {fileID: 6920831483515304550}
   - component: {fileID: 6483676036050795538}
   - component: {fileID: 2392901484626930685}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: NamePlate
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -166,204 +169,14 @@ MonoBehaviour:
       Source: {fileID: 0}
       State: 0
     extras: []
-  disableInfluence: 0
+  interactableEnabled: 1
+  AutoHold: 1
   InteractRange: 8
-  Equippable: 0
-  IsPuppeted: 0
-  HipTarget:
-    name: 
-    LerpAmountNormal: 0
-    LerpAmountFastMovement: 0
-    AngleBeforeSpeedup: 0
-    HasRotationalTarget: 0
-    HasLineDraw: 0
-    LineDrawIndex: 0
-    HasTarget: 0
-    Offset:
-      x: 0
-      y: 0
-      z: 0
-    LerpAmount: 0
-    OutGoingData:
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    LastRunData:
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    TposeLocal:
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    InverseOffsetFromBone:
-      Use: 0
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    IncomingData:
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    OutgoingWorldData:
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    GizmoReference: -1
-    HasGizmo: 0
-    TposeGizmoReference: -1
-    TposeHasGizmo: 0
-    HasVirtualOverride: 0
-    trackersmooth: 25
-    IsHintRoleIgnoreRotation: 0
-    gizmoColor: {r: 0, g: 0, b: 1, a: 1}
-    HasEvents: 0
-    positionWeight: 1
-    rotationWeight: 1
-    hasTrackerDriver: 1
-    hasRigLayer: 1
-  MouthTarget:
-    name: 
-    LerpAmountNormal: 0
-    LerpAmountFastMovement: 0
-    AngleBeforeSpeedup: 0
-    HasRotationalTarget: 0
-    HasLineDraw: 0
-    LineDrawIndex: 0
-    HasTarget: 0
-    Offset:
-      x: 0
-      y: 0
-      z: 0
-    LerpAmount: 0
-    OutGoingData:
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    LastRunData:
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    TposeLocal:
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    InverseOffsetFromBone:
-      Use: 0
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    IncomingData:
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    OutgoingWorldData:
-      rotation:
-        value:
-          x: 0
-          y: 0
-          z: 0
-          w: 0
-      position:
-        x: 0
-        y: 0
-        z: 0
-    GizmoReference: -1
-    HasGizmo: 0
-    TposeGizmoReference: -1
-    TposeHasGizmo: 0
-    HasVirtualOverride: 0
-    trackersmooth: 25
-    IsHintRoleIgnoreRotation: 0
-    gizmoColor: {r: 0, g: 0, b: 1, a: 1}
-    HasEvents: 0
-    positionWeight: 1
-    rotationWeight: 1
-    hasTrackerDriver: 1
-    hasRigLayer: 1
   LoadingBar: {fileID: 8893221546737895467}
   Filter: {fileID: 5725633349513894560}
   LoadingText: {fileID: 2611666320113233794}
   BasisRemotePlayer: {fileID: 0}
   HasRendererCheckWiredUp: 0
-  IsVisible: 1
   HasProgressBarVisible: 0
   bakedMesh: {fileID: 0}
   Renderer: {fileID: 1488654443174357740}
@@ -380,7 +193,7 @@ GameObject:
   - component: {fileID: 3884037394948311099}
   - component: {fileID: 8189282691617666699}
   - component: {fileID: 2611666320113233794}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Loading Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -426,6 +239,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -447,6 +262,7 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
@@ -555,7 +371,7 @@ GameObject:
   m_Component:
   - component: {fileID: 333444482512362832}
   - component: {fileID: 8893221546737895467}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Loadingbar
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -597,6 +413,8 @@ SpriteRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -618,6 +436,7 @@ SpriteRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
