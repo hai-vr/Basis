@@ -39,8 +39,15 @@ namespace Basis.Scripts.UI
         /// <summary>
         /// Run after Input control apply, before `AfterControlApply` alloc free, uses camera raycasting when required of it.
         /// </summary>
-        public void UpdateRaycast()
+        public void UpdateRaycast(bool DoUpdate = true)
         {
+            if(DoUpdate == false)
+            {
+                PhysicHitCount = 0;
+                PhysicHits = new RaycastHit[0];
+                ClosestRayCastHit = new RaycastHit();
+                return;
+            }
             if (UseWorldPosition)
             {
                 UpdateRay();

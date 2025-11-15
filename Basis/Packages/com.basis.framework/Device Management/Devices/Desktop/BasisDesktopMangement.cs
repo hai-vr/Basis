@@ -1,9 +1,12 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
-using Basis.Scripts.UI.UI_Panels;
+using Basis.Scripts.TransformBinders.BoneControl;
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.InputSystem.EnhancedTouch;
+using UnityEngine.Windows;
 
 namespace Basis.Scripts.Device_Management.Devices.Desktop
 {
@@ -54,7 +57,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> op = Addressables.InstantiateAsync(OnScreenControls, BasisLocalCameraDriver.Instance.transform, true);
                 Controls = op.WaitForCompletion();
                 Controls.transform.SetLocalPositionAndRotation(new Vector3(0, 0, 0.3f), Quaternion.identity);
-
             }
             else
             {
@@ -63,7 +65,60 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                     Addressables.ReleaseInstance(Controls);
                 }
             }
+
+            EnhancedTouchSupport.Enable();
+            UnityEngine.InputSystem.EnhancedTouch.Touch.onFingerDown += onFingerDown;
             BasisCursorManagement.LockCursor(nameof(BasisAvatarEyeInput));
+        }
+
+        private void onFingerDown(Finger finger)
+        {
+            foreach (BasisTouchInputDevice input in Inputs)
+            {
+                if (input.Finger.index == finger.index)
+                {
+                    return;
+                }
+            }
+            BasisTouchInputDevice TouchInput;
+            switch (finger.index)
+            {
+                case 0:
+                    TouchInput = CreateTouchInput($"{finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
+                    break;
+                case 1:
+                    TouchInput = CreateTouchInput($"{finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
+                    break;
+                case 3:
+                    TouchInput = CreateTouchInput($"{finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
+                    break;
+                default:
+                    TouchInput = CreateTouchInput($"{finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
+                    break;
+            }
+            TouchInput.Input = BasisAvatarEyeInput;
+            TouchInput.Finger = finger;
+        }
+
+        public List<BasisTouchInputDevice> Inputs  = new List<BasisTouchInputDevice>();
+        public BasisTouchInputDevice CreateTouchInput(string UniqueID,string UnUniqueID,BasisBoneTrackedRole Role = BasisBoneTrackedRole.LeftHand,bool hasrole = false,string subSystems = "BasisTouchInput")
+        {
+            // Root GameObject representing the device
+            GameObject gameObject = new GameObject(UniqueID);
+            gameObject.transform.parent = BasisLocalPlayer.Instance.transform;
+
+            // Attach simulated input component
+            BasisTouchInputDevice BasisInput = gameObject.AddComponent<BasisTouchInputDevice>();
+            BasisInput.InitalizeTracking(UniqueID, UnUniqueID, subSystems, hasrole, Role,true);
+
+            // Track in local list and global device management
+            if (!Inputs.Contains(BasisInput))
+            {
+                Inputs.Add(BasisInput);
+            }
+            BasisDeviceManagement.Instance.TryAdd(BasisInput);
+
+            return BasisInput;
         }
 
         /// <summary>
@@ -85,6 +140,13 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             {
                 Addressables.ReleaseInstance(Controls);
             }
+            foreach (BasisTouchInputDevice Device in Inputs)
+            {
+                BasisDeviceManagement.Instance.RemoveDevicesFrom(nameof(BasisDesktopManagement), Device.UniqueDeviceIdentifier);
+            }
+            Inputs.Clear();
+            UnityEngine.InputSystem.EnhancedTouch.Touch.onFingerDown -= onFingerDown;
+            EnhancedTouchSupport.Disable();
         }
 
         /// <summary>

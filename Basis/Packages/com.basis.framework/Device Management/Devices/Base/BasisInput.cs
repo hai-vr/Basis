@@ -141,6 +141,10 @@ namespace Basis.Scripts.Device_Management.Devices
         public float HandBiasSplay = 0;
 
         /// <summary>
+        /// this is used for example when we have multi touch support and need a way to get a bunch of differnt fingers coming from the same "head role"
+        /// </summary>
+        public bool HasRayCastOverrideSupport;
+        /// <summary>
         /// Initialize the tracking lifecycle for this input device, register events, and (optionally) create raycast helpers.
         /// </summary>
         /// <param name="uniqueID">Unique device identifier for this instance.</param>
@@ -148,7 +152,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <param name="subSystems">Subsystem/provider ID (OpenXR, SimulateXR, etc.).</param>
         /// <param name="ForceAssignTrackedRole">If true, forces the provided role even if a matcher suggests otherwise.</param>
         /// <param name="basisBoneTrackedRole">Desired tracked role for this device.</param>
-        public void InitalizeTracking(string uniqueID, string unUniqueDeviceID, string subSystems, bool ForceAssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole)
+        public void InitalizeTracking(string uniqueID, string unUniqueDeviceID, string subSystems, bool ForceAssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, bool hasRayCastOverrideSupport = false)
         {
             //unassign the old tracker
             UnAssignTracker();
@@ -158,7 +162,7 @@ namespace Basis.Scripts.Device_Management.Devices
             SubSystemIdentifier = subSystems;
             CommonDeviceIdentifier = unUniqueDeviceID;
             UniqueDeviceIdentifier = uniqueID;
-
+            HasRayCastOverrideSupport = hasRayCastOverrideSupport;
             // Resolve capabilities/overrides (role, visuals, raycast support...)
             DeviceMatchSettings = BasisDeviceManagement.Instance.BasisDeviceNameMatcher.GetAssociatedDeviceMatchableNames(CommonDeviceIdentifier, basisBoneTrackedRole, ForceAssignTrackedRole);
             if (DeviceMatchSettings.HasTrackedRole)
@@ -322,6 +326,10 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 return false;
             }
+            if(HasRayCastOverrideSupport)
+            {
+                return true;
+            }
             return hasRoleAssigned && DeviceMatchSettings.HasRayCastSupport;
         }
 
@@ -471,12 +479,12 @@ namespace Basis.Scripts.Device_Management.Devices
         /// Pushes current input state to the action driver and updates raycasting/UI systems.
         /// Invokes <see cref="AfterControlApply"/> afterwards.
         /// </summary>
-        public void UpdatePlayerControl()
+        public void UpdatePlayerControl(bool ActuallyDoRaycast = true)
         {
             BasisActionDriver.UpdatePlayerControl(trackedRole, ref CurrentInputState, ref LastInputState);
             if (HasRaycaster)
             {
-                BasisPointRaycaster.UpdateRaycast();
+                BasisPointRaycaster.UpdateRaycast(ActuallyDoRaycast);
                 BasisUIRaycast.HandleUIRaycast();
             }
         }

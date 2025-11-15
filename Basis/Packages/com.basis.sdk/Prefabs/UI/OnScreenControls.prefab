@@ -763,11 +763,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 38cb5d7f7eff0814bbca89bdb081ad99, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Basis Framework::UnityEngine.InputSystem.OnScreen.OnScreenUIJoyStick
-  m_MovementRange: 50
-  m_DynamicOriginRange: 100
-  m_Behaviour: 1
-  m_StartPos: {x: 0, y: 0, z: 0}
-  m_PointerDownPos: {x: 0, y: 0}
+  movementRange: 25
 --- !u!1 &6305939742444260568
 GameObject:
   m_ObjectHideFlags: 0
@@ -856,11 +852,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 38cb5d7f7eff0814bbca89bdb081ad99, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Basis Framework::UnityEngine.InputSystem.OnScreen.OnScreenUIJoyStick
-  m_MovementRange: 50
-  m_DynamicOriginRange: 100
-  m_Behaviour: 1
-  m_StartPos: {x: 0, y: 0, z: 0}
-  m_PointerDownPos: {x: 0, y: 0}
+  movementRange: 25
 --- !u!1 &6387654438905918695
 GameObject:
   m_ObjectHideFlags: 0
