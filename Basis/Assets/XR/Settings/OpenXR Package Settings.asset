@@ -155,7 +155,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 01512f11fe5096443ad972feb69271f6, type: 3}
   m_Name: SpaceWarpFeature Android
   m_EditorClassIdentifier: 
-  m_enabled: 0
+  m_enabled: 1
   nameUi: Application SpaceWarp
   version: 1.0.0
   featureIdInternal: com.unity.openxr.feature.spacewarp
@@ -781,7 +781,7 @@ MonoBehaviour:
   lateLatchingMode: 1
   lateLatchingDebug: 0
   optimizeMultiviewRenderRegions: 1
-  multiviewRenderRegionsOptimizationMode: 1
+  multiviewRenderRegionsOptimizationMode: 2
   m_hasMigratedMultiviewRenderRegions: 1
   spacewarpMotionVectorTextureFormat: 0
 --- !u!114 &-738343638376515364
@@ -969,12 +969,12 @@ MonoBehaviour:
   m_autoColorSubmissionMode: 1
   m_colorSubmissionModes:
     m_List: 00000000
-  m_depthSubmissionMode: 1
+  m_depthSubmissionMode: 2
   m_spacewarpMotionVectorTextureFormat: 0
   m_optimizeBufferDiscards: 1
   m_symmetricProjection: 1
   m_optimizeMultiviewRenderRegions: 1
-  m_multiviewRenderRegionsOptimizationMode: 1
+  m_multiviewRenderRegionsOptimizationMode: 2
   m_hasMigratedMultiviewRenderRegionSetting: 1
   m_foveatedRenderingApi: 1
   m_useOpenXRPredictedTime: 0
