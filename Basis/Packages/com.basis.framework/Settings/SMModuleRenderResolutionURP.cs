@@ -111,30 +111,23 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
         }
         if (value > 0.8)
         {
-            OVRPlugin.foveatedRenderingLevel = OVRPlugin.FoveatedRenderingLevel.HighTop;
+            OVRPlugin.foveatedRenderingLevel = OVRPlugin.FoveatedRenderingLevel.High;
         }
         else
         {
-            if (value > 0.6)
+            if (value > 0.5)
             {
-                OVRPlugin.foveatedRenderingLevel = OVRPlugin.FoveatedRenderingLevel.High;
+                OVRPlugin.foveatedRenderingLevel = OVRPlugin.FoveatedRenderingLevel.Medium;
             }
             else
             {
-                if (value > 0.4)
+                if (value > 0.1)
                 {
-                    OVRPlugin.foveatedRenderingLevel = OVRPlugin.FoveatedRenderingLevel.Medium;
+                    OVRPlugin.foveatedRenderingLevel = OVRPlugin.FoveatedRenderingLevel.Low;
                 }
                 else
                 {
-                    if (value > 0.2)
-                    {
-                        OVRPlugin.foveatedRenderingLevel = OVRPlugin.FoveatedRenderingLevel.Low;
-                    }
-                    else
-                    {
-                        OVRPlugin.foveatedRenderingLevel = OVRPlugin.FoveatedRenderingLevel.Off;
-                    }
+                    OVRPlugin.foveatedRenderingLevel = OVRPlugin.FoveatedRenderingLevel.Off;
                 }
             }
         }
