@@ -1,9 +1,14 @@
+using Basis.Scripts.Drivers;
 using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
 [RequireComponent(typeof(RectTransform))]
-public class BasisScreenUIJoyStick : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler
+public class BasisScreenUIJoyStick : MonoBehaviour,
+    IPointerDownHandler,
+    IPointerUpHandler,
+    IDragHandler,
+    IPointerExitHandler
 {
     public float movementRange = 50f;
     public Action<Vector2> OnStickMove;
@@ -12,6 +17,7 @@ public class BasisScreenUIJoyStick : MonoBehaviour, IPointerDownHandler, IPointe
     Canvas canvas;
     RectTransform canvasRect;
     Vector2 startPos;
+    bool isPressed;
 
     void Awake()
     {
@@ -23,21 +29,22 @@ public class BasisScreenUIJoyStick : MonoBehaviour, IPointerDownHandler, IPointe
         startPos = rect.anchoredPosition;
     }
 
-    Camera GetUICamera()
-    {
-        if (canvas == null) return null;
-        return canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
-    }
-
     public void OnPointerDown(PointerEventData eventData)
     {
+        isPressed = true;
         // Snap immediately
         OnDrag(eventData);
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, eventData.position, GetUICamera(), out Vector2 localPos);
+        if (!isPressed) return;
+
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            canvasRect,
+            eventData.position,
+            BasisLocalCameraDriver.Instance.Camera,
+            out Vector2 localPos);
 
         var delta = localPos - startPos;
         delta = Vector2.ClampMagnitude(delta, movementRange);
@@ -50,7 +57,17 @@ public class BasisScreenUIJoyStick : MonoBehaviour, IPointerDownHandler, IPointe
 
     public void OnPointerUp(PointerEventData eventData)
     {
+        isPressed = false;
         rect.anchoredPosition = startPos;
         OnStickMove?.Invoke(Vector2.zero);
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        // If the finger leaves the control while pressed, treat it like a release
+        if (isPressed)
+        {
+            OnPointerUp(eventData);
+        }
     }
 }

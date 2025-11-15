@@ -65,7 +65,6 @@ namespace Basis.Scripts.UI
                     if (eventData == null)
                         continue;
 
-                    // Track “did we press this frame” so we can clear selected object
                     EffectiveMouseAction |= !eventData.WasLastDown && input.CurrentInputState.Trigger == 1;
 
                     if (input.BasisUIRaycast.HadRaycastUITarget)
@@ -73,7 +72,8 @@ namespace Basis.Scripts.UI
                         List<RaycastUIHitData> hitData = input.BasisUIRaycast.SortedGraphics;
                         List<RaycastResult> RaycastResults = input.BasisUIRaycast.SortedRays;
 
-                        if (hitData != null && RaycastResults != null && hitData.Count != 0 && RaycastResults.Count != 0)
+                        if (hitData != null && RaycastResults != null &&
+                            hitData.Count != 0 && RaycastResults.Count != 0)
                         {
                             RaycastResult hit = RaycastResults[0];
                             if (hitData[0].graphic != null && hitData[0].graphic.gameObject != null)
@@ -86,6 +86,17 @@ namespace Basis.Scripts.UI
                         else
                         {
                             BasisDebug.LogWarning("[BasisUIRaycastProcess] Skipping raycast simulate — hit data or ray results missing.");
+                        }
+                    }
+                    else
+                    {
+                        // 🔥 NEW: we lost any UI hit, so force “no target” and process movement
+                        // so ProcessPointerMovement can send pointerExit events.
+                        if (eventData.pointerEnter != null || eventData.hovered.Count > 0)
+                        {
+                            // Make sure raycast says "no object"
+                            eventData.pointerCurrentRaycast = new RaycastResult();
+                            ProcessPointerMovement(eventData);
                         }
                     }
                 }
@@ -113,9 +124,6 @@ namespace Basis.Scripts.UI
                 }
             }
         }
-
-        // UnityEngine.UI.Graphic LastHit;
-
         public void SimulateOnCanvas(RaycastResult raycastResult, RaycastUIHitData hit, BasisPointerEventData currentEventData, BasisInput BaseInput)
         {
             if (hit.graphic == null || currentEventData == null)

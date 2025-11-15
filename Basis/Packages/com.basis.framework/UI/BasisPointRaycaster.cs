@@ -83,6 +83,7 @@ namespace Basis.Scripts.UI
                 bool foundOverlay = false;
                 float bestDistance = float.PositiveInfinity;
 
+                for (int i = 0; i < PhysicHitCount; i++)
                 {
                     var hit = PhysicHits[i];
                     if (hit.collider == null)

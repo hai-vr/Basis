@@ -120,6 +120,7 @@ MonoBehaviour:
     HearingIndex: 
     AvatarIndex: 
     HearingIndexToId: 
+    LastHearingIndexToId: 
     CalculatedDistances: []
     intervalSeconds: 0
     timer: 0
@@ -941,8 +942,9 @@ MonoBehaviour:
   IsDeviceBooted: 0
   DeviceMode: 0
   BasisAvatarEyeInput: {fileID: 0}
-  AlwaysSpawnHeadsUpControls: 0
+  AlwaysSpawnHeadsUpControls: 1
   Controls: {fileID: 0}
+  Inputs: []
 --- !u!114 &-3061024371983229343
 MonoBehaviour:
   m_ObjectHideFlags: 0
