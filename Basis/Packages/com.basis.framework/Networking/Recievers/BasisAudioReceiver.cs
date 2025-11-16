@@ -21,7 +21,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// <summary>
         /// Remote viseme driver component attached to the active audio source.
         /// </summary>
-        [SerializeField] public BasisRemoteAudioDriver BasisRemoteVisemeAudioDriver = null;
+        [SerializeReference] public BasisRemoteAudioDriver BasisRemoteVisemeAudioDriver = null;
 
         /// <summary>
         /// The active <see cref="AudioSource"/> used for playback.

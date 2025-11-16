@@ -33,11 +33,11 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public static int BufferCapacityBeforeCleanup = 5;
 
-        [SerializeField] public BasisAudioReceiver AudioReceiverModule = new BasisAudioReceiver();
+        [SerializeReference] public BasisAudioReceiver AudioReceiverModule = new BasisAudioReceiver();
         [SerializeField] public ConcurrentQueue<BasisAvatarBuffer> PayloadQueue = new ConcurrentQueue<BasisAvatarBuffer>();
 
         public BasisRemotePlayer RemotePlayer;
-        [SerializeField] public BasisRemoteAvatarBufferHolder BufferHolder = new BasisRemoteAvatarBufferHolder();
+        [SerializeReference] public BasisRemoteAvatarBufferHolder BufferHolder = new BasisRemoteAvatarBufferHolder();
 
         public bool hasEvents = false;
 
