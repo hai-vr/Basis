@@ -173,4 +173,4 @@ MonoBehaviour:
   - GatorDragonGames.JigglePhysics.JiggleRig
   - HVR.Basis.Comms.AutomaticFaceTracking
   - HVR.Basis.Comms.HVRNetworkingCarrier
-  - BasisSeatSync
+  - Basis.Scripts.BasisSdk.Interactions.BasisSeat

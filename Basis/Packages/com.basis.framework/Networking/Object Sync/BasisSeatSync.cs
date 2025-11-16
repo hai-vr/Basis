@@ -21,7 +21,11 @@ public class BasisSeatSync : BasisNetworkBehaviour
         public bool hasPlayerId = false;
         public ushort ThePlayerID;
     }
-
+    public void Awake()
+    {
+        ActivePlayerID.hasPlayerId = false;
+        ActivePlayerID.ThePlayerID = 0;
+    }
     /// <summary>Returns true if the local player is currently the recorded occupant.</summary>
     public bool IsLocallyEntered()
     {
