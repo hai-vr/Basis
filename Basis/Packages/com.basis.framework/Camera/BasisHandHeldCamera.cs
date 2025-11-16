@@ -260,7 +260,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         int uiLayer = LayerMask.NameToLayer("UI");
         if (uiLayer < 0)
         {
-            BasisDebug.LogWarning("UI Layer not found.");
+            BasisDebug.LogError("UI Layer not found.");
         }
         else
         {
