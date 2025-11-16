@@ -102,7 +102,7 @@ public static class BasisPlayerSettingsManager
         }
 
         // local helpers
-        static async Task<BasisPlayerSettingsData?> TryLoad(string p, string orig)
+        static async Task<BasisPlayerSettingsData> TryLoad(string p, string orig)
         {
             try
             {

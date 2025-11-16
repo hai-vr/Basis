@@ -124,6 +124,10 @@ namespace Basis.Scripts.Networking
                 }
             });
         }
+        public static void OnDestroy()
+        {
+            BasisNetworkAvatarCompressor.Dispose();
+        }
         private static void PeerConnectedEvent(NetPeer peer)
         {
             BasisDebug.Log("Success! Now setting up Networked Local Player");
@@ -187,6 +191,7 @@ namespace Basis.Scripts.Networking
         {
             BasisDeviceManagement.EnqueueOnMainThread(async () =>
             {
+                BasisNetworkAvatarCompressor.Dispose();
                 await BasisNetworkLifeCycle.RebootManagement(BasisNetworkManagement.Instance, true, peer, disconnectInfo);
             });
         }
