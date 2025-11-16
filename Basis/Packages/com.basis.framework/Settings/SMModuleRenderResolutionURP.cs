@@ -1,4 +1,3 @@
-
 using Basis.Scripts.Device_Management;
 using System.Collections.Generic;
 using UnityEngine;
@@ -103,7 +102,7 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
         foveatedRenderingLevel = value;
         xrDisplaySubsystem.foveatedRenderingFlags = XRDisplaySubsystem.FoveatedRenderingFlags.GazeAllowed;
         xrDisplaySubsystem.foveatedRenderingLevel = value;
-
+        /*
         OVRPlugin.useDynamicFoveatedRendering = true;
         if (OVRManager.eyeTrackedFoveatedRenderingSupported)
         {
@@ -131,7 +130,7 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
                 }
             }
         }
-
+        */
         if (BasisDeviceManagement.IsCurrentModeVR())
         {
             BasisDebug.Log($"foveatedRenderingLevel was set to {value}");
