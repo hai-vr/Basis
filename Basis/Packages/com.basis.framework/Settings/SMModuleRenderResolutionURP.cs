@@ -1,6 +1,7 @@
 using Basis.Scripts.Device_Management;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.XR;
 public class SMModuleRenderResolutionURP : BasisSettingsBase
 {
