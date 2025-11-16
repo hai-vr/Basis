@@ -1,5 +1,6 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -429,19 +430,20 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return _checkUsabilityWithState(input, BasisInteractInputState.Ignored);
         }
         public bool canInteract = true;
-        private bool IsSeatTaken = false;
-        public void SetSeatOccupied(bool seatOccupied)
+        private bool IsSeatTakenByAnyone = false;
+        public void SetSeatOccupied(bool seatOccupiedByAnyone)
         {
-            IsSeatTaken = seatOccupied;
+            IsSeatTakenByAnyone = seatOccupiedByAnyone;
         }
         public override bool CanInteract(BasisInput input)
         {
-            return canInteract && IsSeatTaken == false;
+            return canInteract && IsSeatTakenByAnyone == false;
         }
 
         public override bool IsHoveredBy(BasisInput input)
         {
-            return true;
+            var found = Inputs.FindExcludeExtras(input);
+            return found.HasValue && found.Value.GetState() == BasisInteractInputState.Hovering;
         }
 
         public override bool IsInteractingWith(BasisInput input)
@@ -461,6 +463,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <param name="input">The input source beginning hover.</param>
         public override void OnHoverStart(BasisInput input)
         {
+            var found = Inputs.FindExcludeExtras(input);
+            if (found != null && found.Value.GetState() != BasisInteractInputState.Ignored)
+                BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " input state is not ignored OnHoverStart, this shouldn't happen");
+            var added = Inputs.ChangeStateByRole(found.Value.Role, BasisInteractInputState.Hovering);
+            if (!added)
+                BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " did not find role for input on hover");
+
             OnHoverStartEvent?.Invoke(input);
             HighlightSeat(true);
         }
@@ -473,20 +482,48 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <param name="willInteract">Whether interaction is about to begin.</param>
         public override void OnHoverEnd(BasisInput input, bool willInteract)
         {
-            OnHoverEndEvent?.Invoke(input, willInteract);
-            HighlightSeat(false);
+            if (input.TryGetRole(out BasisBoneTrackedRole role) && Inputs.TryGetByRole(role, out _))
+            {
+                if (!willInteract)
+                {
+                    if (!Inputs.ChangeStateByRole(role, BasisInteractInputState.Ignored))
+                    {
+                        BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " found input by role but could not remove by it, this is a bug.");
+                    }
+                }
+                OnHoverEndEvent?.Invoke(input, willInteract);
+                HighlightSeat(false);
+            }
         }
 
         public override void OnInteractStart(BasisInput input)
         {
-            _interactingInput = input;
-            Basis.Scripts.BasisSdk.Players.BasisLocalPlayer.Instance.LocalSeatDriver.Sit(this);
-            base.OnInteractStart(input);
+            Inputs.ForEachWithState(OnInteractEnd, BasisInteractInputState.Interacting);
+            if (input.TryGetRole(out BasisBoneTrackedRole role) && Inputs.TryGetByRole(role, out BasisInputWrapper wrapper))
+            {
+                BasisDebug.Log("InteractStart: " + wrapper.GetState(), BasisDebug.LogTag.Pickups);
+                if (wrapper.GetState() == BasisInteractInputState.Hovering)
+                {
+                    Inputs.ChangeStateByRole(wrapper.Role, BasisInteractInputState.Interacting);
+                    _interactingInput = input;
+                    Basis.Scripts.BasisSdk.Players.BasisLocalPlayer.Instance.LocalSeatDriver.Sit(this);
+                    SetSeatOccupied(true);
+                    base.OnInteractStart(input);
+                }
+            }
         }
 
         public override void OnInteractEnd(BasisInput input)
         {
-            _interactingInput = null;
+            if (input.TryGetRole(out BasisBoneTrackedRole role) && Inputs.TryGetByRole(role, out BasisInputWrapper wrapper))
+            {
+                if (wrapper.GetState() == BasisInteractInputState.Interacting)
+                {
+                    Inputs.ChangeStateByRole(wrapper.Role, BasisInteractInputState.Ignored);
+                    _interactingInput = null;
+                }
+
+            }
         }
         /// <summary>
         /// this one actually does the callback.
@@ -494,6 +531,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public void OnExitSeat()
         {
             base.OnInteractEnd(null);
+            SetSeatOccupied(false);
         }
         #endregion Basis Integration
     }
