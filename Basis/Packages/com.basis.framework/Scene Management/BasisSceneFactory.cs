@@ -1,5 +1,6 @@
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 
 using System.Collections.Generic;
@@ -89,9 +90,23 @@ public static class BasisSceneFactory
         RealCamera.useOcclusionCulling = Camera.useOcclusionCulling;
         RealCamera.backgroundColor = Camera.backgroundColor;
         RealCamera.barrelClipping = Camera.barrelClipping;
-        RealCamera.usePhysicalProperties = Camera.usePhysicalProperties;
-        RealCamera.farClipPlane = Camera.farClipPlane;
-        RealCamera.nearClipPlane = Camera.nearClipPlane;
+        RealCamera.usePhysicalProperties = Camera.usePhysicalProperties;;
+        if (BasisDeviceManagement.IsMobilehardware())
+        {
+            if (Camera.farClipPlane > 800)
+            {
+                RealCamera.farClipPlane = 800;
+            }
+            if (RealCamera.nearClipPlane < 0.05f)
+            {
+                RealCamera.nearClipPlane = 0.05f;
+            }
+        }
+        else
+        {
+            RealCamera.farClipPlane = Camera.farClipPlane;
+            RealCamera.nearClipPlane = Camera.nearClipPlane;
+        }
 
         if (Camera.TryGetComponent(out UniversalAdditionalCameraData AdditionalCameraData))
         {

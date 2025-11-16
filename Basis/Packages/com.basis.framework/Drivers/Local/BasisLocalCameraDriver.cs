@@ -168,8 +168,17 @@ namespace Basis.Scripts.Drivers
                 Instance = this;
                 HasInstance = true;
             }
-            Camera.nearClipPlane = NearClip;
-            Camera.farClipPlane = 1500;
+            if (BasisDeviceManagement.IsMobilehardware())
+            {
+                Camera.nearClipPlane = 0.05f;
+                Camera.farClipPlane = 800;
+            }
+            else
+            {
+                Camera.nearClipPlane = NearClip;
+                Camera.farClipPlane = 1500;
+            }
+
             CameraInstanceID = Camera.GetInstanceID();
 
             // Set initial scale from player height
