@@ -9,13 +9,14 @@ using LiteNetLib;
 using UnityEngine;
 public class BasisSeatSync : BasisNetworkBehaviour
 {
+    private BasisNetworkReceiver _currentRemoteRec;
+    private ushort _currentUserId = ushort.MaxValue;
+
     [Header("Seat")]
     public BasisSeat Seat;
 
     [Header("Runtime")]
-    public PlayerID ActivePlayerID = new PlayerID();
-
-    [System.Serializable]
+    public PlayerID LinkedPlayer = null;
     public class PlayerID
     {
         public bool hasPlayerId = false;
@@ -23,21 +24,22 @@ public class BasisSeatSync : BasisNetworkBehaviour
     }
     public void Awake()
     {
-        ActivePlayerID.hasPlayerId = false;
-        ActivePlayerID.ThePlayerID = 0;
+        LinkedPlayer = new PlayerID(); 
+        LinkedPlayer.hasPlayerId = false;
+        LinkedPlayer.ThePlayerID = 0;
     }
     /// <summary>Returns true if the local player is currently the recorded occupant.</summary>
     public bool IsLocallyEntered()
     {
-        return ActivePlayerID.hasPlayerId && GetLocalPlayerIdSafe(out ushort id) && ActivePlayerID.ThePlayerID == id;
+        return LinkedPlayer.hasPlayerId && GetLocalPlayerIdSafe(out ushort id) && LinkedPlayer.ThePlayerID == id;
     }
 
     /// <summary>Returns whether a user occupies the seat and outputs their ID (0 if none).</summary>
     public bool HasUser(out ushort id)
     {
-        if (ActivePlayerID.hasPlayerId)
+        if (LinkedPlayer.hasPlayerId)
         {
-            id = ActivePlayerID.ThePlayerID;
+            id = LinkedPlayer.ThePlayerID;
             return true;
         }
         id = 0;
@@ -95,8 +97,6 @@ public class BasisSeatSync : BasisNetworkBehaviour
             SetSeatStateLocal(false, player.playerId);
         }
     }
-    private BasisNetworkReceiver _currentRemoteRec;
-    private ushort _currentUserId = ushort.MaxValue;
     public void Update()
     {
         ProvideRemotePlayerTarget();
@@ -196,7 +196,8 @@ public class BasisSeatSync : BasisNetworkBehaviour
         // If we're already the occupant, do nothing.
         if (IsLocallyEntered())
         {
-            return;
+            BasisDebug.Log("We are already the Recipient Standing and then sitting again.");
+            Stand();
         }
 
         SetSeatState(true, id);
@@ -232,7 +233,7 @@ public class BasisSeatSync : BasisNetworkBehaviour
     public void SetSeatState(bool state, ushort id)
     {
         // Idempotency: if nothing changes, don't spam the network.
-        if (ActivePlayerID.hasPlayerId == state && ActivePlayerID.ThePlayerID == id)
+        if (LinkedPlayer.hasPlayerId == state && LinkedPlayer.ThePlayerID == id)
         {
             return;
         }
@@ -294,8 +295,8 @@ public class BasisSeatSync : BasisNetworkBehaviour
     /// </summary>
     private void SetSeatStateLocal(bool inSeat, ushort playerId)
     {
-        ActivePlayerID.hasPlayerId = inSeat;
-        ActivePlayerID.ThePlayerID = playerId;
+        LinkedPlayer.hasPlayerId = inSeat;
+        LinkedPlayer.ThePlayerID = playerId;
 
         if (Seat != null)
         {
