@@ -7,7 +7,6 @@ using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
@@ -64,9 +63,6 @@ namespace Basis.Scripts.Networking.Transmitters
         public Dictionary<byte, AdditionalAvatarData> SendingOutAvatarData = new Dictionary<byte, AdditionalAvatarData>();
         public float[] CalculatedDistances; // squared distances mirror
 
-        // temp recipients buffer to avoid per-tick allocations
-        private ushort[] recipientsBuffer;
-
         public static Action AfterAvatarChanges;
 
         public float intervalSeconds = 0.5f;
@@ -75,7 +71,6 @@ namespace Basis.Scripts.Networking.Transmitters
         public float UnClampedInterval;
         public float DefaultInterval;
         public List<ushort> TalkingPoints = new List<ushort>(128);
-        public NetDataWriter MicrophoneWriter = new NetDataWriter();
 
         public BasisNetworkTransmitter(ushort PlayerID)
         {
@@ -290,29 +285,12 @@ namespace Basis.Scripts.Networking.Transmitters
             Array.Copy(MicrophoneRangeIndex, LastMicrophoneRangeIndex, IndexLength);
             Array.Copy(HearingIndexToId, LastHearingIndexToId, IndexLength);
 
-            // Serialize & send using a reusable buffer (no pool + ToArray dance)
-            int count = TalkingPoints.Count;
-            if (recipientsBuffer == null || recipientsBuffer.Length < count)
-            {
-                // grow (double to reduce churn)
-                int newLen = recipientsBuffer == null ? math.max(8, count) : math.max(recipientsBuffer.Length * 2, count);
-                recipientsBuffer = new ushort[newLen];
-            }
-
-            for (int i = 0; i < count; i++)
-            {
-                recipientsBuffer[i] = TalkingPoints[i];
-            }
-
             var vrm = new VoiceReceiversMessage
             {
-                users = CreateExactSizedArray(recipientsBuffer, count)
+                users = TalkingPoints.ToArray()
             };
 
-            MicrophoneWriter.Reset();
-#if BASIS_DEBUG || UNITY_EDITOR
-            BasisDebug.Log($"Sending Microphone Check Data (count={count})", BasisDebug.LogTag.Voice);
-#endif
+            NetDataWriter MicrophoneWriter = new NetDataWriter(true, 0);
             SendVoiceRecipients(MicrophoneWriter, vrm);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, MicrophoneWriter.Length);
@@ -332,48 +310,20 @@ namespace Basis.Scripts.Networking.Transmitters
                 users = Array.Empty<ushort>()
             };
 
-            MicrophoneWriter.Reset();
+            // MicrophoneWriter.Reset();
+            NetDataWriter Writer = new NetDataWriter(true, 0);
             BasisDebug.Log("Sending empty Microphone Check Data (flush)", BasisDebug.LogTag.Voice);
-            SendVoiceRecipients(MicrophoneWriter, vrm);
+            SendVoiceRecipients(Writer, vrm);
 
-            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, MicrophoneWriter.Length);
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, Writer.Length);
         }
 
         private void SendVoiceRecipients(NetDataWriter writer, VoiceReceiversMessage message)
         {
             message.Serialize(writer);
-
-            // For "state snapshots" like recipients, Sequenced is usually better:
-            // only the newest matters, older ones can be dropped.
-            const DeliveryMethod delivery = DeliveryMethod.ReliableOrdered;
-            // If you want old behavior, swap back to:
-            // const DeliveryMethod delivery = DeliveryMethod.ReliableOrdered;
-
-            BasisNetworkConnection.LocalPlayerPeer.Send(
-                writer,
-                BasisNetworkCommons.AudioRecipientsChannel,
-                delivery);
+            BasisDebug.Log($"Sending Microphone Check Data ({writer.Length})", BasisDebug.LogTag.Voice);
+            BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.AudioRecipientsChannel, DeliveryMethod.ReliableOrdered);
         }
-
-        private static ushort[] CreateExactSizedArray(ushort[] src, int count)
-        {
-            if (count == 0) return Array.Empty<ushort>();
-            var arr = new ushort[count];
-            Array.Copy(src, arr, count);
-            return arr;
-        }
-
-        public static bool AreBoolArraysEqual(bool[] array1, bool[] array2)
-        {
-            if (array1 == null && array2 == null) return true;
-            if (array1 == null || array2 == null) return false;
-            if (array1.Length != array2.Length) return false;
-
-            for (int i = 0; i < array1.Length; i++)
-                if (array1[i] != array2[i]) return false;
-            return true;
-        }
-
         public override void Initialize()
         {
             IndexLength = -1;
@@ -419,7 +369,7 @@ namespace Basis.Scripts.Networking.Transmitters
                 AvatarIndex = new bool[ReceiverCount];
                 CalculatedDistances = new float[ReceiverCount];
                 HearingIndexToId = new ushort[ReceiverCount];
-                LastHearingIndexToId = new ushort[ReceiverCount]; // NEW
+                LastHearingIndexToId = new ushort[ReceiverCount];
 
                 IndexLength = ReceiverCount;
                 requiresRebuild = false;
@@ -431,25 +381,34 @@ namespace Basis.Scripts.Networking.Transmitters
             {
                 var Remote = Snapshot[Index];
 
-                ushort rid = 0;
-                float3 outgoing = float3.zero;
-                bool hasMouth = Remote != null && RemoteBoneJobSystem.GetOutGoingMouth(Remote.playerId, out outgoing);
-
-                if (hasMouth)
+                if (Remote != null)
                 {
-                    targetPositions[Index] = outgoing;
-                    rid = Remote.playerId;
+                    ushort rid = Remote.playerId;
+
+                    float3 outgoing;
+                    bool hasMouth = RemoteBoneJobSystem.GetOutGoingMouth(Remote.playerId, out outgoing);
+
+                    if (hasMouth)
+                    {
+                        targetPositions[Index] = outgoing;
+                    }
+                    else
+                    {
+                        // Fallback: use reference position so distance is 0,
+                        // but KEEP the ID so they can still receive audio.
+                        targetPositions[Index] = distanceJob.referencePosition;
+                        BasisDebug.LogError($"Missing Mouth for {Remote.playerId}");
+                    }
+
+                    // Always treat a valid Remote as a valid receiver
+                    HearingIndexToId[Index] = rid;
                 }
                 else
                 {
+                    // Only truly invalid when we have no Remote at all.
                     targetPositions[Index] = distanceJob.referencePosition;
-
-                    if (Remote != null)
-                        BasisDebug.LogError($"Missing Mouth for {Remote.playerId}");
+                    HearingIndexToId[Index] = 0;
                 }
-
-                // 0 == "invalid / no receiver"
-                HearingIndexToId[Index] = rid;
             }
 
             // reduction output
