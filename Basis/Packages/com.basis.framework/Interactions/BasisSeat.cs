@@ -431,13 +431,14 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
         public bool canInteract = true;
         private bool IsSeatTakenByAnyone = false;
+        public bool LocallyInSeat;
         public void SetSeatOccupied(bool seatOccupiedByAnyone)
         {
             IsSeatTakenByAnyone = seatOccupiedByAnyone;
         }
         public override bool CanInteract(BasisInput input)
         {
-            return canInteract && IsSeatTakenByAnyone == false;
+            return LocallyInSeat ||  canInteract && IsSeatTakenByAnyone == false;
         }
 
         public override bool IsHoveredBy(BasisInput input)
@@ -498,19 +499,42 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         public override void OnInteractStart(BasisInput input)
         {
+            // Are we trying to sit down (true) or stand up (false)?
+            bool enteringSeat = !LocallyInSeat;
+
+            // Clear any existing interacting inputs first
             Inputs.ForEachWithState(OnInteractEnd, BasisInteractInputState.Interacting);
-            if (input.TryGetRole(out BasisBoneTrackedRole role) && Inputs.TryGetByRole(role, out BasisInputWrapper wrapper))
+
+            if (!input.TryGetRole(out BasisBoneTrackedRole role) ||
+                !Inputs.TryGetByRole(role, out BasisInputWrapper wrapper))
             {
-                BasisDebug.Log("InteractStart: " + wrapper.GetState(), BasisDebug.LogTag.Pickups);
-                if (wrapper.GetState() == BasisInteractInputState.Hovering)
-                {
-                    Inputs.ChangeStateByRole(wrapper.Role, BasisInteractInputState.Interacting);
-                    _interactingInput = input;
-                    Basis.Scripts.BasisSdk.Players.BasisLocalPlayer.Instance.LocalSeatDriver.Sit(this);
-                    SetSeatOccupied(true);
-                    base.OnInteractStart(input);
-                }
+                return;
             }
+
+            BasisDebug.Log("InteractStart: " + wrapper.GetState(), BasisDebug.LogTag.Pickups);
+
+            if (wrapper.GetState() != BasisInteractInputState.Hovering)
+            {
+                return;
+            }
+
+            Inputs.ChangeStateByRole(wrapper.Role, BasisInteractInputState.Interacting);
+            _interactingInput = input;
+
+            var seatDriver = Basis.Scripts.BasisSdk.Players.BasisLocalPlayer.Instance.LocalSeatDriver;
+
+            if (enteringSeat)
+            {
+                seatDriver.Sit(this);
+            }
+            else
+            {
+                seatDriver.Stand();
+            }
+
+            SetSeatOccupied(enteringSeat);
+            base.OnInteractStart(input);
+            LocallyInSeat = enteringSeat;
         }
 
         public override void OnInteractEnd(BasisInput input)
@@ -532,6 +556,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             base.OnInteractEnd(null);
             SetSeatOccupied(false);
+            LocallyInSeat = false;
         }
         #endregion Basis Integration
     }

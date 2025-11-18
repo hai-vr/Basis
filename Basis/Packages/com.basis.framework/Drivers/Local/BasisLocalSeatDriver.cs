@@ -105,7 +105,10 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void Stand()
         {
-            if (LocalPlayer == null || _seat == null) return;
+            if (LocalPlayer == null || _seat == null)
+            {
+                return;
+            }
 
             _seat.OnExitSeat();
             BasisLocalVirtualSpineDriver.HipsFreezeToTpose = false;
@@ -134,11 +137,6 @@ namespace Basis.Scripts.Drivers
         private void OnSimulate()
         {
             if (_seat == null) return;
-            if (LocalPlayer.LocalCharacterDriver.MovementVector.SqrMagnitude() > 0.25f)
-            {
-                Stand();
-                return;
-            }
 
 
             // Calculate targeting information for the seat in the object's local space.

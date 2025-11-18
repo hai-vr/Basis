@@ -311,6 +311,7 @@ namespace Basis.Scripts.BasisSdk.Players
         public void Teleport(Vector3 position, Quaternion rotation)
         {
             BasisDebug.Log("Teleporting", BasisDebug.LogTag.Local);
+            LocalSeatDriver.Stand();
             bool wasCharacterEnabled = LocalCharacterDriver.IsEnabled;
             LocalCharacterDriver.IsEnabled = false;
             this.transform.SetPositionAndRotation(position, rotation);
