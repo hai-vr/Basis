@@ -32,7 +32,7 @@ namespace Basis
         /// <summary>
         /// the reason its start instead of awake is to make sure progation occurs to everything no matter the net connect
         /// </summary>
-        public void Start()
+        public virtual void Start()
         {
             BasisNetworkPlayer.OnLocalPlayerJoined += OnLocalPlayerJoined;
             BasisNetworkPlayer.OnPlayerJoined += OnPlayerJoined;
