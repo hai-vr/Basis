@@ -343,7 +343,6 @@ namespace Basis.Scripts.Drivers
                     case BasisBoneTrackedRole.CenterEye:
                         break;
                     case BasisBoneTrackedRole.Head:
-                        d.EnabledSpineIK = Enabled;
                         break;
                     case BasisBoneTrackedRole.Neck:
                         break;
