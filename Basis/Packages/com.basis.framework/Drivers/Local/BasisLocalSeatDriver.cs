@@ -84,7 +84,8 @@ namespace Basis.Scripts.Drivers
             LocalPlayer.LocalCharacterDriver.IsEnabled = false;
             LocalPlayer.LocalCharacterDriver.MovementLock.Add(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.CrouchingLock.Add(nameof(BasisLocalSeatDriver));
-
+            LocalPlayer.LocalAnimatorDriver.StopAllVariables();
+            LocalPlayer.LocalAnimatorDriver.PauseAnimator = true;
             _setAllOverrideUsages(true);
             LocalPlayer.OnPreSimulateBones += OnSimulate;
             GrabLatestTposeLocalScaleData();
@@ -106,6 +107,7 @@ namespace Basis.Scripts.Drivers
                 return;
             }
 
+            LocalPlayer.LocalAnimatorDriver.PauseAnimator = false;
             _seat.OnExitSeat();
             BasisLocalVirtualSpineDriver.HipsFreezeToTpose = false;
             LocalPlayer.OnPreSimulateBones -= OnSimulate;

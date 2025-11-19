@@ -412,7 +412,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// Per-frame update loop for inputs targeting this interactable.
         /// Only runs when <see cref="RequiresUpdateLoop"/> is true.
         /// </summary>
-        public abstract void InputUpdate();
+        public virtual void InputUpdate()
+        {
+
+        }
 
         /// <summary>
         /// Clears state of all influencing inputs.

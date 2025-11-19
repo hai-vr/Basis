@@ -181,26 +181,29 @@ public class BasisSeatSync : BasisNetworkBehaviour
     /// </summary>
     private void OnInteractStartEvent(BasisInput input)
     {
-        if (!GetLocalPlayerIdSafe(out ushort id))
+        if (Seat.LocallyInSeat)//guards against the oninteract from exit click
         {
-            BasisDebug.LogError("Missing LocalPlayer", BasisDebug.LogTag.Networking);
-            return;
-        }
+            if (!GetLocalPlayerIdSafe(out ushort id))
+            {
+                BasisDebug.LogError("Missing LocalPlayer", BasisDebug.LogTag.Networking);
+                return;
+            }
 
-        // If someone else is already in the seat, do nothing.
-        if (HasUser(out ushort current) && current != id)
-        {
-            return;
-        }
+            // If someone else is already in the seat, do nothing.
+            if (HasUser(out ushort current) && current != id)
+            {
+                return;
+            }
 
-        // If we're already the occupant, do nothing.
-        if (IsLocallyEntered())
-        {
-            BasisDebug.Log("We are already the Recipient Standing and then sitting again.");
-            Stand();
-        }
+            // If we're already the occupant, do nothing.
+            if (IsLocallyEntered())
+            {
+                BasisDebug.Log("We are already the Recipient Standing and then sitting again.");
+                Stand();
+            }
 
-        SetSeatState(true, id);
+            SetSeatState(true, id);
+        }
     }
 
     /// <summary>

@@ -109,6 +109,7 @@ namespace Basis.Scripts.Networking
 
         private async void OnDisable()
         {
+            BasisNetworkConnection.OnDestroy();
             await BasisNetworkLifeCycle.Destroy(this);
         }
 

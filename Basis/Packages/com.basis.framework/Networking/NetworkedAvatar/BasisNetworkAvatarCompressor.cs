@@ -308,7 +308,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             if (!sMusclesNative.IsCreated || sMusclesNative.Length != count)
             {
-                if (sMusclesNative.IsCreated) sMusclesNative.Dispose();
+                if (sMusclesNative.IsCreated)
+                {
+                    sMusclesNative.Dispose();
+                }
                 sMusclesNative = new NativeArray<float>(count, Allocator.Persistent);
             }
         }
@@ -321,8 +324,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
         public static void Dispose()
         {
-            if (!sInitialized) return;
-
             if (sOrder.IsCreated) sOrder.Dispose();
             if (sIsByte.IsCreated) sIsByte.Dispose();
             if (sOffsets.IsCreated) sOffsets.Dispose();

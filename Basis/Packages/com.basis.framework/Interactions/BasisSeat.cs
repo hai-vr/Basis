@@ -423,22 +423,20 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         #region Basis Integration
         private BasisInput _interactingInput = null;
-
+        public bool IsSeatTakenByAnyone = false;
+        public bool LocallyInSeat;
         public override bool CanHover(BasisInput input)
         {
             // Can only hover when not already hovering or interacting.
-            return CheckUsabilityWithState(input, BasisInteractInputState.Ignored);
+            return LocallyInSeat || CheckUsabilityWithState(input, BasisInteractInputState.Ignored) && IsSeatTakenByAnyone == false;
         }
-        public bool canInteract = true;
-        private bool IsSeatTakenByAnyone = false;
-        public bool LocallyInSeat;
         public void SetSeatOccupied(bool seatOccupiedByAnyone)
         {
             IsSeatTakenByAnyone = seatOccupiedByAnyone;
         }
         public override bool CanInteract(BasisInput input)
         {
-            return LocallyInSeat ||  canInteract && IsSeatTakenByAnyone == false;
+            return LocallyInSeat || CheckUsabilityWithState(input, BasisInteractInputState.Hovering) && IsSeatTakenByAnyone == false;
         }
 
         public override bool IsHoveredBy(BasisInput input)
@@ -452,10 +450,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             return _interactingInput == input;
         }
 
-        public override void InputUpdate()
-        {
-            // BasisInteractableObject requires overriding this but I don't think we need it?
-        }
 
         /// <summary>
         /// Called when hovering begins for an input. Promotes the input to the <c>Hovering</c> state,
@@ -466,7 +460,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             var found = Inputs.FindExcludeExtras(input);
             if (found != null && found.Value.GetState() != BasisInteractInputState.Ignored)
-                BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " input state is not ignored OnHoverStart, this shouldn't happen");
+            {
+               // BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " input state is not ignored OnHoverStart, this shouldn't happen");
+            }
+
             var added = Inputs.ChangeStateByRole(found.Value.Role, BasisInteractInputState.Hovering);
             if (!added)
                 BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " did not find role for input on hover");
@@ -499,19 +496,14 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         public override void OnInteractStart(BasisInput input)
         {
-            // Are we trying to sit down (true) or stand up (false)?
-            bool enteringSeat = !LocallyInSeat;
 
             // Clear any existing interacting inputs first
             Inputs.ForEachWithState(OnInteractEnd, BasisInteractInputState.Interacting);
 
-            if (!input.TryGetRole(out BasisBoneTrackedRole role) ||
-                !Inputs.TryGetByRole(role, out BasisInputWrapper wrapper))
+            if (!input.TryGetRole(out BasisBoneTrackedRole role) || !Inputs.TryGetByRole(role, out BasisInputWrapper wrapper))
             {
                 return;
             }
-
-            BasisDebug.Log("InteractStart: " + wrapper.GetState(), BasisDebug.LogTag.Pickups);
 
             if (wrapper.GetState() != BasisInteractInputState.Hovering)
             {
@@ -520,21 +512,19 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             Inputs.ChangeStateByRole(wrapper.Role, BasisInteractInputState.Interacting);
             _interactingInput = input;
-
-            var seatDriver = Basis.Scripts.BasisSdk.Players.BasisLocalPlayer.Instance.LocalSeatDriver;
-
-            if (enteringSeat)
+            if (LocallyInSeat)
             {
-                seatDriver.Sit(this);
+                BasisLocalPlayer.Instance.LocalSeatDriver.Stand();
+                SetSeatOccupied(false);
+                LocallyInSeat = false;
             }
             else
             {
-                seatDriver.Stand();
+                BasisLocalPlayer.Instance.LocalSeatDriver.Sit(this);
+                SetSeatOccupied(true);
+                LocallyInSeat = true;
             }
-
-            SetSeatOccupied(enteringSeat);
             base.OnInteractStart(input);
-            LocallyInSeat = enteringSeat;
         }
 
         public override void OnInteractEnd(BasisInput input)
