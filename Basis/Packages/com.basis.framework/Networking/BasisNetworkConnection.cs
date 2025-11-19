@@ -145,31 +145,32 @@ namespace Basis.Scripts.Networking
                     var transmitter = new BasisNetworkTransmitter(localPlayerID);
                     BasisNetworkManagement.Transmitter = transmitter;
                     BasisNetworkManagement.Instance.LocalAccessTransmitter = transmitter;
-                    BasisNetworkManagement.Instance.LocalAccessTransmitter.Player = BasisLocalPlayer.Instance;
+                    transmitter.Player = BasisLocalPlayer.Instance;
 
                     if (BasisLocalPlayer.Instance.LocalAvatarDriver != null)
                     {
                         if (BasisLocalAvatarDriver.HasEvents == false)
                         {
-                            BasisLocalAvatarDriver.CalibrationComplete += BasisNetworkManagement.Instance.LocalAccessTransmitter.OnAvatarCalibrationLocal;
+                            BasisLocalAvatarDriver.CalibrationComplete += transmitter.OnAvatarCalibrationLocal;
                             BasisLocalAvatarDriver.HasEvents = true;
                         }
-                        BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out BasisNetworkManagement.Instance.LocalAccessTransmitter.MouthBone, BasisBoneTrackedRole.Mouth);
+                        transmitter.TransmissionResults.BasisNetworkTransmitter = transmitter;
+                        BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out transmitter.TransmissionResults.MouthBone, BasisBoneTrackedRole.Mouth);
                     }
                     else
                     {
                         BasisDebug.LogError("Missing CharacterIKCalibration");
                     }
 
-                    if (!BasisNetworkPlayers.AddPlayer(BasisNetworkManagement.Instance.LocalAccessTransmitter))
+                    if (!BasisNetworkPlayers.AddPlayer(transmitter))
                     {
                         BasisDebug.LogError($"Cannot add player {localPlayerID}");
                     }
 
-                    BasisNetworkManagement.Instance.LocalAccessTransmitter.Initialize();
+                    transmitter.Initialize();
 
-                    BasisNetworkPlayer.OnLocalPlayerJoined?.Invoke(BasisNetworkManagement.Instance.LocalAccessTransmitter, BasisLocalPlayer.Instance);
-                    BasisNetworkPlayer.OnPlayerJoined?.Invoke(BasisNetworkManagement.Instance.LocalAccessTransmitter);
+                    BasisNetworkPlayer.OnLocalPlayerJoined?.Invoke(transmitter, BasisLocalPlayer.Instance);
+                    BasisNetworkPlayer.OnPlayerJoined?.Invoke(transmitter);
 
                     LocalPlayerIsConnected = true;
                     if (BasisSetUserName.Instance != null)
