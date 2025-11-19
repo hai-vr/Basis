@@ -200,10 +200,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             };
             return mesh;
         }
-        /// <summary>
-        /// this is hacky atm needs calculation
-        /// </summary>
-        private Vector3 Position = new Vector3(0, 0.19f, -0.1f);
         public void CalculateSeatPositionRotation(BasisRemotePlayer Player, out Quaternion hipsWorldRot, out Vector3 hipsWorldPos)
         {
             // seat orientation
@@ -229,9 +225,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             Vector3 LT_World = Vector3.Scale(scale, leftToe.position);
 
             // finally call your leg placement helper
-            Vector3 difference = Vector3.Scale(scale, Position);
-
-            hipsWorldPos = ApplyRemoteLeg(difference, leftLower.rotation, leftUpper.rotation, LF_World, LLL_World, LUL_World, LT_World);
+            hipsWorldPos = ApplyRemoteLeg(leftLower.rotation, leftUpper.rotation, LF_World, LLL_World, LUL_World, LT_World);
         }
         public Vector3 Convert(Matrix4x4 m)
         {
@@ -251,7 +245,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <param name="LeftUpperLegControl"></param>
         /// <param name="LeftToeControl"></param>
         /// <returns></returns>
-        public Vector3 ApplyRemoteLeg(Vector3 Difference, Quaternion LeftLowerLegControlRotation, Quaternion LeftUpperLegControlRotation, Vector3 LeftFootControl, Vector3 LeftLowerLegControl, Vector3 LeftUpperLegControl, Vector3 LeftToeControl)
+        public Vector3 ApplyRemoteLeg( Quaternion LeftLowerLegControlRotation, Quaternion LeftUpperLegControlRotation, Vector3 LeftFootControl, Vector3 LeftLowerLegControl, Vector3 LeftUpperLegControl, Vector3 LeftToeControl)
         {
 
             Vector3 leftLowerLegOffset = LeftFootControl - LeftLowerLegControl;
@@ -302,7 +296,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 }
                 targetBack = ClosestPointOnSphere(targetBack, targetKnee, upperLegLength);
             }
-            targetBack += Difference;
             Vector3 pelvisWorldPos = transform.TransformPoint(targetBack);
 
             return pelvisWorldPos;
