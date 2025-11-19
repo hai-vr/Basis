@@ -13,31 +13,31 @@ namespace Basis.Scripts.BasisSdk.Interactions
 {
     public class BasisPlayerInteract : MonoBehaviour
     {
-        public LayerMask IgnoreRaycasting;
-        public LayerMask playerLayer;
-        public LayerMask LocalPlayerAvatar;
+        public static LayerMask IgnoreRaycasting;
+        public static LayerMask playerLayer;
+        public static LayerMask LocalPlayerAvatar;
         public static LayerMask Mask;
         public static QueryTriggerInteraction TriggerInteraction = QueryTriggerInteraction.UseGlobal;
         [Tooltip("How far the player can interact with objects. Must hold that raycastDistance > hoverRadius")]
-        public float raycastDistance = 5.0f;
+        public static float raycastDistance = 5.0f;
         [Tooltip("How far the player Hover.")]
-        public float hoverRadius = 0.5f;
+        public static float hoverRadius = 0.5f;
         // NOTE: this needs to be >= max number of colliders it can potentiall hit a scene, otherwise it will behave oddly
         public static int k_MaxPhysicHitCount = 128;
-        public bool OnlySortClosest = true;
+        public static bool OnlySortClosest = true;
         [SerializeField]
         public BasisInteractInput[] InteractInputs = new BasisInteractInput[] { };
 
-        public Material LineMaterial;
-        private AsyncOperationHandle<Material> asyncOperationLineMaterial;
-        public float interactLineWidth = 0.015f;
-        public bool renderInteractLines = true;
-        private bool interactLinesActive = false;
+        public static Material LineMaterial;
+        private static AsyncOperationHandle<Material> asyncOperationLineMaterial;
+        public static float interactLineWidth = 0.015f;
+        public static bool renderInteractLines = true;
+        private static bool interactLinesActive = false;
 
         public static string LoadMaterialAddress = "Interactable/InteractLineMat.mat";
         const int k_UpdatePriority = 201;
         public static BasisPlayerInteract Instance;
-        public void OnEnable()
+        private void Start()
         {
             IgnoreRaycasting = LayerMask.NameToLayer("Ignore Raycast");
             playerLayer = LayerMask.NameToLayer("Player");
@@ -47,14 +47,18 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             // Exclude the "Ignore Raycast" and "Player" layers using bitwise AND and NOT operations
             Mask = allLayers & ~(1 << (int)IgnoreRaycasting) & ~(1 << (int)playerLayer) & ~(1 << (int)LocalPlayerAvatar);
-        }
-        private void Start()
-        {
+
             Instance = this;
             BasisLocalPlayer.AfterFinalMove.AddAction(k_UpdatePriority, PollSystem);
             var Devices = BasisDeviceManagement.Instance.AllInputDevices;
             Devices.OnListAdded += OnInputChanged;
             Devices.OnListItemRemoved += OnInputRemoved;
+            var Array = BasisDeviceManagement.Instance.AllInputDevices.ToArray();
+            for (int Index = 0; Index < Array.Length; Index++)
+            {
+                BasisInput Device = Array[Index];
+                OnInputChanged(Device);
+            }
             AsyncOperationHandle<Material> op = Addressables.LoadAssetAsync<Material>(LoadMaterialAddress);
             LineMaterial = op.WaitForCompletion();
             asyncOperationLineMaterial = op;
@@ -70,28 +74,31 @@ namespace Basis.Scripts.BasisSdk.Interactions
             Device.OnListAdded -= OnInputChanged;
             Device.OnListItemRemoved -= OnInputRemoved;
             int count = InteractInputs.Length;
-            for (int Index = 0; Index < count; Index++)
-            {
-                BasisInteractInput input = InteractInputs[Index];
-                if (input.lineRenderer != null)
-                {
-                    Destroy(input.lineRenderer.gameObject);
-                    input.lineRenderer = null;
-                }
-            }
         }
-        private void OnInputChanged(BasisInput Input)
+        private void OnInputChanged(BasisInput input)
         {
-            // TODO: need a different config value for can interact/pickup/grab. Mainly input action/trigger values
-            if (Input.HasRaycaster)
+            if (input.HasRaycaster)
             {
-                AddInput(Input);
+                BasisInteractInput interactInput = new BasisInteractInput()
+                {
+                    input = input,
+                     lastTarget = null,
+                };
+                List<BasisInteractInput> interactInputList = InteractInputs.ToList();
+                interactInputList.Add(interactInput);
+                InteractInputs = interactInputList.ToArray();
             }
-            // device removed handled elsewhere
+            else
+            {
+            //    BasisDebug.LogWarning($"Skipping Interact Support for {input.UniqueDeviceIdentifier}");
+            }
         }
         private void OnInputRemoved(BasisInput input)
         {
-            RemoveInput(input.UniqueDeviceIdentifier);
+            if (input.HasRaycaster)
+            {
+                RemoveInput(input.UniqueDeviceIdentifier);
+            }
         }
         // simulate after IK update
         [BurstCompile]
@@ -117,23 +124,25 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     BasisDebug.LogWarning("Pickup input device unexpectedly null, input devices likely changed");
                     continue;
                 }
-                BasisHoverSphere hoverSphere = interactInput.hoverSphere;
+                BasisHoverSphere hoverSphere = interactInput.input.hoverSphere;
 
                 // poll hover
                 hoverSphere.PollSystem(interactInput.input.RaycastCoord.position);
 
                 RaycastHit rayHit;
                 BasisInteractableObject hitInteractable = null;
-                bool isValidRayHit =
-                    interactInput.input.BasisPointRaycaster.FirstHit(out rayHit, raycastDistance) && // UI will block pickup interact
-                    ((1 << rayHit.collider.gameObject.layer) & Mask) != 0 &&
-                    rayHit.collider.TryGetComponent(out hitInteractable);
+
+                bool isValidRayHit = interactInput.input.BasisPointRaycaster.FirstHit(out rayHit, raycastDistance) &&  ((1 << rayHit.collider.gameObject.layer) & Mask) != 0 && rayHit.collider.TryGetComponent(out hitInteractable);
 
                 bool isValidHoverHit = false;
-                if (hoverSphere.ResultCount != 0 && ClosestInfluencableHover(hoverSphere, interactInput.input) is var result && result.Item2 != null)
+
+                if (hoverSphere.ResultCount != 0)
                 {
-                    isValidHoverHit = true;
-                    hitInteractable = result.Item2;
+                    if (ClosestInfluencableHover(hoverSphere, interactInput.input, out BasisHoverResult Result, out BasisInteractableObject Object))
+                    {
+                        isValidHoverHit = true;
+                        hitInteractable = Object;
+                    }
                 }
 
                 if (isValidRayHit || isValidHoverHit)
@@ -209,19 +218,19 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         {
                             start = origin;
                         }
-                        if (input.lineRenderer != null)
+                        if (input.input.lineRenderer != null)
                         {
                             Vector3 endPos = input.lastTarget.GetCollider().ClosestPoint(origin);
-                            input.lineRenderer.SetPosition(0, start);
-                            input.lineRenderer.SetPosition(1, endPos);
-                            input.lineRenderer.enabled = true;
+                            input.input.lineRenderer.SetPosition(0, start);
+                            input.input.lineRenderer.SetPosition(1, endPos);
+                            input.input.lineRenderer.enabled = true;
                         }
                     }
                     else
                     {
-                        if (input.lineRenderer)
+                        if (input.input.lineRenderer)
                         {
-                            input.lineRenderer.enabled = false;
+                            input.input.lineRenderer.enabled = false;
                         }
                     }
                 }
@@ -233,7 +242,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 for (int Index = 0; Index < InteractInputsCount; Index++)
                 {
                     BasisInteractInput input = InteractInputs[Index];
-                    input.lineRenderer.enabled = false;
+                    input.input.lineRenderer.enabled = false;
                 }
             }
 #if UNITY_EDITOR//just remove when your profiling this
@@ -370,13 +379,21 @@ namespace Basis.Scripts.BasisSdk.Interactions
         private void RemoveInput(string uid)
         {
             // Find the inputs to remove based on the UID
-            BasisInteractInput[] inputs = InteractInputs.Where(x => x.deviceUid == uid).ToArray();
+            BasisInteractInput[] inputs = InteractInputs.Where(x => x.input.UniqueDeviceIdentifier == uid).ToArray();
             int length = inputs.Length;
 
-            if (length > 0) // If matching inputs were found
+            if (length > 1) // If matching inputs were found
             {
-                BasisInteractInput input = inputs[0];
-
+                BasisDebug.LogError($"Interact Inputs has multiple inputs of the same UID {uid}. Please report this bug.");
+            }
+            if (length == 0)
+            {
+               BasisDebug.LogError($"Interact Inputs did not include {uid}. Please report this bug.");
+                return;
+            }
+            for (int Index = 0; Index < inputs.Length; Index++)
+            {
+                BasisInteractInput input = inputs[Index];
                 // Handle hover and interaction states
                 if (input.lastTarget != null)
                 {
@@ -392,52 +409,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 }
 
                 // Destroy the interact origin
-                if (input.lineRenderer != null)
+                if (input.input.lineRenderer != null)
                 {
-                    Destroy(input.lineRenderer.gameObject);
-                    input.lineRenderer = null;
+                    Destroy(input.input.lineRenderer.gameObject);
+                    input.input.lineRenderer = null;
                 }
                 // Manually resize the array
                 InteractInputs = InteractInputs
-                    .Where(x => x.deviceUid != input.deviceUid) // Exclude the removed input
+                    .Where(x => x.input.UniqueDeviceIdentifier != input.input.UniqueDeviceIdentifier) // Exclude the removed input
                     .ToArray();
             }
-            else
-            {
-                BasisDebug.LogError($"Interact Inputs has multiple inputs of the same UID {uid}. Please report this bug.");
-            }
-        }
-        private void AddInput(BasisInput input)
-        {
-            GameObject interactOrigin = new GameObject($"{input.name} Line Renderer");
-
-            LineRenderer lineRenderer = interactOrigin.AddComponent<LineRenderer>();
-
-            // deskies cant hover grab :)
-            BasisHoverSphere hoverSphere = new BasisHoverSphere(input.RaycastCoord.position, hoverRadius, k_MaxPhysicHitCount, Mask, !IsDesktopCenterEye(input), OnlySortClosest);
-
-            interactOrigin.transform.SetParent(BasisLocalPlayer.Instance.transform);
-            interactOrigin.layer = IgnoreRaycasting;
-            interactOrigin.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-            lineRenderer.enabled = false;
-            lineRenderer.material = LineMaterial;
-            lineRenderer.startWidth = interactLineWidth;
-            lineRenderer.endWidth = interactLineWidth;
-            lineRenderer.useWorldSpace = true;
-            lineRenderer.textureMode = LineTextureMode.Tile;
-            lineRenderer.positionCount = 2;
-            lineRenderer.numCapVertices = 0;
-            lineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            BasisInteractInput interactInput = new BasisInteractInput()
-            {
-                deviceUid = input.UniqueDeviceIdentifier,
-                input = input,
-                lineRenderer = lineRenderer,
-                hoverSphere = hoverSphere,
-            };
-            List<BasisInteractInput> interactInputList = InteractInputs.ToList();
-            interactInputList.Add(interactInput);
-            InteractInputs = interactInputList.ToArray();
         }
         private void OnDrawGizmos()
         {
@@ -448,9 +429,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
 
                 Gizmos.color = Color.magenta;
-                if (device.hoverSphere.ResultCount > 1)
+                if (device.input.hoverSphere.ResultCount > 1)
                 {
-                    var hits = device.hoverSphere.Results[1..device.hoverSphere.ResultCount] // skip first, is colored later
+                    var hits = device.input.hoverSphere.Results[1..device.input.hoverSphere.ResultCount] // skip first, is colored later
                         .Select(hit => hit.collider.TryGetComponent(out BasisInteractableObject component) ? (hit, component) : (default, null))
                         .Where(hit => hit.component != null && hit.hit.distanceToCenter != float.NegativeInfinity);
                     // hover list
@@ -464,16 +445,19 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
                 // hover target
                 Gizmos.color = Color.blue;
-                if (device.hoverSphere != null && ClosestInfluencableHover(device.hoverSphere, device.input) is var result && result.Item2 != null)
+                if (device.input.hoverSphere != null)
                 {
-                    Gizmos.DrawLine(device.input.RaycastCoord.position, result.Item1.closestPointToCenter);
+                    if (ClosestInfluencableHover(device.input.hoverSphere, device.input, out var Result, out BasisInteractableObject Object))
+                    {
+                        Gizmos.DrawLine(device.input.RaycastCoord.position, Result.closestPointToCenter);
+                    }
                 }
                 Gizmos.color = Color.gray;
 
                 // hover sphere
                 if (!IsDesktopCenterEye(device.input))
                 {
-                    Gizmos.DrawWireSphere(device.hoverSphere.WorldPosition, hoverRadius);
+                    Gizmos.DrawWireSphere(device.input.hoverSphere.WorldPosition, hoverRadius);
                 }
             }
         }
@@ -481,10 +465,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         public bool ForceSetInteracting(BasisInteractableObject interactableObject, BasisInput input)
         {
-            if (
-                input.TryGetRole(out BasisBoneTrackedRole role) &&
-                interactableObject.Inputs.ChangeStateByRole(role, BasisInteractInputState.Hovering)
-                )
+            if (input.TryGetRole(out BasisBoneTrackedRole role) && interactableObject.Inputs.ChangeStateByRole(role, BasisInteractInputState.Hovering))
             {
                 for (int i = 0; i < InteractInputs.Length; i++)
                 {
@@ -500,7 +481,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
             else return false;
         }
-        public bool IsDesktopCenterEye(BasisInput input)
+        public static bool IsDesktopCenterEye(BasisInput input)
         {
             return BasisDeviceManagement.IsUserInDesktop() && input.TryGetRole(out BasisBoneTrackedRole role) && role == BasisBoneTrackedRole.CenterEye;
         }
@@ -512,7 +493,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <returns>
         /// A tuple containing the HoverResult and the corresponding InteractableObject that is influencable, or default values if none is found.
         /// </returns>
-        private (BasisHoverResult, BasisInteractableObject) ClosestInfluencableHover(BasisHoverSphere hoverSphere, BasisInput input)
+        private bool ClosestInfluencableHover(BasisHoverSphere hoverSphere, BasisInput input,out BasisHoverResult Result, out BasisInteractableObject Object)
         {
             for (int Index = 0; Index < hoverSphere.ResultCount; Index++)
             {
@@ -522,13 +503,15 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 {
                     if (component.IsInfluencable(input))
                     {
-                        return (hit, component);
+                        Result = hit;
+                        Object = component;
+                        return true;
                     }
                 }
             }
-
-            // Return default if none found
-            return (default, null);
+            Result = new BasisHoverResult();
+            Object = null;
+            return false;
         }
     }
 }

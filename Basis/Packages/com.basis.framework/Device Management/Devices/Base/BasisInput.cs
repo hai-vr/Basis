@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Helpers;
+using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
@@ -86,6 +87,11 @@ namespace Basis.Scripts.Device_Management.Devices
         /// UI-specific raycasting/interaction helper.
         /// </summary>
         public BasisUIRaycast BasisUIRaycast;
+
+        /// <summary>
+        /// Hover Supported Raycasting
+        /// </summary>
+        public BasisHoverSphere hoverSphere;
 
         /// <summary>
         /// Capabilities and matching data for the concrete device.
@@ -302,14 +308,10 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 Control.IncomingData.position = Vector3.zero;
                 Control.IncomingData.rotation = Quaternion.identity;
+                SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer, UniqueDeviceIdentifier);
             }
             if (DeviceMatchSettings == null || DeviceMatchSettings.HasTrackedRole == false)
             {
-                //unassign last
-                if (hasRoleAssigned)
-                {
-                   SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer, UniqueDeviceIdentifier);
-                }
                 hasRoleAssigned = false;
                 trackedRole = BasisBoneTrackedRole.CenterEye;
                 Control = null;
@@ -432,7 +434,7 @@ namespace Basis.Scripts.Device_Management.Devices
                     }
                     else
                     {
-                        BasisDebug.Log($"Skipping {Control.name}! device had multiple devices associated", BasisDebug.LogTag.Input);
+                        BasisDebug.Log($"Skipping {Control.name}! device had multiple devices associated waiting on removal of {string.Join("", Control.DevicesWithRoles)}", BasisDebug.LogTag.Input);
                     }
                 }
                 else
@@ -446,7 +448,7 @@ namespace Basis.Scripts.Device_Management.Devices
                     Control.HasRigLayer = HasLayer;
                 }
 
-                BasisDebug.Log($"Set Tracker State for tracker {UniqueDeviceIdentifier} with bone {Control.name} as {Control.HasTracked.ToString()} | {Control.HasRigLayer.ToString()}", BasisDebug.LogTag.Input);
+                BasisDebug.Log($"Set Tracker State for tracker {UniqueDeviceIdentifier} with bone {Control.name} as {Control.HasTracked} | {Control.HasRigLayer}", BasisDebug.LogTag.Input);
             }
             else
             {
@@ -538,14 +540,15 @@ namespace Basis.Scripts.Device_Management.Devices
                 GameObject.Destroy(BasisVisualTracker.gameObject);
             }
         }
-
+        public GameObject interactOrigin;
+        public LineRenderer lineRenderer;
         /// <summary>
         /// Creates and initializes raycasting helpers for this device (pointer + UI raycast).
         /// </summary>
-        /// <param name="BaseInput">The owning input device component.</param>
-        public void CreateRayCaster(BasisInput BaseInput)
+        /// <param name="input">The owning input device component.</param>
+        public void CreateRayCaster(BasisInput input)
         {
-            BasisDebug.Log("Adding RayCaster " + BaseInput.UniqueDeviceIdentifier);
+            BasisDebug.Log("Adding RayCaster " + input.UniqueDeviceIdentifier);
             if (BasisPointRaycasterRef == null)
             {
                 BasisPointRaycasterRef = new GameObject(nameof(BasisPointRaycaster));
@@ -555,10 +558,30 @@ namespace Basis.Scripts.Device_Management.Devices
             if (BasisPointRaycaster == null)
             {
                 BasisPointRaycaster = BasisHelpers.GetOrAddComponent<BasisPointRaycaster>(BasisPointRaycasterRef);
-                BasisPointRaycaster.Initialize(BaseInput);
+                BasisPointRaycaster.Initialize(input);
             }
             BasisUIRaycast = new BasisUIRaycast();
-            BasisUIRaycast.Initialize(BaseInput, BasisPointRaycaster);
+            BasisUIRaycast.Initialize(input, BasisPointRaycaster);
+
+            if (lineRenderer == null)
+            {
+                interactOrigin = new GameObject($"{input.name} Line Renderer", new System.Type[] { typeof(LineRenderer) });
+                interactOrigin.TryGetComponent<LineRenderer>(out lineRenderer);
+                // deskies cant hover grab :)
+                hoverSphere = new BasisHoverSphere(input.RaycastCoord.position, BasisPlayerInteract.hoverRadius, BasisPlayerInteract.k_MaxPhysicHitCount, BasisPlayerInteract.Mask, !BasisPlayerInteract.IsDesktopCenterEye(input), BasisPlayerInteract.OnlySortClosest);
+                interactOrigin.transform.SetParent(BasisLocalPlayer.Instance.transform);
+                interactOrigin.layer = BasisPlayerInteract.IgnoreRaycasting;
+                interactOrigin.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+                lineRenderer.enabled = false;
+                lineRenderer.material = BasisPlayerInteract.LineMaterial;
+                lineRenderer.startWidth = BasisPlayerInteract.interactLineWidth;
+                lineRenderer.endWidth = BasisPlayerInteract.interactLineWidth;
+                lineRenderer.useWorldSpace = true;
+                lineRenderer.textureMode = LineTextureMode.Tile;
+                lineRenderer.positionCount = 2;
+                lineRenderer.numCapVertices = 0;
+                lineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
             HasRaycaster = true;
         }
 
@@ -633,11 +656,6 @@ namespace Basis.Scripts.Device_Management.Devices
         public void OnDestroy()
         {
             StopTracking();
-            if (hasRoleAssigned && trackedRole != BasisBoneTrackedRole.CenterEye)
-            {
-                //this solves hands being removed and there tracker states
-                SetRealTrackers(BasisHasTracked.HasNoTracker, BasisHasRigLayer.HasNoRigLayer, UniqueDeviceIdentifier);
-            }
             if (BasisUIRaycast != null)
             {
                 BasisUIRaycast.OnDeInitialize();
@@ -649,6 +667,10 @@ namespace Basis.Scripts.Device_Management.Devices
             if (BasisPointRaycaster != null)
             {
                 GameObject.Destroy(BasisPointRaycaster.gameObject);
+            }
+            if (lineRenderer != null)
+            {
+                GameObject.Destroy(lineRenderer.gameObject);
             }
         }
 

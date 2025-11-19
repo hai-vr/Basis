@@ -17,9 +17,9 @@ namespace Basis.Scripts.UI
     public class BasisUIRaycast
     {
         public BasisPointRaycaster BasisPointRaycaster;
-        static LayerMask OverlayUI = LayerMask.NameToLayer("OverlayUI");
-        static LayerMask UILayer = LayerMask.NameToLayer("UI");
-        public static LayerMask UILayers = LayerMask.GetMask("UI", "OverlayUI");
+        static LayerMask OverlayUI;
+        static LayerMask UILayer;
+        public static LayerMask UILayers;
         public Material lineMaterial;
         public float lineWidth = 0.01f;
         public LineRenderer LineRenderer;
@@ -58,6 +58,10 @@ namespace Basis.Scripts.UI
 
         public void Initialize(BasisInput basisInput, BasisPointRaycaster pointRaycaster)
         {
+
+            OverlayUI = LayerMask.NameToLayer("OverlayUI");
+            UILayer = LayerMask.NameToLayer("UI");
+            UILayers = LayerMask.GetMask("UI", "OverlayUI");
             CurrentEventData = new BasisPointerEventData(EventSystem.current);
             BasisInput = basisInput;
             BasisPointRaycaster = pointRaycaster;
