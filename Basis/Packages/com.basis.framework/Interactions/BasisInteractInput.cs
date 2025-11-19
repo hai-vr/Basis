@@ -12,6 +12,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public BasisInput input;
         [SerializeReference]
         public BasisInteractableObject lastTarget;
+        [SerializeField]
+        public bool HasvalidRay;
+
         public bool IsInput(BasisInput IsInputInput)
         {
             return input.UniqueDeviceIdentifier == IsInputInput.UniqueDeviceIdentifier;

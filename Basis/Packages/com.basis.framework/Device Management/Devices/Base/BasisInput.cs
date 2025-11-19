@@ -94,6 +94,11 @@ namespace Basis.Scripts.Device_Management.Devices
         public BasisHoverSphere hoverSphere;
 
         /// <summary>
+        /// line renderer associated with this input
+        /// </summary>
+        public LineRenderer InteractionLineRenderer;
+
+        /// <summary>
         /// Capabilities and matching data for the concrete device.
         /// </summary>
         public DeviceSupportInformation DeviceMatchSettings;
@@ -540,8 +545,6 @@ namespace Basis.Scripts.Device_Management.Devices
                 GameObject.Destroy(BasisVisualTracker.gameObject);
             }
         }
-        public GameObject interactOrigin;
-        public LineRenderer lineRenderer;
         /// <summary>
         /// Creates and initializes raycasting helpers for this device (pointer + UI raycast).
         /// </summary>
@@ -563,24 +566,24 @@ namespace Basis.Scripts.Device_Management.Devices
             BasisUIRaycast = new BasisUIRaycast();
             BasisUIRaycast.Initialize(input, BasisPointRaycaster);
 
-            if (lineRenderer == null)
+            if (InteractionLineRenderer == null)
             {
-                interactOrigin = new GameObject($"{input.name} Line Renderer", new System.Type[] { typeof(LineRenderer) });
-                interactOrigin.TryGetComponent<LineRenderer>(out lineRenderer);
+                GameObject LineRenderer = new GameObject($"{input.name} Line Renderer", new System.Type[] { typeof(LineRenderer) });
+                LineRenderer.TryGetComponent<LineRenderer>(out InteractionLineRenderer);
                 // deskies cant hover grab :)
                 hoverSphere = new BasisHoverSphere(input.RaycastCoord.position, BasisPlayerInteract.hoverRadius, BasisPlayerInteract.k_MaxPhysicHitCount, BasisPlayerInteract.Mask, !BasisPlayerInteract.IsDesktopCenterEye(input), BasisPlayerInteract.OnlySortClosest);
-                interactOrigin.transform.SetParent(BasisLocalPlayer.Instance.transform);
-                interactOrigin.layer = BasisPlayerInteract.IgnoreRaycasting;
-                interactOrigin.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-                lineRenderer.enabled = false;
-                lineRenderer.material = BasisPlayerInteract.LineMaterial;
-                lineRenderer.startWidth = BasisPlayerInteract.interactLineWidth;
-                lineRenderer.endWidth = BasisPlayerInteract.interactLineWidth;
-                lineRenderer.useWorldSpace = true;
-                lineRenderer.textureMode = LineTextureMode.Tile;
-                lineRenderer.positionCount = 2;
-                lineRenderer.numCapVertices = 0;
-                lineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                LineRenderer.transform.SetParent(BasisLocalPlayer.Instance.transform);
+                LineRenderer.layer = BasisPlayerInteract.IgnoreRaycasting;
+                LineRenderer.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+                InteractionLineRenderer.enabled = false;
+                InteractionLineRenderer.material = BasisPlayerInteract.LineMaterial;
+                InteractionLineRenderer.startWidth = BasisPlayerInteract.interactLineWidth;
+                InteractionLineRenderer.endWidth = BasisPlayerInteract.interactLineWidth;
+                InteractionLineRenderer.useWorldSpace = true;
+                InteractionLineRenderer.textureMode = LineTextureMode.Tile;
+                InteractionLineRenderer.positionCount = 2;
+                InteractionLineRenderer.numCapVertices = 0;
+                InteractionLineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
             HasRaycaster = true;
         }
@@ -643,14 +646,6 @@ namespace Basis.Scripts.Device_Management.Devices
         }
 
         /// <summary>
-        /// Unity callback: unhooks frame events when this component is disabled.
-        /// </summary>
-        public void OnDisable()
-        {
-            StopTracking();
-        }
-
-        /// <summary>
         /// Unity callback: final cleanup. Resets rig-layer tracker hints and destroys UI raycast artifacts.
         /// </summary>
         public void OnDestroy()
@@ -668,9 +663,9 @@ namespace Basis.Scripts.Device_Management.Devices
             {
                 GameObject.Destroy(BasisPointRaycaster.gameObject);
             }
-            if (lineRenderer != null)
+            if (InteractionLineRenderer != null)
             {
-                GameObject.Destroy(lineRenderer.gameObject);
+                GameObject.Destroy(InteractionLineRenderer.gameObject);
             }
         }
 

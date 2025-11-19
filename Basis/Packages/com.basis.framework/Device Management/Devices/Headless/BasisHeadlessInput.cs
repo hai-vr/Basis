@@ -221,10 +221,9 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
                 input.FindRole();
         }
 
-        public new void OnDisable()
+        public void OnDisable()
         {
             BasisLocalPlayer.OnLocalAvatarChanged -= PlayerInitialized;
-            base.OnDisable();
         }
         public bool ForceJump = false;
         public override void DoPollData()

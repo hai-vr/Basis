@@ -182,10 +182,9 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         /// <summary>
         /// Removes avatar change subscriptions when disabled.
         /// </summary>
-        public new void OnDisable()
+        public void OnDisable()
         {
             BasisLocalPlayer.OnLocalAvatarChanged -= PlayerInitialized;
-            base.OnDisable();
         }
 
         /// <summary>

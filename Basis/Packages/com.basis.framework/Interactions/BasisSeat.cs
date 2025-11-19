@@ -427,7 +427,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public override bool CanHover(BasisInput input)
         {
             // Can only hover when not already hovering or interacting.
-            return _checkUsabilityWithState(input, BasisInteractInputState.Ignored);
+            return CheckUsabilityWithState(input, BasisInteractInputState.Ignored);
         }
         public bool canInteract = true;
         private bool IsSeatTakenByAnyone = false;

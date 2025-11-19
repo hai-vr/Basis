@@ -338,7 +338,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public override bool CanHover(BasisInput input)
         {
             // NOTE: see CanInteract note
-            return _checkUsabilityWithState(input, BasisInteractInputState.Ignored) // in the correct state for hover
+            return CheckUsabilityWithState(input, BasisInteractInputState.Ignored) // in the correct state for hover
                 && (!Inputs.AnyInteracting() || CanSelfSteal) // self-steal
                 && CanHoverInjected.AllTrue(input); // injected
         }
@@ -348,7 +348,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             // NOTE: Injected checks must be called at the end so that we can safely assume that at the time this was invoked, everything was valid.
             //       Important for net sync: pending steal requests shouldn't re-invoke with stale data.
-            return _checkUsabilityWithState(input, BasisInteractInputState.Hovering) // only current hover can interact
+            return CheckUsabilityWithState(input, BasisInteractInputState.Hovering) // only current hover can interact
                 && (!Inputs.AnyInteracting() || CanSelfSteal) // self-steal
                 && CanInteractInjected.AllTrue(input); // injected
         }

@@ -158,10 +158,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// </summary>
         private void OnInputAdded(BasisInput input)
         {
-            if (!input.TryGetRole(out Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole r))
-                return;
+            // - disabled -dooly  if (!input.TryGetRole(out Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole r))
+            //     return;
 
-            if (!Inputs.SetInputByRole(input, BasisInteractInputState.Ignored))
+            if (Inputs.SetInputByRole(input, BasisInteractInputState.Ignored))
+            {
+            }
+            else
             {
                 BasisDebug.LogError("New input added not setup as expected, Input role was set to ignored!");
             }
@@ -174,8 +177,18 @@ namespace Basis.Scripts.BasisSdk.Interactions
         private void OnInputRemoved(BasisInput input)
         {
             if (input.TryGetRole(out Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole role))
-                if (!Inputs.RemoveByRole(role))
-                    BasisDebug.LogError("Something went wrong while removing input");
+            {
+                if (Inputs.TryGetByRole(role, out var wrapper))
+                {
+                    if (wrapper.Source.UniqueDeviceIdentifier == input.UniqueDeviceIdentifier)
+                    {
+                        if (!Inputs.RemoveByRole(role))
+                        {
+                            BasisDebug.LogError("Something went wrong while removing input");
+                        }
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -233,16 +246,57 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             return true;
         }
-
-        protected bool _checkUsabilityWithState(BasisInput input, BasisInteractInputState requiredState)
+        protected bool CheckUsabilityWithState(BasisInput input, BasisInteractInputState requiredState)
         {
-            return InteractableEnabled &&
-                !input.BasisUIRaycast.HadRaycastUITarget &&                 // didn't hit UI target this frame
-                Inputs.IsInputAdded(input) &&                               // input exists
-                input.TryGetRole(out TransformBinders.BoneControl.BasisBoneTrackedRole role) && // has role
-                Inputs.TryGetByRole(role, out BasisInputWrapper found) &&   // input exists within PlayerInteract system
-                found.GetState() == requiredState &&                        // only this state can interact
-                IsWithinRange(found.BoneControl.OutgoingWorldData.position, InteractRange); // within range
+            if (InteractableEnabled == false)
+            {
+            //    BasisDebug.Log("Interactable was false", BasisDebug.LogTag.System);
+                return false;
+            }
+
+            // Did we hit UI?
+            if (input.BasisUIRaycast.HadRaycastUITarget)
+            {
+            //    BasisDebug.Log("UI Raycast target was hit", BasisDebug.LogTag.System);
+                return false;
+            }
+
+            // Input exists?
+            if (!Inputs.IsInputAdded(input))
+            {
+             //   BasisDebug.Log("Input was not added to Inputs", BasisDebug.LogTag.System);
+                return false;
+            }
+
+            // Has a valid role?
+            if (!input.TryGetRole(out TransformBinders.BoneControl.BasisBoneTrackedRole role))
+            {
+               // BasisDebug.Log("Input did not have a valid bone role", BasisDebug.LogTag.System);
+                return false;
+            }
+
+            // PlayerInteract knows about this role/input?
+            if (!Inputs.TryGetByRole(role, out BasisInputWrapper found))
+            {
+              //  BasisDebug.Log($"No BasisInputWrapper found for role {role}", BasisDebug.LogTag.System);
+                return false;
+            }
+
+            // State must match
+            if (found.GetState() != requiredState)
+            {
+               // BasisDebug.Log($"Input state mismatch: Expected {requiredState}, got {found.GetState()}", BasisDebug.LogTag.System);
+                return false;
+            }
+
+            // Range check
+            if (!IsWithinRange(found.BoneControl.OutgoingWorldData.position, InteractRange))
+            {
+             //   BasisDebug.Log("Input was out of interact range", BasisDebug.LogTag.System);
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
