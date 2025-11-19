@@ -47,16 +47,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public BasisInputKey InputKey = BasisInputKey.Trigger;
         public enum BasisInputKey
         {
-            Trigger =1,
-            SecondaryTrigger = 2,
-            Primary2DAxis = 3,
-            Secondary2DAxis = 4,
-            Primary2DAxisClick = 5,
-            Secondary2DAxisClick = 6,
-            SecondaryButtonGetState = 7,
-            PrimaryButtonGetState = 8,
-            SystemOrMenuButton = 9,
-            GripButton = 10,
+            Trigger =0,
+            SecondaryTrigger = 1,
+            Primary2DAxis = 2,
+            Secondary2DAxis = 3,
+            Primary2DAxisClick = 4,
+            Secondary2DAxisClick = 5,
+            SecondaryButtonGetState = 6,
+            PrimaryButtonGetState = 7,
+            SystemOrMenuButton = 8,
+            GripButton = 9,
         }
         public bool HasState(BasisInputState state)
         {

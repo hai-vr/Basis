@@ -171,7 +171,7 @@ MonoBehaviour:
     extras: []
   interactableEnabled: 1
   AutoHold: 1
-  InputKey: 1
+  InputKey: 0
   InteractRange: 1
   highlightMode: 3
   _back: {x: 0, y: 0.33, z: 0.24}
