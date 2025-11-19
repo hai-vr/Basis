@@ -414,8 +414,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             LineRenderer lineRenderer = interactOrigin.AddComponent<LineRenderer>();
 
             // deskies cant hover grab :)
-            // TODO: pass up max hits for config
-            BasisHoverSphere hoverSphere = new BasisHoverSphere(input.RaycastCoord.position, hoverRadius, 128, Mask, !IsDesktopCenterEye(input), OnlySortClosest);
+            BasisHoverSphere hoverSphere = new BasisHoverSphere(input.RaycastCoord.position, hoverRadius, k_MaxPhysicHitCount, Mask, !IsDesktopCenterEye(input), OnlySortClosest);
 
             interactOrigin.transform.SetParent(BasisLocalPlayer.Instance.transform);
             interactOrigin.layer = IgnoreRaycasting;

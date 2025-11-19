@@ -14,7 +14,7 @@ using UnityEngine.UI;
 
 namespace Basis.Scripts.UI
 {
-    public partial class BasisUIRaycast
+    public class BasisUIRaycast
     {
         public BasisPointRaycaster BasisPointRaycaster;
         static LayerMask OverlayUI = LayerMask.NameToLayer("OverlayUI");
@@ -48,7 +48,7 @@ namespace Basis.Scripts.UI
         public bool WasCorrectLayer = false;
         static readonly Vector3[] s_Corners = new Vector3[4];
         [SerializeField]
-        public List<RaycastUIHitData> SortedGraphics = new List<RaycastUIHitData>();
+        public List<BasisRaycastUIHitData> SortedGraphics = new List<BasisRaycastUIHitData>();
         [SerializeField]
         public List<RaycastResult> SortedRays = new List<RaycastResult>();
         public List<Canvas> Results = new List<Canvas>();
@@ -352,7 +352,7 @@ namespace Basis.Scripts.UI
             return false;
         }
 
-        public bool ProcessSortedHitsResults(Canvas canvas, bool hitSomething, List<RaycastUIHitData> raycastHitDatums, List<RaycastResult> resultAppendList)
+        public bool ProcessSortedHitsResults(Canvas canvas, bool hitSomething, List<BasisRaycastUIHitData> raycastHitDatums, List<RaycastResult> resultAppendList)
         {
             // Now that we have a list of sorted hits, process any extra settings and filters.
             foreach (var hitData in raycastHitDatums)
@@ -423,7 +423,7 @@ namespace Basis.Scripts.UI
             } while (fullPass == false);
         }
 
-        public void SortedRaycastGraphics(Canvas canvas, Camera eventCamera, ref List<RaycastUIHitData> results)
+        public void SortedRaycastGraphics(Canvas canvas, Camera eventCamera, ref List<BasisRaycastUIHitData> results)
         {
             var graphics = GraphicRegistry.GetGraphicsForCanvas(canvas);
 
@@ -445,7 +445,7 @@ namespace Basis.Scripts.UI
                         // mask/image intersection - See Unity docs on eventAlphaThreshold for when this does anything
                         if (graphic.Raycast(screenPos, eventCamera))
                         {
-                            results.Add(new RaycastUIHitData(graphic, worldPos, screenPos, distance, eventCamera.targetDisplay));
+                            results.Add(new BasisRaycastUIHitData(graphic, worldPos, screenPos, distance, eventCamera.targetDisplay));
                         }
                     }
                 }
@@ -547,7 +547,9 @@ namespace Basis.Scripts.UI
             // Transform the local corners to world space, which is from RectTransform.GetWorldCorners.
             var localToWorldMatrix = transform.localToWorldMatrix;
             for (var index = 0; index < 4; ++index)
+            {
                 fourCornersArray[index] = localToWorldMatrix.MultiplyPoint(fourCornersArray[index]);
+            }
         }
     }
 }

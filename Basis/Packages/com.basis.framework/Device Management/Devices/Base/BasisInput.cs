@@ -322,10 +322,6 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public bool HasRaycastSupport()
         {
-            if (DeviceMatchSettings == null)
-            {
-                return false;
-            }
             if(HasRayCastOverrideSupport)
             {
                 return true;
@@ -431,10 +427,6 @@ namespace Basis.Scripts.Device_Management.Devices
                     if (Control.DevicesWithRoles.Count == 0)
                     {
                         hasRoleAssigned = false;
-                        if (TryGetRole(out BasisBoneTrackedRole Role))
-                        {
-                            BasisLocalPlayer.Instance.LocalRigDriver.ApplyIkState(Role, false);
-                        }
                         Control.HasTracked = hasTracked;
                         Control.HasRigLayer = HasLayer;
                     }
@@ -450,10 +442,6 @@ namespace Basis.Scripts.Device_Management.Devices
                         Control.DevicesWithRoles.Add(DeviceID);
                     }
                     hasRoleAssigned = true;
-                    if (TryGetRole(out BasisBoneTrackedRole Role))
-                    {
-                        BasisLocalPlayer.Instance.LocalRigDriver.ApplyIkState(Role, true);
-                    }
                     Control.HasTracked = hasTracked;
                     Control.HasRigLayer = HasLayer;
                 }
@@ -558,13 +546,17 @@ namespace Basis.Scripts.Device_Management.Devices
         public void CreateRayCaster(BasisInput BaseInput)
         {
             BasisDebug.Log("Adding RayCaster " + BaseInput.UniqueDeviceIdentifier);
-
-            BasisPointRaycasterRef = new GameObject(nameof(BasisPointRaycaster));
-            BasisPointRaycasterRef.transform.parent = BasisLocalPlayer.Instance.transform;
-            BasisPointRaycasterRef.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-            BasisPointRaycaster = BasisHelpers.GetOrAddComponent<BasisPointRaycaster>(BasisPointRaycasterRef);
-            BasisPointRaycaster.Initialize(BaseInput);
-
+            if (BasisPointRaycasterRef == null)
+            {
+                BasisPointRaycasterRef = new GameObject(nameof(BasisPointRaycaster));
+                BasisPointRaycasterRef.transform.parent = BasisLocalPlayer.Instance.transform;
+                BasisPointRaycasterRef.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            }
+            if (BasisPointRaycaster == null)
+            {
+                BasisPointRaycaster = BasisHelpers.GetOrAddComponent<BasisPointRaycaster>(BasisPointRaycasterRef);
+                BasisPointRaycaster.Initialize(BaseInput);
+            }
             BasisUIRaycast = new BasisUIRaycast();
             BasisUIRaycast.Initialize(BaseInput, BasisPointRaycaster);
             HasRaycaster = true;

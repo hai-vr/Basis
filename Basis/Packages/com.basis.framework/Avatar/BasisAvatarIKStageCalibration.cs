@@ -143,7 +143,7 @@ namespace Basis.Scripts.Avatar
             }
 
             BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
-            BasisLocalPlayer.Instance.LocalRigDriver.CalibrateRoles();//not needed but still doing just incase
+            BasisLocalPlayer.Instance.LocalRigDriver.RigLayer.active = true;
             BasisLocalPlayer.Instance.LocalAnimatorDriver.AssignHipsFBTracker();
         }
         /// <summary>

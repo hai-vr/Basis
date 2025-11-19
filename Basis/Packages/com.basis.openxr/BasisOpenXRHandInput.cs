@@ -47,7 +47,7 @@ public class BasisOpenXRHandInput : BasisInputController
         leftHandToIKPositionOffset = new Vector3(0,0, -0.03f);
         rightHandToIKPositionOffset = new Vector3(0,0, -0.03f);
 
-        InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole);
+        InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole,true);
         string devicePath = basisBoneTrackedRole == BasisBoneTrackedRole.LeftHand ? "<XRController>{LeftHand}" : "<XRController>{RightHand}";
         string devicePosePath = basisBoneTrackedRole == BasisBoneTrackedRole.LeftHand ? "<PalmPose>{LeftHand}" : "<PalmPose>{RightHand}";
 

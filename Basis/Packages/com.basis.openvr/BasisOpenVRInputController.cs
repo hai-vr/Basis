@@ -43,7 +43,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             inputSource = SteamVR_Input_Sources;
             Device = device;
 
-            InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole);
+            InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole,true);
 
             if (DeviceposeAction != null && HasOnUpdate == false)
             {

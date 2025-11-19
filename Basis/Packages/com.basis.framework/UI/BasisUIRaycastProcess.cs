@@ -57,19 +57,23 @@ namespace Basis.Scripts.UI
             {
                 BasisInput input = Inputs[Index];
                 if (input == null)
+                {
                     continue;
+                }
 
                 if (input.HasRaycaster && input.BasisUIRaycast.WasCorrectLayer)
                 {
                     var eventData = input.BasisUIRaycast.CurrentEventData;
                     if (eventData == null)
+                    {
                         continue;
+                    }
 
                     EffectiveMouseAction |= !eventData.WasLastDown && input.CurrentInputState.Trigger == 1;
 
                     if (input.BasisUIRaycast.HadRaycastUITarget)
                     {
-                        List<RaycastUIHitData> hitData = input.BasisUIRaycast.SortedGraphics;
+                        List<BasisRaycastUIHitData> hitData = input.BasisUIRaycast.SortedGraphics;
                         List<RaycastResult> RaycastResults = input.BasisUIRaycast.SortedRays;
 
                         if (hitData != null && RaycastResults != null &&
@@ -124,7 +128,7 @@ namespace Basis.Scripts.UI
                 }
             }
         }
-        public void SimulateOnCanvas(RaycastResult raycastResult, RaycastUIHitData hit, BasisPointerEventData currentEventData, BasisInput BaseInput)
+        public void SimulateOnCanvas(RaycastResult raycastResult, BasisRaycastUIHitData hit, BasisPointerEventData currentEventData, BasisInput BaseInput)
         {
             if (hit.graphic == null || currentEventData == null)
             {
@@ -173,7 +177,7 @@ namespace Basis.Scripts.UI
             ProcessPointerButtonDrag(currentEventData);
         }
 
-        public void CheckOrApplySelectedGameobject(RaycastUIHitData hit, BasisPointerEventData CurrentEventData)
+        public void CheckOrApplySelectedGameobject(BasisRaycastUIHitData hit, BasisPointerEventData CurrentEventData)
         {
             if (hit.graphic != null)
             {
@@ -188,7 +192,7 @@ namespace Basis.Scripts.UI
             }
         }
 
-        public void EffectiveMouseDown(RaycastUIHitData hit, BasisPointerEventData CurrentEventData)
+        public void EffectiveMouseDown(BasisRaycastUIHitData hit, BasisPointerEventData CurrentEventData)
         {
             CurrentEventData.eligibleForClick = true;
             CurrentEventData.delta = Vector2.zero;
@@ -235,7 +239,7 @@ namespace Basis.Scripts.UI
             }
         }
 
-        public void EffectiveMouseUp(RaycastUIHitData hit, BasisPointerEventData CurrentEventData, BasisInput BaseInput)
+        public void EffectiveMouseUp(BasisRaycastUIHitData hit, BasisPointerEventData CurrentEventData, BasisInput BaseInput)
         {
             var target = CurrentEventData.pointerPress;
 
