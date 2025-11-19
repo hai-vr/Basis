@@ -44,7 +44,62 @@ namespace Basis.Scripts.BasisSdk.Interactions
             /// </summary>
             No
         }
+        public BasisInputKey InputKey = BasisInputKey.Trigger;
+        public enum BasisInputKey
+        {
+            Trigger =1,
+            SecondaryTrigger = 2,
+            Primary2DAxis = 3,
+            Secondary2DAxis = 4,
+            Primary2DAxisClick = 5,
+            Secondary2DAxisClick = 6,
+            SecondaryButtonGetState = 7,
+            PrimaryButtonGetState = 8,
+            SystemOrMenuButton = 9,
+            GripButton = 10,
+        }
+        public bool HasState(BasisInputState state)
+        {
+            switch (InputKey)
+            {
+                case BasisInputKey.Trigger:
+                    // Fire when main trigger is fully pressed
+                    return state.Trigger >= 0.9f;
 
+                case BasisInputKey.SecondaryTrigger:
+                    // Fire when secondary trigger is fully pressed
+                    return state.SecondaryTrigger >= 0.9f;
+
+                case BasisInputKey.Primary2DAxis:
+                    // Axis has state if it's non-zero (already deadzoned in BasisInputState)
+                    return state.Primary2DAxis.sqrMagnitude > 0f;
+
+                case BasisInputKey.Secondary2DAxis:
+                    return state.Secondary2DAxis.sqrMagnitude > 0f;
+
+                case BasisInputKey.Primary2DAxisClick:
+                    return state.Primary2DAxisClick;
+
+                case BasisInputKey.Secondary2DAxisClick:
+                    return state.Secondary2DAxisClick;
+
+                case BasisInputKey.SecondaryButtonGetState:
+                    return state.SecondaryButtonGetState;
+
+                case BasisInputKey.PrimaryButtonGetState:
+                    return state.PrimaryButtonGetState;
+
+                case BasisInputKey.SystemOrMenuButton:
+                    return state.SystemOrMenuButton;
+
+                case BasisInputKey.GripButton:
+                    return state.GripButton;
+
+                default:
+                    BasisDebug.LogError($"Unsupported BasisInputKey: {InputKey}");
+                    return false;
+            }
+        }
         /// <summary>
         /// Flag indicating whether this object requires an update loop
         /// while being influenced by inputs.

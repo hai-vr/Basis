@@ -171,6 +171,7 @@ MonoBehaviour:
     extras: []
   interactableEnabled: 1
   AutoHold: 1
+  InputKey: 1
   InteractRange: 1
   highlightMode: 3
   _back: {x: 0, y: 0.33, z: 0.24}
@@ -178,6 +179,7 @@ MonoBehaviour:
   _knee: {x: 0, y: 0.33, z: -0.3}
   _spineAngleDegrees: 90
   canInteract: 1
+  LocallyInSeat: 0
 --- !u!114 &5115701033825129420
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -195,9 +197,6 @@ MonoBehaviour:
   IsOwnedLocallyOnClient: 0
   CurrentOwnerId: 0
   Seat: {fileID: 8717723342668593582}
-  ActivePlayerID:
-    hasPlayerId: 0
-    ThePlayerID: 0
 --- !u!114 &6230911097548017353
 MonoBehaviour:
   m_ObjectHideFlags: 0

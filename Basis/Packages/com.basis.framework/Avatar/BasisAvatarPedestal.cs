@@ -371,6 +371,6 @@ public class BasisAvatarPedestal : BasisInteractableObject
     /// <inheritdoc/>
     public override bool IsInteractTriggered(BasisInput input)
     {
-        return input.CurrentInputState.Trigger >= 0.9;
+        return HasState(input.CurrentInputState);
     }
 }

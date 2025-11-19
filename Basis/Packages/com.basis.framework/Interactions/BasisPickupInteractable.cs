@@ -85,7 +85,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// Multiplier applied to angular velocity when interaction ends.
         /// </summary>
         public float interactEndAngularVelocityMultiplier = 1.0f;
-
         #endregion
 
         #region Inspector: References
@@ -600,7 +599,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 // If trigger pulled on opposing input, scale object based on hand distance
                 if (enableScaleWithGesture && GetOppositeInteracting(out BasisInputWrapper opposingInput))
                 {
-                    if (opposingInput.Source.CurrentInputState.Trigger >= 0.9f)
+                    if (HasState(opposingInput.Source.CurrentInputState))
                     {
                         float distanceBetweenHands = BasisPickupHelpers.GetNormalizedDistanceBetweenHands(Inputs);
                         if (_previousDistance == -1)
@@ -635,8 +634,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
 
             // Trigger state machine for OnPickupUse
-            bool State = interactingInput.Source.CurrentInputState.Trigger == 1;
-            bool LastState = interactingInput.Source.LastInputState.Trigger == 1;
+            bool State = HasState(interactingInput.Source.CurrentInputState);
+            bool LastState = HasState(interactingInput.Source.LastInputState);
             if (State && LastState == false)
             {
                 OnPickupUse?.Invoke(BasisPickUpUseMode.OnPickUpUseDown);
