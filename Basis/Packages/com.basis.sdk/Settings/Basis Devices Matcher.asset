@@ -300,7 +300,7 @@ MonoBehaviour:
     - Finger Input
     HasRayCastSupport: 1
     CanDisplayPhysicalTracker: 0
-    HasRayCastVisual: 1
+    HasRayCastVisual: 0
     HasRayCastRadical: 1
     HasTrackedRole: 0
     TrackedRole: 18

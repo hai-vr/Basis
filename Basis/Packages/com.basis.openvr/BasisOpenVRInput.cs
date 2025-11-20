@@ -44,7 +44,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                             CurrentInputState.SecondaryButtonGetState = SteamVR_Actions._default.B_Button.GetState(inputSource);
                             CurrentInputState.Trigger = SteamVR_Actions._default.Trigger.GetAxis(inputSource);
                         }
-                        UpdatePlayerControl();
+                        UpdateInputEvents();
                         ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
                     }
                 }

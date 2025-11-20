@@ -99,7 +99,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                     }
             }
 
-            UpdatePlayerControl();
+            UpdateInputEvents();
         }
 
         private void UpdateHandPose(BasisFingerPose hand, SteamVR_Action_Skeleton skeletonAction, bool isLeft)

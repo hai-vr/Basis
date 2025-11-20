@@ -268,7 +268,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             if (IsComputingRaycast)
             {
                 ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
-                UpdatePlayerControl();
+                UpdateInputEvents();
             }
         }
         public bool IsComputingRaycast = true;

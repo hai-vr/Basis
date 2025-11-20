@@ -44,7 +44,7 @@ namespace Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking
             }
             ControlOnlyAsDevice();
             ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
-            UpdatePlayerControl();
+            UpdateInputEvents();
         }
         public override void ShowTrackedVisual()
         {

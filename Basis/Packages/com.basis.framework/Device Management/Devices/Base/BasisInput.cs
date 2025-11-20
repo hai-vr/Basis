@@ -474,10 +474,13 @@ namespace Basis.Scripts.Device_Management.Devices
         /// Pushes current input state to the action driver and updates raycasting/UI systems.
         /// Invokes <see cref="AfterControlApply"/> afterwards.
         /// </summary>
-        public void UpdatePlayerControl()
+        public void UpdateInputEvents(bool HasPlayerControlSupport = true,bool hasPlayerRaycastSupport = true)
         {
-            BasisActionDriver.UpdatePlayerControl(trackedRole, ref CurrentInputState, ref LastInputState);
-            if (HasRaycaster)
+            if (HasPlayerControlSupport)
+            {
+                BasisActionDriver.UpdatePlayerControl(trackedRole, ref CurrentInputState, ref LastInputState);
+            }
+            if (hasPlayerRaycastSupport && HasRaycaster)
             {
                 BasisPointRaycaster.UpdateRaycast();
                 BasisUIRaycast.HandleUIRaycast();
@@ -671,7 +674,7 @@ namespace Basis.Scripts.Device_Management.Devices
 
         /// <summary>
         /// Device-specific poll implementation. Populate <see cref="UnscaledDeviceCoord"/> and/or
-        /// <see cref="ScaledDeviceCoord"/> and call <see cref="UpdatePlayerControl"/> at the end.
+        /// <see cref="ScaledDeviceCoord"/> and call <see cref="UpdateInputEvents"/> at the end.
         /// </summary>
         public abstract void DoPollData();
 

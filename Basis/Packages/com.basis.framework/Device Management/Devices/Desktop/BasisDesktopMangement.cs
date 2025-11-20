@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.InputSystem.EnhancedTouch;
-using UnityEngine.Windows;
 
 namespace Basis.Scripts.Device_Management.Devices.Desktop
 {
@@ -67,41 +66,60 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             }
 
             EnhancedTouchSupport.Enable();
-            UnityEngine.InputSystem.EnhancedTouch.Touch.onFingerDown += onFingerDown;
+            UnityEngine.InputSystem.EnhancedTouch.Touch.onFingerDown += OnFingerDown;
+            UnityEngine.InputSystem.EnhancedTouch.Touch.onFingerUp += onFingerUp;
             BasisCursorManagement.LockCursor(nameof(BasisAvatarEyeInput));
         }
-
-        private void onFingerDown(Finger finger)
+        public BasisTouchInputDevice LeftInput;
+        public BasisTouchInputDevice RightInput;
+        private void OnFingerDown(Finger finger)
         {
-            foreach (BasisTouchInputDevice input in Inputs)
-            {
-                if (input.Finger.index == finger.index)
-                {
-                    return;
-                }
-            }
-            BasisTouchInputDevice TouchInput;
-            switch (finger.index)
-            {
-                case 0:
-                    TouchInput = CreateTouchInput($"Finger Input {finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
-                    break;
-                case 1:
-                    TouchInput = CreateTouchInput($"Finger Input {finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
-                    break;
-                case 3:
-                    TouchInput = CreateTouchInput($"Finger Input {finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
-                    break;
-                default:
-                    TouchInput = CreateTouchInput($"Finger Input {finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
-                    break;
-            }
-            TouchInput.Input = BasisAvatarEyeInput;
-            TouchInput.Finger = finger;
-        }
+            var pos = finger.currentTouch.screenPosition;
+            var halfWidth = Screen.width * 0.5f;
 
+            bool isLeftSide = pos.x < halfWidth;
+            if (isLeftSide)
+            {
+                // Ensure only one input exists on the left
+                if (LeftInput == null)
+                {
+                    LeftInput = CreateTouchInput(
+                        "Finger Input Left",
+                        "Finger Input",
+                        BasisBoneTrackedRole.CenterEye,
+                        false
+                    );
+                }
+                LeftInput.Finger = finger;
+            }
+            else
+            {
+                // Ensure only one input exists on the right
+                if (RightInput == null)
+                {
+                    RightInput = CreateTouchInput(
+                        "Finger Input Right",
+                        "Finger Input",
+                        BasisBoneTrackedRole.CenterEye,
+                        false
+                    );
+                }
+                RightInput.Finger = finger;
+            }
+        }
+        public void onFingerUp(Finger finger)
+        {
+            if (LeftInput != null && LeftInput.Finger == finger)
+            {
+                LeftInput.Finger = null;
+            }
+            if (RightInput  != null && RightInput.Finger == finger)
+            {
+                RightInput.Finger = null;
+            }
+        }
         public List<BasisTouchInputDevice> Inputs = new List<BasisTouchInputDevice>();
-        public BasisTouchInputDevice CreateTouchInput(string UniqueID,string UnUniqueID,BasisBoneTrackedRole Role = BasisBoneTrackedRole.LeftHand,bool hasrole = false,string subSystems = "BasisTouchInput")
+        public BasisTouchInputDevice CreateTouchInput(string UniqueID, string UnUniqueID, BasisBoneTrackedRole Role = BasisBoneTrackedRole.LeftHand, bool hasrole = false, string subSystems = "BasisTouchInput")
         {
             BasisAvatarEyeInput.Instance.IsComputingRaycast = false;
             // Root GameObject representing the device
@@ -110,7 +128,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
             // Attach simulated input component
             BasisTouchInputDevice BasisInput = gameObject.AddComponent<BasisTouchInputDevice>();
-            BasisInput.Initalize(UniqueID, UnUniqueID, subSystems, hasrole, Role,true);
+            BasisInput.Initalize(UniqueID, UnUniqueID, subSystems, hasrole, Role, true);
 
             // Track in local list and global device management
             Inputs.Add(BasisInput);
@@ -129,7 +147,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
             if (BasisAvatarEyeInput != null)
             {
-                GameObject.Destroy(BasisAvatarEyeInput);
+                GameObject.Destroy(BasisAvatarEyeInput.gameObject);
             }
 
             BasisAvatarEyeInput.Instance = null;
@@ -143,7 +161,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 BasisDeviceManagement.Instance.RemoveDevicesFrom(nameof(BasisDesktopManagement), Device.UniqueDeviceIdentifier);
             }
             Inputs.Clear();
-            UnityEngine.InputSystem.EnhancedTouch.Touch.onFingerDown -= onFingerDown;
+            UnityEngine.InputSystem.EnhancedTouch.Touch.onFingerDown -= OnFingerDown;
+            UnityEngine.InputSystem.EnhancedTouch.Touch.onFingerUp -= onFingerUp;
             EnhancedTouchSupport.Disable();
         }
 

@@ -8,6 +8,7 @@ public class BasisTouchInputDevice : BasisInput
 {
     public BasisAvatarEyeInput Input;
     public Finger Finger;
+    public int Index;
     public void Initalize(string uniqueID, string unUniqueDeviceID, string subSystems, bool ForceAssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, bool hasRayCastOverrideSupport = false)
     {
         InitalizeTracking( uniqueID,  unUniqueDeviceID,  subSystems,  ForceAssignTrackedRole,  basisBoneTrackedRole, hasRayCastOverrideSupport);
@@ -15,22 +16,26 @@ public class BasisTouchInputDevice : BasisInput
     }
     public override void DoPollData()
     {
-        UnscaledDeviceCoord = Input.UnscaledDeviceCoord;
-        ScaledDeviceCoord.position = UnscaledDeviceCoord.position;
-        ScaledDeviceCoord.rotation = UnscaledDeviceCoord.rotation;
-        if (BasisLocalInputActions.Instance != null)
-        {
-            BasisLocalInputActions.Instance.InputState.CopyTo(CurrentInputState);
-        }
-      //  ControlOnlyAsDevice();
-        ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
         if (HasRaycaster)
         {
-            if (Finger.isActive)
+            if (Finger != null)
             {
-                BasisPointRaycaster.ScreenPoint = Finger.currentTouch.screenPosition;
+                BasisPointRaycaster.ScreenPoint = Finger.screenPosition;
+
+                if (Finger.isActive)
+                {
+                    CurrentInputState.Trigger = 1;
+                }
+                else
+                {
+                    CurrentInputState.Trigger = 0;
+                }
             }
-            UpdatePlayerControl();
+            else
+            {
+                CurrentInputState.Trigger = 0;
+            }
+            UpdateInputEvents(false,true);
         }
     }
     public override void PlayHaptic(float duration = 0.25F, float amplitude = 0.5F, float frequency = 0.5F)

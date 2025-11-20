@@ -140,7 +140,7 @@ public class BasisOpenXRHandInput : BasisInputController
         ComputeUnscaledDeviceCoord(ref PointerPositionScale, pointerPosition.action.ReadValue<Vector3>());
 
         ComputeRaycastDirection(PointerPositionScale.position * avatarScale, HandFinal.rotation, ActiveRaycastOffset);
-        UpdatePlayerControl();
+        UpdateInputEvents();
     }
     public BasisCalibratedCoords PointerPositionScale;
     /// <summary>

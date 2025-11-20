@@ -914,6 +914,8 @@ MonoBehaviour:
   BasisAvatarEyeInput: {fileID: 0}
   AlwaysSpawnHeadsUpControls: 0
   Controls: {fileID: 0}
+  LeftInput: {fileID: 0}
+  RightInput: {fileID: 0}
   Inputs: []
 --- !u!114 &-3061024371983229343
 MonoBehaviour:
