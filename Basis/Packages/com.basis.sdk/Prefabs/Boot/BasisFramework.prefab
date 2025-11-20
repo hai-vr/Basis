@@ -58,47 +58,6 @@ MonoBehaviour:
     NetworkBehaviourCount: 0
     NetworkBehaviours: []
     HasEvents: 0
-    MouthBone:
-      name: 
-      HasLineDraw: 0
-      LineDrawIndex: 0
-      Offset:
-        x: 0
-        y: 0
-        z: 0
-      ScaledOffset:
-        x: 0
-        y: 0
-        z: 0
-      GizmoReference: -1
-      TposeGizmoReference: -1
-      HasVirtualOverride: 0
-      UseInverseOffset: 0
-      Color: {r: 0, g: 0, b: 1, a: 1}
-      hasTrackerDriver: 1
-      DevicesWithRoles: []
-      hasRigLayer: 1
-      IncomingData:
-        rotation: {x: 0, y: 0, z: 0, w: 0}
-        position: {x: 0, y: 0, z: 0}
-      OutGoingData:
-        rotation: {x: 0, y: 0, z: 0, w: 0}
-        position: {x: 0, y: 0, z: 0}
-      OutgoingWorldData:
-        rotation: {x: 0, y: 0, z: 0, w: 0}
-        position: {x: 0, y: 0, z: 0}
-      LastRunData:
-        rotation: {x: 0, y: 0, z: 0, w: 0}
-        position: {x: 0, y: 0, z: 0}
-      InverseOffsetFromBone:
-        rotation: {x: 0, y: 0, z: 0, w: 0}
-        position: {x: 0, y: 0, z: 0}
-      TposeLocal:
-        rotation: {x: 0, y: 0, z: 0, w: 0}
-        position: {x: 0, y: 0, z: 0}
-      TposeLocalScaled:
-        rotation: {x: 0, y: 0, z: 0, w: 0}
-        position: {x: 0, y: 0, z: 0}
     AudioTransmission:
       Local: {fileID: 0}
       IsInitalized: 0
@@ -114,21 +73,31 @@ MonoBehaviour:
         TotalLength: 0
         LengthUsed: 0
       SilentForHowLong: 0
-    IndexLength: 0
-    MicrophoneRangeIndex: 
-    LastMicrophoneRangeIndex: 
-    HearingIndex: 
-    AvatarIndex: 
-    HearingIndexToId: 
-    LastHearingIndexToId: 
-    CalculatedDistances: []
-    intervalSeconds: 0
-    timer: 0
-    SmallestDistanceToAnotherPlayer: 0
-    UnClampedInterval: 0
-    DefaultInterval: 0
-    TalkingPoints: 
-    requiresRebuild: 0
+    TransmissionResults:
+      MicrophoneRangeIndex: 
+      LastMicrophoneRangeIndex: 
+      HearingIndex: 
+      AvatarIndex: 
+      HearingIndexToId: 
+      LastHearingIndexToId: 
+      CalculatedDistances: []
+      IndexLength: -1
+      requiresRebuild: 0
+      TalkingPoints: 
+      intervalSeconds: 0.5
+      timer: 0
+      SmallestDistanceToAnotherPlayer: 0
+      UnClampedInterval: 0
+      DefaultInterval: 0
+      MouthBone:
+        rid: -2
+      BasisNetworkTransmitter:
+        rid: -2
+  references:
+    version: 2
+    RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }
 --- !u!114 &3490227392973501680
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -385,6 +354,7 @@ MonoBehaviour:
   - Upscaling
   - Foveated Rendering
   RenderScale: 1
+  foveatedRenderingLevel: 0
 --- !u!114 &1359221182720975491
 MonoBehaviour:
   m_ObjectHideFlags: 0

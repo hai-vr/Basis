@@ -131,7 +131,6 @@ namespace Basis.Scripts.Device_Management
             {
                 BasisDevice.Add(settings);
             }
-
             return settings;
         }
     }

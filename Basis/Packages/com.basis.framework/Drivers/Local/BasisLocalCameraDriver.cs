@@ -60,6 +60,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public Vector3 DesktopMicrophoneViewportPosition = new(0.2f, 0.15f, 1f);
 
+        public Vector3 MobileMicrophoneViewportPosition = new(0.5f, 0.1f, 1f);
         /// <summary>Near clip plane override.</summary>
         public float NearClip = 0.001f;
 
@@ -322,10 +323,20 @@ namespace Basis.Scripts.Drivers
                     }
                     else
                     {
-                        Vector3 worldPoint = Camera.ViewportToWorldPoint(DesktopMicrophoneViewportPosition);
-                        // assume this transform is the camera parent
-                        Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
-                        ParentOfUI.localPosition = localPos * LocalPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
+                        if (BasisDeviceManagement.IsMobilehardware())
+                        {
+                            Vector3 worldPoint = Camera.ViewportToWorldPoint(MobileMicrophoneViewportPosition);
+                            // assume this transform is the camera parent
+                            Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
+                            ParentOfUI.localPosition = localPos * LocalPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
+                        }
+                        else 
+                        {
+                            Vector3 worldPoint = Camera.ViewportToWorldPoint(DesktopMicrophoneViewportPosition);
+                            // assume this transform is the camera parent
+                            Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
+                            ParentOfUI.localPosition = localPos * LocalPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
+                        }
                     }
                 }
             }
