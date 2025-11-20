@@ -234,7 +234,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             if (input.TryGetRole(out Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole role))
             {
-                if (Inputs.TryGetByRole(role, out var wrapper))
+                if (Inputs.TryGetByRole(role, out var wrapper) && wrapper.Source != null)
                 {
                     if (wrapper.Source.UniqueDeviceIdentifier == input.UniqueDeviceIdentifier)
                     {
