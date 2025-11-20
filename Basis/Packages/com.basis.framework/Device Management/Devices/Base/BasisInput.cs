@@ -474,12 +474,12 @@ namespace Basis.Scripts.Device_Management.Devices
         /// Pushes current input state to the action driver and updates raycasting/UI systems.
         /// Invokes <see cref="AfterControlApply"/> afterwards.
         /// </summary>
-        public void UpdatePlayerControl(bool ActuallyDoRaycast = true)
+        public void UpdatePlayerControl()
         {
             BasisActionDriver.UpdatePlayerControl(trackedRole, ref CurrentInputState, ref LastInputState);
             if (HasRaycaster)
             {
-                BasisPointRaycaster.UpdateRaycast(ActuallyDoRaycast);
+                BasisPointRaycaster.UpdateRaycast();
                 BasisUIRaycast.HandleUIRaycast();
             }
         }

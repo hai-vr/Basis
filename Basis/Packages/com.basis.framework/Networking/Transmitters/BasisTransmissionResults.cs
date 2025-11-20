@@ -96,7 +96,7 @@ public class BasisTransmissionResults : IDisposable
         // Complete job, consume results, update send interval, send recipients
         distanceJobHandle.Complete();
 
-        if (!AreNativeResultsValid() || !AreManagedMirrorsValid())
+        if (BasisNetworkPlayers.RemotePlayers.Count != 0 && (!AreNativeResultsValid() || !AreManagedMirrorsValid()))
         {
             BasisDebug.LogError("Missing Results!");
             return;

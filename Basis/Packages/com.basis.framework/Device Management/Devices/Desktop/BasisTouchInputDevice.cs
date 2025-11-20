@@ -1,5 +1,6 @@
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Device_Management.Devices.Desktop;
+using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 using UnityEngine.InputSystem.EnhancedTouch;
 
@@ -7,6 +8,11 @@ public class BasisTouchInputDevice : BasisInput
 {
     public BasisAvatarEyeInput Input;
     public Finger Finger;
+    public void Initalize(string uniqueID, string unUniqueDeviceID, string subSystems, bool ForceAssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, bool hasRayCastOverrideSupport = false)
+    {
+        InitalizeTracking( uniqueID,  unUniqueDeviceID,  subSystems,  ForceAssignTrackedRole,  basisBoneTrackedRole, hasRayCastOverrideSupport);
+        BasisPointRaycaster.UseWorldPosition = false;
+    }
     public override void DoPollData()
     {
         UnscaledDeviceCoord = Input.UnscaledDeviceCoord;
@@ -23,12 +29,8 @@ public class BasisTouchInputDevice : BasisInput
             if (Finger.isActive)
             {
                 BasisPointRaycaster.ScreenPoint = Finger.currentTouch.screenPosition;
-                UpdatePlayerControl(true);
             }
-            else
-            {
-                UpdatePlayerControl(false);
-            }
+            UpdatePlayerControl();
         }
     }
     public override void PlayHaptic(float duration = 0.25F, float amplitude = 0.5F, float frequency = 0.5F)

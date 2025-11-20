@@ -84,38 +84,36 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             switch (finger.index)
             {
                 case 0:
-                    TouchInput = CreateTouchInput($"{finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
+                    TouchInput = CreateTouchInput($"Finger Input {finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
                     break;
                 case 1:
-                    TouchInput = CreateTouchInput($"{finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
+                    TouchInput = CreateTouchInput($"Finger Input {finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
                     break;
                 case 3:
-                    TouchInput = CreateTouchInput($"{finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
+                    TouchInput = CreateTouchInput($"Finger Input {finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
                     break;
                 default:
-                    TouchInput = CreateTouchInput($"{finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
+                    TouchInput = CreateTouchInput($"Finger Input {finger.index}", "Finger Input", BasisBoneTrackedRole.LeftHand, false);
                     break;
             }
             TouchInput.Input = BasisAvatarEyeInput;
             TouchInput.Finger = finger;
         }
 
-        public List<BasisTouchInputDevice> Inputs  = new List<BasisTouchInputDevice>();
+        public List<BasisTouchInputDevice> Inputs = new List<BasisTouchInputDevice>();
         public BasisTouchInputDevice CreateTouchInput(string UniqueID,string UnUniqueID,BasisBoneTrackedRole Role = BasisBoneTrackedRole.LeftHand,bool hasrole = false,string subSystems = "BasisTouchInput")
         {
+            BasisAvatarEyeInput.Instance.IsComputingRaycast = false;
             // Root GameObject representing the device
             GameObject gameObject = new GameObject(UniqueID);
             gameObject.transform.parent = BasisLocalPlayer.Instance.transform;
 
             // Attach simulated input component
             BasisTouchInputDevice BasisInput = gameObject.AddComponent<BasisTouchInputDevice>();
-            BasisInput.InitalizeTracking(UniqueID, UnUniqueID, subSystems, hasrole, Role,true);
+            BasisInput.Initalize(UniqueID, UnUniqueID, subSystems, hasrole, Role,true);
 
             // Track in local list and global device management
-            if (!Inputs.Contains(BasisInput))
-            {
-                Inputs.Add(BasisInput);
-            }
+            Inputs.Add(BasisInput);
             BasisDeviceManagement.Instance.TryAdd(BasisInput);
 
             return BasisInput;

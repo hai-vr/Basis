@@ -20,11 +20,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public Camera Camera;
 
         /// <summary>
-        /// Reference to the <see cref="BasisLocalAvatarDriver"/> associated with the local player.
-        /// </summary>
-        public BasisLocalAvatarDriver AvatarDriver;
-
-        /// <summary>
         /// Singleton instance for global access to the desktop eye input.
         /// </summary>
         public static BasisAvatarEyeInput Instance;
@@ -168,7 +163,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public void PlayerInitialized()
         {
             BasisLocalInputActions.Instance.AvatarEyeInput = this;
-            AvatarDriver = BasisLocalPlayer.Instance.LocalAvatarDriver;
             Camera = BasisLocalCameraDriver.Instance.Camera;
 
             BasisDeviceManagement Device = BasisDeviceManagement.Instance;
@@ -271,10 +265,13 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             ScaledDeviceCoord.rotation = UnscaledDeviceCoord.rotation;
 
             ControlOnlyAsDevice();
-            ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
-            UpdatePlayerControl();
+            if (IsComputingRaycast)
+            {
+                ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);
+                UpdatePlayerControl();
+            }
         }
-
+        public bool IsComputingRaycast = true;
         /// <summary>
         /// Displays a visual tracker for the device if supported by the matched device definition.
         /// Falls back to a generic model if needed.
