@@ -71,14 +71,11 @@ public class BasisRuntimeLoader : MonoBehaviour
             return;
         }
 
-        // GameObject mode: determine spawn position.
-        Vector3 resolvedPosition = transform.position;
-
         if (!useCustomSpawnPosition)
         {
             if (BasisLocalPlayer.Instance != null)
             {
-                resolvedPosition = BasisLocalPlayer.Instance.transform.position;
+                spawnPosition = BasisLocalPlayer.Instance.transform.position;
             }
             else
             {
@@ -86,8 +83,6 @@ public class BasisRuntimeLoader : MonoBehaviour
                 Debug.LogWarning("[BasisRuntimeLoader] BasisLocalPlayer.Instance is null; using this component's Transform position instead.");
             }
         }
-
-        spawnPosition = resolvedPosition; // Keep the serialized field in sync for debugging/inspector visibility.
 
         // Spawn request
         BasisNetworkSpawnItem.RequestGameObjectLoad(password, BEEURL, spawnPosition, spawnRotation, applyCustomScale ? spawnScale : Vector3.one, persistent,  applyCustomScale, out LoadedResource);
