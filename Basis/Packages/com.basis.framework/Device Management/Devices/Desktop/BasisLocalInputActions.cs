@@ -61,7 +61,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
         [System.NonSerialized] public BasisLocalPlayer LocalPlayer;
         [System.NonSerialized] public BasisLocalCharacterDriver LocalCharacterDriver;
-        [System.NonSerialized] public BasisAvatarEyeInput AvatarEyeInput;
+        [System.NonSerialized] public BasisDesktopEye AvatarEyeInput;
 
         public PlayerInput Input;
 

@@ -489,7 +489,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         public override void OnInteractStart(BasisInput input)
         {
-
+            if(InteractionTimerValidation() == false)
+            {
+                return;
+            }
             // Clear any existing interacting inputs first
             Inputs.ForEachWithState(OnInteractEnd, BasisInteractInputState.Interacting);
 
@@ -502,7 +505,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 return;
             }
-
             Inputs.ChangeStateByRole(wrapper.Role, BasisInteractInputState.Interacting);
             _interactingInput = input;
             if (LocallyInSeat)

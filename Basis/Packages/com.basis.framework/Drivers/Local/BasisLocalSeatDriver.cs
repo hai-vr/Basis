@@ -90,8 +90,11 @@ namespace Basis.Scripts.Drivers
             }
             _seat = seat;
             previousRelativePosition = _seat.transform.InverseTransformPoint(LocalPlayer.transform.position);
-            previousHeadPitchGlobal = BasisAvatarEyeInput.Instance.rotationPitch;
-            previousHeadYawVsSeat = BasisAvatarEyeInput.Instance.rotationYaw - (_seat.transform.rotation * _seat.SpineRotation).eulerAngles.y;
+            if (BasisDesktopEye.Instance != null)
+            {
+                previousHeadPitchGlobal = BasisDesktopEye.Instance.rotationPitch;
+                previousHeadYawVsSeat = BasisDesktopEye.Instance.rotationYaw - (_seat.transform.rotation * _seat.SpineRotation).eulerAngles.y;
+            }
             // Disable character movement and add a movement lock so other systems respect being seated.
             BasisLocalVirtualSpineDriver.HipsFreezeToTpose = true;
             LocalPlayer.LocalCharacterDriver.IsEnabled = false;
@@ -99,8 +102,11 @@ namespace Basis.Scripts.Drivers
             LocalPlayer.LocalCharacterDriver.CrouchingLock.Add(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalAnimatorDriver.StopAllVariables();
             LocalPlayer.LocalAnimatorDriver.PauseAnimator = true;
-            // Set the player's relative yaw to zero to face forward on the seat, but don't do the same for pitch.
-            BasisAvatarEyeInput.Instance.rotationYaw = 0.0f;
+            if (BasisDesktopEye.Instance != null)
+            {
+                // Set the player's relative yaw to zero to face forward on the seat, but don't do the same for pitch.
+                BasisDesktopEye.Instance.rotationYaw = 0.0f;
+            }
             _setAllOverrideUsages(true);
             LocalPlayer.OnPreSimulateBones += OnSimulate;
             GrabLatestTposeLocalScaleData();
@@ -130,8 +136,11 @@ namespace Basis.Scripts.Drivers
             LocalPlayer.LocalCharacterDriver.CrouchingLock.Remove(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.IsEnabled = true;
             _setAllOverrideUsages(false);
-            BasisAvatarEyeInput.Instance.rotationPitch = previousHeadPitchGlobal;
-            BasisAvatarEyeInput.Instance.rotationYaw = previousHeadYawVsSeat + (_seat.transform.rotation * _seat.SpineRotation).eulerAngles.y;
+            if (BasisDesktopEye.Instance != null)
+            {
+                BasisDesktopEye.Instance.rotationPitch = previousHeadPitchGlobal;
+                BasisDesktopEye.Instance.rotationYaw = previousHeadYawVsSeat + (_seat.transform.rotation * _seat.SpineRotation).eulerAngles.y;
+            }
             LocalPlayer.transform.SetPositionAndRotation(_seat.transform.TransformPoint(previousRelativePosition), Quaternion.identity);
             LocalPlayer.AvatarTransform.rotation = Quaternion.identity;
             LocalPlayer.LocalAnimatorDriver.HandleTeleport();

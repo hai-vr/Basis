@@ -143,7 +143,7 @@ public class BasisTransmissionResults : IDisposable
     {
         if (IndexLength <= 0)
         {
-            BasisDebug.LogError("IndexLength as less then or equal to zero");
+          //  BasisDebug.LogError("IndexLength as less then or equal to zero");
             return;
         }
 

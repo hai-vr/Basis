@@ -20,7 +20,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         /// Reference to the <see cref="BasisAvatarEyeInput"/> component 
         /// created for simulating desktop eye tracking input.
         /// </summary>
-        public BasisAvatarEyeInput BasisAvatarEyeInput;
+        public BasisDesktopEye BasisAvatarEyeInput;
 
         /// <summary>
         /// Identifier string for the desktop eye device.
@@ -47,7 +47,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                     gameObject.transform.parent = BasisLocalPlayer.Instance.transform;
                 }
 
-                BasisAvatarEyeInput = gameObject.AddComponent<BasisAvatarEyeInput>();
+                BasisAvatarEyeInput = gameObject.AddComponent<BasisDesktopEye>();
                 BasisAvatarEyeInput.Initialize(DesktopEye, nameof(BasisDesktopManagement));
                 BasisDeviceManagement.Instance.TryAdd(BasisAvatarEyeInput);
             }
@@ -121,7 +121,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public List<BasisTouchInputDevice> Inputs = new List<BasisTouchInputDevice>();
         public BasisTouchInputDevice CreateTouchInput(string UniqueID, string UnUniqueID, BasisBoneTrackedRole Role = BasisBoneTrackedRole.LeftHand, bool hasrole = false, string subSystems = "BasisTouchInput")
         {
-            BasisAvatarEyeInput.Instance.IsComputingRaycast = false;
+            BasisDesktopEye.Instance.IsComputingRaycast = false;
             // Root GameObject representing the device
             GameObject gameObject = new GameObject(UniqueID);
             gameObject.transform.parent = BasisLocalPlayer.Instance.transform;
@@ -150,7 +150,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 GameObject.Destroy(BasisAvatarEyeInput.gameObject);
             }
 
-            BasisAvatarEyeInput.Instance = null;
+            BasisDesktopEye.Instance = null;
             BasisAvatarEyeInput = null;
             if (Controls != null)
             {

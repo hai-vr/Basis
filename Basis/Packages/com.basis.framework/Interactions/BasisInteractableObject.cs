@@ -1,6 +1,7 @@
-using System;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
+using System;
+using System.Collections;
 using UnityEngine;
 
 namespace Basis.Scripts.BasisSdk.Interactions
@@ -450,6 +451,26 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public virtual bool IsInfluencable(BasisInput input)
         {
             return InteractableEnabled && (CanHover(input) || CanInteract(input));
+        }
+
+        private bool _interactGateOpen = true;
+
+        private IEnumerator InteractCooldown()
+        {
+            _interactGateOpen = false;
+            yield return new WaitForSeconds(0.1f);
+            _interactGateOpen = true;
+        }
+        public bool InteractionTimerValidation()
+        {
+            if (!_interactGateOpen)
+            {
+                return false;
+            }
+
+            // start cooldown immediately
+            StartCoroutine(InteractCooldown());
+            return true;
         }
     }
 }

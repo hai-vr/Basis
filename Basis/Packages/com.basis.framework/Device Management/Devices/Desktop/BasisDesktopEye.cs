@@ -12,7 +12,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
     /// Provides simulated eye-tracking input for desktop mode.
     /// Handles look rotation via mouse input, device initialization, and integration with avatar drivers.
     /// </summary>
-    public class BasisAvatarEyeInput : BasisInput
+    public class BasisDesktopEye : BasisInput
     {
         /// <summary>
         /// Reference to the active Unity <see cref="Camera"/> used for eye input simulation.
@@ -22,7 +22,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         /// <summary>
         /// Singleton instance for global access to the desktop eye input.
         /// </summary>
-        public static BasisAvatarEyeInput Instance;
+        public static BasisDesktopEye Instance;
 
         [Header("Rotation")]
         /// <summary>

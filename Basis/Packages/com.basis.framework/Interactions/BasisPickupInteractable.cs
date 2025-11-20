@@ -399,6 +399,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <param name="input">The input source starting interaction.</param>
         public override void OnInteractStart(BasisInput input)
         {
+            if (InteractionTimerValidation() == false)
+            {
+                return;
+            }
+
             // Clean up interacting ourselves (system won't do this for us) when self-steal is allowed.
             if (CanSelfSteal)
                 Inputs.ForEachWithState(OnInteractEnd, BasisInteractInputState.Interacting);
