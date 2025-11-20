@@ -1,0 +1,120 @@
+using Basis;
+using System;
+using UnityEngine.Networking;
+using UnityEngine;
+
+namespace Basis
+{
+	// PUBLIC FACING
+
+	[Serializable]
+	public class BasisUrl
+	{
+		// XXX TODO: Make sure cilbox can't change this.
+		//public String Get() { return strUrl; }
+		//[SerializeField] private String strUrl;
+		[field:SerializeField] public String url { get; private set; }
+	};
+
+	public class IBasisImageDownload
+	{
+		public IBasisImageDownload( UnityWebRequest www, DownloadHandlerTexture dht )
+		{
+			if (www.result == UnityWebRequest.Result.Success)
+			{
+				Success = true;
+				Error = "";
+				Result = dht.texture;
+				SizeInMemoryBytes = dht.data.Length;
+			}
+			else
+			{
+				Success = false;
+				Error = dht.error;
+				Result = null;
+			}
+		}
+		public bool    Success { get; set; }
+		public String  Error { get; set; }
+		public int     SizeInMemoryBytes { get; set; }
+		public Texture Result { get; set; }
+	}
+
+
+	public class BasisImageDownloader
+	{
+		System.Collections.Generic.HashSet< UnityWebRequest > InFlight = new System.Collections.Generic.HashSet< UnityWebRequest >();
+
+		public void DownloadImage( BasisUrl stringUrl, Action< IBasisImageDownload > callback )
+		{
+		    UnityWebRequest www = new UnityWebRequest( stringUrl.url );
+
+			/////////////////////////////////////////////////////////////////
+		    DownloadHandlerTexture dht = new DownloadHandlerTexture(true);
+		    www.downloadHandler = dht;
+			/////////////////////////////////////////////////////////////////
+
+			bool bCompleted = false;
+
+			UnityWebRequestAsyncOperation req = www.SendWebRequest();
+
+			InFlight.Add( www );
+
+			Action <AsyncOperation> eventcb = (AsyncOperation obj) => {
+				if( !bCompleted )
+				{
+					bCompleted = true;
+					InFlight.Remove( www );
+					callback( new IBasisImageDownload( www, dht ) );
+				}
+			}; 
+
+			req.completed += eventcb;
+
+			if( !bCompleted && req.isDone )
+			{
+				eventcb( null );
+			}
+
+		    return;
+		}
+
+		public void Dispose()
+		{
+			foreach( var www in InFlight )
+			{
+				www.Dispose();
+			}
+		}
+	}
+
+
+#if false
+// If we ever allow raw.
+	public class BasisImageDownloader
+	{
+		public void DownloadImage( BasisUrl stringUrl, Action callback, TextureInfo rgbInfo)
+		{
+	        UnityWebRequest www = UnityWebRequest.Get( stringUrl.Get() );
+			UnityWebRequestAsyncOperation req = www.SendWebRequest();
+
+			bool bCompleted = false;
+
+			req.completed += (AsyncOperation obj) => {
+				if( !bCompleted )
+				{
+					bCompleted = true;
+					DownloadHandler dh = www.downloadHandler;
+					callback( www.result == UnityWebRequest.Result.Success, dh.error, dh.GetData() );
+				}
+			}; 
+
+			if( !bCompleted && req.isDone )
+			{
+				req.completed( null );
+			}
+		}
+	};
+#endif
+
+}

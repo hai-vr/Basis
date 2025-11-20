@@ -4,9 +4,19 @@ using Basis.Scripts.Device_Management.Devices;
 using UnityEngine;
 public class ExampleButtonInteractable : BasisInteractableObject
 {
+    // public BasisObjectSyncNetworking syncNetworking;
+
     // events other scripts can subscribe to
-    public Action ButtonDown;
-    public Action ButtonUp;
+    public delegate void ClickEvent();
+
+    public ClickEvent ButtonDown { get; set; }
+    public ClickEvent ButtonUp { get; set; }
+
+    [ContextMenu("Trigger Down")] public void TriggerButtonDown() { ButtonDown(); }
+    [ContextMenu("Trigger Up")] public void TriggerButtonUp() { ButtonUp(); }
+
+    //public void AddDelegateForButtonDown( Action d ) { ButtonDown += d; }\
+    //public void AddDelegateForButtonUp( Action d ) { ButtonUp += d; }
 
     [Header("Button Settings")]
     public bool isEnabled = true;
@@ -23,9 +33,11 @@ public class ExampleButtonInteractable : BasisInteractableObject
 
     private BasisInputWrapper _inputSource;
     // Ignore provided list localy, but keep it updated for other scripts 
-    private BasisInputWrapper _InputSource {
+    private BasisInputWrapper _InputSource
+    {
         get => _inputSource;
-        set {
+        set
+        {
             if (value.Source != null)
             {
                 Inputs = new(0);
@@ -36,7 +48,7 @@ public class ExampleButtonInteractable : BasisInteractableObject
                 Inputs = new(0);
             }
             _inputSource = value;
-            
+
         }
     }
 
@@ -79,7 +91,7 @@ public class ExampleButtonInteractable : BasisInteractableObject
         _InputSource = wrapper;
         SetColor(HoverColor);
         // call base method (invokes event)
-        base.OnHoverStart(input); 
+        base.OnHoverStart(input);
     }
 
     public override void OnHoverEnd(BasisInput input, bool willInteract)
@@ -104,7 +116,7 @@ public class ExampleButtonInteractable : BasisInteractableObject
 
     public override void OnInteractStart(BasisInput input)
     {
-        if (_InputSource.IsInput(input) && _InputSource.GetState() == BasisInteractInputState.Hovering )
+        if (_InputSource.IsInput(input) && _InputSource.GetState() == BasisInteractInputState.Hovering)
         {
             // Set ownership to the local player
             // syncNetworking.IsOwner = true;
@@ -117,7 +129,7 @@ public class ExampleButtonInteractable : BasisInteractableObject
 
             ButtonDown?.Invoke();
             // call base method (invokes event)
-            base.OnInteractStart(input); 
+            base.OnInteractStart(input);
         }
     }
 
@@ -133,7 +145,7 @@ public class ExampleButtonInteractable : BasisInteractableObject
 
             ButtonUp?.Invoke();
             // call base method (invokes event)
-            base.OnInteractEnd(input); 
+            base.OnInteractEnd(input);
         }
     }
     public override bool IsInteractingWith(BasisInput input)

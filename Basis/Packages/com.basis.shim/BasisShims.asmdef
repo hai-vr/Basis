@@ -1,0 +1,20 @@
+{
+    "name": "BasisShims",
+    "rootNamespace": "",
+    "references": [
+        "GUID:d8b63aba1907145bea998dd612889d6b",
+        "GUID:784bec3882b21ab4d8407cc870539fa9",
+        "GUID:4fbaa9af51b2f9c408a9dff4518adb81",
+        "GUID:45c7722710e2a37438daaacbf1cd4ad1",
+        "GUID:a2b22397d5e3094f49884a53aa9a6ab4"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
