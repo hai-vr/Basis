@@ -4,14 +4,12 @@ using Basis.Scripts.Device_Management.Devices;
 using UnityEngine;
 public class ExampleButtonInteractable : BasisInteractableObject
 {
-    // public BasisObjectSyncNetworking syncNetworking;
-
     // events other scripts can subscribe to
     public Action ButtonDown;
     public Action ButtonUp;
 
     [Header("Button Settings")]
-    public bool isEnabled;
+    public bool isEnabled = true;
     [Space(10)]
     public string PropertyName = "_Color";
     public Color Color = Color.white;
