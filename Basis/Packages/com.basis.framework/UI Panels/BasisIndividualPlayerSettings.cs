@@ -168,7 +168,7 @@ public class BasisIndividualPlayerSettings : BasisUIBase
         // Make sure we actually have a player selected
         if (RemotePlayer == null)
         {
-            BasisDebug.LogError("DisplayData: RemotePlayer is null.", BasisDebug.LogTag.Voice);
+            PlayerDebug.text = "DisplayData: RemotePlayer is null.";
             return;
         }
 
@@ -176,7 +176,7 @@ public class BasisIndividualPlayerSettings : BasisUIBase
         var nm = BasisNetworkManagement.Instance;
         if (nm == null || nm.LocalAccessTransmitter == null)
         {
-            BasisDebug.LogError("DisplayData: No LocalAccessTransmitter.", BasisDebug.LogTag.Voice);
+            PlayerDebug.text = "DisplayData: No LocalAccessTransmitter.";
             return;
         }
 
@@ -185,18 +185,14 @@ public class BasisIndividualPlayerSettings : BasisUIBase
 
         if (results == null)
         {
-            BasisDebug.LogError("DisplayData: TransmissionResults is null.", BasisDebug.LogTag.Voice);
+            PlayerDebug.text = "DisplayData: TransmissionResults is null.";
             return;
         }
 
         // Basic sanity on the managed mirrors
-        if (results.HearingIndexToId == null ||
-            results.MicrophoneRangeIndex == null ||
-            results.HearingIndex == null ||
-            results.AvatarIndex == null ||
-            results.CalculatedDistances == null)
+        if (results.HearingIndexToId == null || results.MicrophoneRangeIndex == null || results.HearingIndex == null || results.AvatarIndex == null || results.CalculatedDistances == null)
         {
-            BasisDebug.LogError("DisplayData: TransmissionResults arrays not initialized.", BasisDebug.LogTag.Voice);
+            PlayerDebug.text = "DisplayData: TransmissionResults arrays not initialized.";
             return;
         }
 
@@ -218,9 +214,7 @@ public class BasisIndividualPlayerSettings : BasisUIBase
 
             if (index < 0)
             {
-                BasisDebug.LogError(
-                    $"DisplayData: Could not find playerId {targetId} ({RemotePlayer.DisplayName}) in HearingIndexToId.",
-                    BasisDebug.LogTag.Voice);
+                PlayerDebug.text = $"DisplayData: Could not find playerId {targetId} ({RemotePlayer.DisplayName}) in HearingIndexToId.";
                 return;
             }
 
@@ -230,7 +224,7 @@ public class BasisIndividualPlayerSettings : BasisUIBase
                 index >= results.AvatarIndex.Length ||
                 index >= results.CalculatedDistances.Length)
             {
-                BasisDebug.LogError("DisplayData: Index out of range for TransmissionResults arrays.", BasisDebug.LogTag.Voice);
+                PlayerDebug.text = "DisplayData: Index out of range for TransmissionResults arrays.";
                 return;
             }
 
@@ -244,9 +238,9 @@ public class BasisIndividualPlayerSettings : BasisUIBase
 
             string log =
                 $"  Index: {targetId}, index: {index}\n" + $"  SQDis: {d2:F3}, dis: {d:F3} m\n" +
-                $"  inMicRange: {inMicRange}\n" + $"  inHearingRange: {inHearingRange}\n" +
-                $"  inAvatarRange: {inAvatarRange}\n" + $"  intervalSeconds: {results.intervalSeconds:F3}\n" +
-                $"  defaultInterval: {results.DefaultInterval:F3}\n" + $"  unClampedInterval: {results.UnClampedInterval:F3}";
+                $"  inMicRange: {inMicRange}" + $"  inHearingRange: {inHearingRange}\n" +
+                $"  inAvatarRange: {inAvatarRange}" + $"  intervalSeconds: {results.intervalSeconds:F3}\n" +
+                $"  defaultInterval: {results.DefaultInterval:F3}" + $"  unClampedInterval: {results.UnClampedInterval:F3}";
 
             // Optional: also show something in the UI if you have a text field for it
             if (PlayerDebug != null)
