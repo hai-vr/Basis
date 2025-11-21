@@ -1,4 +1,6 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Networking;
+using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.UI.UI_Panels;
 using System.Threading.Tasks;
 using TMPro;
@@ -22,7 +24,7 @@ public class BasisIndividualPlayerSettings : BasisUIBase
     public TextMeshProUGUI SliderVolumePercentage;
     public TextMeshProUGUI PlayerName;
     public TextMeshProUGUI PlayerUUID;
-
+    public TextMeshProUGUI PlayerDebug;
     [Header("Context")]
     public BasisRemotePlayer RemotePlayer;
     public BasisUIVolumeSampler BasisUIVolumeSampler;
@@ -152,5 +154,105 @@ public class BasisIndividualPlayerSettings : BasisUIBase
         }
         bool over = volume > 1.0f;
         SliderVolumePercentage.color = over ? Color.red : Color.white;
+    }
+    public void Update()
+    {
+        DisplayData();
+    }
+    /// <summary>
+    /// lets add a debug for stats about audio playback
+    /// 
+    /// </summary>
+    public void DisplayData()
+    {
+        // Make sure we actually have a player selected
+        if (RemotePlayer == null)
+        {
+            BasisDebug.LogError("DisplayData: RemotePlayer is null.", BasisDebug.LogTag.Voice);
+            return;
+        }
+
+        // Make sure networking is available
+        var nm = BasisNetworkManagement.Instance;
+        if (nm == null || nm.LocalAccessTransmitter == null)
+        {
+            BasisDebug.LogError("DisplayData: No LocalAccessTransmitter.", BasisDebug.LogTag.Voice);
+            return;
+        }
+
+        var transmitter = nm.LocalAccessTransmitter;
+        var results = transmitter.TransmissionResults;
+
+        if (results == null)
+        {
+            BasisDebug.LogError("DisplayData: TransmissionResults is null.", BasisDebug.LogTag.Voice);
+            return;
+        }
+
+        // Basic sanity on the managed mirrors
+        if (results.HearingIndexToId == null ||
+            results.MicrophoneRangeIndex == null ||
+            results.HearingIndex == null ||
+            results.AvatarIndex == null ||
+            results.CalculatedDistances == null)
+        {
+            BasisDebug.LogError("DisplayData: TransmissionResults arrays not initialized.", BasisDebug.LogTag.Voice);
+            return;
+        }
+
+        int length = results.IndexLength >= 0 ? results.IndexLength : results.HearingIndexToId.Length;
+        if (BasisNetworkPlayers.PlayerToNetworkedPlayer(RemotePlayer, out var networkedplayer))
+        {
+            ushort targetId = networkedplayer.playerId;
+
+            // Find this player’s index in the transmission arrays
+            int index = -1;
+            for (int i = 0; i < length && i < results.HearingIndexToId.Length; i++)
+            {
+                if (results.HearingIndexToId[i] == targetId)
+                {
+                    index = i;
+                    break;
+                }
+            }
+
+            if (index < 0)
+            {
+                BasisDebug.LogError(
+                    $"DisplayData: Could not find playerId {targetId} ({RemotePlayer.DisplayName}) in HearingIndexToId.",
+                    BasisDebug.LogTag.Voice);
+                return;
+            }
+
+            // Guard against any weird length mismatches
+            if (index >= results.MicrophoneRangeIndex.Length ||
+                index >= results.HearingIndex.Length ||
+                index >= results.AvatarIndex.Length ||
+                index >= results.CalculatedDistances.Length)
+            {
+                BasisDebug.LogError("DisplayData: Index out of range for TransmissionResults arrays.", BasisDebug.LogTag.Voice);
+                return;
+            }
+
+            bool inMicRange = results.MicrophoneRangeIndex[index];
+            bool inHearingRange = results.HearingIndex[index];
+            bool inAvatarRange = results.AvatarIndex[index];
+
+            // CalculatedDistances is squared distance (copied from Native distanceSq)
+            float d2 = results.CalculatedDistances[index];
+            float d = Mathf.Sqrt(Mathf.Max(0f, d2));
+
+            string log =
+                $"  Index: {targetId}, index: {index}\n" + $"  SQDis: {d2:F3}, dis: {d:F3} m\n" +
+                $"  inMicRange: {inMicRange}\n" + $"  inHearingRange: {inHearingRange}\n" +
+                $"  inAvatarRange: {inAvatarRange}\n" + $"  intervalSeconds: {results.intervalSeconds:F3}\n" +
+                $"  defaultInterval: {results.DefaultInterval:F3}\n" + $"  unClampedInterval: {results.UnClampedInterval:F3}";
+
+            // Optional: also show something in the UI if you have a text field for it
+            if (PlayerDebug != null)
+            {
+                PlayerDebug.text = log;
+            }
+        }
     }
 }

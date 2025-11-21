@@ -71,7 +71,15 @@ public class BasisTransmissionResults : IDisposable
         }
 
         var player = BasisNetworkTransmitter.Player;
-        var avatar = player != null ? player.BasisAvatar : null;
+        Basis.Scripts.BasisSdk.BasisAvatar avatar;
+        if (player != null)
+        {
+            avatar = player.BasisAvatar;
+        }
+        else
+        {
+            avatar = null;
+        }
 
         if (avatar == null)
         {
@@ -80,15 +88,8 @@ public class BasisTransmissionResults : IDisposable
             return;
         }
 
-        if (MouthBone == null)
-        {
-            BasisDebug.LogError("MouthBone is null; cannot schedule distance job.", BasisDebug.LogTag.System);
-            timer -= previousInterval;
-            return;
-        }
-
         // Schedule job to compute all distance info
-        ScheduleCheck(MouthBone);
+        ScheduleCheck();
 
         // Compress avatar state (doesn't touch mouth bone used as input)
         BasisNetworkAvatarCompressor.Compress(BasisNetworkTransmitter, avatar.Animator);
@@ -98,7 +99,7 @@ public class BasisTransmissionResults : IDisposable
 
         if (BasisNetworkPlayers.RemotePlayers.Count != 0 && (!AreNativeResultsValid() || !AreManagedMirrorsValid()))
         {
-            BasisDebug.LogError("Missing Results!");
+            BasisDebug.LogError("Missing Results!", BasisDebug.LogTag.Networking);
             return;
         }
 
@@ -154,10 +155,7 @@ public class BasisTransmissionResults : IDisposable
             return;
         }
 
-        int safeLength = math.min(IndexLength,math.min(snapshot.Length,
-                math.min(
-                    AvatarIndex?.Length ?? 0,
-                    CalculatedDistances?.Length ?? 0)));
+        int safeLength = math.min(IndexLength,math.min(snapshot.Length, math.min( AvatarIndex?.Length ?? 0, CalculatedDistances?.Length ?? 0)));
 
         if (safeLength <= 0)
         {
@@ -236,7 +234,9 @@ public class BasisTransmissionResults : IDisposable
         }
 
         if (!HasMicrophoneStateChanged())
+        {
             return;
+        }
 
         RebuildTalkingPoints();
 
@@ -261,22 +261,18 @@ public class BasisTransmissionResults : IDisposable
     /// <summary>
     /// Schedule job that computes distance bands & minimum distance.
     /// </summary>
-    public void ScheduleCheck(BasisLocalBoneControl mouthBone)
+    public void ScheduleCheck()
     {
-        if (mouthBone == null)
-            return;
-
         distanceJob.SquaredAvatarDistance = SMModuleDistanceBasedReductions.AvatarRange;
         distanceJob.SquaredHearingDistance = SMModuleDistanceBasedReductions.HearingRange;
         distanceJob.SquaredVoiceDistance = SMModuleDistanceBasedReductions.MicrophoneRange;
         distanceJob.HysteresisMargin = 0.05f; // clamped inside job
-        distanceJob.referencePosition = mouthBone.OutgoingWorldData.position;
-
+        distanceJob.referencePosition = MouthBone.OutgoingWorldData.position;
         int receiverCount = BasisNetworkPlayers.ReceiverCount;
-
         if (receiverCount < 0)
+        {
             receiverCount = 0;
-
+        }
         if (IndexLength != receiverCount || requiresRebuild)
         {
             ResizeOrCreateArrayData(receiverCount);
@@ -296,7 +292,9 @@ public class BasisTransmissionResults : IDisposable
 
         var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
         if (snapshot == null)
+        {
             return;
+        }
 
         int safeLength = math.min(receiverCount, snapshot.Length);
 
@@ -307,10 +305,7 @@ public class BasisTransmissionResults : IDisposable
 
             if (remote != null)
             {
-                ushort rid = remote.playerId;
-
-                float3 outgoing;
-                bool hasMouth = RemoteBoneJobSystem.GetOutGoingMouth(remote.playerId, out outgoing);
+                bool hasMouth = RemoteBoneJobSystem.GetOutGoingMouth(remote.playerId, out float3 outgoing);
 
                 if (hasMouth)
                 {
@@ -324,7 +319,7 @@ public class BasisTransmissionResults : IDisposable
                 }
 
                 // Always treat a valid remote as a valid receiver
-                HearingIndexToId[index] = rid;
+                HearingIndexToId[index] = remote.playerId;
             }
             else
             {
@@ -389,7 +384,9 @@ public class BasisTransmissionResults : IDisposable
     {
         // wait for in-flight jobs
         if (!distanceJobHandle.Equals(default(JobHandle)) && !distanceJobHandle.IsCompleted)
+        {
             distanceJobHandle.Complete();
+        }
 
         // dispose old
         if (targetPositions.IsCreated) targetPositions.Dispose();
@@ -409,39 +406,29 @@ public class BasisTransmissionResults : IDisposable
     }
     private bool AreNativeResultsValid()
     {
-        return distances.IsCreated &&
-               DistanceResults.IsCreated &&
-               HearingResults.IsCreated &&
-               AvatarResults.IsCreated &&
-               smallestDistance.IsCreated &&
-               smallestDistance.Length == 1;
+        return distances.IsCreated && DistanceResults.IsCreated &&HearingResults.IsCreated &&AvatarResults.IsCreated &&smallestDistance.IsCreated && smallestDistance.Length == 1;
     }
 
     private bool AreManagedMirrorsValid()
     {
         if (DistanceResults.Length == 0)
+        {
             return false;
+        }
 
-        if (MicrophoneRangeIndex == null ||
-            HearingIndex == null ||
-            AvatarIndex == null ||
-            CalculatedDistances == null)
+        if (MicrophoneRangeIndex == null || HearingIndex == null || AvatarIndex == null ||  CalculatedDistances == null)
+        {
             return false;
+        }
 
         int n = DistanceResults.Length;
 
-        return MicrophoneRangeIndex.Length == n &&
-               HearingIndex.Length == n &&
-               AvatarIndex.Length == n &&
-               CalculatedDistances.Length == n;
+        return MicrophoneRangeIndex.Length == n && HearingIndex.Length == n &&AvatarIndex.Length == n &&CalculatedDistances.Length == n;
     }
 
     private bool ValidateMicrophoneArrays()
     {
-        if (MicrophoneRangeIndex == null ||
-            LastMicrophoneRangeIndex == null ||
-            HearingIndexToId == null ||
-            LastHearingIndexToId == null)
+        if (MicrophoneRangeIndex == null || LastMicrophoneRangeIndex == null || HearingIndexToId == null || LastHearingIndexToId == null)
         {
             return false;
         }
@@ -451,10 +438,7 @@ public class BasisTransmissionResults : IDisposable
             return false;
         }
 
-        if (MicrophoneRangeIndex.Length != IndexLength ||
-            LastMicrophoneRangeIndex.Length != IndexLength ||
-            HearingIndexToId.Length != IndexLength ||
-            LastHearingIndexToId.Length != IndexLength)
+        if (MicrophoneRangeIndex.Length != IndexLength || LastMicrophoneRangeIndex.Length != IndexLength || HearingIndexToId.Length != IndexLength || LastHearingIndexToId.Length != IndexLength)
         {
             BasisDebug.LogError("MicrophoneOutputCheck: length mismatch.", BasisDebug.LogTag.Voice);
             return false;
@@ -467,8 +451,7 @@ public class BasisTransmissionResults : IDisposable
     {
         for (int index = 0; index < IndexLength; index++)
         {
-            if (MicrophoneRangeIndex[index] != LastMicrophoneRangeIndex[index] ||
-                HearingIndexToId[index] != LastHearingIndexToId[index])
+            if (MicrophoneRangeIndex[index] != LastMicrophoneRangeIndex[index] || HearingIndexToId[index] != LastHearingIndexToId[index])
             {
                 return true;
             }
@@ -480,7 +463,9 @@ public class BasisTransmissionResults : IDisposable
     private void RebuildTalkingPoints()
     {
         if (TalkingPoints.Capacity < IndexLength)
+        {
             TalkingPoints.Capacity = IndexLength;
+        }
 
         TalkingPoints.Clear();
 
@@ -518,9 +503,6 @@ public class BasisTransmissionResults : IDisposable
 
     private void SendEmptyRecipientsIfNeeded(BasisNetworkTransmitter transmitter)
     {
-        if (transmitter == null)
-            return;
-
         // If server already thinks we have no recipients, nothing to do.
         if (!transmitter.HasReasonToSendAudio)
         {

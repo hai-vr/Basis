@@ -1,4 +1,3 @@
-using Basis.Contrib.Auth.DecentralizedIds;
 using Basis.Network.Core;
 using Basis.Network.Server.Generic;
 using Basis.Network.Server.Ownership;

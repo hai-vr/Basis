@@ -15,23 +15,19 @@ namespace Basis.Scripts.Networking.Transmitters
         public OpusEncoder encoder;
         public BasisNetworkPlayer NetworkedPlayer;
         public BasisLocalPlayer Local;
-        public bool IsInitalized = false;
         public bool HasEvents = false;
         public AudioSegmentDataMessage AudioSegmentData = new AudioSegmentDataMessage();
         public AudioSegmentDataMessage SilentSegmentData = new AudioSegmentDataMessage();
         public NetDataWriter writer = new NetDataWriter();
+        public int SilentForHowLong = 0;
         public void Initialize(BasisNetworkPlayer networkedPlayer)
         {
-            if (IsInitalized) return;
-
             NetworkedPlayer = networkedPlayer;
             Local = (BasisLocalPlayer)networkedPlayer.Player;
 
             InitializeEncoder();
             AttachMicrophoneEvents();
             InitializeBuffers();
-
-            IsInitalized = true;
         }
 
         public void DeInitialize()
@@ -60,7 +56,10 @@ namespace Basis.Scripts.Networking.Transmitters
 
         private void AttachMicrophoneEvents()
         {
-            if (HasEvents) return;
+            if (HasEvents)
+            {
+                return;
+            }
 
             BasisLocalMicrophoneDriver.OnHasAudio += OnAudioReady;
             BasisLocalMicrophoneDriver.OnHasSilence += SendSilenceOverNetwork;
@@ -90,21 +89,19 @@ namespace Basis.Scripts.Networking.Transmitters
                 SilentSegmentData = new AudioSegmentDataMessage(new byte[packetSize]);
             }
         }
-        public int SilentForHowLong = 0;
         public void OnAudioReady()
         {
-            if (!NetworkedPlayer.HasReasonToSendAudio) return;
+            if (!NetworkedPlayer.HasReasonToSendAudio)
+            {
+                return;
+            }
 
             InitializeBuffers();
 
             writer.Reset();
 
-            AudioSegmentData.LengthUsed = encoder.Encode(
-                BasisLocalMicrophoneDriver.processBufferArray,
-                BasisLocalMicrophoneDriver.SampleRate,
-                AudioSegmentData.buffer,
-                AudioSegmentData.TotalLength
-            );
+            AudioSegmentData.LengthUsed = encoder.Encode(BasisLocalMicrophoneDriver.processBufferArray,BasisLocalMicrophoneDriver.SampleRate,AudioSegmentData.buffer,AudioSegmentData.TotalLength);
+
             if(SilentForHowLong > 256)
             {
                 AudioSegmentData.TotalPlayedInSilence = 0;
@@ -122,16 +119,12 @@ namespace Basis.Scripts.Networking.Transmitters
 
         private void SendSilenceOverNetwork()
         {
-            if (!NetworkedPlayer.HasReasonToSendAudio) return;
+            if (!NetworkedPlayer.HasReasonToSendAudio)
+            {
+                return;
+            }
 
-            // writer.Reset();
-
-            // SilentSegmentData.LengthUsed = 0;
-            // SilentSegmentData.Serialize(writer);
-
-            //  BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, writer.Length);
-            //  SendOutVoice(writer, false);
-            SilentForHowLong++; //how long in sample size this way on the remote side we
+            SilentForHowLong++; //how long in sample size this way on the remote side
         }
 
         public void SendOutVoice(NetDataWriter writer)

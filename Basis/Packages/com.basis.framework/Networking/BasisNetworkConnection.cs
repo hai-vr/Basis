@@ -143,6 +143,7 @@ namespace Basis.Scripts.Networking
                     BasisNetworkManagement.Instance.transform.GetPositionAndRotation(out Vector3 _, out Quaternion _);
 
                     var transmitter = new BasisNetworkTransmitter(localPlayerID);
+                    BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out transmitter.TransmissionResults.MouthBone, BasisBoneTrackedRole.Mouth);
                     BasisNetworkManagement.Transmitter = transmitter;
                     BasisNetworkManagement.Instance.LocalAccessTransmitter = transmitter;
                     transmitter.Player = BasisLocalPlayer.Instance;
@@ -155,7 +156,6 @@ namespace Basis.Scripts.Networking
                             BasisLocalAvatarDriver.HasEvents = true;
                         }
                         transmitter.TransmissionResults.BasisNetworkTransmitter = transmitter;
-                        BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out transmitter.TransmissionResults.MouthBone, BasisBoneTrackedRole.Mouth);
                     }
                     else
                     {
