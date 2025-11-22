@@ -296,7 +296,7 @@ namespace Basis.Scripts.Drivers
             }
             else
             {
-                return BasisLocalPlayer.FallbackSize;
+                return BasisLocalHeight.FallbackSize;
             }
         }
 

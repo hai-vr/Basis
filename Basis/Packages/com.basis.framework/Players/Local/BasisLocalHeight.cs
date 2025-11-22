@@ -14,12 +14,12 @@ namespace Basis.Scripts.BasisSdk.Players
     /// based on the chosen mode (ArmSpan, EyeHeight, or Custom).
     /// <para>
     /// Note on the <c>Custom</c> branch: the scale computation uses
-    /// <see cref="BasisLocalPlayer.DefaultAvatarEyeHeight"/> for the player scale and
-    /// <see cref="BasisLocalPlayer.DefaultPlayerEyeHeight"/> for the avatar scale. Verify this is intentional.
+    /// <see cref="DefaultAvatarEyeHeight"/> for the player scale and
+    /// <see cref="DefaultPlayerEyeHeight"/> for the avatar scale. Verify this is intentional.
     /// </para>
     /// </remarks>
     [System.Serializable]
-    public class BasisLocalHeightInformation
+    public class BasisLocalHeight
     {
         /// <summary>
         /// Human-readable name of the avatar these measurements are associated with.
@@ -27,34 +27,60 @@ namespace Basis.Scripts.BasisSdk.Players
         public string AvatarName;
 
         /// <summary>
+        /// Fallback height (meters) used when no measurement is available.
+        /// not the total height but the eye height
+        /// </summary>
+        public const float FallbackSize = 1.61f;
+
+        /// <summary>
+        /// Default measured eye height for the player (meters).
+        /// </summary>
+        public static float DefaultPlayerEyeHeight = FallbackSize;
+
+        /// <summary>
+        /// Default measured eye height for the avatar (meters).
+        /// </summary>
+        public static float DefaultAvatarEyeHeight = FallbackSize;
+
+        /// <summary>
+        /// Default measured arm span for the player (meters).
+        /// </summary>
+        public static float DefaultPlayerArmSpan = FallbackSize;
+
+        /// <summary>
+        /// Default measured arm span for the avatar (meters).
+        /// </summary>
+        public static float DefaultAvatarArmSpan = FallbackSize;
+
+        /// <summary>
         /// Measured eye height for the player (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
         /// </summary>
-        public float PlayerEyeHeight = BasisLocalPlayer.FallbackSize;
+        public float PlayerEyeHeight = FallbackSize;
 
         /// <summary>
         /// Measured eye height for the avatar (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
         /// </summary>
-        public float AvatarEyeHeight = BasisLocalPlayer.FallbackSize;
+        public float AvatarEyeHeight = FallbackSize;
 
         /// <summary>
         /// Measured arm span for the player (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
         /// </summary>
-        public float PlayerArmSpan = BasisLocalPlayer.FallbackSize;
+        public float PlayerArmSpan = FallbackSize;
 
         /// <summary>
         /// Measured arm span for the avatar (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
         /// </summary>
-        public float AvatarArmSpan = BasisLocalPlayer.FallbackSize;
+        public float AvatarArmSpan = FallbackSize;
 
         /// <summary>
         /// Custom player eye height (meters) supplied by user or calibration UI.
         /// </summary>
-        public float CustomPlayerEyeHeight = BasisLocalPlayer.FallbackSize;
+        public float CustomPlayerEyeHeight = FallbackSize;
 
         /// <summary>
         /// Custom avatar eye height (meters) supplied by user or calibration UI.
         /// </summary>
-        public float CustomAvatarEyeHeight = BasisLocalPlayer.FallbackSize;
+        public float CustomAvatarEyeHeight = FallbackSize;
 
         /// <summary>
         /// Ratio mapping the player's measured eye height to a default reference scale.
@@ -79,12 +105,12 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// The player height (meters) currently selected by <see cref="PickHeightMode(BasisSelectedHeightMode)"/>.
         /// </summary>
-        private float selectedPlayerHeight = BasisLocalPlayer.FallbackSize;
+        private float selectedPlayerHeight = FallbackSize;
 
         /// <summary>
         /// The avatar height (meters) currently selected by <see cref="PickHeightMode(BasisSelectedHeightMode)"/>.
         /// </summary>
-        private float selectedAvatarHeight = BasisLocalPlayer.FallbackSize;
+        private float selectedAvatarHeight = FallbackSize;
 
         /// <summary>
         /// The player-to-default scale currently selected by <see cref="PickHeightMode(BasisSelectedHeightMode)"/>.
@@ -135,8 +161,8 @@ namespace Basis.Scripts.BasisSdk.Players
                     SelectedAvatarHeight = CustomAvatarEyeHeight;
 
                     // Uses DefaultAvatarEyeHeight for player, DefaultPlayerEyeHeight for avatar.
-                    SelectedPlayerToDefaultScale = SelectedPlayerHeight / BasisLocalPlayer.DefaultAvatarEyeHeight;
-                    SelectedAvatarToAvatarDefaultScale = SelectedAvatarHeight / BasisLocalPlayer.DefaultPlayerEyeHeight;
+                    SelectedPlayerToDefaultScale = SelectedPlayerHeight / DefaultAvatarEyeHeight;
+                    SelectedAvatarToAvatarDefaultScale = SelectedAvatarHeight / DefaultPlayerEyeHeight;
                     break;
             }
             BasisDebug.Log($"Height Mode is {Height} with height {SelectedPlayerHeight} with avatar height {SelectedAvatarHeight} with selected player to default scale {SelectedPlayerToDefaultScale} select avatar to avatar scale {SelectedAvatarToAvatarDefaultScale}", BasisDebug.LogTag.System);
@@ -146,13 +172,13 @@ namespace Basis.Scripts.BasisSdk.Players
             BasisDebug.Log($"Computed Ratios", BasisDebug.LogTag.System);
             var localPlayer = BasisLocalPlayer.Instance;
             // ---- compute ratios safely ----
-            localPlayer.CurrentHeight.EyeRatioAvatarToAvatarDefaultScale = localPlayer.CurrentHeight.AvatarEyeHeight / Mathf.Max(0.0001f, BasisLocalPlayer.DefaultAvatarEyeHeight);
+            localPlayer.CurrentHeight.EyeRatioAvatarToAvatarDefaultScale = localPlayer.CurrentHeight.AvatarEyeHeight / Mathf.Max(0.0001f, DefaultAvatarEyeHeight);
 
-            localPlayer.CurrentHeight.EyeRatioPlayerToDefaultScale = localPlayer.CurrentHeight.PlayerEyeHeight / Mathf.Max(0.0001f, BasisLocalPlayer.DefaultPlayerEyeHeight);
+            localPlayer.CurrentHeight.EyeRatioPlayerToDefaultScale = localPlayer.CurrentHeight.PlayerEyeHeight / Mathf.Max(0.0001f, DefaultPlayerEyeHeight);
 
-            localPlayer.CurrentHeight.ArmRatioAvatarToAvatarDefaultScale = localPlayer.CurrentHeight.AvatarArmSpan / Mathf.Max(0.0001f, BasisLocalPlayer.DefaultAvatarArmSpan);
+            localPlayer.CurrentHeight.ArmRatioAvatarToAvatarDefaultScale = localPlayer.CurrentHeight.AvatarArmSpan / Mathf.Max(0.0001f, DefaultAvatarArmSpan);
 
-            localPlayer.CurrentHeight.ArmRatioPlayerToDefaultScale = localPlayer.CurrentHeight.PlayerArmSpan / Mathf.Max(0.0001f, BasisLocalPlayer.DefaultPlayerArmSpan);
+            localPlayer.CurrentHeight.ArmRatioPlayerToDefaultScale = localPlayer.CurrentHeight.PlayerArmSpan / Mathf.Max(0.0001f, DefaultPlayerArmSpan);
         }
     }
 }

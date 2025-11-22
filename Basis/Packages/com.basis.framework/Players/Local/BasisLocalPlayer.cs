@@ -38,32 +38,6 @@ namespace Basis.Scripts.BasisSdk.Players
         public static bool PlayerReady = false;
 
         /// <summary>
-        /// Fallback height (meters) used when no measurement is available.
-        /// not the total height but the eye height
-        /// </summary>
-        public const float FallbackSize = 1.61f;
-
-        /// <summary>
-        /// Default measured eye height for the player (meters).
-        /// </summary>
-        public static float DefaultPlayerEyeHeight = FallbackSize;
-
-        /// <summary>
-        /// Default measured eye height for the avatar (meters).
-        /// </summary>
-        public static float DefaultAvatarEyeHeight = FallbackSize;
-
-        /// <summary>
-        /// Default measured arm span for the player (meters).
-        /// </summary>
-        public static float DefaultPlayerArmSpan = FallbackSize;
-
-        /// <summary>
-        /// Default measured arm span for the avatar (meters).
-        /// </summary>
-        public static float DefaultAvatarArmSpan = FallbackSize;
-
-        /// <summary>
         /// File name used to persist the last-used avatar reference.
         /// </summary>
         public static string LoadFileNameAndExtension = "LastUsedAvatar.BAS";
@@ -197,7 +171,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// Stores the current height measurements and derived values for the local player.
         /// </summary>
         [Header("Height Information")]
-        public BasisLocalHeightInformation CurrentHeight = new BasisLocalHeightInformation();
+        public BasisLocalHeight CurrentHeight = new BasisLocalHeight();
 
         /// <summary>
         /// Bootstraps the local player by wiring up drivers, input, and events, and loading the initial avatar.

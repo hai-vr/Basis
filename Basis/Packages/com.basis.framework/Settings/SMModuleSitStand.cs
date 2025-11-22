@@ -12,7 +12,7 @@ public class SMModuleSitStand : BasisSettingsBase
                 if (IsSteatedMode == false)
                 {
                     BasisHeightDriver.CapturePlayerHeight(BasisLocalPlayer.Instance);
-                    MissingHeightDelta = BasisLocalPlayer.DefaultPlayerEyeHeight - BasisLocalPlayer.Instance.CurrentHeight.PlayerEyeHeight;
+                    MissingHeightDelta = BasisLocalHeight.DefaultPlayerEyeHeight - BasisLocalPlayer.Instance.CurrentHeight.PlayerEyeHeight;
                     IsSteatedMode = true;
                 }
                 break;

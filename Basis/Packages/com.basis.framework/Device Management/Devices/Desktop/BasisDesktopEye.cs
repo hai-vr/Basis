@@ -96,8 +96,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             }
             else
             {
-                BasisDebug.Log($"Using Fallback Height {BasisLocalPlayer.FallbackSize}", BasisDebug.LogTag.Input);
-                ScaledDeviceCoord.position = new Vector3(X, BasisLocalPlayer.FallbackSize, Z);
+                BasisDebug.Log($"Using Fallback Height {BasisLocalHeight.FallbackSize}", BasisDebug.LogTag.Input);
+                ScaledDeviceCoord.position = new Vector3(X, BasisLocalHeight.FallbackSize, Z);
             }
 
             ScaledDeviceCoord.rotation = Quaternion.identity;
