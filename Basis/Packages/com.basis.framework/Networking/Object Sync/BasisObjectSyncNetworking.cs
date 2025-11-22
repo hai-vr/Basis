@@ -3,6 +3,7 @@ using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Compression;
+using Basis.Scripts.Networking.NetworkedAvatar;
 using BasisSerializer.OdinSerializer;
 using LiteNetLib;
 using UnityEngine;
@@ -104,7 +105,7 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
             BasisPickupInteractable.RigidRef.isKinematic = state;
         }
     }
-    public override void OnOwnershipTransfer(ushort NetIdNewOwner)
+    public override void OnOwnershipTransfer(BasisNetworkPlayer NetIdNewOwner)
     {
         ControlState();
     }

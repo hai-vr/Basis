@@ -128,10 +128,11 @@ namespace Basis
                 }
                 else
                 {
-                    BasisDebug.LogError("No Owner for Id " + CurrentOwnerId);
+                    BasisUnInitalizedPlayer UnInitalizedPlayer = new BasisUnInitalizedPlayer(CurrentOwnerId);
+                    BasisDebug.LogError($"No Owner for Id {CurrentOwnerId} Creating Fake {nameof(BasisUnInitalizedPlayer)} this should only occur rarely");
+                    UnInitalizedPlayer.Initialize();
+                    OnOwnershipTransfer(UnInitalizedPlayer);
                 }
-               // BasisDebug.Log("Owner set to " + IsOwnedLocallyOnServer);
-                OnOwnershipTransfer(NetIdNewOwner);
             }
         }
         /// <summary>
@@ -255,10 +256,6 @@ namespace Basis
         /// back to no one owning it, (item no longer exists for example)
         /// </summary>
         public virtual void ServerOwnershipDestroyed()
-        {
-
-        }
-        public virtual void OnOwnershipTransfer(ushort NetIdNewOwner)
         {
 
         }
