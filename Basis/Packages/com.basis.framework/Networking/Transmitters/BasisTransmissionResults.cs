@@ -28,13 +28,16 @@ public class BasisTransmissionResults : IDisposable
     public NativeArray<float> smallestDistance;
     public BasisDistanceJob distanceJob;
     public JobHandle distanceJobHandle;
+
     public bool[] MicrophoneRangeIndex;
     public bool[] LastMicrophoneRangeIndex;
     public bool[] HearingIndex;
     public bool[] AvatarIndex;
+
     public ushort[] HearingIndexToId;
     public ushort[] LastHearingIndexToId;
     public float[] CalculatedDistances;
+
     public int IndexLength = -1;
     public bool requiresRebuild = false;
     public List<ushort> TalkingPoints = new List<ushort>(128);
@@ -43,6 +46,7 @@ public class BasisTransmissionResults : IDisposable
     public float SmallestDistanceToAnotherPlayer; // squared distance
     public float UnClampedInterval;
     public float DefaultInterval;
+
     [SerializeReference]
     public BasisLocalBoneControl MouthBone;
     [SerializeReference]
@@ -325,7 +329,6 @@ public class BasisTransmissionResults : IDisposable
             {
                 // Only truly invalid when we have no Remote at all.
                 targetPositions[index] = distanceJob.referencePosition;
-                HearingIndexToId[index] = 0;
             }
         }
 
@@ -333,7 +336,6 @@ public class BasisTransmissionResults : IDisposable
         for (int index = safeLength; index < receiverCount; index++)
         {
             targetPositions[index] = distanceJob.referencePosition;
-            HearingIndexToId[index] = 0;
         }
 
         // reduction output
@@ -472,9 +474,9 @@ public class BasisTransmissionResults : IDisposable
         for (int index = 0; index < IndexLength; index++)
         {
             // Skip invalid IDs (0 = no valid receiver)
-            if (MicrophoneRangeIndex[index] && HearingIndexToId[index] != 0)
+            if (HearingIndex[index])
             {
-                TalkingPoints.Add(HearingIndexToId[index]); // IDs aligned to snapshot order
+                TalkingPoints.Add(HearingIndexToId[index]);
             }
         }
     }
