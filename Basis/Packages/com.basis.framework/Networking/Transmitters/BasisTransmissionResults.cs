@@ -13,6 +13,7 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using static OVRPlugin;
 using static SerializableBasis;
 [System.Serializable]
 public class BasisTransmissionResults : IDisposable
@@ -202,7 +203,7 @@ public class BasisTransmissionResults : IDisposable
 
                 AudioRecipientswriter.Reset();
                 VoiceReceiversMessage.Serialize(AudioRecipientswriter);
-                BasisDebug.Log($"Sending Microphone Check Data ({AudioRecipientswriter.Length})", BasisDebug.LogTag.Voice);
+                //BasisDebug.Log($"Sending Microphone Check Data ({AudioRecipientswriter.Length})", BasisDebug.LogTag.Voice);
                 BasisNetworkConnection.LocalPlayerPeer.Send(AudioRecipientswriter, BasisNetworkCommons.AudioRecipientsChannel, DeliveryMethod.ReliableOrdered);
 
                 BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, AudioRecipientswriter.Length);
@@ -275,6 +276,10 @@ public class BasisTransmissionResults : IDisposable
 
         intervalSeconds = Mathf.Clamp(UnClampedInterval, DefaultInterval, ServerMetaDataMessage.SlowestSendRate);
 
+        if (BasisAvatarRecorder.IsRecording)
+        {
+            BasisAvatarRecorder.StoreData(intervalSeconds, avatar.Animator.bodyRotation, avatar.Animator.bodyPosition, BasisNetworkTransmitter.HumanPose.muscles, avatar.Animator.transform.localScale.y);
+        }
         // account for overshoot using the interval that actually accumulated
         timer -= previousInterval;
     }

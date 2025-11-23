@@ -153,12 +153,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             int offset = 0;
 
             // Position
-            BasisUnityBitPackerExtensionsUnsafe.WritePosition(
-                animator.bodyPosition, ref AvatarData.LASM.array, ref offset);
+            BasisUnityBitPackerExtensionsUnsafe.WritePosition(animator.bodyPosition, ref AvatarData.LASM.array, ref offset);
 
             // Rotation
-            BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(
-                animator.bodyRotation, ref AvatarData.LASM.array, ref offset, BasisNetworkPlayer.RotationCompression);
+            BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset, BasisNetworkPlayer.RotationCompression);
 
             // Muscles (parallel, zero-GC)
             CompressAvatarMuscles_Parallel(ref pose, ref AvatarData.LASM, ref offset);
@@ -166,6 +164,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Scale
             CompressScale(animator.transform.localScale.y, ref AvatarData.LASM, ref offset);
         }
+
         public static byte[] OutGoingBytes;
         // ==============================
         // new hot path: parallel compressor

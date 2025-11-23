@@ -104,6 +104,7 @@
   <Project Path="Meta.XR.Editor.Settings.csproj" />
   <Project Path="HVR.Basis.Comms.HVRUtility.csproj" />
   <Project Path="Unity.Services.Core.Threading.csproj" />
+  <Project Path="BasisShims.csproj" />
   <Project Path="Meta.XR.Editor.Id.csproj" />
   <Project Path="BasisBundleManagement.csproj" />
   <Project Path="Unity.InputSystem.TestFramework.csproj" />
@@ -147,7 +148,6 @@
   <Project Path="BasisConsoleDisplay.csproj" />
   <Project Path="UnityEngine.XR.LegacyInputHelpers.csproj" />
   <Project Path="Unity.XR.OpenXR.Features.RuntimeDebugger.Editor.csproj" />
-  <Project Path="BasisShims.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Unity.Rendering.LightTransport.Editor.csproj" />
   <Project Path="Unity.InputSystem.DocCodeSamples.csproj" />
