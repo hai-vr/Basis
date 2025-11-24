@@ -188,15 +188,16 @@ public class BasisIndividualPlayerSettings : BasisUIBase
             PlayerDebug.text = "DisplayData: TransmissionResults is null.";
             return;
         }
+        /*
 
         // Basic sanity on the managed mirrors
-        if (results.HearingIndexToId == null || results.MicrophoneRangeIndex == null || results.HearingIndex == null || results.AvatarIndex == null || results.CalculatedDistances == null)
+        if (results.HearingIndexToId == null || results.cal == null || results.HearingThisFrame == null || results.IndexesThisFrame == null || results.CalculatedDistancesThisFrame == null)
         {
             PlayerDebug.text = "DisplayData: TransmissionResults arrays not initialized.";
             return;
         }
 
-        int length = results.IndexLength >= 0 ? results.IndexLength : results.HearingIndexToId.Length;
+        int length = results.LastIndexLength >= 0 ? results.LastIndexLength : results.HearingIndexToId.Length;
         if (BasisNetworkPlayers.PlayerToNetworkedPlayer(RemotePlayer, out var networkedplayer))
         {
             ushort targetId = networkedplayer.playerId;
@@ -219,21 +220,21 @@ public class BasisIndividualPlayerSettings : BasisUIBase
             }
 
             // Guard against any weird length mismatches
-            if (index >= results.MicrophoneRangeIndex.Length ||
-                index >= results.HearingIndex.Length ||
-                index >= results.AvatarIndex.Length ||
-                index >= results.CalculatedDistances.Length)
+            if (index >= results.MicrophoneRangeThisFrame.Length ||
+                index >= results.HearingThisFrame.Length ||
+                index >= results.IndexesThisFrame.Length ||
+                index >= results.CalculatedDistancesThisFrame.Length)
             {
                 PlayerDebug.text = "DisplayData: Index out of range for TransmissionResults arrays.";
                 return;
             }
 
-            bool inMicRange = results.MicrophoneRangeIndex[index];
-            bool inHearingRange = results.HearingIndex[index];
-            bool inAvatarRange = results.AvatarIndex[index];
+            bool inMicRange = results.MicrophoneRangeThisFrame[index];
+            bool inHearingRange = results.HearingThisFrame[index];
+            bool inAvatarRange = results.IndexesThisFrame[index];
 
             // CalculatedDistances is squared distance (copied from Native distanceSq)
-            float d2 = results.CalculatedDistances[index];
+            float d2 = results.CalculatedDistancesThisFrame[index];
             float d = Mathf.Sqrt(Mathf.Max(0f, d2));
 
             string log =
@@ -248,5 +249,6 @@ public class BasisIndividualPlayerSettings : BasisUIBase
                 PlayerDebug.text = log;
             }
         }
+        */
     }
 }

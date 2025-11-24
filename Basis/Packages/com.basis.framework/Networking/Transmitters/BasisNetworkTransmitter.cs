@@ -27,7 +27,6 @@ namespace Basis.Scripts.Networking.Transmitters
         public BasisTransmissionResults TransmissionResults = new BasisTransmissionResults();
 
         public NetDataWriter AvatarSendWriter = new NetDataWriter(true, LocalAvatarSyncMessage.AvatarSyncSize + 2);
-        public AdditionalAvatarData[] AdditionalAvatarData;
         public Dictionary<byte, AdditionalAvatarData> SendingOutAvatarData = new Dictionary<byte, AdditionalAvatarData>();
 
         public static Action AfterAvatarChanges;
@@ -41,7 +40,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public void ClearAdditional() => SendingOutAvatarData.Clear();
         public override void Initialize()
         {
-            TransmissionResults.IndexLength = -1;
+            TransmissionResults.LastIndexLength = -1;
             AudioTransmission.Initialize(this);
             OnAvatarCalibrationLocal();
 
@@ -50,17 +49,9 @@ namespace Basis.Scripts.Networking.Transmitters
                 Player.OnAvatarSwitched += OnAvatarCalibrationLocal;
                 Player.OnAvatarSwitched += SendOutAvatarChange;
                 AfterAvatarChanges += TransmissionResults.Simulate;
-                BasisNetworkPlayer.OnRemotePlayerJoined += OnPlayerJoinedOrleaved;
-                BasisNetworkPlayer.OnRemotePlayerLeft += OnPlayerJoinedOrleaved;
                 HasEvents = true;
             }
         }
-
-        public void OnPlayerJoinedOrleaved(BasisNetworkPlayer player, BasisRemotePlayer RemotePlayer)
-        {
-          TransmissionResults.OnPlayerJoinedOrleaved();
-        }
-
         public override void DeInitialize()
         {
             AudioTransmission?.DeInitialize();
@@ -69,12 +60,8 @@ namespace Basis.Scripts.Networking.Transmitters
             {
                 Player.OnAvatarSwitched -= OnAvatarCalibrationLocal;
                 Player.OnAvatarSwitched -= SendOutAvatarChange;
-
-                BasisNetworkPlayer.OnRemotePlayerJoined -= OnPlayerJoinedOrleaved;
-                BasisNetworkPlayer.OnRemotePlayerLeft -= OnPlayerJoinedOrleaved;
-
                 AfterAvatarChanges -= TransmissionResults.Simulate;
-                TransmissionResults.Dispose();
+                TransmissionResults.ReleaseResults();
                 HasEvents = false;
             }
         }

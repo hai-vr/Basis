@@ -1,6 +1,8 @@
 using Basis.Network.Core;
+using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
 using Basis.Scripts.TransformBinders.BoneControl;
@@ -13,34 +15,17 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-
 using static SerializableBasis;
 [System.Serializable]
-public class BasisTransmissionResults : IDisposable
+public class BasisTransmissionResults
 {
-    public NativeArray<float3> targetPositions;
-    public NativeArray<float> distances;
-    public NativeArray<bool> PrevDistanceResults;
-    public NativeArray<bool> PrevHearingResults;
-    public NativeArray<bool> PrevAvatarResults;
-    public NativeArray<bool> DistanceResults;
-    public NativeArray<bool> HearingResults;
-    public NativeArray<bool> AvatarResults;
-    public NativeArray<float> smallestDistance;
     public BasisDistanceJob distanceJob;
     public JobHandle distanceJobHandle;
 
-    public bool[] MicrophoneRangeIndex;
-    public bool[] LastMicrophoneRangeIndex;
-    public bool[] HearingIndex;
-    public bool[] AvatarIndex;
-
     public ushort[] HearingIndexToId;
     public ushort[] LastHearingIndexToId;
-    public float[] CalculatedDistances;
 
-    public int IndexLength = -1;
-    public bool requiresRebuild = false;
+    public int LastIndexLength = -1;
     public List<ushort> TalkingPoints = new List<ushort>(128);
     public float intervalSeconds = 0.5f;
     public float timer = 0f;
@@ -52,9 +37,26 @@ public class BasisTransmissionResults : IDisposable
     public BasisLocalBoneControl MouthBone;
     [SerializeReference]
     public BasisNetworkTransmitter BasisNetworkTransmitter;
-
     public NetDataWriter AudioRecipientswriter = new NetDataWriter(true, 0);
-    public bool hasScheduled = false;
+    public bool CanDoSimulate(float previousInterval,out BasisAvatar BasisAvatar)
+    {
+        var player = BasisNetworkTransmitter.Player;
+        if (player != null)
+        {
+            BasisAvatar = player.BasisAvatar;
+        }
+        else
+        {
+            BasisAvatar = null;
+        }
+        if (BasisAvatar == null)
+        {
+            BasisDebug.LogError("Missing Basis Avatar. Cannot send network update.", BasisDebug.LogTag.System);
+            timer -= previousInterval;
+            return false;
+        }
+        return true;
+    }
     /// <summary>
     /// Called each frame; drives scheduling of distance job and network sync.
     /// </summary>
@@ -69,195 +71,84 @@ public class BasisTransmissionResults : IDisposable
 
         // Use the actual accumulated interval (handles overshoot)
         float previousInterval = intervalSeconds;
-
-        if (BasisNetworkTransmitter == null)
+        if (CanDoSimulate(previousInterval,out BasisAvatar avatar) == false)
         {
-            BasisDebug.LogError("BasisNetworkTransmitter is null; cannot send network update.", BasisDebug.LogTag.System);
-            timer -= previousInterval;
             return;
         }
-
-        var player = BasisNetworkTransmitter.Player;
-        Basis.Scripts.BasisSdk.BasisAvatar avatar;
-        if (player != null)
-        {
-            avatar = player.BasisAvatar;
-        }
-        else
-        {
-            avatar = null;
-        }
-        if (avatar == null)
-        {
-            BasisDebug.LogError("Missing Basis Avatar. Cannot send network update.", BasisDebug.LogTag.System);
-            timer -= previousInterval;
-            return;
-        }
-
         // Schedule job to compute all distance info
         distanceJob.SquaredAvatarDistance = SMModuleDistanceBasedReductions.AvatarRange;
         distanceJob.SquaredHearingDistance = SMModuleDistanceBasedReductions.HearingRange;
         distanceJob.SquaredVoiceDistance = SMModuleDistanceBasedReductions.MicrophoneRange;
-        distanceJob.HysteresisMargin = 0.05f; // clamped inside job
         distanceJob.referencePosition = MouthBone.OutgoingWorldData.position;
 
         int receiverCount = BasisNetworkPlayers.ReceiverCount;
         var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
-        if (IndexLength != receiverCount || requiresRebuild)
+        bool DifferentLengths = LastIndexLength != receiverCount;
+        if (DifferentLengths)
         {
-            ResizeOrCreateArrayData(receiverCount);
-            // managed mirrors
-            LastMicrophoneRangeIndex = new bool[receiverCount];
-            MicrophoneRangeIndex = new bool[receiverCount];
-            HearingIndex = new bool[receiverCount];
-            AvatarIndex = new bool[receiverCount];
-            CalculatedDistances = new float[receiverCount];
-            HearingIndexToId = new ushort[receiverCount];
-            LastHearingIndexToId = new ushort[receiverCount];
-
-            IndexLength = receiverCount;
-            requiresRebuild = false;
+            ResizeOrCreateArrayData(receiverCount);//resets arrays and resizes
         }
-        if (receiverCount != 0)
+        // Fill target positions and ID map aligned to snapshot order
+        for (int index = 0; index < receiverCount; index++)
         {
-            // Fill target positions and ID map aligned to snapshot order
-            for (int index = 0; index < receiverCount; index++)
+            BasisNetworkReceiver remote = snapshot[index];
+            if (remote == null)
             {
-                var remote = snapshot[index];
-                if (remote != null)
-                {
-                    bool hasMouth = RemoteBoneJobSystem.GetOutGoingMouth(remote.playerId, out float3 outgoing);
-
-                    if (hasMouth)
-                    {
-                        targetPositions[index] = outgoing;
-                    }
-                    else
-                    {
-                        // Fallback: use reference position so distance is 0
-                        targetPositions[index] = distanceJob.referencePosition;
-                        BasisDebug.LogError($"Missing Mouth for {remote.playerId}");
-                    }
-
-                    // Always treat a valid remote as a valid receiver
-                    HearingIndexToId[index] = remote.playerId;
-                }
-                else
-                {
-                    // Only truly invalid when we have no Remote at all.
-                    targetPositions[index] = distanceJob.referencePosition;
-                }
+                BasisDebug.LogError("this shouldnt occur remote was out of bounds!", BasisDebug.LogTag.Networking);
+                //target just becomes infinite
+                HearingIndexToId[index] = 0;
+                distanceJob.targetPositions[index] = math.INFINITY;
+                continue;
             }
-
-            // reduction output
-            distanceJob.outMin = smallestDistance;
-            hasScheduled = true;
-            distanceJobHandle = distanceJob.Schedule();
+            RemoteBoneJobSystem.GetOutGoingMouth(remote.playerId, out float3 outgoing);
+            distanceJob.targetPositions[index] = outgoing;
+            HearingIndexToId[index] = remote.playerId;
         }
-
+        distanceJobHandle = distanceJob.Schedule();
         // Compress avatar state (doesn't touch mouth bone used as input)
         BasisNetworkAvatarCompressor.Compress(BasisNetworkTransmitter, avatar.Animator);
+        // Complete job, consume results, update send interval, send recipients
+        distanceJobHandle.Complete();
 
-        if (hasScheduled)
+        // Cache current as previous for next hysteresis step
+        distanceJob.DistanceInside.CopyTo(distanceJob.PrevDistanceInside);
+        distanceJob.HearingInside.CopyTo(distanceJob.PrevHearingInside);
+        distanceJob.AvatarInside.CopyTo(distanceJob.PrevAvatarInside);
+
+        if (DifferentLengths || HasMicrophoneStateChanged())
         {
-            // Complete job, consume results, update send interval, send recipients
-            distanceJobHandle.Complete();
-            hasScheduled = false;
-
-            // Copy job outputs -> managed mirrors
-            DistanceResults.CopyTo(MicrophoneRangeIndex);
-            HearingResults.CopyTo(HearingIndex);
-            AvatarResults.CopyTo(AvatarIndex);
-            distances.CopyTo(CalculatedDistances);
-
-            // Cache current as previous for next hysteresis step
-            DistanceResults.CopyTo(PrevDistanceResults);
-            HearingResults.CopyTo(PrevHearingResults);
-            AvatarResults.CopyTo(PrevAvatarResults);
-
-            if (HasMicrophoneStateChanged())
+            if (TalkingPoints.Capacity < receiverCount)
             {
-                if (TalkingPoints.Capacity < IndexLength)
-                {
-                    TalkingPoints.Capacity = IndexLength;
-                }
-                TalkingPoints.Clear();
-                for (int index = 0; index < IndexLength; index++)
-                {
-                    if (HearingIndex[index])
-                    {
-                        TalkingPoints.Add(HearingIndexToId[index]);
-                    }
-                }
-                BasisNetworkTransmitter.HasReasonToSendAudio = TalkingPoints.Count != 0;
-
-                // Copy current -> last for next tick (both mask and IDs)
-                Array.Copy(MicrophoneRangeIndex, LastMicrophoneRangeIndex, IndexLength);
-                Array.Copy(HearingIndexToId, LastHearingIndexToId, IndexLength);
-
-                // Send to server
-                VoiceReceiversMessage VoiceReceiversMessage = new VoiceReceiversMessage
-                {
-                    users = TalkingPoints.ToArray()
-                };
-
-                AudioRecipientswriter.Reset();
-                VoiceReceiversMessage.Serialize(AudioRecipientswriter);
-                //BasisDebug.Log($"Sending Microphone Check Data ({AudioRecipientswriter.Length})", BasisDebug.LogTag.Voice);
-                BasisNetworkConnection.LocalPlayerPeer.Send(AudioRecipientswriter, BasisNetworkCommons.AudioRecipientsChannel, DeliveryMethod.ReliableOrdered);
-
-                BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, AudioRecipientswriter.Length);
+                TalkingPoints.Capacity = receiverCount;
             }
-            if (IndexLength > 0)
+            TalkingPoints.Clear();
+            for (int index = 0; index < receiverCount; index++)
             {
-                float activeTime = Time.time;
-
-                for (int index = 0; index < receiverCount; index++)
+                if (distanceJob.HearingInside[index])
                 {
-                    try
-                    {
-                        var receiver = snapshot[index];
-                        var remote = receiver.RemotePlayer;
-
-                        // Avatar in-range toggling
-                        if (remote.InAvatarRange != AvatarIndex[index])
-                        {
-                            remote.InAvatarRange = AvatarIndex[index];
-                            remote.ReloadAvatar();
-                        }
-
-                        // Distance-based mesh LOD
-                        remote.ChangeMeshLOD(CalculatedDistances[index], SMModuleDistanceBasedReductions.MeshLod);
-
-                        // Voice start/stop (note: HearingIndex describes "we can hear them")
-                        bool canHear = HearingIndex[index];
-                        if (receiver.AudioReceiverModule.HasAudioSource != canHear)
-                        {
-                            if (canHear)
-                            {
-                                receiver.AudioReceiverModule.StartAudio();
-                                remote.OutOfRangeFromLocal = false;
-                            }
-                            else
-                            {
-                                receiver.AudioReceiverModule.StopAudio();
-                                remote.OutOfRangeFromLocal = true;
-                            }
-                        }
-
-                        // Small anim drivers
-                        remote.RemoteEyeDriver.Simulate();
-                        remote.FacialBlinkDriver.Simulate(activeTime);
-                    }
-                    catch (Exception ex)
-                    {
-                        BasisDebug.LogError($"{ex} {ex.StackTrace}");
-                    }
+                    TalkingPoints.Add(HearingIndexToId[index]);
                 }
             }
+            BasisNetworkTransmitter.HasReasonToSendAudio = TalkingPoints.Count != 0;
+
+            Array.Copy(HearingIndexToId, LastHearingIndexToId, receiverCount);
+
+            // Send to server
+            VoiceReceiversMessage VoiceReceiversMessage = new VoiceReceiversMessage
+            {
+                users = TalkingPoints.ToArray()
+            };
+
+            AudioRecipientswriter.Reset();
+            VoiceReceiversMessage.Serialize(AudioRecipientswriter);
+            //BasisDebug.Log($"Sending Microphone Check Data ({AudioRecipientswriter.Length})", BasisDebug.LogTag.Voice);
+            BasisNetworkConnection.LocalPlayerPeer.Send(AudioRecipientswriter, BasisNetworkCommons.AudioRecipientsChannel, DeliveryMethod.ReliableOrdered);
+
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, AudioRecipientswriter.Length);
+            ApplyLocalChanges(receiverCount, snapshot);
         }
         // Update rate control based on minimum distance
-        SmallestDistanceToAnotherPlayer = smallestDistance[0]; // still squared
+        SmallestDistanceToAnotherPlayer = distanceJob.outMin; // still squared
 
         if (!float.IsFinite(SmallestDistanceToAnotherPlayer))
         {
@@ -282,24 +173,67 @@ public class BasisTransmissionResults : IDisposable
         }
         // account for overshoot using the interval that actually accumulated
         timer -= previousInterval;
+        LastIndexLength = receiverCount;
     }
-
-    /// <summary>
-    /// Call whenever the receiver list changes.
-    /// </summary>
-    public void OnPlayerJoinedOrleaved()
+    public void ApplyLocalChanges(int receiverCount, BasisNetworkReceiver[] snapshot)
     {
-        requiresRebuild = true;
+        float activeTime = Time.time;
+        for (int index = 0; index < receiverCount; index++)
+        {
+            try
+            {
+                var receiver = snapshot[index];
+                var remote = receiver.RemotePlayer;
+
+                // Avatar in-range toggling
+                if (remote.InAvatarRange != distanceJob.AvatarInside[index])
+                {
+                    remote.InAvatarRange = distanceJob.AvatarInside[index];
+                    remote.ReloadAvatar();
+                }
+
+                // Distance-based mesh LOD
+                remote.ChangeMeshLOD(distanceJob.distanceSq[index], SMModuleDistanceBasedReductions.MeshLod);
+
+                // Voice start/stop (note: HearingIndex describes "we can hear them")
+                bool canHear = distanceJob.HearingInside[index];
+                if (receiver.AudioReceiverModule.HasAudioSource != canHear)
+                {
+                    if (canHear)
+                    {
+                        receiver.AudioReceiverModule.StartAudio();
+                        remote.OutOfRangeFromLocal = false;
+                    }
+                    else
+                    {
+                        receiver.AudioReceiverModule.StopAudio();
+                        remote.OutOfRangeFromLocal = true;
+                    }
+                }
+
+                // Small anim drivers
+                remote.RemoteEyeDriver.Simulate();
+                remote.FacialBlinkDriver.Simulate(activeTime);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError($"{ex} {ex.StackTrace}");
+            }
+        }
     }
     private bool HasMicrophoneStateChanged()
     {
-        for (int index = 0; index < IndexLength; index++)
+        for (int index = 0; index < LastIndexLength; index++)
         {
-            if (MicrophoneRangeIndex[index] != LastMicrophoneRangeIndex[index])
+            if (distanceJob.DistanceInside[index] != distanceJob.PrevDistanceInside[index])
             {
                 return true;
             }
             if (HearingIndexToId[index] != LastHearingIndexToId[index])
+            {
+                return true;
+            }
+            if (distanceJob.HearingInside[index] != distanceJob.PrevHearingInside[index])
             {
                 return true;
             }
@@ -310,36 +244,23 @@ public class BasisTransmissionResults : IDisposable
     /// <summary>
     /// Allocate / reallocate all NativeArrays.
     /// </summary>
-    public void ResizeOrCreateArrayData(int totalUserCount)
+    public void ResizeOrCreateArrayData(int receiverCount)
     {
         ReleaseResults();
 
-        // (re)create
-        smallestDistance = new NativeArray<float>(1, Allocator.Persistent);
-        smallestDistance[0] = float.PositiveInfinity;
-
-        targetPositions = new NativeArray<float3>(totalUserCount, Allocator.Persistent);
-        distances = new NativeArray<float>(totalUserCount, Allocator.Persistent);
-
-        // outputs
-        DistanceResults = new NativeArray<bool>(totalUserCount, Allocator.Persistent);
-        HearingResults = new NativeArray<bool>(totalUserCount, Allocator.Persistent);
-        AvatarResults = new NativeArray<bool>(totalUserCount, Allocator.Persistent);
-
-        // prevs (start false)
-        PrevDistanceResults = new NativeArray<bool>(totalUserCount, Allocator.Persistent);
-        PrevHearingResults = new NativeArray<bool>(totalUserCount, Allocator.Persistent);
-        PrevAvatarResults = new NativeArray<bool>(totalUserCount, Allocator.Persistent);
-
         // wire job views
-        distanceJob.distanceSq = distances;
-        distanceJob.DistanceInside = DistanceResults;
-        distanceJob.HearingInside = HearingResults;
-        distanceJob.AvatarInside = AvatarResults;
-        distanceJob.PrevDistanceInside = PrevDistanceResults;
-        distanceJob.PrevHearingInside = PrevHearingResults;
-        distanceJob.PrevAvatarInside = PrevAvatarResults;
-        distanceJob.targetPositions = targetPositions;
+        distanceJob.distanceSq = new NativeArray<float>(receiverCount, Allocator.Persistent);
+        distanceJob.DistanceInside = new NativeArray<bool>(receiverCount, Allocator.Persistent);
+        distanceJob.HearingInside = new NativeArray<bool>(receiverCount, Allocator.Persistent);
+        distanceJob.AvatarInside = new NativeArray<bool>(receiverCount, Allocator.Persistent);
+        distanceJob.PrevDistanceInside = new NativeArray<bool>(receiverCount, Allocator.Persistent);
+        distanceJob.PrevHearingInside = new NativeArray<bool>(receiverCount, Allocator.Persistent);
+        distanceJob.PrevAvatarInside = new NativeArray<bool>(receiverCount, Allocator.Persistent);
+        distanceJob.targetPositions = new NativeArray<float3>(receiverCount, Allocator.Persistent);
+
+        // managed mirrors
+        HearingIndexToId = new ushort[receiverCount];
+        LastHearingIndexToId = new ushort[receiverCount];
     }
 
     /// <summary>
@@ -348,25 +269,17 @@ public class BasisTransmissionResults : IDisposable
     public void ReleaseResults()
     {
         // wait for in-flight jobs
-        if (!distanceJobHandle.Equals(default(JobHandle)) && !distanceJobHandle.IsCompleted)
-        {
-            distanceJobHandle.Complete();
-        }
+        if (!distanceJobHandle.IsCompleted) { distanceJobHandle.Complete(); }
 
         // dispose old
-        if (targetPositions.IsCreated) targetPositions.Dispose();
-        if (distances.IsCreated) distances.Dispose();
-        if (smallestDistance.IsCreated) smallestDistance.Dispose();
-        if (DistanceResults.IsCreated) DistanceResults.Dispose();
-        if (HearingResults.IsCreated) HearingResults.Dispose();
-        if (AvatarResults.IsCreated) AvatarResults.Dispose();
-        if (PrevDistanceResults.IsCreated) PrevDistanceResults.Dispose();
-        if (PrevHearingResults.IsCreated) PrevHearingResults.Dispose();
-        if (PrevAvatarResults.IsCreated) PrevAvatarResults.Dispose();
-    }
-    public void Dispose()
-    {
-        ReleaseResults();
+        if (distanceJob.targetPositions.IsCreated) distanceJob.targetPositions.Dispose();
+        if (distanceJob.distanceSq.IsCreated) distanceJob.distanceSq.Dispose();
+        if (distanceJob.DistanceInside.IsCreated) distanceJob.DistanceInside.Dispose();
+        if (distanceJob.HearingInside.IsCreated) distanceJob.HearingInside.Dispose();
+        if (distanceJob.AvatarInside.IsCreated) distanceJob.AvatarInside.Dispose();
+        if (distanceJob.PrevDistanceInside.IsCreated) distanceJob.PrevDistanceInside.Dispose();
+        if (distanceJob.PrevHearingInside.IsCreated) distanceJob.PrevHearingInside.Dispose();
+        if (distanceJob.PrevAvatarInside.IsCreated) distanceJob.PrevAvatarInside.Dispose();
     }
     [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Standard)]
     public struct BasisDistanceJob : IJob
@@ -374,7 +287,8 @@ public class BasisTransmissionResults : IDisposable
         public float SquaredVoiceDistance;
         public float SquaredHearingDistance;
         public float SquaredAvatarDistance;
-        public float HysteresisMargin; // 0..0.49 (clamped)
+
+        public const float HysteresisMargin = 0.05f;
 
         [ReadOnly] public float3 referencePosition;
         [ReadOnly] public NativeArray<float3> targetPositions;
@@ -388,8 +302,7 @@ public class BasisTransmissionResults : IDisposable
         [WriteOnly] public NativeArray<bool> HearingInside;
         [WriteOnly] public NativeArray<bool> AvatarInside;
 
-        // length = 1
-        public NativeArray<float> outMin;
+        public float outMin;
 
         [BurstCompile]
         private static bool Hysteresis(bool wasInside, float d2, float thr2, float margin)
@@ -404,8 +317,7 @@ public class BasisTransmissionResults : IDisposable
         public void Execute()
         {
             float3 refPos = referencePosition;
-            float minD2 = float.PositiveInfinity;
-
+            float SmallestDistance = float.PositiveInfinity;
             for (int i = 0; i < targetPositions.Length; i++)
             {
                 float3 diff = targetPositions[i] - refPos;
@@ -416,13 +328,9 @@ public class BasisTransmissionResults : IDisposable
                 HearingInside[i] = Hysteresis(PrevHearingInside[i], d2, SquaredHearingDistance, HysteresisMargin);
                 AvatarInside[i] = Hysteresis(PrevAvatarInside[i], d2, SquaredAvatarDistance, HysteresisMargin);
 
-                minD2 = math.min(minD2, d2);
+                SmallestDistance = math.min(SmallestDistance, d2);
             }
-
-            if (outMin.IsCreated)
-            {
-                outMin[0] = minD2;
-            }
+            outMin = SmallestDistance;
         }
     }
 }
