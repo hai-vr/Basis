@@ -318,7 +318,8 @@ public class BasisTransmissionResults
         {
             float3 refPos = referencePosition;
             float SmallestDistance = float.PositiveInfinity;
-            for (int i = 0; i < targetPositions.Length; i++)
+            int length = targetPositions.Length;
+            for (int i = 0; i < length; i++)
             {
                 float3 diff = targetPositions[i] - refPos;
                 float d2 = math.lengthsq(diff);
