@@ -44,8 +44,7 @@ namespace Basis.Scripts.Drivers
 
         private BasisLocalPlayer localPlayer;
         private BasisTransformMapping basisTransformMapping;
-        private readonly OneEuroFilterVector3 oneEuroFilter =
-            new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private readonly OneEuroFilterVector3 oneEuroFilter = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
 
         private float timeAccumulator;
 

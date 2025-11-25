@@ -1,5 +1,7 @@
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Device_Management.Devices.Desktop;
 using UnityEngine;
 
@@ -95,6 +97,12 @@ namespace Basis.Scripts.Drivers
                 previousHeadPitchGlobal = BasisDesktopEye.Instance.rotationPitch;
                 previousHeadYawVsSeat = BasisDesktopEye.Instance.rotationYaw - (_seat.transform.rotation * _seat.SpineRotation).eulerAngles.y;
             }
+            if (BasisDeviceManagement.Instance.FindDevice(out BasisInput Input, TransformBinders.BoneControl.BasisBoneTrackedRole.CenterEye))
+            {
+                Vector3 Offset = -Input.ScaledDeviceCoord.position;
+                Offset.y = 0;
+                BasisInput.OffsetCoords = new Common.BasisCalibratedCoords(Offset, Quaternion.identity);
+            }
             // Disable character movement and add a movement lock so other systems respect being seated.
             BasisLocalVirtualSpineDriver.HipsFreezeToTpose = true;
             LocalPlayer.LocalCharacterDriver.IsEnabled = false;
@@ -135,6 +143,7 @@ namespace Basis.Scripts.Drivers
             LocalPlayer.LocalCharacterDriver.MovementLock.Remove(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.CrouchingLock.Remove(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.IsEnabled = true;
+            BasisInput.OffsetCoords = new Common.BasisCalibratedCoords(Vector3.zero,Quaternion.identity);
             _setAllOverrideUsages(false);
             if (BasisDesktopEye.Instance != null)
             {
@@ -289,8 +298,10 @@ namespace Basis.Scripts.Drivers
             Quaternion playerRot = hipsWorldRot * Quaternion.Inverse(BasisLocalBoneDriver.HipsControl.TposeLocalScaled.rotation);
             Vector3 playerPelvisLocalPos = 0.5f * (BasisLocalBoneDriver.LeftUpperLegControl.TposeLocalScaled.position + BasisLocalBoneDriver.RightUpperLegControl.TposeLocalScaled.position);
             Vector3 playerPos = pelvisWorldPos - playerRot * playerPelvisLocalPos;
+
+           
             LocalPlayer.transform.SetPositionAndRotation(playerPos, playerRot);
-            LocalPlayer.AvatarTransform.SetPositionAndRotation(playerPos, playerRot);
+           //dont need todo this LocalPlayer.AvatarTransform.SetPositionAndRotation(playerPos, playerRot);
             LocalPlayer.LocalAnimatorDriver.HandleTeleport();
             // Despite the above comment, we do ALSO need to set the hips override to prevent it from rotating.
             LocalPlayer.LocalRigDriver.SetOverrideData(HumanBodyBones.Hips, pelvisWorldPos, hipsWorldRot);

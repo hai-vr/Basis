@@ -64,7 +64,7 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
 
             // Normalize to player default scale and restore (keeps internal math consistent)
             ScaledDeviceCoord.position /= SPTDS;
-            ScaledDeviceCoord.position = ScaledDeviceCoord.position * SPTDS;
+            ScaledDeviceCoord.position = OffsetCoords.position + (ScaledDeviceCoord.position * SPTDS);
             ScaledDeviceCoord.rotation = LocalRawRotation;
 
             if (hasRoleAssigned)
