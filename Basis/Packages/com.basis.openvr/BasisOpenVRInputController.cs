@@ -200,6 +200,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 Vector3 posOffsetWorld = UnscaledDeviceCoord.rotation * (posOffsetLocal * avatarScale);
                 wristWorldPos += posOffsetWorld;
             }
+            wristWorldPos += OffsetCoords.position;
 
             // Push results
             ScaledDeviceCoord.position = wristWorldPos;

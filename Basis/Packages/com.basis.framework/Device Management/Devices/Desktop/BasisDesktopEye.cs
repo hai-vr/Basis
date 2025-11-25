@@ -4,8 +4,6 @@ using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
-using UnityEngine.InputSystem;
-
 namespace Basis.Scripts.Device_Management.Devices.Desktop
 {
     /// <summary>
@@ -257,11 +255,13 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             Vector3 rotatedEyeOffset = targetRot * neutralEyeFromHead;
             Vector3 eyeWorld = tposeHeadWorld + rotatedEyeOffset;
 
+            eyeWorld.x = X;
+            eyeWorld.z = Z;
             // Output transforms
             ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, eyeWorld);
             UnscaledDeviceCoord.rotation = targetRot;
 
-            ScaledDeviceCoord.position = UnscaledDeviceCoord.position;
+            ScaledDeviceCoord.position = OffsetCoords.position + UnscaledDeviceCoord.position;
             ScaledDeviceCoord.rotation = UnscaledDeviceCoord.rotation;
 
             ControlOnlyAsDevice();

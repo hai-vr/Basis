@@ -163,16 +163,14 @@ public class BasisOpenXRHandInput : BasisInputController
                     {
                         UpdateHandPose(subsystem.leftHand, BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, out HandRaw.position, out HandRaw.rotation);
                         HandFinal.rotation = HandleHandFinalRotation(HandRaw.rotation);
-
-
-                        HandFinal.position = ChangeHandYHeight(HandRaw.position) * avatarScale;
+                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * avatarScale);
                     }
                     else
                     {
                         HandRaw.position = PalmPoseActionPosition.action.ReadValue<Vector3>();
                         HandRaw.rotation = PalmPoseActionRotation.action.ReadValue<Quaternion>();
                         HandFinal.rotation = math.mul(HandRaw.rotation, Quaternion.Euler(LeftHandPalmCorrection));
-                        HandFinal.position = ChangeHandYHeight(HandRaw.position) * avatarScale;
+                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * avatarScale);
                         FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand);
                         if (UseIKPositionOffset)
                         {
@@ -185,14 +183,14 @@ public class BasisOpenXRHandInput : BasisInputController
                     {
                         UpdateHandPose(subsystem.rightHand, BasisLocalPlayer.Instance.LocalHandDriver.RightHand, out HandRaw.position, out HandRaw.rotation);
                         HandFinal.rotation = HandleHandFinalRotation(HandRaw.rotation);
-                        HandFinal.position = ChangeHandYHeight(HandRaw.position) * avatarScale;
+                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * avatarScale);
                     }
                     else
                     {
                         HandRaw.position = PalmPoseActionPosition.action.ReadValue<Vector3>();
                         HandRaw.rotation = PalmPoseActionRotation.action.ReadValue<Quaternion>();
                         HandFinal.rotation = math.mul(HandRaw.rotation, Quaternion.Euler(RightHandPalmCorrection));
-                        HandFinal.position = ChangeHandYHeight(HandRaw.position) * avatarScale;
+                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * avatarScale);
                         FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.RightHand);
                         if (UseIKPositionOffset)
                         {

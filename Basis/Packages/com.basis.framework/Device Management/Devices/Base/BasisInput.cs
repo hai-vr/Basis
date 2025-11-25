@@ -622,13 +622,13 @@ namespace Basis.Scripts.Device_Management.Devices
                 BasisVisualTracker.Initialization(this);
             }
         }
-
+        public static BasisCalibratedCoords OffsetCoords = new BasisCalibratedCoords();
         /// <summary>
         /// Applies player scale to <see cref="UnscaledDeviceCoord"/> to produce <see cref="ScaledDeviceCoord"/>.
         /// </summary>
         public void ConvertToScaledDeviceCoord()
         {
-            ScaledDeviceCoord.position = UnscaledDeviceCoord.position * BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
+            ScaledDeviceCoord.position = OffsetCoords.position + (UnscaledDeviceCoord.position * BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
             ScaledDeviceCoord.rotation = UnscaledDeviceCoord.rotation;
         }
 
