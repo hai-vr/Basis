@@ -130,11 +130,13 @@ public class BasisTransmissionResults
         AvatarRange.CopyTo(PrevInAvatarRange);
         IndexToPlayerId.CopyTo(LastIndexToPlayerId);
 
-        AnyIdOrderOrLengthChanged = distanceJob.AnyIdOrderOrLengthChanged;
-        AnyMicrophoneRangeChanged = distanceJob.AnyMicrophoneRangeChanged;
-        AnyAvatarRangeChanged = distanceJob.AnyAvatarRangeChanged;
-        AnyHearingRangeChanged = distanceJob.AnyHearingRangeChanged;
-        SmallestDistanceToAnotherPlayer = distanceJob.outMin;
+        /// AnyMicrophoneRangeChanged AnyHearingRangeChanged AnyAvatarRangeChanged AnyIdOrderOrLengthChanged;
+        AnyMicrophoneRangeChanged = distanceJob.AnyChangedArray[0];
+        AnyHearingRangeChanged = distanceJob.AnyChangedArray[1];
+        AnyAvatarRangeChanged = distanceJob.AnyChangedArray[2];
+        AnyIdOrderOrLengthChanged = distanceJob.AnyChangedArray[3];
+
+        SmallestDistanceToAnotherPlayer = distanceJob.SMD[0];
         //update the server with who we are talking to
         if (AnyIdOrderOrLengthChanged || AnyMicrophoneRangeChanged)
         {
@@ -257,6 +259,9 @@ public class BasisTransmissionResults
         IndexToPlayerId = new NativeArray<ushort>(receiverCount, Allocator.Persistent);
         LastIndexToPlayerId = new NativeArray<ushort>(receiverCount, Allocator.Persistent);
 
+        distanceJob.AnyChangedArray = new NativeArray<bool>(4, Allocator.Persistent);
+        distanceJob.SMD = new NativeArray<float>(1, Allocator.Persistent);
+
         distanceJob.distanceSq = distanceSq;
         distanceJob.MicrophoneRange = MicrophoneRange;
         distanceJob.hearingRange = hearingRange;
@@ -288,6 +293,9 @@ public class BasisTransmissionResults
         if (PrevInAvatarRange.IsCreated) PrevInAvatarRange.Dispose();
         if (LastIndexToPlayerId.IsCreated) LastIndexToPlayerId.Dispose();
         if (IndexToPlayerId.IsCreated) IndexToPlayerId.Dispose();
+
+        if(distanceJob.AnyChangedArray.IsCreated) distanceJob.AnyChangedArray.Dispose();
+        if (distanceJob.SMD.IsCreated) distanceJob.SMD.Dispose();
     }
     [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Standard)]
     public struct BasisDistanceJob : IJob
@@ -313,30 +321,21 @@ public class BasisTransmissionResults
         [WriteOnly] public NativeArray<bool> hearingRange;
         [WriteOnly] public NativeArray<bool> AvatarRange;
 
-        public bool AnyMicrophoneRangeChanged;
-        public bool AnyHearingRangeChanged;
-        public bool AnyAvatarRangeChanged;
-        public bool AnyIdOrderOrLengthChanged;
-        public float outMin;
-        [BurstCompile]
-        private static bool Hysteresis(bool wasInside, float d2, float thr2, float margin)
-        {
-            margin = math.clamp(margin, 0f, 0.49f);
-            float insideFactor = 1f + margin;
-            float outsideFactor = 1f - margin;
-            float factor = math.select(outsideFactor, insideFactor, wasInside);
-            return d2 < thr2 * factor;
-        }
+        /// <summary>
+        /// AnyMicrophoneRangeChanged AnyHearingRangeChanged AnyAvatarRangeChanged AnyIdOrderOrLengthChanged;
+        /// </summary>
+        [WriteOnly] public NativeArray<bool> AnyChangedArray;
+        [WriteOnly] public NativeArray<float> SMD;
         public void Execute()
         {
             float3 refPos = referencePosition;
             float SmallestDistance = float.PositiveInfinity;
             int length = targetPositions.Length;
 
-            AnyMicrophoneRangeChanged = false;
-            AnyHearingRangeChanged = false;
-            AnyAvatarRangeChanged = false;
-            AnyIdOrderOrLengthChanged = false;
+           bool AnyMicrophoneRangeChanged = false;
+            bool AnyHearingRangeChanged = false;
+            bool AnyAvatarRangeChanged = false;
+            bool AnyIdOrderOrLengthChanged = false;
 
             for (int Index = 0; Index < length; Index++)
             {
@@ -371,7 +370,12 @@ public class BasisTransmissionResults
                 SmallestDistance = math.min(SmallestDistance, d2);
             }
 
-            outMin = SmallestDistance;
+            AnyChangedArray[0] = AnyMicrophoneRangeChanged;
+            AnyChangedArray[1] = AnyHearingRangeChanged;
+            AnyChangedArray[2] = AnyAvatarRangeChanged;
+            AnyChangedArray[3] = AnyIdOrderOrLengthChanged;
+
+            SMD[0] = SmallestDistance;
             int lenNow = IndexToPlayerId.Length;
             int lenPrev = LastIndexToPlayerId.Length;
             if (lenNow != lenPrev)
@@ -389,6 +393,15 @@ public class BasisTransmissionResults
                     break;
                 }
             }
+        }
+        [BurstCompile]
+        private static bool Hysteresis(bool wasInside, float d2, float thr2, float margin)
+        {
+            margin = math.clamp(margin, 0f, 0.49f);
+            float insideFactor = 1f + margin;
+            float outsideFactor = 1f - margin;
+            float factor = math.select(outsideFactor, insideFactor, wasInside);
+            return d2 < thr2 * factor;
         }
     }
 }
