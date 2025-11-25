@@ -15,7 +15,7 @@ public class BasisLoadableConfigurationWindow : EditorWindow
     string combinedURL = "";
     bool isLocalLoad = false;
 
-    Vector3 position = new Vector3(0, 0f, 0);
+    Vector3 Selectedposition = new Vector3(0, 0f, 0);
     Quaternion rotation = new Quaternion(0f, 0f, 0f, 0);
     Vector3 scale = Vector3.one;
 
@@ -47,7 +47,7 @@ public class BasisLoadableConfigurationWindow : EditorWindow
         using (new EditorGUILayout.VerticalScope("box"))
         {
             EditorGUILayout.LabelField("Transform", EditorStyles.boldLabel);
-            position = EditorGUILayout.Vector3Field("Position (X,Y,Z)", position);
+            Selectedposition = EditorGUILayout.Vector3Field("Position (X,Y,Z)", Selectedposition);
 
             // Quaternion fields (explicit)
             var qx = rotation.x; var qy = rotation.y; var qz = rotation.z; var qw = rotation.w;
@@ -112,9 +112,9 @@ public class BasisLoadableConfigurationWindow : EditorWindow
 
                         new XText("\n\n    "),
                         new XComment(" Position values "),
-                        new XElement("PositionX", position.x.ToString(inv)),
-                        new XElement("PositionY", position.y.ToString(inv)),
-                        new XElement("PositionZ", position.z.ToString(inv)),
+                        new XElement("PositionX", Selectedposition.x.ToString(inv)),
+                        new XElement("PositionY", Selectedposition.y.ToString(inv)),
+                        new XElement("PositionZ", Selectedposition.z.ToString(inv)),
 
                         new XText("\n\n    "),
                         new XComment(" Quaternion values "),
@@ -193,10 +193,10 @@ public class BasisLoadableConfigurationWindow : EditorWindow
             combinedURL = TryString("CombinedURL", combinedURL);
             isLocalLoad = TryBool("IsLocalLoad", false);
 
-            position = new Vector3(
-                TryFloat("PositionX", position.x),
-                TryFloat("PositionY", position.y),
-                TryFloat("PositionZ", position.z)
+            Selectedposition = new Vector3(
+                TryFloat("PositionX", Selectedposition.x),
+                TryFloat("PositionY", Selectedposition.y),
+                TryFloat("PositionZ", Selectedposition.z)
             );
 
             rotation = new Quaternion(

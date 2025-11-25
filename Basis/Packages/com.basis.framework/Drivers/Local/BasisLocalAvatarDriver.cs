@@ -296,7 +296,7 @@ namespace Basis.Scripts.Drivers
             }
             else
             {
-                return BasisLocalHeight.FallbackSize;
+                return BasisLocalHeight.FallbackSizeInMeters;
             }
         }
 

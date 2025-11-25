@@ -172,7 +172,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
         {
             BasisDebug.Log("Initializing Avatar Eye", BasisDebug.LogTag.Input);
 
-            float height = BasisLocalPlayer.Instance?.CurrentHeight.SelectedPlayerHeight ?? BasisLocalHeight.FallbackSize;
+            float height = BasisLocalPlayer.Instance?.CurrentHeight.SelectedPlayerHeight ?? BasisLocalHeight.FallbackSizeInMeters;
 
             ScaledDeviceCoord.position = new Vector3(0, height, 0);
             ScaledDeviceCoord.rotation = Quaternion.identity;

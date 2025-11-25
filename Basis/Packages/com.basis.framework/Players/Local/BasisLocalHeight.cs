@@ -30,57 +30,57 @@ namespace Basis.Scripts.BasisSdk.Players
         /// Fallback height (meters) used when no measurement is available.
         /// not the total height but the eye height
         /// </summary>
-        public const float FallbackSize = 1.61f;
+        public const float FallbackSizeInMeters = 1.61f;
 
         /// <summary>
         /// Default measured eye height for the player (meters).
         /// </summary>
-        public static float DefaultPlayerEyeHeight = FallbackSize;
+        public static float DefaultPlayerEyeHeight = FallbackSizeInMeters;
 
         /// <summary>
         /// Default measured eye height for the avatar (meters).
         /// </summary>
-        public static float DefaultAvatarEyeHeight = FallbackSize;
+        public static float DefaultAvatarEyeHeight = FallbackSizeInMeters;
 
         /// <summary>
         /// Default measured arm span for the player (meters).
         /// </summary>
-        public static float DefaultPlayerArmSpan = FallbackSize;
+        public static float DefaultPlayerArmSpan = FallbackSizeInMeters;
 
         /// <summary>
         /// Default measured arm span for the avatar (meters).
         /// </summary>
-        public static float DefaultAvatarArmSpan = FallbackSize;
+        public static float DefaultAvatarArmSpan = FallbackSizeInMeters;
 
         /// <summary>
         /// Measured eye height for the player (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
         /// </summary>
-        public float PlayerEyeHeight = FallbackSize;
+        public float PlayerEyeHeight = FallbackSizeInMeters;
 
         /// <summary>
         /// Measured eye height for the avatar (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
         /// </summary>
-        public float AvatarEyeHeight = FallbackSize;
+        public float AvatarEyeHeight = FallbackSizeInMeters;
 
         /// <summary>
         /// Measured arm span for the player (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
         /// </summary>
-        public float PlayerArmSpan = FallbackSize;
+        public float PlayerArmSpan = FallbackSizeInMeters;
 
         /// <summary>
         /// Measured arm span for the avatar (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
         /// </summary>
-        public float AvatarArmSpan = FallbackSize;
+        public float AvatarArmSpan = FallbackSizeInMeters;
 
         /// <summary>
         /// Custom player eye height (meters) supplied by user or calibration UI.
         /// </summary>
-        public float CustomPlayerEyeHeight = FallbackSize;
+        public float CustomPlayerEyeHeight = FallbackSizeInMeters;
 
         /// <summary>
         /// Custom avatar eye height (meters) supplied by user or calibration UI.
         /// </summary>
-        public float CustomAvatarEyeHeight = FallbackSize;
+        public float CustomAvatarEyeHeight = FallbackSizeInMeters;
 
         /// <summary>
         /// Ratio mapping the player's measured eye height to a default reference scale.
@@ -105,12 +105,12 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// The player height (meters) currently selected by <see cref="PickHeightMode(BasisSelectedHeightMode)"/>.
         /// </summary>
-        private float selectedPlayerHeight = FallbackSize;
+        private float selectedPlayerHeight = FallbackSizeInMeters;
 
         /// <summary>
         /// The avatar height (meters) currently selected by <see cref="PickHeightMode(BasisSelectedHeightMode)"/>.
         /// </summary>
-        private float selectedAvatarHeight = FallbackSize;
+        private float selectedAvatarHeight = FallbackSizeInMeters;
 
         /// <summary>
         /// The player-to-default scale currently selected by <see cref="PickHeightMode(BasisSelectedHeightMode)"/>.
