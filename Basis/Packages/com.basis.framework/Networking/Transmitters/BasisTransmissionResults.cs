@@ -157,7 +157,7 @@ public class BasisTransmissionResults
             // Send to server
             VoiceReceiversMessage VoiceReceiversMessage = new VoiceReceiversMessage
             {
-                users = TalkingPoints.ToArray()
+                Users = TalkingPoints.ToArray()
             };
 
             AudioRecipientswriter.Reset();

@@ -4,16 +4,17 @@ public static partial class SerializableBasis
     public struct VoiceReceiversMessage
     {
         public ushort[] Users;
-
         public void Deserialize(NetDataReader reader)
         {
             int remainingBytes = reader.AvailableBytes;
-
+            if(remainingBytes == 0)
+            {
+                reader = null;
+            }
             // Optional sanity check: ensure whole ushorts
             if ((remainingBytes & (sizeof(ushort) - 1)) != 0)
             {
-                BNL.LogError($"VoiceReceiversMessage: remaining bytes ({remainingBytes}) " +
-                     "not a multiple of sizeof(ushort).");
+                BNL.LogError($"VoiceReceiversMessage: remaining bytes ({remainingBytes}) not a multiple of sizeof(ushort).");
             }
             else
             {
