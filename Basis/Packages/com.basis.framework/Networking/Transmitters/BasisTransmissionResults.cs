@@ -188,7 +188,8 @@ public class BasisTransmissionResults
 
         if (BasisAvatarRecorder.IsRecording)
         {
-            BasisAvatarRecorder.StoreData(intervalSeconds, avatar.Animator.bodyRotation, avatar.Animator.bodyPosition, BasisNetworkTransmitter.HumanPose.muscles, avatar.Animator.transform.localScale.y);
+            var Anim = avatar.Animator;
+            BasisAvatarRecorder.StoreData(intervalSeconds, Anim.bodyRotation, Anim.bodyPosition, BasisNetworkTransmitter.HumanPose.muscles, Anim.transform.localScale.y);
         }
         // account for overshoot using the interval that actually accumulated
         timer -= previousInterval;
@@ -332,7 +333,7 @@ public class BasisTransmissionResults
             float SmallestDistance = float.PositiveInfinity;
             int length = targetPositions.Length;
 
-           bool AnyMicrophoneRangeChanged = false;
+            bool AnyMicrophoneRangeChanged = false;
             bool AnyHearingRangeChanged = false;
             bool AnyAvatarRangeChanged = false;
             bool AnyIdOrderOrLengthChanged = false;
@@ -369,30 +370,29 @@ public class BasisTransmissionResults
                 }
                 SmallestDistance = math.min(SmallestDistance, d2);
             }
-
-            AnyChangedArray[0] = AnyMicrophoneRangeChanged;
-            AnyChangedArray[1] = AnyHearingRangeChanged;
-            AnyChangedArray[2] = AnyAvatarRangeChanged;
-            AnyChangedArray[3] = AnyIdOrderOrLengthChanged;
-
             SMD[0] = SmallestDistance;
             int lenNow = IndexToPlayerId.Length;
             int lenPrev = LastIndexToPlayerId.Length;
             if (lenNow != lenPrev)
             {
                 AnyIdOrderOrLengthChanged = true;
-                return;
             }
-
-            // Same length: check values one by one.
-            for (int Index = 0; Index < lenNow; Index++)
+            if (AnyIdOrderOrLengthChanged == false)
             {
-                if (IndexToPlayerId[Index] != LastIndexToPlayerId[Index])
+                // Same length: check values one by one.
+                for (int Index = 0; Index < lenNow; Index++)
                 {
-                    AnyIdOrderOrLengthChanged = true;
-                    break;
+                    if (IndexToPlayerId[Index] != LastIndexToPlayerId[Index])
+                    {
+                        AnyIdOrderOrLengthChanged = true;
+                        break;
+                    }
                 }
             }
+            AnyChangedArray[0] = AnyMicrophoneRangeChanged;
+            AnyChangedArray[1] = AnyHearingRangeChanged;
+            AnyChangedArray[2] = AnyAvatarRangeChanged;
+            AnyChangedArray[3] = AnyIdOrderOrLengthChanged;
         }
         [BurstCompile]
         private static bool Hysteresis(bool wasInside, float d2, float thr2, float margin)

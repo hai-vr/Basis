@@ -249,7 +249,7 @@ namespace Basis.Scripts.Networking.Receivers
 #endif
             if (audioSource == null)
             {
-                BasisDebug.LogWarning($"Avatar Changed no Audio Source was from calibration? {WasFromCalibration}", BasisDebug.LogTag.Voice);
+                //BasisDebug.LogWarning($"Avatar Changed no Audio Source was from calibration? {WasFromCalibration}", BasisDebug.LogTag.Voice);
                 return;
             }
             if (networkedPlayer == null)
