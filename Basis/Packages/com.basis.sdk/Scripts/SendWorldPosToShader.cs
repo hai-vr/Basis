@@ -9,7 +9,7 @@ public class SendWorldPosToUIShader :
     IPointerUpHandler,
     IPointerEnterHandler,
     IPointerExitHandler,
-    IPointerMoveHandler // you need this one for continuous movement
+    IPointerMoveHandler
 {
     private Material mat;
     private const string CursorPos = "_CursorPos";
