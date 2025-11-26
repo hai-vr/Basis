@@ -1,11 +1,8 @@
-using System;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.Device_Management.Devices;
 using UnityEngine;
-public class ExampleButtonInteractable : BasisInteractableObject
+public class BasisInteractableButton : BasisInteractableObject
 {
-    // public BasisObjectSyncNetworking syncNetworking;
-
     // events other scripts can subscribe to
     public delegate void ClickEvent();
 
@@ -85,7 +82,7 @@ public class ExampleButtonInteractable : BasisInteractableObject
     {
         if (!BasisInputWrapper.TryNewTracking(input, BasisInteractInputState.Hovering, out BasisInputWrapper wrapper))
         {
-            BasisDebug.LogWarning($"{nameof(ExampleButtonInteractable)}: Failed to setup input on hover");
+            BasisDebug.LogWarning($"{nameof(BasisInteractableButton)}: Failed to setup input on hover");
             return;
         }
         _InputSource = wrapper;
