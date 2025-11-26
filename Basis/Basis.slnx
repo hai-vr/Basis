@@ -2,6 +2,7 @@
   <Project Path="Unity.Timeline.csproj" />
   <Project Path="Unity.VisualEffectGraph.Editor.csproj" />
   <Project Path="Unity.RenderPipelines.GPUDriven.Runtime.csproj" />
+  <Project Path="Unity.InputSystem.csproj" />
   <Project Path="Unity.Services.Core.Internal.csproj" />
   <Project Path="Unity.XR.OpenVR.Editor.csproj" />
   <Project Path="Unity.ShaderGraph.Editor.csproj" />
@@ -29,7 +30,6 @@
   <Project Path="Unity.Services.Analytics.csproj" />
   <Project Path="BasisNetworkCore.csproj" />
   <Project Path="Unity.VisualStudio.Editor.csproj" />
-  <Project Path="Unity.InputSystem.csproj" />
   <Project Path="Unity.Animation.Rigging.Editor.csproj" />
   <Project Path="Basis Framework.csproj" />
   <Project Path="Unity.MemoryProfiler.Editor.csproj" />
@@ -121,7 +121,6 @@
   <Project Path="Unity.Toolchain.Win-x86_64-Linux-x86_64.csproj" />
   <Project Path="Unity.Services.Core.Device.csproj" />
   <Project Path="BasisSettings.csproj" />
-  <Project Path="Unity.Animation.Rigging.DocCodeExamples.csproj" />
   <Project Path="Unity.Services.Core.Analytics.csproj" />
   <Project Path="Unity.EditorCoroutines.Editor.csproj" />
   <Project Path="SteamAudioUnityEditor.csproj" />
@@ -144,6 +143,7 @@
   <Project Path="BasisProfiler.csproj" />
   <Project Path="Unity.XR.OpenXR.Features.OculusQuestSupport.Editor.csproj" />
   <Project Path="Unity.Services.Core.Registration.csproj" />
+  <Project Path="Unity.Animation.Rigging.DocCodeExamples.csproj" />
   <Project Path="Unity.SysrootPackage.Editor.csproj" />
   <Project Path="BasisConsoleDisplay.csproj" />
   <Project Path="UnityEngine.XR.LegacyInputHelpers.csproj" />
