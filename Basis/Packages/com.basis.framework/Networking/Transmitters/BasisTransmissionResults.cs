@@ -24,7 +24,7 @@ public class BasisTransmissionResults
 
     public int LastIndexLength = -1;
     public List<ushort> TalkingPoints = new List<ushort>(128);
-    public float intervalSeconds = 0.5f;
+    public float intervalSeconds = 0.05f;
     public float timer = 0f;
     public float SmallestDistanceToAnotherPlayer; // squared distance
     public float UnClampedInterval;
