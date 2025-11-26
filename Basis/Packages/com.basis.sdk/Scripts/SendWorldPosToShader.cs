@@ -1,35 +1,67 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
-[ExecuteAlways]
-public class SendWorldPosToUIShader : MonoBehaviour
+public class SendWorldPosToUIShader :
+    UIBehaviour,
+    IPointerClickHandler,
+    IPointerDownHandler,
+    IPointerUpHandler,
+    IPointerEnterHandler,
+    IPointerExitHandler,
+    IPointerMoveHandler // you need this one for continuous movement
 {
-    [Header("Object whose world position we want to send")]
-    public Transform sourceObject;
-
-    [Header("UI element with the shader material")]
-    public Graphic targetUI;   // Image, RawImage, etc.
-
-    private Material _runtimeMaterial;
-
-    void OnEnable()
+    private Material mat;
+    private const string CursorPos = "_CursorPos";
+    private RectTransform RectTransform;
+    public Graphic targetGraphic;
+    protected override void Awake()
     {
-        if (targetUI != null)
+        if (TryGetComponent<Graphic>(out targetGraphic))
         {
-            // Ensure UI material is instanced (required for edit mode)
-            _runtimeMaterial = targetUI.material;
+            mat = targetGraphic.material;
         }
+        if (TryGetComponent<RectTransform>(out RectTransform))
+        {
+
+        }
+        base.Awake();
     }
 
-    void Update()
+    public void OnPointerMove(PointerEventData eventData)
     {
-        if (sourceObject == null || targetUI == null)
-            return;
+        UpdateShader(eventData);
+    }
 
-        // In edit mode, Unity may recreate materials frequently.
-        if (!Application.isPlaying)
-            _runtimeMaterial = targetUI.material;
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        UpdateShader(eventData);
+    }
 
-        _runtimeMaterial.SetVector("_CursorPos", sourceObject.position);
+    public void OnPointerDown(PointerEventData eventData)
+    {
+        UpdateShader(eventData);
+    }
+
+    public void OnPointerUp(PointerEventData eventData)
+    {
+        UpdateShader(eventData);
+    }
+
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        UpdateShader(eventData);
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        UpdateShader(eventData);
+    }
+    private void UpdateShader(PointerEventData eventData)
+    {
+        if (RectTransformUtility.ScreenPointToWorldPointInRectangle(RectTransform, eventData.position, eventData.pressEventCamera, out Vector3 worldPos))
+        {
+            mat.SetVector(CursorPos, worldPos);
+        }
     }
 }
