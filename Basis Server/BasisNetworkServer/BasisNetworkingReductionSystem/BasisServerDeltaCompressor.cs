@@ -67,7 +67,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     }
                 }
             }
-            int fullCost = AvatarSize;
+            int fullCost = LocalAvatarSyncMessage.AvatarSyncSize;
             int deltaCost = 1 + changeCount * 2; // count + (index,value) * N
 
             // If no changes, or delta isn't cheaper, send full
