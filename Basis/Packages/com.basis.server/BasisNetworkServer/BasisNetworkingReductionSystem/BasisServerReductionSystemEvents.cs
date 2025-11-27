@@ -176,7 +176,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                 for (int Index = 0; Index < PlayerCount; Index++)
                 {
-                    var playerJ = _threadLocalActivePlayers[Index];
+                    (int id, PlayerState state) playerJ = _threadLocalActivePlayers[Index];
                     if (playerI.id == playerJ.id)
                     {
                         continue;
@@ -206,13 +206,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     if (canSend && hasNewData && elapsed >= required)
                     {
                         stateI.HasNewDataFrom.Set(playerJ.id, false);
-                        var tempMsg = stateJ.SyncMessage;
+                        ServerSideSyncPlayerMessage tempMsg = stateJ.SyncMessage;
                         tempMsg.interval = StartAtZeroInterval;
-                        NetDataWriter Writer = RentWriter();
-                        tempMsg.Serialize(Writer);
-                        peer.Send(Writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
-                        BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.PlayerAvatarChannel, Writer.Length);
-                        ReturnWriter(Writer);
+                        BasisServerDeltaCompressor.SendOut(Index,peer, tempMsg);
+
+
                         sentTimes[playerJ.id] = nowTicks;
                     }
                 }
