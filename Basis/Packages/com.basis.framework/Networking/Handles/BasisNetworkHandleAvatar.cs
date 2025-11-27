@@ -1,10 +1,11 @@
 using Basis.Scripts.Networking;
-using Basis.Scripts.Networking.Receivers;
-using LiteNetLib;
-using static SerializableBasis;
 using Basis.Scripts.Networking.NetworkedAvatar;
-using System.Collections.Concurrent;
+using Basis.Scripts.Networking.Receivers;
+using Basis.Scripts.Profiler;
+using LiteNetLib;
 using System;
+using System.Collections.Concurrent;
+using static SerializableBasis;
 public static class BasisNetworkHandleAvatar
 {
     public static ConcurrentQueue<ServerSideSyncPlayerMessage> Message = new ConcurrentQueue<ServerSideSyncPlayerMessage>();
@@ -27,6 +28,7 @@ public static class BasisNetworkHandleAvatar
     }
     private static void HandleFullAvatarUpdate(NetPacketReader reader)
     {
+        BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, reader.AvailableBytes);
         if (Message.TryDequeue(out ServerSideSyncPlayerMessage ssm) == false)
         {
             ssm = new ServerSideSyncPlayerMessage();
@@ -60,6 +62,8 @@ public static class BasisNetworkHandleAvatar
     }
     private static void HandleDeltaAvatarUpdate(NetPacketReader reader)
     {
+        // Add to profiler
+        BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, reader.AvailableBytes);
         // 1) PlayerIdMessage
         PlayerIdMessage playerIdMsg = new PlayerIdMessage();
         playerIdMsg.Deserialize(reader);

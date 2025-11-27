@@ -303,7 +303,10 @@ namespace BasisServerHandle
 
         public static void SendVoiceMessageToClients(ServerAudioSegmentMessage audioSegment, byte channel, NetPeer sender, DeliveryMethod method)
         {
-            if(BasisSavedState.GetLastVoiceReceivers(sender, out VoiceReceiversMessage receivers))
+            if (BasisSavedState.GetLastVoiceReceivers(sender, out VoiceReceiversMessage receivers))
+            {
+            }
+            else
             {
                 BNL.Log($"[VoiceMessage] No receivers found for sender {sender.Id}.");
             }
