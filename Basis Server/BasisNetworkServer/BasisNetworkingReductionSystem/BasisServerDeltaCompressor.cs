@@ -15,6 +15,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         // Reuse arrays via shared pool
         private static readonly ArrayPool<byte> BytePool = ArrayPool<byte>.Shared;
+        public static ConcurrentDictionary<int, DeltaData> DeltaStorage = new ConcurrentDictionary<int, DeltaData>();
 
         public class DeltaData
         {
@@ -28,21 +29,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             public bool HasBaseline;
         }
 
-        public static ConcurrentDictionary<int, DeltaData> DeltaStorage = new ConcurrentDictionary<int, DeltaData>();
-
         public static void SendOut(int index, NetPeer peer, ServerSideSyncPlayerMessage tempMsg)
         {
             var data = DeltaStorage.GetOrAdd(index, _ => RentDeltaData());
 
             var avatar = tempMsg.avatarSerialization.array;
-            if (avatar == null || avatar.Length != AvatarSize)
-            {
-                // Invalid data → fallback
-                SendOutFull(peer, tempMsg);
-                data.HasBaseline = false;
-                return;
-            }
-
             if (!data.HasBaseline || data.Baseline == null || data.Baseline.Length < AvatarSize)
             {
                 // First time: store baseline and send full
