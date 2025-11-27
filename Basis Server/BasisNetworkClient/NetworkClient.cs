@@ -1,6 +1,5 @@
 using Basis.Network.Core;
-using LiteNetLib;
-using LiteNetLib.Utils;
+
 using static Basis.Network.Core.Serializable.SerializableBasis;
 using static SerializableBasis;
 public class NetworkClient
@@ -20,23 +19,7 @@ public class NetworkClient
         if (IsInUse == false)
         {
             listener = new EventBasedNetListener();
-            client = new NetManager(listener)
-            {
-                AutoRecycle = false,
-                UnconnectedMessagesEnabled = false,
-                NatPunchEnabled = true,
-                AllowPeerAddressChange = true,
-                BroadcastReceiveEnabled = false,
-                UseNativeSockets = UseNativeSockets,//unity does not work with this
-                ChannelsCount = BasisNetworkCommons.TotalChannels,
-                EnableStatistics = true,
-                UpdateTime = BasisNetworkCommons.NetworkIntervalPoll,
-                PingInterval = BasisNetworkCommons.PingInterval,
-                UnsyncedEvents = true,
-                ReceivePollingTime = BasisNetworkCommons.ReceivePollingTime,
-                PacketPoolSize = BasisNetworkCommons.PacketPoolSize,
-
-            };
+            client = new LNLNetManager(listener, UseNativeSockets);
             client.Start();
             NetDataWriter Writer = new NetDataWriter(true,12);
             //this is the only time we dont put key!
