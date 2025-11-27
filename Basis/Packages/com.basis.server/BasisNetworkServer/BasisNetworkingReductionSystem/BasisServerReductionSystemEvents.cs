@@ -1,6 +1,5 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
-using BasisNetworkServer.BasisNetworking;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
@@ -151,6 +150,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 {
                     BNL.LogError("Missing Player From Index this is scary! " + id);
                 }
+                BasisServerDeltaCompressor.ReleaseDeltaData(id);
             }
         }
         private static void UpdateCommunicationAndDistances(long nowTicks)
@@ -170,8 +170,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 var stateI = playerI.state;
                 var peer = stateI.Peer;
 
-                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) < 10;
-
+                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) < 350 && peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.ReliableOrdered) < 1024;
                 var sentTimes = stateI.LastSentTimes;
 
                 for (int Index = 0; Index < PlayerCount; Index++)

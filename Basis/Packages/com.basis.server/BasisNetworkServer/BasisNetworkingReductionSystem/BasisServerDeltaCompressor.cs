@@ -3,6 +3,7 @@ using BasisNetworkServer.BasisNetworking;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using static SerializableBasis;
 
@@ -10,98 +11,104 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 {
     public static class BasisServerDeltaCompressor
     {
+        private const int AvatarSize = LocalAvatarSyncMessage.AvatarSyncSize;
+
+        // Reuse arrays via shared pool
+        private static readonly ArrayPool<byte> BytePool = ArrayPool<byte>.Shared;
+        public static ConcurrentDictionary<int, DeltaData> DeltaStorage = new ConcurrentDictionary<int, DeltaData>();
+
         public class DeltaData
         {
-            public ServerSideSyncPlayerMessage LastSyncMessage; // if you still want it
-            public byte[] LastAvatarArray;    // 176-byte baseline (LocalAvatarSyncMessage.array)
+            // 176-byte baseline buffer (rented once, reused)
+            public byte[] Baseline;
+
+            // Scratch buffers for indices/values (also rented, reused)
+            public byte[] Indices;
+            public byte[] Values;
+
             public bool HasBaseline;
         }
 
-        // key: index (or you can swap to playerIdMessage.playerID if you prefer)
-        public static ConcurrentDictionary<int, DeltaData> DeltaStorage = new ConcurrentDictionary<int, DeltaData>();
-
-        /// <summary>
-        /// Entry point: choose full vs delta and send.
-        /// </summary>
         public static void SendOut(int index, NetPeer peer, ServerSideSyncPlayerMessage tempMsg)
         {
-            var data = DeltaStorage.GetOrAdd(index, _ => new DeltaData());
+            var data = DeltaStorage.GetOrAdd(index, _ => RentDeltaData());
 
-            // Sanity: avatar array must exist and have correct length
             var avatar = tempMsg.avatarSerialization.array;
-            if (avatar == null || avatar.Length != LocalAvatarSyncMessage.AvatarSyncSize)
+            if (!data.HasBaseline || data.Baseline == null || data.Baseline.Length < AvatarSize)
             {
-                // Fallback: just send full as before, no delta.
-                SendOutFull(peer, tempMsg);
-                data.HasBaseline = false;
-                data.LastSyncMessage = tempMsg;
-                return;
-            }
-
-            if (!data.HasBaseline || data.LastAvatarArray == null || data.LastAvatarArray.Length != LocalAvatarSyncMessage.AvatarSyncSize)
-            {
-                // No baseline yet: send full and store baseline
-                SendOutFull(peer, tempMsg);
-                data.LastAvatarArray = (byte[])avatar.Clone();
+                // First time: store baseline and send full
+                Buffer.BlockCopy(avatar, 0, data.Baseline, 0, AvatarSize);
                 data.HasBaseline = true;
-                data.LastSyncMessage = tempMsg;
+
+                SendOutFull(peer, tempMsg);
                 return;
             }
 
-            // Compute delta vs baseline
-            byte[] baseline = data.LastAvatarArray;
-            int length = LocalAvatarSyncMessage.AvatarSyncSize;
+            byte[] baseline = data.Baseline;
+            byte[] indices = data.Indices;
+            byte[] values = data.Values;
 
-            // Max changes = 176, and index fits into a byte (0–255)
-            byte[] changedIndices = new byte[length];
-            byte[] changedValues = new byte[length];
             int changeCount = 0;
 
-            for (int Index = 0; Index < length; Index++)
+            // Single pass: compute changes
+            for (int Index = 0; Index < AvatarSize; Index++)
             {
-                if (avatar[Index] != baseline[Index])
+                byte newVal = avatar[Index];
+                if (newVal != baseline[Index])
                 {
-                    changedIndices[changeCount] = (byte)Index;
-                    changedValues[changeCount] = avatar[Index];
+                    indices[changeCount] = (byte)Index;
+                    values[changeCount] = newVal;
                     changeCount++;
                 }
             }
 
-            // Cost model:
-            // Full array cost = 176 bytes
-            // Delta array cost = 1 (changeCount) + changeCount * 2
-            // We only consider array; rest of the message is same in both cases.
-            int fullArrayCost = length;
-            int deltaArrayCost = 1 + changeCount * 2;
+            int fullCost = AvatarSize;
+            int deltaCost = 1 + changeCount * 2; // count + (index,value) * N
 
-            // Heuristic: if no changes or delta isn't a clear win, send full.
-            // You can tweak threshold if you like.
-            if (changeCount == 0 || deltaArrayCost >= fullArrayCost)
+            // If no changes, or delta isn't cheaper, send full
+            if (changeCount == 0 || deltaCost >= fullCost)
             {
                 SendOutFull(peer, tempMsg);
-                // update baseline to the full array we just sent
-                Buffer.BlockCopy(avatar, 0, baseline, 0, length);
-                data.LastSyncMessage = tempMsg;
+
+                // Refresh baseline from incoming data
+                Buffer.BlockCopy(avatar, 0, baseline, 0, AvatarSize);
                 return;
             }
 
-            // Send delta frame
-            SendOutDelta(peer, tempMsg, changeCount, changedIndices, changedValues);
+            // Send delta
+            SendOutDelta(peer, tempMsg, changeCount, indices, values);
 
-            // Update baseline to new avatar bytes (now "last known good")
-            Buffer.BlockCopy(avatar, 0, baseline, 0, length);
-            data.LastSyncMessage = tempMsg;
+            // Update baseline → now matches what client will reconstruct
+            Buffer.BlockCopy(avatar, 0, baseline, 0, AvatarSize);
         }
 
-        /// <summary>
-        /// Old full-frame path, but with a no header for delta just ReliableOrdered.
-        /// frameType = 0 => full ServerSideSyncPlayerMessage.
-        /// </summary>
+        private static DeltaData RentDeltaData()
+        {
+            // We rent arrays slightly >= AvatarSize, no problem as long as we never write past AvatarSize
+            return new DeltaData
+            {
+                Baseline = BytePool.Rent(AvatarSize),
+                Indices = BytePool.Rent(AvatarSize),
+                Values = BytePool.Rent(AvatarSize),
+                HasBaseline = false
+            };
+        }
+
+        // Call this when a player disconnects so you don’t leak pooled buffers forever
+        public static void ReleaseDeltaData(int index)
+        {
+            if (DeltaStorage.TryRemove(index, out var data))
+            {
+                if (data.Baseline != null) BytePool.Return(data.Baseline);
+                if (data.Indices != null) BytePool.Return(data.Indices);
+                if (data.Values != null) BytePool.Return(data.Values);
+            }
+        }
+
         private static void SendOutFull(NetPeer peer, ServerSideSyncPlayerMessage msg)
         {
             NetDataWriter writer = BasisServerReductionSystemEvents.RentWriter();
 
-            // Normal serialization
             msg.Serialize(writer);
 
             peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.ReliableOrdered);
@@ -109,11 +116,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             BasisServerReductionSystemEvents.ReturnWriter(writer);
         }
 
-        /// <summary>
-        /// Send a delta frame for the 176-byte avatar array.
-        /// We still send PlayerId + interval + AdditionalAvatarData in a "full" way.
-        /// </summary>
-        private static void SendOutDelta(NetPeer peer, ServerSideSyncPlayerMessage msg, int changeCount, byte[] changedIndices, byte[] changedValues)
+        private static void SendOutDelta(NetPeer peer,ServerSideSyncPlayerMessage msg,int changeCount,byte[] changedIndices,byte[] changedValues)
         {
             NetDataWriter writer = BasisServerReductionSystemEvents.RentWriter();
 
@@ -123,15 +126,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // 2) interval
             writer.Put(msg.interval);
 
-            // 3) delta for avatarSerialization.array (176 bytes)
-            writer.Put((byte)changeCount); // changeCount fits in byte (max 176)
-            for (int Index = 0; Index < changeCount; Index++)
+            // 3) delta header + entries
+            writer.Put((byte)changeCount);
+
+            for (int i = 0; i < changeCount; i++)
             {
-                writer.Put(changedIndices[Index]); // index in [0..175]
-                writer.Put(changedValues[Index]);  // value
+                writer.Put(changedIndices[i]);
+                writer.Put(changedValues[i]);
             }
 
-            // 4) AdditionalAvatarData section (same logic as LocalAvatarSyncMessage.Serialize minus array)
+            // 4) AdditionalAvatarData (unchanged from your version)
             LocalAvatarSyncMessage lav = msg.avatarSerialization;
 
             if (lav.AdditionalAvatarDatas == null || lav.AdditionalAvatarDatas.Length == 0 || lav.AdditionalAvatarDatas.Length > 256)
@@ -148,13 +152,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     writer.Put(lav.LinkedAvatarIndex);
                 }
 
-                for (int Index = 0; Index < additionalSize; Index++)
+                for (int i = 0; i < additionalSize; i++)
                 {
-                    AdditionalAvatarData aad = lav.AdditionalAvatarDatas[Index];
-                    aad.Serialize(writer);
+                    lav.AdditionalAvatarDatas[i].Serialize(writer);
                 }
             }
-         //   BNL.Log($"Delta Is {writer.Length}");
+
             peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
             BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.PlayerAvatarChannel, writer.Length);
             BasisServerReductionSystemEvents.ReturnWriter(writer);
