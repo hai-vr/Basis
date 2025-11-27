@@ -111,7 +111,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             msg.Serialize(writer);
 
-            peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.ReliableOrdered);
+            peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.ReliableSequenced);
             BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.PlayerAvatarChannel, writer.Length);
             BasisServerReductionSystemEvents.ReturnWriter(writer);
         }

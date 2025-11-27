@@ -15,7 +15,7 @@ public static class BasisNetworkHandleAvatar
 
     public static void HandleAvatarUpdate(NetPacketReader reader, LiteNetLib.DeliveryMethod deliveryMethod)
     {
-        if (deliveryMethod == DeliveryMethod.ReliableOrdered)
+        if (deliveryMethod == DeliveryMethod.ReliableSequenced)
         {
             // This is your full frame – treat it as the canonical baseline.
             HandleFullAvatarUpdate(reader);

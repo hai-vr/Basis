@@ -170,7 +170,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 var stateI = playerI.state;
                 var peer = stateI.Peer;
 
-                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) < 350 && peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.ReliableOrdered) < 1024;
+                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) < 1024 && peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.ReliableSequenced) < 1024;
                 var sentTimes = stateI.LastSentTimes;
 
                 for (int Index = 0; Index < PlayerCount; Index++)
