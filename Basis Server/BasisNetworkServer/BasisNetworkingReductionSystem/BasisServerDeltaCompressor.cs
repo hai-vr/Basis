@@ -11,8 +11,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 {
     public static class BasisServerDeltaCompressor
     {
-        private const int AvatarSize = LocalAvatarSyncMessage.AvatarSyncSize;
-
         // Reuse arrays via shared pool
         private static readonly ArrayPool<byte> BytePool = ArrayPool<byte>.Shared;
         public static ConcurrentDictionary<int, DeltaData> DeltaStorage = new ConcurrentDictionary<int, DeltaData>();
@@ -34,10 +32,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             var data = DeltaStorage.GetOrAdd(index, _ => RentDeltaData());
 
             var avatar = tempMsg.avatarSerialization.array;
-            if (!data.HasBaseline || data.Baseline == null || data.Baseline.Length < AvatarSize)
+            if (!data.HasBaseline || data.Baseline == null || data.Baseline.Length < LocalAvatarSyncMessage.AvatarSyncSize)
             {
                 // First time: store baseline and send full
-                Buffer.BlockCopy(avatar, 0, data.Baseline, 0, AvatarSize);
+                Buffer.BlockCopy(avatar, 0, data.Baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
                 data.HasBaseline = true;
 
                 SendOutFull(peer, tempMsg);
@@ -49,9 +47,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             byte[] values = data.Values;
 
             int changeCount = 0;
+            int maxChangesBeforeFull = (LocalAvatarSyncMessage.AvatarSyncSize - 1) / 2; // threshold
 
-            // Single pass: compute changes
-            for (int Index = 0; Index < AvatarSize; Index++)
+            for (int Index = 0; Index < LocalAvatarSyncMessage.AvatarSyncSize; Index++)
             {
                 byte newVal = avatar[Index];
                 if (newVal != baseline[Index])
@@ -59,9 +57,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     indices[changeCount] = (byte)Index;
                     values[changeCount] = newVal;
                     changeCount++;
+
+                    if (changeCount > maxChangesBeforeFull)
+                    {
+                        // Not worth doing delta, go straight to full
+                        SendOutFull(peer, tempMsg);
+                        Buffer.BlockCopy(avatar, 0, baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
+                        return;
+                    }
                 }
             }
-
             int fullCost = AvatarSize;
             int deltaCost = 1 + changeCount * 2; // count + (index,value) * N
 
@@ -71,7 +76,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 SendOutFull(peer, tempMsg);
 
                 // Refresh baseline from incoming data
-                Buffer.BlockCopy(avatar, 0, baseline, 0, AvatarSize);
+                Buffer.BlockCopy(avatar, 0, baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
                 return;
             }
 
@@ -79,7 +84,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             SendOutDelta(peer, tempMsg, changeCount, indices, values);
 
             // Update baseline → now matches what client will reconstruct
-            Buffer.BlockCopy(avatar, 0, baseline, 0, AvatarSize);
+            Buffer.BlockCopy(avatar, 0, baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
         }
 
         private static DeltaData RentDeltaData()
@@ -87,9 +92,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // We rent arrays slightly >= AvatarSize, no problem as long as we never write past AvatarSize
             return new DeltaData
             {
-                Baseline = BytePool.Rent(AvatarSize),
-                Indices = BytePool.Rent(AvatarSize),
-                Values = BytePool.Rent(AvatarSize),
+                Baseline = BytePool.Rent(LocalAvatarSyncMessage.AvatarSyncSize),
+                Indices = BytePool.Rent(LocalAvatarSyncMessage.AvatarSyncSize),
+                Values = BytePool.Rent(LocalAvatarSyncMessage.AvatarSyncSize),
                 HasBaseline = false
             };
         }
@@ -116,7 +121,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             BasisServerReductionSystemEvents.ReturnWriter(writer);
         }
 
-        private static void SendOutDelta(NetPeer peer,ServerSideSyncPlayerMessage msg,int changeCount,byte[] changedIndices,byte[] changedValues)
+        private static void SendOutDelta(NetPeer peer, ServerSideSyncPlayerMessage msg, int changeCount, byte[] changedIndices, byte[] changedValues)
         {
             NetDataWriter writer = BasisServerReductionSystemEvents.RentWriter();
 
@@ -129,10 +134,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // 3) delta header + entries
             writer.Put((byte)changeCount);
 
-            for (int i = 0; i < changeCount; i++)
+            for (int Index = 0; Index < changeCount; Index++)
             {
-                writer.Put(changedIndices[i]);
-                writer.Put(changedValues[i]);
+                writer.Put(changedIndices[Index]);
+                writer.Put(changedValues[Index]);
             }
 
             // 4) AdditionalAvatarData (unchanged from your version)
