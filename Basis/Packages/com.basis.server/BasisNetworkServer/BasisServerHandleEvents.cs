@@ -328,7 +328,7 @@ namespace BasisServerHandle
             var writer = new NetDataWriter(true, 3);
             audioSegment.Serialize(writer);
 
-            NetworkServer.BroadcastMessageToClients(writer, channel, ref targetPeers, method);
+            NetworkServer.BroadcastMessageToClients(writer, channel, ref targetPeers, method,1024);
         }
 
         private static List<NetPeer> GetTargetPeers(VoiceReceiversMessage Message)
