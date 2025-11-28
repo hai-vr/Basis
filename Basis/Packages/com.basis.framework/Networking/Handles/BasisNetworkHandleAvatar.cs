@@ -124,7 +124,7 @@ public static class BasisNetworkHandleAvatar
         }
 
         //  Update baseline to the newly reconstructed bytes
-         Buffer.BlockCopy(newAvatarArray, 0, baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
+       //  Buffer.BlockCopy(newAvatarArray, 0, baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
 
         // Reuse queue object to avoid GC churn, same as full path
         if (Message.TryDequeue(out ServerSideSyncPlayerMessage ssm) == false)
