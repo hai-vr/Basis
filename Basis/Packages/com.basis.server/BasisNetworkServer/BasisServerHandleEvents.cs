@@ -84,13 +84,13 @@ namespace BasisServerHandle
                 }
 
                 NetDataWriter writer = new NetDataWriter(true, sizeof(ushort));
-                writer.Put(id);
+                writer.Put((ushort)id);
                 if (NetworkServer.CheckValidated(writer))
                 {
                     NetPeer[] Peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
                     foreach (var client in Peers)
                     {
-                       // if (client.Id != id)
+                        if (client.Id != id)
                         {
                             BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.DisconnectionChannel, writer.Length);
                             client.Send(writer, BasisNetworkCommons.DisconnectionChannel, DeliveryMethod.ReliableOrdered);
