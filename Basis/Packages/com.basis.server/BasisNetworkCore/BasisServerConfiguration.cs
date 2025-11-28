@@ -1,4 +1,4 @@
-using BasisNetworkServer.Security;
+using BasisNetworkCore.Security;
 using System;
 using System.IO;
 using System.Reflection;
@@ -23,7 +23,7 @@ public class Configuration
     public int SimulationMaxLatency = 150;
     public int ReconnectDelay = 500;
     public int MaxConnectAttempts = 10;
-    public bool ReuseAddress = false;
+    public bool ReuseAddresss = false;
     public bool DontRoute = false;
     public bool EnableStatistics = true;
     public bool IPv6Enabled = true;

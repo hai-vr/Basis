@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace Basis.Network.Core {
+namespace Basis.Network.Core
+{
 
-    public partial class EventBasedNetListener: LiteNetLib.INetEventListener {
+    public partial class EventBasedNetListener : LiteNetLib.INetEventListener
+    {
         void LiteNetLib.INetEventListener.OnConnectionRequest(LiteNetLib.ConnectionRequest request)
         {
             ConnectionRequestEvent?.Invoke(new LNLConnectionRequest(request));
@@ -41,8 +43,10 @@ namespace Basis.Network.Core {
         }
     }
 
-    public partial struct DisconnectInfo {
-        internal DisconnectInfo(LiteNetLib.DisconnectInfo info) {
+    public partial struct DisconnectInfo
+    {
+        internal DisconnectInfo(LiteNetLib.DisconnectInfo info)
+        {
             NetPacketReader reader = new NetPacketReader(info.AdditionalData);
 
             // TODO: better enum conversion?
@@ -52,8 +56,10 @@ namespace Basis.Network.Core {
         }
     }
 
-    public sealed partial class NetStatistics {
-        internal NetStatistics(LiteNetLib.NetStatistics stats) {
+    public sealed partial class NetStatistics
+    {
+        internal NetStatistics(LiteNetLib.NetStatistics stats)
+        {
             PacketsSent = stats.PacketsSent;
             PacketsReceived = stats.PacketsReceived;
             BytesSent = stats.BytesSent;
@@ -62,17 +68,21 @@ namespace Basis.Network.Core {
         }
     }
 
-    public partial class NetPacketReader {
-        internal NetPacketReader(LiteNetLib.NetPacketReader reader): base((LiteNetLib.Utils.NetDataReader)reader) {
-			RecycleInternal = () => reader.Recycle();
-		}
+    public partial class NetPacketReader
+    {
+        internal NetPacketReader(LiteNetLib.NetPacketReader reader) : base((LiteNetLib.Utils.NetDataReader)reader)
+        {
+            RecycleInternal = () => reader.Recycle();
+        }
     }
 
-    public class LNLConnectionRequest: ConnectionRequest {
+    public class LNLConnectionRequest : ConnectionRequest
+    {
         readonly LiteNetLib.ConnectionRequest request;
         readonly NetDataReader data;
 
-        internal LNLConnectionRequest(LiteNetLib.ConnectionRequest request) {
+        internal LNLConnectionRequest(LiteNetLib.ConnectionRequest request)
+        {
             this.request = request;
             data = new NetDataReader(request.Data);
         }
@@ -96,7 +106,8 @@ namespace Basis.Network.Core {
     {
         private readonly LiteNetLib.NetPeer peer;
 
-        internal LNLNetPeer(LiteNetLib.NetPeer lnlPeer) {
+        internal LNLNetPeer(LiteNetLib.NetPeer lnlPeer)
+        {
             peer = lnlPeer;
         }
 
@@ -160,38 +171,52 @@ namespace Basis.Network.Core {
         }
     }
 
-    public class LNLNetManager: NetManager {
+    public class LNLNetManager : NetManager
+    {
         protected LiteNetLib.NetManager manager;
 
-        public LNLNetManager(EventBasedNetListener listener, bool UseNativeSockets) {
+        public LNLNetManager(EventBasedNetListener listener, Configuration configuration)
+        {
             manager = new LiteNetLib.NetManager(listener)
             {
                 AutoRecycle = false,
                 UnconnectedMessagesEnabled = false,
-                NatPunchEnabled = true,
-                AllowPeerAddressChange = true,
+                NatPunchEnabled = configuration.NatPunchEnabled,
+                AllowPeerAddressChange = configuration.AllowPeerAddressChange,
                 BroadcastReceiveEnabled = false,
-                UseNativeSockets = UseNativeSockets,//unity does not work with this
+                UseNativeSockets = configuration.UseNativeSockets,
                 ChannelsCount = BasisNetworkCommons.TotalChannels,
-                EnableStatistics = true,
+                EnableStatistics = configuration.EnableStatistics,
+                IPv6Enabled = configuration.IPv6Enabled,
                 UpdateTime = BasisNetworkCommons.NetworkIntervalPoll,
-                PingInterval = BasisNetworkCommons.PingInterval,
+                PingInterval = configuration.PingInterval,
+                DisconnectTimeout = configuration.DisconnectTimeout,
                 UnsyncedEvents = true,
                 ReceivePollingTime = BasisNetworkCommons.ReceivePollingTime,
                 PacketPoolSize = BasisNetworkCommons.PacketPoolSize,
+                SimulateLatency = configuration.SimulateLatency,
+                SimulatePacketLoss = configuration.SimulatePacketLoss,
+                SimulationMaxLatency = configuration.SimulationMaxLatency,
+                SimulationMinLatency = configuration.SimulationMinLatency,
+                SimulationPacketLossChance = configuration.SimulationPacketLossChance,
+                MtuDiscovery = configuration.MtuDiscovery,
+                MtuOverride = configuration.MtuOverride
             };
         }
 
-        public void Start(IPAddress IPv4Address, IPAddress IPv6Address, int SetPort) {
+        public void Start(IPAddress IPv4Address, IPAddress IPv6Address, int SetPort)
+        {
             manager.Start(IPv4Address, IPv6Address, SetPort);
         }
 
-        public void Stop() {
+        public void Stop()
+        {
             manager.Stop();
         }
 
-        public Basis.Network.Core.NetPeer Connect(string sIP, int port, NetDataWriter Writer) {
-            
+        public Basis.Network.Core.NetPeer Connect(string sIP, int port, NetDataWriter Writer)
+        {
+
             LiteNetLib.NetPeer peer = manager.Connect(LiteNetLib.NetUtils.MakeEndPoint(sIP, port), Writer.AsReadOnlySpan());
             return new LNLNetPeer(peer);
         }

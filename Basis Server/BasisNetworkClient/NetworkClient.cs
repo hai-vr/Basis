@@ -14,12 +14,12 @@ public class NetworkClient
     /// <param name="IP"></param>
     /// <param name="port"></param>
     /// <param name="ReadyMessage"></param>
-    public NetPeer StartClient(string IP, int port, ReadyMessage ReadyMessage, byte[] AuthenticationMessage, bool UseNativeSockets = false)
+    public NetPeer StartClient(string IP, int port, ReadyMessage ReadyMessage, byte[] AuthenticationMessage, Configuration Configuration)
     {
         if (IsInUse == false)
         {
             listener = new EventBasedNetListener();
-            client = new LNLNetManager(listener, UseNativeSockets);
+            client = new LNLNetManager(listener, Configuration);
             client.Start();
             NetDataWriter Writer = new NetDataWriter(true,12);
             //this is the only time we dont put key!

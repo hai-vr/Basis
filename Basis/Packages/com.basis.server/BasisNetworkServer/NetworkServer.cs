@@ -65,34 +65,7 @@ public static class NetworkServer
     public static void SetupServer(Configuration configuration)
     {
         Listener = new EventBasedNetListener();
-
-        // Server = new NetManager(Listener)
-        // {
-        //     AutoRecycle = false,
-        //     UnconnectedMessagesEnabled = false,
-        //     NatPunchEnabled = configuration.NatPunchEnabled,
-        //     AllowPeerAddressChange = configuration.AllowPeerAddressChange,
-        //     BroadcastReceiveEnabled = false,
-        //     UseNativeSockets = configuration.UseNativeSockets,
-        //     ChannelsCount = BasisNetworkCommons.TotalChannels,
-        //     EnableStatistics = configuration.EnableStatistics,
-        //     IPv6Enabled = configuration.IPv6Enabled,
-        //     UpdateTime = BasisNetworkCommons.NetworkIntervalPoll,
-        //     PingInterval = configuration.PingInterval,
-        //     DisconnectTimeout = configuration.DisconnectTimeout,
-        //     UnsyncedEvents = true,
-        //     ReceivePollingTime = BasisNetworkCommons.ReceivePollingTime,
-        //     PacketPoolSize = BasisNetworkCommons.PacketPoolSize,
-        //     SimulateLatency = configuration.SimulateLatency,
-        //     SimulatePacketLoss = configuration.SimulatePacketLoss,
-        //     SimulationMaxLatency = configuration.SimulationMaxLatency,
-        //     SimulationMinLatency = configuration.SimulationMinLatency,
-        //     SimulationPacketLossChance = configuration.SimulationPacketLossChance,
-        //     MtuDiscovery = configuration.MtuDiscovery,
-        //     MtuOverride = configuration.MtuOverride
-        // };
-
-        Server = new LNLNetManager(Listener, configuration.UseNativeSockets);
+        Server = new LNLNetManager(Listener, configuration);
 
         NetDebug.Logger = new BasisServerLogger();
         StartListening(configuration);

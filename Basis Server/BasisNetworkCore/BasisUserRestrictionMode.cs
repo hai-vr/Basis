@@ -1,6 +1,6 @@
 using System;
 
-namespace BasisNetworkServer.Security
+namespace BasisNetworkCore.Security
 {
     [Serializable]
     public enum BasisUserRestrictionMode

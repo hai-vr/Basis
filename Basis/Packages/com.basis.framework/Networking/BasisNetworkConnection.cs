@@ -91,10 +91,20 @@ namespace Basis.Scripts.Networking
             {
                 try
                 {
+                    var serverConfig = new Configuration
+                    {
+                        IPv4Address = ipString,
+                        HasFileSupport = false,
+                        UseNativeSockets = false,
+                        UseAuthIdentity = true,
+                        UseAuth = true,
+                        Password = primitivePassword,
+                        EnableStatistics = false
+                    };
                     // Pass the token into anything that supports cancellation
                     LocalPlayerPeer = NetworkClient.StartClient(
                         ipString, port, readyMessage,
-                        Encoding.UTF8.GetBytes(primitivePassword), true);
+                        Encoding.UTF8.GetBytes(primitivePassword), serverConfig);
 
                     NetworkClient.listener.PeerConnectedEvent += PeerConnectedEvent;
                     NetworkClient.listener.PeerDisconnectedEvent += BasisNetworkEvents.PeerDisconnectedEvent;
