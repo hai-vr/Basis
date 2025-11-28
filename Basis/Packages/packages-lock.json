@@ -79,11 +79,10 @@
       "dependencies": {}
     },
     "com.basis.pooltable": {
-      "version": "https://github.com/BasisVR/MS-BASISSA-Billiards.git",
+      "version": "file:com.basis.pooltable",
       "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "e9f7a3ea39260c04b56f7f06446ed13d700b6131"
+      "source": "embedded",
+      "dependencies": {}
     },
     "com.basis.profilerintergration": {
       "version": "file:com.basis.profilerintergration",

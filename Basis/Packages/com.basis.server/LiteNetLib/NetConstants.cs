@@ -38,8 +38,8 @@ namespace LiteNetLib
     public static class NetConstants
     {
         //can be tuned
-        public const int DefaultWindowSize = 256;
-        public const int SocketBufferSize = 32 * 1024 * 1024; // 32 MB
+        public const int DefaultWindowSize = 128;
+        public const int SocketBufferSize = 8 * 1024 * 1024; //8mb
         public const int SocketTTL = 255;
 
         public const int HeaderSize = 1;

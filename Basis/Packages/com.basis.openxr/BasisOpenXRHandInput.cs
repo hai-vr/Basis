@@ -132,17 +132,20 @@ public class BasisOpenXRHandInput : BasisInputController
         {
             UnscaledDeviceCoord.rotation = DeviceActionRotation.action.ReadValue<Quaternion>();
         }
+        if (pointerPosition != null)
+        {
+            ComputeUnscaledDeviceCoord(ref PointerPositionYScaled, pointerPosition.action.ReadValue<Vector3>());
+        }
+
         ConvertToScaledDeviceCoord();
         ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
         UpdateRaycastOffset();
         float avatarScale = BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
 
-        ComputeUnscaledDeviceCoord(ref PointerPositionScale, pointerPosition.action.ReadValue<Vector3>());
-
-        ComputeRaycastDirection(PointerPositionScale.position * avatarScale, HandFinal.rotation, ActiveRaycastOffset);
+        ComputeRaycastDirection(OffsetCoords.position + (PointerPositionYScaled.position * avatarScale), HandFinal.rotation, ActiveRaycastOffset);
         UpdateInputEvents();
     }
-    public BasisCalibratedCoords PointerPositionScale;
+    public BasisCalibratedCoords PointerPositionYScaled;
     /// <summary>
     /// meta/ unity need to pull something out of there ass here,
     /// currently on quest the below system swaps between controllers and hand tracking but you cant have controller & hand.

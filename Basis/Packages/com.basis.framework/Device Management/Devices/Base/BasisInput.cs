@@ -626,6 +626,11 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <summary>
         /// Applies player scale to <see cref="UnscaledDeviceCoord"/> to produce <see cref="ScaledDeviceCoord"/>.
         /// </summary>
+        public void ConvertToScaledDeviceCoord(ref BasisCalibratedCoords UnscaledDeviceCoord,ref BasisCalibratedCoords ScaledDeviceCoord)
+        {
+            ScaledDeviceCoord.position = OffsetCoords.position + (UnscaledDeviceCoord.position * BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
+            ScaledDeviceCoord.rotation = UnscaledDeviceCoord.rotation;
+        }
         public void ConvertToScaledDeviceCoord()
         {
             ScaledDeviceCoord.position = OffsetCoords.position + (UnscaledDeviceCoord.position * BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
