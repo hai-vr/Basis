@@ -303,6 +303,9 @@ namespace BasisServerHandle
         {
             if(BasisSavedState.GetLastVoiceReceivers(sender, out VoiceReceiversMessage receivers))
             {
+            }
+            else
+            {
                 BNL.Log($"[VoiceMessage] No receivers found for sender {sender.Id}.");
             }
 
