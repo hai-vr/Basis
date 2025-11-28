@@ -82,7 +82,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             SendOutDelta(peer, tempMsg, changeCount, indices, values);
 
             // Update baseline → now matches what client will reconstruct
-           // Buffer.BlockCopy(avatar, 0, baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
+            Buffer.BlockCopy(avatar, 0, baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
         }
 
         private static DeltaData RentDeltaData()

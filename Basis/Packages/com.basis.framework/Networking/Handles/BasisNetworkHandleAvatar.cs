@@ -1,8 +1,8 @@
+using Basis.Network.Core;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Profiler;
-using LiteNetLib;
 using System;
 using System.Collections.Concurrent;
 using static SerializableBasis;
@@ -13,7 +13,7 @@ public static class BasisNetworkHandleAvatar
     // Baseline 176-byte array per player
     private static readonly ConcurrentDictionary<ushort, byte[]> AvatarBaselines = new ConcurrentDictionary<ushort, byte[]>();
 
-    public static void HandleAvatarUpdate(NetPacketReader reader, LiteNetLib.DeliveryMethod deliveryMethod)
+    public static void HandleAvatarUpdate(NetPacketReader reader, DeliveryMethod deliveryMethod)
     {
         if (deliveryMethod == DeliveryMethod.ReliableSequenced)
         {
@@ -123,8 +123,8 @@ public static class BasisNetworkHandleAvatar
             }
         }
 
-        // we dont do this anymore. Update baseline to the newly reconstructed bytes
-        // Buffer.BlockCopy(newAvatarArray, 0, baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
+        //  Update baseline to the newly reconstructed bytes
+         Buffer.BlockCopy(newAvatarArray, 0, baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
 
         // Reuse queue object to avoid GC churn, same as full path
         if (Message.TryDequeue(out ServerSideSyncPlayerMessage ssm) == false)
