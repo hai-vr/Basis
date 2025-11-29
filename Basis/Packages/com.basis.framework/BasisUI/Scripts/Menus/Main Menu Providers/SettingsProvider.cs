@@ -238,10 +238,10 @@ namespace Basis.BasisUI
             
             void MicrophoneVolumeChanged(float value)
             {
+                BasisDebug.Log("MicrophoneVolumeChanged Deleteme!");
                 SMDMicrophone.SaveVolumeSettings(BasisDeviceManagement.StaticCurrentMode, value);
             }
-
-            sliderMicrophoneVolume.OnValueChanged += MicrophoneVolumeChanged;
+            sliderMicrophoneVolume.SliderComponent.onValueChanged.AddListener(MicrophoneVolumeChanged);
 
             // Microphone Range
             PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
