@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Basis.BasisUI
 {
@@ -61,5 +62,19 @@ namespace Basis.BasisUI
             base.SetValueWithoutNotify(value);
             DropdownComponent.SetValueWithoutNotify(Index);
         }
+        public int StringValueToIndex(string Active)
+        {
+            int Count = DropdownComponent.options.Count;
+            for (int Index = 0; Index < Count; Index++)
+            {
+                TMP_Dropdown.OptionData optionData = DropdownComponent.options[Index];
+                if (Active == optionData.text)
+                {
+                    return Index;
+                }
+            }
+            return 0;
+        }
+
     }
 }

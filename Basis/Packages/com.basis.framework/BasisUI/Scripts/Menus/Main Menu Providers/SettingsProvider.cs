@@ -2,7 +2,9 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
+using static UnityEngine.Rendering.DebugUI;
 
 namespace Basis.BasisUI
 {
@@ -182,6 +184,8 @@ namespace Basis.BasisUI
         // ------------------
         public static PanelTabPage AudioTab(PanelTabGroup tabGroup)
         {
+            SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
             PanelElementDescriptor descriptor = tab.Descriptor;
 
@@ -220,22 +224,50 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Percentage("Player Volume"),
                 BasisSettingsDefaults.PlayerVolume);
 
-            PanelSlider sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
-                mixerGroup,
-                PanelSlider.SliderSettings.Percentage("Microphone Volume"),
-                BasisSettingsDefaults.MicrophoneVolume);
-
             // MICROPHONE GROUP
             PanelElementDescriptor microphoneGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             microphoneGroup.SetTitle("Microphone");
-            microphoneGroup.SetDescription("Microphone behaviour and processing.");
+            microphoneGroup.SetDescription("Microphone Related Settings");
+
+            PanelSlider sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
+            microphoneGroup,
+            PanelSlider.SliderSettings.Percentage("Microphone Volume"),
+            BasisSettingsDefaults.MicrophoneVolume);
+            sliderMicrophoneVolume.SetValueWithoutNotify(SMDMicrophone.SelectedVolumeMicrophone);
+            
+            void MicrophoneVolumeChanged(float value)
+            {
+                SMDMicrophone.SaveVolumeSettings(BasisDeviceManagement.StaticCurrentMode, value);
+            }
+
+            sliderMicrophoneVolume.OnValueChanged += MicrophoneVolumeChanged;
 
             // Microphone Range
             PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
                 microphoneGroup,
                 PanelSlider.SliderSettings.Distance("Microphone Range", 25),
                 BasisSettingsDefaults.MicrophoneRange);
+
+
+
+
+
+            // Microphone Mode
+            PanelDropdown dropdownMicrophoneSelection = PanelDropdown.CreateNewEntry(microphoneGroup);
+            dropdownMicrophoneSelection.Descriptor.SetTitle("Microphone Selection");
+            // Options inferred from default naming – adjust to your actual system values if needed
+            dropdownMicrophoneSelection.AssignEntries(SMDMicrophone.MicrophoneDevices.ToList());
+            // dropdownMicrophoneSelection.DropdownComponent.value = dropdownMicrophoneSelection.StringValueToIndex(SMDMicrophone.SelectedMicrophone);
+            dropdownMicrophoneSelection.SetValueWithoutNotify(SMDMicrophone.SelectedMicrophone);
+
+            void MicrophoneSelectionChanged(string Name)
+            {
+                SMDMicrophone.SaveMicrophoneData(BasisDeviceManagement.StaticCurrentMode, Name);
+            }
+            dropdownMicrophoneSelection.OnValueChanged += MicrophoneSelectionChanged;
+
+
 
             // Microphone Denoiser
             PanelToggle toggleMicrophoneDenoiser = PanelToggle.CreateNewEntry(microphoneGroup);
@@ -513,10 +545,10 @@ namespace Basis.BasisUI
             // Avatar Scale
             PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
                 debugGroup.ContentParent,
-                PanelSlider.SliderSettings.Distance("Avatar Scale",5),
+                PanelSlider.SliderSettings.Advanced("Avatar Scale", 0.1f, 5, false, 2, ValueDisplayMode.Meters),
                 BasisSettingsDefaults.AvatarScale);
 
-          //  sliderFieldOfView.SetValueWithoutNotify(1.7f);
+            //  sliderFieldOfView.SetValueWithoutNotify(1.7f);
             sliderFieldOfView.SliderComponent.onValueChanged.AddListener(AvatarScaleChanged);
 
             descriptor.ForceRebuild();
