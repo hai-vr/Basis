@@ -337,9 +337,15 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public override bool CanHover(BasisInput input)
         {
             // NOTE: see CanInteract note
-            return CheckUsabilityWithState(input, BasisInteractInputState.Ignored) // in the correct state for hover
-                && (!Inputs.AnyInteracting() || CanSelfSteal) // self-steal
-                && CanHoverInjected.AllTrue(input); // injected
+            return InteractableEnabled &&
+                (!Inputs.AnyInteracting() || CanSelfSteal) &&               // self-steal
+                !input.BasisUIRaycast.HadRaycastUITarget &&                 // didn't hit UI target this frame
+                Inputs.IsInputAdded(input) &&                               // input exists
+                input.TryGetRole(out BasisBoneTrackedRole role) &&          // has role
+                Inputs.TryGetByRole(role, out BasisInputWrapper found) &&   // input exists within PlayerInteract system
+                found.GetState() == BasisInteractInputState.Ignored &&      // in the correct state for hover
+                IsWithinRange(found.BoneControl.OutgoingWorldData.position, InteractRange) && // within range
+                CanHoverInjected.AllTrue(input);                            // injected
         }
 
         /// <inheritdoc />
@@ -347,9 +353,15 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             // NOTE: Injected checks must be called at the end so that we can safely assume that at the time this was invoked, everything was valid.
             //       Important for net sync: pending steal requests shouldn't re-invoke with stale data.
-            return CheckUsabilityWithState(input, BasisInteractInputState.Hovering) // only current hover can interact
-                && (!Inputs.AnyInteracting() || CanSelfSteal) // self-steal
-                && CanInteractInjected.AllTrue(input); // injected
+            return InteractableEnabled &&
+                (!Inputs.AnyInteracting() || CanSelfSteal) &&               // self-steal
+                !input.BasisUIRaycast.HadRaycastUITarget &&                 // didn't hit UI target this frame
+                Inputs.IsInputAdded(input) &&                               // input exists
+                input.TryGetRole(out BasisBoneTrackedRole role) &&          // has role
+                Inputs.TryGetByRole(role, out BasisInputWrapper found) &&   // input exists within PlayerInteract system
+                found.GetState() == BasisInteractInputState.Hovering &&     // only current hover can interact
+                IsWithinRange(found.BoneControl.OutgoingWorldData.position, InteractRange) && // within range
+                CanInteractInjected.AllTrue(input);                         // injected
         }
 
         /// <summary>

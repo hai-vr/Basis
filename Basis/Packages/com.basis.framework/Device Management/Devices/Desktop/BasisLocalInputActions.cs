@@ -4,6 +4,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.UI.UI_Panels;
 using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.Common;
+using Basis.BasisUI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Interactions;
@@ -456,7 +457,12 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             LocalCharacterDriver.UpdateMovementSpeed(IsRunHeld);
         }
 
-        public void OnEscapePerformed(InputAction.CallbackContext ctx) => BasisHamburgerMenu.ToggleHamburgerMenu();
+        public void OnEscapePerformed(InputAction.CallbackContext ctx)
+        {
+            BasisMainMenu.Toggle();
+            // BasisHamburgerMenu.ToggleHamburgerMenu();
+        }
+
         public void OnEscapeCancelled(InputAction.CallbackContext ctx) { }
 
         public void OnPrimaryGet(InputAction.CallbackContext ctx) => InputState.PrimaryButtonGetState = true;

@@ -378,14 +378,17 @@ public static class BasisActionDriver
     {
         if (current.SecondaryButtonGetState == false && last.SecondaryButtonGetState)
         {
-            if (BasisHamburgerMenu.Instance == null)
+
+            Basis.BasisUI.BasisMainMenu.Toggle();
+
+            /*if (BasisHamburgerMenu.Instance == null)
             {
                 BasisHamburgerMenu.OpenHamburgerMenuNow();
             }
             else
             {
                 BasisHamburgerMenu.Instance.CloseThisMenu();
-            }
+            }*/
         }
     }
 

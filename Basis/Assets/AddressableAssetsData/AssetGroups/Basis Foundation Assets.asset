@@ -15,6 +15,12 @@ MonoBehaviour:
   m_GroupName: Basis Foundation Assets
   m_GUID: 37c75a6cf72db324eb01200602299fc8
   m_SerializeEntries:
+  - m_GUID: 0689018a4c3087846a651c89c02576c4
+    m_Address: Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/PE Button
+      - Grid Item Variant.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 06b1965d0565c4444b4ce3ea5aa8e690
     m_Address: Packages/com.basis.tests/Mirror/BasisSDKMIrror.prefab
     m_ReadOnly: 0
@@ -37,6 +43,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 2ef52735e20e99c45ae63c674e0727cb
     m_Address: BasisUIAvatarSelection
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 30ab3bcde2b3a7141b1e16d6add785f3
+    m_Address: Packages/com.basis.framework/BasisUI/Prefabs/Dialogue Panel.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -130,6 +141,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 80400c0dd2aacdb4ead120b1c924f77d
+    m_Address: Packages/com.basis.framework/BasisUI/Prefabs/Basis Menu Instance.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 856976bf03357524b9a73466df6c0e5f
     m_Address: Adaptive Circle Display.prefab
     m_ReadOnly: 0
@@ -210,6 +226,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d9849dc6948554a4a8f55614547f5449
+    m_Address: Packages/com.basis.framework/BasisUI/Prefabs/Menu Panel.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: dd1db054b177db7459cc81633b86e525
     m_Address: Assets/Scenes/initialization.unity
     m_ReadOnly: 0
@@ -237,6 +258,12 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: f84144c055f881f4797d59bd2802d4a4
     m_Address: Packages/com.basis.sdk/Prefabs/Boot/BasisOnSceneLoadCleanup.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fc368a9e602094c42b40e66f42e2d03e
+    m_Address: Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/PE Slider
+      - Entry Variant.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
