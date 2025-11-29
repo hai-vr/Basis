@@ -60,8 +60,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Basis Framework::Basis.VowganUI.BasisMenuMover
   GroupOffset: {fileID: 2105398421684032071}
-  VRMode: 0
-  DesktopRootMode: 0
+  VRMode: 2
+  DesktopRootMode: 2
   Inuse: 2
   RootScale: 0.0004
   WorldOffset:
@@ -86,8 +86,6 @@ MonoBehaviour:
     Scale: 0.2
   Position: {x: 0, y: 0, z: 0}
   Rotation: {x: 0, y: 0, z: 0, w: 0}
-  menuPosOffset: {x: 0, y: 0, z: 0.5}
-  menuRotOffset: {x: 0, y: 0, z: 0}
 --- !u!1 &9212467420584055477
 GameObject:
   m_ObjectHideFlags: 0
