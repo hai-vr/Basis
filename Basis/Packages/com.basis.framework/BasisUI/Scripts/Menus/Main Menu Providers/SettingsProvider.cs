@@ -1,5 +1,6 @@
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.UI.UI_Panels;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -33,6 +34,7 @@ namespace Basis.BasisUI
             tabGroup.AddTab("Audio", null, AudioTab(tabGroup));
             tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
             tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
+            tabGroup.AddTab("Avatar", null, AvatarTab(tabGroup));
 
             tabGroup.AddExtraAction("Admin", OpenAdminPanel);
             tabGroup.AddExtraAction("Console", OpenConsoleLogger);
@@ -329,6 +331,7 @@ namespace Basis.BasisUI
             {
                 "Off",
                 "On",
+                "Half",
                 "Capped"
             });
             dropdownVSync.AssignBinding(BasisSettingsDefaults.VSync);
@@ -490,6 +493,38 @@ namespace Basis.BasisUI
 
             descriptor.ForceRebuild();
             return tab;
+        }
+        // ------------------
+        // AVATAR TAB
+        // ------------------
+        public static PanelTabPage AvatarTab(PanelTabGroup tabGroup)
+        {
+            PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+            PanelElementDescriptor descriptor = tab.Descriptor;
+
+            descriptor.SetTitle("Avatar Settings");
+            RectTransform container = descriptor.ContentParent;
+
+            PanelElementDescriptor debugGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            debugGroup.SetTitle("Avatar Settings");
+            debugGroup.SetDescription("Configuration settings for avatars.");
+
+            // Avatar Scale
+            PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
+                debugGroup.ContentParent,
+                PanelSlider.SliderSettings.Distance("Avatar Scale",5),
+                BasisSettingsDefaults.AvatarScale);
+
+          //  sliderFieldOfView.SetValueWithoutNotify(1.7f);
+            sliderFieldOfView.SliderComponent.onValueChanged.AddListener(AvatarScaleChanged);
+
+            descriptor.ForceRebuild();
+            return tab;
+        }
+        public static void AvatarScaleChanged(float value)
+        {
+            BasisHeightDriver.SetCustomPlayerHeight(value);
         }
     }
 }

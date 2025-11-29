@@ -105,6 +105,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FieldOfView =>
             new("Field Of View", new BasisPlatformDefault<float>(65));
 
+        public static BasisSettingsBinding<float> AvatarScale =>
+    new("Scale Of Avatar", new BasisPlatformDefault<float>(1.6f));
+
         public static BasisSettingsBinding<float> MeshLOD =>
             new("Mesh Lod", new BasisPlatformDefault<float>
             {
