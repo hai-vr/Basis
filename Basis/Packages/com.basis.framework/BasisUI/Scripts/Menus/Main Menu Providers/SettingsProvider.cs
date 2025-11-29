@@ -46,7 +46,7 @@ namespace Basis.BasisUI
             tabGroup.AddExtraAction("Switch To OpenXR", SwitchToOpenXR);
             tabGroup.AddExtraAction("Switch To Desktop", SwitchToDesktop);
 
-            tabGroup.AddExtraAction("Statistics", OpenControllerConfig);
+           // tabGroup.AddExtraAction("Statistics", OpenControllerConfig);
 
             tabGroup.AssignBinding(new BasisSettingsBinding<int>("BasisVR/SettingsTabs"));
 
