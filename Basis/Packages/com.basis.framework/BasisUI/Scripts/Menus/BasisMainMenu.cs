@@ -1,3 +1,4 @@
+using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -35,6 +36,8 @@ namespace Basis.BasisUI
 
         public static void Open()
         {
+            BasisUIManagement.CloseAllMenus();
+
             if (Instance) Instance.Release();
             Instance = new BasisMainMenu();
             BasisCursorManagement.UnlockCursor(nameof(BasisMainMenu));

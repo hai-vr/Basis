@@ -52,7 +52,7 @@ MonoBehaviour:
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 356a8bb117010ea4084b0dd6463d28b0
-    m_Address: LoggerUI
+    m_Address: BasisConsoleLogger
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -197,7 +197,7 @@ MonoBehaviour:
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a6def01a1603e4447bdd668aab602f11
-    m_Address: BasisUIAdminPanel
+    m_Address: Packages/com.basis.sdk/Prefabs/UI/BasisUIAdminPanel.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

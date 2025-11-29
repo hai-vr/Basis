@@ -62,6 +62,8 @@ public class BasisUIBackground :
         if (RectTransformUtility.ScreenPointToWorldPointInRectangle(RectTransform, eventData.position, eventData.pressEventCamera, out Vector3 worldPos))
         {
             mat.SetVector(CursorPos, worldPos);
+            //targetGraphic.canvasRenderer.SetMaterial(mat,0);
+            //targetGraphic.canvasRenderer.set
         }
     }
 }

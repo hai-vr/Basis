@@ -258,7 +258,7 @@ GameObject:
   - component: {fileID: 8925134239267120962}
   - component: {fileID: 4234912503340257965}
   m_Layer: 9
-  m_Name: LoggerUI
+  m_Name: BasisConsoleLogger
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

@@ -1,3 +1,4 @@
+using Basis.Scripts.UI.UI_Panels;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -34,15 +35,29 @@ namespace Basis.BasisUI
             tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
             tabGroup.AddTab("Developer", null, SettingsTab(tabGroup));
 
-            tabGroup.AddExtraAction("Admin", null);
-            tabGroup.AddExtraAction("Console", null);
-            tabGroup.AddExtraAction("Bindings", null);
+            tabGroup.AddExtraAction("Admin", OpenAdminPanel);
+            tabGroup.AddExtraAction("Console", OpenConsoleLogger);
+            tabGroup.AddExtraAction("Bindings", OpenControllerConfig);
 
             tabGroup.AssignBinding(new BasisSettingsBinding<int>("BasisVR/SettingsTabs"));
 
             panel.Descriptor.ForceRebuild();
         }
-
+        public static void OpenAdminPanel()
+        {
+            BasisUIAdminPanel.OpenThisMenu(BasisUIAdminPanel.Path);
+            BasisMainMenu.Close();
+        }
+        public static void OpenConsoleLogger()
+        {
+            BasisUIBase.OpenMenuNow("BasisConsoleLogger");
+            BasisMainMenu.Close();
+        }
+        public static void OpenControllerConfig()
+        {
+            BasisUIActionBindingsPanel.OpenMenuNow("Packages/com.basis.sdk/Prefabs/UI/ControllerConfig.prefab");
+            BasisMainMenu.Close();
+        }
         public static PanelTabPage GeneralTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
@@ -87,6 +102,10 @@ namespace Basis.BasisUI
             PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(sliderGroup,
                 PanelSlider.SliderSettings.Distance("Hearing Range" , 25),
                 BasisSettingsDefaults.HearingRange);
+
+            PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(sliderGroup,
+    PanelSlider.SliderSettings.Distance("Microphone Range", 25),
+    BasisSettingsDefaults.MicrophoneRange);
 
             descriptor.ForceRebuild();
             return tab;
