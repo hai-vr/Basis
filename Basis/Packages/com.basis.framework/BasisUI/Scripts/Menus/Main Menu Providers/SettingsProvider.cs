@@ -44,20 +44,20 @@ namespace Basis.BasisUI
 
         public static void OpenAdminPanel()
         {
-            BasisUIAdminPanel.OpenThisMenu(BasisUIAdminPanel.Path);
             BasisMainMenu.Close();
+            BasisUIAdminPanel.OpenThisMenu(BasisUIAdminPanel.Path);
         }
 
         public static void OpenConsoleLogger()
         {
-            BasisUIBase.OpenMenuNow("BasisConsoleLogger");
             BasisMainMenu.Close();
+            BasisUIBase.OpenMenuNow("BasisConsoleLogger");
         }
 
         public static void OpenControllerConfig()
         {
-            BasisUIActionBindingsPanel.OpenMenuNow("Packages/com.basis.sdk/Prefabs/UI/ControllerConfig.prefab");
             BasisMainMenu.Close();
+            BasisUIActionBindingsPanel.OpenMenuNow("Packages/com.basis.sdk/Prefabs/UI/ControllerConfig.prefab");
         }
 
         // ------------------
