@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 3189951289870719121}
   - component: {fileID: 281005126419238289}
   - component: {fileID: 6622478774740261033}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Basis Menu Instance
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -94,7 +94,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2105398421684032071}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Panel Root
   m_TagString: Untagged
   m_Icon: {fileID: 0}

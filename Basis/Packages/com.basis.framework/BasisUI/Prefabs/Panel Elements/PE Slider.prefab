@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 4168148399443927966}
   - component: {fileID: 5675375101813496856}
   - component: {fileID: 1618923119870502979}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Fill
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -86,7 +86,7 @@ GameObject:
   - component: {fileID: 5314999883969809722}
   - component: {fileID: 1813614983286676456}
   - component: {fileID: 4206124953150331056}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Background
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -163,7 +163,7 @@ GameObject:
   - component: {fileID: 4863204507334868155}
   - component: {fileID: 3146893468422803475}
   - component: {fileID: 3454034803663493047}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Max Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -255,6 +255,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -333,7 +334,7 @@ GameObject:
   - component: {fileID: 418470366999333263}
   - component: {fileID: 2310511662558553401}
   - component: {fileID: 2677012387906103848}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Slider
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -466,7 +467,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2286792621543652353}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Handle Slide Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -504,7 +505,7 @@ GameObject:
   - component: {fileID: 9193913636016199053}
   - component: {fileID: 7164346352649500845}
   - component: {fileID: 6946372645540165986}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Rounded Front
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -578,7 +579,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4741985529706336550}
   - component: {fileID: 323868762273156353}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Fill Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -624,7 +625,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4493233672388061201}
   - component: {fileID: 626680931054296363}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Label Container
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -691,7 +692,7 @@ GameObject:
   - component: {fileID: 3425887626138460019}
   - component: {fileID: 8059097514515980928}
   - component: {fileID: 4994825013965624853}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Value Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -783,6 +784,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -862,7 +864,7 @@ GameObject:
   - component: {fileID: 867061286984688786}
   - component: {fileID: 8631035072957025546}
   - component: {fileID: 8761878942314919795}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Min Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -954,6 +956,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -1031,7 +1034,7 @@ GameObject:
   - component: {fileID: 4460066828719706991}
   - component: {fileID: 64044216140817695}
   - component: {fileID: 555873779075005427}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Handle
   m_TagString: Untagged
   m_Icon: {fileID: 0}

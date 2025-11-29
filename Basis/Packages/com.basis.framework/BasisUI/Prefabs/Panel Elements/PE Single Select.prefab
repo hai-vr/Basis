@@ -34,7 +34,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 672694152584669274, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_Name
-      value: Wui Single Select
+      value: PE Single Select
       objectReference: {fileID: 0}
     - target: {fileID: 1323559056181125490, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_Pivot.x

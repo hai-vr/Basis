@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 4972630534047197136}
   - component: {fileID: 2823445495029772893}
   - component: {fileID: 2678031345478929609}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Scrollbar Vertical
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -152,7 +152,7 @@ GameObject:
   - component: {fileID: 2096309428159512841}
   - component: {fileID: 7923343349544195535}
   - component: {fileID: 6200806193199397856}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Handle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -227,7 +227,7 @@ GameObject:
   - component: {fileID: 3824983393588061780}
   - component: {fileID: 7605367460173527216}
   - component: {fileID: 6518622227743843926}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Content
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -303,7 +303,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2887680739202607824}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Sliding Area
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -344,7 +344,7 @@ GameObject:
   - component: {fileID: 3647360455821404326}
   - component: {fileID: 5096023943224406672}
   - component: {fileID: 2302159333501538131}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Scroll View Vertical
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -474,9 +474,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.PanelElement
   _clearOnAwake: 0
   <DefaultIcon>k__BackingField: {fileID: 0}
+  <DefaultTexture>k__BackingField: {fileID: 0}
   <DefaultTitle>k__BackingField: 
   <DefaultDescription>k__BackingField: 
   <IconImage>k__BackingField: {fileID: 0}
+  <TextureImage>k__BackingField: {fileID: 0}
   <IconBackground>k__BackingField: {fileID: 0}
   <TitleLabel>k__BackingField: {fileID: 0}
   <DescriptionLabel>k__BackingField: {fileID: 0}
@@ -490,7 +492,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4813946235491012095}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Viewport
   m_TagString: Untagged
   m_Icon: {fileID: 0}

@@ -27,7 +27,7 @@ PrefabInstance:
     - target: {fileID: 1659832601856672989, guid: cf96aef0b70b73a4cb7d58b2dad2c18c, type: 3}
       propertyPath: m_Sprite
       value: 
-      objectReference: {fileID: 21300000, guid: a336a8280e1dda94fbef1a59936ed578, type: 3}
+      objectReference: {fileID: 0}
     - target: {fileID: 1659832601856672989, guid: cf96aef0b70b73a4cb7d58b2dad2c18c, type: 3}
       propertyPath: m_Color.r
       value: 0.98
@@ -38,7 +38,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2630670336978473890, guid: cf96aef0b70b73a4cb7d58b2dad2c18c, type: 3}
       propertyPath: m_Name
-      value: Wui Single Select Entry
+      value: PE Single Select Entry
       objectReference: {fileID: 0}
     - target: {fileID: 3015147684883158338, guid: cf96aef0b70b73a4cb7d58b2dad2c18c, type: 3}
       propertyPath: ColorStyle
@@ -258,23 +258,23 @@ PrefabInstance:
       objectReference: {fileID: 21300000, guid: a336a8280e1dda94fbef1a59936ed578, type: 3}
     - target: {fileID: 6723845276669986855, guid: cf96aef0b70b73a4cb7d58b2dad2c18c, type: 3}
       propertyPath: m_Color.a
-      value: 0.2
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6723845276669986855, guid: cf96aef0b70b73a4cb7d58b2dad2c18c, type: 3}
       propertyPath: m_Color.b
-      value: 0.57254905
+      value: 0.57232696
       objectReference: {fileID: 0}
     - target: {fileID: 6723845276669986855, guid: cf96aef0b70b73a4cb7d58b2dad2c18c, type: 3}
       propertyPath: m_Color.g
-      value: 0.4117647
+      value: 0.41214734
       objectReference: {fileID: 0}
     - target: {fileID: 6723845276669986855, guid: cf96aef0b70b73a4cb7d58b2dad2c18c, type: 3}
       propertyPath: m_Color.r
-      value: 0.42745098
+      value: 0.42573604
       objectReference: {fileID: 0}
     - target: {fileID: 6723845276669986855, guid: cf96aef0b70b73a4cb7d58b2dad2c18c, type: 3}
       propertyPath: m_PixelsPerUnitMultiplier
-      value: 3
+      value: 4
       objectReference: {fileID: 0}
     - target: {fileID: 6804316267291735790, guid: cf96aef0b70b73a4cb7d58b2dad2c18c, type: 3}
       propertyPath: m_AnchorMax.x

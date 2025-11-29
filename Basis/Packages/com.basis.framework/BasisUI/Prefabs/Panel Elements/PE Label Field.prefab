@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 9102039049360282633}
   - component: {fileID: 3293593031701728649}
   - component: {fileID: 9185354979453106614}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Title Content
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -113,7 +113,7 @@ GameObject:
   - component: {fileID: 4484132977670302144}
   - component: {fileID: 4437017689457758347}
   - component: {fileID: 7073515931339710959}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Icon Image
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -224,7 +224,7 @@ GameObject:
   - component: {fileID: 767453859876746561}
   - component: {fileID: 4925283688406023023}
   - component: {fileID: 7473376354619534136}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: PE Label Field
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -361,7 +361,7 @@ GameObject:
   - component: {fileID: 7339624300004257270}
   - component: {fileID: 152231719545582366}
   - component: {fileID: 452076623952248808}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Description Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -455,6 +455,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -499,7 +500,7 @@ GameObject:
   - component: {fileID: 4996333618858142857}
   - component: {fileID: 2196091199755646802}
   - component: {fileID: 9096089775073403871}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Content
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -582,7 +583,7 @@ GameObject:
   - component: {fileID: 1746614960163441854}
   - component: {fileID: 712997303065717892}
   - component: {fileID: 9180298239781153562}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Title
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -662,7 +663,7 @@ GameObject:
   - component: {fileID: 2590260665210684027}
   - component: {fileID: 3768538630429524650}
   - component: {fileID: 5041270630757350706}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Icon Background
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -772,7 +773,7 @@ GameObject:
   - component: {fileID: 6581743725142252179}
   - component: {fileID: 3887477764730825918}
   - component: {fileID: 8368319731923530307}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Header
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -872,7 +873,7 @@ GameObject:
   - component: {fileID: 7387106882426179855}
   - component: {fileID: 3499405362262326488}
   - component: {fileID: 5293546595695076695}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Title Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -964,6 +965,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0

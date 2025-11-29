@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 5577847838537261947}
   - component: {fileID: 6297998382057087971}
   - component: {fileID: 604041097239706657}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Texture
   m_TagString: Untagged
   m_Icon: {fileID: 0}

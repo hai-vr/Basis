@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 
-public class SendWorldPosToUIShader :
+public class BasisUIBackground :
     UIBehaviour,
     IPointerClickHandler,
     IPointerDownHandler,

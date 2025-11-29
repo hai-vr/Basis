@@ -16,7 +16,7 @@ GameObject:
   - component: {fileID: 4046918589465350863}
   - component: {fileID: 5289676777061174458}
   - component: {fileID: 6332489942576894132}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: PE Base Horizontal
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -170,9 +170,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.PanelElement
   _clearOnAwake: 1
   <DefaultIcon>k__BackingField: {fileID: 21300000, guid: a336a8280e1dda94fbef1a59936ed578, type: 3}
+  <DefaultTexture>k__BackingField: {fileID: 0}
   <DefaultTitle>k__BackingField: Title Goes Here
   <DefaultDescription>k__BackingField: Description goes here.
   <IconImage>k__BackingField: {fileID: 3263669264447411214}
+  <TextureImage>k__BackingField: {fileID: 0}
   <IconBackground>k__BackingField: {fileID: 7348275743049059416}
   <TitleLabel>k__BackingField: {fileID: 2039101535754525982}
   <DescriptionLabel>k__BackingField: {fileID: 8451671340370077725}
@@ -189,7 +191,7 @@ GameObject:
   - component: {fileID: 7753248880297711722}
   - component: {fileID: 8451671340370077725}
   - component: {fileID: 4181765901924792468}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Description Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -281,6 +283,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -336,7 +339,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 218847886230661513}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Child Container
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -372,7 +375,7 @@ GameObject:
   m_Component:
   - component: {fileID: 8009018518866211647}
   - component: {fileID: 368376473254738793}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Content
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -430,7 +433,7 @@ GameObject:
   - component: {fileID: 1021151836445116078}
   - component: {fileID: 3263669264447411214}
   - component: {fileID: 1485834059438245709}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Icon Image
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -517,7 +520,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5694186965103729849}
   - component: {fileID: 3613574228945639472}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Title
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -584,7 +587,7 @@ GameObject:
   - component: {fileID: 7078463098538894437}
   - component: {fileID: 5378204861147739150}
   - component: {fileID: 4143279387227903456}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Icon Background
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -693,7 +696,7 @@ GameObject:
   - component: {fileID: 6206298811529862929}
   - component: {fileID: 1556604791156959898}
   - component: {fileID: 3419772848712759713}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Header
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -780,7 +783,7 @@ GameObject:
   - component: {fileID: 2039101535754525982}
   - component: {fileID: 6452055698859409579}
   - component: {fileID: 1088352389463883646}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Title Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -872,6 +875,7 @@ MonoBehaviour:
   m_VerticalAlignment: 512
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0

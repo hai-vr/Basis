@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 213209911018695695}
   - component: {fileID: 1391075982951203362}
   - component: {fileID: 535511320809368167}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Pages
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -82,7 +82,7 @@ GameObject:
   - component: {fileID: 565687860293786259}
   - component: {fileID: 7989761284081927606}
   - component: {fileID: 1922329393141812271}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Tabs
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -169,7 +169,7 @@ GameObject:
   - component: {fileID: 8164781891933207304}
   - component: {fileID: -7404010728865291138}
   - component: {fileID: 5561021254875558721}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Tab Group Vertical
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -257,9 +257,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.PanelElementDescriptor
   _clearOnAwake: 0
   <DefaultIcon>k__BackingField: {fileID: 0}
+  <DefaultTexture>k__BackingField: {fileID: 0}
   <DefaultTitle>k__BackingField: 
   <DefaultDescription>k__BackingField: 
   <IconImage>k__BackingField: {fileID: 0}
+  <TextureImage>k__BackingField: {fileID: 0}
   <IconBackground>k__BackingField: {fileID: 0}
   <TitleLabel>k__BackingField: {fileID: 0}
   <DescriptionLabel>k__BackingField: {fileID: 0}
@@ -292,7 +294,7 @@ GameObject:
   - component: {fileID: 7097654758554276796}
   - component: {fileID: 9220683734014005771}
   - component: {fileID: 2682252764342174021}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Tab Extras Container
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -393,7 +395,7 @@ GameObject:
   - component: {fileID: 2045425386602124934}
   - component: {fileID: 266727890457185526}
   - component: {fileID: 6987185908035570286}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Tab Button Container
   m_TagString: Untagged
   m_Icon: {fileID: 0}

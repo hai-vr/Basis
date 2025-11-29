@@ -136,7 +136,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 682069729901212213, guid: c291cad985c051346b5516c30fda2029, type: 3}
       propertyPath: m_Name
-      value: Wui Event Field Base
+      value: PE Event Field Base
       objectReference: {fileID: 0}
     - target: {fileID: 1414218821371179746, guid: c291cad985c051346b5516c30fda2029, type: 3}
       propertyPath: m_AnchorMax.y

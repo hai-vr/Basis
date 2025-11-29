@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 3617520652965370022}
   - component: {fileID: 8280068581166145680}
   - component: {fileID: 601287827913304865}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Description Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -104,6 +104,7 @@ MonoBehaviour:
   m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0
@@ -158,9 +159,21 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 4628038177676003152}
     m_Modifications:
+    - target: {fileID: 1854360928580277558, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
+      propertyPath: m_Layer
+      value: 9
+      objectReference: {fileID: 0}
+    - target: {fileID: 2683168391150361961, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
+      propertyPath: m_Layer
+      value: 9
+      objectReference: {fileID: 0}
     - target: {fileID: 2932355945995885689, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_Name
       value: Button Decline
+      objectReference: {fileID: 0}
+    - target: {fileID: 2932355945995885689, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
+      propertyPath: m_Layer
+      value: 9
       objectReference: {fileID: 0}
     - target: {fileID: 3530125895167035247, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_Sprite
@@ -189,6 +202,10 @@ PrefabInstance:
     - target: {fileID: 5067617763252449152, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: <DefaultTitle>k__BackingField
       value: Decline
+      objectReference: {fileID: 0}
+    - target: {fileID: 6436851213604827547, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
+      propertyPath: m_Layer
+      value: 9
       objectReference: {fileID: 0}
     - target: {fileID: 7697001653075955129, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_Pivot.x
@@ -575,9 +592,21 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 4628038177676003152}
     m_Modifications:
+    - target: {fileID: 1854360928580277558, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
+      propertyPath: m_Layer
+      value: 9
+      objectReference: {fileID: 0}
+    - target: {fileID: 2683168391150361961, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
+      propertyPath: m_Layer
+      value: 9
+      objectReference: {fileID: 0}
     - target: {fileID: 2932355945995885689, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_Name
       value: Button Accept
+      objectReference: {fileID: 0}
+    - target: {fileID: 2932355945995885689, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
+      propertyPath: m_Layer
+      value: 9
       objectReference: {fileID: 0}
     - target: {fileID: 3530125895167035247, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_Sprite
@@ -606,6 +635,10 @@ PrefabInstance:
     - target: {fileID: 5067617763252449152, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: <DefaultTitle>k__BackingField
       value: Accept
+      objectReference: {fileID: 0}
+    - target: {fileID: 6436851213604827547, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
+      propertyPath: m_Layer
+      value: 9
       objectReference: {fileID: 0}
     - target: {fileID: 7697001653075955129, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_Pivot.x

@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 9066733929564820574}
   - component: {fileID: 2593182577184913793}
   - component: {fileID: 8031935059982712949}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Content
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -87,7 +87,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 3428941851972136546}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Viewport
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -128,7 +128,7 @@ GameObject:
   - component: {fileID: 5058976507563325825}
   - component: {fileID: 534942454576265354}
   - component: {fileID: -8014736579783981682}
-  m_Layer: 5
+  m_Layer: 9
   m_Name: Scroll View Horizontal
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -255,8 +255,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 978a6219645efdb4fab14bfbaa7c910e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.PanelElement
-  IconBackground: {fileID: 0}
-  IconImage: {fileID: 0}
-  TitleLabel: {fileID: 0}
-  DescriptionLabel: {fileID: 0}
+  _clearOnAwake: 0
+  <DefaultIcon>k__BackingField: {fileID: 0}
+  <DefaultTexture>k__BackingField: {fileID: 0}
+  <DefaultTitle>k__BackingField: 
+  <DefaultDescription>k__BackingField: 
+  <IconImage>k__BackingField: {fileID: 0}
+  <TextureImage>k__BackingField: {fileID: 0}
+  <IconBackground>k__BackingField: {fileID: 0}
+  <TitleLabel>k__BackingField: {fileID: 0}
+  <DescriptionLabel>k__BackingField: {fileID: 0}
   _contentParent: {fileID: 9066733929564820574}
