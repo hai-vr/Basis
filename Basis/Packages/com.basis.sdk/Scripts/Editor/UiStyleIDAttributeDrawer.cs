@@ -22,7 +22,7 @@ namespace Basis.BasisUI.Styling
 
             EditorGUILayout.BeginHorizontal();
             GUILayout.Label(label);
-            string[] titles = UiStyleSettings.instance.ActiveStyles.GetInfo(styleAttribute.Type);
+            string[] titles = UiStyleSettings.GetActiveStyles().GetInfo(styleAttribute.Type);
             if (EditorGUILayout.DropdownButton(new GUIContent(property.stringValue), FocusType.Keyboard))
             {
                 GenericMenu dropdown = new GenericMenu();
@@ -91,7 +91,7 @@ namespace Basis.BasisUI.Styling
 
             void RefreshList()
             {
-                string[] titles = UiStyleSettings.instance.ActiveStyles.GetInfo(styleAttribute.Type);
+                string[] titles = UiStyleSettings.GetActiveStyles().GetInfo(styleAttribute.Type);
                 dropdown.choices = titles.ToList();
                 bool hasStyle = Array.IndexOf(titles, dropdown.value) == -1;
 

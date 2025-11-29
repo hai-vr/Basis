@@ -18,7 +18,7 @@ namespace Basis.BasisUI.Styling
         public override void ApplyActiveStyle()
         {
             Scrollbar field = GetComponent<Scrollbar>();
-            ScrollbarStyle style = UiStyleSettings.instance.ActiveStyles.ScrollbarStyles.GetStyle(ColorStyle);
+            ScrollbarStyle style = UiStyleSettings.GetActiveStyles().ScrollbarStyles.GetStyle(ColorStyle);
             if (style == null) return;
             
             field.ApplyStyle(style.SelectionStyle);

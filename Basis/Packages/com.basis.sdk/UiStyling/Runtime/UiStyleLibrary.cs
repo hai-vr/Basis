@@ -173,7 +173,7 @@ namespace Basis.BasisUI.Styling
 
         private void OnValidate()
         {
-            if (UiStyleSettings.instance.ActiveStyles == this)
+            if (UiStyleSettings.GetActiveStyles() == this)
                 UiStyleSettings.UpdateAllStyleComponents();
         }
     }

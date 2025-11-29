@@ -25,7 +25,7 @@ namespace Basis.BasisUI.Styling
         public override void ApplyActiveStyle()
         {
             TMP_Dropdown field = GetComponent<TMP_Dropdown>();
-            DropdownStyle style = UiStyleSettings.instance.ActiveStyles.DropdownStyles.GetStyle(ColorStyle);
+            DropdownStyle style = UiStyleSettings.GetActiveStyles().DropdownStyles.GetStyle(ColorStyle);
             if (!style) return;
 
             field.ApplyStyle(style.SelectionStyle);

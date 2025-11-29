@@ -55,7 +55,7 @@ namespace Basis.BasisUI.Styling
 
         public static Color GetCurrentColor(UiPaletteStyle style)
         {
-            return UiStyleSettings.instance.ActivePalette.GetColor(style);
+            return UiStyleSettings.GetActivePalette().GetColor(style);
         }
 
         public Color GetColor(UiPaletteStyle style)
@@ -86,7 +86,7 @@ namespace Basis.BasisUI.Styling
 
         private void OnValidate()
         {
-            if (UiStyleSettings.instance.ActivePalette == this)
+            if (UiStyleSettings.GetActivePalette() == this)
                 UiStyleSettings.UpdateAllStyleComponents();
         }
     }

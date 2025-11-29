@@ -7,7 +7,7 @@ namespace Basis.BasisUI.Styling
     {
         public static void ApplyStyle(this TextMeshProUGUI label, string styleId)
         {
-            LabelStyle style = UiStyleSettings.instance.ActiveStyles?.LabelStyles.GetStyle(styleId);
+            LabelStyle style = UiStyleSettings.GetActiveStyles()?.LabelStyles.GetStyle(styleId);
             label.ApplyStyle(style);
         }
 

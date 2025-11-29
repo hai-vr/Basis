@@ -10,7 +10,7 @@ namespace Basis.BasisUI.Styling
         /// </summary>
         public static void ApplyStyle(this Selectable selectable, string styleId)
         {
-            SelectableStyle style = UiStyleSettings.instance.ActiveStyles.SelectableStyles.GetStyle(styleId);
+            SelectableStyle style = UiStyleSettings.GetActiveStyles().SelectableStyles.GetStyle(styleId);
             selectable.ApplyStyle(style);
         }
 

@@ -13,7 +13,7 @@ namespace Basis.BasisUI.Styling
         {
             VisualElement root = new VisualElement();
 
-            if (UiStyleSettings.instance.ActivePalette != target)
+            if (UiStyleSettings.GetActivePalette() != target)
             {
                 Button button = new Button(() => ((UiStylePalette)target).SetAsActive());
                 button.text = "Set as Active Palette";
@@ -33,7 +33,7 @@ namespace Basis.BasisUI.Styling
         {
             VisualElement root = new VisualElement();
 
-            if (UiStyleSettings.instance.ActiveStyles != target)
+            if (UiStyleSettings.GetActiveStyles() != target)
             {
                 Button button = new Button(() => ((UiStyleLibrary)target).SetAsActive());
                 button.text = "Set as Active Library";

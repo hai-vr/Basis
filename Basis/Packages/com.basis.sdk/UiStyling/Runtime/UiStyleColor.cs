@@ -21,7 +21,7 @@ namespace Basis.BasisUI.Styling
             switch (color.Type)
             {
                 case UiStyleColorType.Palette:
-                    return UiStyleSettings.instance.ActivePalette.GetColor(color.PaletteStyle);
+                    return UiStyleSettings.GetActivePalette().GetColor(color.PaletteStyle);
                 case UiStyleColorType.Custom:
                     return color.Color;
                 default:

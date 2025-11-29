@@ -18,7 +18,7 @@ namespace Basis.BasisUI.Styling
         public override void ApplyActiveStyle()
         {
             Slider field = GetComponent<Slider>();
-            SliderStyle style = UiStyleSettings.instance.ActiveStyles.SliderStyles.GetStyle(ColorStyle);
+            SliderStyle style = UiStyleSettings.GetActiveStyles().SliderStyles.GetStyle(ColorStyle);
             if (style == null) return;
             
             field.ApplyStyle(style.SelectionStyle);

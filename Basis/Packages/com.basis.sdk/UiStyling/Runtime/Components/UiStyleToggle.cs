@@ -21,7 +21,7 @@ namespace Basis.BasisUI.Styling
         public override void ApplyActiveStyle()
         {
             Toggle toggle = GetComponent<Toggle>();
-            ToggleStyle style = UiStyleSettings.instance.ActiveStyles.ToggleStyles.GetStyle(ColorStyle);
+            ToggleStyle style = UiStyleSettings.GetActiveStyles().ToggleStyles.GetStyle(ColorStyle);
             if (style == null) return;
 
             toggle.ApplyStyle(style.SelectionStyle);

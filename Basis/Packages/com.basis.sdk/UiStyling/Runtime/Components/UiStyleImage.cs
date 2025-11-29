@@ -10,7 +10,7 @@ namespace Basis.BasisUI.Styling
         /// </summary>
         public static void ApplyStyle(this Image image, string styleId)
         {
-            ImageStyle style = UiStyleSettings.instance.ActiveStyles.ImageStyles.GetStyle(styleId);
+            ImageStyle style = UiStyleSettings.GetActiveStyles().ImageStyles.GetStyle(styleId);
             image.ApplyStyle(style);
         }
 

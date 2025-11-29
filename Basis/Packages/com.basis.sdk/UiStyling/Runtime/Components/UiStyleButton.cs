@@ -24,7 +24,7 @@ namespace Basis.BasisUI.Styling
         public override void ApplyActiveStyle()
         {
             Button button = GetComponent<Button>();
-            ButtonStyle style = UiStyleSettings.instance.ActiveStyles.ButtonStyles.GetStyle(ColorStyle);
+            ButtonStyle style = UiStyleSettings.GetActiveStyles().ButtonStyles.GetStyle(ColorStyle);
             if (style == null) return;
 
             button.ApplyStyle(style.SelectionStyle);
