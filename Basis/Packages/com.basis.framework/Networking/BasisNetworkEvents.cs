@@ -133,7 +133,7 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                     return;
                 }
-                BasisNetworkHandleAvatar.HandleAvatarUpdate(Reader);
+                BasisNetworkHandleAvatar.HandleAvatarUpdate(Reader,deliveryMethod);
                 Reader.Recycle();
                 break;
             case BasisNetworkCommons.SceneChannel:

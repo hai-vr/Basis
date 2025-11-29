@@ -27,7 +27,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 int offset = 0;
                 double Interval = (double)BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;// Interval + syncMessage.interval
                 BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, (double)(Interval + (double)syncMessage.interval) / 1000f);
-                EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, syncMessage.avatarSerialization, length);
+                EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, syncMessage.avatarSerialization);
             }
             else
             {
@@ -52,7 +52,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             {
                 int offset = 0;
                 BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, 0.01f);
-                EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, avatarSerialization, length);
+                EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, avatarSerialization);
             }
             else
             {
@@ -306,10 +306,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             float normalized = value / FloatRangeDifference;
             return normalized * (maxValue - minValue) + minValue;
         }
-        private static void EnqueueAndProcessAdditionalData(BasisNetworkReceiver baseReceiver, BasisAvatarBuffer avatarBuffer, LocalAvatarSyncMessage message, int dataLength)
+        private static void EnqueueAndProcessAdditionalData(BasisNetworkReceiver baseReceiver, BasisAvatarBuffer avatarBuffer, LocalAvatarSyncMessage message)
         {
-            // Add to profiler
-            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, dataLength);
 
             // Queue the avatar buffer
             baseReceiver.EnQueueAvatarBuffer(avatarBuffer);

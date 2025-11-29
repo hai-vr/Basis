@@ -46,6 +46,7 @@
   <Project Path="BasisSDKEditor.csproj" />
   <Project Path="com.gator-dragon-games.jigglephysics.csproj" />
   <Project Path="BasisSerializer.OdinSerializer.csproj" />
+  <Project Path="BasisNetworkServer.csproj" />
   <Project Path="Unity.VisualEffectGraph.Runtime.csproj" />
   <Project Path="Unity.Services.Core.Editor.csproj" />
   <Project Path="Unity.Burst.CodeGen.csproj" />
@@ -82,7 +83,6 @@
   <Project Path="Unity.XR.OpenXR.Editor.csproj" />
   <Project Path="Unity.Services.Core.Configuration.Editor.csproj" />
   <Project Path="Unity.Services.Core.Configuration.csproj" />
-  <Project Path="BasisNetworkServer.csproj" />
   <Project Path="AudioLink.csproj" />
   <Project Path="Unity.XR.Management.Editor.csproj" />
   <Project Path="Unity.XR.OpenVR.csproj" />

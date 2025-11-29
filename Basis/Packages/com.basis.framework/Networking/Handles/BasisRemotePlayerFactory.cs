@@ -3,6 +3,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Player;
+using Basis.Scripts.Profiler;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using static SerializableBasis;
 
@@ -12,7 +13,8 @@ namespace Basis.Scripts.Networking
     {
         public static void HandleCreateRemotePlayer(NetPacketReader reader, InstantiationParameters Parent)
         {
-           // BasisDebug.Log($"Handling Create Remote Player! {reader.AvailableBytes}");
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, reader.AvailableBytes);
+            // BasisDebug.Log($"Handling Create Remote Player! {reader.AvailableBytes}");
             ServerReadyMessage ServerReadyMessage = new ServerReadyMessage();
             ServerReadyMessage.Deserialize(reader);
 
