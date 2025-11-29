@@ -5,19 +5,17 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
-
 namespace Basis.BasisUI
 {
     public class BasisMenuMover : MonoBehaviour
     {
-
         /// <summary>
         /// Which mode the panel group uses for placement.
         /// </summary>
         public enum PanelGroupRootMode
         {
             World,
-            Head,
+            Eye,
             Playspace, // VR Only
             LeftHand, // VR Only
             RightHand, // VR Only
@@ -31,16 +29,14 @@ namespace Basis.BasisUI
             public float Scale;
             public Quaternion Rotation => Quaternion.Euler(EulerRotation);
         }
-
-        public PanelGroupRootMode CurrentRootMode => BasisDeviceManagement.IsUserInDesktop() ? DesktopRootMode : RootMode;
-
-
         [Header("References")]
         public RectTransform GroupOffset;
 
         [Header("Settings")]
-        public PanelGroupRootMode RootMode = PanelGroupRootMode.Playspace;
-        public PanelGroupRootMode DesktopRootMode = PanelGroupRootMode.Head;
+        public PanelGroupRootMode VRMode = PanelGroupRootMode.Playspace;
+        public PanelGroupRootMode DesktopRootMode = PanelGroupRootMode.Eye;
+
+        public PanelGroupRootMode Inuse = PanelGroupRootMode.Eye;
         public float RootScale = 0.0005f;
 
         [Header("Offsets are multiplied against the Player Eye Height.\nAssign your values assuming a height of 1 meter.")]
@@ -70,51 +66,65 @@ namespace Basis.BasisUI
                 BasisLocalPlayer.OnLocalPlayerCreated += OnLocalPlayerCreated;
                 _hasLocalCreationEvent = true;
             }
-
-            ApplyOffset();
+            BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
+            OnAvatarHeightChange();
         }
-
         private void OnDestroy()
         {
-            BasisLocalPlayer.Instance.OnAvatarSwitched -= ApplyOffset;
-            BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= ApplyOffset;
+            BasisLocalPlayer.Instance.OnAvatarSwitched -= OnAvatarHeightChange;
+            BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnAvatarHeightChange;
 
             if (_hasLocalCreationEvent)
+            {
                 BasisLocalPlayer.OnLocalPlayerCreated -= OnLocalPlayerCreated;
+            }
 
             if (_hasLocalMoveEvent)
+            {
                 BasisLocalPlayer.AfterFinalMove.RemoveAction(120, UpdateUILocation);
+            }
         }
 
         private void OnLocalPlayerCreated()
         {
-            BasisLocalPlayer.Instance.OnAvatarSwitched += ApplyOffset;
-            BasisLocalPlayer.OnPlayersHeightChangedNextFrame += ApplyOffset;
-            SetRootMode(BasisDeviceManagement.IsUserInDesktop() ? DesktopRootMode : RootMode);
+            BasisLocalPlayer.Instance.OnAvatarSwitched += OnAvatarHeightChange;
+            BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnAvatarHeightChange;
+            SetRootMode(GetFindCurrentMode());
 
             BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out _leftHandControl, BasisBoneTrackedRole.LeftHand);
             BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out _rightHandControl, BasisBoneTrackedRole.RightHand);
         }
-
+        private void OnBootModeChanged(string obj)
+        {
+            SetRootMode(GetFindCurrentMode());
+        }
+        public void OnAvatarHeightChange()
+        {
+            SetRootMode(GetFindCurrentMode());
+        }
+        public PanelGroupRootMode GetFindCurrentMode()
+        {
+            if (BasisDeviceManagement.IsUserInDesktop())
+            {
+                return DesktopRootMode;
+            }
+            else
+            {
+                return VRMode;
+            }
+        }
         public void SetRootMode(PanelGroupRootMode mode)
         {
-            RootMode = mode;
-            ApplyOffset();
+            Inuse = mode;
+            ApplyOffset(mode);
         }
-
-        public void SetDesktopRootMode(PanelGroupRootMode mode)
-        {
-            DesktopRootMode = mode;
-            ApplyOffset();
-        }
-
         /// <summary>
         /// Apply the offset for the Current Root Mode.
         /// This also subscribes to the player's movement callback if needed.
         /// </summary>
-        private void ApplyOffset()
+        private void ApplyOffset(PanelGroupRootMode Mode)
         {
-            switch (CurrentRootMode)
+            switch (Mode)
             {
                 case PanelGroupRootMode.World:
                     SetMovementCallback(false);
@@ -124,7 +134,7 @@ namespace Basis.BasisUI
                     SetMovementCallback(true);
                     SetRootOffset(PlayspaceOffset);
                     break;
-                case PanelGroupRootMode.Head:
+                case PanelGroupRootMode.Eye:
                     SetMovementCallback(true);
                     SetRootOffset(HeadOffset);
                     break;
@@ -165,20 +175,20 @@ namespace Basis.BasisUI
             GroupOffset.localScale = Vector3.one * (offset.Scale * RootScale);
             transform.localScale = Vector3.one * playerHeight;
         }
-
         private void UpdateUILocation()
         {
-            PanelGroupRootMode mode = BasisDeviceManagement.IsUserInDesktop() ? DesktopRootMode : RootMode;
-
-            switch (mode)
+            UpdateUILocation(Inuse);
+        }
+        private void UpdateUILocation(PanelGroupRootMode Mode)
+        {
+            switch (Mode)
             {
                 case PanelGroupRootMode.World:
                     break;
                 case PanelGroupRootMode.Playspace:
-                    Position = BasisLocalPlayer.Instance.AvatarTransform.position;
-                    Rotation = BasisLocalPlayer.Instance.AvatarTransform.rotation;
+                    BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out Position, out Rotation);
                     break;
-                case PanelGroupRootMode.Head:
+                case PanelGroupRootMode.Eye:
                     BasisLocalCameraDriver.GetPositionAndRotation(out Position, out Rotation);
                     break;
                 case PanelGroupRootMode.LeftHand:
