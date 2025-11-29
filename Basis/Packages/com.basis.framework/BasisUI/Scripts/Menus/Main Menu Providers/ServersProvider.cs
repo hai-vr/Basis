@@ -1,3 +1,4 @@
+using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -18,10 +19,14 @@ namespace Basis.BasisUI
         {
             if (BasisMainMenu.ActiveMenuTitle == Title) return;
 
-            BasisMenuPanel panel = BasisMainMenu.CreateActiveMenu(
-                BasisMenuPanel.PanelData.Standard(Title),
-                BasisMenuPanel.PanelStyles.Page);
-            BoundButton?.BindActiveStateToAddressablesInstance(panel);
+            /*
+BasisMenuPanel panel = BasisMainMenu.CreateActiveMenu(
+    BasisMenuPanel.PanelData.Standard(Title),
+    BasisMenuPanel.PanelStyles.Page);
+BoundButton?.BindActiveStateToAddressablesInstance(panel);
+                     */
+            BasisMainMenu.Close();
+            BasisUIServers.OpenMenuNow(BasisUIServers.ServerPanel);
         }
     }
 }

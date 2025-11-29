@@ -269,7 +269,10 @@ namespace Basis.BasisUI
                 "Off",
                 "MSAA 2X",
                 "MSAA 4X",
-                "MSAA 8X"
+                "MSAA 8X",
+                "Linear",
+                "Point",
+                "FSR",
             });
             dropdownAntialiasing.AssignBinding(BasisSettingsDefaults.Antialiasing);
 
@@ -347,15 +350,30 @@ namespace Basis.BasisUI
             // Monitor
             PanelDropdown dropdownMonitor = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
 
+            List<string> monitorOptions = new List<string>();
+
+            for (int Index = 0; Index < Display.displays.Length; Index++)
+            {
+                monitorOptions.Add("Monitor " + (Index + 1));
+            }
+
+            dropdownMonitor.Descriptor.SetTitle("Monitor");
+            dropdownMonitor.AssignEntries(monitorOptions);
+            dropdownMonitor.AssignBinding(BasisSettingsDefaults.Monitor);
+
+
+            // Monitor
+            PanelDropdown dropdownScreenMode = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             List<string> screenModeOptions = new List<string>
             {
                 "Fullscreen",
                 "Borderless Window",
                 "Windowed"
             };
-            dropdownMonitor.Descriptor.SetTitle("Monitor");
-            dropdownMonitor.AssignEntries(screenModeOptions);
-            dropdownMonitor.AssignBinding(BasisSettingsDefaults.Monitor);
+
+            dropdownScreenMode.Descriptor.SetTitle("ScreenMode");
+            dropdownScreenMode.AssignEntries(screenModeOptions);
+            dropdownScreenMode.AssignBinding(BasisSettingsDefaults.ScreenMode);
 
             // ADVANCED / FOVEATION GROUP
             PanelElementDescriptor advancedGroup =
@@ -384,7 +402,7 @@ namespace Basis.BasisUI
             // Global Mesh LOD
             PanelSlider sliderGlobalMeshLOD = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
-                PanelSlider.SliderSettings.Distance("Mesh Lod Multiplier", 100),
+                PanelSlider.SliderSettings.Percentage("Mesh Lod Multiplier"),
                 BasisSettingsDefaults.GlobalMeshLOD);
 
             descriptor.ForceRebuild();

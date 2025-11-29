@@ -142,6 +142,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> Monitor => new("Monitor");
 
+        public static BasisSettingsBinding<string> ScreenMode => new("ScreenMode");
+
         public static BasisSettingsBinding<string> MicrophoneMode =>
             new("microphonemode", new BasisPlatformDefault<string>("OnActivation"));
 
