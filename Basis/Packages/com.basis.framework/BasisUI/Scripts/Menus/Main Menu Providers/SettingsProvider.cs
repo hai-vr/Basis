@@ -232,7 +232,7 @@ namespace Basis.BasisUI
 
             PanelSlider sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
             microphoneGroup,
-            PanelSlider.SliderSettings.Percentage("Microphone Volume"),
+            PanelSlider.SliderSettings.Advanced("Microphone Volume",0,1,false,4, ValueDisplayMode.Percentage),
             BasisSettingsDefaults.MicrophoneVolume);
             sliderMicrophoneVolume.SetValueWithoutNotify(SMDMicrophone.SelectedVolumeMicrophone);
             

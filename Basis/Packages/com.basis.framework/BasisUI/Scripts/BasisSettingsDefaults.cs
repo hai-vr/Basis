@@ -16,7 +16,7 @@ namespace Basis.BasisUI
             new("player volume", new BasisPlatformDefault<float>(75));
 
         public static BasisSettingsBinding<float> MicrophoneVolume =>
-            new("Microphone Volume", new BasisPlatformDefault<float>(80));
+            new("Microphone Volume", new BasisPlatformDefault<float>(1));
 
         public static BasisSettingsBinding<float> ControllerDeadZone =>
             new("joystickdeadzone", new BasisPlatformDefault<float>(0.01f));
