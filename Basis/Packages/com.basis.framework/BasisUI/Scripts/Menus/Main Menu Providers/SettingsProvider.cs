@@ -1,3 +1,4 @@
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.UI.UI_Panels;
 using System.Collections.Generic;
 using UnityEngine;
@@ -37,9 +38,54 @@ namespace Basis.BasisUI
             tabGroup.AddExtraAction("Console", OpenConsoleLogger);
             tabGroup.AddExtraAction("Bindings", OpenControllerConfig);
 
+            tabGroup.AddExtraAction("Switch To OpenVR", SwitchToOpenVR);
+            tabGroup.AddExtraAction("Switch To OpenXR", SwitchToOpenXR);
+            tabGroup.AddExtraAction("Switch To Desktop", SwitchToDesktop);
+
+            tabGroup.AddExtraAction("Statistics", OpenControllerConfig);
+
             tabGroup.AssignBinding(new BasisSettingsBinding<int>("BasisVR/SettingsTabs"));
 
             panel.Descriptor.ForceRebuild();
+        }
+        public async void SwitchToOpenVR()
+        {
+            BasisMainMenu.Instance.OpenDialogue("Switch To OpenVR",
+                "Are you sure you want to swap to OpenVR?",
+                "Switch To OpenVR",
+                "Cancel",
+                async value =>
+                {
+                    if (!value) return;
+
+                    await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
+                });
+        }
+        public async void SwitchToOpenXR()
+        {
+            BasisMainMenu.Instance.OpenDialogue("Switch To OpenXR",
+    "Are you sure you want to swap to OpenXR?",
+    "Switch To OpenXR",
+    "Cancel",
+    async value =>
+    {
+        if (!value) return;
+
+        await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenXRLoader);
+    });
+        }
+        public async void SwitchToDesktop()
+        {
+            BasisMainMenu.Instance.OpenDialogue("Switch To Desktop",
+    "Are you sure you want to swap to Desktop?",
+    "Switch To Desktop",
+    "Cancel",
+    async value =>
+    {
+        if (!value) return;
+
+        await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.Desktop);
+    });
         }
 
         public static void OpenAdminPanel()
@@ -93,7 +139,7 @@ namespace Basis.BasisUI
             // Snap Turn Angle
             PanelSlider sliderSnapTurnAngle = PanelSlider.CreateEntryAndBind(
                 generalGroup,
-                PanelSlider.SliderSettings.Advanced("Snap Turn Angle",-1, 120,true,0, ValueDisplayMode.Degrees),
+                PanelSlider.SliderSettings.Advanced("Snap Turn Angle", -1, 120, true, 0, ValueDisplayMode.Degrees),
                 BasisSettingsDefaults.SnapTurnAngle);
 
             // Seated Mode
