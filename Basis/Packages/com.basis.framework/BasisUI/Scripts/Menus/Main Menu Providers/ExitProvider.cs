@@ -35,7 +35,7 @@ namespace Basis.BasisUI
                 "Exit Basis",
                 value =>
                 {
-                    if (!value) return;
+                    if (value) return;
 #if UNITY_EDITOR
                     EditorApplication.isPlaying = false;
 #else

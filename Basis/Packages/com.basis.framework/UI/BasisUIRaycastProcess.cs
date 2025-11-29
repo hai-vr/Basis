@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using static Basis.Scripts.UI.BasisUIRaycast;
 
 namespace Basis.Scripts.UI
 {
@@ -128,6 +127,7 @@ namespace Basis.Scripts.UI
                 }
             }
         }
+        private const string CursorPos = "_CursorPos";
         public void SimulateOnCanvas(RaycastResult raycastResult, BasisRaycastUIHitData hit, BasisPointerEventData currentEventData, BasisInput BaseInput)
         {
             if (hit.graphic == null || currentEventData == null)
@@ -147,6 +147,9 @@ namespace Basis.Scripts.UI
             currentEventData.pointerCurrentRaycast = raycastResult;
 
             bool IsDownThisFrame = BaseInput.CurrentInputState.Trigger == 1;
+
+
+            Shader.SetGlobalVector(CursorPos, hit.worldHitPosition);
 
             // ---- BUTTON DOWN ----
             if (IsDownThisFrame)

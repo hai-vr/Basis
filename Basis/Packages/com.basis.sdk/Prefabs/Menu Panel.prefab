@@ -303,7 +303,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 1
+  m_PresetInfoIsWorld: 0
 --- !u!114 &7932205450658759571
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -386,7 +386,6 @@ GameObject:
   m_Component:
   - component: {fileID: 2882545916875272954}
   - component: {fileID: 3302379439800259565}
-  - component: {fileID: 549842634097603474}
   - component: {fileID: 7552090197012676491}
   m_Layer: 9
   m_Name: Background Image
@@ -422,19 +421,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7543159582691833885}
   m_CullTransparentMesh: 1
---- !u!114 &549842634097603474
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7543159582691833885}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ac978eacab495f24ea85e70302bb021a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: BasisSDK::SendWorldPosToUIShader
-  targetGraphic: {fileID: 7552090197012676491}
 --- !u!114 &7552090197012676491
 MonoBehaviour:
   m_ObjectHideFlags: 0
