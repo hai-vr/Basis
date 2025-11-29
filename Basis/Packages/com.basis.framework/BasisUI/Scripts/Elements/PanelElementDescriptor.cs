@@ -1,6 +1,5 @@
 using System;
 using TMPro;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -176,7 +175,7 @@ namespace Basis.BasisUI
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
         }
-
+        /*
         protected override void OnValidate()
         {
             base.OnValidate();
@@ -206,5 +205,6 @@ namespace Basis.BasisUI
                 DescriptionLabel.text = DefaultDescription;
             }
         }
+        */
     }
 }
