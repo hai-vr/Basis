@@ -244,7 +244,7 @@ namespace Basis.BasisUI
             qualityGroup.SetDescription("Overall render quality and post-processing.");
 
             // Quality Level
-            PanelDropdown dropdownQualityLevel = PanelDropdown.CreateNewEntry(qualityGroup);
+            PanelDropdown dropdownQualityLevel = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownQualityLevel.Descriptor.SetTitle("Quality Level");
             dropdownQualityLevel.AssignEntries(new List<string>
             {
@@ -253,7 +253,7 @@ namespace Basis.BasisUI
             dropdownQualityLevel.AssignBinding(BasisSettingsDefaults.QualityLevel);
 
             // Shadow Quality
-            PanelDropdown dropdownShadowQuality = PanelDropdown.CreateNewEntry(qualityGroup);
+            PanelDropdown dropdownShadowQuality = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownShadowQuality.Descriptor.SetTitle("Shadow Quality");
             dropdownShadowQuality.AssignEntries(new List<string>
             {
@@ -262,7 +262,7 @@ namespace Basis.BasisUI
             dropdownShadowQuality.AssignBinding(BasisSettingsDefaults.ShadowQuality);
 
             // Antialiasing
-            PanelDropdown dropdownAntialiasing = PanelDropdown.CreateNewEntry(qualityGroup);
+            PanelDropdown dropdownAntialiasing = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownAntialiasing.Descriptor.SetTitle("Antialiasing");
             dropdownAntialiasing.AssignEntries(new List<string>
             {
@@ -274,7 +274,7 @@ namespace Basis.BasisUI
             dropdownAntialiasing.AssignBinding(BasisSettingsDefaults.Antialiasing);
 
             // VSync
-            PanelDropdown dropdownVSync = PanelDropdown.CreateNewEntry(qualityGroup);
+            PanelDropdown dropdownVSync = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownVSync.Descriptor.SetTitle("Vertical Sync");
             dropdownVSync.AssignEntries(new List<string>
             {
@@ -291,7 +291,7 @@ namespace Basis.BasisUI
             renderingGroup.SetDescription("Resolution, HDR and performance-related options.");
 
             // HDR Support
-            PanelDropdown dropdownHDR = PanelDropdown.CreateNewEntry(renderingGroup);
+            PanelDropdown dropdownHDR = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             dropdownHDR.Descriptor.SetTitle("HDR Support");
             dropdownHDR.AssignEntries(new List<string>
             {
@@ -302,45 +302,59 @@ namespace Basis.BasisUI
             dropdownHDR.AssignBinding(BasisSettingsDefaults.HDRSupport);
 
             // Memory Allocation
-            PanelDropdown dropdownMemoryAllocation = PanelDropdown.CreateNewEntry(renderingGroup);
+            PanelDropdown dropdownMemoryAllocation = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             dropdownMemoryAllocation.Descriptor.SetTitle("Memory Allocation");
             dropdownMemoryAllocation.AssignEntries(new List<string>
             {
-                "Very Low",
-                "Low",
-                "Medium",
-                "High",
-                "Dynamic"
+                "Dynamic",
+                "256",
+                "512",
+                "1024",
+                "2048",
+                "4096",
+                "8192",
             });
             dropdownMemoryAllocation.AssignBinding(BasisSettingsDefaults.MemoryAllocation);
 
-            // Render Resolution Scale
+            // Render Scale
             PanelSlider sliderRenderResolution = PanelSlider.CreateEntryAndBind(
-                renderingGroup,
-                new PanelSlider.SliderSettings("Render Resolution Scale", "", 0, 1, false, 3, ValueDisplayMode.Percentage),
+                renderingGroup.ContentParent,
+                new PanelSlider.SliderSettings("Render Scale", "", 0, 1, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.RenderResolution);
 
             // Resolution (logical / display resolution)
-            PanelDropdown dropdownResolution = PanelDropdown.CreateNewEntry(renderingGroup);
+            PanelDropdown dropdownResolution = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             dropdownResolution.Descriptor.SetTitle("Resolution");
-            // NOTE: in many systems this will be populated by platform code – tweak/remove entries as needed
-            dropdownResolution.AssignEntries(new List<string>
+            List<Vector2Int> uniqueResolutions = new List<Vector2Int>();
+            List<string> resolutionOptions = new List<string>();
+
+            foreach (Resolution res in Screen.resolutions)
             {
-                "Auto",
-                "1920 x 1080",
-                "2560 x 1440",
-                "3840 x 2160"
-            });
+                Vector2Int size = new Vector2Int(res.width, res.height);
+
+                // Only add if not already in the list (removes duplicates with different refresh rates)
+                if (!uniqueResolutions.Contains(size))
+                {
+                    uniqueResolutions.Add(size);
+                    resolutionOptions.Add(size.x + " x " + size.y);
+                }
+            }
+
+            // NOTE: in many systems this will be populated by platform code – tweak/remove entries as needed
+            dropdownResolution.AssignEntries(resolutionOptions);
             dropdownResolution.AssignBinding(BasisSettingsDefaults.Resolution);
 
             // Monitor
-            PanelDropdown dropdownMonitor = PanelDropdown.CreateNewEntry(renderingGroup);
-            dropdownMonitor.Descriptor.SetTitle("Monitor");
-            dropdownMonitor.AssignEntries(new List<string>
+            PanelDropdown dropdownMonitor = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
+
+            List<string> screenModeOptions = new List<string>
             {
-                "Primary",
-                "Secondary"
-            });
+                "Fullscreen",
+                "Borderless Window",
+                "Windowed"
+            };
+            dropdownMonitor.Descriptor.SetTitle("Monitor");
+            dropdownMonitor.AssignEntries(screenModeOptions);
             dropdownMonitor.AssignBinding(BasisSettingsDefaults.Monitor);
 
             // ADVANCED / FOVEATION GROUP
@@ -351,26 +365,26 @@ namespace Basis.BasisUI
 
             // Foveated Rendering
             PanelSlider sliderFoveatedRendering = PanelSlider.CreateEntryAndBind(
-                advancedGroup,
-                PanelSlider.SliderSettings.Percentage("Foveated Rendering Intensity"),
+                advancedGroup.ContentParent,
+                PanelSlider.SliderSettings.Advanced("Foveated Rendering", 0, 1, false, 1, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.FoveatedRendering);
 
             // Field Of View
             PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
-                advancedGroup,
-                PanelSlider.SliderSettings.Distance("Field Of View", 120),
+                advancedGroup.ContentParent,
+                PanelSlider.SliderSettings.Degrees("Field Of View", 50, 120, true, 0),
                 BasisSettingsDefaults.FieldOfView);
 
             // Mesh LOD
             PanelSlider sliderMeshLOD = PanelSlider.CreateEntryAndBind(
-                advancedGroup,
+                advancedGroup.ContentParent,
                 new PanelSlider.SliderSettings("Mesh LOD Bias", "", 0, 1, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.MeshLOD);
 
             // Global Mesh LOD
             PanelSlider sliderGlobalMeshLOD = PanelSlider.CreateEntryAndBind(
-                advancedGroup,
-                PanelSlider.SliderSettings.Distance("Global Mesh LOD Distance", 100),
+                advancedGroup.ContentParent,
+                PanelSlider.SliderSettings.Distance("Mesh Lod Multiplier", 100),
                 BasisSettingsDefaults.GlobalMeshLOD);
 
             descriptor.ForceRebuild();
@@ -395,18 +409,18 @@ namespace Basis.BasisUI
             debugGroup.SetDescription("Debug rendering modes and overlays.");
 
             // Debug Visuals Toggle
-            PanelToggle toggleDebugVisuals = PanelToggle.CreateNewEntry(debugGroup);
+            PanelToggle toggleDebugVisuals = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
             toggleDebugVisuals.Descriptor.SetTitle("Debug Visuals Enabled");
             toggleDebugVisuals.AssignBinding(BasisSettingsDefaults.DebugVisuals);
 
             // Visual State Mode
-            PanelDropdown dropdownVisualState = PanelDropdown.CreateNewEntry(debugGroup);
+            PanelDropdown dropdownVisualState = PanelDropdown.CreateNewEntry(debugGroup.ContentParent);
             dropdownVisualState.Descriptor.SetTitle("Visual State");
             dropdownVisualState.AssignEntries(new List<string>
             {
                 "Off",
-                "Minimal",
-                "Verbose"
+                "all visuals",
+                "only avatar distance"
             });
             dropdownVisualState.AssignBinding(BasisSettingsDefaults.VisualState);
 
