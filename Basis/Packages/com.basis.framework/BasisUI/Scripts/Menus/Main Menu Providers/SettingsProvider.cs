@@ -6,7 +6,6 @@ namespace Basis.BasisUI
 {
     public class SettingsProvider : BasisMenuActionProvider<BasisMainMenu>
     {
-
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
         {
@@ -16,7 +15,6 @@ namespace Basis.BasisUI
         public override string Title => "Settings";
         public override string IconAddress => AddressableAssets.Sprites.Settings;
         public override int Order => 0;
-
 
         public override void RunAction()
         {
@@ -33,7 +31,7 @@ namespace Basis.BasisUI
             tabGroup.AddTab("General", null, GeneralTab(tabGroup));
             tabGroup.AddTab("Audio", null, AudioTab(tabGroup));
             tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
-            tabGroup.AddTab("Developer", null, SettingsTab(tabGroup));
+            tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
 
             tabGroup.AddExtraAction("Admin", OpenAdminPanel);
             tabGroup.AddExtraAction("Console", OpenConsoleLogger);
@@ -43,136 +41,377 @@ namespace Basis.BasisUI
 
             panel.Descriptor.ForceRebuild();
         }
+
         public static void OpenAdminPanel()
         {
             BasisUIAdminPanel.OpenThisMenu(BasisUIAdminPanel.Path);
             BasisMainMenu.Close();
         }
+
         public static void OpenConsoleLogger()
         {
             BasisUIBase.OpenMenuNow("BasisConsoleLogger");
             BasisMainMenu.Close();
         }
+
         public static void OpenControllerConfig()
         {
             BasisUIActionBindingsPanel.OpenMenuNow("Packages/com.basis.sdk/Prefabs/UI/ControllerConfig.prefab");
             BasisMainMenu.Close();
         }
+
+        // ------------------
+        // GENERAL TAB
+        // ------------------
         public static PanelTabPage GeneralTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
             PanelElementDescriptor descriptor = tab.Descriptor;
             descriptor.SetIcon(AddressableAssets.Sprites.Settings);
-
             descriptor.SetTitle("General Settings");
+
             RectTransform container = descriptor.ContentParent;
 
-            PanelElementDescriptor settingsGroup =
+            // GENERAL INPUT / GAMEPLAY GROUP
+            PanelElementDescriptor generalGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            settingsGroup.SetIcon(AddressableAssets.Sprites.Settings);
-            settingsGroup.SetTitle("Settings");
-            settingsGroup.SetDescription("General settings for testing purposes.");
+            generalGroup.SetIcon(AddressableAssets.Sprites.Settings);
+            generalGroup.SetTitle("Gameplay & Input");
+            generalGroup.SetDescription("General controls and comfort settings.");
 
-            PanelDropdown dropdownQualityLevel = PanelDropdown.CreateNewEntry(settingsGroup);
-            dropdownQualityLevel.Descriptor.SetTitle("Quality Level");
-            dropdownQualityLevel.AssignEntries(new List<string>(){"Very Low", "Low", "Medium", "High", "Ultra"});
-            dropdownQualityLevel.AssignBinding(BasisSettingsDefaults.QualityLevel);
-
-            PanelToggle toggleInvertMouse = PanelToggle.CreateNewEntry(settingsGroup);
+            // Invert Mouse
+            PanelToggle toggleInvertMouse = PanelToggle.CreateNewEntry(generalGroup);
             toggleInvertMouse.Descriptor.SetTitle("Invert Mouse");
             toggleInvertMouse.AssignBinding(BasisSettingsDefaults.InvertMouse);
 
-            PanelToggle toggleMicrophoneDenoiser = PanelToggle.CreateNewEntry(settingsGroup);
-            toggleMicrophoneDenoiser.Descriptor.SetTitle("Microphone Denoiser");
-            toggleMicrophoneDenoiser.AssignBinding(BasisSettingsDefaults.MicrophoneDenoiser);
+            // Controller Dead Zone
+            PanelSlider sliderControllerDeadZone = PanelSlider.CreateEntryAndBind(
+                generalGroup,
+                PanelSlider.SliderSettings.Percentage("Controller Dead Zone"),
+                BasisSettingsDefaults.ControllerDeadZone);
 
-            PanelToggle toggleDebugVisuals = PanelToggle.CreateNewEntry(settingsGroup);
-            toggleDebugVisuals.Descriptor.SetTitle("Debug Visuals");
-            toggleDebugVisuals.AssignBinding(BasisSettingsDefaults.DebugVisuals);
+            // Snap Turn Angle
+            PanelSlider sliderSnapTurnAngle = PanelSlider.CreateEntryAndBind(
+                generalGroup,
+                PanelSlider.SliderSettings.Advanced("Snap Turn Angle",-1, 120,true,0, ValueDisplayMode.Degrees),
+                BasisSettingsDefaults.SnapTurnAngle);
 
-            PanelElementDescriptor sliderGroup =
+            // Seated Mode
+            PanelDropdown dropdownSeatedMode = PanelDropdown.CreateNewEntry(generalGroup);
+            dropdownSeatedMode.Descriptor.SetTitle("Seated Mode");
+            // Options inferred from default
+            dropdownSeatedMode.AssignEntries(new List<string>
+            {
+                "Standing Mode",
+                "Seated Mode"
+            });
+            dropdownSeatedMode.AssignBinding(BasisSettingsDefaults.SeatedMode);
+
+            // RANGE SETTINGS GROUP
+            PanelElementDescriptor rangeGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            sliderGroup.SetTitle("Slider Settings");
-            sliderGroup.SetDescription("Test category for settings with sliders in them.");
+            rangeGroup.SetTitle("Ranges");
+            rangeGroup.SetDescription("Visibility and hearing ranges.");
 
-            PanelSlider sliderAvatarRange = PanelSlider.CreateEntryAndBind(sliderGroup,
+            // Avatar Visibility Range
+            PanelSlider sliderAvatarRange = PanelSlider.CreateEntryAndBind(
+                rangeGroup,
                 PanelSlider.SliderSettings.Distance("Avatar Visibility Range", 100),
                 BasisSettingsDefaults.AvatarRange);
 
-            PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(sliderGroup,
-                PanelSlider.SliderSettings.Distance("Hearing Range" , 25),
+            // Hearing Range
+            PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
+                rangeGroup,
+                PanelSlider.SliderSettings.Distance("Hearing Range", 25),
                 BasisSettingsDefaults.HearingRange);
-
-            PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(sliderGroup,
-    PanelSlider.SliderSettings.Distance("Microphone Range", 25),
-    BasisSettingsDefaults.MicrophoneRange);
 
             descriptor.ForceRebuild();
             return tab;
         }
 
+        // ------------------
+        // AUDIO TAB
+        // ------------------
         public static PanelTabPage AudioTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
             PanelElementDescriptor descriptor = tab.Descriptor;
 
-            descriptor.SetTitle("Volume Mixer");
+            descriptor.SetTitle("Audio Settings");
             RectTransform container = descriptor.ContentParent;
 
-            PanelSlider sliderMainVolume = PanelSlider.CreateAndBind(container,
+            // MASTER GROUP
+            PanelElementDescriptor masterGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            masterGroup.SetTitle("Master Volume");
+            masterGroup.SetDescription("Overall game volume.");
+
+            PanelSlider sliderMainVolume = PanelSlider.CreateEntryAndBind(
+                masterGroup,
                 PanelSlider.SliderSettings.Percentage("Main Volume"),
                 BasisSettingsDefaults.MainVolume);
 
-            PanelElementDescriptor settingsGroup =
+            // MIXER GROUP
+            PanelElementDescriptor mixerGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            settingsGroup.SetTitle("Volume Mixer");
-            settingsGroup.SetDescription("Various volume options for purposes.");
+            mixerGroup.SetTitle("Volume Mixer");
+            mixerGroup.SetDescription("Control individual channel volumes.");
 
-            PanelSlider sliderMenuVolume = PanelSlider.CreateEntryAndBind(settingsGroup,
+            PanelSlider sliderMenuVolume = PanelSlider.CreateEntryAndBind(
+                mixerGroup,
                 PanelSlider.SliderSettings.Percentage("Menu Volume"),
                 BasisSettingsDefaults.MenuVolume);
 
-            PanelSlider sliderWorldVolume = PanelSlider.CreateEntryAndBind(settingsGroup,
+            PanelSlider sliderWorldVolume = PanelSlider.CreateEntryAndBind(
+                mixerGroup,
                 PanelSlider.SliderSettings.Percentage("World Volume"),
                 BasisSettingsDefaults.WorldVolume);
 
-            PanelSlider sliderPlayerVolume = PanelSlider.CreateEntryAndBind(settingsGroup,
+            PanelSlider sliderPlayerVolume = PanelSlider.CreateEntryAndBind(
+                mixerGroup,
                 PanelSlider.SliderSettings.Percentage("Player Volume"),
                 BasisSettingsDefaults.PlayerVolume);
 
-            PanelSlider.CreateAndBind(container,
-                PanelSlider.SliderSettings.Percentage("Main Volume"),
-                BasisSettingsDefaults.MainVolume);
-            PanelSlider.CreateAndBind(container,
-                PanelSlider.SliderSettings.Percentage("Main Volume"),
-                BasisSettingsDefaults.MainVolume);
+            PanelSlider sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
+                mixerGroup,
+                PanelSlider.SliderSettings.Percentage("Microphone Volume"),
+                BasisSettingsDefaults.MicrophoneVolume);
+
+            // MICROPHONE GROUP
+            PanelElementDescriptor microphoneGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            microphoneGroup.SetTitle("Microphone");
+            microphoneGroup.SetDescription("Microphone behaviour and processing.");
+
+            // Microphone Range
+            PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
+                microphoneGroup,
+                PanelSlider.SliderSettings.Distance("Microphone Range", 25),
+                BasisSettingsDefaults.MicrophoneRange);
+
+            // Microphone Denoiser
+            PanelToggle toggleMicrophoneDenoiser = PanelToggle.CreateNewEntry(microphoneGroup);
+            toggleMicrophoneDenoiser.Descriptor.SetTitle("Microphone Denoiser");
+            toggleMicrophoneDenoiser.AssignBinding(BasisSettingsDefaults.MicrophoneDenoiser);
+
+            // Automatic Gain Control
+            PanelToggle toggleAGC = PanelToggle.CreateNewEntry(microphoneGroup);
+            toggleAGC.Descriptor.SetTitle("Automatic Gain (AGC)");
+            toggleAGC.AssignBinding(BasisSettingsDefaults.UseAutomaticGain);
+
+            // Microphone Mode
+            PanelDropdown dropdownMicrophoneMode = PanelDropdown.CreateNewEntry(microphoneGroup);
+            dropdownMicrophoneMode.Descriptor.SetTitle("Microphone Mode");
+            // Options inferred from default naming – adjust to your actual system values if needed
+            dropdownMicrophoneMode.AssignEntries(new List<string>
+            {
+                "OnActivation",
+                "AlwaysOn",
+                "PushToTalk"
+            });
+            dropdownMicrophoneMode.AssignBinding(BasisSettingsDefaults.MicrophoneMode);
+
+            // Microphone Icon
+            PanelDropdown dropdownMicrophoneIcon = PanelDropdown.CreateNewEntry(microphoneGroup);
+            dropdownMicrophoneIcon.Descriptor.SetTitle("Microphone Icon");
+            dropdownMicrophoneIcon.AssignEntries(new List<string>
+            {
+                "AlwaysVisible",
+                "OnVoiceOnly",
+                "Hidden"
+            });
+            dropdownMicrophoneIcon.AssignBinding(BasisSettingsDefaults.MicrophoneIcon);
+
             descriptor.ForceRebuild();
             return tab;
         }
 
+        // ------------------
+        // GRAPHICS TAB
+        // ------------------
         public static PanelTabPage GraphicsTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
             PanelElementDescriptor descriptor = tab.Descriptor;
+            descriptor.SetTitle("Graphics Settings");
 
-            PanelSlider.CreateNew(descriptor.ContentParent);
-            PanelSlider.CreateNew(descriptor.ContentParent);
+            RectTransform container = descriptor.ContentParent;
+
+            // QUALITY GROUP
+            PanelElementDescriptor qualityGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            qualityGroup.SetTitle("Quality");
+            qualityGroup.SetDescription("Overall render quality and post-processing.");
+
+            // Quality Level
+            PanelDropdown dropdownQualityLevel = PanelDropdown.CreateNewEntry(qualityGroup);
+            dropdownQualityLevel.Descriptor.SetTitle("Quality Level");
+            dropdownQualityLevel.AssignEntries(new List<string>
+            {
+                "Very Low", "Low", "Medium", "High", "Ultra"
+            });
+            dropdownQualityLevel.AssignBinding(BasisSettingsDefaults.QualityLevel);
+
+            // Shadow Quality
+            PanelDropdown dropdownShadowQuality = PanelDropdown.CreateNewEntry(qualityGroup);
+            dropdownShadowQuality.Descriptor.SetTitle("Shadow Quality");
+            dropdownShadowQuality.AssignEntries(new List<string>
+            {
+                "Very Low", "Low", "Medium", "High", "Ultra"
+            });
+            dropdownShadowQuality.AssignBinding(BasisSettingsDefaults.ShadowQuality);
+
+            // Antialiasing
+            PanelDropdown dropdownAntialiasing = PanelDropdown.CreateNewEntry(qualityGroup);
+            dropdownAntialiasing.Descriptor.SetTitle("Antialiasing");
+            dropdownAntialiasing.AssignEntries(new List<string>
+            {
+                "Off",
+                "MSAA 2X",
+                "MSAA 4X",
+                "MSAA 8X"
+            });
+            dropdownAntialiasing.AssignBinding(BasisSettingsDefaults.Antialiasing);
+
+            // VSync
+            PanelDropdown dropdownVSync = PanelDropdown.CreateNewEntry(qualityGroup);
+            dropdownVSync.Descriptor.SetTitle("Vertical Sync");
+            dropdownVSync.AssignEntries(new List<string>
+            {
+                "Off",
+                "On",
+                "Capped"
+            });
+            dropdownVSync.AssignBinding(BasisSettingsDefaults.VSync);
+
+            // RENDERING GROUP
+            PanelElementDescriptor renderingGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            renderingGroup.SetTitle("Rendering");
+            renderingGroup.SetDescription("Resolution, HDR and performance-related options.");
+
+            // HDR Support
+            PanelDropdown dropdownHDR = PanelDropdown.CreateNewEntry(renderingGroup);
+            dropdownHDR.Descriptor.SetTitle("HDR Support");
+            dropdownHDR.AssignEntries(new List<string>
+            {
+                "off",
+                "32bit",
+                "64bit"
+            });
+            dropdownHDR.AssignBinding(BasisSettingsDefaults.HDRSupport);
+
+            // Memory Allocation
+            PanelDropdown dropdownMemoryAllocation = PanelDropdown.CreateNewEntry(renderingGroup);
+            dropdownMemoryAllocation.Descriptor.SetTitle("Memory Allocation");
+            dropdownMemoryAllocation.AssignEntries(new List<string>
+            {
+                "Very Low",
+                "Low",
+                "Medium",
+                "High",
+                "Dynamic"
+            });
+            dropdownMemoryAllocation.AssignBinding(BasisSettingsDefaults.MemoryAllocation);
+
+            // Render Resolution Scale
+            PanelSlider sliderRenderResolution = PanelSlider.CreateEntryAndBind(
+                renderingGroup,
+                new PanelSlider.SliderSettings("Render Resolution Scale", "", 0, 1, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.RenderResolution);
+
+            // Resolution (logical / display resolution)
+            PanelDropdown dropdownResolution = PanelDropdown.CreateNewEntry(renderingGroup);
+            dropdownResolution.Descriptor.SetTitle("Resolution");
+            // NOTE: in many systems this will be populated by platform code – tweak/remove entries as needed
+            dropdownResolution.AssignEntries(new List<string>
+            {
+                "Auto",
+                "1920 x 1080",
+                "2560 x 1440",
+                "3840 x 2160"
+            });
+            dropdownResolution.AssignBinding(BasisSettingsDefaults.Resolution);
+
+            // Monitor
+            PanelDropdown dropdownMonitor = PanelDropdown.CreateNewEntry(renderingGroup);
+            dropdownMonitor.Descriptor.SetTitle("Monitor");
+            dropdownMonitor.AssignEntries(new List<string>
+            {
+                "Primary",
+                "Secondary"
+            });
+            dropdownMonitor.AssignBinding(BasisSettingsDefaults.Monitor);
+
+            // ADVANCED / FOVEATION GROUP
+            PanelElementDescriptor advancedGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            advancedGroup.SetTitle("Advanced Rendering");
+            advancedGroup.SetDescription("Foveation, FOV and LOD controls.");
+
+            // Foveated Rendering
+            PanelSlider sliderFoveatedRendering = PanelSlider.CreateEntryAndBind(
+                advancedGroup,
+                PanelSlider.SliderSettings.Percentage("Foveated Rendering Intensity"),
+                BasisSettingsDefaults.FoveatedRendering);
+
+            // Field Of View
+            PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
+                advancedGroup,
+                PanelSlider.SliderSettings.Distance("Field Of View", 120),
+                BasisSettingsDefaults.FieldOfView);
+
+            // Mesh LOD
+            PanelSlider sliderMeshLOD = PanelSlider.CreateEntryAndBind(
+                advancedGroup,
+                new PanelSlider.SliderSettings("Mesh LOD Bias", "", 0, 1, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.MeshLOD);
+
+            // Global Mesh LOD
+            PanelSlider sliderGlobalMeshLOD = PanelSlider.CreateEntryAndBind(
+                advancedGroup,
+                PanelSlider.SliderSettings.Distance("Global Mesh LOD Distance", 100),
+                BasisSettingsDefaults.GlobalMeshLOD);
 
             descriptor.ForceRebuild();
             return tab;
         }
 
-        public static PanelTabPage SettingsTab(PanelTabGroup tabGroup)
+        // ------------------
+        // DEVELOPER TAB
+        // ------------------
+        public static PanelTabPage DeveloperTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
             PanelElementDescriptor descriptor = tab.Descriptor;
 
-            PanelSlider.CreateNew(descriptor.ContentParent);
-            PanelSlider.CreateNew(descriptor.ContentParent);
+            descriptor.SetTitle("Developer & Debug");
+            RectTransform container = descriptor.ContentParent;
+
+            // DEBUG VISUALS GROUP
+            PanelElementDescriptor debugGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            debugGroup.SetTitle("Debug Visuals");
+            debugGroup.SetDescription("Debug rendering modes and overlays.");
+
+            // Debug Visuals Toggle
+            PanelToggle toggleDebugVisuals = PanelToggle.CreateNewEntry(debugGroup);
+            toggleDebugVisuals.Descriptor.SetTitle("Debug Visuals Enabled");
+            toggleDebugVisuals.AssignBinding(BasisSettingsDefaults.DebugVisuals);
+
+            // Visual State Mode
+            PanelDropdown dropdownVisualState = PanelDropdown.CreateNewEntry(debugGroup);
+            dropdownVisualState.Descriptor.SetTitle("Visual State");
+            dropdownVisualState.AssignEntries(new List<string>
+            {
+                "Off",
+                "Minimal",
+                "Verbose"
+            });
+            dropdownVisualState.AssignBinding(BasisSettingsDefaults.VisualState);
 
             descriptor.ForceRebuild();
             return tab;
         }
-
     }
 }

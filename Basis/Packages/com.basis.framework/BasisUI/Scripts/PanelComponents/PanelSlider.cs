@@ -10,7 +10,8 @@ namespace Basis.BasisUI
     {
         Percentage,
         Raw,
-        Meters
+        Meters,
+        Degrees
     }
 
     public class PanelSlider : PanelDataComponent<float>
@@ -26,6 +27,41 @@ namespace Basis.BasisUI
             public bool UseWholeNumbers;
             [Min(0)] public int DecimalPlaces;
             public ValueDisplayMode DisplayMode;
+
+            public SliderSettings(string title, string description, float sliderMin, float sliderMax, bool useWholeNumbers, int decimalPlaces, ValueDisplayMode displayMode)
+            {
+                Title = title;
+                Description = description;
+                SliderMin = sliderMin;
+                SliderMax = sliderMax;
+                UseWholeNumbers = useWholeNumbers;
+                DecimalPlaces = decimalPlaces;
+                DisplayMode = displayMode;
+            }
+            public static SliderSettings Advanced(string title, float sliderMin, float sliderMax, bool useWholeNumbers, int decimalPlaces, ValueDisplayMode displayMode)
+            {
+                return new SliderSettings
+                {
+                    Title = title,
+                    SliderMin = sliderMin,
+                    SliderMax = sliderMax,
+                    UseWholeNumbers = useWholeNumbers,
+                    DecimalPlaces = decimalPlaces,
+                    DisplayMode = displayMode,
+                };
+            }
+            public static SliderSettings Degrees(string title, float sliderMin, float sliderMax, bool useWholeNumbers, int decimalPlaces)
+            {
+                return new SliderSettings
+                {
+                    Title = title,
+                    SliderMin = sliderMin,
+                    SliderMax = sliderMax,
+                    UseWholeNumbers = useWholeNumbers,
+                    DecimalPlaces = decimalPlaces,
+                    DisplayMode =  ValueDisplayMode.Degrees,
+                };
+            }
 
             public static SliderSettings Percentage(string title)
             {
@@ -167,6 +203,9 @@ namespace Basis.BasisUI
 
                 case ValueDisplayMode.Meters:
                     CurrentValueLabel.text = Value.ToString("0." + new string('#', Settings.DecimalPlaces)) + " m";
+                    break;
+                    case ValueDisplayMode.Degrees:
+                    CurrentValueLabel.text = Value.ToString("0." + new string('#', Settings.DecimalPlaces)) + "°";
                     break;
             }
         }
