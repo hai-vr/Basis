@@ -361,10 +361,10 @@ namespace Basis.BasisUI
             dropdownVSync.Descriptor.SetTitle("Vertical Sync");
             dropdownVSync.AssignEntries(new List<string>
             {
-                "Off",
                 "On",
+                "Capped",
+                "Off",
                 "Half",
-                "Capped"
             });
             dropdownVSync.AssignBinding(BasisSettingsDefaults.VSync);
 
