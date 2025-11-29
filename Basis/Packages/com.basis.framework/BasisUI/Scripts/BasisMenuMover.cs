@@ -1,9 +1,9 @@
-using System;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
+using System;
 using UnityEngine;
 namespace Basis.BasisUI
 {
@@ -14,6 +14,7 @@ namespace Basis.BasisUI
         /// </summary>
         public enum PanelGroupRootMode
         {
+            Floating,
             World,
             Eye,
             Playspace, // VR Only
@@ -33,7 +34,7 @@ namespace Basis.BasisUI
         public RectTransform GroupOffset;
 
         [Header("Settings")]
-        public PanelGroupRootMode VRMode = PanelGroupRootMode.Playspace;
+        public PanelGroupRootMode VRMode = PanelGroupRootMode.Floating;
         public PanelGroupRootMode DesktopRootMode = PanelGroupRootMode.Eye;
 
         public PanelGroupRootMode Inuse = PanelGroupRootMode.Eye;
@@ -110,21 +111,24 @@ namespace Basis.BasisUI
             }
             else
             {
-                return VRMode;
+                if (BasisDeviceManagement.IsCurrentModeVR())
+                {
+                    return VRMode;
+                }
+                else
+                {
+                    return DesktopRootMode;
+                }
             }
-        }
-        public void SetRootMode(PanelGroupRootMode mode)
-        {
-            Inuse = mode;
-            ApplyOffset(mode);
         }
         /// <summary>
         /// Apply the offset for the Current Root Mode.
         /// This also subscribes to the player's movement callback if needed.
         /// </summary>
-        private void ApplyOffset(PanelGroupRootMode Mode)
+        public void SetRootMode(PanelGroupRootMode mode)
         {
-            switch (Mode)
+            Inuse = mode;
+            switch (Inuse)
             {
                 case PanelGroupRootMode.World:
                     SetMovementCallback(false);
@@ -146,11 +150,13 @@ namespace Basis.BasisUI
                     SetMovementCallback(true);
                     SetRootOffset(RightHandOffset);
                     break;
+                case PanelGroupRootMode.Floating:
+                    SetMovementCallback(true);
+                    break;
                 default:
                     throw new ArgumentOutOfRangeException();
             }
         }
-
         private void SetMovementCallback(bool value)
         {
             if (value != _hasLocalMoveEvent)
@@ -187,26 +193,29 @@ namespace Basis.BasisUI
                     break;
                 case PanelGroupRootMode.Playspace:
                     BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out Position, out Rotation);
+                    transform.SetPositionAndRotation(Position, Rotation);
                     break;
                 case PanelGroupRootMode.Eye:
                     BasisLocalCameraDriver.GetPositionAndRotation(out Position, out Rotation);
+                    transform.SetPositionAndRotation(Position, Rotation);
                     break;
                 case PanelGroupRootMode.LeftHand:
                     BasisCalibratedCoords leftData = _leftHandControl.OutgoingWorldData;
                     Position = leftData.position;
                     Rotation = leftData.rotation;
+                    transform.SetPositionAndRotation(Position, Rotation);
                     break;
                 case PanelGroupRootMode.RightHand:
                     BasisCalibratedCoords rightData = _rightHandControl.OutgoingWorldData;
                     Position = rightData.position;
                     Rotation = rightData.rotation;
+                    transform.SetPositionAndRotation(Position, Rotation);
+                    break;
+                case PanelGroupRootMode.Floating:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
             }
-
-            transform.SetPositionAndRotation(Position, Rotation);
         }
-
     }
 }
