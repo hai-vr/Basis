@@ -282,12 +282,12 @@ namespace Basis.BasisUI
             // Microphone Mode
             PanelDropdown dropdownMicrophoneMode = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneMode.Descriptor.SetTitle("Microphone Mode");
+
             // Options inferred from default naming – adjust to your actual system values if needed
             dropdownMicrophoneMode.AssignEntries(new List<string>
             {
-                "OnActivation",
-                "AlwaysOn",
-                "PushToTalk"
+                "On Activation",
+                "Push To Talk"
             });
             dropdownMicrophoneMode.AssignBinding(BasisSettingsDefaults.MicrophoneMode);
 
@@ -297,7 +297,7 @@ namespace Basis.BasisUI
             dropdownMicrophoneIcon.AssignEntries(new List<string>
             {
                 "AlwaysVisible",
-                "OnVoiceOnly",
+                "ActivityDetection",
                 "Hidden"
             });
             dropdownMicrophoneIcon.AssignBinding(BasisSettingsDefaults.MicrophoneIcon);
