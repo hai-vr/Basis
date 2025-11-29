@@ -11,7 +11,6 @@ namespace BattlePhaze.SettingsManager.Intergrations
             switch (matchedSettingName)
             {
                 case "Quality Level":
-                    QualitySettings.SetQualityLevel(QualitySettings.GetQualityLevel(), true);
                     if (Camera == null)
                     {
                         Camera = Camera.main;
@@ -46,11 +45,11 @@ namespace BattlePhaze.SettingsManager.Intergrations
                     break;
             }
         }
-        private void ApplyQualitySettings(AnisotropicFiltering anisotropicFilter,int particleBudget,bool renderShadows, bool stopNaN)
+        private void ApplyQualitySettings(AnisotropicFiltering anisotropicFilter, int particleBudget, bool renderShadows, bool stopNaN)
         {
             QualitySettings.anisotropicFiltering = anisotropicFilter;
             QualitySettings.particleRaycastBudget = particleBudget;
-            QualitySettings.SetQualityLevel(QualitySettings.GetQualityLevel(), true);
+            BasisDebug.Log("Apply Quality Settings", BasisDebug.LogTag.System);
             if (Data != null)
             {
                 Data.renderShadows = renderShadows;

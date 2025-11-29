@@ -27,6 +27,7 @@ public abstract class BasisSettingsBase : MonoBehaviour
                 return;
             }
         }
+        QualitySettings.SetQualityLevel(QualitySettings.GetQualityLevel(), true);
     }
     public bool SliderReadOption(string String, out float Value)
     {
