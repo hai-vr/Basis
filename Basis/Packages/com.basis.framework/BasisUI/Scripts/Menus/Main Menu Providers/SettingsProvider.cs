@@ -28,6 +28,11 @@ namespace Basis.BasisUI
                 BasisMenuPanel.PanelData.Standard(Title),
                 BasisMenuPanel.PanelStyles.Page);
 
+            var TitleLabel = panel.Descriptor.TitleLabel;
+            BasisFrameRateVisualization FRV = TitleLabel.gameObject.AddComponent<BasisFrameRateVisualization>();
+            FRV.Title = Title;
+            FRV.fpsText = TitleLabel;
+
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
 
             PanelTabGroup tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
