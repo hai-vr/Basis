@@ -549,7 +549,7 @@ namespace Basis.BasisUI
             // Avatar Scale
             PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
                 debugGroup.ContentParent,
-                PanelSlider.SliderSettings.Advanced("Avatar Scale", 0.1f, 5, false, 2, ValueDisplayMode.Meters),
+                PanelSlider.SliderSettings.Advanced("Avatar Scale", 0.2f, 5, false, 2, ValueDisplayMode.Meters),
                 BasisSettingsDefaults.AvatarScale);
 
             //  sliderFieldOfView.SetValueWithoutNotify(1.7f);
