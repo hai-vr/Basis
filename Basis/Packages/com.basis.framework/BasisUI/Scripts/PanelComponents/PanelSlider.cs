@@ -94,7 +94,7 @@ namespace Basis.BasisUI
         public TextMeshProUGUI CurrentValueLabel;
         public TextMeshProUGUI MinValueLabel;
         public TextMeshProUGUI MaxValueLabel;
-        public OnEndDragListener OnEndDragListener;
+        public SliderValueConfirmedListener SliderConfirmedListener;
 
         [field: SerializeField] public SliderSettings Settings { get; protected set; }
 
@@ -143,7 +143,7 @@ namespace Basis.BasisUI
             base.OnCreateEvent();
             ApplySliderSettings();
             SliderComponent.onValueChanged.AddListener(OnSliderValueChanged);
-            OnEndDragListener.OnDragComplete += OnSliderDragComplete;
+            SliderConfirmedListener.OnValueConfirmed += OnSliderConfirmed;
         }
 
         // Applies visually, does not write to settings.
@@ -154,11 +154,9 @@ namespace Basis.BasisUI
         }
 
         // Applies to settings once the user is done moving the slider.
-        private void OnSliderDragComplete()
+        private void OnSliderConfirmed()
         {
-            Value = SliderComponent.value;
-            SettingsBinding?.SetValue(Value);
-            ApplyValue();
+            SetValue(SliderComponent.value);
         }
 
         public void SetSliderSettings(SliderSettings settings)

@@ -60,20 +60,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Basis Framework::Basis.VowganUI.BasisMenuMover
   GroupOffset: {fileID: 2105398421684032071}
-  VRMode: 2
+  VRMode: 0
   DesktopRootMode: 2
-  Inuse: 2
-  RootScale: 0.0004
+  InUse: 2
+  RootScale: 0.0005
   WorldOffset:
     Position: {x: 0, y: 0, z: 0}
     EulerRotation: {x: 0, y: 0, z: 0}
     Scale: 1
-  PlayspaceOffset:
-    Position: {x: 0, y: 1.6, z: 0.75}
-    EulerRotation: {x: 0, y: 0, z: 0}
-    Scale: 1
   HeadOffset:
-    Position: {x: 0, y: 0.06, z: 0.35}
+    Position: {x: 0, y: 0.06, z: 0.4}
     EulerRotation: {x: 0, y: 0, z: 0}
     Scale: 1
   LeftHandOffset:
@@ -84,8 +80,13 @@ MonoBehaviour:
     Position: {x: 0, y: 0, z: 0}
     EulerRotation: {x: 0, y: 0, z: 0}
     Scale: 0.2
+  FloatingOffset:
+    Position: {x: 0, y: -0.1, z: 0.8}
+    EulerRotation: {x: 12, y: 0, z: 0}
+    Scale: 1
   Position: {x: 0, y: 0, z: 0}
   Rotation: {x: 0, y: 0, z: 0, w: 0}
+  VRRootOffset: {x: 0, y: 0, z: 0}
 --- !u!1 &9212467420584055477
 GameObject:
   m_ObjectHideFlags: 0

@@ -3,6 +3,7 @@ using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using TMPro;
 using UnityEngine;
 using static UnityEngine.Rendering.DebugUI;
 
@@ -28,7 +29,7 @@ namespace Basis.BasisUI
                 BasisMenuPanel.PanelData.Standard(Title),
                 BasisMenuPanel.PanelStyles.Page);
 
-            var TitleLabel = panel.Descriptor.TitleLabel;
+            TextMeshProUGUI TitleLabel = panel.Descriptor.TitleLabel;
             BasisFrameRateVisualization FRV = TitleLabel.gameObject.AddComponent<BasisFrameRateVisualization>();
             FRV.Title = Title;
             FRV.fpsText = TitleLabel;
@@ -51,12 +52,13 @@ namespace Basis.BasisUI
             tabGroup.AddExtraAction("Switch To OpenXR", SwitchToOpenXR);
             tabGroup.AddExtraAction("Switch To Desktop", SwitchToDesktop);
 
-           // tabGroup.AddExtraAction("Statistics", OpenControllerConfig);
+            // tabGroup.AddExtraAction("Statistics", OpenControllerConfig);
 
             tabGroup.AssignBinding(new BasisSettingsBinding<int>("BasisVR/SettingsTabs"));
 
             panel.Descriptor.ForceRebuild();
         }
+
         public async void SwitchToOpenVR()
         {
             BasisMainMenu.Instance.OpenDialogue("Switch To OpenVR",
@@ -70,31 +72,33 @@ namespace Basis.BasisUI
                     await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
                 });
         }
+
         public async void SwitchToOpenXR()
         {
             BasisMainMenu.Instance.OpenDialogue("Switch To OpenXR",
-    "Are you sure you want to swap to OpenXR?",
-    "Switch To OpenXR",
-    "Cancel",
-    async value =>
-    {
-        if (!value) return;
+                "Are you sure you want to swap to OpenXR?",
+                "Switch To OpenXR",
+                "Cancel",
+                async value =>
+                {
+                    if (!value) return;
 
-        await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenXRLoader);
-    });
+                    await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenXRLoader);
+                });
         }
+
         public async void SwitchToDesktop()
         {
             BasisMainMenu.Instance.OpenDialogue("Switch To Desktop",
-    "Are you sure you want to swap to Desktop?",
-    "Switch To Desktop",
-    "Cancel",
-    async value =>
-    {
-        if (!value) return;
+                "Are you sure you want to swap to Desktop?",
+                "Switch To Desktop",
+                "Cancel",
+                async value =>
+                {
+                    if (!value) return;
 
-        await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.Desktop);
-    });
+                    await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.Desktop);
+                });
         }
 
         public static void OpenAdminPanel()
@@ -236,15 +240,16 @@ namespace Basis.BasisUI
             microphoneGroup.SetDescription("Microphone Related Settings");
 
             PanelSlider sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
-            microphoneGroup,
-            PanelSlider.SliderSettings.Advanced("Microphone Volume",0,1,false,4, ValueDisplayMode.Percentage),
-            BasisSettingsDefaults.MicrophoneVolume);
+                microphoneGroup,
+                PanelSlider.SliderSettings.Advanced("Microphone Volume", 0, 1, false, 4, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.MicrophoneVolume);
             sliderMicrophoneVolume.SetValueWithoutNotify(SMDMicrophone.SelectedVolumeMicrophone);
-            
+
             void MicrophoneVolumeChanged(float value)
             {
                 SMDMicrophone.SaveVolumeSettings(BasisDeviceManagement.StaticCurrentMode, value);
             }
+
             sliderMicrophoneVolume.SliderComponent.onValueChanged.AddListener(MicrophoneVolumeChanged);
 
             // Microphone Range
@@ -269,6 +274,7 @@ namespace Basis.BasisUI
             {
                 SMDMicrophone.SaveMicrophoneData(BasisDeviceManagement.StaticCurrentMode, Name);
             }
+
             dropdownMicrophoneSelection.OnValueChanged += MicrophoneSelectionChanged;
 
 
@@ -530,6 +536,7 @@ namespace Basis.BasisUI
             descriptor.ForceRebuild();
             return tab;
         }
+
         // ------------------
         // AVATAR TAB
         // ------------------
@@ -549,15 +556,15 @@ namespace Basis.BasisUI
             // Avatar Scale
             PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
                 debugGroup.ContentParent,
-                PanelSlider.SliderSettings.Advanced("Avatar Scale", 0.2f, 5, false, 2, ValueDisplayMode.Meters),
+                PanelSlider.SliderSettings.Advanced("Avatar Scale", 0.1f, 5, false, 2, ValueDisplayMode.Meters),
                 BasisSettingsDefaults.AvatarScale);
 
-            //  sliderFieldOfView.SetValueWithoutNotify(1.7f);
-            sliderFieldOfView.SliderComponent.onValueChanged.AddListener(AvatarScaleChanged);
+            sliderFieldOfView.OnValueChanged += AvatarScaleChanged;
 
             descriptor.ForceRebuild();
             return tab;
         }
+
         public static void AvatarScaleChanged(float value)
         {
             BasisHeightDriver.SetCustomPlayerHeight(value);

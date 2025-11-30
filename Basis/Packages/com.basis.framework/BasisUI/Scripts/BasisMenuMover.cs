@@ -17,7 +17,6 @@ namespace Basis.BasisUI
             Floating,
             World,
             Eye,
-            Playspace, // VR Only
             LeftHand, // VR Only
             RightHand, // VR Only
         }
@@ -37,19 +36,20 @@ namespace Basis.BasisUI
         public PanelGroupRootMode VRMode = PanelGroupRootMode.Floating;
         public PanelGroupRootMode DesktopRootMode = PanelGroupRootMode.Eye;
 
-        public PanelGroupRootMode Inuse = PanelGroupRootMode.Eye;
+        public PanelGroupRootMode InUse = PanelGroupRootMode.Eye;
         public float RootScale = 0.0005f;
 
         [Header("Offsets are multiplied against the Player Eye Height.\nAssign your values assuming a height of 1 meter.")]
         public RootModeOffset WorldOffset;
-        public RootModeOffset PlayspaceOffset;
         public RootModeOffset HeadOffset;
         public RootModeOffset LeftHandOffset;
         public RootModeOffset RightHandOffset;
+        public RootModeOffset FloatingOffset;
 
         [Header("Readout")]
         public Vector3 Position;
         public Quaternion Rotation;
+        public Vector3 VRRootOffset;
 
         private BasisLocalBoneControl _leftHandControl;
         private BasisLocalBoneControl _rightHandControl;
@@ -84,6 +84,7 @@ namespace Basis.BasisUI
             {
                 BasisLocalPlayer.AfterFinalMove.RemoveAction(120, UpdateUILocation);
             }
+            BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
         }
 
         private void OnLocalPlayerCreated()
@@ -101,6 +102,7 @@ namespace Basis.BasisUI
         }
         public void OnAvatarHeightChange()
         {
+            Debug.Log("Avatar Height Changed");
             SetRootMode(GetFindCurrentMode());
         }
         public PanelGroupRootMode GetFindCurrentMode()
@@ -127,16 +129,12 @@ namespace Basis.BasisUI
         /// </summary>
         public void SetRootMode(PanelGroupRootMode mode)
         {
-            Inuse = mode;
-            switch (Inuse)
+            InUse = mode;
+            switch (InUse)
             {
                 case PanelGroupRootMode.World:
                     SetMovementCallback(false);
                     SetRootOffset(WorldOffset);
-                    break;
-                case PanelGroupRootMode.Playspace:
-                    SetMovementCallback(true);
-                    SetRootOffset(PlayspaceOffset);
                     break;
                 case PanelGroupRootMode.Eye:
                     SetMovementCallback(true);
@@ -151,7 +149,9 @@ namespace Basis.BasisUI
                     SetRootOffset(RightHandOffset);
                     break;
                 case PanelGroupRootMode.Floating:
-                    SetMovementCallback(true);
+                    SetMovementCallback(false);
+                    SetRootOffset(FloatingOffset);
+                    UpdateUILocation();
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
@@ -176,24 +176,20 @@ namespace Basis.BasisUI
 
         private void SetRootOffset(RootModeOffset offset)
         {
-            float playerHeight = BasisLocalPlayer.Instance.CurrentHeight.PlayerEyeHeight;
+            float playerHeight = BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerToDefaultScale;
             GroupOffset.SetLocalPositionAndRotation(offset.Position, offset.Rotation);
             GroupOffset.localScale = Vector3.one * (offset.Scale * RootScale);
             transform.localScale = Vector3.one * playerHeight;
         }
         private void UpdateUILocation()
         {
-            UpdateUILocation(Inuse);
+            UpdateUILocation(InUse);
         }
         private void UpdateUILocation(PanelGroupRootMode Mode)
         {
             switch (Mode)
             {
                 case PanelGroupRootMode.World:
-                    break;
-                case PanelGroupRootMode.Playspace:
-                    BasisLocalPlayer.Instance.transform.GetPositionAndRotation(out Position, out Rotation);
-                    transform.SetPositionAndRotation(Position, Rotation);
                     break;
                 case PanelGroupRootMode.Eye:
                     BasisLocalCameraDriver.GetPositionAndRotation(out Position, out Rotation);
@@ -212,6 +208,9 @@ namespace Basis.BasisUI
                     transform.SetPositionAndRotation(Position, Rotation);
                     break;
                 case PanelGroupRootMode.Floating:
+                    BasisLocalCameraDriver.GetPositionAndRotation(out Position, out Rotation);
+                    Rotation = Quaternion.LookRotation(Rotation * Vector3.forward, Vector3.up);
+                    transform.SetPositionAndRotation(Position + VRRootOffset, Rotation);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();

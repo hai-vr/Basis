@@ -333,7 +333,7 @@ GameObject:
   - component: {fileID: 9192556899710508602}
   - component: {fileID: 418470366999333263}
   - component: {fileID: 2310511662558553401}
-  - component: {fileID: 2677012387906103848}
+  - component: {fileID: 4483784203614070014}
   m_Layer: 9
   m_Name: Slider
   m_TagString: Untagged
@@ -446,7 +446,7 @@ MonoBehaviour:
   m_FlexibleWidth: -1
   m_FlexibleHeight: -1
   m_LayoutPriority: 1
---- !u!114 &2677012387906103848
+--- !u!114 &4483784203614070014
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -455,9 +455,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 6679471327654706535}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 52b639e8c871a934a96d560ffaea71a4, type: 3}
+  m_Script: {fileID: 11500000, guid: 62597e13f6c654a4594c84c74d0cc995, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.OnEndDragListener
+  m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.SliderValueConfirmedListener
 --- !u!1 &6902651897487893225
 GameObject:
   m_ObjectHideFlags: 0
@@ -1267,6 +1267,10 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5180122307685806191, guid: 39635a6f162161b4886f452055cf7169, type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5180122307685806191, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_AnchoredPosition.x
       value: 0
       objectReference: {fileID: 0}
@@ -1308,15 +1312,15 @@ PrefabInstance:
       objectReference: {fileID: 21300000, guid: a336a8280e1dda94fbef1a59936ed578, type: 3}
     - target: {fileID: 8076094224542608644, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8076094224542608644, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_AnchorMin.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8076094224542608644, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 0
+      value: 437
       objectReference: {fileID: 0}
     - target: {fileID: 8076094224542608644, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_SizeDelta.y
@@ -1324,11 +1328,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8076094224542608644, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 0
+      value: 218.5
       objectReference: {fileID: 0}
     - target: {fileID: 8076094224542608644, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0
+      value: -30
       objectReference: {fileID: 0}
     - target: {fileID: 8589570113720539571, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_AnchorMax.y
@@ -1388,23 +1392,27 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 9196793108066369430, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 9196793108066369430, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_AnchorMin.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 9196793108066369430, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_SizeDelta.x
+      value: 737
+      objectReference: {fileID: 0}
+    - target: {fileID: 9196793108066369430, guid: 39635a6f162161b4886f452055cf7169, type: 3}
+      propertyPath: m_SizeDelta.y
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 9196793108066369430, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 0
+      value: 468.5
       objectReference: {fileID: 0}
     - target: {fileID: 9196793108066369430, guid: 39635a6f162161b4886f452055cf7169, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0
+      value: -40
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1476,7 +1484,7 @@ MonoBehaviour:
   CurrentValueLabel: {fileID: 3425887626138460019}
   MinValueLabel: {fileID: 867061286984688786}
   MaxValueLabel: {fileID: 4863204507334868155}
-  OnEndDragListener: {fileID: 2677012387906103848}
+  SliderConfirmedListener: {fileID: 4483784203614070014}
   <Settings>k__BackingField:
     Title: 
     Description: 
