@@ -33,7 +33,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static readonly int MaxConcurrentPlayers = 1024;
         private static readonly ParallelOptions parallelOptions = new()
         {
-            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount -1)
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
         };
 
         public static ConcurrentDictionary<int, PlayerState> playerStates = new();
@@ -168,7 +168,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 var stateI = playerI.state;
                 var peer = stateI.Peer;
 
-                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) < 1024 && peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.ReliableSequenced) < 1024;
+                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) < 1024;
                 var sentTimes = stateI.LastSentTimes;
 
                 for (int Index = 0; Index < PlayerCount; Index++)
@@ -181,7 +181,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                     var stateJ = playerJ.state;
                     float distSq = DistanceSquared(stateI.Position, stateJ.Position);
-                    CalculateIntervalFromDistanceSq(distSq,out byte StartAtZeroInterval,out int ActualInterval);
+                    CalculateIntervalFromDistanceSq(distSq, out byte StartAtZeroInterval, out int ActualInterval);
 
                     if (!sentTimes.ContainsKey(playerJ.id))
                     {
@@ -205,7 +205,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         stateI.HasNewDataFrom.Set(playerJ.id, false);
                         ServerSideSyncPlayerMessage tempMsg = stateJ.SyncMessage;
                         tempMsg.interval = StartAtZeroInterval;
-                        BasisServerDeltaCompressor.SendOut(Index,peer, tempMsg);
+                        BasisServerDeltaCompressor.SendOut(Index, peer, tempMsg);
 
 
                         sentTimes[playerJ.id] = nowTicks;

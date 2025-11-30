@@ -1,6 +1,5 @@
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Receivers;
-using Basis.Scripts.Profiler;
 using System;
 using Unity.Collections;
 using Unity.Mathematics;

@@ -27,6 +27,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         public static void SendOut(int index, NetPeer peer, ServerSideSyncPlayerMessage tempMsg)
         {
+            SendOutFull(peer, tempMsg);
+            return;
+            /*
             var data = DeltaStorage.GetOrAdd(index, _ => RentDeltaData());
 
             var avatar = tempMsg.avatarSerialization.array;
@@ -83,6 +86,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             // Update baseline → now matches what client will reconstruct
            // Buffer.BlockCopy(avatar, 0, baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
+            */
         }
 
         private static DeltaData RentDeltaData()
