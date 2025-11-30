@@ -9,6 +9,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace Basis.Network.Core {
     public class NetDataWriter

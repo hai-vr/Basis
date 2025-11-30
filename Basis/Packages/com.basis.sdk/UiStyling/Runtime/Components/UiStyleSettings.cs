@@ -1,8 +1,5 @@
-using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
-using static UnityEngine.Rendering.VirtualTexturing.Debugging;
-
 namespace Basis.BasisUI.Styling
 {
     public static class UiStyleSettings
