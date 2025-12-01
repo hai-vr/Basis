@@ -1,11 +1,9 @@
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.UI.UI_Panels;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
-using static UnityEngine.Rendering.DebugUI;
 
 namespace Basis.BasisUI
 {
@@ -201,16 +199,12 @@ namespace Basis.BasisUI
             descriptor.SetTitle("Audio Settings");
             RectTransform container = descriptor.ContentParent;
 
-            // MASTER GROUP
-            PanelElementDescriptor masterGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            masterGroup.SetTitle("Master Volume");
-            masterGroup.SetDescription("Overall game volume.");
-
-            PanelSlider sliderMainVolume = PanelSlider.CreateEntryAndBind(
-                masterGroup,
+            PanelSlider sliderMainVolume = PanelSlider.CreateAndBind(
+                container,
                 PanelSlider.SliderSettings.Percentage("Main Volume"),
                 BasisSettingsDefaults.MainVolume);
+            sliderMainVolume.Descriptor.SetTitle("Master Volume");
+            sliderMainVolume.Descriptor.SetDescription("Overall game volume.");
 
             // MIXER GROUP
             PanelElementDescriptor mixerGroup =
@@ -315,6 +309,7 @@ namespace Basis.BasisUI
             descriptor.ForceRebuild();
             return tab;
         }
+
         // ------------------
         // GRAPHICS TAB
         // ------------------
@@ -416,8 +411,10 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.RenderResolution);
 
             // Resolution (logical / display resolution)
-            dropdownResolution = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
+            PanelDropdown dropdownResolution = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             dropdownResolution.Descriptor.SetTitle("Resolution");
+            List<Vector2Int> uniqueResolutions = new List<Vector2Int>();
+            List<string> resolutionOptions = new List<string>();
 
             foreach (Resolution res in Screen.resolutions)
             {
@@ -430,23 +427,38 @@ namespace Basis.BasisUI
                     resolutionOptions.Add(size.x + " x " + size.y);
                 }
             }
-            dropdownResolution.DropdownComponent.onValueChanged.AddListener(OnResolutionChanged);
+
             // NOTE: in many systems this will be populated by platform code – tweak/remove entries as needed
             dropdownResolution.AssignEntries(resolutionOptions);
             dropdownResolution.AssignBinding(BasisSettingsDefaults.Resolution);
 
-            // ScreenMode
-            dropdownScreenMode = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
+            // Monitor
+            PanelDropdown dropdownMonitor = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
+
+            List<string> monitorOptions = new List<string>();
+
+            for (int Index = 0; Index < Display.displays.Length; Index++)
+            {
+                monitorOptions.Add("Monitor " + (Index + 1));
+            }
+
+            dropdownMonitor.Descriptor.SetTitle("Monitor");
+            dropdownMonitor.AssignEntries(monitorOptions);
+            dropdownMonitor.AssignBinding(BasisSettingsDefaults.Monitor);
+
+
+            // Monitor
+            PanelDropdown dropdownScreenMode = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             List<string> screenModeOptions = new List<string>
             {
                 "Fullscreen",
+                "Borderless Window",
                 "Windowed"
             };
 
             dropdownScreenMode.Descriptor.SetTitle("ScreenMode");
             dropdownScreenMode.AssignEntries(screenModeOptions);
             dropdownScreenMode.AssignBinding(BasisSettingsDefaults.ScreenMode);
-            dropdownScreenMode.DropdownComponent.onValueChanged.AddListener(OnScreenModeChanged);
 
             // ADVANCED / FOVEATION GROUP
             PanelElementDescriptor advancedGroup =
@@ -463,7 +475,7 @@ namespace Basis.BasisUI
             // Field Of View
             PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
-                PanelSlider.SliderSettings.Degrees("Field Of View", 50, 120, true, 0),
+                PanelSlider.SliderSettings.Degrees("Field Of View", BasisSettingsDefaults.FOV_MIN, BasisSettingsDefaults.FOV_MAX, true, 0),
                 BasisSettingsDefaults.FieldOfView);
 
             // Mesh LOD
@@ -481,41 +493,7 @@ namespace Basis.BasisUI
             descriptor.ForceRebuild();
             return tab;
         }
-        #region Dropdown Listeners
-        private static List<Vector2Int> uniqueResolutions = new List<Vector2Int>();
-        private static List<string> resolutionOptions = new List<string>();
-        public static PanelDropdown dropdownResolution;
-        public static PanelDropdown dropdownScreenMode;
-        private static void OnScreenModeChanged(int screenModeIndex)
-        {
-            FullScreenMode mode = GetScreenModeFromIndex(screenModeIndex);
-            Vector2Int currentResolution = uniqueResolutions[dropdownResolution.DropdownComponent.value];
 
-            Screen.SetResolution(currentResolution.x, currentResolution.y, mode);
-            BasisDebug.Log("Changed Screen Mode: " + mode);
-        }
-
-        private static void OnResolutionChanged(int resolutionIndex)
-        {
-            Vector2Int selectedResolution = uniqueResolutions[resolutionIndex];
-            FullScreenMode mode = GetScreenModeFromIndex(dropdownScreenMode.DropdownComponent.value);
-
-            Screen.SetResolution(selectedResolution.x, selectedResolution.y, mode);
-            BasisDebug.Log("Changed Resolution: " + selectedResolution.x + "x" + selectedResolution.y);
-        }
-        #endregion
-
-        #region Helpers
-        private static FullScreenMode GetScreenModeFromIndex(int index)
-        {
-            switch (index)
-            {
-                case 0: return FullScreenMode.FullScreenWindow;
-                case 1: return FullScreenMode.Windowed;
-                default: return FullScreenMode.Windowed;
-            }
-        }
-        #endregion
         // ------------------
         // DEVELOPER TAB
         // ------------------
