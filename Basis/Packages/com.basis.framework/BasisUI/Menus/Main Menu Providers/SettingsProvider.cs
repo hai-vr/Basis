@@ -253,7 +253,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.MicrophoneRange);
 
 
-
+            BasisLocalVolumeMeterUIDescriptor rangeGroup = BasisLocalVolumeMeterUIDescriptor.CreateNew(BasisLocalVolumeMeterUIDescriptor.ElementStyles.Horizontal, microphoneGroup.ContentParent);
 
 
             // Microphone Mode
