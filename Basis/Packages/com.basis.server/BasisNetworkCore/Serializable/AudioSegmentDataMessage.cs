@@ -20,7 +20,7 @@ public static partial class SerializableBasis
             {
                 if (TotalLength == Writer.AvailableBytes)
                 {
-                    Writer.GetBytes(buffer,0, Writer.AvailableBytes);
+                    Writer.GetBytes(buffer, 0, Writer.AvailableBytes);
                     LengthUsed = TotalLength;
                 }
                 else
