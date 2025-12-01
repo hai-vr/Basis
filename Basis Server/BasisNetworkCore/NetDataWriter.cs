@@ -9,8 +9,9 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
+#if UNITY_ANDROID
 using Unity.Collections.LowLevel.Unsafe;
-
+#endif
 namespace Basis.Network.Core {
     public class NetDataWriter
     {

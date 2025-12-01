@@ -78,7 +78,7 @@ public static class BasisNetworkHandleVoice
                 {
                     if (cancellationToken.IsCancellationRequested)
                     {
-                        BasisDebug.Log("Operation canceled.");
+                        BasisDebug.LogError("Operation canceled.");
                         return; // Early exit on cancellation
                     }
 
@@ -107,15 +107,27 @@ public static class BasisNetworkHandleVoice
             catch (Exception ex) when (!(ex is OperationCanceledException))
             {
                 BasisDebug.LogError($"Error in HandleAudioUpdate: {ex.Message} {ex.StackTrace}");
+                if (Reader.IsNull == false)
+                {
+                    Reader.Recycle();
+                }
             }
             finally
             {
                 semaphore.Release();
+                if (Reader.IsNull == false)
+                {
+                    Reader.Recycle();
+                }
             }
         }
         catch (OperationCanceledException)
         {
-            BasisDebug.Log("HandleAudioUpdate task canceled.");
+            BasisDebug.LogError("HandleAudioUpdate task canceled.");
+            if (Reader.IsNull == false)
+            {
+                Reader.Recycle();
+            }
         }
     }
 }

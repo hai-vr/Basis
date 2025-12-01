@@ -14,8 +14,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public BasisNetworkPlayer NetworkedPlayer;
         public BasisLocalPlayer Local;
         public bool HasEvents = false;
-        public AudioSegmentDataMessage AudioSegmentData = new AudioSegmentDataMessage();
-        public AudioSegmentDataMessage SilentSegmentData = new AudioSegmentDataMessage();
+        public AudioSegmentDataMessage Segment = new AudioSegmentDataMessage();
         public NetDataWriter writer = new NetDataWriter();
         public int SilentForHowLong = 0;
         public void Initialize(BasisNetworkPlayer networkedPlayer)
@@ -77,14 +76,11 @@ namespace Basis.Scripts.Networking.Transmitters
         {
             int packetSize = BasisLocalMicrophoneDriver.PacketSize;
 
-            if (packetSize != AudioSegmentData.TotalLength)
+            if (packetSize != Segment.TotalLength)
             {
-                AudioSegmentData = new AudioSegmentDataMessage(new byte[packetSize]);
-            }
-
-            if (packetSize != SilentSegmentData.TotalLength)
-            {
-                SilentSegmentData = new AudioSegmentDataMessage(new byte[packetSize]);
+                Segment = new AudioSegmentDataMessage();
+                Segment.buffer = new byte[packetSize];
+                Segment.TotalLength = packetSize;
             }
         }
         public void OnAudioReady()
@@ -98,20 +94,24 @@ namespace Basis.Scripts.Networking.Transmitters
 
             writer.Reset();
 
-            AudioSegmentData.LengthUsed = encoder.Encode(BasisLocalMicrophoneDriver.processBufferArray,BasisLocalMicrophoneDriver.SampleRate,AudioSegmentData.buffer,AudioSegmentData.TotalLength);
+            Segment.LengthUsed = encoder.Encode(BasisLocalMicrophoneDriver.processBufferArray,BasisLocalMicrophoneDriver.SampleRate,Segment.buffer,Segment.TotalLength);
 
             if(SilentForHowLong > 256)
             {
-                AudioSegmentData.TotalPlayedInSilence = 0;
+                Segment.TotalPlayedInSilence = 0;
             }
             else
             {
-                AudioSegmentData.TotalPlayedInSilence = (byte)SilentForHowLong;
+                Segment.TotalPlayedInSilence = (byte)SilentForHowLong;
             }
-            AudioSegmentData.Serialize(writer);
+            Segment.Serialize(writer);
 
-            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, AudioSegmentData.LengthUsed);
-            SendOutVoice(writer);
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, Segment.LengthUsed);
+            BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Sequenced);
+            if (BasisLocalPlayer.Instance != null)
+            {
+                BasisLocalPlayer.Instance.AudioReceived?.Invoke();
+            }
             SilentForHowLong = 0;
         }
 
@@ -123,15 +123,6 @@ namespace Basis.Scripts.Networking.Transmitters
             }
 
             SilentForHowLong++; //how long in sample size this way on the remote side
-        }
-
-        public void SendOutVoice(NetDataWriter writer)
-        {
-            BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Sequenced);
-            if (BasisLocalPlayer.Instance != null)
-            {
-                BasisLocalPlayer.Instance.AudioReceived?.Invoke();
-            }
         }
     }
 }

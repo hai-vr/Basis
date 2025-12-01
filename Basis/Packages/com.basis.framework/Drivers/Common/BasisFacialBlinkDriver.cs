@@ -119,7 +119,7 @@ namespace Basis.Scripts.Drivers
             MeshblendShapeCount = meshRenderer.sharedMesh.blendShapeCount;
 
             // Start blinking
-            SetNextBlinkTime(Time.time);
+            SetNextBlinkTime(Time.timeAsDouble);
 
             // Observe face visibility
             if (LinkedPlayer != null && LinkedPlayer.FaceRenderer != null)
@@ -145,11 +145,28 @@ namespace Basis.Scripts.Drivers
 
         /// <summary>
         /// Updates the internal enabled state based on face visibility.
+        /// resets state to a good known.
         /// </summary>
         /// <param name="State">True if the face is currently visible.</param>
-        public void UpdateFaceVisibility(bool State)
+        public void UpdateFaceVisibility(bool state)
         {
-            IsEnabled = State;
+            IsEnabled = state;
+
+            if (!IsEnabled && meshRenderer != null)
+            {
+                // Reset all blink state + weights when face becomes invisible
+                isBlinking = false;
+                isVisemeClosing = false;
+
+                for (int i = 0; i < blendShapeCount; i++)
+                {
+                    int idx = blendShapeIndex[i];
+                    if (idx >= 0 && idx < MeshblendShapeCount)
+                    {
+                        meshRenderer.SetBlendShapeWeight(idx, 0f);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -199,7 +216,7 @@ namespace Basis.Scripts.Drivers
                     for (int Index = 0; Index < blendShapeCount; Index++)
                     {
                         int ConvertedIndex = blendShapeIndex[Index];
-                        if (MeshblendShapeCount >= ConvertedIndex)
+                        if (ConvertedIndex >= 0 && ConvertedIndex < MeshblendShapeCount)
                         {
                             meshRenderer.SetBlendShapeWeight(blendShapeIndex[Index], 0);
                         }

@@ -106,13 +106,19 @@ namespace Basis.Network.Core
 		internal DeliveryMethod method;
 #endif
 
-		public void Recycle() {
+		public void Recycle(bool IsOkTOHaveEmptyData = false)
+		{
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-			if (!EndOfData) {
-				BNL.LogWarning($"Message on channel {channel} with delivery method {method} had {AvailableBytes} bytes remaining when recycling! Is this a parsing bug?");
-				// TODO: consider printing the bytes of the message.
+			if (IsOkTOHaveEmptyData == false)
+			{
+				if (!EndOfData && AvailableBytes > 0)
+				{
+					BNL.LogWarning($"Message on channel {channel} with delivery method {method} had {AvailableBytes} bytes remaining when recycling! Is this a parsing bug?");
+					// TODO: consider printing the bytes of the message.
+				}
 			}
 #endif
+
 			RecycleInternal?.Invoke();
 		}
 	}

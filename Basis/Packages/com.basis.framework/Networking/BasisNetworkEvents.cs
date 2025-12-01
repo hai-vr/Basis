@@ -122,10 +122,11 @@ public static class BasisNetworkEvents
                 break;
             case BasisNetworkCommons.VoiceChannel:
 #if UNITY_SERVER
+                Reader.Recycle();
 #else
+                //released inside
                 await BasisNetworkHandleVoice.HandleAudioUpdate(Reader);
 #endif
-                Reader.Recycle();
                 break;
             case BasisNetworkCommons.PlayerAvatarChannel:
                 if (ValidateSize(Reader, peer, channel) == false)

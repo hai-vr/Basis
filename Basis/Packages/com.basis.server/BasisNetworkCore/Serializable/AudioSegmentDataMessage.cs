@@ -9,11 +9,6 @@ public static partial class SerializableBasis
         public byte[] buffer;
         public int TotalLength;
         public int LengthUsed;
-        public AudioSegmentDataMessage(byte[] buffer) : this()
-        {
-            this.buffer = buffer;
-            TotalLength = buffer.Length;
-        }
         public void Deserialize(NetDataReader Writer)
         {
             TotalPlayedInSilence = Writer.GetByte();
@@ -25,7 +20,7 @@ public static partial class SerializableBasis
             {
                 if (TotalLength == Writer.AvailableBytes)
                 {
-                    Writer.GetBytes(buffer, Writer.AvailableBytes);
+                    Writer.GetBytes(buffer,0, Writer.AvailableBytes);
                     LengthUsed = TotalLength;
                 }
                 else
