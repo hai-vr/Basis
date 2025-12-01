@@ -68,7 +68,17 @@ namespace Basis.Scripts.UI
                         continue;
                     }
 
-                    EffectiveMouseAction |= !eventData.WasLastDown && input.CurrentInputState.Trigger == 1;
+                    bool isDownThisFrame = input.CurrentInputState.Trigger == 1;
+
+                    // Track down-transition for deselection later
+                    EffectiveMouseAction |= !eventData.WasLastDown && isDownThisFrame;
+
+                    // Handle button UP transition, even if there is no UI hit this frame
+                    if (eventData.WasLastDown && !isDownThisFrame)
+                    {
+                        EffectiveMouseUp(eventData, input);
+                        eventData.WasLastDown = false;
+                    }
 
                     if (input.BasisUIRaycast.HadRaycastUITarget)
                     {
@@ -93,11 +103,9 @@ namespace Basis.Scripts.UI
                     }
                     else
                     {
-                        // 🔥 NEW: we lost any UI hit, so force “no target” and process movement
-                        // so ProcessPointerMovement can send pointerExit events.
+                        // Lost UI hit: force “no target” and process movement so we get pointerExit events.
                         if (eventData.pointerEnter != null || eventData.hovered.Count > 0)
                         {
-                            // Make sure raycast says "no object"
                             eventData.pointerCurrentRaycast = new RaycastResult();
                             ProcessPointerMovement(eventData);
                         }
@@ -122,12 +130,15 @@ namespace Basis.Scripts.UI
                     var eventData = input.BasisUIRaycast.CurrentEventData;
                     if (eventData != null)
                     {
-                        SendUpdateEventToSelectedObject(eventData); //needed if you want to use the keyboard
+                        // Needed if you want to use the keyboard
+                        SendUpdateEventToSelectedObject(eventData);
                     }
                 }
             }
         }
+
         private const string CursorPos = "_CursorPos";
+
         public void SimulateOnCanvas(RaycastResult raycastResult, BasisRaycastUIHitData hit, BasisPointerEventData currentEventData, BasisInput BaseInput)
         {
             if (hit.graphic == null || currentEventData == null)
@@ -148,7 +159,6 @@ namespace Basis.Scripts.UI
 
             bool IsDownThisFrame = BaseInput.CurrentInputState.Trigger == 1;
 
-
             Shader.SetGlobalVector(CursorPos, hit.worldHitPosition);
 
             // ---- BUTTON DOWN ----
@@ -165,20 +175,14 @@ namespace Basis.Scripts.UI
                     EffectiveMouseDown(hit, currentEventData);
                 }
             }
-            // ---- BUTTON UP ----
-            else
-            {
-                if (currentEventData.WasLastDown)
-                {
-                    EffectiveMouseUp(hit, currentEventData, BaseInput);
-                    currentEventData.WasLastDown = false;
-                }
-            }
+            // Button UP is handled in Simulate() based on trigger state
 
             // ---- OTHER POINTER EVENTS ----
             ProcessScrollWheel(currentEventData);
+
+            // VR-friendly: larger drag threshold so tiny jitter isn't a drag.
             ProcessPointerMovement(currentEventData);
-            ProcessPointerButtonDrag(currentEventData);
+            ProcessPointerButtonDrag(currentEventData, pixelDragThresholdMultiplier: 3.0f);
         }
 
         public void CheckOrApplySelectedGameobject(BasisRaycastUIHitData hit, BasisPointerEventData CurrentEventData)
@@ -243,7 +247,8 @@ namespace Basis.Scripts.UI
             }
         }
 
-        public void EffectiveMouseUp(BasisRaycastUIHitData hit, BasisPointerEventData CurrentEventData, BasisInput BaseInput)
+        // NOTE: No BasisRaycastUIHitData here anymore – everything comes from eventData
+        public void EffectiveMouseUp(BasisPointerEventData CurrentEventData, BasisInput BaseInput)
         {
             var target = CurrentEventData.pointerPress;
 
@@ -252,7 +257,15 @@ namespace Basis.Scripts.UI
                 ExecuteEvents.Execute(target, CurrentEventData, ExecuteEvents.pointerUpHandler);
             }
 
-            var pointerUpHandler = ExecuteEvents.GetEventHandler<IPointerClickHandler>(hit.graphic.gameObject);
+            // Where did we "release"?
+            GameObject releaseGameObject = CurrentEventData.pointerCurrentRaycast.gameObject;
+
+            GameObject pointerUpHandler = null;
+            if (releaseGameObject != null)
+            {
+                pointerUpHandler = ExecuteEvents.GetEventHandler<IPointerClickHandler>(releaseGameObject);
+            }
+
             var pointerDrag = CurrentEventData.pointerDrag;
 
             if (target == pointerUpHandler && CurrentEventData.eligibleForClick && pointerUpHandler != null)
@@ -261,9 +274,9 @@ namespace Basis.Scripts.UI
                 // BaseInput.PlaySoundEffect("press", SMModuleAudio.ActiveMenusVolume / 80);
                 ExecuteEvents.Execute(target, CurrentEventData, ExecuteEvents.pointerClickHandler);
             }
-            else if (CurrentEventData.dragging && pointerDrag != null)
+            else if (CurrentEventData.dragging && pointerDrag != null && releaseGameObject != null)
             {
-                ExecuteEvents.ExecuteHierarchy(hit.graphic.gameObject, CurrentEventData, ExecuteEvents.dropHandler);
+                ExecuteEvents.ExecuteHierarchy(releaseGameObject, CurrentEventData, ExecuteEvents.dropHandler);
             }
 
             CurrentEventData.eligibleForClick = false;
@@ -394,6 +407,12 @@ namespace Basis.Scripts.UI
         /// <param name="pixelDragThresholdMultiplier"></param>
         public void ProcessPointerButtonDrag(BasisPointerEventData CurrentEventData, float pixelDragThresholdMultiplier = 1.0f)
         {
+            // Only consider drag while the button is actually held.
+            if (!CurrentEventData.WasLastDown)
+            {
+                return;
+            }
+
             if (!CurrentEventData.IsPointerMoving() || CurrentEventData.pointerDrag == null)
             {
                 return;
@@ -451,6 +470,8 @@ namespace Basis.Scripts.UI
 
         public void HandlePointerExitAndEnter(BasisPointerEventData currentPointerData, GameObject newEnterTarget)
         {
+            // Left as-is from your original, this is an alternative movement handler.
+
             // if we have no target / pointerEnter has been deleted
             // just send exit events to anything we are tracking then exit
             if (newEnterTarget == null || currentPointerData.pointerEnter == null)
