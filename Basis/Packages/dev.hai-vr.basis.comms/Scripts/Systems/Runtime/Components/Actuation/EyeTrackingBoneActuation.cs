@@ -104,6 +104,12 @@ namespace HVR.Basis.Comms
             if (IsLocal)
             {
                 acquisition.UnregisterAddresses(OurAddresses, OnAddressUpdated);
+
+                if (IsLocal && Receiver != null)
+                {
+                    Receiver.RemotePlayer.RemoteEyeDriver.Override = false;
+                    Receiver.RemotePlayer.FacialBlinkDriver.Override = false;
+                }
             }
         }
 
@@ -175,6 +181,8 @@ namespace HVR.Basis.Comms
             {
                 if (IsLocal && Receiver != null)
                 {
+                    Receiver.RemotePlayer.RemoteEyeDriver.Override = true;
+                    Receiver.RemotePlayer.FacialBlinkDriver.Override = true;
                     switch (side)
                     {
                         case EyeSide.Left:

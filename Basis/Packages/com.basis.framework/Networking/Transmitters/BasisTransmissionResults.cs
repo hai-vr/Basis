@@ -74,6 +74,26 @@ public class BasisTransmissionResults
     /// </summary>
     public void Simulate()
     {
+        int receiverCount = BasisNetworkPlayers.ReceiverCount;
+        var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
+        double activeTime = Time.timeAsDouble;
+        for (int index = 0; index < receiverCount; index++)
+        {
+            try
+            {
+                var receiver = snapshot[index];
+                var remote = receiver.RemotePlayer;
+                // Small anim drivers
+                remote.RemoteEyeDriver.Simulate(activeTime);
+                remote.FacialBlinkDriver.Simulate(activeTime);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError($"{ex} {ex.StackTrace}");
+            }
+        }
+
+
         timer += Time.deltaTime;
 
         if (timer <= intervalSeconds)
@@ -93,8 +113,6 @@ public class BasisTransmissionResults
         distanceJob.SquaredVoiceDistance = SMModuleDistanceBasedReductions.MicrophoneRange;
         distanceJob.referencePosition = MouthBone.OutgoingWorldData.position;
 
-        int receiverCount = BasisNetworkPlayers.ReceiverCount;
-        var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
         bool DifferentLengths = LastIndexLength != receiverCount;
         if (DifferentLengths)
         {
@@ -195,7 +213,6 @@ public class BasisTransmissionResults
     }
     public void ApplyLocalChanges(int receiverCount, BasisNetworkReceiver[] snapshot)
     {
-        float activeTime = Time.time;
         for (int index = 0; index < receiverCount; index++)
         {
             try
@@ -228,10 +245,6 @@ public class BasisTransmissionResults
                         remote.OutOfRangeFromLocal = true;
                     }
                 }
-
-                // Small anim drivers
-                remote.RemoteEyeDriver.Simulate();
-                remote.FacialBlinkDriver.Simulate(activeTime);
             }
             catch (Exception ex)
             {

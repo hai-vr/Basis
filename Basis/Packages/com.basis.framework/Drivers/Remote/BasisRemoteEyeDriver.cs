@@ -63,6 +63,11 @@ public class BasisRemoteEyeDriver
     /// The avatar driver responsible for managing this player's avatar.
     /// </summary>
     public BasisAvatarDriver BasisAvatarDriver;
+    /// <summary>
+    /// Whether the eye simulation is currently active.
+    /// Controlled by face visibility and initialization state.
+    /// </summary>
+    public bool IsEnabled;
 
     /// <summary>
     /// Called when the object is destroyed. Unsubscribes from face visibility events.
@@ -96,12 +101,6 @@ public class BasisRemoteEyeDriver
     }
 
     /// <summary>
-    /// Whether the eye simulation is currently active.
-    /// Controlled by face visibility and initialization state.
-    /// </summary>
-    public bool IsEnabled;
-
-    /// <summary>
     /// Updates the simulation state based on whether the face is currently visible.
     /// </summary>
     /// <param name="state">True if the face is visible, false otherwise.</param>
@@ -115,7 +114,7 @@ public class BasisRemoteEyeDriver
     /// and smoothly interpolating the eyes toward them. Applies mirrored movement
     /// for left and right eyes to maintain realism.
     /// </summary>
-    public void Simulate()
+    public void Simulate(double TimeAsDouble)
     {
         if (IsEnabled == false)
         {
@@ -126,7 +125,7 @@ public class BasisRemoteEyeDriver
             return;
         }
 
-        if (Time.timeAsDouble >= nextLookAroundTime)
+        if (TimeAsDouble >= nextLookAroundTime)
         {
             ScheduleNextLookAround();
             PickNewTarget();

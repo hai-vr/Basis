@@ -19,7 +19,11 @@ namespace Basis.Scripts.Drivers
     public class BasisFacialBlinkDriver
     {
         /// <summary>
-        /// Renderer containing blink blendshapes referenced by <see cref="blendShapeIndex"/>.
+        /// If set to <c>true</c>, overrides and disables the blinking simulation logic.
+        /// </summary>
+        public bool Override = false;
+        /// <summary>
+        /// Renderer containing blink blendshapes referenced by <see cref="blendShapeIndices"/>.
         /// </summary>
         public SkinnedMeshRenderer meshRenderer;
 
@@ -47,123 +51,207 @@ namespace Basis.Scripts.Drivers
         /// Blendshape indices on <see cref="meshRenderer"/> used for blinking.
         /// Values of <c>-1</c> in the avatar data are ignored.
         /// </summary>
-        public List<int> blendShapeIndex = new List<int>();
+        public List<int> blendShapeIndices = new List<int>();
 
         /// <summary>
         /// Cached count of valid blink blendshape indices.
         /// </summary>
-        public int blendShapeCount = 0;
+        public int blendShapeCount;
 
         /// <summary>
-        /// Internal flag indicating an active blink (closing phase).
+        /// blendshape mesh count on avatar face blink mesh.
         /// </summary>
-        private bool isBlinking = false;
-
-        /// <summary>
-        /// Absolute time at which the next blink should start.
-        /// </summary>
-        private double nextBlinkTime;
-
-        /// <summary>
-        /// Absolute time when the current blink started.
-        /// </summary>
-        private double blinkStartTime;
-
-        /// <summary>
-        /// Internal flag indicating the opening phase after a blink.
-        /// </summary>
-        private bool isVisemeClosing = false;
-
-        /// <summary>
-        /// Absolute time when the opening transition started.
-        /// </summary>
-        private double visemeStartTime;
+        public int meshBlendShapeCount;
 
         /// <summary>
         /// Player whose face visibility is observed.
         /// </summary>
-        public BasisPlayer LinkedPlayer;
+        public BasisPlayer linkedPlayer;
 
         /// <summary>
         /// Whether updates are currently enabled (e.g., face visible and renderer present).
         /// </summary>
-        private bool IsEnabled;
+        public bool IsEnabled;
 
         /// <summary>
-        /// blendshape mesh count on avatar faceblinkmesh
+        /// Internal flag indicating an active blink (closing phase).
         /// </summary>
-        public int MeshblendShapeCount;
+        public bool IsClosingBlink;
+
+        /// <summary>
+        /// Internal flag indicating the opening phase after a blink.
+        /// </summary>
+        public bool IsOpeningBlink;
+
+        /// <summary>
+        /// Absolute time at which the next blink should start.
+        /// </summary>
+        public double NextBlinkTime;
+
+        /// <summary>
+        /// Absolute time when the current blink (closing) started.
+        /// </summary>
+        public double BlinkStartTime;
+
+        /// <summary>
+        /// Absolute time when the opening transition started.
+        /// </summary>
+        public double OpenStartTime;
 
         /// <summary>
         /// Initializes the blink driver with player and avatar data and wires face visibility callbacks.
         /// </summary>
-        /// <param name="Player">The owning <see cref="BasisPlayer"/>.</param>
-        /// <param name="Avatar">Avatar providing blink mesh and viseme indices.</param>
-        public void Initialize(BasisPlayer Player, BasisAvatar Avatar)
+        /// <param name="player">The owning <see cref="BasisPlayer"/>.</param>
+        /// <param name="avatar">Avatar providing blink mesh and viseme indices.</param>
+        public void Initialize(BasisPlayer player, BasisAvatar avatar)
         {
-            LinkedPlayer = Player;
-            blendShapeIndex.Clear();
-            meshRenderer = Avatar.FaceBlinkMesh;
+            linkedPlayer = player;
+            blendShapeIndices.Clear();
+
+            if (avatar == null || avatar.FaceBlinkMesh == null || avatar.BlinkViseme == null)
+            {
+                IsEnabled = false;
+                return;
+            }
+
+            meshRenderer = avatar.FaceBlinkMesh;
 
             // Collect valid blink viseme indices
-            for (int Index = 0; Index < Avatar.BlinkViseme.Length; Index++)
+            for (int Index = 0; Index < avatar.BlinkViseme.Length; Index++)
             {
-                int Blink = Avatar.BlinkViseme[Index];
-                if (Blink != -1)
+                int blinkIndex = avatar.BlinkViseme[Index];
+                if (blinkIndex != -1)
                 {
-                    blendShapeIndex.Add(Blink);
+                    blendShapeIndices.Add(blinkIndex);
                 }
             }
 
-            blendShapeCount = blendShapeIndex.Count;
-            MeshblendShapeCount = meshRenderer.sharedMesh.blendShapeCount;
-
-            // Start blinking
-            SetNextBlinkTime(Time.timeAsDouble);
+            blendShapeCount = blendShapeIndices.Count;
+            meshBlendShapeCount = meshRenderer != null && meshRenderer.sharedMesh != null? meshRenderer.sharedMesh.blendShapeCount: 0;
 
             // Observe face visibility
-            if (LinkedPlayer != null && LinkedPlayer.FaceRenderer != null)
+            if (linkedPlayer != null && linkedPlayer.FaceRenderer != null)
             {
-                // BasisDebug.Log("Wired up Renderer Check For Blinking", BasisDebug.LogTag.Avatar);
-                LinkedPlayer.FaceRenderer.Check += UpdateFaceVisibility;
-                UpdateFaceVisibility(LinkedPlayer.FaceIsVisible);
+                linkedPlayer.FaceRenderer.Check += UpdateFaceVisibility;
+                UpdateFaceVisibility(linkedPlayer.FaceIsVisible);
             }
 
-            IsEnabled = meshRenderer != null;
-        }
+            IsEnabled = meshRenderer != null && blendShapeCount > 0 && meshBlendShapeCount > 0;
 
+            if(IsEnabled)
+            {
+                // Start blinking
+                SetNextBlinkTime(Time.timeAsDouble);
+            }
+        }
+        /// <summary>
+        /// Advances blink timing and writes blendshape weights for close/open phases.
+        /// Should be called once per frame.
+        /// </summary>
+        /// <param name="time">Current absolute time (e.g., Time.timeAsDouble).</param>
+        public void Simulate(double time)
+        {
+            if (IsEnabled == false)
+            {
+                return;
+            }
+            if (Override)
+            {
+                return;
+            }
+            // Start a blink if scheduled
+            if (!IsClosingBlink && !IsOpeningBlink && time >= NextBlinkTime)
+            {
+                IsClosingBlink = true;
+                BlinkStartTime = time;
+
+                // Reset weights (closing will raise them)
+                for (int i = 0; i < blendShapeCount; i++)
+                {
+                    int idx = blendShapeIndices[i];
+                    if (idx >= 0 && idx < meshBlendShapeCount)
+                    {
+                        meshRenderer.SetBlendShapeWeight(idx, 0f);
+                    }
+                }
+
+                IsOpeningBlink = true;
+                OpenStartTime = time;
+                return;
+            }
+
+            // Closing phase (eyes moving from open -> closed)
+            if (IsClosingBlink)
+            {
+                float normalized = (float)((time - BlinkStartTime) / blinkDuration);
+                normalized = math.saturate(normalized); // clamp to [0,1]
+
+                float blendWeight = math.lerp(0f, 100f, normalized);
+
+                for (int i = 0; i < blendShapeCount; i++)
+                {
+                    SafeSetBlendShape(blendShapeIndices[i], blendWeight);
+                }
+
+                if (normalized >= 1f)
+                {
+                    IsClosingBlink = false;
+                    SetNextBlinkTime(time);
+                }
+
+                return;
+            }
+
+            // Opening phase (eyes moving from closed -> open)
+            if (IsOpeningBlink)
+            {
+                float normalized = (float)((time - OpenStartTime) / visemeTransitionDuration);
+                normalized = Mathf.Clamp01(normalized);
+
+                float blendWeight = Mathf.Lerp(100f, 0f, normalized);
+
+                for (int Index = 0; Index < blendShapeCount; Index++)
+                {
+                    SafeSetBlendShape(blendShapeIndices[Index], blendWeight);
+                }
+
+                if (normalized >= 1f)
+                {
+                    IsOpeningBlink = false;
+                }
+            }
+        }
         /// <summary>
         /// Unsubscribes from face visibility callbacks.
         /// </summary>
         public void OnDestroy()
         {
-            if (LinkedPlayer != null && LinkedPlayer.FaceRenderer != null)
+            if (linkedPlayer != null && linkedPlayer.FaceRenderer != null)
             {
-                LinkedPlayer.FaceRenderer.Check -= UpdateFaceVisibility;
+                linkedPlayer.FaceRenderer.Check -= UpdateFaceVisibility;
             }
         }
 
         /// <summary>
-        /// Updates the internal enabled state based on face visibility.
-        /// resets state to a good known.
+        /// Updates the internal enabled state based on face visibility
+        /// and resets blendshape state when disabled.
         /// </summary>
-        /// <param name="State">True if the face is currently visible.</param>
+        /// <param name="state">True if the face is currently visible.</param>
         public void UpdateFaceVisibility(bool state)
         {
-            IsEnabled = state;
+            IsEnabled = state && meshRenderer != null;
 
             if (!IsEnabled && meshRenderer != null)
             {
                 // Reset all blink state + weights when face becomes invisible
-                isBlinking = false;
-                isVisemeClosing = false;
+                IsClosingBlink = false;
+                IsOpeningBlink = false;
 
-                for (int i = 0; i < blendShapeCount; i++)
+                if (Override == false)
                 {
-                    int idx = blendShapeIndex[i];
-                    if (idx >= 0 && idx < MeshblendShapeCount)
+                    for (int i = 0; i < blendShapeCount; i++)
                     {
-                        meshRenderer.SetBlendShapeWeight(idx, 0f);
+                        SafeSetBlendShape(blendShapeIndices[i], 0);
                     }
                 }
             }
@@ -172,113 +260,41 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Checks whether the provided avatar contains the data needed to run the blink driver.
         /// </summary>
-        /// <param name="Avatar">Avatar to validate.</param>
+        /// <param name="avatar">Avatar to validate.</param>
         /// <returns>
         /// <c>true</c> if a blink mesh is present and at least one valid blink viseme index exists; otherwise <c>false</c>.
         /// </returns>
-        public static bool MeetsRequirements(BasisAvatar Avatar)
+        public static bool MeetsRequirements(BasisAvatar avatar)
         {
-            if (Avatar != null)
+            if (avatar == null || avatar.FaceBlinkMesh == null || avatar.BlinkViseme == null || avatar.BlinkViseme.Length == 0)
             {
-                if (Avatar.FaceBlinkMesh != null)
+                return false;
+            }
+
+            for (int i = 0; i < avatar.BlinkViseme.Length; i++)
+            {
+                if (avatar.BlinkViseme[i] != -1)
                 {
-                    if (Avatar.BlinkViseme != null && Avatar.BlinkViseme.Length >= 1)
-                    {
-                        for (int Index = 0; Index < Avatar.BlinkViseme.Length; Index++)
-                        {
-                            int Blink = Avatar.BlinkViseme[Index];
-                            if (Blink != -1)
-                            {
-                                return true;
-                            }
-                        }
-                    }
+                    return true;
                 }
             }
+
             return false;
         }
-
-        /// <summary>
-        /// Advances blink timing and writes blendshape weights for close/open phases.
-        /// Should be called once per frame.
-        /// </summary>
-        public void Simulate(double Time)// Time.time
+        public void SafeSetBlendShape(int idx,float blendWeight)
         {
-            if (IsEnabled && meshRenderer != null)
+            if (idx >= 0 && idx < meshBlendShapeCount)
             {
-                // Start a blink if scheduled
-                if (!isBlinking && Time >= nextBlinkTime)
-                {
-                    isBlinking = true;
-                    blinkStartTime = Time;
-
-                    // Reset weights (closing will raise them)
-                    for (int Index = 0; Index < blendShapeCount; Index++)
-                    {
-                        int ConvertedIndex = blendShapeIndex[Index];
-                        if (ConvertedIndex >= 0 && ConvertedIndex < MeshblendShapeCount)
-                        {
-                            meshRenderer.SetBlendShapeWeight(blendShapeIndex[Index], 0);
-                        }
-                    }
-
-                    isVisemeClosing = true;
-                    visemeStartTime = Time;
-                }
-                // Closing phase (eyes moving from open -> closed)
-                else if (isBlinking)
-                {
-                    float CalCulatedTime = (float)((Time - blinkStartTime) / blinkDuration);
-                    CalCulatedTime = math.saturate(CalCulatedTime); // clamp to [0,1]
-
-                    float blendWeight = math.lerp(0, 100, CalCulatedTime);
-
-                    for (int Index = 0; Index < blendShapeCount; Index++)
-                    {
-                        int ConvertedIndex = blendShapeIndex[Index];
-                        if (ConvertedIndex >= 0 && ConvertedIndex < MeshblendShapeCount)
-                        {
-                            meshRenderer.SetBlendShapeWeight(ConvertedIndex, blendWeight);
-                        }
-                    }
-
-                    if (CalCulatedTime >= 1f)
-                    {
-                        isBlinking = false;
-                        SetNextBlinkTime(Time);
-                    }
-                }
-                // Opening phase (eyes moving from closed -> open)
-                else if (isVisemeClosing)
-                {
-                    float CalCulatedTime = (float)((Time - visemeStartTime) / visemeTransitionDuration);
-                    CalCulatedTime = Mathf.Clamp01(CalCulatedTime);
-
-                    float blendWeight = Mathf.Lerp(100, 0, CalCulatedTime);
-
-                    for (int Index = 0; Index < blendShapeCount; Index++)
-                    {
-                        int ConvertedIndex = blendShapeIndex[Index];
-                        if (ConvertedIndex >= 0 && ConvertedIndex < MeshblendShapeCount)
-                        {
-                            meshRenderer.SetBlendShapeWeight(ConvertedIndex, blendWeight);
-                        }
-                    }
-
-                    if (CalCulatedTime >= 1f)
-                    {
-                        isVisemeClosing = false;
-                    }
-                }
+                meshRenderer.SetBlendShapeWeight(idx, blendWeight);
             }
         }
-
         /// <summary>
         /// Randomizes the absolute time for the next blink within <see cref="minBlinkInterval"/> and <see cref="maxBlinkInterval"/>.
         /// </summary>
-        public void SetNextBlinkTime(double Time)
+        /// <param name="currentTime">Time to offset from.</param>
+        public void SetNextBlinkTime(double currentTime)
         {
-            nextBlinkTime = Time + UnityEngine.Random.Range(minBlinkInterval, maxBlinkInterval);
+            NextBlinkTime = currentTime + UnityEngine.Random.Range(minBlinkInterval, maxBlinkInterval);
         }
     }
 }
