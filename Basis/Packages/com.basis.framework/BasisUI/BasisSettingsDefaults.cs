@@ -143,8 +143,7 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> Resolution => new("Resolution");
 
-        public static BasisSettingsBinding<float> RenderResolution =>
-            new("Resolution", new BasisPlatformDefault<float>(1));
+        public static BasisSettingsBinding<float> RenderResolution => new("Render Resolution", new BasisPlatformDefault<float>(1));
 
         public static BasisSettingsBinding<string> Monitor => new("Monitor");
 

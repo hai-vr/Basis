@@ -144,7 +144,7 @@ namespace Basis.BasisUI
             // Controller Dead Zone
             PanelSlider sliderControllerDeadZone = PanelSlider.CreateEntryAndBind(
                 generalGroup,
-                PanelSlider.SliderSettings.Percentage("Controller Dead Zone"),
+                PanelSlider.SliderSettings.Advanced("Controller Dead Zone",0,1,false,3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.ControllerDeadZone);
 
             // Snap Turn Angle
@@ -487,7 +487,7 @@ namespace Basis.BasisUI
             // Global Mesh LOD
             PanelSlider sliderGlobalMeshLOD = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
-                PanelSlider.SliderSettings.Percentage("Mesh Lod Multiplier"),
+                PanelSlider.SliderSettings.Percentage("World LOD Multiplier"),
                 BasisSettingsDefaults.GlobalMeshLOD);
 
             descriptor.ForceRebuild();
