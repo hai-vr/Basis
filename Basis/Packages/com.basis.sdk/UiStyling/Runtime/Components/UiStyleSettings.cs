@@ -1,12 +1,10 @@
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 namespace Basis.BasisUI.Styling
 {
     public static class UiStyleSettings
     {
-        // Path inside Resources (no .asset extension)
-        //Packages/com.basis.sdk/UiStyling/Style Library.asset
-
         public static UiStyleLibrary Library;
         public static UiStylePalette Palette;
         public static UiStyleLibrary GetActiveStyles()
@@ -16,6 +14,13 @@ namespace Basis.BasisUI.Styling
                 var Data = Addressables.LoadAssetAsync<UiStyleLibrary>("StyleLibrary");
                 Library = Data.WaitForCompletion();
             }
+#if UNITY_EDITOR
+            if (Library == null)
+            {
+
+                Library = AssetDatabase.LoadAssetAtPath<UiStyleLibrary>("Packages/com.basis.sdk/Settings/StyleLibrary.asset");
+            }
+#endif
             if (Library == null)
             {
                 BasisDebug.LogError("Misssing Library!");
@@ -31,6 +36,13 @@ namespace Basis.BasisUI.Styling
                 var Data = Addressables.LoadAssetAsync<UiStylePalette>("StylePalette");
                 Palette = Data.WaitForCompletion();
             }
+#if UNITY_EDITOR
+            if (Palette == null)
+            {
+
+                Palette = AssetDatabase.LoadAssetAtPath<UiStylePalette>("Packages/com.basis.sdk/Settings/StylePalette.asset");
+            }
+#endif
             if (Palette == null)
             {
                 BasisDebug.LogError("Misssing Palette!");
