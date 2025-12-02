@@ -433,21 +433,6 @@ namespace Basis.BasisUI
             dropdownResolution.AssignBinding(BasisSettingsDefaults.Resolution);
 
             // Monitor
-            PanelDropdown dropdownMonitor = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
-
-            List<string> monitorOptions = new List<string>();
-
-            for (int Index = 0; Index < Display.displays.Length; Index++)
-            {
-                monitorOptions.Add("Monitor " + (Index + 1));
-            }
-
-            dropdownMonitor.Descriptor.SetTitle("Monitor");
-            dropdownMonitor.AssignEntries(monitorOptions);
-            dropdownMonitor.AssignBinding(BasisSettingsDefaults.Monitor);
-
-
-            // Monitor
             PanelDropdown dropdownScreenMode = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             List<string> screenModeOptions = new List<string>
             {

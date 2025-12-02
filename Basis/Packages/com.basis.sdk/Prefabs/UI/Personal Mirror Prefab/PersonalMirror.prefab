@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 9117071990022795960}
   - component: {fileID: 4027323447008904767}
   m_Layer: 8
-  m_Name: Plane (1)
+  m_Name: Background
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -26,8 +26,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5473333605824874842}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: 0, y: 0, z: 0.001}
+  m_LocalRotation: {x: -0, y: 1, z: -0, w: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -61,10 +61,12 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 3e1859e8b2c5dec439aaede7c8833435, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -82,6 +84,7 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
@@ -119,8 +122,8 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 5992734656002742003}
   - {fileID: 401896220113419955}
+  - {fileID: 5992734656002742003}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &6712607072514091673
@@ -149,8 +152,8 @@ MonoBehaviour:
   Antialiasing: 4
   allowXRRendering: 1
   RenderPostProcessing: 0
-  OcclusionCulling: 0
-  renderShadows: 0
+  OcclusionCulling: 1
+  renderShadows: 1
   IsActive: 0
   IsAbleToRender: 0
   LeftCamera: {fileID: 0}
@@ -202,8 +205,9 @@ MonoBehaviour:
       State: 0
     extras: []
   interactableEnabled: 1
-  Equippable: 0
-  IsPuppeted: 0
+  AutoHold: 1
+  InputKey: 0
+  InteractRange: 1
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
   DesktopRotateSpeed: 0.1
@@ -219,7 +223,42 @@ MonoBehaviour:
   RigidRef: {fileID: 0}
   InputConstraint:
     rid: 1028902784308609151
-  InteractRange: 1
+  _previousKinematicValue: 1
+  enableScaleWithGesture: 0
+  minScalePercent: 50
+  maxScalePercent: 200
+  constrainToAxis: 3
+  positiveTravelLimit: 0.2
+  negativeTravelLimit: 0
+  enableAutoReturn: 0
+  delay: 3
+  duration: 0
+  easing: 0
+  useCustomCurve: 0
+  customCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 1
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 1
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
   references:
     version: 2
     RefIds:
@@ -304,6 +343,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -325,6 +366,7 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0

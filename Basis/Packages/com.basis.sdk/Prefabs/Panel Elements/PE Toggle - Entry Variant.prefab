@@ -211,23 +211,27 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 263208987085631843, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 263208987085631843, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_AnchorMin.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 263208987085631843, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_SizeDelta.x
+      value: 860
+      objectReference: {fileID: 0}
+    - target: {fileID: 263208987085631843, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
+      propertyPath: m_SizeDelta.y
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 263208987085631843, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 0
+      value: 510
       objectReference: {fileID: 0}
     - target: {fileID: 263208987085631843, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0
+      value: -40
       objectReference: {fileID: 0}
     - target: {fileID: 418794736520680895, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_AnchorMax.y
@@ -279,15 +283,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 869904323345228785, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 869904323345228785, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_AnchorMin.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 869904323345228785, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 0
+      value: 560
       objectReference: {fileID: 0}
     - target: {fileID: 869904323345228785, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_SizeDelta.y
@@ -295,11 +299,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 869904323345228785, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 0
+      value: 280
       objectReference: {fileID: 0}
     - target: {fileID: 869904323345228785, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 0
+      value: -30
       objectReference: {fileID: 0}
     - target: {fileID: 1617632830203509521, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_RaycastTarget
@@ -343,6 +347,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4316124631809654426, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4316124631809654426, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
+      propertyPath: m_SizeDelta.y
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4316124631809654426, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
@@ -550,7 +558,35 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.PanelToggle
   ToggleComponent: {fileID: 2831075354322693821}
   ToggleVisual: {fileID: 6708973251941489184}
+  Background: {fileID: 2885130199011414187}
   ToggleVisualOffset: 35
+  TweenDuration: 0.2
+  EaseCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  OffColor: {r: 0.4, g: 0.4, b: 0.4, a: 1}
+  OnColor: {r: 0.5377359, g: 0.5377359, b: 0.7169812, a: 1}
 --- !u!224 &1145583136380266281 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 8906398806221495751, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
