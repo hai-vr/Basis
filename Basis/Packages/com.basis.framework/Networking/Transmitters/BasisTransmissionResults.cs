@@ -194,10 +194,7 @@ public class BasisTransmissionResults
         ServerMetaDataMessage ServerMetaDataMessage = BasisNetworkManagement.ServerMetaDataMessage;
         DefaultInterval = ServerMetaDataMessage.SyncInterval / 1000f;
 
-        // Keep squared inside; apply sqrt at boundary where human-tuned params likely expect meters.
-        float minLinear = math.sqrt(math.max(0f, SmallestDistanceToAnotherPlayer));
-
-        float calculatedIntervalBase = ServerMetaDataMessage.BaseMultiplier + (minLinear * ServerMetaDataMessage.IncreaseRate);
+        float calculatedIntervalBase = ServerMetaDataMessage.BaseMultiplier + (SmallestDistanceToAnotherPlayer * ServerMetaDataMessage.IncreaseRate);
         UnClampedInterval = DefaultInterval * calculatedIntervalBase;
 
         intervalSeconds = Mathf.Clamp(UnClampedInterval, DefaultInterval, ServerMetaDataMessage.SlowestSendRate);
