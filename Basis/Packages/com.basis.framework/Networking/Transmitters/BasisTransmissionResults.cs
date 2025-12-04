@@ -140,12 +140,6 @@ public class BasisTransmissionResults
         // Complete job, consume results, update send interval, send recipients
         distanceJobHandle.Complete();
 
-        // Cache current as previous for next hysteresis step
-        MicrophoneRange.CopyTo(PrevInMicrophoneRange);
-        hearingRange.CopyTo(PrevInHearingRange);
-        AvatarRange.CopyTo(PrevInAvatarRange);
-        IndexToPlayerId.CopyTo(LastIndexToPlayerId);
-
         /// AnyMicrophoneRangeChanged AnyHearingRangeChanged AnyAvatarRangeChanged AnyIdOrderOrLengthChanged;
         AnyMicrophoneRangeChanged = distanceJob.AnyChangedArray[0];
         AnyHearingRangeChanged = distanceJob.AnyChangedArray[1];
@@ -157,33 +151,7 @@ public class BasisTransmissionResults
         bool MicrophoneChange = AnyIdOrderOrLengthChanged || AnyMicrophoneRangeChanged;
         bool HearingChange = AnyIdOrderOrLengthChanged || AnyHearingRangeChanged;
         bool AvatarChange = AnyIdOrderOrLengthChanged || AnyAvatarRangeChanged;
-        //update the server with who we are talking to
-        if (MicrophoneChange)
-        {
-            if (TalkingPoints.Capacity < receiverCount)
-            {
-                TalkingPoints.Capacity = receiverCount;
-            }
-            TalkingPoints.Clear();
-            for (int index = 0; index < receiverCount; index++)
-            {
-                if (MicrophoneRange[index])
-                {
-                    TalkingPoints.Add(IndexToPlayerId[index]);
-                }
-            }
-            BasisNetworkTransmitter.HasReasonToSendAudio = TalkingPoints.Count != 0;
-            VoiceReceiversMessage VoiceReceiversMessage = new VoiceReceiversMessage
-            {
-                Users = TalkingPoints.ToArray()
-            };
-            AudioRecipientswriter.Reset();
-            VoiceReceiversMessage.Serialize(AudioRecipientswriter);
-            //BasisDebug.Log($"Sending Microphone Check Data ({AudioRecipientswriter.Length})", BasisDebug.LogTag.Voice);
-            BasisNetworkConnection.LocalPlayerPeer.Send(AudioRecipientswriter, BasisNetworkCommons.AudioRecipientsChannel, DeliveryMethod.ReliableOrdered);
 
-            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, AudioRecipientswriter.Length);
-        }
         if (HearingChange)
         {
             for (int index = 0; index < receiverCount; index++)
@@ -225,6 +193,39 @@ public class BasisTransmissionResults
             var remote = receiver.RemotePlayer;
             // Distance-based mesh LOD
             remote.ChangeMeshLOD(distanceSq[index], SMModuleDistanceBasedReductions.MeshLod);
+        }
+        // Cache current as previous for next hysteresis step
+        MicrophoneRange.CopyTo(PrevInMicrophoneRange);
+        hearingRange.CopyTo(PrevInHearingRange);
+        AvatarRange.CopyTo(PrevInAvatarRange);
+        IndexToPlayerId.CopyTo(LastIndexToPlayerId);
+
+        //update the server with who we are talking to
+        if (MicrophoneChange)
+        {
+            if (TalkingPoints.Capacity < receiverCount)
+            {
+                TalkingPoints.Capacity = receiverCount;
+            }
+            TalkingPoints.Clear();
+            for (int index = 0; index < receiverCount; index++)
+            {
+                if (MicrophoneRange[index])
+                {
+                    TalkingPoints.Add(IndexToPlayerId[index]);
+                }
+            }
+            BasisNetworkTransmitter.HasReasonToSendAudio = TalkingPoints.Count != 0;
+            VoiceReceiversMessage VoiceReceiversMessage = new VoiceReceiversMessage
+            {
+                Users = TalkingPoints.ToArray()
+            };
+            AudioRecipientswriter.Reset();
+            VoiceReceiversMessage.Serialize(AudioRecipientswriter);
+            //BasisDebug.Log($"Sending Microphone Check Data ({AudioRecipientswriter.Length})", BasisDebug.LogTag.Voice);
+            BasisNetworkConnection.LocalPlayerPeer.Send(AudioRecipientswriter, BasisNetworkCommons.AudioRecipientsChannel, DeliveryMethod.ReliableOrdered);
+
+            BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, AudioRecipientswriter.Length);
         }
         if (!float.IsFinite(SmallestDistanceToAnotherPlayer))
         {
