@@ -212,7 +212,7 @@ public class BasisTransmissionResults
             {
                 var receiver = snapshot[index];
                 var remote = receiver.RemotePlayer;
-                if (remote.InAvatarRange != AvatarRange[index])
+                if (remote.IsLoadingAnAvatar == false && remote.InAvatarRange != AvatarRange[index])
                 {
                     remote.InAvatarRange = AvatarRange[index];
                     remote.ReloadAvatar();
