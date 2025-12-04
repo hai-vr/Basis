@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
@@ -77,24 +78,19 @@ public class BasisTransmissionResults
         int receiverCount = BasisNetworkPlayers.ReceiverCount;
         var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
         double activeTime = Time.timeAsDouble;
+        float deltaTime = Time.deltaTime;
+        float DeltaSpeed = BasisRemoteEyeDriver.LookSpeed * deltaTime;
         for (int index = 0; index < receiverCount; index++)
         {
-            try
-            {
-                var receiver = snapshot[index];
-                var remote = receiver.RemotePlayer;
-                // Small anim drivers
-                remote.RemoteEyeDriver.Simulate(activeTime);
-                remote.FacialBlinkDriver.Simulate(activeTime);
-            }
-            catch (Exception ex)
-            {
-                BasisDebug.LogError($"{ex} {ex.StackTrace}");
-            }
+            var receiver = snapshot[index];
+            var remote = receiver.RemotePlayer;
+            // Small anim drivers
+            remote.RemoteEyeDriver.Simulate(activeTime, DeltaSpeed);
+            remote.FacialBlinkDriver.Simulate(activeTime);
         }
 
 
-        timer += Time.deltaTime;
+        timer += deltaTime;
 
         if (timer <= intervalSeconds)
         {
@@ -122,14 +118,6 @@ public class BasisTransmissionResults
         for (int index = 0; index < receiverCount; index++)
         {
             BasisNetworkReceiver remote = snapshot[index];
-            if (remote == null)
-            {
-                BasisDebug.LogError("this shouldnt occur remote was out of bounds!", BasisDebug.LogTag.Networking);
-                //target just becomes infinite
-                IndexToPlayerId[index] = 0;
-                targetPositions[index] = math.INFINITY;
-                continue;
-            }
             RemoteBoneJobSystem.GetOutGoingMouth(remote.playerId, out float3 outgoing);
             targetPositions[index] = outgoing;
             IndexToPlayerId[index] = remote.playerId;
