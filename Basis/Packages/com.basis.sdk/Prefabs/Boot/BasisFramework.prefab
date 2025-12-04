@@ -60,35 +60,26 @@ MonoBehaviour:
     HasEvents: 0
     AudioTransmission:
       Local: {fileID: 0}
-      IsInitalized: 0
       HasEvents: 0
-      AudioSegmentData:
-        TotalPlayedInSilence: 0
-        buffer: 
-        TotalLength: 0
-        LengthUsed: 0
-      SilentSegmentData:
+      Segment:
         TotalPlayedInSilence: 0
         buffer: 
         TotalLength: 0
         LengthUsed: 0
       SilentForHowLong: 0
     TransmissionResults:
-      MicrophoneRangeIndex: 
-      LastMicrophoneRangeIndex: 
-      HearingIndex: 
-      AvatarIndex: 
-      HearingIndexToId: 
-      LastHearingIndexToId: 
-      CalculatedDistances: []
-      IndexLength: -1
-      requiresRebuild: 0
+      LastIndexLength: -1
       TalkingPoints: 
       intervalSeconds: 0.5
       timer: 0
       SmallestDistanceToAnotherPlayer: 0
       UnClampedInterval: 0
       DefaultInterval: 0
+      AnyMicrophoneRangeChanged: 0
+      AnyHearingRangeChanged: 0
+      AnyAvatarRangeChanged: 0
+      AnyIdOrderOrLengthChanged: 0
+      outMin: 0
       MouthBone:
         rid: -2
       BasisNetworkTransmitter:
@@ -371,7 +362,7 @@ MonoBehaviour:
   - MicrophoneRange
   - HearingRange
   - AvatarRange
-  - MeshLod
+  - avatarmeshlod
   - global meshlod
 --- !u!114 &8285517692325404402
 MonoBehaviour:
@@ -729,6 +720,7 @@ MonoBehaviour:
   m_VerticalAlignment: 4096
   m_textAlignment: 65535
   m_characterSpacing: 0
+  m_characterHorizontalScale: 1
   m_wordSpacing: 0
   m_lineSpacing: 0
   m_lineSpacingMax: 0

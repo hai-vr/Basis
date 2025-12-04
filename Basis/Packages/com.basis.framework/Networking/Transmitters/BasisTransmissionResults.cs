@@ -153,8 +153,12 @@ public class BasisTransmissionResults
         AnyIdOrderOrLengthChanged = distanceJob.AnyChangedArray[3];
 
         SmallestDistanceToAnotherPlayer = distanceJob.SMD[0];
+
+        bool MicrophoneChange = AnyIdOrderOrLengthChanged || AnyMicrophoneRangeChanged;
+        bool HearingChange = AnyIdOrderOrLengthChanged || AnyHearingRangeChanged;
+        bool AvatarChange = AnyIdOrderOrLengthChanged || AnyAvatarRangeChanged;
         //update the server with who we are talking to
-        if (AnyIdOrderOrLengthChanged || AnyMicrophoneRangeChanged)
+        if (MicrophoneChange)
         {
             if (TalkingPoints.Capacity < receiverCount)
             {
@@ -169,65 +173,23 @@ public class BasisTransmissionResults
                 }
             }
             BasisNetworkTransmitter.HasReasonToSendAudio = TalkingPoints.Count != 0;
-
-            // Send to server
             VoiceReceiversMessage VoiceReceiversMessage = new VoiceReceiversMessage
             {
                 Users = TalkingPoints.ToArray()
             };
-
             AudioRecipientswriter.Reset();
             VoiceReceiversMessage.Serialize(AudioRecipientswriter);
             //BasisDebug.Log($"Sending Microphone Check Data ({AudioRecipientswriter.Length})", BasisDebug.LogTag.Voice);
             BasisNetworkConnection.LocalPlayerPeer.Send(AudioRecipientswriter, BasisNetworkCommons.AudioRecipientsChannel, DeliveryMethod.ReliableOrdered);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, AudioRecipientswriter.Length);
-            ApplyLocalChanges(receiverCount, snapshot);
         }
-
-        if (!float.IsFinite(SmallestDistanceToAnotherPlayer))
+        if (HearingChange)
         {
-            // No receivers or all failed positions => treat as zero for rate calc
-            SmallestDistanceToAnotherPlayer = 0f;
-        }
-
-        ServerMetaDataMessage ServerMetaDataMessage = BasisNetworkManagement.ServerMetaDataMessage;
-        DefaultInterval = ServerMetaDataMessage.SyncInterval / 1000f;
-
-        float calculatedIntervalBase = ServerMetaDataMessage.BaseMultiplier + (SmallestDistanceToAnotherPlayer * ServerMetaDataMessage.IncreaseRate);
-        UnClampedInterval = DefaultInterval * calculatedIntervalBase;
-
-        intervalSeconds = Mathf.Clamp(UnClampedInterval, DefaultInterval, ServerMetaDataMessage.SlowestSendRate);
-
-        if (BasisAvatarRecorder.IsRecording)
-        {
-            var Anim = avatar.Animator;
-            BasisAvatarRecorder.StoreData(intervalSeconds, Anim.bodyRotation, Anim.bodyPosition, BasisNetworkTransmitter.HumanPose.muscles, Anim.transform.localScale.y);
-        }
-        // account for overshoot using the interval that actually accumulated
-        timer -= previousInterval;
-        LastIndexLength = receiverCount;
-    }
-    public void ApplyLocalChanges(int receiverCount, BasisNetworkReceiver[] snapshot)
-    {
-        for (int index = 0; index < receiverCount; index++)
-        {
-            try
+            for (int index = 0; index < receiverCount; index++)
             {
                 var receiver = snapshot[index];
                 var remote = receiver.RemotePlayer;
-
-                // Avatar in-range toggling
-                if (remote.InAvatarRange != AvatarRange[index])
-                {
-                    remote.InAvatarRange = AvatarRange[index];
-                    remote.ReloadAvatar();
-                }
-
-                // Distance-based mesh LOD
-                remote.ChangeMeshLOD(distanceSq[index], SMModuleDistanceBasedReductions.MeshLod);
-
-                // Voice start/stop (note: HearingIndex describes "we can hear them")
                 bool canHear = hearingRange[index];
                 if (receiver.AudioReceiverModule.HasAudioSource != canHear)
                 {
@@ -243,11 +205,50 @@ public class BasisTransmissionResults
                     }
                 }
             }
-            catch (Exception ex)
+        }
+        if (AvatarChange)
+        {
+            for (int index = 0; index < receiverCount; index++)
             {
-                BasisDebug.LogError($"{ex} {ex.StackTrace}");
+                var receiver = snapshot[index];
+                var remote = receiver.RemotePlayer;
+                if (remote.InAvatarRange != AvatarRange[index])
+                {
+                    remote.InAvatarRange = AvatarRange[index];
+                    remote.ReloadAvatar();
+                }
             }
         }
+        for (int index = 0; index < receiverCount; index++)
+        {
+            var receiver = snapshot[index];
+            var remote = receiver.RemotePlayer;
+            // Distance-based mesh LOD
+            remote.ChangeMeshLOD(distanceSq[index], SMModuleDistanceBasedReductions.MeshLod);
+        }
+        if (!float.IsFinite(SmallestDistanceToAnotherPlayer))
+        {
+            // No receivers or all failed positions => treat as zero for rate calc
+            SmallestDistanceToAnotherPlayer = 0f;
+        }
+
+        ServerMetaDataMessage ServerMetaDataMessage = BasisNetworkManagement.ServerMetaDataMessage;
+        DefaultInterval = ServerMetaDataMessage.SyncInterval / 1000f;
+
+
+        float calculatedIntervalBase = ServerMetaDataMessage.BaseMultiplier + (SmallestDistanceToAnotherPlayer * ServerMetaDataMessage.IncreaseRate);
+        UnClampedInterval = DefaultInterval * calculatedIntervalBase;
+
+        intervalSeconds = Mathf.Clamp(UnClampedInterval, DefaultInterval, ServerMetaDataMessage.SlowestSendRate);
+
+        if (BasisAvatarRecorder.IsRecording)
+        {
+            var Anim = avatar.Animator;
+            BasisAvatarRecorder.StoreData(intervalSeconds, Anim.bodyRotation, Anim.bodyPosition, BasisNetworkTransmitter.HumanPose.muscles, Anim.transform.localScale.y);
+        }
+        // account for overshoot using the interval that actually accumulated
+        timer -= previousInterval;
+        LastIndexLength = receiverCount;
     }
     /// <summary>
     /// Allocate / reallocate all NativeArrays.
@@ -313,8 +314,6 @@ public class BasisTransmissionResults
         public float SquaredHearingDistance;
         public float SquaredAvatarDistance;
 
-        public const float HysteresisMargin = 0.05f;
-
         [ReadOnly] public NativeArray<ushort> LastIndexToPlayerId;
         [ReadOnly] public NativeArray<ushort> IndexToPlayerId;
 
@@ -356,23 +355,23 @@ public class BasisTransmissionResults
                 bool prevHear = PrevInHearingRange[Index];
                 bool prevAvatar = PrevInAvatarRange[Index];
 
-                bool InMicrophoneRange = Hysteresis(prevDist, d2, SquaredVoiceDistance, HysteresisMargin);
-                bool InHearingRange = Hysteresis(prevHear, d2, SquaredHearingDistance, HysteresisMargin);
-                bool InAvatarRange = Hysteresis(prevAvatar, d2, SquaredAvatarDistance, HysteresisMargin);
+                bool Voice = d2 < SquaredVoiceDistance;
+                bool Hearing = d2 < SquaredHearingDistance;
+                bool Avatar = d2 < SquaredAvatarDistance;
 
-                MicrophoneRange[Index] = InMicrophoneRange;
-                hearingRange[Index] = InHearingRange;
-                AvatarRange[Index] = InAvatarRange;
+                MicrophoneRange[Index] = Voice;
+                hearingRange[Index] = Hearing;
+                AvatarRange[Index] = Avatar;
 
-                if (InMicrophoneRange != prevDist)
+                if (Voice != prevDist)
                 {
                     AnyMicrophoneRangeChanged = true;
                 }
-                if (InHearingRange != prevHear)
+                if (Hearing != prevHear)
                 {
                     AnyHearingRangeChanged = true;
                 }
-                if (InAvatarRange != prevAvatar)
+                if (Avatar != prevAvatar)
                 {
                     AnyAvatarRangeChanged = true;
                 }
@@ -401,15 +400,6 @@ public class BasisTransmissionResults
             AnyChangedArray[1] = AnyHearingRangeChanged;
             AnyChangedArray[2] = AnyAvatarRangeChanged;
             AnyChangedArray[3] = AnyIdOrderOrLengthChanged;
-        }
-        [BurstCompile]
-        private static bool Hysteresis(bool wasInside, float d2, float thr2, float margin)
-        {
-            margin = math.clamp(margin, 0f, 0.49f);
-            float insideFactor = 1f + margin;
-            float outsideFactor = 1f - margin;
-            float factor = math.select(outsideFactor, insideFactor, wasInside);
-            return d2 < thr2 * factor;
         }
     }
 }

@@ -467,7 +467,7 @@ namespace Basis.BasisUI
             PanelSlider sliderMeshLOD = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
                 new PanelSlider.SliderSettings("Avatar LOD Multiplier", "", 0, 1, false, 3, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.MeshLOD);
+                BasisSettingsDefaults.AvatarMeshLOD);
 
             // Global Mesh LOD
             PanelSlider sliderGlobalMeshLOD = PanelSlider.CreateEntryAndBind(
