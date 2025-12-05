@@ -79,10 +79,10 @@ namespace Basis.BasisUI
             new("Debug Visuals", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> MemoryAllocation =>
-            new("HDR Support", new BasisPlatformDefault<string>
+            new("Memory Allocation", new BasisPlatformDefault<string>
             {
                 windows = "Dynamic",
-                android = "Very Low",
+                android = "Dynamic",
                 linux = "Dynamic",
                 other = "Dynamic"
             });
