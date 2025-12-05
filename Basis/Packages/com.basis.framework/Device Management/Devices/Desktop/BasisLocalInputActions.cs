@@ -1,7 +1,6 @@
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
-using Basis.Scripts.UI.UI_Panels;
 using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.Common;
 using Basis.BasisUI;

@@ -70,6 +70,9 @@ namespace Basis.BasisUI
             }
 
             BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
+        }
+        public void OnEnable()
+        {
             OnAvatarHeightChange();
         }
 

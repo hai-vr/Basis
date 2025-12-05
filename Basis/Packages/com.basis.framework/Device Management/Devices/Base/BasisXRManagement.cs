@@ -102,6 +102,7 @@ namespace Basis.Scripts.Device_Management.Devices
             else
             {
                 BasisDebug.LogError("No Active Loader Present! falling back to desktop!");
+                result = BasisConstants.Desktop;
             }
 
             BasisDebug.Log($"Found Loader {result}", BasisDebug.LogTag.Device);
