@@ -299,9 +299,8 @@ namespace Basis.Scripts.Device_Management
 
             BasisSettingsSystem.LoadAllSettings();
             SMDMicrophone.LoadInMicrophoneData(mode);
-            await BasisActionDriver.LoadBindings();
-
             StaticCurrentMode = mode;
+            await BasisActionDriver.LoadBindings();
             BasisDebug.Log($"Loading mode: {mode}", BasisDebug.LogTag.Device);
         }
 

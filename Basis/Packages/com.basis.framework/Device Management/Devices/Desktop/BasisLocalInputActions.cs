@@ -112,20 +112,17 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             }
             else
             {
+                HasCallbacksAndActions = true;
                 EnableActions();
                 AddCallbacks();
             }
         }
-
+        public static bool HasCallbacksAndActions = false;
         public void OnDisable()
         {
             BasisLocalCameraDriver.InstanceExists -= SetupCamera;
 
-            if (BasisDeviceManagement.IsCurrentModeVR() && BasisDeviceManagement.IsMobileHardware())
-            {
-
-            }
-            else
+            if (HasCallbacksAndActions)
             {
                 RemoveCallbacks();
                 DisableActions();
@@ -476,7 +473,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public async void OnSwitchOpenXR(InputAction.CallbackContext ctx)
         {
             if (ctx.phase == InputActionPhase.Performed)
-                await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
+                await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenXRLoader);
         }
 
         public async void OnSwitchOpenVR(InputAction.CallbackContext ctx)
