@@ -125,15 +125,12 @@ public static class BasisAnimationRiggingHelper
         data.useHandCapsule = true;
         data.protectElbow = true;
         data.EnabledSpineIK = true;
+        SetHandCollisionScale(data, player.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
+
         // ----------------------------
         // Write back once
         // ----------------------------
         BasisFullIKConstraint.data = data;
-
-        // ----------------------------
-        // Post-setup helpers
-        // ----------------------------
-        SetHandCollisionScale(BasisFullIKConstraint, player.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
 
         GeneratedRequiredTransforms(player, Mapping.head);
 
@@ -176,13 +173,13 @@ public static class BasisAnimationRiggingHelper
             list.Add(rig);
         }
     }
-    public static void SetHandCollisionScale(BasisFullBodyIK TwoBoneIKConstraint, float Scale)
+    public static void SetHandCollisionScale(BasisFullBodyData BodyData, float Scale)
     {
         //1.6m is the default values for below.
-        TwoBoneIKConstraint.data.collisionSkin = 0.05f * Scale;
-        TwoBoneIKConstraint.data.handRadius = 0.01f * Scale;
-        TwoBoneIKConstraint.data.handSkin = 0.03f * Scale;
-        TwoBoneIKConstraint.data.chestRadius = 0.07f * Scale;
+        BodyData.handSkin = 0.03f * Scale;
+        BodyData.handRadius = 0.01f * Scale;
+        BodyData.chestRadius = 0.07f * Scale;
+        BodyData.collisionSkin = 0.05f * Scale;
     }
     public static GameObject CreateAndSetParent(Transform parent, string name)
     {

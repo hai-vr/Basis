@@ -154,7 +154,7 @@ namespace Basis.Scripts.Drivers
             var hipsCoords = hipsControl.OutgoingWorldData;
             var hipsPositionFiltered = oneEuroFilter.Filter(hipsCoords.position, timeAccumulator);
 
-            var data = BasisFullIKConstraint.data;
+            BasisFullBodyData data = BasisFullIKConstraint.data;
 
             // Hips
             data.PositionHips = hipsPositionFiltered;
@@ -193,7 +193,7 @@ namespace Basis.Scripts.Drivers
 
             // Scale hand collision by avatar height
             BasisAnimationRiggingHelper.SetHandCollisionScale(
-                BasisFullIKConstraint,
+                data,
                 localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale
             );
 
