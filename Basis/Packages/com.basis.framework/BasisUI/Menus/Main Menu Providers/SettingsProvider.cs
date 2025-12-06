@@ -357,6 +357,7 @@ namespace Basis.BasisUI
                 "Linear",
                 "Point",
                 "FSR",
+                "STP"
             });
             dropdownAntialiasing.AssignBinding(BasisSettingsDefaults.Antialiasing);
 
