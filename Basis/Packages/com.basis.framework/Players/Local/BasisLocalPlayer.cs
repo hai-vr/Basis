@@ -133,7 +133,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// Local Seat Driver deals with sitting and using seats.
         /// </summary>
-        [Header("Character Driver")]
+        [Header("Local Seat Driver")]
         [SerializeField]
         public BasisLocalSeatDriver LocalSeatDriver = new BasisLocalSeatDriver();
 
