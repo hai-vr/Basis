@@ -798,6 +798,29 @@ chestRadius, collisionSkin;
 
             Apply(stream, HandleUpperChest, p54, r54, o54, w54);
         }
+        static float SoftenTargetLength(float d, float maxReach)
+        {
+            // Fraction of total reach at which softening starts.
+            const float softFraction = 0.1f; // 10% of reach; tune to taste
+
+            float softZone = maxReach * softFraction;
+            if (softZone <= 0f)
+                return d;
+
+            float start = maxReach - softZone;
+
+            // If we're not yet in the "danger zone", leave it alone.
+            if (d <= start)
+                return d;
+
+            // Standard soft IK: approach maxReach asymptotically.
+            float x = d - start;
+            float denom = Mathf.Max(softZone, k_SqrEpsilon);
+            float t = Mathf.Exp(-x / denom);
+
+            // Result is in [start, maxReach), monotonic, smooth.
+            return maxReach - softZone * t;
+        }
         const float k_SqrEpsilon = 1e-8f;
         public static void SolveTwoBoneIKArms(
             AnimationStream stream,
@@ -830,8 +853,11 @@ chestRadius, collisionSkin;
             float acLen = ac.magnitude;
             float atLen = at.magnitude;
 
+            float maxReach = abLen + bcLen;
+            float atLenSoft = SoftenTargetLength(atLen, maxReach);
+
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
+            float newAbcAngle = TriangleAngle(atLenSoft, abLen, bcLen);
 
             // Prefer current bend plane; fallbacks to hint / at if collinear.
             Vector3 axis = Vector3.Cross(ab, bc);
@@ -867,8 +893,6 @@ chestRadius, collisionSkin;
                     Vector3 ah = hint.translation - aPosition;
                     Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
                     Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
-
-                    float maxReach = abLen + bcLen;
                     if (abProj.sqrMagnitude > (maxReach * maxReach * 0.001f) && ahProj.sqrMagnitude > 0f)
                     {
                         Quaternion hintR = QuaternionExt.FromToRotation(abProj, ahProj);
@@ -1039,9 +1063,13 @@ chestRadius, collisionSkin;
             float acLen = ac.magnitude;
             float atLen = at.magnitude;
 
+            float maxReach = abLen + bcLen;
+            float atLenSoft = SoftenTargetLength(atLen, maxReach);
+
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
+            float newAbcAngle = TriangleAngle(atLenSoft, abLen, bcLen);
             Vector3 axis;
+
             if (HasHint)
             {
                 axis = Vector3.Cross(hint.translation - aPosition, bc);
@@ -1088,7 +1116,6 @@ chestRadius, collisionSkin;
                     Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
                     Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
 
-                    float maxReach = abLen + bcLen;
                     if (abProj.sqrMagnitude > (maxReach * maxReach * 0.001f) && ahProj.sqrMagnitude > 0f)
                     {
                         Quaternion hintR = QuaternionExt.FromToRotation(abProj, ahProj);
@@ -1265,9 +1292,9 @@ chestRadius, collisionSkin;
 
             if (enabledProp.Get(stream))
             {
-                var pos = targetPosProp.Get(stream);
+               // var pos = targetPosProp.Get(stream);
                 var rot = V4ToQuat(targetRotProp.Get(stream));
-                handle.SetPosition(stream, pos);
+             //   handle.SetPosition(stream, pos);
                 handle.SetRotation(stream, rot);
             }
             else
