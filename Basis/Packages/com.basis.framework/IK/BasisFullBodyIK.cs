@@ -724,18 +724,14 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
 
             // How much compression/stretch you allow relative to T-pose
             const float minFactor = 0.4f;  // 10% compression allowed
-            const float maxFactor = 1.1f;  // 10% stretch allowed
+            const float maxFactor = 1;  // 0% stretch allowed
 
             hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor);
             targetPositionHips.Set(stream, hipsTargetPos);
             SolveHipsAndSpine(stream,
-
-                    // --- Hips ---
                     targetPositionHips,
                     targetRotationHips,
                     offsetRotationHips,
-
-                    // --- Head + Legs ---
                     enabledSpineIK,
                     HandleHips,
                     //  HandleSpine,
@@ -745,12 +741,20 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                     HandleHead,
                     targetPositionHead,
                     targetRotationHead,
-                    hintPositionHead,
-                    hintRotationHead,
-                    hintWeightHead,
                     targetOffsetHead,
                     bendNormalHead
                 );
+
+            //so we override the rotation now of the hint,
+            //however doing this means that the rotation of the neck is now being forcefully set we need to set that after this aswell to the value before chest apply
+            if(hintWeightHead.Get(stream))
+            {
+
+              //  ApplyRotation(stream, hintWeightHead, HandleChest, hintPositionHead, hintRotationHead);
+
+                // Also apply the same hint-driven rotation to the next bone in the chain (neck)
+            //    ApplyRotation(stream, hintWeightHead, HandleNeck, targetPositionHead, targetRotationHead);
+            }
 
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
                 targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
@@ -777,8 +781,8 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 handLocalStart, handLocalEnd, handRadius, handSkin, useHandCapsule,
                 protectElbow);
             // --- Integrated "damped TR" application (world-space) ---
-            ApplyToeRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetPos, leftDrivenTargetRot);
-            ApplyToeRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetPos, rightDrivenTargetRot);
+            ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetPos, leftDrivenTargetRot);
+            ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetPos, rightDrivenTargetRot);
 
             Apply(stream, HandleHips, p0, r0, o0, w0);
             Apply(stream, HandleLeftUpperLeg, p1, r1, o1, w1);
@@ -1303,7 +1307,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             if (tip.IsValid(stream)) PassThrough(stream, tip);
         }
 
-        public static void ApplyToeRotation(
+        public static void ApplyRotation(
             AnimationStream stream,
             BoolProperty enabledProp,
             ReadWriteTransformHandle handle,
@@ -1344,9 +1348,8 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
     ReadWriteTransformHandle HandleHead,
     Vector3Property targetPositionHead,
     Vector4Property targetRotationHead,
-    Vector3Property hintPositionHead,
-    Vector4Property hintRotationHead,
-    BoolProperty hintWeightChestArea,
+  //  Vector3Property hintPositionHead,
+  //  Vector4Property hintRotationHead,
     AffineTransform targetOffsetHead,
     Vector3Property bendNormalHead
 )
@@ -1371,18 +1374,13 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
 
             // Build target + hint transforms
             var tRot = V4ToQuat(targetRotationHead.Get(stream));
-            var hRot = V4ToQuat(hintRotationHead.Get(stream));
-
             var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-            var hint = new AffineTransform(hintPositionHead.Get(stream), hRot);
             var bendNormal = bendNormalHead.Get(stream);
 
             SolveTwoBoneSpine(
                 stream,
                 HandleChest, HandleNeck, HandleHead,
                 target,
-                hint,
-                hintWeightChestArea.Get(stream),
                 targetOffsetHead,
                 bendNormal
             );
@@ -1406,8 +1404,6 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             ReadWriteTransformHandle mid,
             ReadWriteTransformHandle tip,
             AffineTransform target,
-            AffineTransform hint,
-            bool hasHint,
             AffineTransform targetOffset,
             Vector3 bendNormal)
         {
@@ -1440,7 +1436,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             float newAbcAngle = TriangleAngle(atLenSoft, abLen, bcLen);
 
             // Compute rotation axis for mid joint bend
-            Vector3 axis = ComputeIkAxis(aPos, bc, at, hint.translation, bendNormal, hasHint);
+            Vector3 axis = ComputeIkAxis(aPos, bc, at,  bendNormal);
 
             // Rotate mid joint by half the angle delta (distributes motion)
             float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
@@ -1453,31 +1449,6 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             cPos = tip.GetPosition(stream);
             ac = cPos - aPos;
             root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
-
-            // Optional hint orientation to control elbow-like twist around AC
-            if (hasHint)
-            {
-                float acSqrMag = ac.sqrMagnitude;
-                if (acSqrMag > 0f)
-                {
-                    bPos = mid.GetPosition(stream);
-                    cPos = tip.GetPosition(stream);
-                    ab = bPos - aPos;
-                    ac = cPos - aPos;
-
-                    Vector3 acNorm = ac / Mathf.Sqrt(acSqrMag);
-                    Vector3 ah = hint.translation - aPos;
-                    Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
-                    Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
-
-                    if (abProj.sqrMagnitude > (maxReach * maxReach * 0.001f) && ahProj.sqrMagnitude > 0f)
-                    {
-                        Quaternion hintR = QuaternionExt.FromToRotation(abProj, ahProj);
-                        hintR = QuaternionExt.NormalizeSafe(hintR);
-                        root.SetRotation(stream, hintR * root.GetRotation(stream));
-                    }
-                }
-            }
 
             // Set tip rotation to match target orientation (+offset)
             tip.SetRotation(stream, tRot);
@@ -1561,6 +1532,23 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 axis = bendNormal;
             }
 
+            float mag2 = axis.sqrMagnitude;
+            if (mag2 < k_SqrEpsilon)
+            {
+                // Deterministic fallback to avoid NaNs/garbage under Burst
+                return Vector3.forward;
+            }
+
+            return axis / Mathf.Sqrt(mag2);
+        }
+        private static Vector3 ComputeIkAxis(
+    Vector3 rootPos,
+    Vector3 bc,
+    Vector3 at,
+    Vector3 bendNormal)
+        {
+            Vector3 axis;
+            axis = bendNormal;
             float mag2 = axis.sqrMagnitude;
             if (mag2 < k_SqrEpsilon)
             {
