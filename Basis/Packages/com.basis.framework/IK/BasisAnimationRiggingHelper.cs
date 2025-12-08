@@ -175,7 +175,7 @@ public static class BasisAnimationRiggingHelper
     }
     public static void SetHandCollisionScale(ref BasisFullBodyData BodyData, float Scale)
     {
-        //1.6m is the default values for below.
+        //1.6m is the default values for below..
         BodyData.handSkin = 0.03f * Scale;
         BodyData.handRadius = 0.01f * Scale;
         BodyData.chestRadius = 0.07f * Scale;

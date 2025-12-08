@@ -238,9 +238,6 @@ namespace UnityEngine.Animations.Rigging
 
         // Misc
         [SyncSceneToStream, SerializeField] public Vector3 m_HintDirection;
-        [SyncSceneToStream, SerializeField] public Vector3 m_HandLocalStart;
-        [SyncSceneToStream, SerializeField] public Vector3 m_HandLocalEnd;
-
         [SyncSceneToStream, SerializeField] public float m_HandSkin;
         [SyncSceneToStream, SerializeField] public bool m_UseHandCapsule;
         [SyncSceneToStream, SerializeField, Min(0f)] public float m_HandRadius;
@@ -341,8 +338,6 @@ namespace UnityEngine.Animations.Rigging
         public string ChestRadiusFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestRadius));
         public string CollisionSkinFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollisionSkin));
         public string CollisionsEnabledBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollisionsEnabled));
-        public string HandLocalStartVector3Property => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandLocalStart));
-        public string HandLocalEndVector3Property => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandLocalEnd));
         public string HandRadiusFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandRadius));
         public string HandSkinFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HandSkin));
         public string UseHandCapsuleBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UseHandCapsule));
@@ -369,8 +364,6 @@ namespace UnityEngine.Animations.Rigging
         public float chestRadius { get => m_ChestRadius; set => m_ChestRadius = value; }
         public float collisionSkin { get => m_CollisionSkin; set => m_CollisionSkin = value; }
         public bool collisionsEnabled { get => m_CollisionsEnabled; set => m_CollisionsEnabled = value; }
-        public Vector3 handLocalStart { get => m_HandLocalStart; set => m_HandLocalStart = value; }
-        public Vector3 handLocalEnd { get => m_HandLocalEnd; set => m_HandLocalEnd = value; }
 
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
@@ -437,8 +430,6 @@ namespace UnityEngine.Animations.Rigging
             // Chest/hand capsule defaults (left)
             m_chest = m_neck = null;
             m_ChestRadius = 0.18f; m_CollisionSkin = 0.02f; m_CollisionsEnabled = true;
-            m_HandLocalStart = new Vector3(0f, 0f, -0.05f);
-            m_HandLocalEnd = new Vector3(0f, 0f, 0.08f);
             m_HandRadius = 0.05f; m_HandSkin = 0.01f; m_UseHandCapsule = true;
             m_ProtectElbow = true;
 
@@ -653,7 +644,6 @@ targetPositionHips,
 leftDrivenTargetPos, rightDrivenTargetPos,
 targetPositionLeftHand, hintPositionLeftHand,
 targetPositionRightHand, hintPositionRightHand,
-handLocalStart, handLocalEnd,
 p0, p1, p2, p3, p4, p5, p6, p7, p8, p9,
 p10, p11, p12, p13, p14, p15, p16, p17, p18, p19,
 p20, p54;
@@ -771,7 +761,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand,
                 hintWeightLeftHand, targetOffsetLeftHand,
                 HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
-                handLocalStart, handLocalEnd, handRadius, handSkin, useHandCapsule,
+                 handRadius, handSkin, useHandCapsule,
                 protectElbow);
 
             SolveHand(stream,
@@ -779,7 +769,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand,
                 hintWeightRightHand, targetOffsetRightHand,
                 HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
-                handLocalStart, handLocalEnd, handRadius, handSkin, useHandCapsule,
+                handRadius, handSkin, useHandCapsule,
                 protectElbow);
 
             ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot);
@@ -1196,7 +1186,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
         AnimationStream stream,BoolProperty enabledProp,ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
         Vector3Property targetPosProp, Vector4Property targetRotProp,Vector3Property hintPosProp, Vector4Property hintRotProp,BoolProperty hintWeightProp, AffineTransform targetOffset,
         ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd,FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled,
-        Vector3Property handLocalStart, Vector3Property handLocalEnd, FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule,BoolProperty protectElbow)
+        FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule,BoolProperty protectElbow)
         {
             if (!enabledProp.Get(stream))
             {
@@ -1223,14 +1213,16 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
 
                 if (useHandCapsule.Get(stream))
                 {
-                    Vector3 hsLocal = handLocalStart.Get(stream);
-                    Vector3 heLocal = handLocalEnd.Get(stream);
                     float hRad = Mathf.Max(0f, handRadius.Get(stream) + handSkin.Get(stream));
-                    Vector3 handA = tgtPos + (tgtRot * hsLocal);
-                    Vector3 handB = tgtPos + (tgtRot * heLocal);
+
+                    // Use the actual current mid & tip positions as the hand capsule ends
+                    Vector3 handA = mid.GetPosition(stream);
+                    Vector3 handB = tip.GetPosition(stream);
+
                     Vector3 correction = CapsuleCapsuleResolve(handA, handB, hRad, a, b, chestR);
                     if (correction.sqrMagnitude > 0f)
                     {
+                        // Move the IK target & hint by the same correction
                         tgtPos += correction;
                         hintPos += correction * 0.25f; // steer elbow slightly
                     }
@@ -1294,7 +1286,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             if (!EnableSpineIK.Get(stream))
             {
                 Pass(stream, HandleChest, HandleNeck, HandleHead);
-                BasisAnimationRuntimeUtils.PassThrough(stream, HandleHips);
+                PassThrough(stream, HandleHips);
                 return;
             }
 
@@ -1489,9 +1481,6 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
 
                 targetPositionRightHand = Vector3Property.Bind(animator, component, data.TargetPositionPropertyRightHand),
                 hintPositionRightHand = Vector3Property.Bind(animator, component, data.HintPositionPropertyRightHand),
-
-                handLocalStart = Vector3Property.Bind(animator, component, data.HandLocalStartVector3Property),
-                handLocalEnd = Vector3Property.Bind(animator, component, data.HandLocalEndVector3Property),
 
                 targetRotationHips = Vector4Property.Bind(animator, component, data.TargetRotationPropertyHips),
                 offsetRotationHips = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyHips),

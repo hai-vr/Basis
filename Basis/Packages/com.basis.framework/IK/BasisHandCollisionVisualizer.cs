@@ -46,45 +46,36 @@ public class BasisHandCollisionVisualizer : MonoBehaviour
 
     private void VisualizeHand(BasisFullBodyData data, Vector3 chestA, Vector3 chestB, float chestR, bool left)
     {
-        // --- Pull hand target data the same way your manager feeds it into the job ---
         Vector3 tgtPos;
-        Quaternion tgtRot;
         Vector3 hintPos;
-        Quaternion hintRot;
-
+        Vector3 hsLocal;
+        Vector3 heLocal;
         if (left)
         {
             tgtPos = data.PositionLeftHand;
-            tgtRot = data.RotationLeftHand;
             hintPos = data.HintPositionLeftHand;
-            hintRot = data.HintRotationLeftHand;
+            hsLocal = data.LeftHand.position;
+            heLocal = data.leftLowerArm.position;
         }
         else
         {
             tgtPos = data.PositionRightHand;
-            tgtRot = data.RotationRightHand;
             hintPos = data.HintPositionRightHand;
-            hintRot = data.HintRotationRightHand;
+            hsLocal = data.RightHand.position;
+            heLocal = data.RightLowerArm.position;
         }
-
-        // Use same local capsule + radii as in SolveHand
-        Vector3 hsLocal = data.handLocalStart;  // same for left/right in your data
-        Vector3 heLocal = data.handLocalEnd;
         float handR = Mathf.Max(0f, data.handRadius + data.handSkin);
 
         bool useCapsule = data.useHandCapsule;
 
         if (useCapsule)
         {
-            Vector3 handA = tgtPos + (tgtRot * hsLocal);
-            Vector3 handB = tgtPos + (tgtRot * heLocal);
-
             // Draw hand capsule
-            DrawCapsule(handA, handB, handR, handColor);
+            DrawCapsule(hsLocal, heLocal, handR, handColor);
 
             // Compute collision the same way SolveHand does
-            Vector3 correction = BasisAnimationRuntimeUtils.CapsuleCapsuleResolve(
-                handA, handB, handR,
+            Vector3 correction = BasisFullIKConstraintJob.CapsuleCapsuleResolve(
+                hsLocal, heLocal, handR,
                 chestA, chestB, chestR
             );
 
@@ -97,8 +88,8 @@ public class BasisHandCollisionVisualizer : MonoBehaviour
                 Gizmos.DrawSphere(tgtPos + correction, handR * 0.25f);
 
                 // Optional: visualize the two closest points between capsules
-                BasisAnimationRuntimeUtils.SegmentSegmentClosestPoints(
-                    handA, handB, chestA, chestB,
+                BasisFullIKConstraintJob.SegmentSegmentClosestPoints(
+                    hsLocal, heLocal, chestA, chestB,
                     out _, out _, out Vector3 c1, out Vector3 c2);
 
                 Gizmos.DrawSphere(c1, handR * 0.15f);
@@ -110,7 +101,7 @@ public class BasisHandCollisionVisualizer : MonoBehaviour
         {
             // Point-vs-capsule path (PushOutFromCapsule)
             Vector3 p = tgtPos;
-            Vector3 pushed = BasisAnimationRuntimeUtils.PushOutFromCapsule(p, chestA, chestB, chestR);
+            Vector3 pushed = BasisFullIKConstraintJob.PushOutFromCapsule(p, chestA, chestB, chestR);
 
             // Draw original + pushed positions
             Gizmos.color = handColor;
