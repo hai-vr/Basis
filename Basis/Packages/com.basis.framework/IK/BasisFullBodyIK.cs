@@ -191,6 +191,17 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetHead;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationHead;
 
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetChest;
+          [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetLeftToe;
+          [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightToe;
+          [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightToe;
+          [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftToe;
+          [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationChest;
+
+
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetNeck;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationNeck;
+
         // Hips
         [SyncSceneToStream, SerializeField] public Vector3 PositionHips;
         [SyncSceneToStream, SerializeField] public Quaternion RotationEulerHips;
@@ -662,7 +673,7 @@ o0, o1, o2, o3, o4, o5, o6, o7, o8, o9,
 o10, o11, o12, o13, o14, o15, o16, o17, o18, o19,
 o20, o54;
 
-        public AffineTransform targetOffsetHead,
+        public AffineTransform targetOffsetNeck, targetOffsetHead, targetOffsetChest, targetOffsetLeftToe, targetOffsetRightToe,
 targetOffsetLeftFoot,
 targetOffsetRightFoot,
 targetOffsetLeftHand,
@@ -719,32 +730,19 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
 
             hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor);
             targetPositionHips.Set(stream, hipsTargetPos);
-            SolveHipsAndSpine(stream,
-                    targetPositionHips,
-                    targetRotationHips,
-                    offsetRotationHips,
-                    enabledSpineIK,
-                    HandleHips,
-                    //  HandleSpine,
-                    HandleChest,
-                    // HandleUpperChest,
-                    HandleNeck,
-                    HandleHead,
-                    targetPositionHead,
-                    targetRotationHead,
-                    targetOffsetHead,
-                    bendNormalHead
-                );
+            SolveHipsAndSpine(stream,targetPositionHips,targetRotationHips,offsetRotationHips,enabledSpineIK,HandleHips,HandleChest,HandleNeck,HandleHead,targetPositionHead,targetRotationHead,targetOffsetHead,bendNormalHead);
 
             //so we override the rotation now of the hint,
             //however doing this means that the rotation of the neck is now being forcefully set we need to set that after this aswell to the value before chest apply
             if (hintWeightHead.Get(stream))
             {
-
-                //  ApplyRotation(stream, hintWeightHead, HandleChest, hintPositionHead, hintRotationHead);
+                Quaternion Rotation = HandleNeck.GetRotation(stream);
+                ApplyRotation(stream, HandleChest, hintRotationHead, targetOffsetChest.rotation);
 
                 // Also apply the same hint-driven rotation to the next bone in the chain (neck)
-                //    ApplyRotation(stream, hintWeightHead, HandleNeck, targetPositionHead, targetRotationHead);
+                // ApplyRotation(stream, HandleNeck, targetRotationHead, targetOffsetNeck.rotation);
+
+                HandleNeck.SetRotation(stream, Rotation);
             }
 
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
@@ -772,8 +770,8 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 handRadius, handSkin, useHandCapsule,
                 protectElbow);
 
-            ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot);
-            ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot);
+            ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot,targetOffsetLeftToe.rotation);
+            ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot,targetOffsetRightToe.rotation);
 
             Apply(stream, HandleHips, p0, r0, o0, w0);
             Apply(stream, HandleLeftUpperLeg, p1, r1, o1, w1);
@@ -808,6 +806,44 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Apply(stream, HandleRightToe, p20, r20, o20, w20);
 
             Apply(stream, HandleUpperChest, p54, r54, o54, w54);
+        }
+        public static void ApplyRotation(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
+        {
+            if (!handle.IsValid(stream))
+                return;
+
+            if (enabledProp.Get(stream))
+            {
+                var rot = V4ToQuat(targetRotProp.Get(stream));
+                handle.SetRotation(stream, rot * RotationOffset);
+            }
+            else
+            {
+                PassThrough(stream, handle);
+            }
+        }
+        public static void ApplyRotation(AnimationStream stream, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
+        {
+            if (!handle.IsValid(stream))
+                return;
+
+            var rot = V4ToQuat(targetRotProp.Get(stream));
+            handle.SetRotation(stream, rot * RotationOffset);
+        }
+        public static void ApplyRotation(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle handle, Vector4Property targetRotProp)
+        {
+            if (!handle.IsValid(stream))
+                return;
+
+            if (enabledProp.Get(stream))
+            {
+                var rot = V4ToQuat(targetRotProp.Get(stream));
+                handle.SetRotation(stream, rot);
+            }
+            else
+            {
+                PassThrough(stream, handle);
+            }
         }
         static Vector3 ClampHipsAroundHead(Vector3 headPos,Vector3 hipsPos,float restDistance,float minFactor,float maxFactor)
         {
@@ -1261,21 +1297,6 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             if (mid.IsValid(stream)) PassThrough(stream, mid);
             if (tip.IsValid(stream)) PassThrough(stream, tip);
         }
-        public static void ApplyRotation(AnimationStream stream,BoolProperty enabledProp,ReadWriteTransformHandle handle,Vector4Property targetRotProp)
-        {
-            if (!handle.IsValid(stream))
-                return;
-
-            if (enabledProp.Get(stream))
-            {
-                var rot = V4ToQuat(targetRotProp.Get(stream));
-                handle.SetRotation(stream, rot);
-            }
-            else
-            {
-                PassThrough(stream, handle);
-            }
-        }
         public static void SolveHipsAndSpine(
     AnimationStream stream,Vector3Property targetPositionHips,Vector4Property targetRotationHips,Vector4Property offsetRotationHips,
     BoolProperty EnableSpineIK,ReadWriteTransformHandle HandleHips,ReadWriteTransformHandle HandleChest,ReadWriteTransformHandle HandleNeck,ReadWriteTransformHandle HandleHead,
@@ -1529,7 +1550,11 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 handRadius = FloatProperty.Bind(animator, component, data.HandRadiusFloatProperty),
                 handSkin = FloatProperty.Bind(animator, component, data.HandSkinFloatProperty),
 
+                targetOffsetNeck = new AffineTransform(data.m_CalibratedOffsetNeck, data.m_CalibratedRotationNeck),
                 targetOffsetHead = new AffineTransform(data.m_CalibratedOffsetHead, data.m_CalibratedRotationHead),
+                targetOffsetChest = new AffineTransform(data.m_CalibratedOffsetChest, data.m_CalibratedRotationChest),
+                targetOffsetLeftToe = new AffineTransform(data.m_CalibratedOffsetLeftToe, data.m_CalibratedRotationLeftToe),
+                targetOffsetRightToe = new AffineTransform(data.m_CalibratedOffsetRightToe, data.m_CalibratedRotationRightToe),
 
                 targetOffsetLeftFoot = new AffineTransform(data.m_CalibratedOffsetLeftFoot, data.m_CalibratedRotationLeftFoot),
                 targetOffsetRightFoot = new AffineTransform(data.m_CalibratedOffsetRightFoot, data.m_CalibratedRotationRightFoot),

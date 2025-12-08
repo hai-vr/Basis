@@ -80,6 +80,19 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedRotationLeftHand = Mapping.leftHand.rotation;
         data.m_CalibratedRotationRightHand = Mapping.rightHand.rotation;
 
+
+        data.m_CalibratedOffsetChest = Vector3.zero;
+        data.m_CalibratedRotationChest = Mapping.chest.rotation;
+
+        data.m_CalibratedOffsetNeck = Vector3.zero;
+        data.m_CalibratedRotationNeck = Mapping.neck.rotation;
+
+        data.m_CalibratedOffsetLeftToe = Vector3.zero;
+        data.m_CalibratedRotationLeftToe = Mapping.leftToe.rotation;
+
+        data.m_CalibratedOffsetRightToe = Vector3.zero;
+        data.m_CalibratedRotationRightToe = Mapping.rightToe.rotation;
+
         // Hips reference rotation
         data.OffsetRotationHips = Mapping.Hips.rotation;
 
