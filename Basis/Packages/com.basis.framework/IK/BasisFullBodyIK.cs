@@ -1091,7 +1091,21 @@ chestRadius, collisionSkin;
 
             axis = Vector3.Normalize(axis);
 
-            float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
+            float deltaAngle = oldAbcAngle - newAbcAngle; // radians
+
+            // 0..1: how extended are we (based on SOFT length)
+            float extension01 = Mathf.Clamp01(atLenSoft / Mathf.Max(maxReach, k_SqrEpsilon));
+
+            // Start damping when more than 90% extended.
+            float damp = 1f;
+            if (extension01 > 0.9f)
+            {
+                float tExt = (extension01 - 0.9f) / 0.1f; // 0..1 over [0.9, 1.0]
+                                                          // Go from full response to 20% response as we hit full extension
+                damp = Mathf.Lerp(1f, 0.2f, tExt);
+            }
+
+            float halfAngle = 0.5f * deltaAngle * damp;
             float sin = Mathf.Sin(halfAngle);
             float cos = Mathf.Cos(halfAngle);
             Quaternion deltaR = new Quaternion(axis.x * sin, axis.y * sin, axis.z * sin, cos);
