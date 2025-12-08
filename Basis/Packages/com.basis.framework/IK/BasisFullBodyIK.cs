@@ -1,6 +1,4 @@
 using System.Runtime.CompilerServices;
-using static UnityEngine.Rendering.VirtualTexturing.Debugging;
-
 namespace UnityEngine.Animations.Rigging
 {
     /// <summary>
