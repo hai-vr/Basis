@@ -725,34 +725,49 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             targetPositionHips.Set(stream, hipsTargetPos);
             SolveHipsAndSpine(stream,targetPositionHips,targetRotationHips,offsetRotationHips,enabledSpineIK,HandleHips,HandleChest,HandleNeck,HandleHead,targetPositionHead,targetRotationHead,targetOffsetHead,bendNormalHead);
 
+            const float k_MaxChestDeltaDeg = 45f;
+
             if (hintWeightHead.Get(stream))
             {
                 if (HandleChest.IsValid(stream))
                 {
-                    Quaternion Rotation = HandleNeck.GetRotation(stream);
-                    var rot = V4ToQuat(hintRotationHead.Get(stream));
-                    HandleChest.SetRotation(stream, rot * targetOffsetChest.rotation);
-                    HandleNeck.SetRotation(stream, Rotation);
+                    // Neck rotation produced by your spine IK pass – we keep this
+                    Quaternion neckRot = HandleNeck.IsValid(stream)
+                        ? HandleNeck.GetRotation(stream)
+                        : Quaternion.identity;
+
+                    // Spine as an extra reference if available (nice stabiliser)
+                    Quaternion spineRot = HandleSpine.IsValid(stream)
+                        ? HandleSpine.GetRotation(stream)
+                        : neckRot;
+
+                    // Raw chest from tracker
+                    Quaternion trackerChestRot = V4ToQuat(hintRotationHead.Get(stream)) * targetOffsetChest.rotation;
+
+                    // Clamp relative to neck and spine
+                    Quaternion clampedChestRot = ClampRotation(trackerChestRot, neckRot, k_MaxChestDeltaDeg);
+                    clampedChestRot = ClampRotation(clampedChestRot, spineRot, k_MaxChestDeltaDeg);
+
+                    HandleChest.SetRotation(stream, clampedChestRot);
+
+                    // Restore neck to what the spine IK solved earlier
+                    if (HandleNeck.IsValid(stream))
+                        HandleNeck.SetRotation(stream, neckRot);
                 }
             }
+
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
 
             SolveHand(stream,
                 enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
-                targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand,
-                hintWeightLeftHand, targetOffsetLeftHand,
-                HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
-                 handRadius, handSkin, useHandCapsule,
-                protectElbow);
+                targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand,hintWeightLeftHand, targetOffsetLeftHand,
+                HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,handRadius, handSkin, useHandCapsule,protectElbow);
 
             SolveHand(stream,
                 enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,
-                targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand,
-                hintWeightRightHand, targetOffsetRightHand,
-                HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
-                handRadius, handSkin, useHandCapsule,
-                protectElbow);
+                targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand,hintWeightRightHand, targetOffsetRightHand,
+                HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
 
             ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot,targetOffsetLeftToe.rotation);
             ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot,targetOffsetRightToe.rotation);
@@ -778,6 +793,17 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Apply(stream, HandleLeftToe, p19, r19, o19, w19);
             Apply(stream, HandleRightToe, p20, r20, o20, w20);
             Apply(stream, HandleUpperChest, p54, r54, o54, w54);
+        }
+        static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
+        {
+            // Angle between the two orientations
+            float angle = Quaternion.Angle(reference, current);
+            if (angle <= maxAngleDeg)
+                return current;
+
+            // Scale back toward the reference so the final difference is exactly maxAngleDeg
+            float t = maxAngleDeg / Mathf.Max(angle, 1e-5f);
+            return Quaternion.Slerp(reference, current, t);
         }
         public static void ApplyRotation(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
         {
