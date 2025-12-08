@@ -68,8 +68,8 @@ public class BasisHandCollisionVisualizer : MonoBehaviour
         }
 
         // Use same local capsule + radii as in SolveHand
-        Vector3 hsLocal = data.handLocalStartLeft;  // same for left/right in your data
-        Vector3 heLocal = data.handLocalEndLeft;
+        Vector3 hsLocal = data.handLocalStart;  // same for left/right in your data
+        Vector3 heLocal = data.handLocalEnd;
         float handR = Mathf.Max(0f, data.handRadius + data.handSkin);
 
         bool useCapsule = data.useHandCapsule;
