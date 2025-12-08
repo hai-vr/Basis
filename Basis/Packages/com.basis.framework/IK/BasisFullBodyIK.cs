@@ -831,7 +831,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             if (d < k_SqrEpsilon)
             {
                 // Degenerate: put hips directly "below" head at min distance.
-                return headPos + Vector3.down * restDistance * minFactor;
+                return headPos + minFactor * restDistance * Vector3.down;
             }
 
             float minD = restDistance * minFactor; // e.g. 0.8 * rest
