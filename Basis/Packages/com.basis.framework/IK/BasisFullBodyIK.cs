@@ -267,7 +267,13 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_HintRightHandEnabled;
         [SyncSceneToStream, SerializeField] bool m_HintLeftHandEnabled;
 
-        [SyncSceneToStream, SerializeField] bool m_HaisIKEnabled;
+        [SyncSceneToStream, SerializeField] float m_MinHeadSpineHeight;
+
+        public float minHeadSpineHeight
+        {
+            get => m_MinHeadSpineHeight;
+            set => m_MinHeadSpineHeight = value;
+        }
 
         public Transform chest { get => m_chest; set => m_chest = value; }
         public Transform neck { get => m_neck; set => m_neck = value; }
@@ -342,7 +348,7 @@ namespace UnityEngine.Animations.Rigging
         public string UseHandCapsuleBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UseHandCapsule));
         public string ProtectElbowBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ProtectElbow));
 
-        public string HaisIKboolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HaisIKEnabled));
+        public string MinHeadSpineHeightFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MinHeadSpineHeight));
         public bool hintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
         public bool HintWeightLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
@@ -363,9 +369,6 @@ namespace UnityEngine.Animations.Rigging
         public float chestRadius { get => m_ChestRadius; set => m_ChestRadius = value; }
         public float collisionSkin { get => m_CollisionSkin; set => m_CollisionSkin = value; }
         public bool collisionsEnabled { get => m_CollisionsEnabled; set => m_CollisionsEnabled = value; }
-
-        public bool HaisIKEnabled { get => m_HaisIKEnabled; set => m_HaisIKEnabled = value; }
-
         public Vector3 handLocalStart { get => m_HandLocalStart; set => m_HandLocalStart = value; }
         public Vector3 handLocalEnd { get => m_HandLocalEnd; set => m_HandLocalEnd = value; }
 
@@ -683,14 +686,14 @@ leftToeEnabled, RightToeEnabled,
 hintWeightLeftHand, enabledLeftHand,
 hintWeightRightHand, enabledRightHand,
 useHandCapsule, protectElbow,
-collisionsEnabled, HaisIKEnabled,
+collisionsEnabled,
 w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
 w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
 w20, w54;
 
         public FloatProperty
 handRadius, handSkin,
-chestRadius, collisionSkin;
+chestRadius, collisionSkin, MinHeadSpineHeight;
         public FloatProperty jobWeight { get; set; }
         public void ProcessRootMotion(AnimationStream stream) { }
 
@@ -712,7 +715,20 @@ chestRadius, collisionSkin;
 
                 return;
             }
-                BasisAnimationFullBodyIK.SolveHipsAndSpine(stream,
+
+            // --- HEAD–HIPS ANCHOR CLAMP ---
+            Vector3 headTargetPos = targetPositionHead.Get(stream);
+            Vector3 hipsTargetPos = targetPositionHips.Get(stream);
+
+            float restDist = MinHeadSpineHeight.Get(stream);
+
+            // How much compression/stretch you allow relative to T-pose
+            const float minFactor = 0.4f;  // 10% compression allowed
+            const float maxFactor = 1.1f;  // 10% stretch allowed
+
+            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor);
+            targetPositionHips.Set(stream, hipsTargetPos);
+            BasisAnimationFullBodyIK.SolveHipsAndSpine(stream,
 
                     // --- Hips ---
                     targetPositionHips,
@@ -798,6 +814,31 @@ chestRadius, collisionSkin;
 
             Apply(stream, HandleUpperChest, p54, r54, o54, w54);
         }
+        static Vector3 ClampHipsAroundHead(
+    Vector3 headPos,
+    Vector3 hipsPos,
+    float restDistance,
+    float minFactor,
+    float maxFactor)
+        {
+            Vector3 headToHips = hipsPos - headPos;
+            float d = headToHips.magnitude;
+
+            if (d < k_SqrEpsilon)
+            {
+                // Degenerate: put hips directly "below" head at min distance.
+                return headPos + Vector3.down * restDistance * minFactor;
+            }
+
+            float minD = restDistance * minFactor; // e.g. 0.8 * rest
+            float maxD = restDistance * maxFactor; // e.g. 1.2 * rest
+
+            float clampedD = Mathf.Clamp(d, minD, maxD);
+            float scale = clampedD / d;
+
+            return headPos + headToHips * scale;
+        }
+
         static float SoftenTargetLength(float d, float maxReach)
         {
             // Fraction of total reach at which softening starts.
@@ -1432,7 +1473,7 @@ chestRadius, collisionSkin;
                 targetOffsetLeftHand = new AffineTransform(data.m_CalibratedOffsetLeftHand, data.m_CalibratedRotationLeftHand),
                 targetOffsetRightHand = new AffineTransform(data.m_CalibratedOffsetRightHand, data.m_CalibratedRotationRightHand),
 
-                HaisIKEnabled = BoolProperty.Bind(animator, component, data.HaisIKboolProperty)
+                MinHeadSpineHeight = FloatProperty.Bind(animator, component, data.MinHeadSpineHeightFloatProperty)
 
             };
 

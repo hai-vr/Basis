@@ -2,6 +2,7 @@ using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
 
@@ -125,8 +126,7 @@ public static class BasisAnimationRiggingHelper
         data.useHandCapsule = true;
         data.protectElbow = true;
         data.EnabledSpineIK = true;
-        SetHandCollisionScale(data, player.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
-
+        SetHandCollisionScale(ref data, player.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
         // ----------------------------
         // Write back once
         // ----------------------------
@@ -173,13 +173,29 @@ public static class BasisAnimationRiggingHelper
             list.Add(rig);
         }
     }
-    public static void SetHandCollisionScale(BasisFullBodyData BodyData, float Scale)
+    public static void SetHandCollisionScale(ref BasisFullBodyData BodyData, float Scale)
     {
         //1.6m is the default values for below.
         BodyData.handSkin = 0.03f * Scale;
         BodyData.handRadius = 0.01f * Scale;
         BodyData.chestRadius = 0.07f * Scale;
         BodyData.collisionSkin = 0.05f * Scale;
+
+        var hips = BasisLocalBoneDriver.HipsControl.TposeLocalScaled;
+        var spine = BasisLocalBoneDriver.SpineControl.TposeLocalScaled;
+        var chest = BasisLocalBoneDriver.ChestControl.TposeLocalScaled;
+
+        var neck = BasisLocalBoneDriver.NeckControl.TposeLocalScaled;
+        var head = BasisLocalBoneDriver.HeadControl.TposeLocalScaled;
+
+
+        float d = 0f;
+        d += Vector3.Distance(hips.position, spine.position);
+        d += Vector3.Distance(spine.position, chest.position);
+        d += Vector3.Distance(chest.position, neck.position);
+        d += Vector3.Distance(neck.position, head.position);
+
+        BodyData.minHeadSpineHeight = d;
     }
     public static GameObject CreateAndSetParent(Transform parent, string name)
     {

@@ -192,7 +192,7 @@ namespace Basis.Scripts.Drivers
             data.HintRotationRightFoot = temp.rotation;
 
             // Scale hand collision by avatar height
-            BasisAnimationRiggingHelper.SetHandCollisionScale(
+            BasisAnimationRiggingHelper.SetHandCollisionScale(ref 
                 data,
                 localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale
             );
