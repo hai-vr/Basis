@@ -191,12 +191,6 @@ namespace Basis.Scripts.Drivers
             data.HintPositionRightFoot = temp.position;
             data.HintRotationRightFoot = temp.rotation;
 
-            // Scale hand collision by avatar height
-            BasisAnimationRiggingHelper.SetHandCollisionScale(ref
-                data,
-                localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale
-            );
-
             // Hands (targets)
             var leftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData;
             data.PositionLeftHand = leftHand.position;
@@ -248,7 +242,36 @@ namespace Basis.Scripts.Drivers
         #endregion
 
         #region Rig Creation / Spine Setup
+        private void OnPlayersHeightChangedNextFrame()
+        {
+            var Data = BasisFullIKConstraint.data;
+            SetHandCollisionScale(ref Data, BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale);
+            BasisFullIKConstraint.data = Data;
+        }
+        public static void SetHandCollisionScale(ref BasisFullBodyData BodyData, float Scale)
+        {
+            //1.6m is the default values for below..
+            BodyData.handSkin = 0.03f * Scale;
+            BodyData.handRadius = 0.01f * Scale;
+            BodyData.chestRadius = 0.07f * Scale;
+            BodyData.collisionSkin = 0.05f * Scale;
 
+            var hips = BasisLocalBoneDriver.HipsControl.TposeLocalScaled;
+            var spine = BasisLocalBoneDriver.SpineControl.TposeLocalScaled;
+            var chest = BasisLocalBoneDriver.ChestControl.TposeLocalScaled;
+
+            var neck = BasisLocalBoneDriver.NeckControl.TposeLocalScaled;
+            var head = BasisLocalBoneDriver.HeadControl.TposeLocalScaled;
+
+
+            float d = 0f;
+            d += Vector3.Distance(hips.position, spine.position);
+            d += Vector3.Distance(spine.position, chest.position);
+            d += Vector3.Distance(chest.position, neck.position);
+            d += Vector3.Distance(neck.position, head.position);
+
+            BodyData.minHeadSpineHeight = d;
+        }
         public void Spine(GameObject mainRig)
         {
             if (localPlayer == null || mainRig == null)
@@ -262,6 +285,8 @@ namespace Basis.Scripts.Drivers
                 basisTransformMapping,
                 out BasisFullIKConstraint
             );
+            BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnPlayersHeightChangedNextFrame;
+            OnPlayersHeightChangedNextFrame();
 
             var data = BasisFullIKConstraint.data;
 
