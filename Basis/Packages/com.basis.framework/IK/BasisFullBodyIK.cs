@@ -843,24 +843,41 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 PassThrough(stream, handle);
             }
         }
-        static Vector3 ClampHipsAroundHead(Vector3 headPos,Vector3 hipsPos,float restDistance,float minFactor,float maxFactor)
+        static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
         {
-            Vector3 headToHips = hipsPos - headPos;
-            float d = headToHips.magnitude;
+            // How far hips are allowed to orbit around the head in horizontal plane
+            // e.g. 0.35f * restDistance = cone radius
+            const float maxHorizontalFactor = 0.35f;
 
-            if (d < k_SqrEpsilon)
+            Vector3 headToHips = hipsPos - headPos;
+
+            if (headToHips.sqrMagnitude < k_SqrEpsilon)
+                return headPos + restDistance * minFactor * Vector3.down;
+
+            // Decompose into vertical (Y / up) and lateral (XZ) components
+            Vector3 up = Vector3.up;
+            float verticalDot = Vector3.Dot(headToHips, up);
+            Vector3 vertical = up * verticalDot;
+            Vector3 lateral = headToHips - vertical;
+
+            // --- Clamp vertical distance (compression/extension) ---
+            float absY = Mathf.Abs(verticalDot);
+            float minY = restDistance * minFactor;
+            float maxY = restDistance * maxFactor;
+            float clampedY = Mathf.Clamp(absY, minY, maxY) * Mathf.Sign(verticalDot);
+            vertical = up * clampedY;
+
+            // --- Clamp horizontal orbit around the head ---
+            float lateralLen = lateral.magnitude;
+            float maxLateral = restDistance * maxHorizontalFactor;
+
+            if (lateralLen > maxLateral && lateralLen > k_Epsilon)
             {
-                // Degenerate: put hips directly "below" head at min distance.
-                return headPos + minFactor * restDistance * Vector3.down;
+                lateral *= maxLateral / lateralLen;
             }
 
-            float minD = restDistance * minFactor; // e.g. 0.8 * rest
-            float maxD = restDistance * maxFactor; // e.g. 1.2 * rest
-
-            float clampedD = Mathf.Clamp(d, minD, maxD);
-            float scale = clampedD / d;
-
-            return headPos + headToHips * scale;
+            // New hips position = head + clamped vertical + clamped lateral
+            return headPos + vertical + lateral;
         }
         const float k_Epsilon = 1e-5f; // or 0.00001f
         public static void SolveTwoBoneIKArms(
