@@ -862,7 +862,17 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
 
             return headPos + headToHips * scale;
         }
-        public static void SolveTwoBoneIKArms(AnimationStream stream,ReadWriteTransformHandle root,ReadWriteTransformHandle mid,ReadWriteTransformHandle tip,AffineTransform target,AffineTransform hint,bool hintWeight,AffineTransform targetOffset)
+        const float k_Epsilon = 1e-5f; // or 0.00001f
+        public static void SolveTwoBoneIKArms(
+            AnimationStream stream,
+            ReadWriteTransformHandle root,
+            ReadWriteTransformHandle mid,
+            ReadWriteTransformHandle tip,
+            AffineTransform target,
+            AffineTransform hint,
+            bool hintWeight,
+            AffineTransform targetOffset
+        )
         {
             Vector3 aPosition = root.GetPosition(stream);
             Vector3 bPosition = mid.GetPosition(stream);
@@ -874,30 +884,51 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Vector3 tPosition = targetPos + targetOffset.translation;
             Quaternion tRotation = targetRot * targetOffset.rotation;
 
+            // Segment vectors
             Vector3 ab = bPosition - aPosition;
             Vector3 bc = cPosition - bPosition;
             Vector3 ac = cPosition - aPosition;
-            Vector3 at = tPosition - aPosition;
 
             float abLen = ab.magnitude;
             float bcLen = bc.magnitude;
-            float acLen = ac.magnitude;
+            float totalLen = abLen + bcLen;
+
+            // Original target vector
+            Vector3 at = tPosition - aPosition;
             float atLen = at.magnitude;
 
-            float maxReach = abLen + bcLen;
+            float acLen = ac.magnitude;
 
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
+
+            const float struggleStart = 0.99f; // when we start "stiffening" the leg
+            const float struggleEnd = 1.04f; // full extension
+
+            Vector3 correctedTargetPos = ApplyReachCorrections(
+                aPosition,
+                tPosition,
+                abLen,
+                bcLen,
+                struggleStart,
+                struggleEnd,
+                out TwoBoneDistanceType distanceType
+            );
+
+            Vector3 atCorrected = correctedTargetPos - aPosition;
+            float atCorrectedLen = atCorrected.magnitude;
+
+            float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
+            // -------------------------------------------------------------
 
             // Prefer current bend plane; fallbacks to hint / at if collinear.
             Vector3 axis = Vector3.Cross(ab, bc);
             if (axis.sqrMagnitude < k_SqrEpsilon)
             {
                 axis = hintWeight ? Vector3.Cross(hint.translation - aPosition, bc) : Vector3.zero;
-                if (axis.sqrMagnitude < k_SqrEpsilon) axis = Vector3.Cross(at, bc);
+                if (axis.sqrMagnitude < k_SqrEpsilon) axis = Vector3.Cross(atCorrected, bc); // use corrected
                 if (axis.sqrMagnitude < k_SqrEpsilon) axis = Vector3.up;
             }
-            axis = Vector3.Normalize(axis);
+            axis = axis.normalized;
 
             float a = 0.5f * (oldAbcAngle - newAbcAngle);
             float sin = Mathf.Sin(a);
@@ -905,9 +936,17 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Quaternion deltaR = new Quaternion(axis.x * sin, axis.y * sin, axis.z * sin, cos);
             mid.SetRotation(stream, deltaR * mid.GetRotation(stream));
 
+            // Re-evaluate after rotating mid
             cPosition = tip.GetPosition(stream);
             ac = cPosition - aPosition;
-            root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
+
+            // --- IMPORTANT: rotate root towards *corrected* direction, not raw tPosition ---
+            if (atCorrectedLen > k_Epsilon)
+            {
+                Quaternion rootDelta = QuaternionExt.FromToRotation(ac, atCorrected);
+                root.SetRotation(stream, rootDelta * root.GetRotation(stream));
+            }
+            // -------------------------------------------------------------------------------
 
             if (hintWeight)
             {
@@ -923,7 +962,9 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                     Vector3 ah = hint.translation - aPosition;
                     Vector3 abProj = ab - acNorm * Vector3.Dot(ab, acNorm);
                     Vector3 ahProj = ah - acNorm * Vector3.Dot(ah, acNorm);
-                    if (abProj.sqrMagnitude > (maxReach * maxReach * 0.001f) && ahProj.sqrMagnitude > 0f)
+
+                    // you can also soften this threshold if hinting fights with max reach
+                    if (abProj.sqrMagnitude > (totalLen * totalLen * 0.001f) && ahProj.sqrMagnitude > 0f)
                     {
                         Quaternion hintR = QuaternionExt.FromToRotation(abProj, ahProj);
                         hintR = QuaternionExt.NormalizeSafe(hintR);
@@ -931,7 +972,67 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                     }
                 }
             }
+
             tip.SetRotation(stream, tRotation);
+        }
+        enum TwoBoneDistanceType
+        {
+            Regular,
+            MaximumDistance,
+            MinimumDistance
+        }
+
+        static Vector3 ApplyReachCorrections(Vector3 rootPos,Vector3 targetPos,float upperLen,float lowerLen,
+            float struggleStart, // e.g. 0.7f
+            float struggleEnd,   // e.g. 1.0f
+            out TwoBoneDistanceType distanceType)
+        {
+            var totalLen = upperLen + lowerLen;
+            var minDistance = Mathf.Abs(upperLen - lowerLen);
+            var toTarget = targetPos - rootPos;
+            var currentDist = toTarget.magnitude;
+
+            var correctedPos = targetPos;
+
+            // Too far: soften and clamp toward max reach
+            if (currentDist >= totalLen * struggleStart)
+            {
+                float finalLength;
+                if (!Mathf.Approximately(struggleStart, struggleEnd))
+                {
+                    // Normalize how far we are between "start struggling" and "max"
+                    float t = Mathf.InverseLerp(totalLen * struggleStart, totalLen * struggleEnd, currentDist);
+                    // Quartic ease-out: slow as we approach max
+                    float eased = 1f - Mathf.Pow(1f - t, 4f);
+                    finalLength = Mathf.Lerp(totalLen * struggleStart, totalLen, eased);
+                }
+                else
+                {
+                    finalLength = totalLen;
+                }
+
+                if (currentDist > Mathf.Epsilon)
+                {
+                    correctedPos = rootPos + toTarget.normalized * finalLength;
+                }
+
+                distanceType = finalLength >= totalLen ? TwoBoneDistanceType.MaximumDistance : TwoBoneDistanceType.Regular;
+            }
+            else
+            {
+                // Too close: clamp out to the minimum feasible distance
+                if (currentDist < minDistance && currentDist > Mathf.Epsilon)
+                {
+                    correctedPos = rootPos + toTarget.normalized * minDistance;
+                    distanceType = TwoBoneDistanceType.MinimumDistance;
+                }
+                else
+                {
+                    distanceType = TwoBoneDistanceType.Regular;
+                }
+            }
+
+            return correctedPos;
         }
         public static Vector3 ClosestPointOnSegment(Vector3 p, Vector3 a, Vector3 b)
         {
@@ -1060,7 +1161,16 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
         /// <param name="hint">The transform handle for the hint transform.</param>
         /// <param name="HasHint">The weight for which hint transform has an effect on IK calculations. This is a value in between 0 and 1.</param>
         /// <param name="targetOffset">The offset applied to the target transform.</param>
-        public static void SolveTwoBone(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool HasHint, AffineTransform targetOffset, Vector3 BendNormal)
+        public static void SolveTwoBone(
+            AnimationStream stream,
+            ReadWriteTransformHandle root,
+            ReadWriteTransformHandle mid,
+            ReadWriteTransformHandle tip,
+            AffineTransform target,
+            AffineTransform hint,
+            bool HasHint,
+            AffineTransform targetOffset,
+            Vector3 BendNormal)
         {
             Vector3 aPosition = root.GetPosition(stream);
             Vector3 bPosition = mid.GetPosition(stream);
@@ -1072,28 +1182,47 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Vector3 tPosition = targetPos + targetOffset.translation;
             Quaternion tRotation = targetRot * targetOffset.rotation;
 
+            // Segment vectors
             Vector3 ab = bPosition - aPosition;
             Vector3 bc = cPosition - bPosition;
             Vector3 ac = cPosition - aPosition;
-            Vector3 at = tPosition - aPosition;
 
             float abLen = ab.magnitude;
             float bcLen = bc.magnitude;
             float acLen = ac.magnitude;
-            float atLen = at.magnitude;
 
             float maxReach = abLen + bcLen;
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
-            Vector3 axis;
 
+            const float struggleStart = 0.99f; // when we start "stiffening" the leg
+            const float struggleEnd = 1.04f; // full extension
+
+            TwoBoneDistanceType distanceType;
+            Vector3 correctedTargetPos = ApplyReachCorrections(
+                aPosition,
+                tPosition,
+                abLen,
+                bcLen,
+                struggleStart,
+                struggleEnd,
+                out distanceType
+            );
+
+            Vector3 atCorrected = correctedTargetPos - aPosition;
+            float atCorrectedLen = atCorrected.magnitude;
+
+            float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
+            // ---------------------------------------------------------
+
+            Vector3 axis;
             if (HasHint)
             {
                 axis = Vector3.Cross(hint.translation - aPosition, bc);
 
                 if (axis.sqrMagnitude < k_SqrEpsilon)
                 {
-                    axis = Vector3.Cross(at, bc);
+                    // use corrected vector, not raw tPosition
+                    axis = Vector3.Cross(atCorrected, bc);
                 }
 
                 if (axis.sqrMagnitude < k_SqrEpsilon)
@@ -1114,9 +1243,15 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Quaternion deltaR = new Quaternion(axis.x * sin, axis.y * sin, axis.z * sin, cos);
             mid.SetRotation(stream, deltaR * mid.GetRotation(stream));
 
+            // Re-evaluate after rotating mid
             cPosition = tip.GetPosition(stream);
             ac = cPosition - aPosition;
-            root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
+
+            if (atCorrectedLen > k_Epsilon)
+            {
+                // Swing root toward corrected target
+                root.SetRotation(stream, QuaternionExt.FromToRotation(ac, atCorrected) * root.GetRotation(stream));
+            }
 
             if (HasHint)
             {
@@ -1144,6 +1279,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
 
             tip.SetRotation(stream, tRotation);
         }
+
         public static Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
         public static void SolveLegs( AnimationStream stream,BoolProperty enabledProp,
         ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
