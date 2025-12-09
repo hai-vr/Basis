@@ -750,9 +750,12 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
 
                     HandleChest.SetRotation(stream, clampedChestRot);
 
-                    // Restore neck to what the spine IK solved earlier
-                    if (HandleNeck.IsValid(stream))
-                        HandleNeck.SetRotation(stream, neckRot);
+                    // Build target + hint transforms
+                    var tRot = V4ToQuat(targetRotationHead.Get(stream));
+                    var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                    var bendNormal = bendNormalHead.Get(stream);
+
+                    SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
                 }
             }
 
@@ -1278,21 +1281,6 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             // Apply hips driver if valid
             ApplyHipsDriver(stream, HandleHips, targetPositionHips, targetRotationHips, offsetRotationHips);
 
-            void ApplyHipsDriver(AnimationStream stream, ReadWriteTransformHandle hips, Vector3Property targetPos, Vector4Property targetRot, Vector4Property offsetRot)
-            {
-                if (!hips.IsValid(stream))
-                {
-                    return;
-                }
-
-                Vector3 hipPos = targetPos.Get(stream);
-                Quaternion hipRot = V4ToQuat(targetRot.Get(stream));
-                Quaternion hipOff = V4ToQuat(offsetRot.Get(stream));
-
-                hips.SetPosition(stream, hipPos);
-                hips.SetRotation(stream, hipRot * hipOff); // apply offset in target space
-            }
-
             // Validate required upper chain handles (Burst-safe: no params/arrays)
             if (!AreValid3(stream, HandleChest, HandleNeck, HandleHead))
             {
@@ -1306,59 +1294,73 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             var bendNormal = bendNormalHead.Get(stream);
 
             SolveTwoBoneSpine(stream,HandleChest, HandleNeck, HandleHead,target,targetOffsetHead,bendNormal);
-            void SolveTwoBoneSpine(
-            AnimationStream stream,
-            ReadWriteTransformHandle root,
-            ReadWriteTransformHandle mid,
-            ReadWriteTransformHandle tip,
-            AffineTransform target,
-            AffineTransform targetOffset,
-            Vector3 bendNormal)
+        }
+        public static void ApplyHipsDriver(AnimationStream stream, ReadWriteTransformHandle hips, Vector3Property targetPos, Vector4Property targetRot, Vector4Property offsetRot)
+        {
+            if (!hips.IsValid(stream))
             {
-                // Read current joint positions
-                Vector3 aPos = root.GetPosition(stream);
-                Vector3 bPos = mid.GetPosition(stream);
-                Vector3 cPos = tip.GetPosition(stream);
-
-                // Target with offset applied in target space
-                Vector3 tPos = target.translation + targetOffset.translation;
-                Quaternion tRot = target.rotation * targetOffset.rotation;
-
-                // Current bone vectors
-                Vector3 ab = bPos - aPos;
-                Vector3 bc = cPos - bPos;
-                Vector3 ac = cPos - aPos;
-                Vector3 at = tPos - aPos;
-
-                float abLen = ab.magnitude;
-                float bcLen = bc.magnitude;
-                float acLen = ac.magnitude;
-                float atLen = at.magnitude;
-
-                float maxReach = abLen + bcLen;
-                float atLenSoft = SoftenTargetLength(atLen, maxReach);
-
-                float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-                float newAbcAngle = TriangleAngle(atLenSoft, abLen, bcLen);
-
-                // Compute rotation axis for mid joint bend
-                Vector3 axis = ComputeIkAxis(bendNormal);
-
-                // Rotate mid joint by half the angle delta (distributes motion)
-                float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
-                float s = Mathf.Sin(halfAngle);
-                float c = Mathf.Cos(halfAngle);
-                Quaternion deltaMid = new Quaternion(axis.x * s, axis.y * s, axis.z * s, c);
-                mid.SetRotation(stream, deltaMid * mid.GetRotation(stream));
-
-                // Re-evaluate and swing root so AC aligns with AT
-                cPos = tip.GetPosition(stream);
-                ac = cPos - aPos;
-                root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
-
-                // Set tip rotation to match target orientation (+offset)
-                tip.SetRotation(stream, tRot);
+                return;
             }
+
+            Vector3 hipPos = targetPos.Get(stream);
+            Quaternion hipRot = V4ToQuat(targetRot.Get(stream));
+            Quaternion hipOff = V4ToQuat(offsetRot.Get(stream));
+
+            hips.SetPosition(stream, hipPos);
+            hips.SetRotation(stream, hipRot * hipOff); // apply offset in target space
+        }
+        public static void SolveTwoBoneSpine(
+AnimationStream stream,
+ReadWriteTransformHandle root,
+ReadWriteTransformHandle mid,
+ReadWriteTransformHandle tip,
+AffineTransform target,
+AffineTransform targetOffset,
+Vector3 bendNormal)
+        {
+            // Read current joint positions
+            Vector3 aPos = root.GetPosition(stream);
+            Vector3 bPos = mid.GetPosition(stream);
+            Vector3 cPos = tip.GetPosition(stream);
+
+            // Target with offset applied in target space
+            Vector3 tPos = target.translation + targetOffset.translation;
+            Quaternion tRot = target.rotation * targetOffset.rotation;
+
+            // Current bone vectors
+            Vector3 ab = bPos - aPos;
+            Vector3 bc = cPos - bPos;
+            Vector3 ac = cPos - aPos;
+            Vector3 at = tPos - aPos;
+
+            float abLen = ab.magnitude;
+            float bcLen = bc.magnitude;
+            float acLen = ac.magnitude;
+            float atLen = at.magnitude;
+
+            float maxReach = abLen + bcLen;
+            float atLenSoft = SoftenTargetLength(atLen, maxReach);
+
+            float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
+            float newAbcAngle = TriangleAngle(atLenSoft, abLen, bcLen);
+
+            // Compute rotation axis for mid joint bend
+            Vector3 axis = ComputeIkAxis(bendNormal);
+
+            // Rotate mid joint by half the angle delta (distributes motion)
+            float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
+            float s = Mathf.Sin(halfAngle);
+            float c = Mathf.Cos(halfAngle);
+            Quaternion deltaMid = new Quaternion(axis.x * s, axis.y * s, axis.z * s, c);
+            mid.SetRotation(stream, deltaMid * mid.GetRotation(stream));
+
+            // Re-evaluate and swing root so AC aligns with AT
+            cPos = tip.GetPosition(stream);
+            ac = cPos - aPos;
+            root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
+
+            // Set tip rotation to match target orientation (+offset)
+            tip.SetRotation(stream, tRot);
         }
         public static float TriangleAngle(float aLen, float aLen1, float aLen2)
         {
