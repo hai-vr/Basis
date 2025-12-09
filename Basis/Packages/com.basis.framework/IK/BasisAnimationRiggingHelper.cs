@@ -2,8 +2,6 @@ using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
-using System;
-using System.Threading;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
 
@@ -29,7 +27,7 @@ public static class BasisAnimationRiggingHelper
         // Skeleton references
         // ----------------------------
         // Torso / head chain
-        data.hips = Mapping.Hips;
+        data.hips =  Mapping.Hips;
         data.spine = Mapping.spine;
         data.chest = Mapping.chest;
         data.upperChest = Mapping.Upperchest;
@@ -66,43 +64,43 @@ public static class BasisAnimationRiggingHelper
         // ----------------------------
         // Head
         data.m_CalibratedOffsetHead = Vector3.zero;
-        data.m_CalibratedRotationHead = Mapping.head.rotation;
+        data.m_CalibratedRotationHead = Mapping.Hashead ? Mapping.head.rotation : Quaternion.identity;
 
         // Feet
         data.m_CalibratedOffsetLeftFoot = Vector3.zero;
-        data.m_CalibratedRotationLeftFoot = Mapping.leftFoot.rotation;
+        data.m_CalibratedRotationLeftFoot = Mapping.Hashead ? Mapping.leftFoot.rotation : Quaternion.identity;
 
         data.m_CalibratedOffsetRightFoot = Vector3.zero; // keeping original field name
-        data.m_CalibratedRotationRightFoot = Mapping.rightFoot.rotation;
+        data.m_CalibratedRotationRightFoot = Mapping.Hashead ? Mapping.rightFoot.rotation : Quaternion.identity;
 
         // Hands
         data.m_CalibratedOffsetLeftHand = Vector3.zero;
         data.m_CalibratedOffsetRightHand = Vector3.zero;
-        data.m_CalibratedRotationLeftHand = Mapping.leftHand.rotation;
-        data.m_CalibratedRotationRightHand = Mapping.rightHand.rotation;
+        data.m_CalibratedRotationLeftHand = Mapping.HasleftHand ? Mapping.leftHand.rotation : Quaternion.identity;
+        data.m_CalibratedRotationRightHand = Mapping.HasrightHand ? Mapping.rightHand.rotation : Quaternion.identity;
 
 
         data.m_CalibratedOffsetChest = Vector3.zero;
-        data.m_CalibratedRotationChest = Mapping.chest.rotation;
+        data.m_CalibratedRotationChest = Mapping.Haschest ? Mapping.chest.rotation : Quaternion.identity;
 
         data.m_CalibratedOffsetNeck = Vector3.zero;
-        data.m_CalibratedRotationNeck = Mapping.neck.rotation;
+        data.m_CalibratedRotationNeck = Mapping.Hasneck ? Mapping.neck.rotation : Quaternion.identity;
 
         data.m_CalibratedOffsetLeftToe = Vector3.zero;
-        data.m_CalibratedRotationLeftToe = Mapping.leftToe.rotation;
+        data.m_CalibratedRotationLeftToe = Mapping.HasleftToes ? Mapping.leftToe.rotation : Quaternion.identity;
 
         data.m_CalibratedOffsetRightToe = Vector3.zero;
-        data.m_CalibratedRotationRightToe = Mapping.rightToe.rotation;
+        data.m_CalibratedRotationRightToe = Mapping.HasrightToes ? Mapping.rightToe.rotation : Quaternion.identity;
 
 
-        data.m_CalibratedRotationLeftShoulder = Mapping.leftShoulder.rotation;
+        data.m_CalibratedRotationLeftShoulder = Mapping.HasleftShoulder ? Mapping.leftShoulder.rotation : Quaternion.identity;
         data.m_CalibratedOffsetLeftShoulder = Vector3.zero;
 
 
-        data.m_CalibratedRotationRightShoulder = Mapping.RightShoulder.rotation;
+        data.m_CalibratedRotationRightShoulder = Mapping.HasRightShoulder ? Mapping.RightShoulder.rotation : Quaternion.identity;
         data.m_CalibratedOffsetRightShoulder = Vector3.zero;
         // Hips reference rotation
-        data.OffsetRotationHips = Mapping.Hips.rotation;
+        data.OffsetRotationHips = Mapping.HasHips ? Mapping.Hips.rotation : Quaternion.identity;
 
 
         // ----------------------------
