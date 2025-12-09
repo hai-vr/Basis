@@ -726,6 +726,23 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 return;
             }
 
+            Vector3 spineAxis = Vector3.up;
+
+            if (HandleHead.IsValid(stream) && HandleHips.IsValid(stream))
+            {
+                Vector3 headAnimPos = HandleHead.GetPosition(stream);
+                Vector3 hipsAnimPos = HandleHips.GetPosition(stream);
+
+                spineAxis = hipsAnimPos - headAnimPos;
+                if (spineAxis.sqrMagnitude < k_SqrEpsilon)
+                {
+                    spineAxis = Vector3.up;
+                }
+                else
+                {
+                    spineAxis /= Mathf.Sqrt(spineAxis.sqrMagnitude);
+                }
+            }
             // --- HEAD–HIPS ANCHOR CLAMP ---
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
@@ -733,10 +750,10 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             float restDist = MinHeadSpineHeight.Get(stream);
 
             // How much compression/stretch you allow relative to T-pose
-            const float minFactor = 0.4f;  // 10% compression allowed
-            const float maxFactor = 1;  // 0% stretch allowed
+            const float minCompressionFactor = 0.9f;  // allow ~20% torso compression
+            const float maxStretchFactor = 1; // allow a little stretch
 
-            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor);
+            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minCompressionFactor, maxStretchFactor, spineAxis);
             targetPositionHips.Set(stream, hipsTargetPos);
             SolveHipsAndSpine(stream,targetPositionHips,targetRotationHips,offsetRotationHips,enabledSpineIK,HandleHips,HandleChest,HandleNeck,HandleHead,targetPositionHead,targetRotationHead,targetOffsetHead,bendNormalHead);
 
@@ -843,42 +860,46 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 PassThrough(stream, handle);
             }
         }
-        static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
+        static Vector3 ClampHipsAroundHead(
+            Vector3 headPos,
+            Vector3 hipsPos,
+            float restDistance,
+            float minCompressionFactor,   // e.g. 0.8f
+            float maxStretchFactor,       // e.g. 1.05f
+            Vector3 spineAxis               // direction from head→hips in current pose
+        )
         {
-            // How far hips are allowed to orbit around the head in horizontal plane
-            // e.g. 0.35f * restDistance = cone radius
-            const float maxHorizontalFactor = 0.35f;
+            const float maxHorizontalFactor = 0.35f; // how far hips can orbit around spine
 
             Vector3 headToHips = hipsPos - headPos;
 
             if (headToHips.sqrMagnitude < k_SqrEpsilon)
-                return headPos + restDistance * minFactor * Vector3.down;
+                return headPos + restDistance * minCompressionFactor * (-spineAxis);
 
-            // Decompose into vertical (Y / up) and lateral (XZ) components
-            Vector3 up = Vector3.up;
-            float verticalDot = Vector3.Dot(headToHips, up);
-            Vector3 vertical = up * verticalDot;
-            Vector3 lateral = headToHips - vertical;
+            // Decompose into longitudinal (along spine) and lateral
+            float along = Vector3.Dot(headToHips, spineAxis);
+            Vector3 longitudinal = spineAxis * along;
+            Vector3 lateral = headToHips - longitudinal;
 
-            // --- Clamp vertical distance (compression/extension) ---
-            float absY = Mathf.Abs(verticalDot);
-            float minY = restDistance * minFactor;
-            float maxY = restDistance * maxFactor;
-            float clampedY = Mathf.Clamp(absY, minY, maxY) * Mathf.Sign(verticalDot);
-            vertical = up * clampedY;
+            // --- Clamp longitudinal distance (squish/stretch) ---
+            float absAlong = Mathf.Abs(along);
+            float minAlong = restDistance * minCompressionFactor;
+            float maxAlong = restDistance * maxStretchFactor;
 
-            // --- Clamp horizontal orbit around the head ---
+            absAlong = Mathf.Clamp(absAlong, minAlong, maxAlong);
+            along = absAlong * Mathf.Sign(along);
+            longitudinal = spineAxis * along;
+
+            // --- Clamp lateral distance (orbit around spine) ---
             float lateralLen = lateral.magnitude;
             float maxLateral = restDistance * maxHorizontalFactor;
 
             if (lateralLen > maxLateral && lateralLen > k_Epsilon)
-            {
                 lateral *= maxLateral / lateralLen;
-            }
 
-            // New hips position = head + clamped vertical + clamped lateral
-            return headPos + vertical + lateral;
+            return headPos + longitudinal + lateral;
         }
+
         const float k_Epsilon = 1e-5f; // or 0.00001f
         public static void SolveTwoBoneIKArms(
             AnimationStream stream,
@@ -1436,7 +1457,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             }
 
             // Apply hips driver if valid
-            ApplyHipsDriver(stream, HandleHips, targetPositionHips, targetRotationHips, offsetRotationHips);
+            ApplyHipsDriver(stream, HandleHips,HandleHead, targetPositionHips, targetRotationHips, offsetRotationHips);
 
             // Validate required upper chain handles (Burst-safe: no params/arrays)
             if (!AreValid3(stream, HandleChest, HandleNeck, HandleHead))
@@ -1452,20 +1473,49 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
 
             SolveTwoBoneSpine(stream,HandleChest, HandleNeck, HandleHead,target,targetOffsetHead,bendNormal);
         }
-        public static void ApplyHipsDriver(AnimationStream stream, ReadWriteTransformHandle hips, Vector3Property targetPos, Vector4Property targetRot, Vector4Property offsetRot)
+        public static void ApplyHipsDriver(
+            AnimationStream stream,
+            ReadWriteTransformHandle hips,
+            ReadWriteTransformHandle head, // NEW: we pass the head handle
+            Vector3Property targetPos,
+            Vector4Property targetRot,
+            Vector4Property offsetRot)
         {
             if (!hips.IsValid(stream))
-            {
                 return;
+
+            // Position already clamped by ClampHipsAroundHead
+            Vector3 hipPos = targetPos.Get(stream);
+            hips.SetPosition(stream, hipPos);
+
+            Quaternion hipTargetRot = V4ToQuat(targetRot.Get(stream));
+            Quaternion hipOffset = V4ToQuat(offsetRot.Get(stream));
+            Quaternion desired = hipTargetRot * hipOffset;
+
+            Quaternion current = hips.GetRotation(stream);
+
+            // Compute "uprightness" of the character from the head orientation.
+            //  upright ≈ 1 → standing; upright ≈ 0 → lying sideways.
+            float upright = 1f;
+            if (head.IsValid(stream))
+            {
+                Quaternion headRot = head.GetRotation(stream);
+                Vector3 headUp = headRot * Vector3.up;
+                upright = Mathf.Abs(Vector3.Dot(headUp, Vector3.up));  // 1 = parallel, 0 = perpendicular
             }
 
-            Vector3 hipPos = targetPos.Get(stream);
-            Quaternion hipRot = V4ToQuat(targetRot.Get(stream));
-            Quaternion hipOff = V4ToQuat(offsetRot.Get(stream));
+            // When upright, allow only small delta; when horizontal, allow big delta.
+            const float maxDeltaUpright = 25f;   // standing: pelvis tightly limited
+            const float maxDeltaHorizontal = 100f;  // lying: pelvis can rotate nearly freely
 
-            hips.SetPosition(stream, hipPos);
-            hips.SetRotation(stream, hipRot * hipOff); // apply offset in target space
+            float maxDelta = Mathf.Lerp(maxDeltaHorizontal, maxDeltaUpright, upright);
+
+            Quaternion clamped = ClampRotation(desired, current, maxDelta);
+
+            hips.SetRotation(stream, clamped);
         }
+
+
         public static void SolveTwoBoneSpine(
 AnimationStream stream,
 ReadWriteTransformHandle root,
