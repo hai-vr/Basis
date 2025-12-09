@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using static UnityEngine.GraphicsBuffer;
 namespace UnityEngine.Animations.Rigging
 {
     /// <summary>
@@ -198,6 +197,8 @@ namespace UnityEngine.Animations.Rigging
           [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftToe;
           [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationChest;
 
+        [SyncSceneToStream, SerializeField] public Quaternion m_TargetRotationLeftShoulder;
+          [SyncSceneToStream, SerializeField] public Quaternion m_TargetRotationRightShoulder;
 
         [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetNeck;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationNeck;
@@ -363,6 +364,10 @@ namespace UnityEngine.Animations.Rigging
         public string enabledLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledLeftShoulder));
         public string enabledRightShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledRightShoulder));
         public string MinHeadSpineHeightFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MinHeadSpineHeight));
+
+        public string TargetRotationLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_TargetRotationLeftShoulder));
+        public string TargetRotationRightShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_TargetRotationRightShoulder));
+
         public bool hintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
         public bool HintWeightLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
@@ -383,6 +388,8 @@ namespace UnityEngine.Animations.Rigging
         public float chestRadius { get => m_ChestRadius; set => m_ChestRadius = value; }
         public float collisionSkin { get => m_CollisionSkin; set => m_CollisionSkin = value; }
         public bool collisionsEnabled { get => m_CollisionsEnabled; set => m_CollisionsEnabled = value; }
+        public bool EnabledRightShoulder { get => m_enabledRightShoulder; set => m_enabledRightShoulder = value; }
+        public bool EnabledLeftShoulder { get => m_enabledLeftShoulder; set => m_enabledLeftShoulder = value; }
 
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
@@ -674,6 +681,7 @@ targetRotationHips, offsetRotationHips,
 leftDrivenTargetRot, rightDrivenTargetRot,
 targetRotationLeftHand, hintRotationLeftHand,
 targetRotationRightHand, hintRotationRightHand,
+TargetRotationLeftShoulder,TargetRotationRightShoulder,
 r0, r1, r2, r3, r4, r5, r6, r7, r8, r9,
 r10, r11, r12, r13, r14, r15, r16, r17, r18, r19,
 r20, r54,
@@ -765,10 +773,8 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                     SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
                 }
             }
-           // if()
-           // var tRot = V4ToQuat(targetRotationLeftHand.Get(stream));
-           // var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-            //ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, targetOffsetLeftShoulder, target);
+            ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder.rotation);
+            ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder.rotation);
 
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
@@ -1446,6 +1452,9 @@ Vector3 bendNormal)
 
                 targetRotationHead = Vector4Property.Bind(animator, component, data.TargetRotationPropertyHead),
                 hintRotationHead = Vector4Property.Bind(animator, component, data.HintRotationPropertyHead),
+
+                TargetRotationLeftShoulder = Vector4Property.Bind(animator, component, data.TargetRotationLeftShoulderProperty),
+                TargetRotationRightShoulder = Vector4Property.Bind(animator, component, data.TargetRotationRightShoulderProperty),
 
                 targetRotationLeftLowerLeg = Vector4Property.Bind(animator, component, data.TargetRotationPropertyLeftLowerLeg),
                 hintRotationLeftLowerLeg = Vector4Property.Bind(animator, component, data.HintRotationPropertyLeftLowerLeg),

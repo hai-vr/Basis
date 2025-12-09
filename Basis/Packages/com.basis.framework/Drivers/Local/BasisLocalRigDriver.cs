@@ -192,7 +192,7 @@ namespace Basis.Scripts.Drivers
             data.HintRotationRightFoot = temp.rotation;
 
             // Scale hand collision by avatar height
-            BasisAnimationRiggingHelper.SetHandCollisionScale(ref 
+            BasisAnimationRiggingHelper.SetHandCollisionScale(ref
                 data,
                 localPlayer.CurrentHeight.SelectedAvatarToAvatarDefaultScale
             );
@@ -223,6 +223,14 @@ namespace Basis.Scripts.Drivers
             var leftToe = BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData;
             data.OutGoingLeftToePosition = leftToe.position;
             data.OutGoingLeftToeRotation = leftToe.rotation;
+
+            temp = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData;
+            //   data.LeftFootPosition = temp.position;
+            data.m_TargetRotationLeftShoulder = temp.rotation;
+
+            temp = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData;
+            //  data.RightFootPosition = temp.position;
+            data.m_TargetRotationRightShoulder = temp.rotation;
 
             BasisFullIKConstraint.data = data;
 
@@ -349,6 +357,24 @@ namespace Basis.Scripts.Drivers
                 BasisFullIKConstraint.data = d;
             };
             data.hintWeightHead = HasRigLayer(BasisLocalBoneDriver.ChestControl);
+
+            // Chest (head hint)
+            BasisLocalBoneDriver.LeftShoulderControl.OnHasRigChanged += () =>
+            {
+                var d = BasisFullIKConstraint.data;
+                d.EnabledLeftShoulder = HasRigLayer(BasisLocalBoneDriver.LeftShoulderControl);
+                BasisFullIKConstraint.data = d;
+            };
+            data.EnabledLeftShoulder = HasRigLayer(BasisLocalBoneDriver.LeftShoulderControl);
+
+            // Chest (head hint)
+            BasisLocalBoneDriver.RightShoulderControl.OnHasRigChanged += () =>
+            {
+                var d = BasisFullIKConstraint.data;
+                d.EnabledRightShoulder = HasRigLayer(BasisLocalBoneDriver.RightShoulderControl);
+                BasisFullIKConstraint.data = d;
+            };
+            data.EnabledRightShoulder = HasRigLayer(BasisLocalBoneDriver.RightShoulderControl);
 
             // Initialize offsets and weights per humanoid bone
             int totalBones = BasisFullBodyData.Count;
