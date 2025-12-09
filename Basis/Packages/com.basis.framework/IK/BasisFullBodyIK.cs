@@ -733,7 +733,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             float restDist = MinHeadSpineHeight.Get(stream);
 
             // How much compression/stretch you allow relative to T-pose
-            const float minFactor = 0.4f;  // 10% compression allowed
+            const float minFactor = 0.8f;  // 10% compression allowed
             const float maxFactor = 1;  // 0% stretch allowed
 
             hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor);
