@@ -275,6 +275,12 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_HintLeftHandEnabled;
 
         [SyncSceneToStream, SerializeField] float m_MinHeadSpineHeight;
+        [SyncSceneToStream, SerializeField] public bool m_enabledLeftShoulder;
+        [SyncSceneToStream, SerializeField] public bool m_enabledRightShoulder;
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetLeftShoulder;
+        [SyncSceneToStream, SerializeField] public Vector3 m_CalibratedOffsetRightShoulder;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightShoulder;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftShoulder;
 
         public float minHeadSpineHeight
         {
@@ -353,6 +359,8 @@ namespace UnityEngine.Animations.Rigging
         public string UseHandCapsuleBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UseHandCapsule));
         public string ProtectElbowBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ProtectElbow));
 
+        public string enabledLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledLeftShoulder));
+        public string enabledRightShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledRightShoulder));
         public string MinHeadSpineHeightFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MinHeadSpineHeight));
         public bool hintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
@@ -672,16 +680,13 @@ o0, o1, o2, o3, o4, o5, o6, o7, o8, o9,
 o10, o11, o12, o13, o14, o15, o16, o17, o18, o19,
 o20, o54;
 
-        public AffineTransform targetOffsetNeck, targetOffsetHead, targetOffsetChest, targetOffsetLeftToe, targetOffsetRightToe,
-targetOffsetLeftFoot,
-targetOffsetRightFoot,
-targetOffsetLeftHand,
-targetOffsetRightHand;
+        public AffineTransform targetOffsetNeck, targetOffsetHead, targetOffsetChest,targetOffsetLeftToe, targetOffsetRightToe, targetOffsetLeftShoulder, targetOffsetRightShoulder,targetOffsetLeftFoot,targetOffsetRightFoot,targetOffsetLeftHand,targetOffsetRightHand;
 
         public BoolProperty
 hintWeightHead, enabledSpineIK,
 hintWeightLeftLowerLeg, enabledLeftLowerLeg,
 hintWeightRightLowerLeg, enabledRightLowerLeg,
+            enabledLeftShoulder, enabledRightShoulder,
 
 leftToeEnabled, RightToeEnabled,
 hintWeightLeftHand, enabledLeftHand,
@@ -695,6 +700,7 @@ w20, w54;
         public FloatProperty
 handRadius, handSkin,
 chestRadius, collisionSkin, MinHeadSpineHeight;
+
         public FloatProperty jobWeight { get; set; }
         public void ProcessRootMotion(AnimationStream stream) { }
         public void ProcessAnimation(AnimationStream stream)
@@ -774,6 +780,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
 
             ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot,targetOffsetLeftToe.rotation);
             ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot,targetOffsetRightToe.rotation);
+
             Apply(stream, HandleHips, p0, r0, o0, w0);
             Apply(stream, HandleLeftUpperLeg, p1, r1, o1, w1);
             Apply(stream, HandleRightUpperLeg, p2, r2, o2, w2);
@@ -864,10 +871,8 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             float atLen = at.magnitude;
 
             float maxReach = abLen + bcLen;
-            float atLenSoft = SoftenTargetLength(atLen, maxReach);
-
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(atLenSoft, abLen, bcLen);
+            float newAbcAngle = TriangleAngle(acLen, abLen, bcLen);
 
             // Prefer current bend plane; fallbacks to hint / at if collinear.
             Vector3 axis = Vector3.Cross(ab, bc);
@@ -1063,10 +1068,8 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             float atLen = at.magnitude;
 
             float maxReach = abLen + bcLen;
-            float atLenSoft = SoftenTargetLength(atLen, maxReach);
-
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(atLenSoft, abLen, bcLen);
+            float newAbcAngle = TriangleAngle(acLen, abLen, bcLen);
             Vector3 axis;
 
             if (HasHint)
@@ -1093,7 +1096,7 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             float deltaAngle = oldAbcAngle - newAbcAngle; // radians
 
             // 0..1: how extended are we (based on SOFT length)
-            float extension01 = Mathf.Clamp01(atLenSoft / Mathf.Max(maxReach, k_SqrEpsilon));
+            float extension01 = Mathf.Clamp01(acLen / Mathf.Max(maxReach, k_SqrEpsilon));
 
             // Start damping when more than 90% extended.
             float damp = 1f;
@@ -1339,10 +1342,8 @@ Vector3 bendNormal)
             float atLen = at.magnitude;
 
             float maxReach = abLen + bcLen;
-            float atLenSoft = SoftenTargetLength(atLen, maxReach);
-
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(atLenSoft, abLen, bcLen);
+            float newAbcAngle = TriangleAngle(acLen, abLen, bcLen);
 
             // Compute rotation axis for mid joint bend
             Vector3 axis = ComputeIkAxis(bendNormal);
@@ -1369,29 +1370,6 @@ Vector3 bendNormal)
 
             float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (aLen1 * aLen2) / 2.0f, -1.0f, 1.0f);
             return Mathf.Acos(c);
-        }
-        public static float SoftenTargetLength(float d, float maxReach)
-        {
-            // Fraction of total reach at which softening starts.
-            const float softFraction = 0.1f; // 10% of reach; tune to taste
-
-            float softZone = maxReach * softFraction;
-            if (softZone <= 0f)
-                return d;
-
-            float start = maxReach - softZone;
-
-            // If we're not yet in the "danger zone", leave it alone.
-            if (d <= start)
-                return d;
-
-            // Standard soft IK: approach maxReach asymptotically.
-            float x = d - start;
-            float denom = Mathf.Max(softZone, k_SqrEpsilon);
-            float t = Mathf.Exp(-x / denom);
-
-            // Result is in [start, maxReach), monotonic, smooth.
-            return maxReach - softZone * t;
         }
         private static bool AreValid3(AnimationStream stream, ReadWriteTransformHandle a, ReadWriteTransformHandle b, ReadWriteTransformHandle c)
         {
@@ -1514,6 +1492,12 @@ Vector3 bendNormal)
                 collisionSkin = FloatProperty.Bind(animator, component, data.CollisionSkinFloatProperty),
                 handRadius = FloatProperty.Bind(animator, component, data.HandRadiusFloatProperty),
                 handSkin = FloatProperty.Bind(animator, component, data.HandSkinFloatProperty),
+
+                enabledLeftShoulder =  BoolProperty.Bind(animator, component, data.enabledLeftShoulderProperty),
+                enabledRightShoulder = BoolProperty.Bind(animator, component, data.enabledRightShoulderProperty),
+
+                targetOffsetLeftShoulder = new AffineTransform(data.m_CalibratedOffsetLeftShoulder, data.m_CalibratedRotationLeftShoulder),
+                targetOffsetRightShoulder = new AffineTransform(data.m_CalibratedOffsetRightShoulder, data.m_CalibratedRotationRightShoulder),
 
                 targetOffsetNeck = new AffineTransform(data.m_CalibratedOffsetNeck, data.m_CalibratedRotationNeck),
                 targetOffsetHead = new AffineTransform(data.m_CalibratedOffsetHead, data.m_CalibratedRotationHead),
