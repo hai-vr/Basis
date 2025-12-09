@@ -1656,13 +1656,12 @@ namespace UnityEngine.Rendering.Universal
             // Depth Priming causes rendering errors with WebGL and WebGPU on Apple Arm64 GPUs.
             bool isNotWebGL = !IsWebGL();
             bool depthPrimingRequested = (depthPrimingRecommended && depthPrimingMode == DepthPrimingMode.Auto) || depthPrimingMode == DepthPrimingMode.Forced;
-            bool isNotMSAA = cameraData.cameraTargetDescriptor.msaaSamples == 1;
 
             bool isFirstCameraToWriteDepth = cameraData.renderType == CameraRenderType.Base || cameraData.clearDepth;
             // Depth is not rendered in a depth-only camera setup with depth priming (UUM-38158)
             bool isNotOffscreenDepthTexture = !IsOffscreenDepthTexture(cameraData);
 
-            return depthPrimingRequested && !usesDeferredLighting && isFirstCameraToWriteDepth && isNotOffscreenDepthTexture && isNotWebGL && isNotMSAA;
+            return depthPrimingRequested && !usesDeferredLighting && isFirstCameraToWriteDepth && isNotOffscreenDepthTexture && isNotWebGL;
         }
 
         internal void SetRenderingLayersGlobalTextures(RenderGraph renderGraph)
