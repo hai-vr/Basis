@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using static UnityEngine.GraphicsBuffer;
 namespace UnityEngine.Animations.Rigging
 {
     /// <summary>
@@ -765,6 +766,10 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 }
             }
 
+           // var tRot = V4ToQuat(targetRotationLeftHand.Get(stream));
+           // var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+           // ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, targetOffsetLeftShoulder, target);
+
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
 
@@ -777,6 +782,9 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,
                 targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand,hintWeightRightHand, targetOffsetRightHand,
                 HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
+
+
+
 
             ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot,targetOffsetLeftToe.rotation);
             ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot,targetOffsetRightToe.rotation);
@@ -803,6 +811,29 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Apply(stream, HandleLeftToe, p19, r19, o19, w19);
             Apply(stream, HandleRightToe, p20, r20, o20, w20);
             Apply(stream, HandleUpperChest, p54, r54, o54, w54);
+        }
+        public static float SoftenTargetLength(float d, float maxReach)
+        {
+            // Fraction of total reach at which softening starts.
+            const float softFraction = 0.1f; // 10% of reach; tune to taste
+
+            float softZone = maxReach * softFraction;
+            if (softZone <= 0f)
+                return d;
+
+            float start = maxReach - softZone;
+
+            // If we're not yet in the "danger zone", leave it alone.
+            if (d <= start)
+                return d;
+
+            // Standard soft IK: approach maxReach asymptotically.
+            float x = d - start;
+            float denom = Mathf.Max(softZone, k_SqrEpsilon);
+            float t = Mathf.Exp(-x / denom);
+
+            // Result is in [start, maxReach), monotonic, smooth.
+            return maxReach - softZone * t;
         }
         static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
@@ -871,8 +902,10 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             float atLen = at.magnitude;
 
             float maxReach = abLen + bcLen;
+            float atLenSoft = SoftenTargetLength(atLen, maxReach);
+
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(acLen, abLen, bcLen);
+            float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
 
             // Prefer current bend plane; fallbacks to hint / at if collinear.
             Vector3 axis = Vector3.Cross(ab, bc);
@@ -1068,8 +1101,11 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             float atLen = at.magnitude;
 
             float maxReach = abLen + bcLen;
+
+            float atLenSoft = SoftenTargetLength(atLen, maxReach);
+
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(acLen, abLen, bcLen);
+            float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
             Vector3 axis;
 
             if (HasHint)
@@ -1343,7 +1379,7 @@ Vector3 bendNormal)
 
             float maxReach = abLen + bcLen;
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(acLen, abLen, bcLen);
+            float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
 
             // Compute rotation axis for mid joint bend
             Vector3 axis = ComputeIkAxis(bendNormal);
