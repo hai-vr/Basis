@@ -765,10 +765,10 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                     SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
                 }
             }
-
+           // if()
            // var tRot = V4ToQuat(targetRotationLeftHand.Get(stream));
            // var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-           // ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, targetOffsetLeftShoulder, target);
+            //ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, targetOffsetLeftShoulder, target);
 
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
@@ -811,29 +811,6 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Apply(stream, HandleLeftToe, p19, r19, o19, w19);
             Apply(stream, HandleRightToe, p20, r20, o20, w20);
             Apply(stream, HandleUpperChest, p54, r54, o54, w54);
-        }
-        public static float SoftenTargetLength(float d, float maxReach)
-        {
-            // Fraction of total reach at which softening starts.
-            const float softFraction = 0.1f; // 10% of reach; tune to taste
-
-            float softZone = maxReach * softFraction;
-            if (softZone <= 0f)
-                return d;
-
-            float start = maxReach - softZone;
-
-            // If we're not yet in the "danger zone", leave it alone.
-            if (d <= start)
-                return d;
-
-            // Standard soft IK: approach maxReach asymptotically.
-            float x = d - start;
-            float denom = Mathf.Max(softZone, k_SqrEpsilon);
-            float t = Mathf.Exp(-x / denom);
-
-            // Result is in [start, maxReach), monotonic, smooth.
-            return maxReach - softZone * t;
         }
         static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
@@ -902,7 +879,6 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             float atLen = at.magnitude;
 
             float maxReach = abLen + bcLen;
-            float atLenSoft = SoftenTargetLength(atLen, maxReach);
 
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
             float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
@@ -1101,9 +1077,6 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             float atLen = at.magnitude;
 
             float maxReach = abLen + bcLen;
-
-            float atLenSoft = SoftenTargetLength(atLen, maxReach);
-
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
             float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
             Vector3 axis;
@@ -1129,23 +1102,9 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
 
             axis = Vector3.Normalize(axis);
 
-            float deltaAngle = oldAbcAngle - newAbcAngle; // radians
-
-            // 0..1: how extended are we (based on SOFT length)
-            float extension01 = Mathf.Clamp01(acLen / Mathf.Max(maxReach, k_SqrEpsilon));
-
-            // Start damping when more than 90% extended.
-            float damp = 1f;
-            if (extension01 > 0.9f)
-            {
-                float tExt = (extension01 - 0.9f) / 0.1f; // 0..1 over [0.9, 1.0]
-                                                          // Go from full response to 20% response as we hit full extension
-                damp = Mathf.Lerp(1f, 0.2f, tExt);
-            }
-
-            float halfAngle = 0.5f * deltaAngle * damp;
-            float sin = Mathf.Sin(halfAngle);
-            float cos = Mathf.Cos(halfAngle);
+            float a = 0.5f * (oldAbcAngle - newAbcAngle);
+            float sin = Mathf.Sin(a);
+            float cos = Mathf.Cos(a);
             Quaternion deltaR = new Quaternion(axis.x * sin, axis.y * sin, axis.z * sin, cos);
             mid.SetRotation(stream, deltaR * mid.GetRotation(stream));
 
@@ -1229,10 +1188,10 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             }
         }
         public static void SolveHand(
-        AnimationStream stream,BoolProperty enabledProp,ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
-        Vector3Property targetPosProp, Vector4Property targetRotProp,Vector3Property hintPosProp, Vector4Property hintRotProp,BoolProperty hintWeightProp, AffineTransform targetOffset,
-        ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd,FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled,
-        FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule,BoolProperty protectElbow)
+        AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
+        Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, AffineTransform targetOffset,
+        ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled,
+        FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule, BoolProperty protectElbow)
         {
             if (!enabledProp.Get(stream))
             {
