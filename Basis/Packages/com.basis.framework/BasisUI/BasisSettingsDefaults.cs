@@ -141,13 +141,8 @@ namespace Basis.BasisUI
                 other = "On"
             });
 
-        public static BasisSettingsBinding<string> Resolution => new("Resolution");
 
         public static BasisSettingsBinding<float> RenderResolution => new("Render Resolution", new BasisPlatformDefault<float>(1));
-
-        public static BasisSettingsBinding<string> Monitor => new("Monitor");
-
-        public static BasisSettingsBinding<string> ScreenMode => new("ScreenMode");
 
         public static BasisSettingsBinding<string> MicrophoneMode =>
             new("microphonemode", new BasisPlatformDefault<string>("OnActivation"));

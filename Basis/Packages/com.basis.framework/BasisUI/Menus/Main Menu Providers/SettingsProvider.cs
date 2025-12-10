@@ -1,5 +1,6 @@
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.UI.UI_Panels;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -412,10 +413,10 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.RenderResolution);
 
             // Resolution (logical / display resolution)
-            PanelDropdown dropdownResolution = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
+            dropdownResolution = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             dropdownResolution.Descriptor.SetTitle("Resolution");
-            List<Vector2Int> uniqueResolutions = new List<Vector2Int>();
-            List<string> resolutionOptions = new List<string>();
+            uniqueResolutions = new List<Vector2Int>();
+            resolutionOptions = new List<string>();
 
             foreach (Resolution res in Screen.resolutions)
             {
@@ -431,10 +432,10 @@ namespace Basis.BasisUI
 
             // NOTE: in many systems this will be populated by platform code – tweak/remove entries as needed
             dropdownResolution.AssignEntries(resolutionOptions);
-            dropdownResolution.AssignBinding(BasisSettingsDefaults.Resolution);
+            dropdownResolution.DropdownComponent.onValueChanged.AddListener(ResolutionChanged);
 
             // Monitor
-            PanelDropdown dropdownScreenMode = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
+            dropdownScreenMode = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             List<string> screenModeOptions = new List<string>
             {
                 "Fullscreen",
@@ -444,7 +445,8 @@ namespace Basis.BasisUI
 
             dropdownScreenMode.Descriptor.SetTitle("ScreenMode");
             dropdownScreenMode.AssignEntries(screenModeOptions);
-            dropdownScreenMode.AssignBinding(BasisSettingsDefaults.ScreenMode);
+            dropdownScreenMode.DropdownComponent.onValueChanged.AddListener(ScreenMode);
+            ;
 
             // ADVANCED / FOVEATION GROUP
             PanelElementDescriptor advancedGroup =
@@ -478,6 +480,37 @@ namespace Basis.BasisUI
 
             descriptor.ForceRebuild();
             return tab;
+        }
+        public static PanelDropdown dropdownResolution;
+        public static List<Vector2Int> uniqueResolutions;
+        private static List<string> resolutionOptions;
+        public static PanelDropdown dropdownScreenMode;
+
+        private static void ScreenMode(int screenModeIndex)
+        {
+            FullScreenMode mode = GetScreenModeFromIndex(screenModeIndex);
+            Vector2Int currentResolution = uniqueResolutions[dropdownResolution.DropdownComponent.value];
+
+            Screen.SetResolution(currentResolution.x, currentResolution.y, mode);
+            Debug.Log("Changed Screen Mode: " + mode);
+        }
+        private static FullScreenMode GetScreenModeFromIndex(int index)
+        {
+            switch (index)
+            {
+                case 0: return FullScreenMode.ExclusiveFullScreen;
+                case 1: return FullScreenMode.FullScreenWindow;
+                case 2: return FullScreenMode.Windowed;
+                default: return FullScreenMode.FullScreenWindow;
+            }
+        }
+        private static void ResolutionChanged(int resolutionIndex)
+        {
+            Vector2Int selectedResolution = uniqueResolutions[resolutionIndex];
+            FullScreenMode mode = GetScreenModeFromIndex(dropdownScreenMode.DropdownComponent.value);
+
+            Screen.SetResolution(selectedResolution.x, selectedResolution.y, mode);
+            Debug.Log("Changed Resolution: " + selectedResolution.x + "x" + selectedResolution.y);
         }
 
         // ------------------
