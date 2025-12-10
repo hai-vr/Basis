@@ -189,11 +189,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             LookRotationVector = delta;
         }
 
-        public bool IsRotationLocked()
-        {
-            return LookRotationLock;
-        }
-
         /// <summary>
         /// Applies yaw/pitch rotation based on the given input vector.
         /// Handles mouse-look simulation for the eye.
@@ -206,15 +201,9 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             {
                 return;
             }
-            // Only allow local desktop pitch/yaw if it's okay with the seating system.
-            if (!BasisLocalPlayer.Instance.LocalSeatDriver.DoesSeatingBlockLocalDesktopEyePitch())
-            {
-                rotationPitch -= lookVector.y * rotationSpeed; // pitch (invert Y)
-            }
-            if (!BasisLocalPlayer.Instance.LocalSeatDriver.DoesSeatingBlockLocalDesktopEyeYaw())
-            {
-                rotationYaw += lookVector.x * rotationSpeed; // yaw
-            }
+
+            rotationYaw += lookVector.x * rotationSpeed; // yaw
+            rotationPitch -= lookVector.y * rotationSpeed; // pitch (invert Y)
         }
         /// <summary>
         /// Main polling loop for updating eye input state.
