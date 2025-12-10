@@ -730,13 +730,13 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
-            float restDist = MinHeadSpineHeight.Get(stream);
+           // float restDist = MinHeadSpineHeight.Get(stream);
 
             // How much compression/stretch you allow relative to T-pose
-            const float minFactor = 0.4f;  // 10% compression allowed
-            const float maxFactor = 1;  // 0% stretch allowed
+          //  const float minFactor = 0.2f;  // 10% compression allowed
+          //  const float maxFactor = 1.5f;  // 0% stretch allowed
 
-            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor);
+            //hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor);
             targetPositionHips.Set(stream, hipsTargetPos);
             SolveHipsAndSpine(stream,targetPositionHips,targetRotationHips,offsetRotationHips,enabledSpineIK,HandleHips,HandleChest,HandleNeck,HandleHead,targetPositionHead,targetRotationHead,targetOffsetHead,bendNormalHead);
 
