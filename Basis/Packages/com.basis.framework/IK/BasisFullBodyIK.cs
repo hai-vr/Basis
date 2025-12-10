@@ -710,6 +710,16 @@ w20, w54;
 handRadius, handSkin,
 chestRadius, collisionSkin, MinHeadSpineHeight;
 
+
+        const float maxBendDeg = 45;
+        // 2) Then apply your existing head–hips distance/orbit clamp
+        const float minFactor = 0.4f;
+        const float maxFactor = 1f;
+        const float struggleStart = 0.8f; // when we start "stiffening" the leg
+        const float struggleEnd = 1f; // full extension
+        const float k_MaxChestDeltaDeg = 45f;
+        const float k_Epsilon = 1e-5f; // or 0.00001f
+        const float k_MinMag = 1e-6f;
         public FloatProperty jobWeight { get; set; }
         public void ProcessRootMotion(AnimationStream stream) { }
         public void ProcessAnimation(AnimationStream stream)
@@ -731,14 +741,10 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
             float restDist = MinHeadSpineHeight.Get(stream);
-            float maxBendDeg = 45;
 
             // 1) Limit spine bend by pushing hips down if needed
             hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg);
 
-            // 2) Then apply your existing head–hips distance/orbit clamp
-            const float minFactor = 0.4f;
-            const float maxFactor = 1f;
             hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor);
 
             targetPositionHips.Set(stream, hipsTargetPos);
@@ -749,7 +755,6 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 targetPositionHips, targetRotationHips, offsetRotationHips, enabledSpineIK,
                 HandleHips, HandleChest, HandleNeck, HandleHead,
                 targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
-            const float k_MaxChestDeltaDeg = 45f;
 
             if (hintWeightHead.Get(stream))
             {
@@ -782,10 +787,16 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                     SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
                 }
             }
-            ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder.rotation);
-            ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder.rotation);
+            if (enabledLeftShoulder.Get(stream))
+            {
+                ApplyRotation(stream, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder.rotation);
+            }
+            if (enabledRightShoulder.Get(stream))
+            {
+                ApplyRotation(stream, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder.rotation);
+            }
 
-            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
+                SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
 
             SolveHand(stream,
@@ -797,8 +808,6 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,
                 targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand,hintWeightRightHand, targetOffsetRightHand,
                 HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
-
-
 
 
             ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot,targetOffsetLeftToe.rotation);
@@ -829,7 +838,6 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
         }
         static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg)
         {
-            const float k_MinMag = 1e-6f;
             if (maxBendDeg <= 0f)
                 return hipsPos;
 
@@ -892,7 +900,14 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 PassThrough(stream, handle);
             }
         }
-static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
+        public static void ApplyRotation(AnimationStream stream, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
+        {
+            if (!handle.IsValid(stream))
+                return;
+
+            handle.SetRotation(stream, V4ToQuat(targetRotProp.Get(stream)) * RotationOffset);
+        }
+        static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
 {
     const float maxHorizontalFactor = 0.35f;
 
@@ -922,8 +937,6 @@ static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restD
 
     return headPos + vertical + lateral;
 }
-
-        const float k_Epsilon = 1e-5f; // or 0.00001f
         public static void SolveTwoBoneIKArms(
             AnimationStream stream,
             ReadWriteTransformHandle root,
@@ -956,25 +969,10 @@ static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restD
 
             // Original target vector
             Vector3 at = tPosition - aPosition;
-            float atLen = at.magnitude;
-
             float acLen = ac.magnitude;
 
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-
-            const float struggleStart = 0.8f; // when we start "stiffening" the leg
-            const float struggleEnd = 1f; // full extension
-
-            Vector3 correctedTargetPos = ApplyReachCorrections(
-                aPosition,
-                tPosition,
-                abLen,
-                bcLen,
-                struggleStart,
-                struggleEnd,
-                out TwoBoneDistanceType distanceType
-            );
-
+            Vector3 correctedTargetPos = ApplyReachCorrections(aPosition, tPosition,abLen, bcLen,struggleStart, struggleEnd,out TwoBoneDistanceType distanceType);
             Vector3 atCorrected = correctedTargetPos - aPosition;
             float atCorrectedLen = atCorrected.magnitude;
 
@@ -986,8 +984,15 @@ static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restD
             if (axis.sqrMagnitude < k_SqrEpsilon)
             {
                 axis = hintWeight ? Vector3.Cross(hint.translation - aPosition, bc) : Vector3.zero;
-                if (axis.sqrMagnitude < k_SqrEpsilon) axis = Vector3.Cross(atCorrected, bc); // use corrected
-                if (axis.sqrMagnitude < k_SqrEpsilon) axis = Vector3.up;
+                if (axis.sqrMagnitude < k_SqrEpsilon)
+                {
+                    axis = Vector3.Cross(atCorrected, bc); // use corrected
+                }
+
+                if (axis.sqrMagnitude < k_SqrEpsilon)
+                {
+                    axis = Vector3.up;
+                }
             }
             axis = axis.normalized;
 
@@ -1043,10 +1048,7 @@ static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restD
             MinimumDistance
         }
 
-        static Vector3 ApplyReachCorrections(Vector3 rootPos,Vector3 targetPos,float upperLen,float lowerLen,
-            float struggleStart, // e.g. 0.7f
-            float struggleEnd,   // e.g. 1.0f
-            out TwoBoneDistanceType distanceType)
+        static Vector3 ApplyReachCorrections(Vector3 rootPos,Vector3 targetPos,float upperLen,float lowerLen,float struggleStart,float struggleEnd,out TwoBoneDistanceType distanceType)
         {
             var totalLen = upperLen + lowerLen;
             var minDistance = Mathf.Abs(upperLen - lowerLen);
@@ -1254,10 +1256,6 @@ static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restD
 
             float maxReach = abLen + bcLen;
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-
-            const float struggleStart = 0.8f; // when we start "stiffening" the leg
-            const float struggleEnd = 1f; // full extension
-
             TwoBoneDistanceType distanceType;
             Vector3 correctedTargetPos = ApplyReachCorrections(
                 aPosition,
@@ -1390,8 +1388,7 @@ static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restD
                 }
             }
         }
-        public static void SolveHand(
-        AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
+        public static void SolveHand(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
         Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, AffineTransform targetOffset,
         ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled,
         FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule, BoolProperty protectElbow)
@@ -1510,14 +1507,7 @@ static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restD
             hips.SetPosition(stream, hipPos);
             hips.SetRotation(stream, hipRot * hipOff); // apply offset in target space
         }
-        public static void SolveTwoBoneSpine(
-AnimationStream stream,
-ReadWriteTransformHandle root,
-ReadWriteTransformHandle mid,
-ReadWriteTransformHandle tip,
-AffineTransform target,
-AffineTransform targetOffset,
-Vector3 bendNormal)
+        public static void SolveTwoBoneSpine(AnimationStream stream,ReadWriteTransformHandle root,ReadWriteTransformHandle mid,ReadWriteTransformHandle tip,AffineTransform target,AffineTransform targetOffset,Vector3 bendNormal)
         {
             // Read current joint positions
             Vector3 aPos = root.GetPosition(stream);
@@ -1538,8 +1528,6 @@ Vector3 bendNormal)
             float bcLen = bc.magnitude;
             float acLen = ac.magnitude;
             float atLen = at.magnitude;
-
-            float maxReach = abLen + bcLen;
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
             float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
 
@@ -1564,7 +1552,9 @@ Vector3 bendNormal)
         public static float TriangleAngle(float aLen, float aLen1, float aLen2)
         {
             if (aLen1 <= k_SqrEpsilon || aLen2 <= k_SqrEpsilon)
+            {
                 return 0f;
+            }
 
             float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (aLen1 * aLen2) / 2.0f, -1.0f, 1.0f);
             return Mathf.Acos(c);
