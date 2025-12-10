@@ -492,7 +492,7 @@ namespace Basis.BasisUI
             Vector2Int currentResolution = uniqueResolutions[dropdownResolution.DropdownComponent.value];
 
             Screen.SetResolution(currentResolution.x, currentResolution.y, mode);
-            Debug.Log("Changed Screen Mode: " + mode);
+            BasisDebug.Log("Changed Screen Mode: " + mode);
         }
         private static FullScreenMode GetScreenModeFromIndex(int index)
         {
@@ -510,7 +510,7 @@ namespace Basis.BasisUI
             FullScreenMode mode = GetScreenModeFromIndex(dropdownScreenMode.DropdownComponent.value);
 
             Screen.SetResolution(selectedResolution.x, selectedResolution.y, mode);
-            Debug.Log("Changed Resolution: " + selectedResolution.x + "x" + selectedResolution.y);
+            BasisDebug.Log("Changed Resolution: " + selectedResolution.x + "x" + selectedResolution.y);
         }
 
         // ------------------
