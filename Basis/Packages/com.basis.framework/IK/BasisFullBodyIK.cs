@@ -730,13 +730,13 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
-           // float restDist = MinHeadSpineHeight.Get(stream);
+            float restDist = MinHeadSpineHeight.Get(stream);
 
             // How much compression/stretch you allow relative to T-pose
-          //  const float minFactor = 0.2f;  // 10% compression allowed
-          //  const float maxFactor = 1.5f;  // 0% stretch allowed
+            const float minFactor = 0.2f;  // 10% compression allowed
+            const float maxFactor = 1;  // 0% stretch allowed
 
-            //hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor);
+            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor);
             targetPositionHips.Set(stream, hipsTargetPos);
             SolveHipsAndSpine(stream,targetPositionHips,targetRotationHips,offsetRotationHips,enabledSpineIK,HandleHips,HandleChest,HandleNeck,HandleHead,targetPositionHead,targetRotationHead,targetOffsetHead,bendNormalHead);
 
@@ -843,42 +843,37 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
                 PassThrough(stream, handle);
             }
         }
-        static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
-        {
-            // How far hips are allowed to orbit around the head in horizontal plane
-            // e.g. 0.35f * restDistance = cone radius
-            const float maxHorizontalFactor = 0.35f;
+static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
+{
+    const float maxHorizontalFactor = 0.35f;
 
-            Vector3 headToHips = hipsPos - headPos;
+    Vector3 headToHips = hipsPos - headPos;
+    float sqrMag = headToHips.sqrMagnitude;
+    if (sqrMag < k_SqrEpsilon)
+        return headPos + restDistance * minFactor * Vector3.down; // could also use previous frame’s axis
 
-            if (headToHips.sqrMagnitude < k_SqrEpsilon)
-                return headPos + restDistance * minFactor * Vector3.down;
+    // Use the head→hips direction as the "up" axis for the clamp
+    Vector3 up = headToHips / Mathf.Sqrt(sqrMag);
 
-            // Decompose into vertical (Y / up) and lateral (XZ) components
-            Vector3 up = Vector3.up;
-            float verticalDot = Vector3.Dot(headToHips, up);
-            Vector3 vertical = up * verticalDot;
-            Vector3 lateral = headToHips - vertical;
+    float verticalDot = Vector3.Dot(headToHips, up);
+    Vector3 vertical = up * verticalDot;
+    Vector3 lateral = headToHips - vertical;
 
-            // --- Clamp vertical distance (compression/extension) ---
-            float absY = Mathf.Abs(verticalDot);
-            float minY = restDistance * minFactor;
-            float maxY = restDistance * maxFactor;
-            float clampedY = Mathf.Clamp(absY, minY, maxY) * Mathf.Sign(verticalDot);
-            vertical = up * clampedY;
+    float absY = Mathf.Abs(verticalDot);
+    float minY = restDistance * minFactor;
+    float maxY = restDistance * maxFactor;
+    float clampedY = Mathf.Clamp(absY, minY, maxY) * Mathf.Sign(verticalDot);
+    vertical = up * clampedY;
 
-            // --- Clamp horizontal orbit around the head ---
-            float lateralLen = lateral.magnitude;
-            float maxLateral = restDistance * maxHorizontalFactor;
+    float lateralLen = lateral.magnitude;
+    float maxLateral = restDistance * maxHorizontalFactor;
 
-            if (lateralLen > maxLateral && lateralLen > k_Epsilon)
-            {
-                lateral *= maxLateral / lateralLen;
-            }
+    if (lateralLen > maxLateral && lateralLen > k_Epsilon)
+        lateral *= maxLateral / lateralLen;
 
-            // New hips position = head + clamped vertical + clamped lateral
-            return headPos + vertical + lateral;
-        }
+    return headPos + vertical + lateral;
+}
+
         const float k_Epsilon = 1e-5f; // or 0.00001f
         public static void SolveTwoBoneIKArms(
             AnimationStream stream,
