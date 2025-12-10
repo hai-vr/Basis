@@ -56,7 +56,7 @@ public static class BasisTextureCompression
     {
         if (pngBytes == null) throw new ArgumentNullException(nameof(pngBytes));
 
-        var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        var tex = new Texture2D(2, 2, TextureFormat.RGBA32, true);
         tex.LoadImage(pngBytes); // Unity auto-resizes
 
         return EnforceMaxSize(tex);

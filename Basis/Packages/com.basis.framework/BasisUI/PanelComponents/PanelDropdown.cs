@@ -11,8 +11,8 @@ namespace Basis.BasisUI
 
         public static class DropdownStyles
         {
-            public static string Default => "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/PE Dropdown.prefab";
-            public static string Entry => "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/PE Dropdown - Entry Variant.prefab";
+            public static string Default => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Dropdown.prefab";
+            public static string Entry => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Dropdown - Entry Variant.prefab";
         }
 
         public TMP_Dropdown DropdownComponent;

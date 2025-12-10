@@ -7,7 +7,7 @@ namespace Basis.BasisUI
         public static class TabPageStyles
         {
             public static string Default =>
-                "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/Page Group Vertical.prefab";
+                "Packages/com.basis.sdk/Prefabs/Panel Elements/Tab Page.prefab";
         }
 
         public static PanelTabPage CreateNew(Component parent) =>

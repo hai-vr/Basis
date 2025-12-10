@@ -11,7 +11,7 @@ namespace Basis.BasisUI
     {
         public static class Sprites
         {
-            public static string Settings = "Packages/com.basis.framework/BasisUI/Sprites/Icons/IonIcon Settings.png";
+            public static string Settings = "Packages/com.basis.sdk/Sprites/Icons/IonIcon Settings.png";
             public static string Servers = "Packages/com.basis.sdk/Textures/Runtime/server-outline.png";
             public static string Avatars = "Packages/com.basis.sdk/Textures/Runtime/avatarWhite.png";
             public static string Calibrate = "Packages/com.basis.sdk/Textures/Runtime/calibrateWhite.png";

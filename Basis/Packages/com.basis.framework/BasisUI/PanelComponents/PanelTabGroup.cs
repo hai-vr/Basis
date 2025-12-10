@@ -13,9 +13,9 @@ namespace Basis.BasisUI
         public static class TabGroupStyles
         {
             public static string Vertical =>
-                "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/Tab Group Vertical.prefab";
+                "Packages/com.basis.sdk/Prefabs/Panel Elements/Tab Group Vertical.prefab";
             public static string Horizontal =>
-                "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/Tab Group Horizontal.prefab";
+                "Packages/com.basis.sdk/Prefabs/Panel Elements/Tab Group Horizontal.prefab";
         }
 
 

@@ -8,7 +8,7 @@ namespace Basis.BasisUI
 
         public static class DialogueStyles
         {
-            public static string Default => "Packages/com.basis.framework/BasisUI/Prefabs/Dialogue Panel.prefab";
+            public static string Default => "Packages/com.basis.sdk/Prefabs/Dialogue Panel.prefab";
         }
 
         public static PanelData DialoguePanelData => new PanelData

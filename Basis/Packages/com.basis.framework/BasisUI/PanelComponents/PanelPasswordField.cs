@@ -24,7 +24,7 @@ namespace Basis.BasisUI
 
         public static class PasswordFieldStyles
         {
-            public static string Default => "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/PE Password Field.prefab";
+            public static string Default => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Password Field.prefab";
         }
 
         public static PanelPasswordField CreateNew(Component parent)
