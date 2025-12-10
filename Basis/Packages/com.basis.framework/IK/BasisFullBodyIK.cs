@@ -731,15 +731,24 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
             float restDist = MinHeadSpineHeight.Get(stream);
+            float maxBendDeg = 45;
 
-            // How much compression/stretch you allow relative to T-pose
-            const float minFactor = 0.2f;  // 10% compression allowed
-            const float maxFactor = 1;  // 0% stretch allowed
+            // 1) Limit spine bend by pushing hips down if needed
+            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg);
 
+            // 2) Then apply your existing head–hips distance/orbit clamp
+            const float minFactor = 0.4f;
+            const float maxFactor = 1f;
             hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor, maxFactor);
-            targetPositionHips.Set(stream, hipsTargetPos);
-            SolveHipsAndSpine(stream,targetPositionHips,targetRotationHips,offsetRotationHips,enabledSpineIK,HandleHips,HandleChest,HandleNeck,HandleHead,targetPositionHead,targetRotationHead,targetOffsetHead,bendNormalHead);
 
+            targetPositionHips.Set(stream, hipsTargetPos);
+
+            // 3) Solve hips + spine as before
+            SolveHipsAndSpine(
+                stream,
+                targetPositionHips, targetRotationHips, offsetRotationHips, enabledSpineIK,
+                HandleHips, HandleChest, HandleNeck, HandleHead,
+                targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
             const float k_MaxChestDeltaDeg = 45f;
 
             if (hintWeightHead.Get(stream))
@@ -817,6 +826,46 @@ chestRadius, collisionSkin, MinHeadSpineHeight;
             Apply(stream, HandleLeftToe, p19, r19, o19, w19);
             Apply(stream, HandleRightToe, p20, r20, o20, w20);
             Apply(stream, HandleUpperChest, p54, r54, o54, w54);
+        }
+        static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg)
+        {
+            const float k_MinMag = 1e-6f;
+            if (maxBendDeg <= 0f)
+                return hipsPos;
+
+            Vector3 diff = hipsPos - headPos;
+            float sqrMag = diff.sqrMagnitude;
+            if (sqrMag < k_MinMag)
+                return hipsPos;
+
+            Vector3 up = Vector3.up;
+
+            // Decompose into vertical (along -up, hips below head) and lateral
+            float verticalDot = Vector3.Dot(diff, -up); // positive if hips are "below" head
+            Vector3 vertical = -up * verticalDot;
+            Vector3 lateral = diff - vertical;
+
+            float lateralLen = lateral.magnitude;
+            float absVertical = Mathf.Abs(verticalDot);
+
+            if (lateralLen < k_MinMag || absVertical < k_MinMag)
+                return hipsPos;
+
+            // Current bend angle from head to hips
+            float currentAngle = Mathf.Atan2(lateralLen, absVertical) * Mathf.Rad2Deg;
+            if (currentAngle <= maxBendDeg)
+                return hipsPos;
+
+            // We want lateral / newVertical = tan(maxBend)
+            float maxRatio = Mathf.Tan(maxBendDeg * Mathf.Deg2Rad);
+            float newVertical = lateralLen / Mathf.Max(maxRatio, k_MinMag);
+
+            // Push hips further down in the same direction along -up
+            float finalVertical = Mathf.Sign(verticalDot) * Mathf.Max(newVertical, absVertical);
+            Vector3 newVerticalVec = -up * finalVertical;
+
+            Vector3 newDiff = newVerticalVec + (lateralLen > k_MinMag ? lateral.normalized * lateralLen : Vector3.zero);
+            return headPos + newDiff;
         }
         static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
@@ -913,8 +962,8 @@ static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restD
 
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
 
-            const float struggleStart = 0.99f; // when we start "stiffening" the leg
-            const float struggleEnd = 1.04f; // full extension
+            const float struggleStart = 0.8f; // when we start "stiffening" the leg
+            const float struggleEnd = 1f; // full extension
 
             Vector3 correctedTargetPos = ApplyReachCorrections(
                 aPosition,
@@ -1206,8 +1255,8 @@ static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restD
             float maxReach = abLen + bcLen;
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
 
-            const float struggleStart = 0.99f; // when we start "stiffening" the leg
-            const float struggleEnd = 1.04f; // full extension
+            const float struggleStart = 0.8f; // when we start "stiffening" the leg
+            const float struggleEnd = 1f; // full extension
 
             TwoBoneDistanceType distanceType;
             Vector3 correctedTargetPos = ApplyReachCorrections(
