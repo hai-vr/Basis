@@ -152,6 +152,9 @@ public class BasisHandHeldCameraUI
     /// <summary>UI readout for field-of-view.</summary>
     public TextMeshProUGUI FOVOutput;
 
+    /// <summary>UI readout for Volumetric Fog.</summary>
+    public TextMeshProUGUI VolFogOutput;
+
     [Space(10)]
     /// <summary>Field-of-view slider.</summary>
     public Slider FOVSlider;
@@ -295,15 +298,7 @@ public class BasisHandHeldCameraUI
                 action = CameraButtonAction.Timer,
                 button = Timer
             });
-
-        if (Nameplates != null)
-            list.Add(new CameraButtonDescriptor
-            {
-                id = "Nameplates",
-                action = CameraButtonAction.ToggleNameplates,
-                button = Nameplates
-            });
-
+        //Removed Nameplate code
         if (OverrideDesktopOutput != null)
             list.Add(new CameraButtonDescriptor
             {
@@ -311,15 +306,7 @@ public class BasisHandHeldCameraUI
                 action = CameraButtonAction.ToggleDesktopOutput,
                 button = OverrideDesktopOutput
             });
-
-        if (Selfie != null)
-            list.Add(new CameraButtonDescriptor
-            {
-                id = "Selfie",
-                action = CameraButtonAction.ToggleSelfie,
-                button = Selfie
-            });
-
+        //Remove Selfie code
         if (DepthModeAutoButton != null)
             list.Add(new CameraButtonDescriptor
             {
@@ -1002,10 +989,11 @@ public class BasisHandHeldCameraUI
     public void ChangeVolumetricDensity(float value)
     {
 #if Basis_VOLUMETRIC_SUPPORTED
-    if (HHC.MetaData.VolumetricFogVolume != null)
-    {
-        HHC.MetaData.VolumetricFogVolume.density.value = value;
-    }
+        if (HHC.MetaData.VolumetricFogVolume != null)
+        {
+            HHC.MetaData.VolumetricFogVolume.density.value = value;
+            VolFogOutput.text = value.ToString("F1");
+        }
 #endif
     }
 
