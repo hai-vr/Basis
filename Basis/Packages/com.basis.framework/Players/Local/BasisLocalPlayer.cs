@@ -458,7 +458,37 @@ namespace Basis.Scripts.BasisSdk.Players
 
             AvatarTransform.SetPositionAndRotation(avatarWorldPos, desiredRotWS);
         }
+        public void Immobilize(bool immobilize)
+        {
+            var movementLock = BasisLocks.GetContext(BasisLocks.Movement);
+            var crouchingLock = BasisLocks.GetContext(BasisLocks.Crouching);
+            var key = nameof(BasisLocalPlayer);
 
+            if (immobilize)
+            {
+                if (!movementLock.Contains(key))
+                {
+                    movementLock.Add(key);
+                }
+
+                if (!crouchingLock.Contains(key))
+                {
+                    crouchingLock.Add(key);
+                }
+            }
+            else
+            {
+                if (movementLock.Contains(key))
+                {
+                    movementLock.Remove(key);
+                }
+
+                if (crouchingLock.Contains(key))
+                {
+                    crouchingLock.Remove(key);
+                }
+            }
+        }
         /// <summary>
         /// Delegate type for scheduling a callback on the next frame.
         /// </summary>

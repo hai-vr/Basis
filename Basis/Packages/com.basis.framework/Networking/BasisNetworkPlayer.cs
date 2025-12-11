@@ -381,23 +381,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             if (Player.IsLocal)
             {
-                var MovementLock = BasisLocks.GetContext(BasisLocks.Movement);
-                var CrouchingLock = BasisLocks.GetContext(BasisLocks.Crouching);
-
-                if (Immobilize)
+                if (BasisLocalPlayer.Instance != null)
                 {
-                    MovementLock.Add(nameof(BasisNetworkPlayer));
-                    CrouchingLock.Add(nameof(BasisNetworkPlayer));
+                    BasisLocalPlayer.Instance.Immobilize(Immobilize);
                 }
                 else
                 {
-                    MovementLock.Remove(nameof(BasisNetworkPlayer));
-                    CrouchingLock.Remove(nameof(BasisNetworkPlayer));
+                    BasisDebug.LogError("Not Implemented Remote GetTrackingData", BasisDebug.LogTag.Networking);
                 }
-            }
-            else
-            {
-                BasisDebug.LogError("Not Implemented Remote GetTrackingData", BasisDebug.LogTag.Networking);
             }
         }
 
