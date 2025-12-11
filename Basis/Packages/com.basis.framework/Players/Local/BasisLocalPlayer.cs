@@ -294,7 +294,10 @@ namespace Basis.Scripts.BasisSdk.Players
             LocalAnimatorDriver.HandleTeleport();
             OnSpawnedEvent?.Invoke();
         }
-
+        public void Respawn()
+        {
+            BasisSceneFactory.SpawnPlayer(this);
+        }
         /// <summary>
         /// Scene-load callback that optionally spawns the player when a new scene is activated.
         /// </summary>
