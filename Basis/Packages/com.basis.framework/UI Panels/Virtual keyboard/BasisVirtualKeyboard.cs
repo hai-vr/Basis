@@ -1,4 +1,3 @@
-
 using Basis.Scripts.UI;
 using Basis.Scripts.UI.UI_Panels;
 using System;
@@ -38,6 +37,10 @@ namespace Basis.Scripts.Virtual_keyboard
             OpenMenuNow(VirtualKeyboard);
             InputField = inputField;
             TMPInputField = tMP_InputField;
+        }
+        public void OnDestroy()
+        {
+            HasInstance = false;
         }
         // Start is called before the first frame update
         void OnEnable()
@@ -232,7 +235,6 @@ namespace Basis.Scripts.Virtual_keyboard
             HorizontalOrVerticalLayoutGroup.childForceExpandWidth = false;
             HorizontalOrVerticalLayoutGroup.spacing = Spacing;
         }
-
         // Helper method to create a button
         BasisVirtualKeyboardButton CreateButton(string label)
         {
@@ -269,7 +271,6 @@ namespace Basis.Scripts.Virtual_keyboard
                 return new BasisVirtualKeyboardButton();
             }
         }
-
         public override void DestroyEvent()
         {
             BasisCursorManagement.LockCursor(nameof(BasisHamburgerMenu));
