@@ -44,7 +44,7 @@ public static class BasisIOManagement
     /// downloads the platform-matching section, writes a local .bee file (4-byte Int32 header),
     /// and returns all artifacts.
     /// </summary>
-    public static async Task<BeeResult<BeeDownloadResult>> DownloadBEEEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
+    public static async Task<BeeResult<BeeDownloadResult>> DownloadBEEEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         // Validate inputs with actionable messages
         if (!ValidateUrl(url, out var urlErr))
@@ -54,7 +54,7 @@ public static class BasisIOManagement
             return BeeResult<BeeDownloadResult>.Fail("DownloadBEEEx: VP is null or empty.");
 
         // 1) Read 8-byte remote header (Int64)
-        var headerRes = await DownloadRangeInternal(url, startByte: 0, endByteInclusive: BasisBeeConstants.RemoteHeaderSize - 1, toFilePath: null, progressCallback, cancellationToken);
+        var headerRes = await DownloadRangeInternal(url, startByte: 0, endByteInclusive: BasisBeeConstants.RemoteHeaderSize - 1, toFilePath: null, progressCallback, cancellationToken, MaxDownloadSizeInMB);
 
         if (!headerRes.IsSuccess || headerRes.Value?.Data == null)
             return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to read remote header. {headerRes.Error ?? "No data"}", headerRes.ResponseCode);
@@ -73,7 +73,7 @@ public static class BasisIOManagement
         long connectorStart = BasisBeeConstants.RemoteHeaderSize;
         long connectorEndInclusive = BasisBeeConstants.RemoteHeaderSize + connectorLength - 1;
 
-        var connectorRes = await DownloadRangeInternal(url, connectorStart, connectorEndInclusive, toFilePath: null, progressCallback, cancellationToken);
+        var connectorRes = await DownloadRangeInternal(url, connectorStart, connectorEndInclusive, toFilePath: null, progressCallback, cancellationToken, MaxDownloadSizeInMB);
 
         if (!connectorRes.IsSuccess || connectorRes.Value.Data == null)
             return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to download connector block. {connectorRes.Error ?? "No data"}", connectorRes.ResponseCode);
@@ -134,7 +134,7 @@ public static class BasisIOManagement
             if (isPlatform)
             {
                 BasisDebug.Log($"Downloading platform section range {start}-{end}");
-                var sectRes = await DownloadRangeInternal(url, start, end, toFilePath: null, progressCallback, cancellationToken);
+                var sectRes = await DownloadRangeInternal(url, start, end, toFilePath: null, progressCallback, cancellationToken, MaxDownloadSizeInMB);
 
                 if (!sectRes.IsSuccess || sectRes.Value?.Data == null)
                     return BeeResult<BeeDownloadResult>.Fail($"DownloadBEEEx: Failed to download platform section at index {index}. {sectRes.Error ?? "No data"}", sectRes.ResponseCode);
@@ -177,7 +177,7 @@ public static class BasisIOManagement
     /// <summary>
     /// Downloads only the connector bytes from the remote BEE (8-byte Int64 header) and parses them.
     /// </summary>
-    public static async Task<BeeResult<(BasisBundleConnector, string)>> DownloadConnectorOnlyEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
+    public static async Task<BeeResult<(BasisBundleConnector, string)>> DownloadConnectorOnlyEx(string url, string vp, BasisProgressReport progressCallback, CancellationToken cancellationToken = default, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         if (!ValidateUrl(url, out var urlErr))
             return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: {urlErr}");
@@ -186,7 +186,7 @@ public static class BasisIOManagement
             return BeeResult<(BasisBundleConnector, string)>.Fail("DownloadConnectorOnlyEx: VP is null or empty.");
 
         // Header
-        var headerRes = await DownloadRangeInternal(url, 0, BasisBeeConstants.RemoteHeaderSize - 1, null, progressCallback, cancellationToken);
+        var headerRes = await DownloadRangeInternal(url, 0, BasisBeeConstants.RemoteHeaderSize - 1, null, progressCallback, cancellationToken, MaxDownloadSizeInMB);
         if (!headerRes.IsSuccess || headerRes.Value?.Data == null)
             return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read header. {headerRes.Error ?? "No data"}", headerRes.ResponseCode);
 
@@ -204,7 +204,13 @@ public static class BasisIOManagement
         long start = BasisBeeConstants.RemoteHeaderSize;
         long end = BasisBeeConstants.RemoteHeaderSize + connectorLength - 1;
 
-        var connectorRes = await DownloadRangeInternal(url, start, end, null, progressCallback, cancellationToken);
+        var connectorRes = await DownloadRangeInternal(url, start, end, null, progressCallback, cancellationToken, MaxDownloadSizeInMB);
+
+        if (connectorRes.IsSuccess == false && connectorRes.Error != string.Empty)
+        {
+            return BeeResult<(BasisBundleConnector, string)>.Fail(connectorRes.Error, connectorRes.ResponseCode);
+        }
+
         if (!connectorRes.IsSuccess || connectorRes.Value?.Data == null)
             return BeeResult<(BasisBundleConnector, string)>.Fail($"DownloadConnectorOnlyEx: Failed to read connector bytes. {connectorRes.Error ?? "No data"}", connectorRes.ResponseCode);
 
@@ -366,8 +372,18 @@ public static class BasisIOManagement
         }
         return folderPath;
     }
-
-    private static async Task<BeeResult<DownloadPayload>> DownloadRangeInternal(string url, long startByte, long? endByteInclusive, string toFilePath, BasisProgressReport progress, CancellationToken ct)
+    /// <summary>
+    /// downloads a range of bytes
+    /// </summary>
+    /// <param name="url"></param>
+    /// <param name="startByte"></param>
+    /// <param name="endByteInclusive"></param>
+    /// <param name="toFilePath"></param>
+    /// <param name="progress"></param>
+    /// <param name="ct"></param>
+    /// <param name="MaxDownloadSizeInMB">Defaults to 4GB</param>
+    /// <returns></returns>
+    private static async Task<BeeResult<DownloadPayload>> DownloadRangeInternal(string url, long startByte, long? endByteInclusive, string toFilePath, BasisProgressReport progress, CancellationToken ct, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         if (!ValidateUrl(url, out var urlErr))
             return BeeResult<DownloadPayload>.Fail(urlErr);
@@ -377,6 +393,19 @@ public static class BasisIOManagement
 
         if (endByteInclusive.HasValue && endByteInclusive.Value < startByte)
             return BeeResult<DownloadPayload>.Fail($"Invalid byte range: {startByte}-{endByteInclusive.Value}");
+
+
+        long expectedBytes = endByteInclusive.HasValue? (endByteInclusive.Value - startByte + 1): long.MaxValue; // open-ended range
+
+        if (!endByteInclusive.HasValue)
+            return BeeResult<DownloadPayload>.Fail("Open-ended ranges are not allowed when a max size is enforced.");
+
+        if (expectedBytes <= 0)
+            return BeeResult<DownloadPayload>.Fail($"Invalid expected byte count: {expectedBytes}");
+
+
+        if (expectedBytes > MaxDownloadSizeInMB)
+            return BeeResult<DownloadPayload>.Fail($"Refusing download: requested {expectedBytes} bytes exceeds limit {MaxDownloadSizeInMB}.");
 
         string requestId = BasisGenerateUniqueID.GenerateUniqueID();
 

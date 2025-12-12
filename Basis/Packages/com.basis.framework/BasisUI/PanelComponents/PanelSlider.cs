@@ -12,7 +12,8 @@ namespace Basis.BasisUI
         Raw,
         Meters,
         Degrees,
-        percentageFromZero
+        percentageFromZero,
+        MemorySize
     }
 
     public class PanelSlider : PanelDataComponent<float>
@@ -209,7 +210,26 @@ namespace Basis.BasisUI
                     case ValueDisplayMode.Degrees:
                     CurrentValueLabel.text = Value.ToString("0." + new string('#', Settings.DecimalPlaces)) + "°";
                     break;
+                case ValueDisplayMode.MemorySize:
+                    CurrentValueLabel.text = FormatMemorySize(Value *1024 * 1024, Settings.DecimalPlaces);
+                    break;
             }
+        }
+        private static string FormatMemorySize(float bytes, int decimalPlaces = 2)
+        {
+            if (bytes < 0f)
+                return "0 B";
+
+            string[] units = { "B", "KB", "MB", "GB", "TB" };
+            int unitIndex = 0;
+
+            while (bytes >= 1024f && unitIndex < units.Length - 1)
+            {
+                bytes /= 1024f;
+                unitIndex++;
+            }
+
+            return bytes.ToString($"0.{new string('#', decimalPlaces)}") + " " + units[unitIndex];
         }
     }
 }

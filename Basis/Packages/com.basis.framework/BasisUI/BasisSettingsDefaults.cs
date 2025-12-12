@@ -111,6 +111,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> AvatarScale =>
     new("Scale Of Avatar", new BasisPlatformDefault<float>(1.6f));
 
+        public static BasisSettingsBinding<float> AvatarDownloadSize =>
+new("Avatar Download Size", new BasisPlatformDefault<float>(256));
+
         public static BasisSettingsBinding<float> AvatarMeshLOD =>
             new("avatarmeshlod", new BasisPlatformDefault<float>
             {

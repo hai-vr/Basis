@@ -574,6 +574,12 @@ namespace Basis.BasisUI
 
             sliderFieldOfView.OnValueChanged += AvatarScaleChanged;
 
+            // Avatar Download Size.
+            PanelSlider AvatarDownloadSize = PanelSlider.CreateEntryAndBind(
+                debugGroup.ContentParent,
+                PanelSlider.SliderSettings.Advanced("Avatar Download Size", 5, 1024, false, 0, ValueDisplayMode.MemorySize),
+                BasisSettingsDefaults.AvatarDownloadSize);
+
             descriptor.ForceRebuild();
             return tab;
         }
