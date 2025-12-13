@@ -16,11 +16,11 @@ namespace Basis.BasisUI
         public static class ElementStyles
         {
             public static string ScrollViewVertical =>
-                "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/Scroll View Vertical.prefab";
+                "Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical.prefab";
             public static string ScrollViewHorizontal =>
-                "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/Scroll View Horizontal.prefab";
+                "Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Horizontal.prefab";
             public static string Group =>
-                "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/Panel Element Base.prefab";
+                "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base.prefab";
         }
 
         public static PanelElementDescriptor CreateNew(string style, Component parent) =>
@@ -30,6 +30,7 @@ namespace Basis.BasisUI
 
         [Header("Visuals")]
         [SerializeField] private bool _clearOnAwake;
+        [SerializeField] private bool _useDefaultIconForNull;
         [field:SerializeField] public Sprite DefaultIcon { get; private set; }
         [field:SerializeField] public Texture2D DefaultTexture { get; private set; }
         [field:SerializeField] public string DefaultTitle { get; private set; }
@@ -112,8 +113,16 @@ namespace Basis.BasisUI
         {
             if (!HasIcon) return;
             // Disable the object if the sprite is null.
+
+            if (!value && _useDefaultIconForNull)
+            {
+                value = DefaultIcon;
+            }
+
+
             _iconSprite = value;
             IconBackground.gameObject.SetActive(value);
+            IconImage.enabled = value;
             IconImage.sprite = value;
         }
 

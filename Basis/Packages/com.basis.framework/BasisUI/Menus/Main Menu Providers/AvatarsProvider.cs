@@ -17,16 +17,19 @@ namespace Basis.BasisUI
 
         public override void RunAction()
         {
-            if (BasisMainMenu.ActiveMenuTitle == Title) return;
+            if (BasisMainMenu.ActiveMenuTitle == Title) BasisMainMenu.Instance.ActiveMenu.ReleaseInstance();
 
-            /*
             BasisMenuPanel panel = BasisMainMenu.CreateActiveMenu(
                 BasisMenuPanel.PanelData.Standard(Title),
                 BasisMenuPanel.PanelStyles.Page);
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
-            */
+
+            PanelAvatarList avatarList = PanelAvatarList.CreateNew(panel.Descriptor.ContentParent);
+
+            /*
             BasisMainMenu.Close();
             BasisUIAvatarSelection.OpenMenuNow(BasisUIAvatarSelection.AvatarPanel);
+            */
         }
     }
 }

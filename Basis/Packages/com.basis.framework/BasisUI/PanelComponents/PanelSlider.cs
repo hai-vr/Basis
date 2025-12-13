@@ -103,8 +103,8 @@ namespace Basis.BasisUI
 
         public static class SliderStyles
         {
-            public static string Default => "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/PE Slider.prefab";
-            public static string Entry => "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/PE Slider - Entry Variant.prefab";
+            public static string Default => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Slider.prefab";
+            public static string Entry => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Slider - Entry Variant.prefab";
         }
 
         public Slider SliderComponent;

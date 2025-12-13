@@ -15,6 +15,8 @@ namespace Basis.BasisUI
 
         public Action<string> OnSubmit;
 
+        public string Password => _inputField.text;
+
         [SerializeField] protected TMP_InputField _inputField;
         [SerializeField] protected TextMeshProUGUI _placeholderField;
         [SerializeField] protected Toggle _showToggle;
@@ -24,7 +26,7 @@ namespace Basis.BasisUI
 
         public static class PasswordFieldStyles
         {
-            public static string Default => "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/PE Password Field.prefab";
+            public static string Default => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Password Field.prefab";
         }
 
         public static PanelPasswordField CreateNew(Component parent)
@@ -50,9 +52,15 @@ namespace Basis.BasisUI
             _inputField.contentType = Value ?
                 TMP_InputField.ContentType.Standard :
                 TMP_InputField.ContentType.Password;
+            _inputField.ForceLabelUpdate();
 
             _visibleIcon.enabled = Value;
             _invisibleIcon.enabled = !Value;
+        }
+
+        public void SetPassword(string password)
+        {
+            _inputField.SetTextWithoutNotify(password);
         }
 
 #if UNITY_EDITOR

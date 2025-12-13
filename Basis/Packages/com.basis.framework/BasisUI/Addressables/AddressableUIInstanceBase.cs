@@ -48,11 +48,20 @@ namespace Basis.BasisUI
         /// </summary>
         public static TElement CreateNew<TElement>(string referencePath, Component parent) where TElement: AddressableUIInstanceBase
         {
-            GameObject obj = Addressables.InstantiateAsync(referencePath,
-                new InstantiationParameters(parent.transform, false)).WaitForCompletion();
-            TElement element = obj.GetComponent<TElement>();
-            if (!element.HasRunCreateEvent) element.OnCreateEvent();
-            return element;
+            try
+            {
+                GameObject obj = Addressables.InstantiateAsync(referencePath,
+                    new InstantiationParameters(parent.transform, false)).WaitForCompletion();
+                TElement element = obj.GetComponent<TElement>();
+                if (!element.HasRunCreateEvent) element.OnCreateEvent();
+                return element;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Failed to load Addressable at path:\n{referencePath}");
+                return null;
+            }
+
         }
 
         public Action OnInstanceReleased

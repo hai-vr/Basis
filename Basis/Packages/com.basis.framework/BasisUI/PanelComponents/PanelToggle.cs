@@ -8,8 +8,8 @@ namespace Basis.BasisUI
     {
         public static class Styles
         {
-            public static string Default => "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/PE Toggle.prefab";
-            public static string Entry => "Packages/com.basis.framework/BasisUI/Prefabs/Panel Elements/PE Toggle - Entry Variant.prefab";
+            public static string Default => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Toggle.prefab";
+            public static string Entry => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Toggle - Entry Variant.prefab";
         }
 
         public Toggle ToggleComponent;
