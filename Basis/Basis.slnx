@@ -66,6 +66,7 @@
   <Project Path="BasisSDK.csproj" />
   <Project Path="Unity.Rider.Editor.csproj" />
   <Project Path="Meta.XR.Editor.TelemetryUI.csproj" />
+  <Project Path="Unity.SysrootPackage.Editor.csproj" />
   <Project Path="Meta.XR.Editor.ToolingSupport.csproj" />
   <Project Path="BasisCommon.csproj" />
   <Project Path="UnityEditor.UI.csproj" />
@@ -93,6 +94,7 @@
   <Project Path="Unity.Services.Core.Environments.Internal.csproj" />
   <Project Path="HVR.Basis.Comms.Editor.csproj" />
   <Project Path="Unity.InputSystem.ForUI.csproj" />
+  <Project Path="Unity.Toolchain.Win-x86_64-Linux.csproj" />
   <Project Path="Unity.Services.Core.Scheduler.csproj" />
   <Project Path="Unity.Collections.CodeGen.csproj" />
   <Project Path="Unity.Services.Core.Telemetry.csproj" />
@@ -176,4 +178,5 @@
   <Project Path="Unity.RenderPipelines.Core.ShaderLibrary.csproj" />
   <Project Path="Unity.XR.OpenXR.Features.OculusQuestSupport.csproj" />
   <Project Path="RNNoiseIntergration.csproj" />
+  <Project Path="Unity.Sysroot.Linux_x86_64.csproj" />
 </Solution>

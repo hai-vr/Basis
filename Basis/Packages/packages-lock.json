@@ -184,7 +184,7 @@
       "dependencies": {}
     },
     "com.unity.addressables": {
-      "version": "2.7.4",
+      "version": "2.7.6",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -194,7 +194,7 @@
         "com.unity.modules.jsonserialize": "1.0.0",
         "com.unity.modules.imageconversion": "1.0.0",
         "com.unity.modules.unitywebrequest": "1.0.0",
-        "com.unity.scriptablebuildpipeline": "2.4.3",
+        "com.unity.scriptablebuildpipeline": "2.5.0",
         "com.unity.modules.unitywebrequestassetbundle": "1.0.0"
       },
       "url": "https://packages.unity.com"
@@ -354,12 +354,21 @@
       }
     },
     "com.unity.scriptablebuildpipeline": {
-      "version": "2.4.3",
+      "version": "2.5.0",
       "depth": 1,
       "source": "registry",
       "dependencies": {
         "com.unity.test-framework": "1.4.5",
         "com.unity.modules.assetbundle": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.sdk.linux-x86_64": {
+      "version": "1.0.2",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.sysroot.base": "1.0.2"
       },
       "url": "https://packages.unity.com"
     },
@@ -371,7 +380,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.services.analytics": {
-      "version": "6.1.1",
+      "version": "6.2.0",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -411,6 +420,13 @@
         "com.unity.searcher": "4.9.3"
       }
     },
+    "com.unity.sysroot.base": {
+      "version": "1.0.2",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
     "com.unity.test-framework": {
       "version": "1.6.0",
       "depth": 1,
@@ -432,7 +448,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.timeline": {
-      "version": "1.8.9",
+      "version": "1.8.10",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -440,6 +456,15 @@
         "com.unity.modules.director": "1.0.0",
         "com.unity.modules.animation": "1.0.0",
         "com.unity.modules.particlesystem": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.toolchain.win-x86_64-linux": {
+      "version": "1.0.2",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.sysroot.base": "1.0.2"
       },
       "url": "https://packages.unity.com"
     },
@@ -506,21 +531,22 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.xr.openxr": {
-      "version": "1.16.0",
+      "version": "1.16.1",
       "depth": 0,
       "source": "registry",
       "dependencies": {
         "com.unity.inputsystem": "1.6.3",
         "com.unity.xr.core-utils": "2.3.0",
         "com.unity.xr.management": "4.4.0",
+        "com.unity.modules.androidjni": "1.0.0",
         "com.unity.xr.legacyinputhelpers": "2.1.2"
       },
       "url": "https://packages.unity.com"
     },
     "com.valvesoftware.unity.openvr": {
-      "version": "file:com.valvesoftware.unity.openvr-1.2.1.tgz",
+      "version": "file:com.valvesoftware.unity.openvr",
       "depth": 0,
-      "source": "local-tarball",
+      "source": "embedded",
       "dependencies": {
         "com.unity.xr.management": "3.2.13",
         "com.unity.ugui": "1.0.0",
@@ -552,33 +578,33 @@
       "dependencies": {}
     },
     "org.basisvr.base128": {
-      "version": "file:org.basisvr.base128-1.2.2.tgz",
+      "version": "file:org.basisvr.base128",
       "depth": 0,
-      "source": "local-tarball",
+      "source": "embedded",
       "dependencies": {}
     },
     "org.basisvr.bouncycastle": {
-      "version": "file:org.basisvr.bouncycastle-2.5.0.tgz",
+      "version": "file:org.basisvr.bouncycastle",
       "depth": 0,
-      "source": "local-tarball",
+      "source": "embedded",
       "dependencies": {}
     },
     "org.basisvr.generator.equals": {
-      "version": "file:org.basisvr.generator.equals-3.2.0.tgz",
+      "version": "file:org.basisvr.generator.equals",
       "depth": 0,
-      "source": "local-tarball",
+      "source": "embedded",
       "dependencies": {}
     },
     "org.basisvr.newtonsoft.json": {
-      "version": "file:org.basisvr.newtonsoft.json-13.0.3.tgz",
+      "version": "file:org.basisvr.newtonsoft.json",
       "depth": 0,
-      "source": "local-tarball",
+      "source": "embedded",
       "dependencies": {}
     },
     "org.basisvr.simplebase": {
-      "version": "file:org.basisvr.simplebase-4.0.2.tgz",
+      "version": "file:org.basisvr.simplebase",
       "depth": 0,
-      "source": "local-tarball",
+      "source": "embedded",
       "dependencies": {}
     },
     "com.unity.modules.accessibility": {
