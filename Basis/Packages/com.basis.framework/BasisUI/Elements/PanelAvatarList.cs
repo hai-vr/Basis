@@ -136,11 +136,8 @@ namespace Basis.BasisUI
                         byte[] imageBytes = Wrapper.LoadableBundle.BasisBundleConnector.ImageBytes;
                         if (imageBytes != null)
                         {
-                            IconTexture =
-                                BasisTextureCompression.FromPngBytes(Wrapper.LoadableBundle.BasisBundleConnector
-                                    .ImageBytes);
-                            IconSprite = Sprite.Create(IconTexture,
-                                new Rect(0, 0, IconTexture.width, IconTexture.height), Vector2.zero);
+                            IconTexture = BasisTextureCompression.FromPngBytes(Wrapper.LoadableBundle.BasisBundleConnector.ImageBytes);
+                            IconSprite = Sprite.Create(IconTexture,new Rect(0, 0, IconTexture.width, IconTexture.height), Vector2.zero);
                         }
 
                         if (IconSprite) Button.Descriptor.SetIcon(IconSprite);
@@ -149,8 +146,7 @@ namespace Basis.BasisUI
                     catch (Exception e)
                     {
                         BasisDebug.LogError(e);
-                        BasisLoadHandler.RemoveDiscInfo(Wrapper.LoadableBundle.BasisRemoteBundleEncrypted
-                            .RemoteBeeFileLocation);
+                        BasisLoadHandler.RemoveDiscInfo(Wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
                         return;
                     }
                 }

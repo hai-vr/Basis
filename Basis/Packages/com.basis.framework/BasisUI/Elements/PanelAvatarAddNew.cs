@@ -53,7 +53,7 @@ namespace Basis.BasisUI
             {
                 // Trim leading and trailing whitespace from the URL
                 string processedUrl = NewURLField.text.Trim();
-                string password = NewPasswordField.Password;
+                string password = NewPasswordField.Password.Trim();
 
                 // The fragment may contain an avatar password.
                 // Strip it, and overwrite the URL to prevent it from showing up in logs.
