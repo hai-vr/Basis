@@ -403,7 +403,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public void OnEscapePerformed(InputAction.CallbackContext ctx)
         {
             BasisMainMenu.Toggle();
-            // BasisHamburgerMenu.ToggleHamburgerMenu();
         }
 
         public void OnEscapeCancelled(InputAction.CallbackContext ctx) { }

@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.UI.UI_Panels;
@@ -42,12 +43,12 @@ public class BasisOnScreenControls : MonoBehaviour
 
     private void OnEscape()
     {
-        BasisHamburgerMenu.ToggleHamburgerMenu();
+        BasisMainMenu.Toggle();
     }
 
     private void OnC()
     {
-       BasisLocalPlayer.Instance.LocalCharacterDriver.CrouchToggle();
+        BasisLocalPlayer.Instance.LocalCharacterDriver.CrouchToggle();
     }
 
     private void OnSpace()
@@ -57,8 +58,9 @@ public class BasisOnScreenControls : MonoBehaviour
 
     private void OnStickMoveLeft(Vector2 vector)
     {
-        BasisLocalPlayer.Instance.LocalCharacterDriver.SetMovementVector(vector);
-        BasisLocalPlayer.Instance.LocalCharacterDriver.UpdateMovementSpeed(BasisLocalInputActions.Instance.IsRunHeld);
+        var Instance = BasisLocalPlayer.Instance;
+        Instance.LocalCharacterDriver.SetMovementVector(vector);
+        Instance.LocalCharacterDriver.UpdateMovementSpeed(BasisLocalInputActions.Instance.IsRunHeld);
     }
     private void OnStickMoveRight(Vector2 vector)
     {
