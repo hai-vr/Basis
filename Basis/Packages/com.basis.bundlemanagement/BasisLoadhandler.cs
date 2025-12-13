@@ -59,7 +59,7 @@ public static class BasisLoadHandler
 
         foreach (string key in keysToRemove)
         {
-            LoadedBundles.TryRemove(key,out var data);
+            LoadedBundles.TryRemove(key, out var data);
         }
     }
     /// <summary>
@@ -77,7 +77,7 @@ public static class BasisLoadHandler
             bool State = await Wrapper.UnloadIfReady();
             if (State)
             {
-                LoadedBundles.Remove(CombinedURL,out var data);
+                LoadedBundles.Remove(CombinedURL, out var data);
                 return;
             }
         }
@@ -108,11 +108,11 @@ public static class BasisLoadHandler
             }
         }
 
-        return await HandleFirstBundleLoad(loadableBundle, useContentRemoval, report, cancellationToken, Position, Rotation, Scale, ModifyScale, Selector, Parent, DestroyColliders,MaxDownloadSizeInMB);
+        return await HandleFirstBundleLoad(loadableBundle, useContentRemoval, report, cancellationToken, Position, Rotation, Scale, ModifyScale, Selector, Parent, DestroyColliders, MaxDownloadSizeInMB);
     }
     public static async Task<Scene> LoadSceneBundle(bool makeActiveScene, BasisLoadableBundle loadableBundle, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
-        await EnsureInitializationComplete(); 
+        await EnsureInitializationComplete();
 
         if (LoadedBundles.TryGetValue(loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out BasisTrackedBundleWrapper wrapper))
         {
@@ -122,7 +122,7 @@ public static class BasisLoadHandler
             return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, report);
         }
 
-        return await HandleFirstSceneLoad(loadableBundle, makeActiveScene, report, cancellationToken,MaxDownloadSizeInMB);
+        return await HandleFirstSceneLoad(loadableBundle, makeActiveScene, report, cancellationToken, MaxDownloadSizeInMB);
     }
 
     private static async Task<Scene> HandleFirstSceneLoad(BasisLoadableBundle loadableBundle, bool makeActiveScene, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
@@ -135,11 +135,11 @@ public static class BasisLoadHandler
             return new Scene();
         }
 
-        await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken,MaxDownloadSizeInMB);
+        await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
         return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, report);
     }
 
-    private static async Task<GameObject> HandleFirstBundleLoad(BasisLoadableBundle loadableBundle, bool useContentRemoval, BasisProgressReport report, CancellationToken cancellationToken, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool ModifyScale,Selector Selector, Transform Parent = null, bool DestroyColliders = false, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
+    private static async Task<GameObject> HandleFirstBundleLoad(BasisLoadableBundle loadableBundle, bool useContentRemoval, BasisProgressReport report, CancellationToken cancellationToken, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool ModifyScale, Selector Selector, Transform Parent = null, bool DestroyColliders = false, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper
         {
@@ -155,7 +155,7 @@ public static class BasisLoadHandler
 
         try
         {
-            await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken,MaxDownloadSizeInMB);
+            await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
             return await BasisBundleLoadAsset.LoadFromWrapper(wrapper, useContentRemoval, Position, Rotation, ModifyScale, Scale, Selector, Parent, DestroyColliders);
         }
         catch (Exception ex)
@@ -232,21 +232,20 @@ public static class BasisLoadHandler
     {
         if (OnDiscData.TryRemove(metaUrl, out _))
         {
-            string filePath = BasisIOManagement.GenerateFilePath($"{metaUrl}{BasisBeeConstants.BasisEncryptedExtension}", BasisBeeConstants.AssetBundlesFolder);
-
-            if (File.Exists(filePath))
-            {
-                File.Delete(filePath);
-                BasisDebug.Log($"Deleted disc info from {filePath}", BasisDebug.LogTag.Event);
-            }
-            else
-            {
-                BasisDebug.LogWarning($"File not found at {filePath}", BasisDebug.LogTag.Event);
-            }
         }
         else
         {
             BasisDebug.LogError("Disc info not found or already removed.", BasisDebug.LogTag.Event);
+        }
+        string filePath = BasisIOManagement.GenerateFilePath($"{metaUrl}{BasisBeeConstants.BasisEncryptedExtension}", BasisBeeConstants.AssetBundlesFolder);
+        if (File.Exists(filePath))
+        {
+            File.Delete(filePath);
+            BasisDebug.Log($"Deleted disc info from {filePath}", BasisDebug.LogTag.Event);
+        }
+        else
+        {
+            BasisDebug.LogWarning($"File not found at {filePath}", BasisDebug.LogTag.Event);
         }
     }
 
