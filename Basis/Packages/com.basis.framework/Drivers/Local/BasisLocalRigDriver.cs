@@ -1,7 +1,6 @@
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
-using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
@@ -416,6 +415,12 @@ namespace Basis.Scripts.Drivers
                 data.SetOffsetRotation(slot, t.rotation);
                 data.SetTargetRotation(slot, t.rotation);
             }
+            data.maxBendDeg = 90;
+            data.minFactor = 0.4f;
+            data.maxFactor = 1f;
+            data.struggleStart = 0.9f;
+            data.struggleEnd = 1;
+            data.maxChestDelta = 90;
 
             BasisFullIKConstraint.data = data;
         }

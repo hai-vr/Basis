@@ -12,7 +12,7 @@ public static class BasisBeeManagement
     /// <param name="report"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public static async Task HandleBundleAndMetaLoading(BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken)
+    public static async Task HandleBundleAndMetaLoading(BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         bool IsMetaOnDisc = BasisLoadHandler.IsMetaDataOnDisc(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out BasisBEEExtensionMeta MetaInfo);
 
@@ -25,12 +25,12 @@ public static class BasisBeeManagement
         else
         {
             BasisDebug.Log("Download Store Meta And Bundle", BasisDebug.LogTag.Event);
-            output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancellationToken);
+            output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
         }
         if(output.Item2 == null)
         {
             //lets force download it again. this guards against partial file, corrupt file or reattempt at downloading if it fails.
-            output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancellationToken);
+            output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancellationToken, MaxDownloadSizeInMB);
         }
 
         if (output.Item1 == null || output.Item3 != string.Empty)

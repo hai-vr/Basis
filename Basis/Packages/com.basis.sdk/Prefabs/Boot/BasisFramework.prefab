@@ -137,6 +137,7 @@ GameObject:
   - component: {fileID: 251103215370718543}
   - component: {fileID: 2819247879703846172}
   - component: {fileID: 4245328840218215415}
+  - component: {fileID: 947700616637325904}
   m_Layer: 0
   m_Name: Modules
   m_TagString: Untagged
@@ -421,6 +422,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::BasisVisualStateModule
   SettingsNames:
   - Visual State
+--- !u!114 &947700616637325904
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3197856584617865972}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eaa889a62d21bcf4bb8494cf2afa1aa3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Basis Framework::SMModuleStorage
+  SettingsNames:
+  - Avatar Download Size
 --- !u!1 &6119941615115968628
 GameObject:
   m_ObjectHideFlags: 0
@@ -485,6 +500,7 @@ MonoBehaviour:
   RightMousePressed: {fileID: -240064975923332847, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
   MiddleMouseScroll: {fileID: 3017921969231114889, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
   MiddleMouseScrollClick: {fileID: -4813832520851000306, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
+  MoveLocalUpDown: {fileID: -8761834997978577808, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
   MouseSensitivity: 1
   JoystickSensitivity: 1
   KeyboardSensitivity: 5
@@ -660,6 +676,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!114 &4873537771675878447
 MonoBehaviour:
@@ -823,6 +840,7 @@ MonoBehaviour:
     ActiveOnModes:
     - OpenVRLoader
     - OpenXRLoader
+    AvaliableLoaders: []
   BaseTypes:
   - {fileID: -1434852531052301144}
   - {fileID: 508802122937325065}
@@ -966,6 +984,7 @@ MonoBehaviour:
         AssetBundleDescription: 
       BasisBundleGenerated: []
       ImageBytes: 
+      DateOfCreation: 
   DefaultAvatar:
     UnlockPassword: 
     BasisRemoteBundleEncrypted:
@@ -979,6 +998,7 @@ MonoBehaviour:
         AssetBundleDescription: 
       BasisBundleGenerated: []
       ImageBytes: 
+      DateOfCreation: 
   UseAddressablesToLoadScene: 0
   UseSceneProvidedHere: 0
 --- !u!114 &6910429841152494025

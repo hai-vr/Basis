@@ -47,6 +47,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public InputActionReference MiddleMouseScroll;
         public InputActionReference MiddleMouseScrollClick;
 
+        public InputActionReference MoveLocalUpDown;
         #endregion
 
         [Header("Sensitivity Settings")]
@@ -170,6 +171,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             RightMousePressed.action.Enable();
             MiddleMouseScroll.action.Enable();
             MiddleMouseScrollClick.action.Enable();
+            MoveLocalUpDown.action.Enable();
         }
 
         private void DisableActions()
@@ -189,6 +191,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             RightMousePressed.action.Disable();
             MiddleMouseScroll.action.Disable();
             MiddleMouseScrollClick.action.Disable();
+            MoveLocalUpDown.action.Disable();
         }
 
         private void AddCallbacks()
@@ -326,9 +329,9 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             {
                 sensitivity = KeyboardSensitivity;
             }
-            OnLookAction(ctx.ReadValue<Vector2>(), sensitivity, ctx.control.device is Mouse);
+            OnLookAction(ctx.ReadValue<Vector2>(), sensitivity);
         }
-        public void OnLookAction(Vector2 delta, float sensitivity, bool isMouse)
+        public void OnLookAction(Vector2 delta, float sensitivity)
         {
             var lookDelta = delta * (deltaCoefficient * sensitivity);
             if (SMModuleControllerSettings.HasInvertedMouse)
@@ -340,31 +343,26 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 LocalCharacterDriver.SetCrouchBlendDelta(lookDelta.y);
                 lookDelta.y = 0;
             }
-            // Send the look delta to both the desktop eye and the character driver.
             DesktopEyeInput?.SetLookRotationVector(lookDelta);
-            if (isMouse && DesktopEyeInput != null && DesktopEyeInput.IsRotationLocked())
-            {
-                return; // Don't rotate the character with the mouse if the eye rotation is locked (such as when the menu is open).
-            }
-            LocalCharacterDriver.Rotation = lookDelta;
         }
 
         public void OnLookActionCancelled(InputAction.CallbackContext ctx)
         {
             LocalCharacterDriver.SetCrouchBlendDelta(0f);
             DesktopEyeInput?.SetLookRotationVector(Vector2.zero);
-            LocalCharacterDriver.Rotation = Vector2.zero;
         }
 
         public void OnJumpActionPerformed(InputAction.CallbackContext ctx)
         {
             IsJumpHeld = true;
+            LocalCharacterDriver.IsJumpHeld = true;
             LocalCharacterDriver.HandleJumpRequest();
         }
 
         public void OnJumpActionCancelled(InputAction.CallbackContext ctx)
         {
             IsJumpHeld = false;
+            LocalCharacterDriver.IsJumpHeld = false;
         }
 
         public void OnCrouchPerformed(InputAction.CallbackContext ctx)

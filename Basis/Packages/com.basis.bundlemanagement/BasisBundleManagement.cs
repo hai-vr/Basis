@@ -8,7 +8,7 @@ public static class BasisBundleManagement
     /// <summary>
     /// Downloads remote BEE, stores it, and returns the platform-matching generated metadata + bundle bytes.
     /// </summary>
-    public static async Task<(BasisBundleGenerated Generated, byte[] BundleBytes, string ErrorMessage)> DownloadLoadBundleConnector(BasisTrackedBundleWrapper bundleWrapper, BasisProgressReport progressCallback, CancellationToken cancellationToken)
+    public static async Task<(BasisBundleGenerated Generated, byte[] BundleBytes, string ErrorMessage)> DownloadLoadBundleConnector(BasisTrackedBundleWrapper bundleWrapper, BasisProgressReport progressCallback, CancellationToken cancellationToken, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         if (!BasisBeeValidator.ValidateWrapperPasswordAndUrl(bundleWrapper, out string url, out string err))
         {
@@ -20,7 +20,7 @@ public static class BasisBundleManagement
             return (null, null, "Cancelled before starting.");
         }
         BasisDebug.Log("Starting download process for " + url);
-        BeeResult<BeeDownloadResult> result = await BasisIOManagement.DownloadBEEEx(url, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken);
+        BeeResult<BeeDownloadResult> result = await BasisIOManagement.DownloadBEEEx(url, bundleWrapper.LoadableBundle.UnlockPassword, progressCallback, cancellationToken,MaxDownloadSizeInMB);
 
         if (!result.IsSuccess || result.Value is null)
         {
@@ -161,7 +161,7 @@ public static class BasisBundleManagement
     /// <summary>
     /// Downloads connector only and returns it.
     /// </summary>
-    public static async Task<(BasisBundleConnector Connector, string ErrorMessage)> DownloadConnectorFile(BasisTrackedBundleWrapper bundleWrapper, BasisProgressReport progressCallback, CancellationToken cancellationToken)
+    public static async Task<(BasisBundleConnector Connector, string ErrorMessage)> DownloadConnectorFile(BasisTrackedBundleWrapper bundleWrapper, BasisProgressReport progressCallback, CancellationToken cancellationToken, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         if (!BasisBeeValidator.ValidateWrapperPasswordAndUrl(bundleWrapper, out string url, out string err))
         {
@@ -173,7 +173,7 @@ public static class BasisBundleManagement
             return (null, "Cancelled before starting.");
         }
         BasisDebug.Log("Downloading BEE (connector-only) from " + url);
-        BeeResult<(BasisBundleConnector, string)> result = await BasisIOManagement.DownloadConnectorOnlyEx(url, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken);
+        BeeResult<(BasisBundleConnector, string)> result = await BasisIOManagement.DownloadConnectorOnlyEx(url, bundleWrapper.LoadableBundle.UnlockPassword!, progressCallback, cancellationToken, MaxDownloadSizeInMB);
 
         if (!result.IsSuccess || result.Value.Item1 is null)
         {

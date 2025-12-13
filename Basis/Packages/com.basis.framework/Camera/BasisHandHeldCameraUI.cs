@@ -152,6 +152,9 @@ public class BasisHandHeldCameraUI
     /// <summary>UI readout for field-of-view.</summary>
     public TextMeshProUGUI FOVOutput;
 
+    /// <summary>UI readout for Volumetric Fog.</summary>
+    public TextMeshProUGUI VolFogOutput;
+
     [Space(10)]
     /// <summary>Field-of-view slider.</summary>
     public Slider FOVSlider;
@@ -194,7 +197,7 @@ public class BasisHandHeldCameraUI
     /// <summary>Reference object used for selfie flipping (rotates 180° yaw).</summary>
     public GameObject cameraReference;
 
-    private bool selfie = false;
+    private bool selfieBool = false;
 
     /// <summary>The owning handheld camera component.</summary>
     public BasisHandHeldCamera HHC;
@@ -253,7 +256,7 @@ public class BasisHandHeldCameraUI
         BloomThresholdSlider?.onValueChanged.AddListener(ChangeBloomThreshold);
         ContrastSlider?.onValueChanged.AddListener(ChangeContrast);
         SaturationSlider?.onValueChanged.AddListener(ChangeSaturation);
-
+        volumetricDensitySlider?.onValueChanged.AddListener(ChangeVolumetricDensity);
         DepthModeAutoButton?.onClick.AddListener(() => SetDepthMode(DepthMode.Auto));
         DepthModeManualButton?.onClick.AddListener(() => SetDepthMode(DepthMode.Manual));
     }
@@ -295,15 +298,7 @@ public class BasisHandHeldCameraUI
                 action = CameraButtonAction.Timer,
                 button = Timer
             });
-
-        if (Nameplates != null)
-            list.Add(new CameraButtonDescriptor
-            {
-                id = "Nameplates",
-                action = CameraButtonAction.ToggleNameplates,
-                button = Nameplates
-            });
-
+        //Removed Nameplate code
         if (OverrideDesktopOutput != null)
             list.Add(new CameraButtonDescriptor
             {
@@ -311,15 +306,7 @@ public class BasisHandHeldCameraUI
                 action = CameraButtonAction.ToggleDesktopOutput,
                 button = OverrideDesktopOutput
             });
-
-        if (Selfie != null)
-            list.Add(new CameraButtonDescriptor
-            {
-                id = "Selfie",
-                action = CameraButtonAction.ToggleSelfie,
-                button = Selfie
-            });
-
+        //Remove Selfie code
         if (DepthModeAutoButton != null)
             list.Add(new CameraButtonDescriptor
             {
@@ -552,7 +539,7 @@ public class BasisHandHeldCameraUI
     private void SelfieToggle()
     {
         cameraReference.transform.rotation *= Quaternion.Euler(0, 180, 0);
-        selfie = !selfie;
+        selfieBool = !selfieBool;
     }
 
     /// <summary>
@@ -787,6 +774,7 @@ public class BasisHandHeldCameraUI
             SetSliderValue(DepthApertureSlider, settings.depthAperture);
             SetSliderValue(DepthFocusDistanceSlider, settings.depthFocusDistance);
             SetSliderValue(ExposureSlider, settings.exposureIndex);
+            SetSliderValue(volumetricDensitySlider, settings.VolumetricFogVolumedensity);
 
             if (Format != null)
                 Format.isOn = settings.formatIndex == FORMAT_EXR;
@@ -996,6 +984,17 @@ public class BasisHandHeldCameraUI
     public void ChangeISO(int index)
     {
         HHC.captureCamera.iso = int.Parse(HHC.MetaData.isoValues[index]);
+    }
+
+    public void ChangeVolumetricDensity(float value)
+    {
+#if Basis_VOLUMETRIC_SUPPORTED
+        if (HHC.MetaData.VolumetricFogVolume != null)
+        {
+            HHC.MetaData.VolumetricFogVolume.density.value = value;
+            VolFogOutput.text = value.ToString("F1");
+        }
+#endif
     }
 
     /// <summary>

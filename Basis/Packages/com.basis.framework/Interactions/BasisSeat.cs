@@ -521,6 +521,19 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
             base.OnInteractStart(input);
         }
+        public void Sit()
+        {
+            BasisLocalPlayer.Instance.LocalSeatDriver.Sit(this);
+            SetSeatOccupied(true);
+            LocallyInSeat = true;
+        }
+        public void Stand()
+        {
+            BasisLocalPlayer.Instance.LocalSeatDriver.Stand();
+            SetSeatOccupied(false);
+            LocallyInSeat = false;
+        }
+
 
         public override void OnInteractEnd(BasisInput input)
         {

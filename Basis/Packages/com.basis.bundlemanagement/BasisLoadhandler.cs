@@ -89,7 +89,7 @@ public static class BasisLoadHandler
             }
         }
     }
-    public static async Task<GameObject> LoadGameObjectBundle(BasisLoadableBundle loadableBundle, bool useContentRemoval, BasisProgressReport report, CancellationToken cancellationToken, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool ModifyScale, Selector Selector, Transform Parent = null, bool DestroyColliders = false)
+    public static async Task<GameObject> LoadGameObjectBundle(BasisLoadableBundle loadableBundle, bool useContentRemoval, BasisProgressReport report, CancellationToken cancellationToken, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool ModifyScale, Selector Selector, Transform Parent = null, bool DestroyColliders = false, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         await EnsureInitializationComplete();
 
@@ -108,9 +108,9 @@ public static class BasisLoadHandler
             }
         }
 
-        return await HandleFirstBundleLoad(loadableBundle, useContentRemoval, report, cancellationToken, Position, Rotation, Scale, ModifyScale, Selector, Parent, DestroyColliders);
+        return await HandleFirstBundleLoad(loadableBundle, useContentRemoval, report, cancellationToken, Position, Rotation, Scale, ModifyScale, Selector, Parent, DestroyColliders,MaxDownloadSizeInMB);
     }
-    public static async Task<Scene> LoadSceneBundle(bool makeActiveScene, BasisLoadableBundle loadableBundle, BasisProgressReport report, CancellationToken cancellationToken)
+    public static async Task<Scene> LoadSceneBundle(bool makeActiveScene, BasisLoadableBundle loadableBundle, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         await EnsureInitializationComplete(); 
 
@@ -122,10 +122,10 @@ public static class BasisLoadHandler
             return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, report);
         }
 
-        return await HandleFirstSceneLoad(loadableBundle, makeActiveScene, report, cancellationToken);
+        return await HandleFirstSceneLoad(loadableBundle, makeActiveScene, report, cancellationToken,MaxDownloadSizeInMB);
     }
 
-    private static async Task<Scene> HandleFirstSceneLoad(BasisLoadableBundle loadableBundle, bool makeActiveScene, BasisProgressReport report, CancellationToken cancellationToken)
+    private static async Task<Scene> HandleFirstSceneLoad(BasisLoadableBundle loadableBundle, bool makeActiveScene, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper { AssetBundle = null, LoadableBundle = loadableBundle };
 
@@ -135,11 +135,11 @@ public static class BasisLoadHandler
             return new Scene();
         }
 
-        await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken);
+        await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken,MaxDownloadSizeInMB);
         return await BasisBundleLoadAsset.LoadSceneFromBundleAsync(wrapper, makeActiveScene, report);
     }
 
-    private static async Task<GameObject> HandleFirstBundleLoad(BasisLoadableBundle loadableBundle, bool useContentRemoval, BasisProgressReport report, CancellationToken cancellationToken, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool ModifyScale,Selector Selector, Transform Parent = null, bool DestroyColliders = false)
+    private static async Task<GameObject> HandleFirstBundleLoad(BasisLoadableBundle loadableBundle, bool useContentRemoval, BasisProgressReport report, CancellationToken cancellationToken, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool ModifyScale,Selector Selector, Transform Parent = null, bool DestroyColliders = false, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
     {
         BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper
         {
@@ -155,7 +155,7 @@ public static class BasisLoadHandler
 
         try
         {
-            await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken);
+            await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancellationToken,MaxDownloadSizeInMB);
             return await BasisBundleLoadAsset.LoadFromWrapper(wrapper, useContentRemoval, Position, Rotation, ModifyScale, Scale, Selector, Parent, DestroyColliders);
         }
         catch (Exception ex)
