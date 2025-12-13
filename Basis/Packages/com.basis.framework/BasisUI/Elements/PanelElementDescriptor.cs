@@ -30,6 +30,7 @@ namespace Basis.BasisUI
 
         [Header("Visuals")]
         [SerializeField] private bool _clearOnAwake;
+        [SerializeField] private bool _useDefaultIconForNull;
         [field:SerializeField] public Sprite DefaultIcon { get; private set; }
         [field:SerializeField] public Texture2D DefaultTexture { get; private set; }
         [field:SerializeField] public string DefaultTitle { get; private set; }
@@ -112,8 +113,16 @@ namespace Basis.BasisUI
         {
             if (!HasIcon) return;
             // Disable the object if the sprite is null.
+
+            if (!value && _useDefaultIconForNull)
+            {
+                value = DefaultIcon;
+            }
+
+
             _iconSprite = value;
             IconBackground.gameObject.SetActive(value);
+            IconImage.enabled = value;
             IconImage.sprite = value;
         }
 

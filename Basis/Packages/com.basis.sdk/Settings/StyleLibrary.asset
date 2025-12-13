@@ -161,13 +161,6 @@ MonoBehaviour:
         Type: 0
       Sprite: {fileID: 21300000, guid: a336a8280e1dda94fbef1a59936ed578, type: 3}
       PixelsPerUnitMultiplier: 2
-    - Title: Button Success
-      Color:
-        Color: {r: 0, g: 0, b: 0, a: 0}
-        PaletteStyle: 13
-        Type: 0
-      Sprite: {fileID: 21300000, guid: a2c948f5f5f08b640b12f518adaa9107, type: 3}
-      PixelsPerUnitMultiplier: 4
     - Title: Button Caution
       Color:
         Color: {r: 0, g: 0, b: 0, a: 0}
@@ -196,13 +189,6 @@ MonoBehaviour:
         Type: 0
       Sprite: {fileID: 21300000, guid: a336a8280e1dda94fbef1a59936ed578, type: 3}
       PixelsPerUnitMultiplier: 4
-    - Title: Menu Element
-      Color:
-        Color: {r: 0, g: 0, b: 0, a: 0}
-        PaletteStyle: 2
-        Type: 0
-      Sprite: {fileID: 21300000, guid: a336a8280e1dda94fbef1a59936ed578, type: 3}
-      PixelsPerUnitMultiplier: 3
     - Title: Clear Field
       Color:
         Color: {r: 0, g: 0, b: 0, a: 0}
@@ -210,6 +196,34 @@ MonoBehaviour:
         Type: 0
       Sprite: {fileID: 0}
       PixelsPerUnitMultiplier: 1
+    - Title: Menu Element
+      Color:
+        Color: {r: 0, g: 0, b: 0, a: 0}
+        PaletteStyle: 2
+        Type: 0
+      Sprite: {fileID: 21300000, guid: a336a8280e1dda94fbef1a59936ed578, type: 3}
+      PixelsPerUnitMultiplier: 3
+    - Title: Modal Window
+      Color:
+        Color: {r: 0, g: 0, b: 0, a: 0}
+        PaletteStyle: 9
+        Type: 0
+      Sprite: {fileID: 21300000, guid: a336a8280e1dda94fbef1a59936ed578, type: 3}
+      PixelsPerUnitMultiplier: 3
+    - Title: Button Success
+      Color:
+        Color: {r: 0, g: 0, b: 0, a: 0}
+        PaletteStyle: 13
+        Type: 0
+      Sprite: {fileID: 21300000, guid: a2c948f5f5f08b640b12f518adaa9107, type: 3}
+      PixelsPerUnitMultiplier: 4
+    - Title: Button Standard
+      Color:
+        Color: {r: 0, g: 0, b: 0, a: 0}
+        PaletteStyle: 4
+        Type: 0
+      Sprite: {fileID: 21300000, guid: a2c948f5f5f08b640b12f518adaa9107, type: 3}
+      PixelsPerUnitMultiplier: 4
   LabelStyles:
     Styles:
     - Title: Header
@@ -391,12 +405,6 @@ MonoBehaviour:
       IconStyle: Icon
       IndicatorStyle: Icon
       LabelStyle: Button Label
-    - Title: Button Danger
-      SelectionStyle: Highlight On Hover
-      BackgroundStyle: Button Danger
-      IconStyle: Icon
-      IndicatorStyle: Icon
-      LabelStyle: Button Label
     - Title: Button
       SelectionStyle: Highlight On Hover
       BackgroundStyle: Button
@@ -408,6 +416,18 @@ MonoBehaviour:
       BackgroundStyle: Button
       IconStyle: Icon
       IndicatorStyle: Button Success
+      LabelStyle: Button Label
+    - Title: Button Danger
+      SelectionStyle: Highlight On Hover
+      BackgroundStyle: Button Danger
+      IconStyle: Icon
+      IndicatorStyle: Icon
+      LabelStyle: Button Label
+    - Title: Button Standard
+      SelectionStyle: Highlight On Hover
+      BackgroundStyle: Button Standard
+      IconStyle: Icon
+      IndicatorStyle: Icon
       LabelStyle: Button Label
   ToggleStyles:
     Styles:

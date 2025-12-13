@@ -91,7 +91,7 @@ namespace Basis.Scripts.UI.UI_Panels
             ISShowingURL = !ISShowingURL;
             AvatarURL.readOnly = true;
             if (ISShowingURL)
-            { 
+            {
                 AvatarURL.text = SelectedBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
                 EyeURLIcon.sprite = EyeOn;
             }
@@ -112,7 +112,6 @@ namespace Basis.Scripts.UI.UI_Panels
         }
         public void SelectedDeleteAvatar()
         {
-
             BasisDataStoreAvatarKeys.AvatarKey Key = new BasisDataStoreAvatarKeys.AvatarKey()
             {
                 Pass = SelectedBundle.UnlockPassword,
