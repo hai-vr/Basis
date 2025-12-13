@@ -6816,11 +6816,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5169183713725170045, guid: 22784503d55953741bd9c28fc41bb69d, type: 3}
       propertyPath: _placeholder
-      value: Avatar URL
+      value: Avatar Password
       objectReference: {fileID: 0}
     - target: {fileID: 5523402677466145760, guid: 22784503d55953741bd9c28fc41bb69d, type: 3}
       propertyPath: m_text
-      value: Avatar URL
+      value: Avatar Password
       objectReference: {fileID: 0}
     - target: {fileID: 8160442296760430333, guid: 22784503d55953741bd9c28fc41bb69d, type: 3}
       propertyPath: m_AnchorMax.y

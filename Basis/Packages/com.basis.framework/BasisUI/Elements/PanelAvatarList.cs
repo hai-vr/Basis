@@ -145,6 +145,7 @@ namespace Basis.BasisUI
 
                         if (IconSprite) Button.Descriptor.SetIcon(IconSprite);
                     }
+                    // TODO: This will trigger if the async task is continuing after the menu has been closed.
                     catch (Exception e)
                     {
                         BasisDebug.LogError(e);
@@ -265,6 +266,7 @@ namespace Basis.BasisUI
             button.OnClicked += () => ShowAvatarInfo(item);
 
             await item.LoadItemData(Report, CancellationToken);
+            CachedAvatarData.AvatarBundles.Add(bundle);
 
             if (selectAfterCreate) button.OnClick();
         }
@@ -297,6 +299,7 @@ namespace Basis.BasisUI
         {
             if (item == null)
             {
+                BasisDebug.LogError($"No avatar menu item provided.");
                 ClearAvatarInfo();
                 return;
             }
@@ -304,7 +307,23 @@ namespace Basis.BasisUI
             SelectedAvatar = item;
 
             BasisLoadableBundle bundle = item.Wrapper.LoadableBundle;
+            if (bundle == null)
+            {
+                BasisDebug.LogError($"Bundle on AvatarMenuItem {item} not found.");
+                RemoveAvatarItem(item);
+                ClearAvatarInfo();
+                return;
+            }
+
             BasisBundleDescription description = bundle.BasisBundleConnector.BasisBundleDescription;
+            if (description == null)
+            {
+                BasisDebug.LogError($"Bundle Description on AvatarMenuItem {item} not found.");
+                RemoveAvatarItem(item);
+                ClearAvatarInfo();
+                return;
+            }
+
             Descriptor.SetIcon(item.IconSprite);
             Descriptor.SetTitle(description.AssetBundleName);
             Descriptor.SetDescription(description.AssetBundleDescription);
@@ -363,12 +382,6 @@ namespace Basis.BasisUI
                 return;
             }
 
-            BasisDataStoreAvatarKeys.AvatarKey key = new()
-            {
-                Pass = SelectedAvatar.Wrapper.LoadableBundle.UnlockPassword,
-                Url = SelectedAvatar.Wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation
-            };
-
             BasisMainMenu.Instance.OpenDialogue(
                 "Basis VR",
                 "Are you sure you want to remove this avatar?",
@@ -377,13 +390,22 @@ namespace Basis.BasisUI
                 value =>
                 {
                     if (value) return;
-
-                    MenuItems.Remove(SelectedAvatar);
-                    SelectionButtons.Remove(SelectedAvatar.Button);
-                    SelectedAvatar.Clear();
-                    _ = RemoveKey(key);
-                    ClearAvatarInfo();
+                    RemoveAvatarItem(SelectedAvatar);
                 });
+        }
+
+        public void RemoveAvatarItem(AvatarMenuItem menuItem)
+        {
+            BasisDataStoreAvatarKeys.AvatarKey key = new()
+            {
+                Pass = SelectedAvatar.Wrapper.LoadableBundle.UnlockPassword,
+                Url = SelectedAvatar.Wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation
+            };
+            MenuItems.Remove(SelectedAvatar);
+            SelectionButtons.Remove(SelectedAvatar.Button);
+            SelectedAvatar.Clear();
+            _ = RemoveKey(key);
+            ClearAvatarInfo();
         }
 
         public async Task RemoveKey(BasisDataStoreAvatarKeys.AvatarKey key)
