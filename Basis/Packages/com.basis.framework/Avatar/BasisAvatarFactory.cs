@@ -403,8 +403,7 @@ namespace Basis.Scripts.Avatar
         private static readonly SemaphoreSlim _loadGate = new(MaxConcurrentAvatarLoads, MaxConcurrentAvatarLoads);
 
         // Tracks the latest in-flight request per player (local/remote share this).
-        private static readonly ConcurrentDictionary<int, CancellationTokenSource> _playerLoadCts
-            = new();
+        private static readonly ConcurrentDictionary<int, CancellationTokenSource> _playerLoadCts = new();
 
         private static CancellationToken ReplacePlayerLoadToken(BasisPlayer player)
         {
