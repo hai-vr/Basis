@@ -1,10 +1,7 @@
-using Basis.Scripts.Networking;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
-
 public static class BasisRemoteFaceDriver
 {
     public static NativeArray<EyeState> eyeStates;
