@@ -2,7 +2,11 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-public static class BasisRemoteFaceDriver
+/// <summary>
+/// Remote Face Management
+/// this is mulithreaded blink and eye positions
+/// </summary>
+public static class BasisRemoteFaceManagement
 {
     public static NativeArray<EyeState> eyeStates;
     public static NativeArray<BlinkState> blinkStates;

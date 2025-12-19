@@ -205,12 +205,12 @@ public class BasisEventDriver : MonoBehaviour
 
             Basis.Scripts.Networking.Receivers.BasisNetworkReceiver[] snapshot = BasisNetworkPlayers.ReceiversSnapshot;
             int count = BasisNetworkPlayers.ReceiverCount;
-            BasisRemoteFaceDriver.Simulate(TimeAsDouble,DeltaTime, count, snapshot);
+            BasisRemoteFaceManagement.Simulate(TimeAsDouble,DeltaTime, count, snapshot);
 
             BasisLocalPlayer.Instance.SimulateOnRender(DeltaTime);
             // send out avatar
             BasisNetworkTransmitter.AfterAvatarChanges?.Invoke();
-            BasisRemoteFaceDriver.Apply(count, snapshot);
+            BasisRemoteFaceManagement.Apply(count, snapshot);
         }
     }
 

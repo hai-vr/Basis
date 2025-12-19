@@ -38,7 +38,12 @@ namespace Basis.Scripts.BasisSdk.Players
         [SerializeField]
         public BasisNetworkReceiver NetworkReceiver;
 
-        public Drivers.BasisRemoteFaceDriver RemoteFaceDriver;
+        /// <summary>
+        /// Network Face Driver that provides eye and blink support
+        /// </summary>
+        [Header("Receiver")]
+        [SerializeField]
+        public BasisRemoteFaceDriver RemoteFaceDriver;
         #endregion
 
         #region UI / Name Plate
