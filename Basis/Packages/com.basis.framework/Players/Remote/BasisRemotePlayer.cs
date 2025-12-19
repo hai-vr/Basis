@@ -24,14 +24,6 @@ namespace Basis.Scripts.BasisSdk.Players
     public class BasisRemotePlayer : BasisPlayer
     {
         #region Drivers & Receivers
-
-        /// <summary>
-        /// Driver that applies remote eye/gaze data to the avatar.
-        /// </summary>
-        [Header("Eye Driver")]
-        [SerializeField]
-        public BasisRemoteEyeDriver RemoteEyeDriver = new BasisRemoteEyeDriver();
-
         /// <summary>
         /// Driver responsible for avatar-specific remote updates (e.g., bone jobs hookup).
         /// </summary>
@@ -46,6 +38,7 @@ namespace Basis.Scripts.BasisSdk.Players
         [SerializeField]
         public BasisNetworkReceiver NetworkReceiver;
 
+        public Drivers.BasisRemoteFaceDriver RemoteFaceDriver;
         #endregion
 
         #region UI / Name Plate
@@ -276,13 +269,9 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </summary>
         public void OnDestroy()
         {
-            if (FacialBlinkDriver != null)
+            if (RemoteFaceDriver != null)
             {
-                FacialBlinkDriver.OnDestroy();
-            }
-            if (RemoteEyeDriver != null)
-            {
-                RemoteEyeDriver.OnDestroy();
+                RemoteFaceDriver.OnDestroy();
             }
             if (RemoteNamePlate != null)
             {
