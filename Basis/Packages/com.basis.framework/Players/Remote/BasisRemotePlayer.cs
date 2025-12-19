@@ -34,14 +34,14 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// Network receiver that provides pose/animation buffers and messages for this player.
         /// </summary>
-        [Header("Receiver")]
+        [Header("Network Receiver")]
         [SerializeField]
         public BasisNetworkReceiver NetworkReceiver;
 
         /// <summary>
         /// Network Face Driver that provides eye and blink support
         /// </summary>
-        [Header("Receiver")]
+        [Header("Face Driver")]
         [SerializeField]
         public BasisRemoteFaceDriver RemoteFaceDriver;
         #endregion
