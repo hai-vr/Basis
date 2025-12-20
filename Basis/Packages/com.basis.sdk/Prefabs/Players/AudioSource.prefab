@@ -240,6 +240,7 @@ MonoBehaviour:
   - 0
   applyHRTFToPathing: 0
   pathingMixLevel: 1
+  Transform: {fileID: 0}
 --- !u!114 &7865084452988920708
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -253,39 +254,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   BasisAudioAndVisemeDriver:
-    smoothAmount: 70
-    HasViseme: 
-    BlendShapeCount: 0
-    Player: {fileID: 0}
-    Avatar: {fileID: 0}
-    uLipSync: {fileID: 0}
-    uLipSyncBlendShape: {fileID: 0}
-    phonemeBlendShapeTable: []
-    FirstTime: 0
-    WasSuccessful: 0
-    HashInstanceID: -1
-    uLipSyncEnabledState: 1
+    rid: -2
   BasisAudioReceiver:
-    BasisRemoteVisemeAudioDriver: {fileID: 0}
-    audioSource: {fileID: 0}
-    visemeDriver:
-      smoothAmount: 70
-      HasViseme: 
-      BlendShapeCount: 0
-      Player: {fileID: 0}
-      Avatar: {fileID: 0}
-      uLipSync: {fileID: 0}
-      uLipSyncBlendShape: {fileID: 0}
-      phonemeBlendShapeTable: []
-      FirstTime: 0
-      WasSuccessful: 0
-      HashInstanceID: -1
-      uLipSyncEnabledState: 1
-    IsPlaying: 0
-    pcmBuffer: []
-    pcmLength: 0
-    lastReadIndex: 0
-    AudioSourceTransform: {fileID: 0}
-    resampledSegment: []
-    HasTransform: 0
+    rid: -2
   Initalized: 0
+  references:
+    version: 2
+    RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }

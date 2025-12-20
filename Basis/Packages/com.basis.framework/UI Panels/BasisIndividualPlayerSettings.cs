@@ -1,6 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
-using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.UI.UI_Panels;
 using System.Threading.Tasks;
 using TMPro;
@@ -84,6 +83,8 @@ public class BasisIndividualPlayerSettings : BasisUIBase
         // Apply to UI (set values BEFORE wiring listeners so we don't trigger saves immediately)
         UserVolumeOverride.SetValueWithoutNotify(settings.VolumeLevel);
         SliderVolumePercentage.text = Mathf.RoundToInt(settings.VolumeLevel * 100) + "%";
+        bool over = settings.VolumeLevel > 1.0f;
+        SliderVolumePercentage.color = over ? Color.red : Color.white;
 
         AvatarVisibleText.text = settings.AvatarVisible ? "Hide Avatar" : "Show Avatar";
         AvatarInteractionsText.text = settings.AvatarInteraction ? "Disable Interactions" : "Enable Interactions";
