@@ -368,27 +368,18 @@ namespace Basis.Scripts.Networking.Receivers
             audioSource.spatialBlend = Mathf.Clamp01(spatialBlend);
             audioSource.dopplerLevel = Mathf.Max(0f, dopplerLevel);
 
-            short gain;
+            int gain;
             if (volume <= 0f)
             {
+                // Effectively silence
+                gain = (int)(-96f * 256f);
                 audioSource.volume = 0f;
-                gain = 256;
             }
             else
             {
-
-                if (volume > 1)
-                {
-                    audioSource.volume = 1;
-                    gain = (short)Mathf.Clamp(volume * 1024f, 256, short.MaxValue);
-                }
-                else
-                {
-                    audioSource.volume = volume;
-                    gain = 1024;
-                }
+                float db = 20f * Mathf.Log10(volume);
+                gain = (int)(db * 256f);
             }
-
             if (decoder != null)
             {
                 BasisDebug.Log($"Gain Set To {gain}");
