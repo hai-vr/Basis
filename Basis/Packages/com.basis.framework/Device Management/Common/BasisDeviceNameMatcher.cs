@@ -49,10 +49,16 @@ namespace Basis.Scripts.Device_Management
                 {
                     var id = entry.matchableDeviceIds[j];
                     if (!string.IsNullOrEmpty(id) && id.ToLowerInvariant() == needle)
+                    {
+                        if (UseFallbackROle)
+                        {
+                            entry.HasTrackedRole = UseFallbackROle;
+                            entry.TrackedRole = FallBackRole;
+                        }
                         return entry;
+                    }
                 }
             }
-
             // Not found -> create a sensible fallback and append to list
             BasisDebug.LogError($"[DeviceNameMatcher] Unable to find configuration for '{nameToMatch}'. Generating fallback entry.");
             return CreateAndRegisterFallback(nameToMatch, FallBackRole, UseFallbackROle);
