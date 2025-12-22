@@ -34,11 +34,6 @@ public static class BasisAssetBundlePipeline
     }
     public static async Task<(bool, (BasisBundleGenerated, AssetBundleBuilder.InformationHash))> BuildAssetBundle(bool isScene, GameObject asset, Scene scene, BasisAssetBundleObject settings, string Password, BuildTarget Target)
     {
-#if UNITY_EDITOR_LINUX
-        ScriptingImplementation ResetTo = ScriptingImplementation.Mono2x;
-#else
-        ScriptingImplementation ResetTo = ScriptingImplementation.IL2CPP;
-#endif
         if (EditorUserBuildSettings.activeBuildTarget != Target)
         {
             EditorUserBuildSettings.SwitchActiveBuildTarget(BuildPipeline.GetBuildTargetGroup(Target), Target);
@@ -89,9 +84,9 @@ public static class BasisAssetBundlePipeline
             BuildTarget buildTarget = EditorUserBuildSettings.activeBuildTarget;
             BuildTargetGroup targetGroup = BuildPipeline.GetBuildTargetGroup(buildTarget);
             var namedBuildTarget = UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(targetGroup);
-            if (ResetTo != PlayerSettings.GetScriptingBackend(namedBuildTarget))
+            if (ScriptingImplementation.Mono2x != PlayerSettings.GetScriptingBackend(namedBuildTarget))
             {
-                PlayerSettings.SetScriptingBackend(namedBuildTarget, ResetTo);
+                PlayerSettings.SetScriptingBackend(namedBuildTarget, ScriptingImplementation.Mono2x);
             }
             return new(true, value);
         }
@@ -111,9 +106,9 @@ public static class BasisAssetBundlePipeline
             BuildTarget buildTarget = EditorUserBuildSettings.activeBuildTarget;
             BuildTargetGroup targetGroup = BuildPipeline.GetBuildTargetGroup(buildTarget);
             var namedBuildTarget = UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(targetGroup);
-            if (ResetTo != PlayerSettings.GetScriptingBackend(namedBuildTarget))
+            if (ScriptingImplementation.Mono2x != PlayerSettings.GetScriptingBackend(namedBuildTarget))
             {
-                PlayerSettings.SetScriptingBackend(namedBuildTarget, ResetTo);
+                PlayerSettings.SetScriptingBackend(namedBuildTarget, ScriptingImplementation.Mono2x);
             }
             return new(false, (null, new AssetBundleBuilder.InformationHash()));
         }
