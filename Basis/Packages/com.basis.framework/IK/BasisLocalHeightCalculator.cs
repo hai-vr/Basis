@@ -109,12 +109,10 @@ public static class BasisLocalHeightCalculator
 
         if (boneDriver != null && boneDriver.FindBone(out var leftHandBone, BasisBoneTrackedRole.LeftHand) && boneDriver.FindBone(out var rightHandBone, BasisBoneTrackedRole.RightHand))
         {
-            BasisHeightDriver.AvatarArmSpan = Vector3.Distance(leftHandBone.TposeLocalScaled.position, rightHandBone.TposeLocalScaled.position);
-
-            Vector3 HeadPosition = HeadBone.TposeLocalScaled.position;
+            Vector3 HeadPosition = HeadBone.TposeLocal.position;
             Vector3 headFlat = new Vector3(HeadPosition.x, 0f, HeadPosition.z);
-            Vector3 leftFlat = new Vector3(leftHandBone.TposeLocalScaled.position.x, 0f, leftHandBone.TposeLocalScaled.position.z);
-            Vector3 rightFlat = new Vector3(rightHandBone.TposeLocalScaled.position.x, 0f, rightHandBone.TposeLocalScaled.position.z);
+            Vector3 leftFlat = new Vector3(leftHandBone.TposeLocal.position.x, 0f, leftHandBone.TposeLocal.position.z);
+            Vector3 rightFlat = new Vector3(rightHandBone.TposeLocal.position.x, 0f, rightHandBone.TposeLocal.position.z);
 
             float leftArmLength = Vector3.Distance(headFlat, leftFlat);
             float rightArmLength = Vector3.Distance(headFlat, rightFlat);
