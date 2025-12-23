@@ -590,6 +590,16 @@ namespace Basis.BasisUI
             IkGroup.SetTitle("Calibration & IK");
             IkGroup.SetDescription("Settings for Fine Tuning Calibration and IK");
 
+            // Seated Mode
+            dropdownSeatedMode = PanelDropdown.CreateNewEntry(IkGroup.ContentParent);
+            dropdownSeatedMode.Descriptor.SetTitle("Seated Mode");
+            dropdownSeatedMode.AssignEntries(new List<string>
+    {
+        "Standing Mode",
+        SeatedMode_Seated
+    });
+            dropdownSeatedMode.AssignBinding(BasisSettingsDefaults.SeatedMode);
+
             // Visual State Mode
             dropdownVisualState = PanelDropdown.CreateNewEntry(IkGroup.ContentParent);
             dropdownVisualState.Descriptor.SetTitle("Full Body IK Mode");
@@ -600,16 +610,6 @@ namespace Basis.BasisUI
         VisualMode_CalibEyeHeight
     });
             dropdownVisualState.AssignBinding(BasisSettingsDefaults.IKMode);
-
-            // Seated Mode
-            dropdownSeatedMode = PanelDropdown.CreateNewEntry(IkGroup.ContentParent);
-            dropdownSeatedMode.Descriptor.SetTitle("Seated Mode");
-            dropdownSeatedMode.AssignEntries(new List<string>
-    {
-        "Standing Mode",
-        SeatedMode_Seated
-    });
-            dropdownSeatedMode.AssignBinding(BasisSettingsDefaults.SeatedMode);
 
             // Custom Scale toggle (your label says Custom Scale but variable name says DebugVisuals; up to you)
             var toggleCustomScale = PanelToggle.CreateNewEntry(IkGroup.ContentParent);
