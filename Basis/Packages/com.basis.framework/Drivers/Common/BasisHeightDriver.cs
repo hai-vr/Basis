@@ -50,7 +50,7 @@ public static class BasisHeightDriver
         }
 
         // use the (now) known unscaled avatar eye height as baseline
-        float baselineAvatarEyeHeight = SelectedAvatarHeight;
+        float baselineAvatarEyeHeight = AvatarEyeHeight;
         if (baselineAvatarEyeHeight <= 0f)
         {
             BasisDebug.LogError("Invalid baseline avatar eye height after recalculation. Cannot compute scale.", BasisDebug.LogTag.Avatar);
@@ -104,6 +104,9 @@ public static class BasisHeightDriver
     public static float ArmRatioPlayerToDefaultScale { get => armRatioPlayerToDefaultScale;  set => armRatioPlayerToDefaultScale = value; }
     public static float EyeRatioAvatarToAvatarDefaultScale { get => eyeRatioAvatarToAvatarDefaultScale;  set => eyeRatioAvatarToAvatarDefaultScale = value; }
     public static float EyeRatioPlayerToDefaultScale { get => eyeRatioPlayerToDefaultScale;  set => eyeRatioPlayerToDefaultScale = value; }
+
+    public static float ComputedPlayerHeight;
+    public static float ComputedEyeAvatarToAvatarDefaultScale;
     /// <summary>
     /// Chooses the active height metrics and scale ratios based on the provided mode.
     /// </summary>
@@ -111,6 +114,8 @@ public static class BasisHeightDriver
     /// <see cref="BasisSelectedHeightMode.EyeHeight"/>, or <see cref="BasisSelectedHeightMode.Custom"/>.</param>
     public static void ChooseHeightToUse(BasisSelectedHeightMode Height)
     {
+        ComputedPlayerHeight = SelectedPlayerHeight / DefaultAvatarEyeHeight;
+        ComputedEyeAvatarToAvatarDefaultScale = SelectedPlayerHeight / DefaultAvatarEyeHeight;
         switch (Height)
         {
             case BasisSelectedHeightMode.ArmSpan:
@@ -128,8 +133,8 @@ public static class BasisHeightDriver
             case BasisSelectedHeightMode.Custom:
                 SelectedPlayerHeight = CustomPlayerEyeHeight;
                 SelectedAvatarHeight = CustomAvatarEyeHeight;
-                SelectedPlayerToDefaultScale = SelectedPlayerHeight / DefaultAvatarEyeHeight;
-                SelectedAvatarToAvatarDefaultScale = SelectedAvatarHeight / DefaultPlayerEyeHeight;
+                SelectedPlayerToDefaultScale = ComputedPlayerHeight;
+                SelectedAvatarToAvatarDefaultScale = ComputedEyeAvatarToAvatarDefaultScale;
                 break;
         }
         BasisDebug.Log($"Height Mode is {Height} with height {SelectedPlayerHeight} with avatar height {SelectedAvatarHeight} with selected player to default scale {SelectedPlayerToDefaultScale} select avatar to avatar scale {SelectedAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
