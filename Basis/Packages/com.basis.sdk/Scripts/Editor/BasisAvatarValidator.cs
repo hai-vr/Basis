@@ -87,6 +87,7 @@ public class BasisAvatarValidator
 
         errorMessageLabel = new Label("No Errors");
         errorMessageLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        errorMessageLabel.style.whiteSpace = WhiteSpace.Normal;
         errorPanel.Add(errorMessageLabel);
 
         errorPanel.style.display = DisplayStyle.None;
@@ -115,6 +116,7 @@ public class BasisAvatarValidator
 
         warningMessageLabel = new Label("No Errors");
         warningMessageLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+        warningMessageLabel.style.whiteSpace = WhiteSpace.Normal;
         warningPanel.Add(warningMessageLabel);
 
         warningPanel.style.display = DisplayStyle.None;
@@ -488,7 +490,7 @@ public class BasisAvatarValidator
     }
     private void ShowErrorPanel(VisualElement Root, List<BasisValidationIssue> errors)
     {
-        string IssueList = string.Empty;
+        List<string> IssueList = new List<string>();
         for (int Index = 0; Index < errors.Count; Index++)
         {
             BasisValidationIssue issue = errors[Index];
@@ -497,9 +499,12 @@ public class BasisAvatarValidator
             {
                 AutoFixButton(Root, ActFix, issue.Message);
             }
-            IssueList += issue.Message;
+            if (!IssueList.Exists(i => i == issue.Message))
+            {
+                IssueList.Add(issue.Message);
+            }
         }
-        errorMessageLabel.text = string.Join("\n", IssueList);
+        errorMessageLabel.text = string.Join("\n", IssueList.ToArray());
         errorPanel.style.display = DisplayStyle.Flex;
     }
     private void HideErrorPanel()
@@ -508,7 +513,7 @@ public class BasisAvatarValidator
     }
     private void ShowWarningPanel(VisualElement Root,List<BasisValidationIssue> warnings)
     {
-        string warningsList = string.Empty;
+        List<string> warningsList = new List<string>();
         for (int Index = 0; Index < warnings.Count; Index++)
         {
             BasisValidationIssue issue = warnings[Index];
@@ -517,9 +522,12 @@ public class BasisAvatarValidator
             {
                 AutoFixButton(Root, ActFix, issue.Message);
             }
-            warningsList += issue.Message;
+            if (!warningsList.Exists(i => i==issue.Message))
+            {
+                warningsList.Add(issue.Message);
+            }
         }
-        warningMessageLabel.text = string.Join("\n", warningsList);
+        warningMessageLabel.text = string.Join("\n", warningsList.ToArray());
         warningPanel.style.display = DisplayStyle.Flex;
     }
     public void ClearFixButtons(VisualElement rootElement)
