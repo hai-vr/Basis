@@ -20,4 +20,7 @@ public class SMModuleStorage : BasisSettingsBase
     {
         return (long)mb * 1024 * 1024;
     }
+    public override void ChangedSettings()
+    {
+    }
 }

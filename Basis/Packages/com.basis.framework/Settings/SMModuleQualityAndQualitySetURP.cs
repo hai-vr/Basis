@@ -45,6 +45,9 @@ namespace BattlePhaze.SettingsManager.Intergrations
                     break;
             }
         }
+        public override void ChangedSettings()
+        {
+        }
         private void ApplyQualitySettings(AnisotropicFiltering anisotropicFilter, int particleBudget, bool renderShadows, bool stopNaN)
         {
             QualitySettings.anisotropicFiltering = anisotropicFilter;

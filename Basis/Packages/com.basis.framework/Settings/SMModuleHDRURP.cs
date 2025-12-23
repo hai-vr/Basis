@@ -44,4 +44,7 @@ public class SMModuleHDRURP : BasisSettingsBase
         }
 #endif
     }
+    public override void ChangedSettings()
+    {
+    }
 }

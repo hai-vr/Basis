@@ -44,4 +44,7 @@ public class SMModuleShadowQualityURP : BasisSettingsBase
                 break;
         }
     }
+    public override void ChangedSettings()
+    {
+    }
 }

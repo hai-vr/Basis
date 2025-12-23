@@ -41,6 +41,7 @@ namespace Basis.BasisUI
             tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
             tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
             tabGroup.AddTab("Avatar", null, AvatarTab(tabGroup));
+            tabGroup.AddTab("Calibration", null, IKTab(tabGroup));
 
             tabGroup.AddExtraAction("Admin", OpenAdminPanel);
             tabGroup.AddExtraAction("Console", OpenConsoleLogger);
@@ -153,17 +154,6 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Snap Turn Angle", -1, 120, true, 0, ValueDisplayMode.Degrees),
                 BasisSettingsDefaults.SnapTurnAngle);
 
-            // Seated Mode
-            PanelDropdown dropdownSeatedMode = PanelDropdown.CreateNewEntry(generalGroup);
-            dropdownSeatedMode.Descriptor.SetTitle("Seated Mode");
-            // Options inferred from default
-            dropdownSeatedMode.AssignEntries(new List<string>
-            {
-                "Standing Mode",
-                "Seated Mode"
-            });
-            dropdownSeatedMode.AssignBinding(BasisSettingsDefaults.SeatedMode);
-
             // RANGE SETTINGS GROUP
             PanelElementDescriptor rangeGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -181,6 +171,12 @@ namespace Basis.BasisUI
                 rangeGroup,
                 PanelSlider.SliderSettings.Distance("Hearing Range", 25),
                 BasisSettingsDefaults.HearingRange);
+
+            // Microphone Range
+            PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
+                rangeGroup,
+                PanelSlider.SliderSettings.Distance("Microphone Range", 25),
+                BasisSettingsDefaults.MicrophoneRange);
 
             descriptor.ForceRebuild();
             return tab;
@@ -245,12 +241,6 @@ namespace Basis.BasisUI
             }
 
             sliderMicrophoneVolume.SliderComponent.onValueChanged.AddListener(MicrophoneVolumeChanged);
-
-            // Microphone Range
-            PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
-                microphoneGroup,
-                PanelSlider.SliderSettings.Distance("Microphone Range", 25),
-                BasisSettingsDefaults.MicrophoneRange);
 
 
             BasisLocalVolumeMeterUIDescriptor rangeGroup = BasisLocalVolumeMeterUIDescriptor.CreateNew(BasisLocalVolumeMeterUIDescriptor.ElementStyles.Horizontal, microphoneGroup.ContentParent);
@@ -565,14 +555,6 @@ namespace Basis.BasisUI
             debugGroup.SetTitle("Avatar Settings");
             debugGroup.SetDescription("Configuration settings for avatars.");
 
-            // Avatar Scale
-            PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
-                debugGroup.ContentParent,
-                PanelSlider.SliderSettings.Advanced("Avatar Scale", 0.1f, 5, false, 2, ValueDisplayMode.Meters),
-                BasisSettingsDefaults.AvatarScale);
-
-            sliderFieldOfView.OnValueChanged += AvatarScaleChanged;
-
             // Avatar Download Size.
             PanelSlider AvatarDownloadSize = PanelSlider.CreateEntryAndBind(
                 debugGroup.ContentParent,
@@ -582,10 +564,66 @@ namespace Basis.BasisUI
             descriptor.ForceRebuild();
             return tab;
         }
-
-        public static void AvatarScaleChanged(float value)
+        // ------------------
+        // IK & Input
+        // ------------------
+        public static PanelTabPage IKTab(PanelTabGroup tabGroup)
         {
-            BasisHeightDriver.SetCustomPlayerHeight(value);
+            PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+            PanelElementDescriptor descriptor = tab.Descriptor;
+            descriptor.SetIcon(AddressableAssets.Sprites.Settings);
+            descriptor.SetTitle("IK Tab");
+
+            RectTransform container = descriptor.ContentParent;
+
+            // IK GROUP
+            PanelElementDescriptor IkGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            IkGroup.SetIcon(AddressableAssets.Sprites.Settings);
+            IkGroup.SetTitle("Calibration & IK");
+            IkGroup.SetDescription("Settings for Fine Tuning Calibration and IK");
+
+
+            // Visual State Mode
+            PanelDropdown dropdownVisualState = PanelDropdown.CreateNewEntry(IkGroup.ContentParent);
+            dropdownVisualState.Descriptor.SetTitle("Full Body IK Mode");
+            dropdownVisualState.AssignEntries(new List<string>
+            {
+                "Eye Height",
+                "Arm Distance",
+                "Calibration Eye Height"
+            });
+            dropdownVisualState.AssignBinding(BasisSettingsDefaults.IKMode);
+
+            // Seated Mode
+            PanelDropdown dropdownSeatedMode = PanelDropdown.CreateNewEntry(IkGroup.ContentParent);
+            dropdownSeatedMode.Descriptor.SetTitle("Seated Mode");
+            // Options inferred from default
+            dropdownSeatedMode.AssignEntries(new List<string>
+            {
+                "Standing Mode",
+                "Seated Mode"
+            });
+            dropdownSeatedMode.AssignBinding(BasisSettingsDefaults.SeatedMode);
+
+            // Debug Visuals Toggle
+            PanelToggle toggleDebugVisuals = PanelToggle.CreateNewEntry(IkGroup.ContentParent);
+            toggleDebugVisuals.Descriptor.SetTitle("Custom Scale");
+            toggleDebugVisuals.AssignBinding(BasisSettingsDefaults.CustomScale);
+
+            // Custom Scale
+            PanelSlider sliderScaleRange = PanelSlider.CreateEntryAndBind(
+                IkGroup,
+                PanelSlider.SliderSettings.Advanced("Avatar height Scale",0.1f, 5f,false,2, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.SelectedScale);
+
+
+            PanelSlider sliderCalibrationHeightRange = PanelSlider.CreateEntryAndBind(
+    IkGroup,
+    PanelSlider.SliderSettings.Advanced("Calibration Eye height", 0.4f, 2.3f, false, 3, ValueDisplayMode.Meters),
+    BasisSettingsDefaults.SelectedHeight);
+
+            descriptor.ForceRebuild();
+            return tab;
         }
     }
 }

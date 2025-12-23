@@ -27,4 +27,7 @@ public class SMModuleIcons : BasisSettingsBase
                 break;
         }
     }
+    public override void ChangedSettings()
+    {
+    }
 }

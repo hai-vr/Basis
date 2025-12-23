@@ -191,7 +191,7 @@ namespace Basis.BasisUI
 
         private void SetRootOffset(RootModeOffset offset)
         {
-            float playerHeight = BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerToDefaultScale;
+            float playerHeight = BasisHeightDriver.SelectedPlayerToDefaultScale;
             GroupOffset.SetLocalPositionAndRotation(offset.Position, offset.Rotation);
 
             Vector3 offsetScale =  Vector3.one * (offset.Scale * RootScale);
@@ -203,7 +203,7 @@ namespace Basis.BasisUI
 
         private void SetEyeOffset(float scaleFactor)
         {
-            float playerHeight = BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerToDefaultScale;
+            float playerHeight = BasisHeightDriver.SelectedPlayerToDefaultScale;
             Vector3 scaledOffset = Vector3.Scale(HeadOffset.Position, new Vector3(scaleFactor, scaleFactor, 1));
             GroupOffset.SetLocalPositionAndRotation(scaledOffset, HeadOffset.Rotation);
 

@@ -38,4 +38,7 @@ public class BasisVerticalSyncModule : BasisSettingsBase
             QualitySettings.vSyncCount = 0;
         }
     }
+    public override void ChangedSettings()
+    {
+    }
 }

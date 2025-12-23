@@ -11,6 +11,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Animations.Rigging;
+using static UnityEditor.Experimental.GraphView.GraphView;
 
 namespace Basis.Scripts.Drivers
 {
@@ -80,7 +81,7 @@ namespace Basis.Scripts.Drivers
         /// <param name="player">The local player instance.</param>
         public void InitialLocalCalibration(BasisLocalPlayer player)
         {
-            player.CurrentHeight.PickHeightMode(BasisSelectedHeightMode.EyeHeight);
+          //here LD  BasisHeightDriver.ChooseHeightToUse(BasisSelectedHeightMode.EyeHeight);
             Instance = this;
             BasisDebug.Log("InitialLocalCalibration");
             if (HasTPoseEvent == false)
@@ -144,8 +145,7 @@ namespace Basis.Scripts.Drivers
             player.LocalBoneDriver.RemoveAllListeners();
             player.LocalEyeDriver.Initalize(this, player);
 
-            SetAllMatrixRecalculation(true);
-            UpdateWhenOffscreen(true);
+            SetIndividualMeshData(true, true);
 
             if (References.Hashead)
             {
@@ -304,7 +304,7 @@ namespace Basis.Scripts.Drivers
             }
             else
             {
-                return BasisLocalHeight.FallbackSizeInMeters;
+                return BasisHeightDriver.FallbackSizeInMeters;
             }
         }
 
@@ -596,32 +596,20 @@ namespace Basis.Scripts.Drivers
 
         /// <summary>
         /// Toggles per-render matrix recalculation on all avatar skinned meshes.
-        /// </summary>
-        /// <param name="State">Whether to force matrix recalculation each render.</param>
-        public void SetAllMatrixRecalculation(bool State)
-        {
-            for (int Index = 0; Index < SkinnedMeshRendererLength; Index++)
-            {
-                SkinnedMeshRenderer Render = SkinnedMeshRenderer[Index];
-                if (Render != null)
-                {
-                    Render.forceMatrixRecalculationPerRender = State;
-                }
-            }
-        }
-
-        /// <summary>
         /// Toggles updating skinned meshes when offscreen (helpful for VR and detached cameras).
         /// </summary>
-        /// <param name="State">Whether to update meshes offscreen.</param>
-        public void UpdateWhenOffscreen(bool State)
+        /// <param name="forceMatrixRecalculationPerRender">Whether to force matrix recalculation each render.</param>
+        /// /// <param name="updateWhenOffscreen">Whether to force update When Offscreen each render.</param>
+        public void SetIndividualMeshData(bool forceMatrixRecalculationPerRender,bool updateWhenOffscreen)
         {
             for (int Index = 0; Index < SkinnedMeshRendererLength; Index++)
             {
                 SkinnedMeshRenderer Render = SkinnedMeshRenderer[Index];
                 if (Render != null)
                 {
-                    Render.updateWhenOffscreen = State;
+                    Render.forceMatrixRecalculationPerRender = forceMatrixRecalculationPerRender;
+                    Render.updateWhenOffscreen = updateWhenOffscreen;
+                    Render.forceMeshLod = 0;
                 }
             }
         }

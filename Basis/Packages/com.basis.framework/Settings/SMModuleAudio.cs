@@ -61,6 +61,9 @@ public class SMModuleAudio : BasisSettingsBase
                 break;
         }
     }
+    public override void ChangedSettings()
+    {
+    }
     public float ChangeVolume(float value, string name)
     {
         // Convert 0–100 slider to 0.0001–1 (linear scale)
