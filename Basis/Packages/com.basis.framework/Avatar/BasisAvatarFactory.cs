@@ -139,7 +139,6 @@ namespace Basis.Scripts.Avatar
                 Player.AvatarLoadMode = Mode;
 
                 InitializePlayerAvatar(Player, Output);
-                BasisHeightDriver.SetCustomHeight(false,1.6f,1.6f,1.6f,false);
                 Player.AvatarSwitched();
             }
             catch (OperationCanceledException)

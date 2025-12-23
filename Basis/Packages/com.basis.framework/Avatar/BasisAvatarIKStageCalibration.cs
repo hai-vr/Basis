@@ -54,7 +54,6 @@ namespace Basis.Scripts.Avatar
         public static void FullBodyCalibration()
         {
             HasFBIKTrackers = false;
-            BasisHeightDriver.SetCustomHeight(false, 1.6f, 1.6f,1.6f, false);
             BasisDeviceManagement.UnassignFBTrackers();
             BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
 

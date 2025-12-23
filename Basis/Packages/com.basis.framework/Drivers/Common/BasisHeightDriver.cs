@@ -1,24 +1,8 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
-/// <summary>
-/// Utility for measuring, computing, persisting, and applying player/avatar height data.
-/// </summary>
-/// <remarks>
-/// This driver derives eye height and arm span from devices when present, falls back to avatar/default metrics,
-/// computes safe ratios for scaling, and persists a saved height. It also exposes helpers for custom-height overrides.
-/// </remarks>
 public static class BasisHeightDriver
 {
-    /// <summary>
-    /// Applies a custom player eye height, persists it, recomputes ratios in <see cref="CaliberateHeights"/>,
-    /// updates avatar scale, rescales TPose bone data, and notifies listeners next frame.
-    /// </summary>
-    /// <param name="CustomAvatarEyeHeight">Desired eye height in meters. Must be greater than zero.</param>
-    /// <remarks>
-    /// Uses the recomputed unscaled avatar eye height as the baseline to compute the avatar height scale factor.
-    /// Updates <see cref="BasisLocalAvatarDriver.ScaleAvatarModification"/> and adjusts TPose-scaled transforms on each bone control.
-    /// </remarks>
     public static void SetCustomHeight(bool UseCustomHeight,float customAvatarEyeHeight, float customPlayerHeight,float SelectedScale, bool ScaleAvatar)
     {
         if (customAvatarEyeHeight <= 0f)
@@ -75,23 +59,32 @@ public static class BasisHeightDriver
             }
             // compute and apply scale
             heightScaleFactor = SelectedScale / baselineAvatarEyeHeight;
-            BasisDebug.Log($"Height Scaling Factor is {heightScaleFactor}", BasisDebug.LogTag.Avatar);
-            avatarDriver.ScaleAvatarModification.SetAvatarheightOverride(heightScaleFactor);
 
-            // rescale bone-space TPose transforms
-            int count = boneDriver.ControlsLength;
-            for (int Index = 0; Index < count; Index++)
-            {
-                BasisLocalBoneControl c = boneDriver.Controls[Index];
-                c.TposeLocalScaled.position = c.TposeLocal.position * heightScaleFactor;
-                c.TposeLocalScaled.rotation = c.TposeLocal.rotation;
-                c.ScaledOffset = c.Offset * heightScaleFactor;
-            }
+            ApplyScaleModification(heightScaleFactor,avatarDriver,boneDriver);
+        }
+        else
+        {
+            ApplyScaleModification(1, avatarDriver, boneDriver);
         }
         BasisLocalPlayer.Instance.ExecuteNextFrame(() =>
         {
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame?.Invoke();
         });
+    }
+    public static void ApplyScaleModification(float heightScaleFactor,BasisLocalAvatarDriver avatarDriver,BasisLocalBoneDriver boneDriver)
+    {
+        BasisDebug.Log($"Height Scaling Factor is {heightScaleFactor}", BasisDebug.LogTag.Avatar);
+        avatarDriver.ScaleAvatarModification.SetAvatarheightOverride(heightScaleFactor);
+
+        // rescale bone-space TPose transforms
+        int count = boneDriver.ControlsLength;
+        for (int Index = 0; Index < count; Index++)
+        {
+            BasisLocalBoneControl c = boneDriver.Controls[Index];
+            c.TposeLocalScaled.position = c.TposeLocal.position * heightScaleFactor;
+            c.TposeLocalScaled.rotation = c.TposeLocal.rotation;
+            c.ScaledOffset = c.Offset * heightScaleFactor;
+        }
     }
     public static void CapturePlayerHeight()
     {
@@ -221,22 +214,22 @@ public static class BasisHeightDriver
     private static float armRatioAvatarToAvatarDefaultScale = 1f; // should be used for the player
 
     /// <summary>
-    /// The player height (meters) currently selected by <see cref="ChooseHeightToUse(BasisSelectedHeightMode)"/>.
+    /// The player height (meters)"/>.
     /// </summary>
     private static float selectedPlayerHeight = FallbackSizeInMeters;
 
     /// <summary>
-    /// The avatar height (meters) currently selected by <see cref="ChooseHeightToUse(BasisSelectedHeightMode)"/>.
+    /// The avatar height (meters)/>.
     /// </summary>
     private static float selectedAvatarHeight = FallbackSizeInMeters;
 
     /// <summary>
-    /// The player-to-default scale currently selected by <see cref="ChooseHeightToUse(BasisSelectedHeightMode)"/>.
+    /// The player-to-default scale/>.
     /// </summary>
     private static float selectedPlayerToDefaultScale = 1f;
 
     /// <summary>
-    /// The avatar-to-avatar-default scale currently selected by <see cref="ChooseHeightToUse(BasisSelectedHeightMode)"/>.
+    /// The avatar-to-avatar-default scale currently"/>.
     /// </summary>
     private static float selectedAvatarToAvatarDefaultScale = 1f;
 }
