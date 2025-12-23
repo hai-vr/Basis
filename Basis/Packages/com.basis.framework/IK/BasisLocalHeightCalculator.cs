@@ -40,6 +40,7 @@ public static class BasisLocalHeightCalculator
             BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.DefaultPlayerArmSpan;
         }
         BasisHeightDriver.ArmRatioPlayerToDefaultScale = BasisHeightDriver.PlayerArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultPlayerArmSpan);
+        BasisDebug.Log($"ArmRatioPlayerToDefaultScale Set To {BasisHeightDriver.ArmRatioPlayerToDefaultScale}", BasisDebug.LogTag.Avatar);
     }
     public static void CalculatePlayerEyeHeight()
     {
@@ -75,6 +76,7 @@ public static class BasisLocalHeightCalculator
                 BasisDebug.LogTag.Avatar);
         }
         BasisHeightDriver.EyeRatioPlayerToDefaultScale = BasisHeightDriver.PlayerEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.DefaultPlayerEyeHeight);
+        BasisDebug.Log($"EyeRatioPlayerToDefaultScale Set To {BasisHeightDriver.EyeRatioPlayerToDefaultScale}", BasisDebug.LogTag.Avatar);
     }
     public static void CalculateAvatarEyeHeight()
     {
@@ -96,6 +98,7 @@ public static class BasisLocalHeightCalculator
             BasisDebug.LogWarning($"Avatar eye height was invalid. Set to default: {BasisHeightDriver.DefaultAvatarEyeHeight}", BasisDebug.LogTag.Avatar);
         }
         BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarEyeHeight);
+        BasisDebug.Log($"EyeRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
     }
     public static void CalculateAvatarArmSpan()
     {
@@ -128,5 +131,6 @@ public static class BasisLocalHeightCalculator
             BasisHeightDriver.AvatarArmSpan = BasisHeightDriver.DefaultAvatarArmSpan;
         }
         BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarArmSpan);
+        BasisDebug.Log($"ArmRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
     }
 }

@@ -124,11 +124,11 @@ public class SMModuleCalibration : BasisSettingsBase
         }
         if (ApplyCustomScale)
         {
-            BasisHeightDriver.SetCustomHeight(isCustom, SelectedScale, SelectedScale, SelectedScale, ApplyCustomScale);
+            BasisHeightDriver.SetCustomHeight(true, SelectedScale, SelectedScale, SelectedScale, true);
         }
         else
         {
-            BasisHeightDriver.SetCustomHeight(isCustom, avatarHeight, SelectedPlayerHeight, SelectedScale, ApplyCustomScale);
+            BasisHeightDriver.SetCustomHeight(isCustom, avatarHeight, SelectedPlayerHeight, SelectedScale, false);
         }
         _hasApplied = true;
         _lastHeightMode = HeightMode;

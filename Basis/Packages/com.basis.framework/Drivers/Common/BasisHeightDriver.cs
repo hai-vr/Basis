@@ -35,6 +35,18 @@ public static class BasisHeightDriver
         CaptureAvatarHeight();
         CapturePlayerHeight();
 
+        // use the (now) known unscaled avatar eye height as baseline
+        float baselineAvatarEyeHeight = AvatarEyeHeight;
+        if (baselineAvatarEyeHeight <= 0f)
+        {
+            BasisDebug.LogError("Invalid baseline avatar eye height after recalculation. Cannot compute scale.", BasisDebug.LogTag.Avatar);
+            baselineAvatarEyeHeight = 1.6f;
+        }
+        // compute and apply scale
+        heightScaleFactor = SelectedScale / baselineAvatarEyeHeight;
+
+        BasisDebug.Log($"Applying Scale to Avatar {heightScaleFactor}", BasisDebug.LogTag.Avatar);
+
         if (UseCustomHeight)
         {
             BasisDebug.Log($"Setting custom player eye height: {CustomAvatarEyeHeight}", BasisDebug.LogTag.Avatar);
@@ -49,16 +61,6 @@ public static class BasisHeightDriver
         }
         if (ScaleAvatar)
         {
-            BasisDebug.Log($"Applying Scale to Avatar", BasisDebug.LogTag.Avatar);
-            // use the (now) known unscaled avatar eye height as baseline
-            float baselineAvatarEyeHeight = AvatarEyeHeight;
-            if (baselineAvatarEyeHeight <= 0f)
-            {
-                BasisDebug.LogError("Invalid baseline avatar eye height after recalculation. Cannot compute scale.", BasisDebug.LogTag.Avatar);
-                return;
-            }
-            // compute and apply scale
-            heightScaleFactor = SelectedScale / baselineAvatarEyeHeight;
 
             ApplyScaleModification(heightScaleFactor,avatarDriver,boneDriver);
         }
