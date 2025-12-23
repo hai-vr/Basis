@@ -286,7 +286,7 @@ namespace Basis.Scripts.Drivers
         public void UpdateCameraScale()
         {
             // the normal users scale is 1.6m; scale camera with selected avatar scale
-            this.transform.localScale = Vector3.one * BasisHeightDriver.ComputedEyeAvatarToAvatarDefaultScale;
+            this.transform.localScale = Vector3.one * BasisHeightDriver.SelectedAvatarToAvatarDefaultScale;
             // Ensure that the near clip plane is never far enough away that the avatar body clips through it.
             // Critically we need to avoid small player heights causing the UI to become unusable due to clipping.
             // At the same time, we need to pull in the far clip plane on mobile platforms to avoid depth buffer precision issues.

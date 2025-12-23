@@ -11,6 +11,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Animations.Rigging;
+using UnityEngine.Experimental.GlobalIllumination;
 
 namespace Basis.Scripts.Drivers
 {
@@ -80,7 +81,6 @@ namespace Basis.Scripts.Drivers
         /// <param name="player">The local player instance.</param>
         public void InitialLocalCalibration(BasisLocalPlayer player)
         {
-         //LD HERE   BasisHeightDriver.ChooseHeightToUse(BasisSelectedHeightMode.EyeHeight);
             Instance = this;
             BasisDebug.Log("InitialLocalCalibration");
             if (HasTPoseEvent == false)
@@ -195,6 +195,7 @@ namespace Basis.Scripts.Drivers
             {
                 AddJiggleRigColliders(References);
             }
+            BasisHeightDriver.OnAvatarLoaded();
         }
 
         /// <summary>
@@ -361,8 +362,10 @@ namespace Basis.Scripts.Drivers
             RuntimeAnimatorController RAC = op.WaitForCompletion();
             BasisLocalPlayer.Instance.BasisAvatar.Animator.runtimeAnimatorController = RAC;
             ForceUpdateAnimator(BasisLocalPlayer.Instance.BasisAvatar.Animator);
-            //BasisDeviceManagement.UnassignFBTrackers();
             TposeStateChange?.Invoke();
+
+            //anytime a avatar goes into a tpose we can grab the avatar height information
+            BasisHeightDriver.CaptureAvatarHeight();
         }
 
         /// <summary>
