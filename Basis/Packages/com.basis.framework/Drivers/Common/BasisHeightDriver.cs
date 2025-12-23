@@ -3,7 +3,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 public static class BasisHeightDriver
 {
-    public static void SetCustomHeight(bool UseCustomHeight,float customAvatarEyeHeight, float customPlayerHeight,float SelectedScale, bool ScaleAvatar)
+    public static void SetCustomHeight(bool UseCustomHeight, float customAvatarEyeHeight, float customPlayerHeight, float SelectedScale, bool ScaleAvatar)
     {
         if (customAvatarEyeHeight <= 0f)
         {
@@ -59,15 +59,11 @@ public static class BasisHeightDriver
         {
             ChooseHeightToUse(SMModuleCalibration.HeightMode);
         }
-        if (ScaleAvatar)
+        if (!ScaleAvatar)
         {
-
-            ApplyScaleModification(heightScaleFactor,avatarDriver,boneDriver);
+            heightScaleFactor = 1;
         }
-        else
-        {
-            ApplyScaleModification(1, avatarDriver, boneDriver);
-        }
+        ApplyScaleModification(heightScaleFactor, avatarDriver, boneDriver);
         BasisLocalPlayer.Instance.ExecuteNextFrame(() =>
         {
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame?.Invoke();
@@ -107,7 +103,6 @@ public static class BasisHeightDriver
     public static float ArmRatioPlayerToDefaultScale { get => armRatioPlayerToDefaultScale;  set => armRatioPlayerToDefaultScale = value; }
     public static float EyeRatioAvatarToAvatarDefaultScale { get => eyeRatioAvatarToAvatarDefaultScale;  set => eyeRatioAvatarToAvatarDefaultScale = value; }
     public static float EyeRatioPlayerToDefaultScale { get => eyeRatioPlayerToDefaultScale;  set => eyeRatioPlayerToDefaultScale = value; }
-    public static BasisSelectedHeightMode LastUsedHeightMode = BasisSelectedHeightMode.EyeHeight;
     /// <summary>
     /// Chooses the active height metrics and scale ratios based on the provided mode.
     /// </summary>
@@ -115,7 +110,6 @@ public static class BasisHeightDriver
     /// <see cref="BasisSelectedHeightMode.EyeHeight"/>, or <see cref="BasisSelectedHeightMode.Custom"/>.</param>
     public static void ChooseHeightToUse(BasisSelectedHeightMode Height)
     {
-        LastUsedHeightMode = Height;
         switch (Height)
         {
             case BasisSelectedHeightMode.ArmSpan:

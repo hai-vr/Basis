@@ -1,5 +1,6 @@
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.UI.UI_Panels;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -145,7 +146,7 @@ namespace Basis.BasisUI
             // Controller Dead Zone
             PanelSlider sliderControllerDeadZone = PanelSlider.CreateEntryAndBind(
                 generalGroup,
-                PanelSlider.SliderSettings.Advanced("Controller Dead Zone",0,1,false,3, ValueDisplayMode.Percentage),
+                PanelSlider.SliderSettings.Advanced("Controller Dead Zone", 0, 1, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.ControllerDeadZone);
 
             // Snap Turn Angle
@@ -564,66 +565,99 @@ namespace Basis.BasisUI
             descriptor.ForceRebuild();
             return tab;
         }
+        // Put these as fields on the class (so RevaluteInteractableStatus can touch them)
+        private static PanelDropdown dropdownVisualState;
+        private static PanelDropdown dropdownSeatedMode;
+        private static PanelSlider sliderCalibrationHeightRange;
+
+        private const string VisualMode_CalibEyeHeight = "Calibration Eye Height";
+        private const string SeatedMode_Seated = "Seated Mode";
         // ------------------
         // IK & Input
         // ------------------
         public static PanelTabPage IKTab(PanelTabGroup tabGroup)
         {
-            PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
-            PanelElementDescriptor descriptor = tab.Descriptor;
+            var tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+            var descriptor = tab.Descriptor;
             descriptor.SetIcon(AddressableAssets.Sprites.Settings);
             descriptor.SetTitle("IK Tab");
 
             RectTransform container = descriptor.ContentParent;
 
             // IK GROUP
-            PanelElementDescriptor IkGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            var IkGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             IkGroup.SetIcon(AddressableAssets.Sprites.Settings);
             IkGroup.SetTitle("Calibration & IK");
             IkGroup.SetDescription("Settings for Fine Tuning Calibration and IK");
 
-
             // Visual State Mode
-            PanelDropdown dropdownVisualState = PanelDropdown.CreateNewEntry(IkGroup.ContentParent);
+            dropdownVisualState = PanelDropdown.CreateNewEntry(IkGroup.ContentParent);
             dropdownVisualState.Descriptor.SetTitle("Full Body IK Mode");
             dropdownVisualState.AssignEntries(new List<string>
-            {
-                "Eye Height",
-                "Arm Distance",
-                "Calibration Eye Height"
-            });
+    {
+        "Eye Height",
+        "Arm Distance",
+        VisualMode_CalibEyeHeight
+    });
             dropdownVisualState.AssignBinding(BasisSettingsDefaults.IKMode);
 
             // Seated Mode
-            PanelDropdown dropdownSeatedMode = PanelDropdown.CreateNewEntry(IkGroup.ContentParent);
+            dropdownSeatedMode = PanelDropdown.CreateNewEntry(IkGroup.ContentParent);
             dropdownSeatedMode.Descriptor.SetTitle("Seated Mode");
-            // Options inferred from default
             dropdownSeatedMode.AssignEntries(new List<string>
-            {
-                "Standing Mode",
-                "Seated Mode"
-            });
+    {
+        "Standing Mode",
+        SeatedMode_Seated
+    });
             dropdownSeatedMode.AssignBinding(BasisSettingsDefaults.SeatedMode);
 
-            // Debug Visuals Toggle
-            PanelToggle toggleDebugVisuals = PanelToggle.CreateNewEntry(IkGroup.ContentParent);
-            toggleDebugVisuals.Descriptor.SetTitle("Custom Scale");
-            toggleDebugVisuals.AssignBinding(BasisSettingsDefaults.CustomScale);
+            // Custom Scale toggle (your label says Custom Scale but variable name says DebugVisuals; up to you)
+            var toggleCustomScale = PanelToggle.CreateNewEntry(IkGroup.ContentParent);
+            toggleCustomScale.Descriptor.SetTitle("Custom Scale");
+            toggleCustomScale.AssignBinding(BasisSettingsDefaults.CustomScale);
 
-            // Custom Scale
-            PanelSlider sliderScaleRange = PanelSlider.CreateEntryAndBind(
+            // Avatar Scale slider
+            var sliderScaleRange = PanelSlider.CreateEntryAndBind(
                 IkGroup,
-                PanelSlider.SliderSettings.Advanced("Avatar height Scale",0.1f, 5f,false,2, ValueDisplayMode.Meters),
+                PanelSlider.SliderSettings.Advanced("Avatar height Scale", 0.1f, 5f, false, 2, ValueDisplayMode.Meters),
                 BasisSettingsDefaults.SelectedScale);
 
+            // Calibration Eye Height slider
+            sliderCalibrationHeightRange = PanelSlider.CreateEntryAndBind(
+                IkGroup,
+                PanelSlider.SliderSettings.Advanced("Calibration Eye height", 0.4f, 2.3f, false, 3, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.SelectedHeight);
 
-            PanelSlider sliderCalibrationHeightRange = PanelSlider.CreateEntryAndBind(
-    IkGroup,
-    PanelSlider.SliderSettings.Advanced("Calibration Eye height", 0.4f, 2.3f, false, 3, ValueDisplayMode.Meters),
-    BasisSettingsDefaults.SelectedHeight);
+            // Hook both dropdowns to the same evaluator
+            dropdownVisualState.OnValueChanged += EvaluateInteractables;
+            dropdownSeatedMode.OnValueChanged += EvaluateInteractables;
+
+            // Run once on build so initial state is correct
+            EvaluateInteractables();
 
             descriptor.ForceRebuild();
             return tab;
+        }
+        private static void EvaluateInteractables(string obj)
+        {
+            EvaluateInteractables();
+        }
+        private static void EvaluateInteractables()
+        {
+            string seatedValue = GetCurrentText(dropdownSeatedMode);
+            string visualValue = GetCurrentText(dropdownVisualState);
+            bool isSeated = seatedValue == SeatedMode_Seated;
+            SetDropdownInteractable(dropdownVisualState, !isSeated);
+            bool isCalibrationMode = (!isSeated) && (visualValue == VisualMode_CalibEyeHeight);
+            sliderCalibrationHeightRange.SliderComponent.interactable = isCalibrationMode || !isSeated;
+        }
+        private static string GetCurrentText(PanelDropdown dd)
+        {
+            return dd.DropdownComponent.options[dd.DropdownComponent.value].text;
+        }
+        private static void SetDropdownInteractable(PanelDropdown dd, bool interactable)
+        {
+            dd.DropdownComponent.interactable = interactable;
         }
     }
 }
