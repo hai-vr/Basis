@@ -1,5 +1,6 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
@@ -176,6 +177,10 @@ public class BasisEventDriver : MonoBehaviour
 
         // JigglePhysics: schedule/complete passes
         JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime);
+        if (BasisLocalPlayer.PlayerReady)
+        {
+            BasisLocalPlayer.Instance.LocalVisemeDriver.Simulate();
+        }
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
         JigglePhysics.SchedulePose(TimeAsDouble);
         if (SMModuleDebugOptions.UseGizmos)
@@ -205,7 +210,7 @@ public class BasisEventDriver : MonoBehaviour
 
             Basis.Scripts.Networking.Receivers.BasisNetworkReceiver[] snapshot = BasisNetworkPlayers.ReceiversSnapshot;
             int count = BasisNetworkPlayers.ReceiverCount;
-            BasisRemoteFaceManagement.Simulate(TimeAsDouble,DeltaTime, count, snapshot);
+            BasisRemoteFaceManagement.Simulate(TimeAsDouble, DeltaTime, count, snapshot);
 
             BasisLocalPlayer.Instance.SimulateOnRender(DeltaTime);
             // send out avatar

@@ -24,7 +24,7 @@ namespace Basis.Scripts.Drivers
     /// </para>
     /// </remarks>
     [System.Serializable]
-    public partial class BasisAudioAndVisemeDriver
+    public class BasisAudioAndVisemeDriver
     {
         /// <summary>
         /// Smoothing amount used by uLipSync (implementation-specific).
@@ -54,7 +54,7 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// uLipSync core component that analyses incoming audio to phoneme weights.
         /// </summary>
-        public uLipSync.uLipSync uLipSync;
+        public uLipSync.BasisUlipSync uLipSync = new BasisUlipSync();
 
         /// <summary>
         /// Table mapping phoneme strings (e.g., "A", "E") to avatar blendshape indices.
@@ -90,22 +90,18 @@ namespace Basis.Scripts.Drivers
 
             if (Avatar == null)
             {
-                //  BasisDebug.Log("not setting up BasisVisemeDriver Avatar was null");
+              //   BasisDebug.Log("not setting up BasisVisemeDriver Avatar was null");
                 return false;
             }
             if (Avatar.FaceVisemeMesh == null)
             {
-                //  BasisDebug.Log("not setting up BasisVisemeDriver FaceVisemeMesh was null");
+              //   BasisDebug.Log("not setting up BasisVisemeDriver FaceVisemeMesh was null");
                 return false;
             }
             if (Avatar.FaceVisemeMesh.sharedMesh.blendShapeCount == 0)
             {
-                //  BasisDebug.Log("not setting up BasisVisemeDriver blendShapeCount was empty");
+              //  BasisDebug.Log("not setting up BasisVisemeDriver blendShapeCount was empty");
                 return false;
-            }
-            if (uLipSync == null)
-            {
-                uLipSync = BasisHelpers.GetOrAddComponent<uLipSync.uLipSync>(BasisPlayer.gameObject);
             }
 
             phonemeBlendShapeTable.Clear();
@@ -159,7 +155,6 @@ namespace Basis.Scripts.Drivers
                 uLipSync.AddBlendShape(info.phoneme, info.blendShape);
             }
             uLipSync.BlendShapeInfos = uLipSync.CachedblendShapes.ToArray();
-            uLipSync.Initalize();
 
             // Wire visibility and lifetime callbacks (only once per renderer instance)
             if (Player != null && Player.FaceRenderer != null && HashInstanceID != Player.FaceRenderer.GetInstanceID())
@@ -168,12 +163,26 @@ namespace Basis.Scripts.Drivers
                 Player.FaceRenderer.Check += UpdateFaceVisibility;
                 Player.FaceRenderer.DestroyCalled += TryShutdown;
             }
+            //BasisDebug.Log($"uLipSync Initalized {Avatar.name}", BasisDebug.LogTag.Voice);
+            uLipSync.Initalize();
 
             UpdateFaceVisibility(Player.FaceIsVisible);
             WasSuccessful = true;
             return true;
         }
+        public void OnDestroy()
+        {
+            uLipSync.OnDestroy();
+        }
+        public void Simulate()
+        {
+            if (uLipSyncEnabledState == false)
+            {
+                return;
+            }
 
+            uLipSync.Simulate();
+        }
         /// <summary>
         /// Attempts to cleanly shut down the driver, disabling processing and unbinding callbacks.
         /// </summary>

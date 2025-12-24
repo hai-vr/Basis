@@ -209,7 +209,7 @@ namespace Basis.Scripts.Device_Management
             BasisPlayerFactory.Initalize();
             BasisXRManagement.Initalize();
             BasisCommandLineArgs.Initialize(BakedInCommandLineArgs, out ForcedDefault);
-
+            uLipSync.BasisUlipSync.profile = BasisDeviceManagement.Instance.LipSyncProfile;
             await BasisPlayerFactory.CreateLocalPlayer(new InstantiationParameters(transform, true));
             StartAllStartIfPermanentlyExists();
             await SwitchSetModeToDefault();
@@ -219,8 +219,6 @@ namespace Basis.Scripts.Device_Management
             await BasisActionDriver.LoadBindings();
 
             OnInitializationCompleted?.Invoke();
-
-            uLipSync.uLipSync.profile = BasisDeviceManagement.Instance.LipSyncProfile;
         }
 
         #endregion

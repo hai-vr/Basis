@@ -1,4 +1,5 @@
 using Basis.Scripts.Networking.Receivers;
+using SteamAudio;
 using System;
 using UnityEngine;
 
@@ -48,7 +49,14 @@ namespace Basis.Scripts.Drivers
                 AudioData?.Invoke(data, channels);
             }
         }
-
+        public void LateUpdate()
+        {
+            BasisAudioAndVisemeDriver.Simulate();
+        }
+        public void OnDestroy()
+        {
+            BasisAudioAndVisemeDriver.OnDestroy();
+        }
         /// <summary>
         /// Initializes the driver with a viseme processor and marks it ready.
         /// </summary>

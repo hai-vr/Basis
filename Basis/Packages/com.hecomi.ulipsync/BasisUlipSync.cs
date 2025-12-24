@@ -6,7 +6,8 @@ using System.Collections.Generic;
 using System.Threading;
 namespace uLipSync
 {
-    public class uLipSync : MonoBehaviour
+    [System.Serializable]
+    public class BasisUlipSync
     {
         public static Profile profile;
         JobHandle _jobHandle;
@@ -42,7 +43,7 @@ namespace uLipSync
         public float globalMultiplier;
         public float MultipliedWeight;
         public float finalWeight;
-        public void LateUpdate()
+        public void Simulate()
         {
             // If last scheduled job is still running, skip this frame.
             if (!_jobHandle.Equals(default(JobHandle)) && !_jobHandle.IsCompleted)
@@ -61,8 +62,6 @@ namespace uLipSync
                 // Pull main phoneme + volume
                 if (_info.IsCreated && _info.Length > 0)
                 {
-                    int mainIndex = math.clamp(_info[0].mainPhonemeIndex, 0, phonemeCount - 1);
-
                     rawVolume = math.max(_info[0].volume, 0f);
                     // single log10, normalized to [0..1]
                     float logv = rawVolume > 0f ? math.log10(rawVolume) : 0f;
@@ -122,6 +121,8 @@ namespace uLipSync
                     compareMethod = profile.compareMethod,
                     scores = _scores,
                     info = _info,
+                    silenceRmsThreshold = 0.05f,
+                    restPhonemeIndex = 0,
                 };
 
                 _jobHandle = lipSyncJob.Schedule();
@@ -143,8 +144,8 @@ namespace uLipSync
             if (rawVolume > 0f)
             {
                 float logv = Mathf.Log10(rawVolume);
-                float denom = Mathf.Max(uLipSync.VolumeDifference, 1e-4f);
-                normVol = Mathf.Clamp01((logv - uLipSync.minVolume) / denom);
+                float denom = Mathf.Max(BasisUlipSync.VolumeDifference, 1e-4f);
+                normVol = Mathf.Clamp01((logv - BasisUlipSync.minVolume) / denom);
             }
 
             _volume = SmoothDamp(_volume, normVol, ref _openCloseVelocity);
@@ -213,6 +214,7 @@ namespace uLipSync
         {
             if (profile == null)
             {
+                
                 DisposeBuffers();
                 _allocated = false;
                 return;
@@ -275,7 +277,10 @@ namespace uLipSync
                 int len = math.min(meansArr.Length, _means.Length);
                 NativeArray<float>.Copy(meansArr, 0, _means, 0, len);
                 // zero-fill any remainder if profile array is shorter
-                for (int i = len; i < _means.Length; i++) _means[i] = 0f;
+                for (int i = len; i < _means.Length; i++)
+                {
+                    _means[i] = 0f;
+                }
             }
 
             var stdArr = profile.standardDeviation; // float[]
@@ -283,23 +288,28 @@ namespace uLipSync
             {
                 int len = math.min(stdArr.Length, _standardDeviations.Length);
                 NativeArray<float>.Copy(stdArr, 0, _standardDeviations, 0, len);
-                for (int i = len; i < _standardDeviations.Length; i++) _standardDeviations[i] = 1f; // sane default
+                for (int Index = len; Index < _standardDeviations.Length; Index++)
+                {
+                    _standardDeviations[Index] = 1f; // sane default
+                }
             }
 
             // Phoneme names + map
             _phonemeNames = new string[phonemeCount];
             _phonemeRatios = new float[phonemeCount];
             _phonemeNameToIndex.Clear();
-            for (int i = 0; i < phonemeCount; i++)
+            for (int Index = 0; Index < phonemeCount; Index++)
             {
-                string name = profile.GetPhoneme(i);
-                _phonemeNames[i] = name;
+                string name = profile.GetPhoneme(Index);
+                _phonemeNames[Index] = name;
                 if (!string.IsNullOrEmpty(name))
-                    _phonemeNameToIndex[name] = i;
+                {
+                    _phonemeNameToIndex[name] = Index;
+                }
             }
         }
 
-        void OnDisable()
+       public void OnDestroy()
         {
             if (!_jobHandle.Equals(default(JobHandle)))
             {
@@ -357,9 +367,6 @@ namespace uLipSync
             // Signal new data for the next LateUpdate
             Interlocked.Exchange(ref _isDataReceived, 1);
         }
-
-        // ---------- helpers ----------
-
         static void SafeCreate(ref NativeArray<float> array, int length)
         {
             if (array.IsCreated)
@@ -375,7 +382,6 @@ namespace uLipSync
                 array = new NativeArray<float>(length, Allocator.Persistent, NativeArrayOptions.ClearMemory);
             }
         }
-
         static void SafeCreate(ref NativeArray<LipSyncJob.Info> array, int length)
         {
             if (array.IsCreated)
@@ -391,7 +397,6 @@ namespace uLipSync
                 array = new NativeArray<LipSyncJob.Info>(length, Allocator.Persistent, NativeArrayOptions.ClearMemory);
             }
         }
-
         static void SafeDispose<T>(ref NativeArray<T> array) where T : struct
         {
             if (array.IsCreated) array.Dispose();
@@ -404,7 +409,7 @@ namespace uLipSync
         public const float smoothness = 0.05f;
         public const float minVolume = -2.5f;
         public const float maxVolume = -1.5f;
-        public const float VolumeDifference = uLipSync.maxVolume - uLipSync.minVolume;
+        public const float VolumeDifference = BasisUlipSync.maxVolume - BasisUlipSync.minVolume;
         public float _volume = 0f;
         public float _openCloseVelocity = 0f;
 
