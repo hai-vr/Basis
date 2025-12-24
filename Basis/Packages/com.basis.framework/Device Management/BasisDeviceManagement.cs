@@ -219,6 +219,8 @@ namespace Basis.Scripts.Device_Management
             await BasisActionDriver.LoadBindings();
 
             OnInitializationCompleted?.Invoke();
+
+            uLipSync.uLipSync.profile = BasisDeviceManagement.Instance.LipSyncProfile;
         }
 
         #endregion

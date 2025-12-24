@@ -109,7 +109,6 @@ namespace Basis.Scripts.Drivers
             }
 
             phonemeBlendShapeTable.Clear();
-            uLipSync.profile = BasisDeviceManagement.Instance.LipSyncProfile;
             uLipSync.skinnedMeshRenderer = Avatar.FaceVisemeMesh;
 
             // Build viseme availability and phoneme mapping table

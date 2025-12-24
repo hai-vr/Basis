@@ -8,7 +8,7 @@ namespace uLipSync
 {
     public class uLipSync : MonoBehaviour
     {
-        public Profile profile;
+        public static Profile profile;
         JobHandle _jobHandle;
         readonly object _lockObject = new object();
         bool _allocated = false;
@@ -36,14 +36,12 @@ namespace uLipSync
         // runtime mix values
         float[] _phonemeRatios;
         readonly Dictionary<string, int> _phonemeNameToIndex = new Dictionary<string, int>(32);
-        public string mainPhoneme;
         public float NormalVolume;
         public float rawVolume;
         public int CachedInputSampleCount;
         public float globalMultiplier;
         public float MultipliedWeight;
         public float finalWeight;
-        int mfccNum => profile.mfccNum;
         public void LateUpdate()
         {
             // If last scheduled job is still running, skip this frame.
@@ -64,7 +62,6 @@ namespace uLipSync
                 if (_info.IsCreated && _info.Length > 0)
                 {
                     int mainIndex = math.clamp(_info[0].mainPhonemeIndex, 0, phonemeCount - 1);
-                    mainPhoneme = (_phonemeNames != null && mainIndex < _phonemeNames.Length) ? _phonemeNames[mainIndex] : string.Empty;
 
                     rawVolume = math.max(_info[0].volume, 0f);
                     // single log10, normalized to [0..1]
@@ -76,10 +73,16 @@ namespace uLipSync
                 if (_scores.IsCreated && phonemeCount > 0)
                 {
                     float sum = 0f;
-                    for (int i = 0; i < phonemeCount; i++) sum += _scores[i];
+                    for (int i = 0; i < phonemeCount; i++)
+                    {
+                        sum += _scores[i];
+                    }
+
                     float inv = sum > 0f ? 1f / sum : 0f;
                     for (int i = 0; i < phonemeCount; i++)
+                    {
                         _phonemeRatios[i] = _scores[i] * inv;
+                    }
                 }
 
                 // Apply to blendshapes
@@ -94,7 +97,7 @@ namespace uLipSync
                     {
                         var src = profile.mfccs[p].mfccNativeArray; // assumed NativeArray<float> of length >= mfccNum
                         int remaining = PhonemesCount - write;
-                        int len = math.min(mfccNum, remaining);
+                        int len = math.min(profile.mfccNum, remaining);
                         NativeArray<float>.Copy(src, 0, _phonemes, write, len);
                         write += len;
                     }
@@ -143,7 +146,10 @@ namespace uLipSync
         public void OnLipSyncUpdate()
         {
             var smr = skinnedMeshRenderer;
-            if (smr == null || smr.sharedMesh == null) return;
+            if (smr == null || smr.sharedMesh == null)
+            {
+                return;
+            }
 
             int blendShapeCount = smr.sharedMesh.blendShapeCount;
 
@@ -161,7 +167,10 @@ namespace uLipSync
             globalMultiplier = _volume * 100;
 
             var infos = BlendShapeInfos;
-            if (infos == null) return;
+            if (infos == null)
+            {
+                return;
+            }
 
             int count = infos.Length;
 
@@ -172,17 +181,9 @@ namespace uLipSync
                 var bs = infos[Index];
                 float targetWeight = 0f;
 
-                if (!string.IsNullOrEmpty(bs.phoneme))
+                if (_phonemeNameToIndex.TryGetValue(bs.phoneme, out int idx) && idx >= 0 && idx < _phonemeRatios.Length)
                 {
-                    if (_phonemeNameToIndex.TryGetValue(bs.phoneme, out int idx) &&
-                        idx >= 0 && idx < _phonemeRatios.Length)
-                    {
-                        targetWeight = _phonemeRatios[idx];
-                    }
-                }
-                else if (!string.IsNullOrEmpty(mainPhoneme) && bs.phoneme == mainPhoneme)
-                {
-                    targetWeight = 1f;
+                    targetWeight = _phonemeRatios[idx];
                 }
 
                 float vel = bs.weightVelocity;
@@ -201,35 +202,29 @@ namespace uLipSync
             for (int Index = 0; Index < count; Index++)
             {
                 var bs = infos[Index];
-                if (bs.index < 0) continue;
+                if (bs.index < 0)
+                {
+                    continue;
+                }
 
                 // guard against out-of-range (valid indices are 0..blendShapeCount-1)
-                if (bs.index >= blendShapeCount) continue;
+                if (bs.index >= blendShapeCount)
+                {
+                    continue;
+                }
 
                 MultipliedWeight = bs.weight * baseMultiply;
                 finalWeight = math.clamp(MultipliedWeight, 0f, 100f);
-                if (float.IsNaN(finalWeight)) finalWeight = 0f;
+                if (float.IsNaN(finalWeight))
+                {
+                    finalWeight = 0f;
+                }
 
                 smr.SetBlendShapeWeight(bs.index, finalWeight);
             }
         }
 
-        public void Initalize() // keeping your original API name
-        {
-            AllocateBuffers();
-        }
-
-        void OnDisable()
-        {
-            if (!_jobHandle.Equals(default(JobHandle)))
-            {
-                _jobHandle.Complete();
-                _jobHandle = default;
-            }
-            DisposeBuffers();
-        }
-
-        void AllocateBuffers()
+        public void Initalize()
         {
             if (profile == null)
             {
@@ -253,22 +248,24 @@ namespace uLipSync
 
             lock (_lockObject)
             {
-                CachedInputSampleCount = inputSampleCount;
+                outputSampleRate = AudioSettings.outputSampleRate;
+                float r = (float)outputSampleRate / math.max(profile.targetSampleRate, 1);
+                CachedInputSampleCount = Mathf.CeilToInt(math.max(profile.sampleCount, 1) * r);
+
                 int Count = profile.mfccs.Count;
                 phonemeCount = math.max(Count, 1);
                 mfccsCount = Count;
-                PhonemesCount = mfccNum * phonemeCount;
-                outputSampleRate = AudioSettings.outputSampleRate;
+                PhonemesCount = profile.mfccNum * phonemeCount;
 
                 // Managed ring buffer for feeding audio
                 Inputs = new float[CachedInputSampleCount];
 
                 // Native buffers (create or recreate)
                 SafeCreate(ref _inputData, CachedInputSampleCount);
-                SafeCreate(ref _mfcc, mfccNum);
-                SafeCreate(ref _mfccForOther, mfccNum);
-                SafeCreate(ref _means, mfccNum);
-                SafeCreate(ref _standardDeviations, mfccNum);
+                SafeCreate(ref _mfcc, profile.mfccNum);
+                SafeCreate(ref _mfccForOther, profile.mfccNum);
+                SafeCreate(ref _means, profile.mfccNum);
+                SafeCreate(ref _standardDeviations, profile.mfccNum);
                 SafeCreate(ref _scores, phonemeCount);
                 SafeCreate(ref _phonemes, PhonemesCount);
                 SafeCreate(ref _info, 1);
@@ -305,6 +302,16 @@ namespace uLipSync
             }
         }
 
+        void OnDisable()
+        {
+            if (!_jobHandle.Equals(default(JobHandle)))
+            {
+                _jobHandle.Complete();
+                _jobHandle = default;
+            }
+            DisposeBuffers();
+        }
+
         void DisposeBuffers()
         {
             _allocated = false;
@@ -329,17 +336,6 @@ namespace uLipSync
                 SafeDispose(ref _info);
             }
         }
-
-        int inputSampleCount
-        {
-            get
-            {
-                int sr = AudioSettings.outputSampleRate;
-                float r = (float)sr / math.max(profile.targetSampleRate, 1);
-                return Mathf.CeilToInt(math.max(profile.sampleCount, 1) * r);
-            }
-        }
-
         public void OnDataReceived(float[] input, int channels, int length)
         {
             if (!_allocated || input == null || length <= 0) return;
