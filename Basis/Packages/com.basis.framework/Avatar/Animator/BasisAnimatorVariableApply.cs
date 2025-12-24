@@ -32,7 +32,7 @@ namespace Basis.Scripts.Animator_Driver
         /// Uses <paramref name="Scale"/> to normalize velocity-based parameters.
         /// </summary>
         /// <param name="Scale">Scale factor (e.g., avatar scale) to normalize velocities.</param>
-        public void UpdateAnimator(float Scale)
+        public void UpdateAnimator()
         {
             // Check if values have changed before applying updates
             if (BasisAnimatorVariables.cachedAnimSpeed != BasisAnimatorVariables.AnimationsCurrentSpeed)
@@ -63,14 +63,14 @@ namespace Basis.Scripts.Animator_Driver
                 BasisAnimatorVariables.cachedIsFalling = BasisAnimatorVariables.IsFalling;
             }
 
-            float horizontalMovement = BasisAnimatorVariables.Velocity.x / Scale;
+            float horizontalMovement = BasisAnimatorVariables.Velocity.x;
             if (BasisAnimatorVariables.cachedHorizontalMovement != horizontalMovement)
             {
                 Animator.SetFloat(BasisAvatarAnimatorHash.HashCurrentHorizontalMovement, horizontalMovement);
                 BasisAnimatorVariables.cachedHorizontalMovement = horizontalMovement;
             }
 
-            float verticalMovement = BasisAnimatorVariables.Velocity.z / Scale;
+            float verticalMovement = BasisAnimatorVariables.Velocity.z;
             if (BasisAnimatorVariables.cachedVerticalMovement != verticalMovement)
             {
                 Animator.SetFloat(BasisAvatarAnimatorHash.HashCurrentVerticalMovement, verticalMovement);

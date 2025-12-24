@@ -15,6 +15,11 @@ public static class BasisHeightDriver
         CapturePlayerHeight();
         ApplyScaleAndHeight();
     }
+    /// <summary>
+    ///
+    /// </summary>
+    /// <param name="ScaleAvatar"></param>
+    /// <param name="SelectedScale">is in meters</param>
     public static void ApplyScale(bool ScaleAvatar,float SelectedScale)
     {
         // compute and apply scale

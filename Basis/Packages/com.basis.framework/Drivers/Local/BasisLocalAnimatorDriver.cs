@@ -59,12 +59,6 @@ namespace Basis.Scripts.Animator_Driver
         public float LargerThenVelocityCheckRotation = 0.03f;
 
         /// <summary>
-        /// Global multiplier applied to movement-driven animation values.
-        /// </summary>
-        /// <value>Default: <c>1</c>.</value>
-        public float ScaleMovementBy = 1;
-
-        /// <summary>
         /// Percentage of crouch blend below which the avatar is considered crouching.
         /// </summary>
         /// <value>Default: <c>0.35</c>.</value>
@@ -284,7 +278,7 @@ namespace Basis.Scripts.Animator_Driver
 
             basisAnimatorVariableApply.BasisAnimatorVariables.AngularVelocity = dampenedAngularVelocity;
 
-            basisAnimatorVariableApply.UpdateAnimator(ScaleMovementBy);
+            basisAnimatorVariableApply.UpdateAnimator();
 
             if (basisAnimatorVariableApply.BasisAnimatorVariables.IsFalling)
             {
