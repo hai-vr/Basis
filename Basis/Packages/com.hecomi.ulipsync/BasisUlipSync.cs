@@ -27,9 +27,7 @@ namespace uLipSync
         NativeArray<float> _scores;                // output scores from job
         NativeArray<LipSyncJob.Info> _info;        // volume + main phoneme idx
         string[] _phonemeNames;
-        // Exposed results / caches
         public int phonemeCount;
-        public NativeArray<float> mfcc => _mfccForOther;
         public float[] Inputs;                     // managed mirror used for feeding audio only
         public int outputSampleRate;
         public int PhonemesCount;
@@ -57,7 +55,9 @@ namespace uLipSync
 
                 // Copy MFCC for external access in one go (no managed allocs)
                 if (_mfccForOther.IsCreated && _mfcc.IsCreated)
+                {
                     _mfccForOther.CopyFrom(_mfcc);
+                }
 
                 // Pull main phoneme + volume
                 if (_info.IsCreated && _info.Length > 0)
@@ -85,7 +85,84 @@ namespace uLipSync
                 }
 
                 // Apply to blendshapes
-                OnLipSyncUpdate();
+                var smr = skinnedMeshRenderer;
+                if (smr == null || smr.sharedMesh == null)
+                {
+                    return;
+                }
+
+                int blendShapeCount = smr.sharedMesh.blendShapeCount;
+
+                // Volume smoothing (open/close)
+                float normVol = 0f;
+                if (rawVolume > 0f)
+                {
+                    float logv = Mathf.Log10(rawVolume);
+                    float denom = Mathf.Max(BasisUlipSync.VolumeDifference, 1e-4f);
+                    normVol = Mathf.Clamp01((logv - BasisUlipSync.minVolume) / denom);
+                }
+
+                _volume = SmoothDamp(_volume, normVol, ref _openCloseVelocity);
+
+                globalMultiplier = _volume * 100;
+
+                var infos = BlendShapeInfos;
+                if (infos == null)
+                {
+                    return;
+                }
+
+                int count = infos.Length;
+
+                // First pass: compute target weights + sum (write back if struct)
+                float totalWeight = 0f;
+                int PhonemeRatioLength = _phonemeRatios.Length;
+                for (int Index = 0; Index < count; Index++)
+                {
+                    var bs = infos[Index];
+                    float targetWeight = 0f;
+
+                    if (_phonemeNameToIndex.TryGetValue(bs.phoneme, out int idx) && idx >= 0 && idx < PhonemeRatioLength)
+                    {
+                        targetWeight = _phonemeRatios[idx];
+                    }
+
+                    float vel = bs.weightVelocity;
+                    bs.weight = SmoothDamp(bs.weight, targetWeight, ref vel);
+                    bs.weightVelocity = vel;
+
+                    totalWeight += bs.weight;
+                    infos[Index] = bs; // write back if struct
+                }
+
+                // Base multiply (normalize only when sum is not ~zero)
+                const float epsilon = 1e-6f;
+                float baseMultiply = (Mathf.Abs(totalWeight) > epsilon) ? (1f / totalWeight) * globalMultiplier : globalMultiplier;
+
+                // Second pass: apply to renderer
+                for (int Index = 0; Index < count; Index++)
+                {
+                    var bs = infos[Index];
+                    if (bs.index < 0)
+                    {
+                        continue;
+                    }
+
+                    // guard against out-of-range (valid indices are 0..blendShapeCount-1)
+                    if (bs.index >= blendShapeCount)
+                    {
+                        continue;
+                    }
+
+                    MultipliedWeight = bs.weight * baseMultiply;
+                    finalWeight = math.clamp(MultipliedWeight, 0f, 100f);
+                    if (float.IsNaN(finalWeight))
+                    {
+                        finalWeight = 0f;
+                    }
+
+                    smr.SetBlendShapeWeight(bs.index, finalWeight);
+                }
             }
 
             // If new audio arrived, schedule a new job using the ring buffer snapshot.
@@ -104,7 +181,9 @@ namespace uLipSync
 
                 // Copy the entire managed ring buffer into native (keeps job simple)
                 if (_inputData.IsCreated && inputsSnapshot != null && inputsSnapshot.Length == _inputData.Length)
+                {
                     _inputData.CopyFrom(inputsSnapshot);
+                }
 
                 // Build and dispatch the job
                 var lipSyncJob = new LipSyncJob
@@ -128,93 +207,11 @@ namespace uLipSync
                 _jobHandle = lipSyncJob.Schedule();
             }
         }
-
-        public void OnLipSyncUpdate()
-        {
-            var smr = skinnedMeshRenderer;
-            if (smr == null || smr.sharedMesh == null)
-            {
-                return;
-            }
-
-            int blendShapeCount = smr.sharedMesh.blendShapeCount;
-
-            // Volume smoothing (open/close)
-            float normVol = 0f;
-            if (rawVolume > 0f)
-            {
-                float logv = Mathf.Log10(rawVolume);
-                float denom = Mathf.Max(BasisUlipSync.VolumeDifference, 1e-4f);
-                normVol = Mathf.Clamp01((logv - BasisUlipSync.minVolume) / denom);
-            }
-
-            _volume = SmoothDamp(_volume, normVol, ref _openCloseVelocity);
-
-            globalMultiplier = _volume * 100;
-
-            var infos = BlendShapeInfos;
-            if (infos == null)
-            {
-                return;
-            }
-
-            int count = infos.Length;
-
-            // First pass: compute target weights + sum (write back if struct)
-            float totalWeight = 0f;
-            for (int Index = 0; Index < count; Index++)
-            {
-                var bs = infos[Index];
-                float targetWeight = 0f;
-
-                if (_phonemeNameToIndex.TryGetValue(bs.phoneme, out int idx) && idx >= 0 && idx < _phonemeRatios.Length)
-                {
-                    targetWeight = _phonemeRatios[idx];
-                }
-
-                float vel = bs.weightVelocity;
-                bs.weight = SmoothDamp(bs.weight, targetWeight, ref vel);
-                bs.weightVelocity = vel;
-
-                totalWeight += bs.weight;
-                infos[Index] = bs; // write back if struct
-            }
-
-            // Base multiply (normalize only when sum is not ~zero)
-            const float epsilon = 1e-6f;
-            float baseMultiply = (Mathf.Abs(totalWeight) > epsilon) ? (1f / totalWeight) * globalMultiplier : globalMultiplier;
-
-            // Second pass: apply to renderer
-            for (int Index = 0; Index < count; Index++)
-            {
-                var bs = infos[Index];
-                if (bs.index < 0)
-                {
-                    continue;
-                }
-
-                // guard against out-of-range (valid indices are 0..blendShapeCount-1)
-                if (bs.index >= blendShapeCount)
-                {
-                    continue;
-                }
-
-                MultipliedWeight = bs.weight * baseMultiply;
-                finalWeight = math.clamp(MultipliedWeight, 0f, 100f);
-                if (float.IsNaN(finalWeight))
-                {
-                    finalWeight = 0f;
-                }
-
-                smr.SetBlendShapeWeight(bs.index, finalWeight);
-            }
-        }
-
         public void Initalize()
         {
             if (profile == null)
             {
-                
+
                 DisposeBuffers();
                 _allocated = false;
                 return;
@@ -274,10 +271,11 @@ namespace uLipSync
             var meansArr = profile.means; // float[]
             if (meansArr != null && _means.IsCreated)
             {
-                int len = math.min(meansArr.Length, _means.Length);
+                int MeansLength = _means.Length;
+                int len = math.min(meansArr.Length, MeansLength);
                 NativeArray<float>.Copy(meansArr, 0, _means, 0, len);
                 // zero-fill any remainder if profile array is shorter
-                for (int i = len; i < _means.Length; i++)
+                for (int i = len; i < MeansLength; i++)
                 {
                     _means[i] = 0f;
                 }
@@ -286,9 +284,10 @@ namespace uLipSync
             var stdArr = profile.standardDeviation; // float[]
             if (stdArr != null && _standardDeviations.IsCreated)
             {
-                int len = math.min(stdArr.Length, _standardDeviations.Length);
+                int StandardDeviationsLength = _standardDeviations.Length;
+                int len = math.min(stdArr.Length, StandardDeviationsLength);
                 NativeArray<float>.Copy(stdArr, 0, _standardDeviations, 0, len);
-                for (int Index = len; Index < _standardDeviations.Length; Index++)
+                for (int Index = len; Index < StandardDeviationsLength; Index++)
                 {
                     _standardDeviations[Index] = 1f; // sane default
                 }
@@ -309,7 +308,7 @@ namespace uLipSync
             }
         }
 
-       public void OnDestroy()
+        public void OnDestroy()
         {
             if (!_jobHandle.Equals(default(JobHandle)))
             {
