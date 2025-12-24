@@ -41,6 +41,7 @@ namespace Basis.BasisUI
             tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
             tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
             tabGroup.AddTab("Avatar", null, AvatarTab(tabGroup));
+            tabGroup.AddTab("Calibration", null, IKTab(tabGroup));
 
             tabGroup.AddExtraAction("Admin", OpenAdminPanel);
             tabGroup.AddExtraAction("Console", OpenConsoleLogger);
@@ -144,7 +145,7 @@ namespace Basis.BasisUI
             // Controller Dead Zone
             PanelSlider sliderControllerDeadZone = PanelSlider.CreateEntryAndBind(
                 generalGroup,
-                PanelSlider.SliderSettings.Advanced("Controller Dead Zone",0,1,false,3, ValueDisplayMode.Percentage),
+                PanelSlider.SliderSettings.Advanced("Controller Dead Zone", 0, 1, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.ControllerDeadZone);
 
             // Snap Turn Angle
@@ -152,17 +153,6 @@ namespace Basis.BasisUI
                 generalGroup,
                 PanelSlider.SliderSettings.Advanced("Snap Turn Angle", -1, 120, true, 0, ValueDisplayMode.Degrees),
                 BasisSettingsDefaults.SnapTurnAngle);
-
-            // Seated Mode
-            PanelDropdown dropdownSeatedMode = PanelDropdown.CreateNewEntry(generalGroup);
-            dropdownSeatedMode.Descriptor.SetTitle("Seated Mode");
-            // Options inferred from default
-            dropdownSeatedMode.AssignEntries(new List<string>
-            {
-                "Standing Mode",
-                "Seated Mode"
-            });
-            dropdownSeatedMode.AssignBinding(BasisSettingsDefaults.SeatedMode);
 
             // RANGE SETTINGS GROUP
             PanelElementDescriptor rangeGroup =
@@ -181,6 +171,12 @@ namespace Basis.BasisUI
                 rangeGroup,
                 PanelSlider.SliderSettings.Distance("Hearing Range", 25),
                 BasisSettingsDefaults.HearingRange);
+
+            // Microphone Range
+            PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
+                rangeGroup,
+                PanelSlider.SliderSettings.Distance("Microphone Range", 25),
+                BasisSettingsDefaults.MicrophoneRange);
 
             descriptor.ForceRebuild();
             return tab;
@@ -245,12 +241,6 @@ namespace Basis.BasisUI
             }
 
             sliderMicrophoneVolume.SliderComponent.onValueChanged.AddListener(MicrophoneVolumeChanged);
-
-            // Microphone Range
-            PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
-                microphoneGroup,
-                PanelSlider.SliderSettings.Distance("Microphone Range", 25),
-                BasisSettingsDefaults.MicrophoneRange);
 
 
             BasisLocalVolumeMeterUIDescriptor rangeGroup = BasisLocalVolumeMeterUIDescriptor.CreateNew(BasisLocalVolumeMeterUIDescriptor.ElementStyles.Horizontal, microphoneGroup.ContentParent);
@@ -565,14 +555,6 @@ namespace Basis.BasisUI
             debugGroup.SetTitle("Avatar Settings");
             debugGroup.SetDescription("Configuration settings for avatars.");
 
-            // Avatar Scale
-            PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
-                debugGroup.ContentParent,
-                PanelSlider.SliderSettings.Advanced("Avatar Scale", 0.1f, 5, false, 2, ValueDisplayMode.Meters),
-                BasisSettingsDefaults.AvatarScale);
-
-            sliderFieldOfView.OnValueChanged += AvatarScaleChanged;
-
             // Avatar Download Size.
             PanelSlider AvatarDownloadSize = PanelSlider.CreateEntryAndBind(
                 debugGroup.ContentParent,
@@ -582,10 +564,99 @@ namespace Basis.BasisUI
             descriptor.ForceRebuild();
             return tab;
         }
+        // Put these as fields on the class (so RevaluteInteractableStatus can touch them)
+        private static PanelDropdown dropdownVisualState;
+        private static PanelDropdown dropdownSeatedMode;
+        //   private static PanelSlider sliderCalibrationHeightRange;
 
-        public static void AvatarScaleChanged(float value)
+        //  private const string VisualMode_CalibEyeHeight = "Calibration Eye Height";
+        private const string SeatedMode_Seated = "Seated Mode";
+        // ------------------
+        // IK & Input
+        // ------------------
+        public static PanelTabPage IKTab(PanelTabGroup tabGroup)
         {
-            BasisHeightDriver.SetCustomPlayerHeight(value);
+            var tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+            var descriptor = tab.Descriptor;
+            descriptor.SetIcon(AddressableAssets.Sprites.Settings);
+            descriptor.SetTitle("IK Tab");
+
+            RectTransform container = descriptor.ContentParent;
+
+            // IK GROUP
+            var IkGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            IkGroup.SetIcon(AddressableAssets.Sprites.Settings);
+            IkGroup.SetTitle("Calibration & IK");
+            IkGroup.SetDescription("Settings for Fine Tuning Calibration and IK");
+
+            // Seated Mode
+            dropdownSeatedMode = PanelDropdown.CreateNewEntry(IkGroup.ContentParent);
+            dropdownSeatedMode.Descriptor.SetTitle("Seated Mode");
+            dropdownSeatedMode.AssignEntries(new List<string>
+    {
+        "Standing Mode",
+        SeatedMode_Seated
+    });
+            dropdownSeatedMode.AssignBinding(BasisSettingsDefaults.SeatedMode);
+
+            // Visual State Mode
+            dropdownVisualState = PanelDropdown.CreateNewEntry(IkGroup.ContentParent);
+            dropdownVisualState.Descriptor.SetTitle("Full Body IK Mode");
+            dropdownVisualState.AssignEntries(new List<string>
+    {
+        "Eye Height",
+        "Arm Distance",
+     //   VisualMode_CalibEyeHeight
+    });
+            dropdownVisualState.AssignBinding(BasisSettingsDefaults.IKMode);
+
+            // Custom Scale toggle (your label says Custom Scale but variable name says DebugVisuals; up to you)
+            var toggleCustomScale = PanelToggle.CreateNewEntry(IkGroup.ContentParent);
+            toggleCustomScale.Descriptor.SetTitle("Custom Scale");
+            toggleCustomScale.AssignBinding(BasisSettingsDefaults.CustomScale);
+
+            // Avatar Scale slider
+            var sliderScaleRange = PanelSlider.CreateEntryAndBind(
+                IkGroup,
+                PanelSlider.SliderSettings.Advanced("Avatar height Scale", 0.1f, 5f, false, 2, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.SelectedScale);
+
+            // Calibration Eye Height slider
+            // sliderCalibrationHeightRange = PanelSlider.CreateEntryAndBind(
+            //   IkGroup,
+            //   PanelSlider.SliderSettings.Advanced("Calibration Eye height", 0.4f, 2.3f, false, 3, ValueDisplayMode.Meters),
+            //  BasisSettingsDefaults.SelectedHeight);
+
+            // Hook both dropdowns to the same evaluator
+            dropdownVisualState.OnValueChanged += EvaluateInteractables;
+            dropdownSeatedMode.OnValueChanged += EvaluateInteractables;
+
+            // Run once on build so initial state is correct
+            EvaluateInteractables();
+
+            descriptor.ForceRebuild();
+            return tab;
+        }
+        private static void EvaluateInteractables(string obj)
+        {
+            EvaluateInteractables();
+        }
+        private static void EvaluateInteractables()
+        {
+            string seatedValue = GetCurrentText(dropdownSeatedMode);
+            string visualValue = GetCurrentText(dropdownVisualState);
+            bool isSeated = seatedValue == SeatedMode_Seated;
+            SetDropdownInteractable(dropdownVisualState, !isSeated);
+            // bool isCalibrationMode = (!isSeated) && (visualValue == VisualMode_CalibEyeHeight);
+            //   sliderCalibrationHeightRange.SliderComponent.interactable = isCalibrationMode || !isSeated;
+        }
+        private static string GetCurrentText(PanelDropdown dd)
+        {
+            return dd.DropdownComponent.options[dd.DropdownComponent.value].text;
+        }
+        private static void SetDropdownInteractable(PanelDropdown dd, bool interactable)
+        {
+            dd.DropdownComponent.interactable = interactable;
         }
     }
 }

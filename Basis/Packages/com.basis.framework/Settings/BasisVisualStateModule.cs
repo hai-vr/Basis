@@ -46,6 +46,9 @@ public class BasisVisualStateModule : BasisSettingsBase
                 break;
         }
     }
+    public override void ChangedSettings()
+    {
+    }
     public static void ShowAvatarDistance()
     {
         if (AdaptiveCircleCreated == null)

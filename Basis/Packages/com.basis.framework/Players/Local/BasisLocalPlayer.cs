@@ -165,20 +165,14 @@ namespace Basis.Scripts.BasisSdk.Players
         [SerializeField]
         public BasisAudioAndVisemeDriver LocalVisemeDriver = new BasisAudioAndVisemeDriver();
 
-        #endregion
-
-        /// <summary>
-        /// Stores the current height measurements and derived values for the local player.
-        /// </summary>
-        [Header("Height Information")]
-        public BasisLocalHeight CurrentHeight = new BasisLocalHeight();
-
         /// <summary>
         /// Driver responsible for simulating/controlling facial blinking.
         /// </summary>
         [Header("Blink Driver")]
         [SerializeField]
         public BasisLocalFacialBlinkDriver FacialBlinkDriver = new BasisLocalFacialBlinkDriver();
+
+        #endregion
         /// <summary>
         /// Bootstraps the local player by wiring up drivers, input, and events, and loading the initial avatar.
         /// </summary>

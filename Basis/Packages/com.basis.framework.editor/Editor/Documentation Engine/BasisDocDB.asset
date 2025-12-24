@@ -156,12 +156,14 @@ MonoBehaviour:
   - TypeFullName: Basis.Scripts.Avatar.
     MemberName: DownloadAndLoadAvatar
     Kind: Method
-    ParamCount: 4
+    ParamCount: 6
     ParamNames:
     - BasisLoadableBundle
     - BasisPlayer
     - Position
     - Rotation
+    - Token
+    - 1024
     ParamDocs:
     - The bundle containing the avatar data.
     - The player to assign the avatar to.
@@ -3674,6 +3676,26 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisHandHeldCameraUI+DepthMode
+    MemberName: VolFogOutput
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: UI readout for Volumetric Fog.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisHandHeldCameraUI+DepthMode
     MemberName: FOVSlider
     Kind: Field
     ParamCount: 0
@@ -5905,26 +5927,6 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: 
-    MemberName: SolveTwoBoneSpine
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Two-bone IK specialized for a spine-like chain (root-mid-tip).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
   - TypeFullName: BasisAnimationRiggingHelper
     MemberName: CreateBasisFullBodyRIG
     Kind: Method
@@ -5938,394 +5940,6 @@ MonoBehaviour:
     Summary: "Build the combined Full IK constraint from arrays of joints and roles.\n
       root/mid/tip must be length >= 3: [Head, LeftLowerLeg, RightLowerLeg]\n TargetRole/BendRole/UseBoneRole
       correspond index-by-index to those same chains."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: SolveTwoBone
-    Kind: Method
-    ParamCount: 9
-    ParamNames:
-    - stream
-    - root
-    - mid
-    - tip
-    - target
-    - hint
-    - HasHint
-    - targetOffset
-    - BendNormal
-    ParamDocs:
-    - The animation stream to work on.
-    - The transform handle for the root transform.
-    - The transform handle for the mid transform.
-    - The transform handle for the tip transform.
-    - The transform handle for the target transform.
-    - The transform handle for the hint transform.
-    - The weight for which hint transform has an effect on IK calculations. This
-      is a value in between 0 and 1.
-    - The offset applied to the target transform.
-    Summary: Evaluates the Two-Bone IK algorithm.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisDampedTransformData
-    MemberName: BasisDampedTransformData
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The DampedTransform constraint data.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisDampedTransformData
-    MemberName: value
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: 
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisApplyTranslation
-    MemberName: BasisApplyTranslation
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: DampedTransform constraint.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisApplyTranslation
-    MemberName: OnValidate
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: 
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisDampedTransformJob
-    MemberName: BasisDampedTransformJob
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The DampedTransform job.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisDampedTransformJob
-    MemberName: driven
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The Transform handle for the constrained object Transform.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisDampedTransformJob
-    MemberName: targetPosition
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The transform handle for the target transform.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisDampedTransformJob
-    MemberName: targetRotation
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The transform handle for the target transform.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisDampedTransformJob
-    MemberName: localBindTx
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Initial TR offset from source to constrained object.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisDampedTransformJob
-    MemberName: jobWeight
-    Kind: Property
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: 
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisDampedTransformJob
-    MemberName: ProcessRootMotion
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - stream
-    ParamDocs:
-    - The animation stream to work on.
-    Summary: Defines what to do when processing the root motion.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisDampedTransformJob
-    MemberName: ProcessAnimation
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - stream
-    ParamDocs:
-    - The animation stream to work on.
-    Summary: Defines what to do when processing the animation.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisIDampedTransformData
-    MemberName: BasisIDampedTransformData
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: This interface defines the data mapping for DampedTransform.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisIDampedTransformData
-    MemberName: TargetPosition
-    Kind: Property
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The Transform affected by the constraint Source Transform.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisJobBinder
-    MemberName: BasisJobBinder
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The path to the override position property in the constraint component.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames:
-    - T
-    TypeParamDocs:
-    - The constraint data type
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisJobBinder
-    MemberName: Create
-    Kind: Method
-    ParamCount: 3
-    ParamNames:
-    - animator
-    - data
-    - component
-    ParamDocs: []
-    Summary: 
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.
-    MemberName: Destroy
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - job
-    ParamDocs: []
-    Summary: 
     Remarks: 
     Returns: 
     Value: 
@@ -6399,460 +6013,6 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: BasisChainIKConstraintJob
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The ChainIK constraint job.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: chain
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: An array of Transform handles that represents the Transform chain.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: TargetPosition
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The Transform handle for the target Transform.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: TargetRotation
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The Transform handle for the target Transform.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: linkLengths
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: An array of length in between Transforms in the chain.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: linkPositions
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: An array of positions for Transforms in the chain.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: toleranceIdx
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: CacheIndex to ChainIK tolerance value.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs:
-    - AnimationJobCache
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: maxIterationsIdx
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: CacheIndex to ChainIK maxIterations value.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs:
-    - AnimationJobCache
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: cache
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Cache for static properties in the job.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: maxReach
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The maximum distance the Transform chain can reach.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: jobWeight
-    Kind: Property
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: 
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: ProcessRootMotion
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - stream
-    ParamDocs:
-    - The animation stream to work on.
-    Summary: Defines what to do when processing the root motion.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJob
-    MemberName: ProcessAnimation
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - stream
-    ParamDocs:
-    - The animation stream to work on.
-    Summary: Defines what to do when processing the animation.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisIChainIKConstraintData
-    MemberName: BasisIChainIKConstraintData
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: This interface defines the data mapping for the ChainIK constraint.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJobBinder
-    MemberName: BasisChainIKConstraintJobBinder
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The root Transform of the ChainIK hierarchy.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames:
-    - T
-    TypeParamDocs:
-    - The constraint data type
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintJobBinder
-    MemberName: Create
-    Kind: Method
-    ParamCount: 3
-    ParamNames:
-    - animator
-    - data
-    - component
-    ParamDocs: []
-    Summary: 
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.
-    MemberName: Destroy
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - job
-    ParamDocs: []
-    Summary: 
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.
-    MemberName: Update
-    Kind: Method
-    ParamCount: 2
-    ParamNames:
-    - job
-    - data
-    ParamDocs: []
-    Summary: 
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintData
-    MemberName: BasisChainIKConstraintData
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The ChainIK constraint data.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintData
-    MemberName: value
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: 
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraintData
-    MemberName: value
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: 
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisChainIKConstraint
-    MemberName: BasisChainIKConstraint
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: 
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
   - TypeFullName: UnityEngine.Animations.Rigging.BasisFullBodyData
     MemberName: BasisFullBodyData
     Kind: Type
@@ -6875,55 +6035,30 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisIKConstraintData
-    MemberName: BasisIKConstraintData
-    Kind: Type
+  - TypeFullName: UnityEngine.Animations.Rigging.
+    MemberName: SolveTwoBone
+    Kind: Field
     ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: "Minimal constraint that ONLY drives the hips transform (position +
-      rotation).\n Added: calibration offset (position + quaternion) to bake T-pose
-      offsets."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisTwoBoneIKConstraintData
-    MemberName: BasisTwoBoneIKConstraintData
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The TwoBoneIK constraint data.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: UnityEngine.Animations.Rigging.BasisTwoBoneIKConstraint
-    MemberName: OnValidate
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: 
+    ParamNames:
+    - stream
+    - root
+    - mid
+    - tip
+    - target
+    - hint
+    - HasHint
+    - targetOffset
+    ParamDocs:
+    - The animation stream to work on.
+    - The transform handle for the root transform.
+    - The transform handle for the mid transform.
+    - The transform handle for the tip transform.
+    - The transform handle for the target transform.
+    - The transform handle for the hint transform.
+    - The weight for which hint transform has an effect on IK calculations. This
+      is a value in between 0 and 1.
+    - The offset applied to the target transform.
+    Summary: Evaluates the Two-Bone IK algorithm.
     Remarks: 
     Returns: 
     Value: 
@@ -10196,6 +9331,127 @@ MonoBehaviour:
     ParamDocs: []
     Summary: Thread-safe registry for players/receivers, plus avatar/player conversion
       helpers.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisRemoteFaceManagement
+    MemberName: BasisRemoteFaceManagement
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Remote Face Management\n this is mulithreaded blink and eye positions"
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisRemoteFaceManagement
+    MemberName: MinLookAroundInterval
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Minimum time (in seconds) between randomized look-around events.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisRemoteFaceManagement
+    MemberName: MaxLookAroundInterval
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Maximum time (in seconds) between randomized look-around events.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisRemoteFaceManagement
+    MemberName: MaxHorizontalLook
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Maximum horizontal offset (in normalized degrees) for random look targets.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisRemoteFaceManagement
+    MemberName: MaxVerticalLook
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Maximum vertical offset (in normalized degrees) for random look targets.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: BasisRemoteFaceManagement
+    MemberName: LookSpeed
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Speed multiplier controlling how quickly the eyes interpolate toward
+      their target.
     Remarks: 
     Returns: 
     Value: 
@@ -13493,6 +12749,26 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.BasisUI.
+    MemberName: LoadAvatar
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Apply the current avatar onto the player.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.BasisUI.
     MemberName: BindDataIndex
     Kind: Method
     ParamCount: 2
@@ -15265,26 +14541,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Drivers.BasisAudioAndVisemeDriver
-    MemberName: uLipSyncBlendShape
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: uLipSync component that writes analysed phoneme weights into blendshapes.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisAudioAndVisemeDriver
     MemberName: List<BasisPhonemeBlendShapeInfo>
     Kind: Method
     ParamCount: 0
@@ -15292,26 +14548,6 @@ MonoBehaviour:
     ParamDocs: []
     Summary: Table mapping phoneme strings (e.g., "A", "E") to avatar blendshape
       indices.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisAudioAndVisemeDriver
-    MemberName: FirstTime
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Indicates whether this was the first initialization for this instance.
     Remarks: 
     Returns: 
     Value: 
@@ -15737,489 +14973,6 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: BasisFacialBlinkDriver
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Drives automatic facial blinking using skinned mesh blendshapes.
-    Remarks: "This driver schedules pseudo-random blink events and animates eye-closure/opening\n
-      by writing weights to a set of blink blendshapes on a SkinnedMeshRenderer.\n
-      It also observes face visibility via BasisPlayer.FaceRenderer and disables\n
-      updates when the face is not visible."
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: Override
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: If set to `true`, overrides and disables the blinking simulation logic.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: meshRenderer
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Renderer containing blink blendshapes referenced by blendShapeIndices.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: minBlinkInterval
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Minimum interval in seconds between blinks.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: maxBlinkInterval
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Maximum interval in seconds between blinks.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: blinkDuration
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Time in seconds for the eyes to close fully during a blink.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: visemeTransitionDuration
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Time in seconds for the eyes to transition back to open after a blink.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: List<int>
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: "Blendshape indices on meshRenderer used for blinking.\n Values of `-1`
-      in the avatar data are ignored."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: blendShapeCount
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Cached count of valid blink blendshape indices.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: meshBlendShapeCount
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: blendshape mesh count on avatar face blink mesh.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: linkedPlayer
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Player whose face visibility is observed.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: IsEnabled
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Whether updates are currently enabled (e.g., face visible and renderer
-      present).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: IsClosingBlink
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Internal flag indicating an active blink (closing phase).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: IsOpeningBlink
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Internal flag indicating the opening phase after a blink.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: NextBlinkTime
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Absolute time at which the next blink should start.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: BlinkStartTime
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Absolute time when the current blink (closing) started.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: OpenStartTime
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Absolute time when the opening transition started.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.BasisFacialBlinkDriver
-    MemberName: Initialize
-    Kind: Method
-    ParamCount: 2
-    ParamNames:
-    - player
-    - avatar
-    ParamDocs:
-    - The owning BasisPlayer.
-    - Avatar providing blink mesh and viseme indices.
-    Summary: Initializes the blink driver with player and avatar data and wires face
-      visibility callbacks.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.
-    MemberName: Simulate
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - time
-    ParamDocs:
-    - Current absolute time (e.g., Time.timeAsDouble).
-    Summary: "Advances blink timing and writes blendshape weights for close/open
-      phases.\n Should be called once per frame."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.
-    MemberName: OnDestroy
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Unsubscribes from face visibility callbacks.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.
-    MemberName: UpdateFaceVisibility
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - state
-    ParamDocs:
-    - True if the face is currently visible.
-    Summary: "Updates the internal enabled state based on face visibility\n and resets
-      blendshape state when disabled."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.
-    MemberName: MeetsRequirements
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - avatar
-    ParamDocs:
-    - Avatar to validate.
-    Summary: Checks whether the provided avatar contains the data needed to run the
-      blink driver.
-    Remarks: 
-    Returns: '`true` if a blink mesh is present and at least one valid blink viseme
-      index exists; otherwise `false`.'
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.
-    MemberName: SetNextBlinkTime
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - currentTime
-    ParamDocs:
-    - Time to offset from.
-    Summary: Randomizes the absolute time for the next blink within minBlinkInterval
-      and maxBlinkInterval.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
   - TypeFullName: BasisHeightDriver
     MemberName: BasisHeightDriver
     Kind: Type
@@ -16244,138 +14997,267 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: BasisHeightDriver
-    MemberName: FileNameAndExtension
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: File name (with extension) used to persist the player's eye height via
-      BasisDataStore.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisHeightDriver
-    MemberName: ChangeEyeHeightMode
+    MemberName: SetCustomHeight
     Kind: Method
-    ParamCount: 2
+    ParamCount: 4
     ParamNames:
-    - localPlayer
-    - selectedHeightMode
-    ParamDocs:
-    - The target BasisLocalPlayer whose height/ratios will be updated.
-    - The height computation mode that determines which ratios to apply.
-    Summary: Adjusts the player's eye height after allowing devices and systems to
-      reset to native size, then notifies listeners next frame.
-    Remarks: "Establishes authoritative avatar metrics (eye height, arm span) first,
-      then captures live player metrics.\n Ensures nonzero defaults, computes scale
-      ratios safely, picks the active ratio set for `selectedHeightMode`,\n and invokes
-      BasisLocalPlayer.OnPlayersHeightChangedNextFrame via BasisLocalPlayer.ExecuteNextFrame(System.Action)."
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: CapturePlayerHeight
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - localPlayer
-    ParamDocs:
-    - The BasisLocalPlayer whose measurements will be populated.
-    Summary: Captures live player eye height and arm span from connected input devices,
-      using avatar/default fallbacks when necessary.
-    Remarks: "Eye height is read from BasisLocalCameraDriver.Instance lock-to-input
-      if available, otherwise falls back to avatar eye height or default.\n Arm span
-      uses left/right hand devices; if either hand is missing, the default arm span
-      is used."
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: GetDefaultOrLoadPlayerHeight
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Loads the persisted player eye height, or saves and returns the default
-      if none is stored.
-    Remarks: On a cache miss, persists the default height to FileNameAndExtension
-      and returns it.
-    Returns: The stored eye height if found; otherwise the default value from BasisLocalPlayer.DefaultPlayerEyeHeight.
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: SaveHeight
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - eyeHeight
-    ParamDocs:
-    - The eye height to save (meters).
-    Summary: Persists a specific eye height value to FileNameAndExtension.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: 
-    MemberName: SetCustomPlayerHeight
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - customHeight
+    - Usecustom
+    - CustomAvatarEyeHeight
+    - CustomPlayerHeight
+    - ScaleAvatar
     ParamDocs:
     - Desired eye height in meters. Must be greater than zero.
     Summary: "Applies a custom player eye height, persists it, recomputes ratios
-      in ChangeEyeHeightMode,\n updates avatar scale, rescales TPose bone data, and
+      in CaliberateHeights,\n updates avatar scale, rescales TPose bone data, and
       notifies listeners next frame."
     Remarks: "Uses the recomputed unscaled avatar eye height as the baseline to compute
       the avatar height scale factor.\n Updates BasisLocalAvatarDriver.ScaleAvatarModification
       and adjusts TPose-scaled transforms on each bone control."
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: ChooseHeightToUse
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - Height
+    ParamDocs:
+    - "Selection mode: BasisSelectedHeightMode.ArmSpan,\n BasisSelectedHeightMode.EyeHeight,
+      or BasisSelectedHeightMode.Custom."
+    Summary: Chooses the active height metrics and scale ratios based on the provided
+      mode.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: FallbackSizeInMeters
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Fallback height (meters) used when no measurement is available.\n not
+      the total height but the eye height"
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: DefaultPlayerEyeHeight
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Default measured eye height for the player (meters).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: DefaultAvatarEyeHeight
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Default measured eye height for the avatar (meters).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: DefaultPlayerArmSpan
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Default measured arm span for the player (meters).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: DefaultAvatarArmSpan
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Default measured arm span for the avatar (meters).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: PlayerEyeHeight
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Measured eye height for the player (meters). Defaults to BasisLocalPlayer.FallbackSize.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: AvatarEyeHeight
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Measured eye height for the avatar (meters). Defaults to BasisLocalPlayer.FallbackSize.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: PlayerArmSpan
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Measured arm span for the player (meters). Defaults to BasisLocalPlayer.FallbackSize.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: AvatarArmSpan
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Measured arm span for the avatar (meters). Defaults to BasisLocalPlayer.FallbackSize.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: CustomPlayerEyeHeight
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Custom player eye height (meters) supplied by user or calibration UI.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: CustomAvatarEyeHeight
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Custom avatar eye height (meters) supplied by user or calibration UI.
+    Remarks: 
     Returns: 
     Value: 
     Examples: []
@@ -17749,37 +16631,18 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Drivers.
-    MemberName: SetAllMatrixRecalculation
+    MemberName: SetIndividualMeshData
     Kind: Method
-    ParamCount: 1
+    ParamCount: 2
     ParamNames:
-    - State
+    - forceMatrixRecalculationPerRender
+    - updateWhenOffscreen
     ParamDocs:
     - Whether to force matrix recalculation each render.
-    Summary: Toggles per-render matrix recalculation on all avatar skinned meshes.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.
-    MemberName: UpdateWhenOffscreen
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - State
-    ParamDocs:
-    - Whether to update meshes offscreen.
-    Summary: Toggles updating skinned meshes when offscreen (helpful for VR and detached
-      cameras).
+    - Whether to force update When Offscreen each render.
+    Summary: "Toggles per-render matrix recalculation on all avatar skinned meshes.\n
+      Toggles updating skinned meshes when offscreen (helpful for VR and detached
+      cameras)."
     Remarks: 
     Returns: 
     Value: 
@@ -18177,6 +17040,46 @@ MonoBehaviour:
     Platforms: []
   - TypeFullName: Basis.Scripts.Drivers.BasisLocalBoneDriver
     MemberName: RightToeControl
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Cached control for the right toe bones.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalBoneDriver
+    MemberName: LeftShoulderControl
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Cached control for the left toe bones.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalBoneDriver
+    MemberName: RightShoulderControl
     Kind: Field
     ParamCount: 0
     ParamNames: []
@@ -20434,6 +19337,489 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: BasisLocalFacialBlinkDriver
+    Kind: Type
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Drives automatic facial blinking using skinned mesh blendshapes.
+    Remarks: "This driver schedules pseudo-random blink events and animates eye-closure/opening\n
+      by writing weights to a set of blink blendshapes on a SkinnedMeshRenderer.\n
+      It also observes face visibility via BasisPlayer.FaceRenderer and disables\n
+      updates when the face is not visible."
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: Override
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: If set to `true`, overrides and disables the blinking simulation logic.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: meshRenderer
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Renderer containing blink blendshapes referenced by blendShapeIndices.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: minBlinkInterval
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Minimum interval in seconds between blinks.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: maxBlinkInterval
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Maximum interval in seconds between blinks.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: blinkDuration
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Time in seconds for the eyes to close fully during a blink.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: visemeTransitionDuration
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Time in seconds for the eyes to transition back to open after a blink.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: List<int>
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Blendshape indices on meshRenderer used for blinking.\n Values of `-1`
+      in the avatar data are ignored."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: blendShapeCount
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Cached count of valid blink blendshape indices.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: meshBlendShapeCount
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: blendshape mesh count on avatar face blink mesh.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: linkedPlayer
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Player whose face visibility is observed.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: IsEnabled
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Whether updates are currently enabled (e.g., face visible and renderer
+      present).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: IsClosingBlink
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Internal flag indicating an active blink (closing phase).
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: IsOpeningBlink
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Internal flag indicating the opening phase after a blink.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: NextBlinkTime
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Absolute time at which the next blink should start.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: BlinkStartTime
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Absolute time when the current blink (closing) started.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: OpenStartTime
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Absolute time when the opening transition started.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisLocalFacialBlinkDriver
+    MemberName: Initialize
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - player
+    - avatar
+    ParamDocs:
+    - The owning BasisPlayer.
+    - Avatar providing blink mesh and viseme indices.
+    Summary: Initializes the blink driver with player and avatar data and wires face
+      visibility callbacks.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: Simulate
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - time
+    ParamDocs:
+    - Current absolute time (e.g., Time.timeAsDouble).
+    Summary: "Advances blink timing and writes blendshape weights for close/open
+      phases.\n Should be called once per frame."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: OnDestroy
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Unsubscribes from face visibility callbacks.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: UpdateFaceVisibility
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - state
+    ParamDocs:
+    - True if the face is currently visible.
+    Summary: "Updates the internal enabled state based on face visibility\n and resets
+      blendshape state when disabled."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: MeetsRequirements
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - avatar
+    ParamDocs:
+    - Avatar to validate.
+    Summary: Checks whether the provided avatar contains the data needed to run the
+      blink driver.
+    Remarks: 
+    Returns: '`true` if a blink mesh is present and at least one valid blink viseme
+      index exists; otherwise `false`.'
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: SetNextBlinkTime
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - currentTime
+    ParamDocs:
+    - Time to offset from.
+    Summary: Randomizes the absolute time for the next blink within minBlinkInterval
+      and maxBlinkInterval.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
   - TypeFullName: BasisLocalHandDriver
     MemberName: BasisLocalHandDriver
     Kind: Type
@@ -22367,7 +21753,7 @@ MonoBehaviour:
     Kind: Method
     ParamCount: 1
     ParamNames:
-    - player
+    - RemotePlayer
     ParamDocs:
     - The remote player whose avatar is being configured.
     Summary: "Performs remote-avatar calibration and registers it with the job system.\n
@@ -23942,15 +23328,18 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisRemoteEyeDriver
-    MemberName: BasisRemoteEyeDriver
+  - TypeFullName: Basis.Scripts.Drivers.BasisRemoteFaceDriver
+    MemberName: BasisRemoteFaceDriver
     Kind: Type
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: "Controls remote player eye simulation, adding randomized,\n natural-looking
-      micro-movements to create lifelike avatar behavior."
-    Remarks: 
+    Summary: "Drives automatic facial blinking using skinned mesh blendshapes.\n
+      handles eye movement override aswell"
+    Remarks: "This driver schedules pseudo-random blink events and animates eye-closure/opening\n
+      by writing weights to a set of blink blendshapes on a SkinnedMeshRenderer.\n
+      It also observes face visibility via BasisPlayer.FaceRenderer and disables\n
+      updates when the face is not visible."
     Returns: 
     Value: 
     Examples: []
@@ -23963,13 +23352,13 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisRemoteEyeDriver
-    MemberName: Override
+  - TypeFullName: Basis.Scripts.Drivers.BasisRemoteFaceDriver
+    MemberName: OverrideBlinking
     Kind: Field
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: If set to `true`, overrides and disables the eye simulation logic.
+    Summary: If set to `true`, overrides and disables the blinking simulation logic.
     Remarks: 
     Returns: 
     Value: 
@@ -23983,13 +23372,13 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisRemoteEyeDriver
-    MemberName: MinLookAroundInterval
+  - TypeFullName: Basis.Scripts.Drivers.BasisRemoteFaceDriver
+    MemberName: OverrideEye
     Kind: Field
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Minimum time (in seconds) between randomized look-around events.
+    Summary: overrides the eye output
     Remarks: 
     Returns: 
     Value: 
@@ -24003,13 +23392,13 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisRemoteEyeDriver
-    MemberName: MaxLookAroundInterval
+  - TypeFullName: Basis.Scripts.Drivers.BasisRemoteFaceDriver
+    MemberName: meshRenderer
     Kind: Field
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Maximum time (in seconds) between randomized look-around events.
+    Summary: Renderer containing blink blendshapes referenced by blendShapeIndices.
     Remarks: 
     Returns: 
     Value: 
@@ -24023,13 +23412,34 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisRemoteEyeDriver
-    MemberName: MaxHorizontalLook
+  - TypeFullName: Basis.Scripts.Drivers.BasisRemoteFaceDriver
+    MemberName: List<int>
+    Kind: Method
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Blendshape indices on meshRenderer used for blinking.\n Values of `-1`
+      in the avatar data are ignored."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Drivers.BasisRemoteFaceDriver
+    MemberName: blendShapeCount
     Kind: Field
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Maximum horizontal offset (in normalized degrees) for random look targets.
+    Summary: Cached count of valid blink blendshape indices.
     Remarks: 
     Returns: 
     Value: 
@@ -24043,13 +23453,13 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisRemoteEyeDriver
-    MemberName: MaxVerticalLook
+  - TypeFullName: Basis.Scripts.Drivers.BasisRemoteFaceDriver
+    MemberName: meshBlendShapeCount
     Kind: Field
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Maximum vertical offset (in normalized degrees) for random look targets.
+    Summary: blendshape mesh count on avatar face blink mesh.
     Remarks: 
     Returns: 
     Value: 
@@ -24063,14 +23473,13 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisRemoteEyeDriver
-    MemberName: LookSpeed
+  - TypeFullName: Basis.Scripts.Drivers.BasisRemoteFaceDriver
+    MemberName: linkedPlayer
     Kind: Field
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Speed multiplier controlling how quickly the eyes interpolate toward
-      their target.
+    Summary: Player whose face visibility is observed.
     Remarks: 
     Returns: 
     Value: 
@@ -24084,14 +23493,14 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisRemoteEyeDriver
-    MemberName: LinkedPlayer
+  - TypeFullName: Basis.Scripts.Drivers.BasisRemoteFaceDriver
+    MemberName: BlinkingEnabled
     Kind: Field
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: "The next scheduled time (in Unity\u2019s timeAsDouble) when a new look-around
-      should be triggered."
+    Summary: Whether updates are currently enabled (e.g., face visible and renderer
+      present).
     Remarks: 
     Returns: 
     Value: 
@@ -24105,13 +23514,18 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisRemoteEyeDriver
-    MemberName: BasisAvatarDriver
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: The avatar driver responsible for managing this player's avatar.
+  - TypeFullName: Basis.Scripts.Drivers.BasisRemoteFaceDriver
+    MemberName: Initialize
+    Kind: Method
+    ParamCount: 2
+    ParamNames:
+    - player
+    - avatar
+    ParamDocs:
+    - The owning BasisPlayer.
+    - Avatar providing blink mesh and viseme indices.
+    Summary: Initializes the blink driver with player and avatar data and wires face
+      visibility callbacks.
     Remarks: 
     Returns: 
     Value: 
@@ -24125,35 +23539,13 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: BasisRemoteEyeDriver
-    MemberName: IsEnabled
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: "Whether the eye simulation is currently active.\n Controlled by face
-      visibility and initialization state."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: BasisRemoteEyeDriver
+  - TypeFullName: Basis.Scripts.Drivers.
     MemberName: OnDestroy
     Kind: Method
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Called when the object is destroyed. Unsubscribes from face visibility
-      events.
+    Summary: Unsubscribes from face visibility callbacks.
     Remarks: 
     Returns: 
     Value: 
@@ -24167,18 +23559,16 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: 
-    MemberName: Initalize
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: UpdateFaceVisibility
     Kind: Method
-    ParamCount: 2
+    ParamCount: 1
     ParamNames:
-    - avatarDriver
-    - player
+    - state
     ParamDocs:
-    - "The avatar driver managing the player\u2019s model."
-    - The remote player being linked.
-    Summary: "Initializes the eye driver with the given avatar and player,\n subscribes
-      to face visibility events, and schedules the first look-around."
+    - True if the face is currently visible.
+    Summary: "Updates the internal enabled state based on face visibility\n and resets
+      blendshape state when disabled."
     Remarks: 
     Returns: 
     Value: 
@@ -24192,19 +23582,19 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: 
-    MemberName: Simulate
+  - TypeFullName: Basis.Scripts.Drivers.
+    MemberName: MeetsRequirements
     Kind: Method
-    ParamCount: 2
+    ParamCount: 1
     ParamNames:
-    - TimeAsDouble
-    - DeltaSpeed
+    - avatar
     ParamDocs:
-    - True if the face is visible, false otherwise.
-    Summary: Updates the simulation state based on whether the face is currently
-      visible.
+    - Avatar to validate.
+    Summary: Checks whether the provided avatar contains the data needed to run the
+      blink driver.
     Remarks: 
-    Returns: 
+    Returns: '`true` if a blink mesh is present and at least one valid blink viseme
+      index exists; otherwise `false`.'
     Value: 
     Examples: []
     TypeParamNames: []
@@ -26745,26 +26135,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.void
-    MemberName: BasisFacialBlinkDriver
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Driver responsible for simulating/controlling facial blinking.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.void
     MemberName: SetSafeDisplayname
     Kind: Method
     ParamCount: 0
@@ -27268,321 +26638,6 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: BasisLocalHeight
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: "Serializable container for player/avatar height metrics and scale ratios.\n
-      Tracks measured eye heights and arm spans for both the user (player) and the
-      avatar,\n along with precomputed scale ratios and the currently selected height/scale
-      pair."
-    Remarks: "Use PickHeightMode(BasisSelectedHeightMode) to populate the\n SelectedPlayerHeight,
-      SelectedAvatarHeight,\n SelectedPlayerToDefaultScale, and SelectedAvatarToAvatarDefaultScale
-      fields\n based on the chosen mode (ArmSpan, EyeHeight, or Custom).\n \n\n\n
-      Note on the `Custom` branch: the scale computation uses\n DefaultAvatarEyeHeight
-      for the player scale and\n DefaultPlayerEyeHeight for the avatar scale. Verify
-      this is intentional."
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: AvatarName
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Human-readable name of the avatar these measurements are associated
-      with.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: FallbackSizeInMeters
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: "Fallback height (meters) used when no measurement is available.\n not
-      the total height but the eye height"
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: DefaultPlayerEyeHeight
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Default measured eye height for the player (meters).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: DefaultAvatarEyeHeight
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Default measured eye height for the avatar (meters).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: DefaultPlayerArmSpan
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Default measured arm span for the player (meters).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: DefaultAvatarArmSpan
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Default measured arm span for the avatar (meters).
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: PlayerEyeHeight
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Measured eye height for the player (meters). Defaults to BasisLocalPlayer.FallbackSize.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: AvatarEyeHeight
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Measured eye height for the avatar (meters). Defaults to BasisLocalPlayer.FallbackSize.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: PlayerArmSpan
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Measured arm span for the player (meters). Defaults to BasisLocalPlayer.FallbackSize.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: AvatarArmSpan
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Measured arm span for the avatar (meters). Defaults to BasisLocalPlayer.FallbackSize.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: CustomPlayerEyeHeight
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Custom player eye height (meters) supplied by user or calibration UI.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: CustomAvatarEyeHeight
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Custom avatar eye height (meters) supplied by user or calibration UI.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: value
-    Kind: Field
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Ratio mapping the player's measured eye height to a default reference
-      scale.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalHeight
-    MemberName: PickHeightMode
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - Height
-    ParamDocs:
-    - "Selection mode: BasisSelectedHeightMode.ArmSpan,\n BasisSelectedHeightMode.EyeHeight,
-      or BasisSelectedHeightMode.Custom."
-    Summary: Chooses the active height metrics and scale ratios based on the provided
-      mode.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalPlayer
     MemberName: BasisLocalPlayer
     Kind: Type
@@ -28051,13 +27106,12 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisLocalPlayer
-    MemberName: BasisLocalHeight
+    MemberName: BasisLocalFacialBlinkDriver
     Kind: Method
     ParamCount: 0
     ParamNames: []
     ParamDocs: []
-    Summary: Stores the current height measurements and derived values for the local
-      player.
+    Summary: Driver responsible for simulating/controlling facial blinking.
     Remarks: 
     Returns: 
     Value: 
@@ -28391,26 +27445,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
-    MemberName: BasisRemoteEyeDriver
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: Driver that applies remote eye/gaze data to the avatar.
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
     MemberName: BasisRemoteAvatarDriver
     Kind: Method
     ParamCount: 0
@@ -28439,6 +27473,26 @@ MonoBehaviour:
     ParamDocs: []
     Summary: Network receiver that provides pose/animation buffers and messages for
       this player.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.BasisSdk.Players.BasisRemotePlayer
+    MemberName: RemoteFaceDriver
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: Network Face Driver that provides eye and blink support
     Remarks: 
     Returns: 
     Value: 
@@ -32676,27 +31730,6 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Device_Management.Devices.BasisXRManagement
-    MemberName: ReInitalizeCheck
-    Kind: Method
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    Summary: "Refreshes cached references to XRGeneralSettings and its XRManagerSettings.\n
-      Safe to call repeatedly."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.
     MemberName: TryBeginLoad
     Kind: Method
     ParamCount: 1
@@ -32708,29 +31741,6 @@ MonoBehaviour:
       Kicks off a coroutine to initialize and start subsystems."
     Remarks: 
     Returns: True if an XR load attempt was started; otherwise false.
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Device_Management.Devices.
-    MemberName: DisableDeviceManagerSolution
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - BasisBootedMode
-    ParamDocs:
-    - Name of the loader/mode to remove.
-    Summary: "Removes an active XR loader that matches the given `BasisBootedMode`.\n
-      Useful when switching back to non-XR modes."
-    Remarks: 
-    Returns: 
     Value: 
     Examples: []
     TypeParamNames: []
@@ -33189,7 +32199,9 @@ MonoBehaviour:
     ParamDocs:
     - Delta vsector from input system.
     Summary: "Applies yaw/pitch rotation based on the given input vector.\n Handles
-      mouse-look simulation for the eye."
+      mouse-look simulation for the eye.\n Note: This is relative to the player's
+      non-head rotation. The final camera rotation is that, combined with this eye
+      rotation."
     Remarks: 
     Returns: 
     Value: 
@@ -34108,6 +33120,27 @@ MonoBehaviour:
     ObsoleteMsg: 
     Platforms: []
   - TypeFullName: Basis.Scripts.Device_Management.Devices.Simulation.BasisInputXRSimulate
+    MemberName: AccountForScale
+    Kind: Field
+    ParamCount: 0
+    ParamNames: []
+    ParamDocs: []
+    Summary: turning this on will mean that the positions get scaled relative to
+      the overriden height.
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: Basis.Scripts.Device_Management.Devices.Simulation.BasisInputXRSimulate
     MemberName: DoPollData
     Kind: Method
     ParamCount: 0
@@ -34821,8 +33854,30 @@ MonoBehaviour:
     ParamNames:
     - source
     ParamDocs: []
-    Summary: "Convert a Texture2D into PNG-encoded bytes.\n Works with non-readable
-      textures (makes a readable copy under the hood)."
+    Summary: "Convert Texture2D to PNG bytes.\n Resizes if texture is larger than
+      512px."
+    Remarks: 
+    Returns: 
+    Value: 
+    Examples: []
+    TypeParamNames: []
+    TypeParamDocs: []
+    ExceptionCrefs: []
+    ExceptionDocs: []
+    SeeCrefs: []
+    SeeAlsoCrefs: []
+    Since: 
+    ObsoleteMsg: 
+    Platforms: []
+  - TypeFullName: 
+    MemberName: FromPngBytes
+    Kind: Method
+    ParamCount: 1
+    ParamNames:
+    - pngBytes
+    ParamDocs: []
+    Summary: "Convert PNG bytes back into a Texture2D.\n Result texture is clamped
+      to 512px max."
     Remarks: 
     Returns: 
     Value: 
@@ -34840,20 +33895,9 @@ MonoBehaviour:
     MemberName: ToSprite
     Kind: Field
     ParamCount: 0
-    ParamNames:
-    - source
-    - pixelsPerUnit
-    - pivot
-    - meshType
-    - extrude
-    ParamDocs:
-    - The source texture.
-    - Pixels per unit for the generated sprite.
-    - Optional pivot (0..1). Default is center.
-    - Sprite mesh type (Tight/FullRect).
-    - Edge extrusion in pixels.
-    Summary: "Wrap an existing Texture2D as a Sprite.\n The texture is not copied.
-      The Sprite will reference the same Texture2D."
+    ParamNames: []
+    ParamDocs: []
+    Summary: "Wrap Texture2D into a Sprite. No resize here \u2014 keep original."
     Remarks: 
     Returns: 
     Value: 
@@ -36245,11 +35289,12 @@ MonoBehaviour:
   - TypeFullName: BasisBeeManagement
     MemberName: HandleBundleAndMetaLoading
     Kind: Method
-    ParamCount: 3
+    ParamCount: 4
     ParamNames:
     - wrapper
     - report
     - cancellationToken
+    - 1024
     ParamDocs:
     - 
     - 
@@ -36320,13 +35365,14 @@ MonoBehaviour:
   - TypeFullName: BasisBundleManagement
     MemberName: Task<
     Kind: Method
-    ParamCount: 5
+    ParamCount: 6
     ParamNames:
     - Generated
     - BundleBytes
     - bundleWrapper
     - progressCallback
     - cancellationToken
+    - 1024
     ParamDocs: []
     Summary: Downloads remote BEE, stores it, and returns the platform-matching generated
       metadata + bundle bytes.
@@ -36397,12 +35443,13 @@ MonoBehaviour:
   - TypeFullName: 
     MemberName: Task<
     Kind: Method
-    ParamCount: 4
+    ParamCount: 5
     ParamNames:
     - Connector
     - bundleWrapper
     - progressCallback
     - cancellationToken
+    - 1024
     ParamDocs: []
     Summary: Downloads connector only and returns it.
     Remarks: 
@@ -36421,12 +35468,13 @@ MonoBehaviour:
   - TypeFullName: 
     MemberName: DownloadBEEEx
     Kind: Method
-    ParamCount: 4
+    ParamCount: 5
     ParamNames:
     - url
     - vp
     - progressCallback
     - default
+    - 1024
     ParamDocs: []
     Summary: "Downloads a remote BEE blob (with 8-byte Int64 header), decrypts/parses
       the connector,\n downloads the platform-matching section, writes a local .bee
@@ -36447,13 +35495,14 @@ MonoBehaviour:
   - TypeFullName: 
     MemberName: Task<BeeResult<
     Kind: Method
-    ParamCount: 5
+    ParamCount: 6
     ParamNames:
     - BasisBundleConnector
     - url
     - vp
     - progressCallback
     - default
+    - 1024
     ParamDocs: []
     Summary: Downloads only the connector bytes from the remote BEE (8-byte Int64
       header) and parses them.

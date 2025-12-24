@@ -11,9 +11,9 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
     public List<XRDisplaySubsystem> xrDisplays = new List<XRDisplaySubsystem>();
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        switch (matchedSettingName)
+        switch (matchedSettingName.ToLower())
         {
-            case "Render Resolution":
+            case "render resolution":
                 if (SliderReadOption(optionValue, out float RenderResolution))
                 {
                     HandleRenderResolution(RenderResolution);
@@ -23,7 +23,7 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
                     BasisDebug.LogError("Cant parse value!", BasisDebug.LogTag.Device);
                 }
                 break;
-            case "Foveated Rendering":
+            case "foveated rendering":
                 if (SliderReadOption(optionValue, out float FoveationLevel))
                 {
                     HandleFoveatedRendering(FoveationLevel);
@@ -37,6 +37,9 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
                 BasisDebug.LogError($"UnImplemented Settings Name! {matchedSettingName}", BasisDebug.LogTag.Device);
                 break;
         }
+    }
+    public override void ChangedSettings()
+    {
     }
     private void HandleRenderResolution(float Option)
     {
@@ -55,6 +58,7 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
     public float foveatedRenderingLevel = 0;
     private void HandleFoveatedRendering(float value)
     {
+        foveatedRenderingLevel = value;
         BasisDebug.Log($"changing Foveated To {value}", BasisDebug.LogTag.Video);
         SubsystemManager.GetSubsystems<XRDisplaySubsystem>(xrDisplays);
 
@@ -84,7 +88,6 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
             }
             return;
         }
-        foveatedRenderingLevel = value;
         xrDisplaySubsystem.foveatedRenderingFlags = XRDisplaySubsystem.FoveatedRenderingFlags.GazeAllowed;
         xrDisplaySubsystem.foveatedRenderingLevel = value;
         /*
@@ -116,9 +119,6 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
             }
         }
         */
-        if (BasisDeviceManagement.IsCurrentModeVR())
-        {
-            BasisDebug.Log($"foveatedRenderingLevel was set to {value}");
-        }
+        BasisDebug.Log($"foveatedRenderingLevel was set to {value}");
     }
 }

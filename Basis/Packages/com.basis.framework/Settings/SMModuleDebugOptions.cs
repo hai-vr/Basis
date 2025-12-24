@@ -42,4 +42,7 @@ Selected = false;
             }
         }
     }
+    public override void ChangedSettings()
+    {
+    }
 }

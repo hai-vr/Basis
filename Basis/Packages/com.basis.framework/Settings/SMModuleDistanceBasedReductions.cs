@@ -128,4 +128,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 break;
         }
     }
+    public override void ChangedSettings()
+    {
+    }
 }

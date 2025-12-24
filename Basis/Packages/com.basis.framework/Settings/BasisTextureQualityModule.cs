@@ -22,4 +22,7 @@ public class BasisTextureQualityModule : BasisSettingsBase
             QualitySettings.streamingMipmapsMemoryBudget = SystemInfo.graphicsMemorySize;
         }
     }
+    public override void ChangedSettings()
+    {
+    }
 }

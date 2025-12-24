@@ -27,6 +27,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> HearingRange =>
             new("HearingRange", new BasisPlatformDefault<float>(25));
 
+        public static BasisSettingsBinding<float> SelectedHeight =>
+    new("SelectedHeight", new BasisPlatformDefault<float>(1.6f));
+
+        public static BasisSettingsBinding<float> SelectedScale =>
+new("selected scale", new BasisPlatformDefault<float>(1.6f));
+        public static BasisSettingsBinding<bool> CustomScale =>
+new("custom scale", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> AvatarRange =>
             new("AvatarRange", new BasisPlatformDefault<float>(25));
 
@@ -93,13 +100,17 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> VisualState =>
             new("Visual State", new BasisPlatformDefault<string>("Off"));
 
+        public static BasisSettingsBinding<string> IKMode =>
+    new("Ik Mode", new BasisPlatformDefault<string>("Eye Height"));
+
         public static BasisSettingsBinding<float> FoveatedRendering =>
             new("Foveated Rendering", new BasisPlatformDefault<float>
             {
                 windows = 0,
                 android = 1,
                 linux = 0,
-                other = 0
+                other = 0,
+               ios = 0,  
             });
 
         public static BasisSettingsBinding<float> FieldOfView =>

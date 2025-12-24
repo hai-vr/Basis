@@ -507,4 +507,7 @@ public class SMDMicrophone : BasisSettingsBase
             BasisDebug.LogError($"ValidSettingsChange error for '{matchedSettingName}': {ex}");
         }
     }
+    public override void ChangedSettings()
+    {
+    }
 }

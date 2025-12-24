@@ -34,4 +34,7 @@ public class SMModuleControllerSettings : BasisSettingsBase
                 break;
         }
     }
+    public override void ChangedSettings()
+    {
+    }
 }

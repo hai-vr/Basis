@@ -1,5 +1,3 @@
-using Basis.Scripts.BasisSdk.Players;
-
 public class SMModuleSitStand : BasisSettingsBase
 {
     public static bool IsSteatedMode = false;
@@ -11,8 +9,8 @@ public class SMModuleSitStand : BasisSettingsBase
             case "Seated Mode":
                 if (IsSteatedMode == false)
                 {
-                    BasisHeightDriver.CapturePlayerHeight(BasisLocalPlayer.Instance);
-                    MissingHeightDelta = BasisLocalHeight.DefaultPlayerEyeHeight - BasisLocalPlayer.Instance.CurrentHeight.PlayerEyeHeight;
+                    BasisHeightDriver.CapturePlayerHeight();
+                    MissingHeightDelta = BasisHeightDriver.DefaultPlayerEyeHeight - BasisHeightDriver.PlayerEyeHeight;
                     IsSteatedMode = true;
                 }
                 break;
@@ -21,5 +19,8 @@ public class SMModuleSitStand : BasisSettingsBase
                 IsSteatedMode = false;
                 break;
         }
+    }
+    public override void ChangedSettings()
+    {
     }
 }

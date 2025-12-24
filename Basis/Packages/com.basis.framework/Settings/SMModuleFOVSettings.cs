@@ -10,6 +10,9 @@ public class SMModuleFOVSettings : BasisSettingsBase
             BasisLocalCameraDriver.Instance.Camera.fieldOfView = SelectedFOV;
         }
     }
+    public override void ChangedSettings()
+    {
+    }
 
     public float SelectedFOV = 60;
 }

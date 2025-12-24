@@ -138,6 +138,7 @@ GameObject:
   - component: {fileID: 2819247879703846172}
   - component: {fileID: 4245328840218215415}
   - component: {fileID: 947700616637325904}
+  - component: {fileID: 4222888336659293539}
   m_Layer: 0
   m_Name: Modules
   m_TagString: Untagged
@@ -436,6 +437,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::SMModuleStorage
   SettingsNames:
   - Avatar Download Size
+--- !u!114 &4222888336659293539
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3197856584617865972}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f50dc7f6c0e1f98499b7f745e8ba81cf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Basis Framework::SMModuleCalibration
+  SettingsNames:
+  - Ik Mode
+  - SelectedHeight
+  - custom scale
+  - selected scale
 --- !u!1 &6119941615115968628
 GameObject:
   m_ObjectHideFlags: 0

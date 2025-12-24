@@ -63,7 +63,7 @@ namespace Basis.Scripts.UI.UI_Panels
         {
             if (BasisLocalPlayer.Instance != null)
             {
-                this.transform.localScale = InitalScale * BasisLocalPlayer.Instance.CurrentHeight.SelectedAvatarToAvatarDefaultScale;
+                this.transform.localScale = InitalScale * BasisHeightDriver.SelectedAvatarToAvatarDefaultScale;
             }
         }
         public void OnDestroy()

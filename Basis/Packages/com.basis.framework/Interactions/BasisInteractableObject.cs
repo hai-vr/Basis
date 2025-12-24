@@ -274,7 +274,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             if (Device_Management.BasisDeviceManagement.IsUserInDesktop())
             {
                 // Adding half the player's height mimics a VR user's arm reach.
-                extraReach = BasisLocalPlayer.Instance.CurrentHeight.SelectedPlayerHeight / 2;
+                extraReach = BasisHeightDriver.SelectedPlayerHeight / 2;
             }
             return Vector3.Distance(GetClosestPoint(source), source) <= interactRange + extraReach;
         }

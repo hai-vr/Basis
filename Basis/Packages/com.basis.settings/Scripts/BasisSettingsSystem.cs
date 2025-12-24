@@ -62,7 +62,7 @@ public static class BasisSettingsSystem
     /// UniqueName,Optionvalue
     /// </summary>
     public static event Action<string, string> OnSettingChanged;
-
+    public static event Action OnSettingsFinishedChanges;
     static BasisSettingsSystem()
     {
         LoadAllSettings();
@@ -108,7 +108,10 @@ public static class BasisSettingsSystem
 
             // Only notify listeners if not in a load-broadcast phase
             if (!suppressEvents)
+            {
                 OnSettingChanged?.Invoke(uniqueSettingsName, value);
+                OnSettingsFinishedChanges?.Invoke();
+            }
         }
     }
 
@@ -174,6 +177,7 @@ public static class BasisSettingsSystem
         foreach (var kv in settingsData.settings)
             OnSettingChanged?.Invoke(kv.Key, kv.Value);
 
+        OnSettingsFinishedChanges?.Invoke();
         // If anyone tried to save during the load, honor it now.
         if (pendingSave)
         {
