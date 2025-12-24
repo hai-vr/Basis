@@ -6,14 +6,14 @@ public static class BasisHeightDriver
 {
     public static void ApplyScaleAndHeight()
     {
+        RevaluateUnscaledHeight(SMModuleCalibration.HeightMode);
         ApplyScale(SMModuleCalibration.ApplyCustomScale, SMModuleCalibration.SelectedScale);
         ChooseHeightToUse(SMModuleCalibration.HeightMode);
     }
     public static void OnAvatarFBCalibration()
     {
         CapturePlayerHeight();
-        ApplyScale(SMModuleCalibration.ApplyCustomScale, SMModuleCalibration.SelectedScale);
-        ChooseHeightToUse(SMModuleCalibration.HeightMode);
+        ApplyScaleAndHeight();
     }
     public static void ApplyScale(bool ScaleAvatar,float SelectedScale)
     {
@@ -110,6 +110,21 @@ public static class BasisHeightDriver
         BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarArmSpan);
         BasisDebug.Log($"ArmRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
     }
+    public static void RevaluateUnscaledHeight(BasisSelectedHeightMode Height)
+    {
+        switch (Height)
+        {
+            case BasisSelectedHeightMode.ArmSpan:
+                UnScaledSelectedAvatarHeight = AvatarArmSpan;
+                break;
+            case BasisSelectedHeightMode.EyeHeight:
+                UnScaledSelectedAvatarHeight = AvatarEyeHeight;
+                break;
+            case BasisSelectedHeightMode.Custom://currently unusued while we fix everything else
+                UnScaledSelectedAvatarHeight = AvatarEyeHeight;
+                break;
+        }
+    }
     /// <summary>
     /// Chooses the active height metrics and scale ratios based on the provided mode.
     /// </summary>
@@ -153,7 +168,7 @@ public static class BasisHeightDriver
 
                 UnScaledSelectedAvatarHeight = AvatarEyeHeight;
                 break;
-            case BasisSelectedHeightMode.Custom:
+            case BasisSelectedHeightMode.Custom://currently unusued while we fix everything else
                 SelectedPlayerHeight = CustomPlayerEyeHeight * ApplyScale;
                 SelectedAvatarHeight = AvatarEyeHeight * ApplyScale;
                 SelectedPlayerToDefaultScale = (SelectedPlayerHeight / FallbackSizeInMeters) * ApplyScale;
