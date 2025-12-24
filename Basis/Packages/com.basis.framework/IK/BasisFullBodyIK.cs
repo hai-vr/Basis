@@ -990,12 +990,12 @@ chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor
             float totalLen = abLen + bcLen;
 
             // Original target vector
-            Vector3 at = tPosition - aPosition;
+            Vector3 atCorrected = tPosition - aPosition;
             float acLen = ac.magnitude;
 
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
             Vector3 correctedTargetPos = ApplyReachCorrections(aPosition, tPosition, abLen, bcLen, struggleStart.Get(stream), struggleEnd.Get(stream), out TwoBoneDistanceType distanceType);
-            Vector3 atCorrected = correctedTargetPos - aPosition;
+            //Vector3 atCorrected = correctedTargetPos - aPosition;
             float atCorrectedLen = atCorrected.magnitude;
 
             float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
@@ -1278,18 +1278,9 @@ chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor
 
             float maxReach = abLen + bcLen;
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            TwoBoneDistanceType distanceType;
-            Vector3 correctedTargetPos = ApplyReachCorrections(
-                aPosition,
-                tPosition,
-                abLen,
-                bcLen,
-                struggleStart.Get(stream),
-                struggleEnd.Get(stream),
-                out distanceType
-            );
-
-            Vector3 atCorrected = correctedTargetPos - aPosition;
+            Vector3 correctedTargetPos = ApplyReachCorrections(aPosition,tPosition,abLen,bcLen,struggleStart.Get(stream),struggleEnd.Get(stream),out TwoBoneDistanceType distanceType);
+            Vector3 atCorrected = tPosition - aPosition;
+            // Vector3 atCorrected = correctedTargetPos - aPosition;
             float atCorrectedLen = atCorrected.magnitude;
 
             float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);

@@ -29,9 +29,7 @@ namespace Basis.Scripts.Animator_Driver
 
         /// <summary>
         /// Applies updated parameters to <see cref="Animator"/> if values changed.
-        /// Uses <paramref name="Scale"/> to normalize velocity-based parameters.
         /// </summary>
-        /// <param name="Scale">Scale factor (e.g., avatar scale) to normalize velocities.</param>
         public void UpdateAnimator()
         {
             // Check if values have changed before applying updates
