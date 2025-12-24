@@ -1,6 +1,5 @@
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.UI.UI_Panels;
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -568,9 +567,9 @@ namespace Basis.BasisUI
         // Put these as fields on the class (so RevaluteInteractableStatus can touch them)
         private static PanelDropdown dropdownVisualState;
         private static PanelDropdown dropdownSeatedMode;
-        private static PanelSlider sliderCalibrationHeightRange;
+        //   private static PanelSlider sliderCalibrationHeightRange;
 
-        private const string VisualMode_CalibEyeHeight = "Calibration Eye Height";
+        //  private const string VisualMode_CalibEyeHeight = "Calibration Eye Height";
         private const string SeatedMode_Seated = "Seated Mode";
         // ------------------
         // IK & Input
@@ -607,7 +606,7 @@ namespace Basis.BasisUI
     {
         "Eye Height",
         "Arm Distance",
-        VisualMode_CalibEyeHeight
+     //   VisualMode_CalibEyeHeight
     });
             dropdownVisualState.AssignBinding(BasisSettingsDefaults.IKMode);
 
@@ -623,10 +622,10 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.SelectedScale);
 
             // Calibration Eye Height slider
-            sliderCalibrationHeightRange = PanelSlider.CreateEntryAndBind(
-                IkGroup,
-                PanelSlider.SliderSettings.Advanced("Calibration Eye height", 0.4f, 2.3f, false, 3, ValueDisplayMode.Meters),
-                BasisSettingsDefaults.SelectedHeight);
+            // sliderCalibrationHeightRange = PanelSlider.CreateEntryAndBind(
+            //   IkGroup,
+            //   PanelSlider.SliderSettings.Advanced("Calibration Eye height", 0.4f, 2.3f, false, 3, ValueDisplayMode.Meters),
+            //  BasisSettingsDefaults.SelectedHeight);
 
             // Hook both dropdowns to the same evaluator
             dropdownVisualState.OnValueChanged += EvaluateInteractables;
@@ -648,8 +647,8 @@ namespace Basis.BasisUI
             string visualValue = GetCurrentText(dropdownVisualState);
             bool isSeated = seatedValue == SeatedMode_Seated;
             SetDropdownInteractable(dropdownVisualState, !isSeated);
-            bool isCalibrationMode = (!isSeated) && (visualValue == VisualMode_CalibEyeHeight);
-            sliderCalibrationHeightRange.SliderComponent.interactable = isCalibrationMode || !isSeated;
+            // bool isCalibrationMode = (!isSeated) && (visualValue == VisualMode_CalibEyeHeight);
+            //   sliderCalibrationHeightRange.SliderComponent.interactable = isCalibrationMode || !isSeated;
         }
         private static string GetCurrentText(PanelDropdown dd)
         {

@@ -53,7 +53,7 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         public static void FullBodyCalibration()
         {
-            BasisHeightDriver.OnAvatarFBCalibraiton();//avatar height is good,player height is needed
+            BasisHeightDriver.OnAvatarFBCalibration();//avatar height is good,player height is needed
             HasFBIKTrackers = false;
             BasisDeviceManagement.UnassignFBTrackers();
             BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);

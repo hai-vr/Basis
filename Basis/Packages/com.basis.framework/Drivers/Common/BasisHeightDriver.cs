@@ -1,43 +1,24 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 public static class BasisHeightDriver
 {
-    public static void UpdateRatios()
-    {
-        BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarEyeHeight);
-        BasisDebug.Log($"EyeRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
-        BasisHeightDriver.EyeRatioPlayerToDefaultScale = BasisHeightDriver.PlayerEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.DefaultPlayerEyeHeight);
-        BasisDebug.Log($"EyeRatioPlayerToDefaultScale Set To {BasisHeightDriver.EyeRatioPlayerToDefaultScale}", BasisDebug.LogTag.Avatar);
-        BasisHeightDriver.ArmRatioPlayerToDefaultScale = BasisHeightDriver.PlayerArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultPlayerArmSpan);
-        BasisDebug.Log($"ArmRatioPlayerToDefaultScale Set To {BasisHeightDriver.ArmRatioPlayerToDefaultScale}", BasisDebug.LogTag.Avatar);
-    BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarArmSpan);
-        BasisDebug.Log($"ArmRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
-    }
-    public static void OnAvatarSettings()
+    public static void ApplyScaleAndHeight()
     {
         ApplyScale(SMModuleCalibration.ApplyCustomScale, SMModuleCalibration.SelectedScale);
-        CustomPlayerEyeHeight = SMModuleCalibration.SelectedPlayerHeight;
-        ChooseHeightToUse(SMModuleCalibration.HeightMode);
-
-    }
-    public static void OnAvatarLoaded()
-    {
-        ApplyScale(SMModuleCalibration.ApplyCustomScale, SMModuleCalibration.SelectedScale);
-        CustomPlayerEyeHeight = SMModuleCalibration.SelectedPlayerHeight;
         ChooseHeightToUse(SMModuleCalibration.HeightMode);
     }
-    public static void OnAvatarFBCalibraiton()
+    public static void OnAvatarFBCalibration()
     {
         CapturePlayerHeight();
+        ApplyScale(SMModuleCalibration.ApplyCustomScale, SMModuleCalibration.SelectedScale);
         ChooseHeightToUse(SMModuleCalibration.HeightMode);
     }
     public static void ApplyScale(bool ScaleAvatar,float SelectedScale)
     {
-        // use the (now) known unscaled avatar eye height as baseline
-        float baselineAvatarEyeHeight = SelectedAvatarHeight;
         // compute and apply scale
-        heightScaleFactor = SelectedScale / baselineAvatarEyeHeight;
+        heightScaleFactor = SelectedScale / UnScaledSelectedAvatarHeight;
 
         BasisDebug.Log($"Applying Scale to Avatar {heightScaleFactor}", BasisDebug.LogTag.Avatar);
         if (!ScaleAvatar)
@@ -118,6 +99,17 @@ public static class BasisHeightDriver
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame?.Invoke();
         });
     }
+    public static void UpdateRatios()
+    {
+        BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarEyeHeight);
+        BasisDebug.Log($"EyeRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
+        BasisHeightDriver.EyeRatioPlayerToDefaultScale = BasisHeightDriver.PlayerEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.DefaultPlayerEyeHeight);
+        BasisDebug.Log($"EyeRatioPlayerToDefaultScale Set To {BasisHeightDriver.EyeRatioPlayerToDefaultScale}", BasisDebug.LogTag.Avatar);
+        BasisHeightDriver.ArmRatioPlayerToDefaultScale = BasisHeightDriver.PlayerArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultPlayerArmSpan);
+        BasisDebug.Log($"ArmRatioPlayerToDefaultScale Set To {BasisHeightDriver.ArmRatioPlayerToDefaultScale}", BasisDebug.LogTag.Avatar);
+        BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarArmSpan);
+        BasisDebug.Log($"ArmRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
+    }
     /// <summary>
     /// Chooses the active height metrics and scale ratios based on the provided mode.
     /// </summary>
@@ -125,6 +117,10 @@ public static class BasisHeightDriver
     /// <see cref="BasisSelectedHeightMode.EyeHeight"/>, or <see cref="BasisSelectedHeightMode.Custom"/>.</param>
     public static void ChooseHeightToUse(BasisSelectedHeightMode Height)
     {
+        if (BasisDeviceManagement.IsUserInDesktop())
+        {
+            Height = BasisSelectedHeightMode.EyeHeight;
+        }
         UpdateRatios();
         var player = BasisLocalPlayer.Instance;
         if (player == null)
@@ -146,18 +142,24 @@ public static class BasisHeightDriver
                 SelectedAvatarHeight = AvatarArmSpan * ApplyScale;
                 SelectedPlayerToDefaultScale = ArmRatioPlayerToDefaultScale * ApplyScale;
                 SelectedAvatarToAvatarDefaultScale = ArmRatioAvatarToAvatarDefaultScale * ApplyScale;
+
+                UnScaledSelectedAvatarHeight = AvatarArmSpan;
                 break;
             case BasisSelectedHeightMode.EyeHeight:
                 SelectedPlayerHeight = PlayerEyeHeight * ApplyScale;
                 SelectedAvatarHeight = AvatarEyeHeight * ApplyScale;
                 SelectedPlayerToDefaultScale = EyeRatioPlayerToDefaultScale * ApplyScale;
                 SelectedAvatarToAvatarDefaultScale = EyeRatioAvatarToAvatarDefaultScale * ApplyScale;
+
+                UnScaledSelectedAvatarHeight = AvatarEyeHeight;
                 break;
             case BasisSelectedHeightMode.Custom:
                 SelectedPlayerHeight = CustomPlayerEyeHeight * ApplyScale;
                 SelectedAvatarHeight = AvatarEyeHeight * ApplyScale;
-                SelectedPlayerToDefaultScale = (SelectedPlayerHeight / DefaultAvatarEyeHeight)*ApplyScale;
-                SelectedAvatarToAvatarDefaultScale = (SelectedPlayerHeight / DefaultAvatarEyeHeight) *ApplyScale;
+                SelectedPlayerToDefaultScale = (SelectedPlayerHeight / DefaultAvatarEyeHeight) * ApplyScale;
+                SelectedAvatarToAvatarDefaultScale = (SelectedPlayerHeight / DefaultAvatarEyeHeight) * ApplyScale;
+
+                UnScaledSelectedAvatarHeight = AvatarEyeHeight;
                 break;
         }
         if (SelectedPlayerHeight <= 0f)
@@ -260,6 +262,10 @@ public static class BasisHeightDriver
     /// </summary>
     public static float SelectedAvatarHeight = FallbackSizeInMeters;
 
+    /// <summary>
+    /// The avatar height (meters)/>.
+    /// </summary>
+    public static float UnScaledSelectedAvatarHeight = FallbackSizeInMeters;
     /// <summary>
     /// The player-to-default scale/>.
     /// </summary>

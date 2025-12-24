@@ -195,7 +195,7 @@ namespace Basis.Scripts.Drivers
             {
                 AddJiggleRigColliders(References);
             }
-            BasisHeightDriver.OnAvatarLoaded();
+            BasisHeightDriver.ApplyScaleAndHeight();
         }
 
         /// <summary>

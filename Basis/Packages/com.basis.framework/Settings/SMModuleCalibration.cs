@@ -3,7 +3,6 @@ using UnityEngine;
 
 public class SMModuleCalibration : BasisSettingsBase
 {
-    public static float SelectedPlayerHeight = 1.6f;
     public static BasisSelectedHeightMode HeightMode = BasisSelectedHeightMode.EyeHeight;
     public static bool ApplyCustomScale = false;
     public static float SelectedScale = 1.6f;
@@ -11,7 +10,6 @@ public class SMModuleCalibration : BasisSettingsBase
     // Cache last applied state so we only apply when it actually changes.
     private static bool _hasApplied;
     private static BasisSelectedHeightMode _lastHeightMode;
-    private static float _lastSelectedAvatarHeight;
     private static float _lastSelectedPlayerHeight;
     private static float _lastSelectedScale;
     private static bool _lastApplyCustomScale;
@@ -46,13 +44,13 @@ public class SMModuleCalibration : BasisSettingsBase
 
             case "selectedheight":
                 {
-                    var old = SelectedPlayerHeight;
+                    var old = BasisHeightDriver.CustomPlayerEyeHeight;
                     if (SliderReadOption(optionValue, out var parsed))
                     {
                         // Avoid tiny float jitter causing re-apply spam.
                         if (!Mathf.Approximately(old, parsed))
                         {
-                            SelectedPlayerHeight = parsed;
+                            BasisHeightDriver.CustomPlayerEyeHeight = parsed;
                             _dirty = true;
                         }
                     }
@@ -104,16 +102,12 @@ public class SMModuleCalibration : BasisSettingsBase
         if (!_dirty && _hasApplied)
             return;
 
-        bool isCustom = HeightMode == BasisSelectedHeightMode.Custom;
-        float avatarHeight = BasisHeightDriver.SelectedAvatarHeight;
-
         // Compare against last applied values, so even if _dirty gets missed,
         // we still won't spam applies.
         bool sameAsLast =
             _hasApplied &&
             _lastHeightMode == HeightMode &&
-            Mathf.Approximately(_lastSelectedAvatarHeight, avatarHeight) &&
-            Mathf.Approximately(_lastSelectedPlayerHeight, SelectedPlayerHeight) &&
+            Mathf.Approximately(_lastSelectedPlayerHeight, BasisHeightDriver.CustomPlayerEyeHeight) &&
             Mathf.Approximately(_lastSelectedScale, SelectedScale) &&
             _lastApplyCustomScale == ApplyCustomScale;
 
@@ -122,11 +116,10 @@ public class SMModuleCalibration : BasisSettingsBase
             _dirty = false;
             return;
         }
-        BasisHeightDriver.OnAvatarSettings();
+        BasisHeightDriver.ApplyScaleAndHeight();
         _hasApplied = true;
         _lastHeightMode = HeightMode;
-        _lastSelectedAvatarHeight = avatarHeight;
-        _lastSelectedPlayerHeight = SelectedPlayerHeight;
+        _lastSelectedPlayerHeight = BasisHeightDriver.CustomPlayerEyeHeight;
         _lastSelectedScale = SelectedScale;
         _lastApplyCustomScale = ApplyCustomScale;
 
@@ -134,7 +127,7 @@ public class SMModuleCalibration : BasisSettingsBase
 
         BasisDebug.Log(
             $"Applied height settings. HeightMode {HeightMode} " +
-            $"SelectedAvatarHeight {avatarHeight}, SelectedPlayerHeight {SelectedPlayerHeight}, " +
+            $"SelectedPlayerHeight {BasisHeightDriver.CustomPlayerEyeHeight}, " +
             $"SelectedScale {SelectedScale}, ApplyCustomScale {ApplyCustomScale}"
         );
     }
