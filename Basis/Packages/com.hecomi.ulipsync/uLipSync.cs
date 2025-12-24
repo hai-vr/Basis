@@ -87,21 +87,6 @@ namespace uLipSync
 
                 // Apply to blendshapes
                 OnLipSyncUpdate();
-
-                // Keep a tightly packed copy of profile phoneme MFCCs in native array
-                if (_phonemes.IsCreated)
-                {
-                    int write = 0;
-                    int max = math.min(mfccsCount, phonemeCount);
-                    for (int p = 0; p < max && write < PhonemesCount; p++)
-                    {
-                        var src = profile.mfccs[p].mfccNativeArray; // assumed NativeArray<float> of length >= mfccNum
-                        int remaining = PhonemesCount - write;
-                        int len = math.min(profile.mfccNum, remaining);
-                        NativeArray<float>.Copy(src, 0, _phonemes, write, len);
-                        write += len;
-                    }
-                }
             }
 
             // If new audio arrived, schedule a new job using the ring buffer snapshot.
@@ -269,6 +254,18 @@ namespace uLipSync
                 SafeCreate(ref _scores, phonemeCount);
                 SafeCreate(ref _phonemes, PhonemesCount);
                 SafeCreate(ref _info, 1);
+
+                // Keep a tightly packed copy of profile phoneme MFCCs in native array
+                int write = 0;
+                int max = math.min(mfccsCount, phonemeCount);
+                for (int p = 0; p < max && write < PhonemesCount; p++)
+                {
+                    var src = profile.mfccs[p].mfccNativeArray; // assumed NativeArray<float> of length >= mfccNum
+                    int remaining = PhonemesCount - write;
+                    int len = math.min(profile.mfccNum, remaining);
+                    NativeArray<float>.Copy(src, 0, _phonemes, write, len);
+                    write += len;
+                }
             }
 
             // Copy stats from profile (managed float[] → NativeArray<float>)

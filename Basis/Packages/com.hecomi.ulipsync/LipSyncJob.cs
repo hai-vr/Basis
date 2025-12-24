@@ -32,27 +32,30 @@ namespace uLipSync
         public NativeArray<float> mfcc;
         public NativeArray<float> scores;
         public NativeArray<Info> info;
-        int cutoff => targetSampleRate / 2;
-        int range => 500;
+
+        private const int range = 500;
 
         // constants
         const float EPS = 1e-12f;
         const float LN10 = 2.302585092994046f;
-
+        public int ScoresLength;
+        public int MFCCLength;
         public void Execute()
         {
             float volume = Algorithm.GetRMSVolume(input);
 
+            ScoresLength = scores.Length;
+            MFCCLength = mfcc.Length;
             // ----- Silence gate: if RMS is tiny, force stable rest output and exit fast -----
             if (volume <= silenceRmsThreshold)
             {
                 OneHotRest(scores, restPhonemeIndex);
-                info[0] = new Info { volume = volume, mainPhonemeIndex = SafeRestIndex(restPhonemeIndex, scores.Length) };
+                info[0] = new Info { volume = volume, mainPhonemeIndex = SafeRestIndex(restPhonemeIndex, ScoresLength) };
                 return;
             }
 
             Algorithm.CopyRingBuffer(input, out var buffer, startIndex);
-            Algorithm.LowPassFilter(ref buffer, outputSampleRate, cutoff, range);
+            Algorithm.LowPassFilter(ref buffer, outputSampleRate, targetSampleRate / 2, range);
             Algorithm.DownSample(buffer, out var data, outputSampleRate, targetSampleRate);
             Algorithm.PreEmphasis(ref data, 0.97f);
             Algorithm.HammingWindow(ref data);
@@ -60,26 +63,29 @@ namespace uLipSync
             Algorithm.FFT(data, out var spectrum);
             Algorithm.MelFilterBank(spectrum, out var melSpectrum, targetSampleRate, melFilterBankChannels);
 
+            int length = melSpectrum.Length;
             // Floor powers before dB to avoid -inf and NaNs on silence/near-silence
-            for (int k = 0; k < melSpectrum.Length; ++k)
+            for (int k = 0; k < length; ++k)
+            {
                 melSpectrum[k] = math.max(melSpectrum[k], EPS);
+            }
 
             Algorithm.PowerToDb(ref melSpectrum);
             Algorithm.DCT(melSpectrum, out var melCepstrum);
 
             // Copy MFCCs (skip c0) and sanitize to finite values
-            int n = mfcc.Length;
-            for (int i = 0; i < n; ++i)
+
+            for (int i = 0; i < MFCCLength; ++i)
             {
                 float v = melCepstrum[i + 1];
                 mfcc[i] = IsFinite(v) ? v : 0f;
             }
 
             // If MFCC energy is basically gone (e.g., after strong normalization), fall back to rest
-            if (IsLowEnergy(mfcc))
+            if (IsLowEnergy())
             {
                 OneHotRest(scores, restPhonemeIndex);
-                info[0] = new Info { volume = volume, mainPhonemeIndex = SafeRestIndex(restPhonemeIndex, scores.Length) };
+                info[0] = new Info { volume = volume, mainPhonemeIndex = SafeRestIndex(restPhonemeIndex, ScoresLength) };
                 buffer.Dispose();
                 data.Dispose();
                 spectrum.Dispose();
@@ -111,7 +117,7 @@ namespace uLipSync
         {
             float sum = 0f;
 
-            for (int i = 0; i < scores.Length; ++i)
+            for (int i = 0; i < ScoresLength; ++i)
             {
                 float s = CalcScoreSIMD(i);
                 // sanitize: replace non-finite/negative with 0
@@ -124,7 +130,10 @@ namespace uLipSync
             if (sum > 0f && IsFinite(sum))
             {
                 float inv = math.rcp(sum);
-                for (int i = 0; i < scores.Length; ++i) scores[i] *= inv;
+                for (int i = 0; i < ScoresLength; ++i)
+                {
+                    scores[i] *= inv;
+                }
             }
         }
 
@@ -143,13 +152,12 @@ namespace uLipSync
         [BurstCompile]
         float CalcL1NormScoreSIMD(int index)
         {
-            int n = mfcc.Length;
-            int baseOffset = index * n;
+            int baseOffset = index * MFCCLength;
 
             float accum = 0f;
 
             int i = 0;
-            int limit = n & ~3;
+            int limit = MFCCLength & ~3;
 
             for (; i < limit; i += 4)
             {
@@ -178,7 +186,7 @@ namespace uLipSync
                 accum += d.x + d.y + d.z + d.w;
             }
 
-            for (; i < n; ++i)
+            for (; i < MFCCLength; ++i)
             {
                 float invStd = math.rcp(standardDeviations[i] + EPS);
                 float x = (mfcc[i] - means[i]) * invStd;
@@ -186,20 +194,19 @@ namespace uLipSync
                 accum += math.abs(x - y);
             }
 
-            float distance = accum * math.rcp(n);
+            float distance = accum * math.rcp(MFCCLength);
             return math.exp(-distance * LN10); // 10^(-d)
         }
 
         [BurstCompile]
         float CalcL2NormScoreSIMD(int index)
         {
-            int n = mfcc.Length;
-            int baseOffset = index * n;
+            int baseOffset = index * MFCCLength;
 
             float accum = 0f;
 
             int i = 0;
-            int limit = n & ~3;
+            int limit = MFCCLength & ~3;
 
             for (; i < limit; i += 4)
             {
@@ -220,7 +227,7 @@ namespace uLipSync
                 accum += math.dot(d, d);
             }
 
-            for (; i < n; ++i)
+            for (; i < MFCCLength; ++i)
             {
                 float invStd = math.rcp(standardDeviations[i] + EPS);
                 float x = (mfcc[i] - means[i]) * invStd;
@@ -229,22 +236,21 @@ namespace uLipSync
                 accum += d * d;
             }
 
-            float distance = math.sqrt(accum * math.rcp(n));
+            float distance = math.sqrt(accum * math.rcp(MFCCLength));
             return math.exp(-distance * LN10); // 10^(-d)
         }
 
         [BurstCompile]
         float CalcCosineSimilarityScoreSIMD(int index)
         {
-            int n = mfcc.Length;
-            int baseOffset = index * n;
+            int baseOffset = index * MFCCLength;
 
             float prod = 0f;
             float nnx = 0f;
             float nny = 0f;
 
             int i = 0;
-            int limit = n & ~3;
+            int limit = MFCCLength & ~3;
 
             for (; i < limit; i += 4)
             {
@@ -274,7 +280,7 @@ namespace uLipSync
                 nny += math.dot(ym, ym);
             }
 
-            for (; i < n; ++i)
+            for (; i < MFCCLength; ++i)
             {
                 float invStd = math.rcp(standardDeviations[i] + EPS);
                 float x = (mfcc[i] - means[i]) * invStd;
@@ -291,9 +297,14 @@ namespace uLipSync
             if (!IsFinite(similarity)) similarity = 0f;
             similarity = math.clamp(similarity, 0f, 1f);
 
-            // pow(similarity, 100) via exp/log for stability
             float s = math.max(similarity, EPS);
-            return math.exp(100f * math.log(s));
+
+            float s2 = s * s;
+            float s4 = s2 * s2;
+            float s8 = s4 * s4;
+            float s16 = s8 * s8;
+
+            return s16;
         }
 
         [BurstCompile]
@@ -302,7 +313,7 @@ namespace uLipSync
             int index = -1;
             float maxScore = -1f;
 
-            for (int i = 0; i < scores.Length; ++i)
+            for (int i = 0; i < ScoresLength; ++i)
             {
                 float s = scores[i];
                 if (!IsFinite(s)) continue; // ignore bad values
@@ -316,7 +327,7 @@ namespace uLipSync
             // Fallback if everything is 0/NaN
             if (index < 0 || maxScore <= 0f)
             {
-                int rest = SafeRestIndex(restPhonemeIndex, scores.Length);
+                int rest = SafeRestIndex(restPhonemeIndex, ScoresLength);
                 OneHotRest(scores, rest);
                 return rest;
             }
@@ -329,15 +340,15 @@ namespace uLipSync
         static bool IsFinite(float v) => !float.IsNaN(v) && !float.IsInfinity(v);
 
         // Treat frames with vanishing MFCC energy as silence too
-        bool IsLowEnergy(NativeArray<float> arr)
+        bool IsLowEnergy()
         {
-            double acc = 0.0;
-            for (int i = 0; i < arr.Length; ++i)
+            float acc = 0f;
+            for (int i = 0; i < MFCCLength; i++)
             {
-                float v = arr[i];
-                acc += (double)v * (double)v;
+                acc += mfcc[i] * mfcc[i];
             }
-            return acc <= 1e-14; // conservative tiny energy
+
+            return acc <= 1e-8f;
         }
 
         static int SafeRestIndex(int rest, int len)
@@ -354,5 +365,4 @@ namespace uLipSync
             if (s.Length > 0) s[rest] = 1f;
         }
     }
-
 }
