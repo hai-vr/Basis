@@ -101,7 +101,7 @@ public static class BasisHeightDriver
     }
     public static void UpdateRatios()
     {
-        BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarEyeHeight);
+        BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.FallbackSizeInMeters);
         BasisDebug.Log($"EyeRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
         BasisHeightDriver.EyeRatioPlayerToDefaultScale = BasisHeightDriver.PlayerEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.DefaultPlayerEyeHeight);
         BasisDebug.Log($"EyeRatioPlayerToDefaultScale Set To {BasisHeightDriver.EyeRatioPlayerToDefaultScale}", BasisDebug.LogTag.Avatar);
@@ -156,8 +156,8 @@ public static class BasisHeightDriver
             case BasisSelectedHeightMode.Custom:
                 SelectedPlayerHeight = CustomPlayerEyeHeight * ApplyScale;
                 SelectedAvatarHeight = AvatarEyeHeight * ApplyScale;
-                SelectedPlayerToDefaultScale = (SelectedPlayerHeight / DefaultAvatarEyeHeight) * ApplyScale;
-                SelectedAvatarToAvatarDefaultScale = (SelectedPlayerHeight / DefaultAvatarEyeHeight) * ApplyScale;
+                SelectedPlayerToDefaultScale = (SelectedPlayerHeight / FallbackSizeInMeters) * ApplyScale;
+                SelectedAvatarToAvatarDefaultScale = (SelectedPlayerHeight / FallbackSizeInMeters) * ApplyScale;
 
                 UnScaledSelectedAvatarHeight = AvatarEyeHeight;
                 break;
@@ -191,11 +191,6 @@ public static class BasisHeightDriver
     /// Default measured eye height for the player (meters).
     /// </summary>
     public static float DefaultPlayerEyeHeight = FallbackSizeInMeters;
-
-    /// <summary>
-    /// Default measured eye height for the avatar (meters).
-    /// </summary>
-    public static float DefaultAvatarEyeHeight = FallbackSizeInMeters;
 
     /// <summary>
     /// Default measured arm span for the player (meters).

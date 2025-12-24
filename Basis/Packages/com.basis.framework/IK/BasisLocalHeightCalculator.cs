@@ -9,20 +9,40 @@ public static class BasisLocalHeightCalculator
 {
     public static void CalculatePlayerArmSpan()
     {
-        // Player arm span (from *devices*) this is wrong. we need to use hand to upper arm length.
-        if (BasisDeviceManagement.Instance.FindDevice(out BasisInput leftHand, BasisBoneTrackedRole.LeftHand) && BasisDeviceManagement.Instance.FindDevice(out BasisInput rightHand, BasisBoneTrackedRole.RightHand))
+        bool hasLeftHand = false;
+        bool hasRightHand = false;
+        Vector3 HeadPosition = new Vector3(0, 1.6f, 0);
+
+        if (BasisDeviceManagement.Instance.FindDevice(out BasisInput leftHand, BasisBoneTrackedRole.LeftHand))
         {
+            hasLeftHand = true;
             leftHand.PollData();
+        }
+        if (BasisDeviceManagement.Instance.FindDevice(out BasisInput rightHand, BasisBoneTrackedRole.RightHand))
+        {
+            hasRightHand = true;
             rightHand.PollData();
-
-            var lockToInput = BasisLocalCameraDriver.Instance?.BasisLockToInput;
-            Vector3 HeadPosition = Vector3.zero;
-            if (lockToInput != null ? lockToInput.BasisInput : null != null)
+        }
+        var lockToInput = BasisLocalCameraDriver.Instance?.BasisLockToInput;
+        if (lockToInput != null && lockToInput.BasisInput != null)
+        {
+            lockToInput.BasisInput.PollData();
+            HeadPosition = lockToInput.BasisInput.UnscaledDeviceCoord.position;
+        }
+        else
+        {
+            BasisDebug.LogError("Missing Head During Arm Span calculation");
+        }
+        if (hasLeftHand || hasRightHand)
+        {
+            if (hasLeftHand == false)
             {
-                lockToInput.BasisInput.PollData();
-                HeadPosition = lockToInput.BasisInput.UnscaledDeviceCoord.position;
+                leftHand = rightHand;
             }
-
+            if (hasRightHand == false)
+            {
+                rightHand = leftHand;
+            }
             Vector3 headFlat = new Vector3(HeadPosition.x, 0f, HeadPosition.z);
             Vector3 leftFlat = new Vector3(leftHand.UnscaledDeviceCoord.position.x, 0f, leftHand.UnscaledDeviceCoord.position.z);
             Vector3 rightFlat = new Vector3(rightHand.UnscaledDeviceCoord.position.x, 0f, rightHand.UnscaledDeviceCoord.position.z);
@@ -52,7 +72,7 @@ public static class BasisLocalHeightCalculator
         else
         {
             var lockToInput = BasisLocalCameraDriver.Instance?.BasisLockToInput;
-            if (lockToInput != null ? lockToInput.BasisInput : null != null)
+            if (lockToInput != null && lockToInput.BasisInput != null)
             {
                 lockToInput.BasisInput.PollData();
                 BasisHeightDriver.PlayerEyeHeight = lockToInput.BasisInput.UnscaledDeviceCoord.position.y;
@@ -81,53 +101,47 @@ public static class BasisLocalHeightCalculator
     public static void CalculateAvatarEyeHeight()
     {
         BasisLocalPlayer Local = BasisLocalPlayer.Instance;
-        var avatarDriver = Local.LocalAvatarDriver;
-        if (avatarDriver != null)
+        if (Local == null)
         {
-            BasisHeightDriver.AvatarEyeHeight = avatarDriver.ActiveAvatarEyeHeight();
-            BasisHeightDriver.AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight > 0f ? BasisHeightDriver.AvatarEyeHeight : BasisHeightDriver.DefaultAvatarEyeHeight;
+            BasisDebug.LogError("Missing BasisLocalPlayer");
+            return;
         }
-        else
-        {
-            BasisDebug.LogWarning("LocalAvatarDriver not available. Using default avatar eye height.", BasisDebug.LogTag.Avatar);
-            BasisHeightDriver.AvatarEyeHeight = BasisHeightDriver.DefaultAvatarEyeHeight;
-        }
+        BasisHeightDriver.AvatarEyeHeight = Local.LocalAvatarDriver.ActiveAvatarEyeHeight();
+        BasisHeightDriver.AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight > 0f ? BasisHeightDriver.AvatarEyeHeight : BasisHeightDriver.FallbackSizeInMeters;
         if (BasisHeightDriver.AvatarEyeHeight <= 0f)
         {
-            BasisHeightDriver.AvatarEyeHeight = BasisHeightDriver.DefaultAvatarEyeHeight;
-            BasisDebug.LogWarning($"Avatar eye height was invalid. Set to default: {BasisHeightDriver.DefaultAvatarEyeHeight}", BasisDebug.LogTag.Avatar);
+            BasisHeightDriver.AvatarEyeHeight = BasisHeightDriver.FallbackSizeInMeters;
+            BasisDebug.LogWarning($"Avatar eye height was invalid. Set to default: {BasisHeightDriver.FallbackSizeInMeters}", BasisDebug.LogTag.Avatar);
         }
-        BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarEyeHeight);
+        BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.FallbackSizeInMeters);
         BasisDebug.Log($"EyeRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
     }
     public static void CalculateAvatarArmSpan()
     {
         BasisLocalPlayer Local = BasisLocalPlayer.Instance;
+        if (Local == null)
+        {
+            BasisDebug.LogError("Missing BasisLocalPlayer");
+            return;
+        }
         var boneDriver = Local.LocalBoneDriver;
-
         boneDriver.FindBone(out var HeadBone, BasisBoneTrackedRole.Head);
+        boneDriver.FindBone(out var leftHandBone, BasisBoneTrackedRole.LeftHand);
+        boneDriver.FindBone(out var rightHandBone, BasisBoneTrackedRole.RightHand);
 
-        if (boneDriver != null && boneDriver.FindBone(out var leftHandBone, BasisBoneTrackedRole.LeftHand) && boneDriver.FindBone(out var rightHandBone, BasisBoneTrackedRole.RightHand))
-        {
-            Vector3 HeadPosition = HeadBone.TposeLocal.position;
-            Vector3 headFlat = new Vector3(HeadPosition.x, 0f, HeadPosition.z);
-            Vector3 leftFlat = new Vector3(leftHandBone.TposeLocal.position.x, 0f, leftHandBone.TposeLocal.position.z);
-            Vector3 rightFlat = new Vector3(rightHandBone.TposeLocal.position.x, 0f, rightHandBone.TposeLocal.position.z);
+        Vector3 HeadPosition = HeadBone.TposeLocal.position;
+        Vector3 headFlat = new Vector3(HeadPosition.x, 0f, HeadPosition.z);
+        Vector3 leftFlat = new Vector3(leftHandBone.TposeLocal.position.x, 0f, leftHandBone.TposeLocal.position.z);
+        Vector3 rightFlat = new Vector3(rightHandBone.TposeLocal.position.x, 0f, rightHandBone.TposeLocal.position.z);
 
-            float leftArmLength = Vector3.Distance(headFlat, leftFlat);
-            float rightArmLength = Vector3.Distance(headFlat, rightFlat);
+        float leftArmLength = Vector3.Distance(headFlat, leftFlat);
+        float rightArmLength = Vector3.Distance(headFlat, rightFlat);
 
-            float averageArmLength = (leftArmLength + rightArmLength) * 0.5f;
-            BasisHeightDriver.AvatarArmSpan = averageArmLength * 2f;
+        float averageArmLength = (leftArmLength + rightArmLength) * 0.5f;
+        BasisHeightDriver.AvatarArmSpan = averageArmLength * 2f;
 
 
-            BasisDebug.Log($"Current Avatar Arm Span: {BasisHeightDriver.AvatarArmSpan}", BasisDebug.LogTag.Avatar);
-        }
-        else
-        {
-            BasisDebug.LogWarning("Could not resolve avatar hand bones; using default avatar arm span.", BasisDebug.LogTag.Avatar);
-            BasisHeightDriver.AvatarArmSpan = BasisHeightDriver.DefaultAvatarArmSpan;
-        }
+        BasisDebug.Log($"Current Avatar Arm Span: {BasisHeightDriver.AvatarArmSpan}", BasisDebug.LogTag.Avatar);
         BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarArmSpan);
         BasisDebug.Log($"ArmRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
     }

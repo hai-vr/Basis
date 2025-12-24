@@ -116,7 +116,10 @@ public class SMModuleCalibration : BasisSettingsBase
             _dirty = false;
             return;
         }
-        BasisHeightDriver.ApplyScaleAndHeight();
+        if (ApplyCustomScale || ApplyCustomScale == false && _lastApplyCustomScale  == true)
+        {
+            BasisHeightDriver.ApplyScaleAndHeight();
+        }
         _hasApplied = true;
         _lastHeightMode = HeightMode;
         _lastSelectedPlayerHeight = BasisHeightDriver.CustomPlayerEyeHeight;
