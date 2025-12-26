@@ -11,41 +11,28 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
-
 namespace Basis.Scripts.Networking.NetworkedAvatar
 {
     public static class BasisNetworkAvatarCompressor
     {
-        // ==============================
-        // constants / counts
-        // ==============================
         const int UnityMuscleCount = 95;
         const int Skipped = 6;                 // eyes/jaw (15..20)
         const int muscleCount = UnityMuscleCount - Skipped; // 89
-
-        // ==============================
-        // init state
-        // ==============================
         static bool sInitialized;
-
-        // managed lookup (from BasisMuscleRange)
         static float[] sMinManaged;        // length 95
         static float[] sInvManaged;        // 1/range or 0
         static float[] sMaxManaged;        // min + range
-
         // persistent native LUTs / buffers
         static NativeArray<int> sOrder;     // slot -> muscle index
-        static NativeArray<byte> sIsByte;    // slot -> 1 if 8-bit, else 0
+        static NativeArray<byte> sIsByte;   // slot -> 1 if 8-bit, else 0
         static NativeArray<int> sOffsets;   // slot -> byte offset in packed
-        static NativeArray<float> sMin;       // index by muscle idx
-        static NativeArray<float> sInv;       // "
-        static NativeArray<float> sMax;       // "
-        static NativeArray<byte> sPacked;    // packed output, reused
-
+        static NativeArray<float> sMin;     // index by muscle idx
+        static NativeArray<float> sInv;     //"
+        static NativeArray<float> sMax;     //"
+        static NativeArray<byte> sPacked;   //packed output, reused
         static NativeArray<float> sMusclesNative; // input scratch persistent
-
         static int sPackedSize;
-
+        public static byte[] OutGoingBytes;
         // write order (slot -> muscle index), matches your sections exactly, skipping 15..20
         // Spine/Chest/Head
         static readonly int[] WRITE_ORDER = new int[]
@@ -71,7 +58,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Right Hand Fingers (slots 69..88) 75..94
             75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,
         };
-
         // per-slot precision (true = 8-bit; false = 16-bit) mirrors your SetCompressedUshort asByte flags
         static readonly bool[] IS_BYTE = new bool[]
         {
@@ -106,14 +92,15 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         };
         public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
         {
-            transmitter.PoseHandler ??= new HumanPoseHandler(animator.avatar, animator.transform);
+            Transform AnimatorTransform = animator.transform;
+            transmitter.PoseHandler ??= new HumanPoseHandler(animator.avatar, AnimatorTransform);
 
             EnsureInitialized(); // our compressor init
 
             // Get current pose from Animator
             transmitter.PoseHandler.GetHumanPose(ref transmitter.HumanPose);
 
-            CompressAvatarData(transmitter.storedAvatarData, transmitter.HumanPose, animator);
+            CompressAvatarData(transmitter.storedAvatarData, transmitter.HumanPose, animator, AnimatorTransform);
 
             var data = transmitter.SendingOutAvatarData.Count == 0 ? null : transmitter.SendingOutAvatarData.Values.ToArray();
 
@@ -123,29 +110,23 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
 
-            BasisNetworkConnection.LocalPlayerPeer.Send(
-                transmitter.AvatarSendWriter,
-                BasisNetworkCommons.PlayerAvatarChannel,
-                DeliveryMethod.Sequenced);
+            BasisNetworkConnection.LocalPlayerPeer.Send(transmitter.AvatarSendWriter,BasisNetworkCommons.PlayerAvatarChannel,DeliveryMethod.Sequenced);
 
             transmitter.AvatarSendWriter.Reset();
             transmitter.ClearAdditional();
         }
-
         public static void InitalAvatarData(Animator animator, out BasisStoredAvatarData StoredAvatarData)
         {
             EnsureInitialized();
-
-            var poseHandler = new HumanPoseHandler(animator.avatar, animator.transform);
+            Transform Transform = animator.transform;
+            var poseHandler = new HumanPoseHandler(animator.avatar, Transform);
             var humanPose = new HumanPose();
             poseHandler.GetHumanPose(ref humanPose);
-
             StoredAvatarData = new BasisStoredAvatarData();
-            CompressAvatarData(StoredAvatarData, humanPose, animator);
+            CompressAvatarData(StoredAvatarData, humanPose, animator, Transform);
         }
-
         [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
-        public static void CompressAvatarData(BasisStoredAvatarData AvatarData, HumanPose pose, Animator animator)
+        public static void CompressAvatarData(BasisStoredAvatarData AvatarData, HumanPose pose, Animator animator,Transform ScaleTransform)
         {
             EnsureInitialized();
 
@@ -161,26 +142,16 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             CompressAvatarMuscles_Parallel(ref pose, ref AvatarData.LASM, ref offset);
 
             // Scale
-            CompressScale(animator.transform.localScale.y, ref AvatarData.LASM, ref offset);
+            CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
         }
-
-        public static byte[] OutGoingBytes;
-        // ==============================
-        // new hot path: parallel compressor
-        // ==============================
         public static void CompressAvatarMuscles_Parallel(ref HumanPose pose, ref LocalAvatarSyncMessage message, ref int offset)
         {
-            // copy pose.muscles -> persistent native (no GC)
             EnsureMusclesBuffer(UnityMuscleCount);
-
             unsafe
             {
                 fixed (float* src = pose.muscles)
                 {
-                    UnsafeUtility.MemCpy(
-                        sMusclesNative.GetUnsafePtr(),
-                        src,
-                        sizeof(float) * UnityMuscleCount);
+                    UnsafeUtility.MemCpy(sMusclesNative.GetUnsafePtr(), src, sizeof(float) * UnityMuscleCount);
                 }
             }
 
@@ -191,11 +162,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 Min = sMin,
                 Inv = sInv,
                 Max = sMax,
-
                 Order = sOrder,
                 IsByte = sIsByte,
                 Offsets = sOffsets,
-
                 OutBytes = sPacked
             };
 
@@ -213,10 +182,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
             offset += sPackedSize;
         }
-
-        // ==============================
-        // shared utils (unchanged)
-        // ==============================
+        /// <summary>
+        /// shared utils (unchanged)
+        /// </summary>
+        /// <param name="scale"></param>
+        /// <param name="message"></param>
+        /// <param name="offset"></param>
         public static void CompressScale(float scale, ref LocalAvatarSyncMessage message, ref int offset)
         {
             const float Min = 0.005f;
@@ -229,10 +200,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             ushort compressed = (ushort)(normalized * BasisMuscleRange.UShortRangeDifference);
             BasisUnityBitPackerExtensionsUnsafe.WriteUShort(compressed, ref message.array, ref offset);
         }
-
-        // ==============================
-        // initialization / disposal
-        // ==============================
+        /// <summary>
+        /// initialization / disposal
+        /// </summary>
         static void EnsureInitialized()
         {
             if (sInitialized) return;
@@ -251,57 +221,50 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             sInvManaged = new float[UnityMuscleCount];
             sMaxManaged = new float[UnityMuscleCount];
 
-            for (int i = 0; i < UnityMuscleCount; i++)
+            for (int Index = 0; Index < UnityMuscleCount; Index++)
             {
-                sMinManaged[i] = minT[i];
-                float r = rangeT[i];
-                sInvManaged[i] = (r <= 0f) ? 0f : 1f / r;
-                sMaxManaged[i] = minT[i] + r;
+                sMinManaged[Index] = minT[Index];
+                float r = rangeT[Index];
+                sInvManaged[Index] = (r <= 0f) ? 0f : 1f / r;
+                sMaxManaged[Index] = minT[Index] + r;
             }
+            int length = WRITE_ORDER.Length;
 
             // 2) build offsets and packed size from IS_BYTE
             sPackedSize = 0;
-            var offs = new int[WRITE_ORDER.Length];
-            for (int i = 0; i < WRITE_ORDER.Length; i++)
+            var offs = new int[length];
+            for (int Index = 0; Index < length; Index++)
             {
-                offs[i] = sPackedSize;
-                sPackedSize += IS_BYTE[i] ? 1 : 2;
+                offs[Index] = sPackedSize;
+                sPackedSize += IS_BYTE[Index] ? 1 : 2;
             }
-
             // 3) allocate persistent natives
-            sOrder = new NativeArray<int>(WRITE_ORDER.Length, Allocator.Persistent);
-            sIsByte = new NativeArray<byte>(WRITE_ORDER.Length, Allocator.Persistent);
-            sOffsets = new NativeArray<int>(WRITE_ORDER.Length, Allocator.Persistent);
-
+            sOrder = new NativeArray<int>(length, Allocator.Persistent);
+            sIsByte = new NativeArray<byte>(length, Allocator.Persistent);
+            sOffsets = new NativeArray<int>(length, Allocator.Persistent);
             sMin = new NativeArray<float>(UnityMuscleCount, Allocator.Persistent);
             sInv = new NativeArray<float>(UnityMuscleCount, Allocator.Persistent);
             sMax = new NativeArray<float>(UnityMuscleCount, Allocator.Persistent);
-
             sPacked = new NativeArray<byte>(sPackedSize, Allocator.Persistent);
 
             // 4) fill natives
-            for (int i = 0; i < WRITE_ORDER.Length; i++)
+            for (int Index = 0; Index < length; Index++)
             {
-                sOrder[i] = WRITE_ORDER[i];
-                sIsByte[i] = IS_BYTE[i] ? (byte)1 : (byte)0;
-                sOffsets[i] = offs[i];
+                sOrder[Index] = WRITE_ORDER[Index];
+                sIsByte[Index] = IS_BYTE[Index] ? (byte)1 : (byte)0;
+                sOffsets[Index] = offs[Index];
             }
-            for (int i = 0; i < UnityMuscleCount; i++)
+            for (int Index = 0; Index < UnityMuscleCount; Index++)
             {
-                sMin[i] = sMinManaged[i];
-                sInv[i] = sInvManaged[i];
-                sMax[i] = sMaxManaged[i];
+                sMin[Index] = sMinManaged[Index];
+                sInv[Index] = sInvManaged[Index];
+                sMax[Index] = sMaxManaged[Index];
             }
-
-            // 5) create persistent input buffer
             EnsureMusclesBuffer(UnityMuscleCount);
-
             sInitialized = true;
-
-            // optional: log
+            // 5) create persistent input buffer
             // Debug.Log($"[BasisNetworkAvatarCompressor] Init: slots={WRITE_ORDER.Length}, packed={sPackedSize} bytes");
         }
-
         static void EnsureMusclesBuffer(int count)
         {
             if (!sMusclesNative.IsCreated || sMusclesNative.Length != count)
@@ -313,13 +276,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 sMusclesNative = new NativeArray<float>(count, Allocator.Persistent);
             }
         }
-
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void OnDomainReload()
         {
             Dispose();
         }
-
         public static void Dispose()
         {
             if (sOrder.IsCreated) sOrder.Dispose();
@@ -333,10 +294,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             sInitialized = false;
         }
-
-        // ==============================
-        // job
-        // ==============================
+        /// <summary>
+        /// job
+        /// </summary>
         [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
         struct QuantizeWriteJob : IJobParallelFor
         {
@@ -344,34 +304,25 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             [ReadOnly] public NativeArray<float> Min;
             [ReadOnly] public NativeArray<float> Inv;
             [ReadOnly] public NativeArray<float> Max;
-
             [ReadOnly] public NativeArray<int> Order;      // slot -> muscle idx
             [ReadOnly] public NativeArray<byte> IsByte;     // slot -> 1/0
             [ReadOnly] public NativeArray<int> Offsets;    // slot -> byte offset
-
             [NativeDisableParallelForRestriction]
             public NativeArray<byte> OutBytes;              // shared packed buffer
-
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             static byte Quant8(float x01) => (byte)math.round(x01 * 255f);
-
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             static ushort Quant16(float x01) => (ushort)math.round(x01 * 65535f);
-
             public void Execute(int slot)
             {
                 int idx = Order[slot];
-
                 float v = Muscles[idx];
                 float min = Min[idx];
                 float inv = Inv[idx];
                 float max = Max[idx];
-
                 float clamped = math.clamp(v, min, max);
                 float norm = (inv == 0f) ? 0f : (clamped - min) * inv;
-
                 int o = Offsets[slot];
-
                 if (IsByte[slot] == 1)
                 {
                     OutBytes[o] = Quant8(norm);
