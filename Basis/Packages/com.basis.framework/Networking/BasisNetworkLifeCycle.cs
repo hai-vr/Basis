@@ -23,7 +23,7 @@ public static class BasisNetworkLifeCycle
         BasisNetworkIdResolver.KnownIdMap.Clear();
         BasisNetworkIdResolver.PendingResolutions.Clear();
         BasisNetworkManagement.instantiationParameters = new InstantiationParameters(Vector3.zero, Quaternion.identity, BasisDeviceManagement.Instance.transform);
-        BasisMuscleRange.Initalize();
+        BasisOrderedDataSet.Initalize();
 
         // Reset & initialize metadata defaults
         BasisNetworkPlayers.ClearAllRegistries(); // new: central place

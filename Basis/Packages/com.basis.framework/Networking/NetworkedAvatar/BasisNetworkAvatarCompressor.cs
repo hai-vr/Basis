@@ -33,63 +33,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         static NativeArray<float> sMusclesNative; // input scratch persistent
         static int sPackedSize;
         public static byte[] OutGoingBytes;
-        // write order (slot -> muscle index), matches your sections exactly, skipping 15..20
-        // Spine/Chest/Head
-        static readonly int[] WRITE_ORDER = new int[]
-        {
-            // 0..14
-            0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,
-
-            // Left Leg (slots 15..22) 21..28
-            21,22,23,24,25,26,27,28,
-
-            // Right Leg (slots 23..30) 29..36
-            29,30,31,32,33,34,35,36,
-
-            // Left Arm (slots 31..39) 37..45
-            37,38,39,40,41,42,43,44,45,
-
-            // Right Arm (slots 40..48) 46..54
-            46,47,48,49,50,51,52,53,54,
-
-            // Left Hand Fingers (slots 49..68) 55..74
-            55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,
-
-            // Right Hand Fingers (slots 69..88) 75..94
-            75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,
-        };
-        // per-slot precision (true = 8-bit; false = 16-bit) mirrors your SetCompressedUshort asByte flags
-        static readonly bool[] IS_BYTE = new bool[]
-        {
-            // Spine/Chest/Head (0..14) -> 6,7,8 true; rest false
-            false,false,false,false,false,false, false, false, false, false,false,false,false,false,false,
-
-            // Left Leg (15..22): only 27 true
-            false,false,false,false,false,false, true, false,
-
-            // Right Leg (23..30): only 35 true
-            false,false,false,false,false,false, true, false,
-
-            // Left Arm (31..39): all false
-            false,false,false,false,false,false,false,false,false,
-
-            // Right Arm (40..48): all false
-            false,false,false,false,false,false,false,false,false,
-
-            // Left Hand Fingers (49..68)
-            false,false, true, true,  // 55,56,57,58
-            false, true, true, true,  // 59,60,61,62
-            false, true, true, true,  // 63,64,65,66
-            false, true, true, true,  // 67,68,69,70
-            false, true, true, true,  // 71,72,73,74
-
-            // Right Hand Fingers (69..88)
-            false,false, true, true,  // 75,76,77,78
-            false, true, true, true,  // 79,80,81,82
-            false, true, true, true,  // 83,84,85,86
-            false, true, true, true,  // 87,88,89,90
-            false, true, true, true,  // 91,92,93,94
-        };
         public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
         {
             Transform AnimatorTransform = animator.transform;
@@ -197,7 +140,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             float clamped = math.clamp(scale, Min, Max);
             float normalized = (clamped - Min) / range;
 
-            ushort compressed = (ushort)(normalized * BasisMuscleRange.UShortRangeDifference);
+            ushort compressed = (ushort)(normalized * BasisOrderedDataSet.UShortRangeDifference);
             BasisUnityBitPackerExtensionsUnsafe.WriteUShort(compressed, ref message.array, ref offset);
         }
         /// <summary>
@@ -208,8 +151,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (sInitialized) return;
 
             // 1) load BasisMuscleRange into managed LUTs
-            var minT = BasisMuscleRange.MinMuscle;   // length 95
-            var rangeT = BasisMuscleRange.RangeMuscle; // length 95
+            var minT = BasisOrderedDataSet.MinMuscle;   // length 95
+            var rangeT = BasisOrderedDataSet.RangeMuscle; // length 95
 
             if (minT == null || rangeT == null || minT.Length != UnityMuscleCount || rangeT.Length != UnityMuscleCount)
             {
@@ -228,7 +171,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 sInvManaged[Index] = (r <= 0f) ? 0f : 1f / r;
                 sMaxManaged[Index] = minT[Index] + r;
             }
-            int length = WRITE_ORDER.Length;
+            int length = BasisOrderedDataSet.WRITE_ORDER.Length;
 
             // 2) build offsets and packed size from IS_BYTE
             sPackedSize = 0;
@@ -236,7 +179,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             for (int Index = 0; Index < length; Index++)
             {
                 offs[Index] = sPackedSize;
-                sPackedSize += IS_BYTE[Index] ? 1 : 2;
+                sPackedSize += BasisOrderedDataSet.IS_BYTE[Index] ? 1 : 2;
             }
             // 3) allocate persistent natives
             sOrder = new NativeArray<int>(length, Allocator.Persistent);
@@ -250,8 +193,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // 4) fill natives
             for (int Index = 0; Index < length; Index++)
             {
-                sOrder[Index] = WRITE_ORDER[Index];
-                sIsByte[Index] = IS_BYTE[Index] ? (byte)1 : (byte)0;
+                sOrder[Index] = BasisOrderedDataSet.WRITE_ORDER[Index];
+                sIsByte[Index] = BasisOrderedDataSet.IS_BYTE[Index] ? (byte)1 : (byte)0;
                 sOffsets[Index] = offs[Index];
             }
             for (int Index = 0; Index < UnityMuscleCount; Index++)
