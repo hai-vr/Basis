@@ -411,9 +411,9 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 var p = plates[Index];
                 // Mirror tiny bits of state into arrays
-                isVisible[Index] = (byte)(p.IsVisible ? 1 : 0);
-                isEnabled[Index] = (byte)(p.isActiveAndEnabled ? 1 : 0);
-                isPulsing[Index] = (byte)(p.GetIsPulsingForJob() ? 1 : 0); // add an internal getter
+                isVisible[Index] = (ushort)(p.IsVisible ? 1 : 0);
+                isEnabled[Index] = (ushort)(p.isActiveAndEnabled ? 1 : 0);
+                isPulsing[Index] = (ushort)(p.GetIsPulsingForJob() ? 1 : 0); // add an internal getter
 
                 startTime[Index] = p.GetTalkStartTimeForJob();
 
