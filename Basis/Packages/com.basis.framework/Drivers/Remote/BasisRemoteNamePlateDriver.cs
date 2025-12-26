@@ -298,16 +298,16 @@ namespace Basis.Scripts.UI.NamePlate
         private static readonly Dictionary<Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate, int> indexOf = new();
 
         // Native state (persistent)
-        private static NativeArray<byte> isPulsing;
-        private static NativeArray<byte> isVisible;
-        private static NativeArray<byte> isEnabled;
+        private static NativeArray<ushort> isPulsing;
+        private static NativeArray<ushort> isVisible;
+        private static NativeArray<ushort> isEnabled;
         private static NativeArray<double> startTime;
         private static NativeArray<float4> talkColor;
 
         // Outputs
         private static NativeArray<float4> outColor;
-        private static NativeArray<byte> outHasChange;
-        private static NativeArray<byte> outStopPulsing;
+        private static NativeArray<ushort> outHasChange;
+        private static NativeArray<ushort> outStopPulsing;
 
         private static bool allocated;
 
@@ -351,15 +351,15 @@ namespace Basis.Scripts.UI.NamePlate
 
             DisposeArrays();
 
-            isPulsing = new NativeArray<byte>(newCap, Allocator.Persistent);
-            isVisible = new NativeArray<byte>(newCap, Allocator.Persistent);
-            isEnabled = new NativeArray<byte>(newCap, Allocator.Persistent);
+            isPulsing = new NativeArray<ushort>(newCap, Allocator.Persistent);
+            isVisible = new NativeArray<ushort>(newCap, Allocator.Persistent);
+            isEnabled = new NativeArray<ushort>(newCap, Allocator.Persistent);
             startTime = new NativeArray<double>(newCap, Allocator.Persistent);
             talkColor = new NativeArray<float4>(newCap, Allocator.Persistent);
 
             outColor = new NativeArray<float4>(newCap, Allocator.Persistent);
-            outHasChange = new NativeArray<byte>(newCap, Allocator.Persistent);
-            outStopPulsing = new NativeArray<byte>(newCap, Allocator.Persistent);
+            outHasChange = new NativeArray<ushort>(newCap, Allocator.Persistent);
+            outStopPulsing = new NativeArray<ushort>(newCap, Allocator.Persistent);
 
             allocated = true;
         }
@@ -475,16 +475,16 @@ namespace Basis.Scripts.UI.NamePlate
             public float4 normalColor;
 
             // Per-plate state
-            [ReadOnly] public NativeArray<byte> isPulsing;      // 0/1
-            [ReadOnly] public NativeArray<byte> isVisible;      // 0/1
-            [ReadOnly] public NativeArray<byte> isEnabled;      // 0/1
+            [ReadOnly] public NativeArray<ushort> isPulsing;      // 0/1
+            [ReadOnly] public NativeArray<ushort> isVisible;      // 0/1
+            [ReadOnly] public NativeArray<ushort> isEnabled;      // 0/1
             [ReadOnly] public NativeArray<double> startTime;
             [ReadOnly] public NativeArray<float4> talkColor;
 
             // Outputs
             public NativeArray<float4> outColor;
-            public NativeArray<byte> outHasChange;              // 0/1
-            public NativeArray<byte> outStopPulsing;            // 0/1
+            public NativeArray<ushort> outHasChange;              // 0/1
+            public NativeArray<ushort> outStopPulsing;            // 0/1
 
             public void Execute(int i)
             {
