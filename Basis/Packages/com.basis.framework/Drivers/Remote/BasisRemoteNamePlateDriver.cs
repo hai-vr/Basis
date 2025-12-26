@@ -1,6 +1,11 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
+using System.Collections.Generic;
 using TMPro;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace Basis.Scripts.UI.NamePlate
@@ -286,6 +291,236 @@ namespace Basis.Scripts.UI.NamePlate
             };
 
             return mesh;
+        }
+
+        // Plates and index mapping
+        private static readonly List<Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate> plates = new();
+        private static readonly Dictionary<Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate, int> indexOf = new();
+
+        // Native state (persistent)
+        private static NativeArray<byte> isPulsing;
+        private static NativeArray<byte> isVisible;
+        private static NativeArray<byte> isEnabled;
+        private static NativeArray<double> startTime;
+        private static NativeArray<float4> talkColor;
+
+        // Outputs
+        private static NativeArray<float4> outColor;
+        private static NativeArray<byte> outHasChange;
+        private static NativeArray<byte> outStopPulsing;
+
+        private static bool allocated;
+
+        public static void Register(Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate p)
+        {
+            int idx = plates.Count;
+            plates.Add(p);
+            indexOf[p] = idx;
+            EnsureCapacity(plates.Count);
+        }
+
+        public static void Unregister(Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate p)
+        {
+            if (!indexOf.TryGetValue(p, out int idx)) return;
+
+            int last = plates.Count - 1;
+            var lastPlate = plates[last];
+
+            plates[idx] = lastPlate;
+            plates.RemoveAt(last);
+
+            indexOf[lastPlate] = idx;
+            indexOf.Remove(p);
+
+            // Copy state from last -> idx so arrays stay aligned
+            if (allocated && idx != last)
+            {
+                isPulsing[idx] = isPulsing[last];
+                isVisible[idx] = isVisible[last];
+                isEnabled[idx] = isEnabled[last];
+                startTime[idx] = startTime[last];
+                talkColor[idx] = talkColor[last];
+            }
+        }
+
+        private static void EnsureCapacity(int count)
+        {
+            if (allocated && isPulsing.Length >= count) return;
+
+            int newCap = math.max(64, math.ceilpow2(count));
+
+            DisposeArrays();
+
+            isPulsing = new NativeArray<byte>(newCap, Allocator.Persistent);
+            isVisible = new NativeArray<byte>(newCap, Allocator.Persistent);
+            isEnabled = new NativeArray<byte>(newCap, Allocator.Persistent);
+            startTime = new NativeArray<double>(newCap, Allocator.Persistent);
+            talkColor = new NativeArray<float4>(newCap, Allocator.Persistent);
+
+            outColor = new NativeArray<float4>(newCap, Allocator.Persistent);
+            outHasChange = new NativeArray<byte>(newCap, Allocator.Persistent);
+            outStopPulsing = new NativeArray<byte>(newCap, Allocator.Persistent);
+
+            allocated = true;
+        }
+
+        public static void Dispose()
+        {
+            DisposeArrays();
+            plates.Clear();
+            indexOf.Clear();
+            allocated = false;
+        }
+
+        private static void DisposeArrays()
+        {
+            if (!allocated) return;
+
+            if (isPulsing.IsCreated) isPulsing.Dispose();
+            if (isVisible.IsCreated) isVisible.Dispose();
+            if (isEnabled.IsCreated) isEnabled.Dispose();
+            if (startTime.IsCreated) startTime.Dispose();
+            if (talkColor.IsCreated) talkColor.Dispose();
+
+            if (outColor.IsCreated) outColor.Dispose();
+            if (outHasChange.IsCreated) outHasChange.Dispose();
+            if (outStopPulsing.IsCreated) outStopPulsing.Dispose();
+        }
+        public static void ScheduleSimulate(double timeAsDouble)
+        {
+            ScheduleSimulate(
+                timeAsDouble,
+                0.1f,
+                0.1f,
+                BasisRemoteNamePlateDriver.StaticNormalColor
+            );
+        }
+        public static int count;
+        // Call from your driver each frame/tick
+        public static void ScheduleSimulate(double now, float hold, float fade, Color normalUnityColor)
+        {
+            count = plates.Count;
+            if (count == 0) return;
+
+            EnsureCapacity(count);
+
+            // --- Gather phase (main thread) ---
+            float4 normal = new float4(normalUnityColor.r, normalUnityColor.g, normalUnityColor.b, normalUnityColor.a);
+
+            for (int Index = 0; Index < count; Index++)
+            {
+                var p = plates[Index];
+                // Mirror tiny bits of state into arrays
+                isVisible[Index] = (byte)(p.IsVisible ? 1 : 0);
+                isEnabled[Index] = (byte)(p.isActiveAndEnabled ? 1 : 0);
+                isPulsing[Index] = (byte)(p.GetIsPulsingForJob() ? 1 : 0); // add an internal getter
+
+                startTime[Index] = p.GetTalkStartTimeForJob();
+
+                Color tc = p.GetTalkColorForJob();
+                talkColor[Index] = new float4(tc.r, tc.g, tc.b, tc.a);
+            }
+
+            // --- Job phase ---
+            var job = new NamePlatePulseJob
+            {
+                now = now,
+                hold = hold,
+                fade = fade,
+                normalColor = normal,
+
+                isPulsing = isPulsing,
+                isVisible = isVisible,
+                isEnabled = isEnabled,
+                startTime = startTime,
+                talkColor = talkColor,
+
+                outColor = outColor,
+                outHasChange = outHasChange,
+                outStopPulsing = outStopPulsing,
+            };
+
+            handle = job.Schedule(count, 64);
+        }
+        public static void CompleteNamePlates()
+        {
+            if (count == 0) return;
+
+            handle.Complete();
+            // --- Apply phase (main thread) ---
+            for (int Index = 0; Index < count; Index++)
+            {
+                var p = plates[Index];
+
+                if (outStopPulsing[Index] != 0)
+                {
+                    p.StopPulseFromJob();
+                }
+
+                if (outHasChange[Index] != 0)
+                {
+                    float4 c = outColor[Index];
+                    p.ApplyColorFromJob(new Color(c.x, c.y, c.z, c.w));
+                }
+            }
+        }
+        public static JobHandle handle;
+        [BurstCompile]
+        public struct NamePlatePulseJob : IJobParallelFor
+        {
+            public double now;
+            public float hold;
+            public float fade;
+
+            public float4 normalColor;
+
+            // Per-plate state
+            [ReadOnly] public NativeArray<byte> isPulsing;      // 0/1
+            [ReadOnly] public NativeArray<byte> isVisible;      // 0/1
+            [ReadOnly] public NativeArray<byte> isEnabled;      // 0/1
+            [ReadOnly] public NativeArray<double> startTime;
+            [ReadOnly] public NativeArray<float4> talkColor;
+
+            // Outputs
+            public NativeArray<float4> outColor;
+            public NativeArray<byte> outHasChange;              // 0/1
+            public NativeArray<byte> outStopPulsing;            // 0/1
+
+            public void Execute(int i)
+            {
+                outHasChange[i] = 0;
+                outStopPulsing[i] = 0;
+
+                if (isPulsing[i] == 0) return;
+                if (isVisible[i] == 0 || isEnabled[i] == 0)
+                {
+                    outStopPulsing[i] = 1;
+                    return;
+                }
+
+                double elapsed = now - startTime[i];
+
+                if (elapsed < hold)
+                {
+                    // still holding talk color, no need to spam property blocks
+                    return;
+                }
+
+                float fadeElapsed = (float)(elapsed - hold);
+                float t = fadeElapsed / fade;
+
+                if (t >= 1f)
+                {
+                    outColor[i] = normalColor;
+                    outHasChange[i] = 1;
+                    outStopPulsing[i] = 1;
+                    return;
+                }
+
+                t = math.saturate(t);
+                outColor[i] = math.lerp(talkColor[i], normalColor, t);
+                outHasChange[i] = 1;
+            }
         }
     }
 }

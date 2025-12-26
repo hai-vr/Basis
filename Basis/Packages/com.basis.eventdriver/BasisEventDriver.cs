@@ -1,10 +1,10 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
-using Basis.Scripts.Drivers;
 using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Transmitters;
+using Basis.Scripts.UI.NamePlate;
 using GatorDragonGames.JigglePhysics;
 using System;
 using UnityEngine;
@@ -51,10 +51,14 @@ public class BasisEventDriver : MonoBehaviour
     /// Unscaled frame delta time in seconds.
     /// </summary>
     public float unscaledDeltaTime;
-
+    /// <summary>
+    /// material we use to display jiggle physics visually
+    /// </summary>
     [SerializeField]
     private Material proceduralMaterial;
-
+    /// <summary>
+    /// mesh we use to display around the jiggle physics
+    /// </summary>
     [SerializeField]
     private Mesh sphereMesh;
     /// <summary>
@@ -187,11 +191,13 @@ public class BasisEventDriver : MonoBehaviour
         {
             JigglePhysics.ScheduleRender();
         }
+        BasisRemoteNamePlateDriver.ScheduleSimulate(TimeAsDouble);
         JigglePhysics.CompletePose();
         if (SMModuleDebugOptions.UseGizmos)
         {
             JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
         }
+        BasisRemoteNamePlateDriver.CompleteNamePlates();
 
 
 #if UNITY_SERVER

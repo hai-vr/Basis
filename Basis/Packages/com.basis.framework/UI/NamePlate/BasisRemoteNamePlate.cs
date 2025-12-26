@@ -3,10 +3,10 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
-using System.Collections;
 using System.Threading;
 using TMPro;
 using UnityEngine;
+
 namespace Basis.Scripts.UI.NamePlate
 {
     public class BasisRemoteNamePlate : BasisInteractableObject
@@ -16,25 +16,30 @@ namespace Basis.Scripts.UI.NamePlate
         public TextMeshPro LoadingText;
         public BasisRemotePlayer BasisRemotePlayer;
         public bool HasRendererCheckWiredUp = false;
+
         private int _isVisible = 1; // 1 = true, 0 = false
         public bool IsVisible
         {
             get => Interlocked.CompareExchange(ref _isVisible, 1, 1) == 1;
             private set => Interlocked.Exchange(ref _isVisible, value ? 1 : 0);
         }
+
         public bool HasProgressBarVisible = false;
         public Mesh bakedMesh;
         public MeshRenderer Renderer;
         public Color CurrentColor;
         public Transform Self;
-        private Coroutine colorCoroutine;
+
         private static readonly int ColorId = Shader.PropertyToID("_BaseColor"); // or "_Color" for Built-in RP
         private MaterialPropertyBlock mpb;
+
+        // --------- Update-driven "talk pulse" state (replaces coroutine) ---------
+        private bool isPulsingTalk;
+        private double talkStartTime;
+        private Color talkColorCached;
         /// <summary>
         /// can only be called once after that the text is nuked and a mesh render is just used with a filter
         /// </summary>
-        /// <param name="hipTarget"></param>
-        /// <param name="RemotePlayer"></param>
         public void Initalize(BasisRemotePlayer RemotePlayer)
         {
             BasisRemotePlayer = RemotePlayer;
@@ -42,11 +47,13 @@ namespace Basis.Scripts.UI.NamePlate
             BasisRemotePlayer.ProgressReportAvatarLoad.OnProgressReport += ProgressReport;
             BasisRemotePlayer.AudioReceived += OnAudioReceived;
             BasisRemotePlayer.OnAvatarSwitched += RebuildRenderCheck;
+
             Self = this.transform;
             BasisRemoteNamePlateDriver.Instance.GenerateTextFactory(BasisRemotePlayer, this);
             LoadingText.enableVertexGradient = false;
             mpb = new MaterialPropertyBlock();
             Renderer.GetPropertyBlock(mpb, 0);
+            BasisRemoteNamePlateDriver.Register(this);
         }
         private void SetPlateColor(Color c)
         {
@@ -55,6 +62,7 @@ namespace Basis.Scripts.UI.NamePlate
         }
         public void DeInitalize()
         {
+            BasisRemoteNamePlateDriver.Unregister(this);
             if (BasisRemotePlayer != null)
             {
                 // Unsubscribe all events we hooked up
@@ -65,19 +73,25 @@ namespace Basis.Scripts.UI.NamePlate
 
             // Clean up rendering resources
             DeInitalizeCallToRender();
+
+            // Stop any active pulse
+            isPulsingTalk = false;
         }
+
         public void RebuildRenderCheck()
         {
             if (HasRendererCheckWiredUp)
             {
                 DeInitalizeCallToRender();
             }
+
             HasRendererCheckWiredUp = false;
+
             if (BasisRemotePlayer != null && BasisRemotePlayer.FaceRenderer != null)
             {
-                //  BasisDebug.Log("Wired up Renderer Check For Blinking");
                 BasisRemotePlayer.FaceRenderer.Check += UpdateFaceVisibility;
                 BasisRemotePlayer.FaceRenderer.DestroyCalled += AvatarUnloaded;
+
                 UpdateFaceVisibility(BasisRemotePlayer.FaceIsVisible);
                 HasRendererCheckWiredUp = true;
             }
@@ -93,11 +107,13 @@ namespace Basis.Scripts.UI.NamePlate
             IsVisible = State;
             gameObject.SetActive(State);
 
-            if (colorCoroutine != null)
+            // If we get hidden, just stop the pulse (avoids Update doing work on hidden plate)
+            if (!State)
             {
-                StopCoroutine(colorCoroutine);
+                isPulsingTalk = false;
             }
         }
+
         public void OnAudioReceived()
         {
             if (!IsVisible) return;
@@ -106,45 +122,31 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 if (this == null || !isActiveAndEnabled) return;
 
-                if (colorCoroutine != null)
-                {
-                    StopCoroutine(colorCoroutine);
-                    colorCoroutine = null;
-                }
-
                 // pick the "talking" pulse color
-                var talkColor = BasisRemotePlayer.OutOfRangeFromLocal
+                talkColorCached = BasisRemotePlayer.OutOfRangeFromLocal
                     ? BasisRemoteNamePlateDriver.StaticOutOfRangeColor
                     : BasisRemoteNamePlateDriver.StaticIsTalkingColor;
 
-                colorCoroutine = StartCoroutine(PulseTalkColor(talkColor, 0.1f, 0.1f));
+                // Start pulse timeline
+                talkStartTime = Time.timeAsDouble;
+                isPulsingTalk = true;
+
+                // Stage 1: snap to talk color
+                SetPlateColor(talkColorCached);
             });
         }
-        private IEnumerator PulseTalkColor(Color talkColor, float maxToTalkDuration, float backDuration)
+        internal bool GetIsPulsingForJob() => isPulsingTalk;
+        internal double GetTalkStartTimeForJob() => talkStartTime;
+        internal Color GetTalkColorForJob() => talkColorCached;
+        internal void StopPulseFromJob()
         {
-            SetPlateColor(talkColor);
+            isPulsingTalk = false;
+        }
 
-            float elapsed = 0f;
-            while (elapsed < maxToTalkDuration)
-            {
-                elapsed += Time.deltaTime;
-                yield return null;
-            }
-
-            // --- stage 2: talking → normal, fixed 0.2s ---
-            Color normal = BasisRemoteNamePlateDriver.StaticNormalColor;
-            float elapsedBack = 0f;
-            while (elapsedBack < backDuration)
-            {
-                elapsedBack += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsedBack / backDuration);
-                SetPlateColor(Color.Lerp(talkColor, normal, t));
-                yield return null;
-            }
-
-            SetPlateColor(normal);
-            CurrentColor = normal;
-            colorCoroutine = null;
+        internal void ApplyColorFromJob(Color c)
+        {
+            SetPlateColor(c);
+            CurrentColor = c;
         }
         public void DeInitalizeCallToRender()
         {
@@ -157,36 +159,36 @@ namespace Basis.Scripts.UI.NamePlate
         public void ProgressReport(string UniqueID, float progress, string info)
         {
             BasisDeviceManagement.EnqueueOnMainThread(() =>
-              {
-                  if (progress == 100)
-                  {
-                      LoadingText.gameObject.SetActive(false);
-                      LoadingBar.gameObject.SetActive(false);
-                      HasProgressBarVisible = false;
-                  }
-                  else
-                  {
-                      if (HasProgressBarVisible == false)
-                      {
-                          LoadingBar.gameObject.SetActive(true);
-                          LoadingText.gameObject.SetActive(true);
-                          HasProgressBarVisible = true;
-                      }
+            {
+                if (progress == 100)
+                {
+                    LoadingText.gameObject.SetActive(false);
+                    LoadingBar.gameObject.SetActive(false);
+                    HasProgressBarVisible = false;
+                }
+                else
+                {
+                    if (HasProgressBarVisible == false)
+                    {
+                        LoadingBar.gameObject.SetActive(true);
+                        LoadingText.gameObject.SetActive(true);
+                        HasProgressBarVisible = true;
+                    }
 
-                      if (LoadingText.text != info)
-                      {
-                          LoadingText.text = info;
-                      }
+                    if (LoadingText.text != info)
+                    {
+                        LoadingText.text = info;
+                    }
 
-                      Vector2 scale = LoadingBar.size;
-                      float NewX = progress / 2;
-                      if (scale.x != NewX)
-                      {
-                          scale.x = NewX;
-                          LoadingBar.size = scale;
-                      }
-                  }
-              });
+                    Vector2 scale = LoadingBar.size;
+                    float NewX = progress / 2;
+                    if (scale.x != NewX)
+                    {
+                        scale.x = NewX;
+                        LoadingBar.size = scale;
+                    }
+                }
+            });
         }
         public override bool CanHover(BasisInput input)
         {
@@ -211,6 +213,7 @@ namespace Basis.Scripts.UI.NamePlate
             var found = Inputs.FindExcludeExtras(input);
             if (found != null && found.Value.GetState() != BasisInteractInputState.Ignored)
                 BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " input state is not ignored OnHoverStart, this shouldn't happen");
+
             var added = Inputs.ChangeStateByRole(found.Value.Role, BasisInteractInputState.Hovering);
             if (!added)
                 BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " did not find role for input on hover");
@@ -266,7 +269,6 @@ namespace Basis.Scripts.UI.NamePlate
         }
         public void HighlightObject(bool IsHighlighted)
         {
-
         }
         public void WasPressed(BasisInput input)
         {
