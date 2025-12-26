@@ -26,7 +26,6 @@ namespace uLipSync
         NativeArray<float> _phonemes;              // reference MFCCs packed [phonemeCount * mfccNum]
         NativeArray<float> _scores;                // output scores from job
         NativeArray<LipSyncJob.Info> _info;        // volume + main phoneme idx
-        string[] _phonemeNames;
         public int phonemeCount;
         public float[] Inputs;                     // managed mirror used for feeding audio only
         public int outputSampleRate;
@@ -34,31 +33,39 @@ namespace uLipSync
         public int mfccsCount;
         // runtime mix values
         float[] _phonemeRatios;
-        readonly Dictionary<string, int> _phonemeNameToIndex = new Dictionary<string, int>(32);
         public float NormalVolume;
         public float rawVolume;
         public int CachedInputSampleCount;
         public float globalMultiplier;
         public float MultipliedWeight;
         public float finalWeight;
+        public SkinnedMeshRenderer skinnedMeshRenderer;
+        public List<BlendShapeInfo> CachedblendShapes = new List<BlendShapeInfo>();
+        public BlendShapeInfo[] BlendShapeInfos;
+        public const float smoothness = 0.05f;
+        public const float minVolume = -2.5f;
+        public const float maxVolume = -1.5f;
+        public const float VolumeDifference = BasisUlipSync.maxVolume - BasisUlipSync.minVolume;
+        public float _volume = 0f;
+        public float _openCloseVelocity = 0f;
+        const float epsilon = 1e-6f;
         public void Simulate()
         {
             // If last scheduled job is still running, skip this frame.
             if (!_jobHandle.Equals(default(JobHandle)) && !_jobHandle.IsCompleted)
+            {
                 return;
-
+            }
             // If a job existed, complete it and consume results.
             if (!_jobHandle.Equals(default(JobHandle)))
             {
                 _jobHandle.Complete();
                 _jobHandle = default;
-
                 // Copy MFCC for external access in one go (no managed allocs)
                 if (_mfccForOther.IsCreated && _mfcc.IsCreated)
                 {
                     _mfccForOther.CopyFrom(_mfcc);
                 }
-
                 // Pull main phoneme + volume
                 if (_info.IsCreated && _info.Length > 0)
                 {
@@ -67,7 +74,6 @@ namespace uLipSync
                     float logv = rawVolume > 0f ? math.log10(rawVolume) : 0f;
                     NormalVolume = math.clamp((logv - Common.DefaultMinVolume) / math.max(Common.DifferenceVolume, 1e-6f), 0f, 1f);
                 }
-
                 // Compute phoneme ratios from scores (single pass, no managed copy)
                 if (_scores.IsCreated && phonemeCount > 0)
                 {
@@ -78,21 +84,18 @@ namespace uLipSync
                     }
 
                     float inv = sum > 0f ? 1f / sum : 0f;
-                    for (int i = 0; i < phonemeCount; i++)
+                    for (int Index = 0; Index < phonemeCount; Index++)
                     {
-                        _phonemeRatios[i] = _scores[i] * inv;
+                        _phonemeRatios[Index] = _scores[Index] * inv;
                     }
                 }
-
                 // Apply to blendshapes
                 var smr = skinnedMeshRenderer;
                 if (smr == null || smr.sharedMesh == null)
                 {
                     return;
                 }
-
                 int blendShapeCount = smr.sharedMesh.blendShapeCount;
-
                 // Volume smoothing (open/close)
                 float normVol = 0f;
                 if (rawVolume > 0f)
@@ -101,66 +104,44 @@ namespace uLipSync
                     float denom = Mathf.Max(BasisUlipSync.VolumeDifference, 1e-4f);
                     normVol = Mathf.Clamp01((logv - BasisUlipSync.minVolume) / denom);
                 }
-
                 _volume = SmoothDamp(_volume, normVol, ref _openCloseVelocity);
-
                 globalMultiplier = _volume * 100;
-
                 var infos = BlendShapeInfos;
-                if (infos == null)
-                {
-                    return;
-                }
-
-                int count = infos.Length;
-
                 // First pass: compute target weights + sum (write back if struct)
                 float totalWeight = 0f;
                 int PhonemeRatioLength = _phonemeRatios.Length;
-                for (int Index = 0; Index < count; Index++)
+                int BlendShapeCount = infos.Length;
+                for (int Index = 0; Index < BlendShapeCount; Index++)
                 {
                     var bs = infos[Index];
                     float targetWeight = 0f;
-
-                    if (_phonemeNameToIndex.TryGetValue(bs.phoneme, out int idx) && idx >= 0 && idx < PhonemeRatioLength)
+                    int idx = bs.phonemeIndex;
+                    if ((uint)idx < (uint)PhonemeRatioLength) // fast bounds check trick
                     {
                         targetWeight = _phonemeRatios[idx];
                     }
-
                     float vel = bs.weightVelocity;
                     bs.weight = SmoothDamp(bs.weight, targetWeight, ref vel);
                     bs.weightVelocity = vel;
-
                     totalWeight += bs.weight;
                     infos[Index] = bs; // write back if struct
                 }
-
                 // Base multiply (normalize only when sum is not ~zero)
-                const float epsilon = 1e-6f;
                 float baseMultiply = (Mathf.Abs(totalWeight) > epsilon) ? (1f / totalWeight) * globalMultiplier : globalMultiplier;
-
                 // Second pass: apply to renderer
-                for (int Index = 0; Index < count; Index++)
+                for (int Index = 0; Index < BlendShapeCount; Index++)
                 {
                     var bs = infos[Index];
-                    if (bs.index < 0)
+                    if (bs.index < 0 || bs.index >= blendShapeCount)
                     {
                         continue;
                     }
-
-                    // guard against out-of-range (valid indices are 0..blendShapeCount-1)
-                    if (bs.index >= blendShapeCount)
-                    {
-                        continue;
-                    }
-
                     MultipliedWeight = bs.weight * baseMultiply;
                     finalWeight = math.clamp(MultipliedWeight, 0f, 100f);
                     if (float.IsNaN(finalWeight))
                     {
                         finalWeight = 0f;
                     }
-
                     smr.SetBlendShapeWeight(bs.index, finalWeight);
                 }
             }
@@ -292,22 +273,30 @@ namespace uLipSync
                     _standardDeviations[Index] = 1f; // sane default
                 }
             }
-
             // Phoneme names + map
-            _phonemeNames = new string[phonemeCount];
             _phonemeRatios = new float[phonemeCount];
-            _phonemeNameToIndex.Clear();
+            if (profile == null || BlendShapeInfos == null)
+            {
+                return;
+            }
+            // Build a temporary dictionary once (or use Option B below)
+            Dictionary<string, int> _phonemeNameToIndex = new Dictionary<string, int>(32);
             for (int Index = 0; Index < phonemeCount; Index++)
             {
-                string name = profile.GetPhoneme(Index);
-                _phonemeNames[Index] = name;
+                var name = profile.GetPhoneme(Index);
                 if (!string.IsNullOrEmpty(name))
                 {
                     _phonemeNameToIndex[name] = Index;
                 }
             }
+            int BlendShapeLength = BlendShapeInfos.Length;
+            for (int Index = 0; Index < BlendShapeLength; Index++)
+            {
+                var bs = BlendShapeInfos[Index];
+                bs.phonemeIndex = !string.IsNullOrEmpty(bs.phoneme) && _phonemeNameToIndex.TryGetValue(bs.phoneme, out int idx) ? idx : -1;
+                BlendShapeInfos[Index] = bs; // if struct
+            }
         }
-
         public void OnDestroy()
         {
             if (!_jobHandle.Equals(default(JobHandle)))
@@ -366,71 +355,38 @@ namespace uLipSync
             // Signal new data for the next LateUpdate
             Interlocked.Exchange(ref _isDataReceived, 1);
         }
-        static void SafeCreate(ref NativeArray<float> array, int length)
+        static void SafeCreate<T>(ref NativeArray<T> array, int length, NativeArrayOptions options = NativeArrayOptions.ClearMemory) where T : struct
         {
             if (array.IsCreated)
             {
-                if (array.Length != length)
+                if (array.Length == length)
                 {
-                    array.Dispose();
-                    array = new NativeArray<float>(length, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+                    return;
                 }
+                array.Dispose();
             }
-            else
-            {
-                array = new NativeArray<float>(length, Allocator.Persistent, NativeArrayOptions.ClearMemory);
-            }
-        }
-        static void SafeCreate(ref NativeArray<LipSyncJob.Info> array, int length)
-        {
-            if (array.IsCreated)
-            {
-                if (array.Length != length)
-                {
-                    array.Dispose();
-                    array = new NativeArray<LipSyncJob.Info>(length, Allocator.Persistent, NativeArrayOptions.ClearMemory);
-                }
-            }
-            else
-            {
-                array = new NativeArray<LipSyncJob.Info>(length, Allocator.Persistent, NativeArrayOptions.ClearMemory);
-            }
+            array = new NativeArray<T>(length, Allocator.Persistent, options);
         }
         static void SafeDispose<T>(ref NativeArray<T> array) where T : struct
         {
-            if (array.IsCreated) array.Dispose();
+            if (array.IsCreated)
+            {
+                array.Dispose();
+            }
             array = default;
         }
-        public SkinnedMeshRenderer skinnedMeshRenderer;
-        public List<BlendShapeInfo> CachedblendShapes = new List<BlendShapeInfo>();
-        public BlendShapeInfo[] BlendShapeInfos;
-
-        public const float smoothness = 0.05f;
-        public const float minVolume = -2.5f;
-        public const float maxVolume = -1.5f;
-        public const float VolumeDifference = BasisUlipSync.maxVolume - BasisUlipSync.minVolume;
-        public float _volume = 0f;
-        public float _openCloseVelocity = 0f;
-
         public float SmoothDamp(float value, float target, ref float velocity)
         {
             return Mathf.SmoothDamp(value, target, ref velocity, smoothness);
         }
-
-        public BlendShapeInfo GetBlendShapeInfo(string phoneme)
-        {
-            return CachedblendShapes.Find(info => info.phoneme == phoneme);
-        }
-
         public void AddBlendShape(string phoneme, int blendShape)
         {
-            var bs = GetBlendShapeInfo(phoneme);
+            var bs = CachedblendShapes.Find(info => info.phoneme == phoneme);
             if (bs == null)
             {
                 bs = new BlendShapeInfo { phoneme = phoneme };
                 CachedblendShapes.Add(bs);
             }
-
             if (skinnedMeshRenderer != null)
             {
                 bs.index = blendShape;
