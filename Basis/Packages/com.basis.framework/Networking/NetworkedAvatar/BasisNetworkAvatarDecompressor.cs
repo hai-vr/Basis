@@ -1,8 +1,3 @@
-// =======================================================
-// BasisNetworkAvatarDecompressor_BitPacked.cs
-// Full decompressor change: swap muscle decode to bitpacked.
-// =======================================================
-
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Receivers;
 using System;
