@@ -166,7 +166,7 @@ public struct JiggleRigData {
             bone = t,
             restLocalPosition = localPosition,
             restLocalRotation = new Vector4(localRotation.x, localRotation.y, localRotation.z, localRotation.w),
-            normalizedDistanceFromRoot = currentLength / totalLength,
+            normalizedDistanceFromRoot = Mathf.Clamp01(currentLength / totalLength),
             lossyScale = (scale.x + scale.y + scale.x)/3f,
         });
         for (int i = 0; i < validChildrenCount; i++) {
