@@ -1,3 +1,11 @@
+// =======================================================
+// BasisNetworkAvatarCompressor_BitPacked.cs
+// Full compressor with:
+// - parallel quantization (IJobParallelFor)
+// - single-thread pack (IJob)
+// - bitstream output (packed bytes)
+// =======================================================
+
 using Basis.Network.Core;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Transmitters;
@@ -11,65 +19,74 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
+
 namespace Basis.Scripts.Networking.NetworkedAvatar
 {
     public static class BasisNetworkAvatarCompressor
     {
         const int UnityMuscleCount = 95;
-        const int Skipped = 6;                 // eyes/jaw (15..20)
-        const int muscleCount = UnityMuscleCount - Skipped; // 89
+        const int Skipped = 6; // eyes/jaw 15..20
+        const int muscleCount = UnityMuscleCount - Skipped; // 89 slots, but Unity muscles still 95 indices
+
         static bool sInitialized;
-        static float[] sMinManaged;        // length 95
-        static float[] sInvManaged;        // 1/range or 0
-        static float[] sMaxManaged;        // min + range
+
         // persistent native LUTs / buffers
-        static NativeArray<int> sOrder;     // slot -> muscle index
-        static NativeArray<byte> sIsByte;   // slot -> 1 if 8-bit, else 0
-        static NativeArray<int> sOffsets;   // slot -> byte offset in packed
-        static NativeArray<float> sMin;     // index by muscle idx
-        static NativeArray<float> sInv;     //"
-        static NativeArray<float> sMax;     //"
-        static NativeArray<byte> sPacked;   //packed output, reused
-        static NativeArray<float> sMusclesNative; // input scratch persistent
-        static int sPackedSize;
+        static NativeArray<int> sOrder;         // slot -> muscle index
+        static NativeArray<byte> sBitsPerSlot;  // slot -> bit width (8..16...)
+        static NativeArray<int> sBitOffsets;    // slot -> bit offset in packed stream
+
+        static NativeArray<float> sMin;         // index by muscle idx
+        static NativeArray<float> sInv;         // 1/range or 0
+        static NativeArray<float> sMax;         // min + range
+
+        static NativeArray<float> sMusclesNative;   // input scratch persistent (95 floats)
+        static NativeArray<uint> sQuantized;        // per-slot quantized ints
+        static NativeArray<byte> sPacked;           // packed bitstream output
+
+        static int sPackedBits;
+        static int sPackedBytes;
+
         public static byte[] OutGoingBytes;
+
         public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
         {
-            Transform AnimatorTransform = animator.transform;
-            transmitter.PoseHandler ??= new HumanPoseHandler(animator.avatar, AnimatorTransform);
+            Transform t = animator.transform;
+            transmitter.PoseHandler ??= new HumanPoseHandler(animator.avatar, t);
 
-            EnsureInitialized(); // our compressor init
+            EnsureInitialized();
 
-            // Get current pose from Animator
             transmitter.PoseHandler.GetHumanPose(ref transmitter.HumanPose);
 
-            CompressAvatarData(transmitter.storedAvatarData, transmitter.HumanPose, animator, AnimatorTransform);
+            CompressAvatarData(transmitter.storedAvatarData, transmitter.HumanPose, animator, t);
 
             var data = transmitter.SendingOutAvatarData.Count == 0 ? null : transmitter.SendingOutAvatarData.Values.ToArray();
-
             transmitter.storedAvatarData.LASM.AdditionalAvatarDatas = data;
 
             transmitter.storedAvatarData.LASM.Serialize(transmitter.AvatarSendWriter);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
 
-            BasisNetworkConnection.LocalPlayerPeer.Send(transmitter.AvatarSendWriter,BasisNetworkCommons.PlayerAvatarChannel,DeliveryMethod.Sequenced);
+            BasisNetworkConnection.LocalPlayerPeer.Send(transmitter.AvatarSendWriter, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
 
             transmitter.AvatarSendWriter.Reset();
             transmitter.ClearAdditional();
         }
+
         public static void InitalAvatarData(Animator animator, out BasisStoredAvatarData StoredAvatarData)
         {
             EnsureInitialized();
-            Transform Transform = animator.transform;
-            var poseHandler = new HumanPoseHandler(animator.avatar, Transform);
+
+            Transform t = animator.transform;
+            var poseHandler = new HumanPoseHandler(animator.avatar, t);
             var humanPose = new HumanPose();
             poseHandler.GetHumanPose(ref humanPose);
+
             StoredAvatarData = new BasisStoredAvatarData();
-            CompressAvatarData(StoredAvatarData, humanPose, animator, Transform);
+            CompressAvatarData(StoredAvatarData, humanPose, animator, t);
         }
+
         [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
-        public static void CompressAvatarData(BasisStoredAvatarData AvatarData, HumanPose pose, Animator animator,Transform ScaleTransform)
+        public static void CompressAvatarData(BasisStoredAvatarData AvatarData, HumanPose pose, Animator animator, Transform ScaleTransform)
         {
             EnsureInitialized();
 
@@ -81,15 +98,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Rotation
             BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset, BasisNetworkPlayer.RotationCompression);
 
-            // Muscles (parallel, zero-GC)
-            CompressAvatarMuscles_Parallel(ref pose, ref AvatarData.LASM, ref offset);
+            // Muscles (bitpacked)
+            CompressAvatarMuscles_BitPacked(ref pose, ref AvatarData.LASM, ref offset);
 
             // Scale
             CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
         }
-        public static void CompressAvatarMuscles_Parallel(ref HumanPose pose, ref LocalAvatarSyncMessage message, ref int offset)
+
+        public static void CompressAvatarMuscles_BitPacked(ref HumanPose pose, ref LocalAvatarSyncMessage message, ref int offset)
         {
             EnsureMusclesBuffer(UnityMuscleCount);
+
+            // Copy pose.muscles into persistent native buffer (95 floats)
             unsafe
             {
                 fixed (float* src = pose.muscles)
@@ -97,40 +117,50 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                     UnsafeUtility.MemCpy(sMusclesNative.GetUnsafePtr(), src, sizeof(float) * UnityMuscleCount);
                 }
             }
+            unsafe
+            {
+                // Clear packed buffer before writing bits (important because we OR into bytes)
+                UnsafeUtility.MemClear(sPacked.GetUnsafePtr(), sPackedBytes);
+            }
 
-            // launch job: each slot writes to its own offset in sPacked (no races)
-            var job = new QuantizeWriteJob
+            // Job A: quantize each slot in parallel -> sQuantized[slot]
+            var qJob = new QuantizeJob
             {
                 Muscles = sMusclesNative,
                 Min = sMin,
                 Inv = sInv,
                 Max = sMax,
                 Order = sOrder,
-                IsByte = sIsByte,
-                Offsets = sOffsets,
-                OutBytes = sPacked
+                BitsPerSlot = sBitsPerSlot,
+                OutQuant = sQuantized,
             };
 
-            var handle = job.Schedule(sOrder.Length, 32);
-            handle.Complete();
+            // Job B: pack quantized ints into bitstream (single thread)
+            var pJob = new PackJob
+            {
+                BitsPerSlot = sBitsPerSlot,
+                BitOffsets = sBitOffsets,
+                Quant = sQuantized,
+                Packed = sPacked,
+            };
 
-            // copy packed into final message buffer (NO managed array hop)
+            JobHandle h1 = qJob.Schedule(sOrder.Length, 32);
+            JobHandle h2 = pJob.Schedule(h1);
+            h2.Complete();
+
+            // Copy packed bytes into final message buffer at offset
             unsafe
             {
                 void* srcPtr = sPacked.GetUnsafeReadOnlyPtr();
                 fixed (byte* dst = message.array)
                 {
-                    UnsafeUtility.MemCpy(dst + offset, srcPtr, sPackedSize);
+                    UnsafeUtility.MemCpy(dst + offset, srcPtr, sPackedBytes);
                 }
             }
-            offset += sPackedSize;
+
+            offset += sPackedBytes;
         }
-        /// <summary>
-        /// shared utils (unchanged)
-        /// </summary>
-        /// <param name="scale"></param>
-        /// <param name="message"></param>
-        /// <param name="offset"></param>
+
         public static void CompressScale(float scale, ref LocalAvatarSyncMessage message, ref int offset)
         {
             const float Min = 0.005f;
@@ -143,138 +173,199 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             ushort compressed = (ushort)(normalized * BasisOrderedDataSet.UShortRangeDifference);
             BasisUnityBitPackerExtensionsUnsafe.WriteUShort(compressed, ref message.array, ref offset);
         }
-        /// <summary>
-        /// initialization / disposal
-        /// </summary>
+
+        // =======================================================
+        // Initialization
+        // =======================================================
+
         static void EnsureInitialized()
         {
             if (sInitialized) return;
 
-            // 1) load BasisMuscleRange into managed LUTs
-            var minT = BasisOrderedDataSet.MinMuscle;   // length 95
-            var rangeT = BasisOrderedDataSet.RangeMuscle; // length 95
+            // These must already be initialized by BasisOrderedDataSet.Initalize()
+            var minT = BasisOrderedDataSet.MinMuscle;
+            var rangeT = BasisOrderedDataSet.RangeMuscle;
 
             if (minT == null || rangeT == null || minT.Length != UnityMuscleCount || rangeT.Length != UnityMuscleCount)
             {
-                Debug.LogError("[BasisNetworkAvatarCompressor] BasisMuscleRange tables invalid.");
+                Debug.LogError("[BasisNetworkAvatarCompressor] BasisOrderedDataSet tables invalid. Call BasisOrderedDataSet.Initalize() first.");
                 return;
             }
 
-            sMinManaged = new float[UnityMuscleCount];
-            sInvManaged = new float[UnityMuscleCount];
-            sMaxManaged = new float[UnityMuscleCount];
+            int slots = BasisOrderedDataSet.WRITE_ORDER.Length;
 
-            for (int Index = 0; Index < UnityMuscleCount; Index++)
+            // Compute bit offsets + packed sizes
+            sPackedBits = 0;
+            var bitOffsManaged = new int[slots];
+            for (int i = 0; i < slots; i++)
             {
-                sMinManaged[Index] = minT[Index];
-                float r = rangeT[Index];
-                sInvManaged[Index] = (r <= 0f) ? 0f : 1f / r;
-                sMaxManaged[Index] = minT[Index] + r;
+                bitOffsManaged[i] = sPackedBits;
+                sPackedBits += BasisOrderedDataSet.BITS_PER_SLOT[i];
             }
-            int length = BasisOrderedDataSet.WRITE_ORDER.Length;
+            sPackedBytes = (sPackedBits + 7) >> 3;
 
-            // 2) build offsets and packed size from IS_BYTE
-            sPackedSize = 0;
-            var offs = new int[length];
-            for (int Index = 0; Index < length; Index++)
-            {
-                offs[Index] = sPackedSize;
-                sPackedSize += BasisOrderedDataSet.IS_BYTE[Index] ? 1 : 2;
-            }
-            // 3) allocate persistent natives
-            sOrder = new NativeArray<int>(length, Allocator.Persistent);
-            sIsByte = new NativeArray<byte>(length, Allocator.Persistent);
-            sOffsets = new NativeArray<int>(length, Allocator.Persistent);
+            // Allocate persistent natives
+            sOrder = new NativeArray<int>(slots, Allocator.Persistent);
+            sBitsPerSlot = new NativeArray<byte>(slots, Allocator.Persistent);
+            sBitOffsets = new NativeArray<int>(slots, Allocator.Persistent);
+
             sMin = new NativeArray<float>(UnityMuscleCount, Allocator.Persistent);
             sInv = new NativeArray<float>(UnityMuscleCount, Allocator.Persistent);
             sMax = new NativeArray<float>(UnityMuscleCount, Allocator.Persistent);
-            sPacked = new NativeArray<byte>(sPackedSize, Allocator.Persistent);
 
-            // 4) fill natives
-            for (int Index = 0; Index < length; Index++)
+            sPacked = new NativeArray<byte>(sPackedBytes, Allocator.Persistent);
+            sQuantized = new NativeArray<uint>(slots, Allocator.Persistent);
+
+            // Fill per-slot arrays
+            for (int i = 0; i < slots; i++)
             {
-                sOrder[Index] = BasisOrderedDataSet.WRITE_ORDER[Index];
-                sIsByte[Index] = BasisOrderedDataSet.IS_BYTE[Index] ? (byte)1 : (byte)0;
-                sOffsets[Index] = offs[Index];
+                sOrder[i] = BasisOrderedDataSet.WRITE_ORDER[i];
+                sBitsPerSlot[i] = BasisOrderedDataSet.BITS_PER_SLOT[i];
+                sBitOffsets[i] = bitOffsManaged[i];
             }
-            for (int Index = 0; Index < UnityMuscleCount; Index++)
+
+            // Fill per-muscle LUTs
+            for (int idx = 0; idx < UnityMuscleCount; idx++)
             {
-                sMin[Index] = sMinManaged[Index];
-                sInv[Index] = sInvManaged[Index];
-                sMax[Index] = sMaxManaged[Index];
+                float min = minT[idx];
+                float r = rangeT[idx];
+                sMin[idx] = min;
+                sInv[idx] = (r <= 0f) ? 0f : 1f / r;
+                sMax[idx] = min + r;
             }
+
             EnsureMusclesBuffer(UnityMuscleCount);
+
             sInitialized = true;
-            // 5) create persistent input buffer
-            // Debug.Log($"[BasisNetworkAvatarCompressor] Init: slots={WRITE_ORDER.Length}, packed={sPackedSize} bytes");
         }
+
         static void EnsureMusclesBuffer(int count)
         {
             if (!sMusclesNative.IsCreated || sMusclesNative.Length != count)
             {
-                if (sMusclesNative.IsCreated)
-                {
-                    sMusclesNative.Dispose();
-                }
+                if (sMusclesNative.IsCreated) sMusclesNative.Dispose();
                 sMusclesNative = new NativeArray<float>(count, Allocator.Persistent);
             }
         }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void OnDomainReload()
         {
             Dispose();
         }
+
         public static void Dispose()
         {
             if (sOrder.IsCreated) sOrder.Dispose();
-            if (sIsByte.IsCreated) sIsByte.Dispose();
-            if (sOffsets.IsCreated) sOffsets.Dispose();
+            if (sBitsPerSlot.IsCreated) sBitsPerSlot.Dispose();
+            if (sBitOffsets.IsCreated) sBitOffsets.Dispose();
+
             if (sMin.IsCreated) sMin.Dispose();
             if (sInv.IsCreated) sInv.Dispose();
             if (sMax.IsCreated) sMax.Dispose();
+
             if (sPacked.IsCreated) sPacked.Dispose();
             if (sMusclesNative.IsCreated) sMusclesNative.Dispose();
+            if (sQuantized.IsCreated) sQuantized.Dispose();
 
             sInitialized = false;
         }
-        /// <summary>
-        /// job
-        /// </summary>
+
+        // =======================================================
+        // Jobs
+        // =======================================================
+
         [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
-        struct QuantizeWriteJob : IJobParallelFor
+        struct QuantizeJob : IJobParallelFor
         {
             [ReadOnly] public NativeArray<float> Muscles;   // index by Unity muscle index
             [ReadOnly] public NativeArray<float> Min;
             [ReadOnly] public NativeArray<float> Inv;
             [ReadOnly] public NativeArray<float> Max;
-            [ReadOnly] public NativeArray<int> Order;      // slot -> muscle idx
-            [ReadOnly] public NativeArray<byte> IsByte;     // slot -> 1/0
-            [ReadOnly] public NativeArray<int> Offsets;    // slot -> byte offset
-            [NativeDisableParallelForRestriction]
-            public NativeArray<byte> OutBytes;              // shared packed buffer
+
+            [ReadOnly] public NativeArray<int> Order;       // slot -> muscle idx
+            [ReadOnly] public NativeArray<byte> BitsPerSlot;// slot -> bits
+
+            public NativeArray<uint> OutQuant;              // slot -> q
+
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            static byte Quant8(float x01) => (byte)math.round(x01 * 255f);
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            static ushort Quant16(float x01) => (ushort)math.round(x01 * 65535f);
+            static uint QuantN(float x01, int bits)
+            {
+                // bits expected 1..31 here (we use <=16 in practice)
+                uint maxQ = (uint)((1 << bits) - 1);
+                return (uint)math.round(x01 * maxQ);
+            }
+
             public void Execute(int slot)
             {
                 int idx = Order[slot];
                 float v = Muscles[idx];
+
                 float min = Min[idx];
                 float inv = Inv[idx];
                 float max = Max[idx];
+
                 float clamped = math.clamp(v, min, max);
                 float norm = (inv == 0f) ? 0f : (clamped - min) * inv;
-                int o = Offsets[slot];
-                if (IsByte[slot] == 1)
+
+                int bits = BitsPerSlot[slot];
+                OutQuant[slot] = QuantN(norm, bits);
+            }
+        }
+
+        [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
+        struct PackJob : IJob
+        {
+            [ReadOnly] public NativeArray<byte> BitsPerSlot; // slot -> bits
+            [ReadOnly] public NativeArray<int> BitOffsets;   // slot -> bit offset
+            [ReadOnly] public NativeArray<uint> Quant;       // slot -> q
+
+            public NativeArray<byte> Packed;                 // output bytes (pre-cleared)
+
+            public void Execute()
+            {
+                int slots = BitsPerSlot.Length;
+                for (int slot = 0; slot < slots; slot++)
                 {
-                    OutBytes[o] = Quant8(norm);
+                    int bitPos = BitOffsets[slot];
+                    int bits = BitsPerSlot[slot];
+                    uint q = Quant[slot];
+                    BitWriter.WriteBits(ref Packed, bitPos, q, bits);
                 }
-                else
+            }
+        }
+
+        // =======================================================
+        // BitWriter: packs LSB-first into Packed[]
+        // IMPORTANT: Packed[] must be zeroed before writing (we OR bits in).
+        // =======================================================
+        static class BitWriter
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static void WriteBits(ref NativeArray<byte> dst, int bitPos, uint value, int bitCount)
+            {
+                int bytePos = bitPos >> 3;
+                int bitInByte = bitPos & 7;
+
+                uint v = value;
+                int bitsLeft = bitCount;
+
+                while (bitsLeft > 0)
                 {
-                    ushort u = Quant16(norm);
-                    OutBytes[o] = (byte)(u & 0xFF);
-                    OutBytes[o + 1] = (byte)(u >> 8);
+                    int room = 8 - bitInByte;
+                    int take = bitsLeft < room ? bitsLeft : room;
+
+                    uint mask = (uint)((1 << take) - 1);
+                    byte chunk = (byte)(v & mask);
+
+                    byte cur = dst[bytePos];
+                    cur = (byte)(cur | (chunk << bitInByte));
+                    dst[bytePos] = cur;
+
+                    v >>= take;
+                    bitsLeft -= take;
+                    bytePos++;
+                    bitInByte = 0;
                 }
             }
         }

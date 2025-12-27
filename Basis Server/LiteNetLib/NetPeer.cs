@@ -419,8 +419,6 @@ namespace LiteNetLib
 
             //  //NetDebug.Write(NetLogLevel.Trace, $"[CC] ConnectId: {_connectTime}, ConnectNum: {connectNum}");
         }
-
-#if LITENETLIB_SPANS || NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1 || NETCOREAPP3_1 || NET5_0 || NETSTANDARD2_1
         //"Connect to" constructor
         internal NetPeer(NetManager netManager, IPEndPoint remoteEndPoint, int id, byte connectNum, ReadOnlySpan<byte> connectData)
             : this(netManager, remoteEndPoint, id)
@@ -438,8 +436,6 @@ namespace LiteNetLib
 
             // //NetDebug.Write(NetLogLevel.Trace, $"[CC] ConnectId: {_connectTime}, ConnectNum: {connectNum}");
         }
-#endif
-
         //"Accept" incoming constructor
         internal NetPeer(NetManager netManager, ConnectionRequest request, int id)
             : this(netManager, request.RemoteEndPoint, id)
@@ -733,8 +729,6 @@ namespace LiteNetLib
                 channel.AddToQueue(packet);
             }
         }
-
-#if LITENETLIB_SPANS || NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1 || NETCOREAPP3_1 || NET5_0 || NETSTANDARD2_1
         /// <summary>
         /// Send data to peer with delivery event called
         /// </summary>
@@ -864,8 +858,6 @@ namespace LiteNetLib
                 channel.AddToQueue(packet);
             }
         }
-#endif
-
         public void Disconnect(byte[] data)
         {
             NetManager.DisconnectPeer(this, data);

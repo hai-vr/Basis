@@ -68,11 +68,10 @@ namespace LiteNetLib
             Buffer.BlockCopy(connectData.Data, 0, packet.RawData, HeaderSize + addressBytes.Size, connectData.Length);
             return packet;
         }
-
         public static NetPacket Make(ReadOnlySpan<byte> connectData, SocketAddress addressBytes, long connectTime, int localId)
         {
             //Make initial packet
-            var packet = new NetPacket(PacketProperty.ConnectRequest, connectData.Length + addressBytes.Size);
+            var packet = new NetPacket(PacketProperty.ConnectRequest, connectData.Length+addressBytes.Size);
 
             //Add data
             FastBitConverter.GetBytes(packet.RawData, 1, NetConstants.ProtocolId);

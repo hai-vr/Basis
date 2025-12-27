@@ -436,7 +436,6 @@ namespace LiteNetLib
 
             // //NetDebug.Write(NetLogLevel.Trace, $"[CC] ConnectId: {_connectTime}, ConnectNum: {connectNum}");
         }
-
         //"Accept" incoming constructor
         internal NetPeer(NetManager netManager, ConnectionRequest request, int id)
             : this(netManager, request.RemoteEndPoint, id)

@@ -4,113 +4,194 @@ using UnityEngine;
 
 public class BasisOrderedDataSet : MonoBehaviour
 {
-    // write order (slot -> muscle index), matches your sections exactly, skipping 15..20
-    // Spine/Chest/Head
+    // slot -> muscle index (exactly your existing order, skipping 15..20)
     public static readonly int[] WRITE_ORDER = new int[]
     {
-            // 0..14
-            0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,
+        // 0..14
+        0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,
 
-            // Left Leg (slots 15..22) 21..28
-            21,22,23,24,25,26,27,28,
+        // Left Leg
+        21,22,23,24,25,26,27,28,
 
-            // Right Leg (slots 23..30) 29..36
-            29,30,31,32,33,34,35,36,
+        // Right Leg
+        29,30,31,32,33,34,35,36,
 
-            // Left Arm (slots 31..39) 37..45
-            37,38,39,40,41,42,43,44,45,
+        // Left Arm
+        37,38,39,40,41,42,43,44,45,
 
-            // Right Arm (slots 40..48) 46..54
-            46,47,48,49,50,51,52,53,54,
+        // Right Arm
+        46,47,48,49,50,51,52,53,54,
 
-            // Left Hand Fingers (slots 49..68) 55..74
-            55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,
+        // Left Hand Fingers
+        55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,
 
-            // Right Hand Fingers (slots 69..88) 75..94
-            75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,
+        // Right Hand Fingers
+        75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,
     };
-    // per-slot precision (true = 8-bit; false = 16-bit) mirrors your SetCompressedUshort asByte flags
-    public static readonly bool[] IS_BYTE = new bool[]
+    public static readonly byte[] BITS_PER_SLOT = new byte[]
     {
-            // Spine/Chest/Head (0..14) -> 6,7,8 true; rest false
-            false,false,false,false,false,false, false, false, false, false,false,false,false,false,false,
+    // ----------------------
+    // Spine/Chest/Head (slots 0..14 -> muscles 0..14)
+    // Range 80 -> 15 bits (step ~0.0024)
+    // Range 40 -> 14 bits (step ~0.0024)
+    // ----------------------
+    15,15,15,   // 0 Spine FB, 1 Spine LR, 2 Spine Twist (80)
+    15,15,15,   // 3 Chest FB, 4 Chest LR, 5 Chest Twist (80)
+    14,14,14,   // 6 UpperChest FB, 7 UpperChest LR, 8 UpperChest Twist (40)
+    15,15,15,   // 9 Neck Nod, 10 Neck Tilt, 11 Neck Turn (80)
+    15,15,15,   // 12 Head Nod, 13 Head Tilt, 14 Head Turn (80)
 
-            // Left Leg (15..22): only 27 true
-            false,false,false,false,false,false, true, false,
+    // ----------------------
+    // Left Leg (slots 15..22 -> muscles 21..28)
+    // Big leg joints: keep fine-ish.
+    // ----------------------
+    15,15,15,   // 21 UpperLeg FB (140), 22 UpperLeg InOut (120), 23 UpperLeg Twist (120)
+    15,16,15,   // 24 LowerLeg Stretch (160), 25 LowerLeg Twist (180), 26 Foot UpDown (100)
+    13,8,      // 27 Foot Twist (60)  -> 13 (step ~0.0073) MUCH better than 8-bit
+                // 28 Toes UpDown (100) -> 15 (step ~0.0031)
 
-            // Right Leg (23..30): only 35 true
-            false,false,false,false,false,false, true, false,
+    // ----------------------
+    // Right Leg (slots 23..30 -> muscles 29..36)
+    // ----------------------
+    15,15,15,   // 29 UpperLeg FB (140), 30 UpperLeg InOut (120), 31 UpperLeg Twist (120)
+    15,16,15,   // 32 LowerLeg Stretch (160), 33 LowerLeg Twist (180), 34 Foot UpDown (100)
+    13,8,      // 35 Foot Twist (60) -> 13, 36 Toes UpDown (100) -> 15
 
-            // Left Arm (31..39): all false
-            false,false,false,false,false,false,false,false,false,
+    // ----------------------
+    // Left Arm (slots 31..39 -> muscles 37..45)
+    // Arms have some huge ranges (160..200). Keep those higher.
+    // Shoulder ranges are smaller (45/30) so we can drop.
+    // ----------------------
+    12,12,      // 37 Shoulder DownUp (45), 38 Shoulder FrontBack (30)
+    16,16,16,   // 39 Arm DownUp (160), 40 Arm FrontBack (200), 41 Arm Twist (180)
+    15,16,      // 42 Forearm Stretch (160), 43 Forearm Twist (180)
+    15,14,      // 44 Hand DownUp (160), 45 Hand InOut (80)
 
-            // Right Arm (40..48): all false
-            false,false,false,false,false,false,false,false,false,
+    // ----------------------
+    // Right Arm (slots 40..48 -> muscles 46..54)
+    // ----------------------
+    12,12,      // 46 Shoulder DownUp (45), 47 Shoulder FrontBack (30)
+    16,16,16,   // 48 Arm DownUp (160), 49 Arm FrontBack (200), 50 Arm Twist (180)
+    15,16,      // 51 Forearm Stretch (160), 52 Forearm Twist (180)
+    15,14,      // 53 Hand DownUp (160), 54 Hand InOut (80)
 
-            // Left Hand Fingers (49..68)
-            false,false, true, true,  // 55,56,57,58
-            false, true, true, true,  // 59,60,61,62
-            false, true, true, true,  // 63,64,65,66
-            false, true, true, true,  // 67,68,69,70
-            false, true, true, true,  // 71,72,73,74
+    // ----------------------
+    // Left Hand Fingers (slots 49..68 -> muscles 55..74)
+    //
+    // especially on fast networked motion. Here we push bends to 13–14 and spreads to 11–12.
+    //
+    // Thumb: ranges 40,50,75,75
+    // Index/Middle/Ring/Little: 1 stretch ~100, spreads 15 or 40, 2/3 stretches ~90
+    // ----------------------
+    8,13,8,8,    // 55 Thumb1 (40), 56 ThumbSpread (50), 57 Thumb2 (75), 58 Thumb3 (75)
+    8,12,8,8,    // 59 Index1 (100), 60 IndexSpread (40), 61 Index2 (90), 62 Index3 (90)
+    8,11,8,8,    // 63 Middle1 (100), 64 MiddleSpread (15), 65 Middle2 (90), 66 Middle3 (90)
+    8,11,8,8,    // 67 Ring1 (100), 68 RingSpread (15), 69 Ring2 (90), 70 Ring3 (90)
+    8,12,8,8,    // 71 Little1 (100), 72 LittleSpread (40), 73 Little2 (90), 74 Little3 (90)
 
-            // Right Hand Fingers (69..88)
-            false,false, true, true,  // 75,76,77,78
-            false, true, true, true,  // 79,80,81,82
-            false, true, true, true,  // 83,84,85,86
-            false, true, true, true,  // 87,88,89,90
-            false, true, true, true,  // 91,92,93,94
+    // ----------------------
+    // Right Hand Fingers (slots 69..88 -> muscles 75..94)
+    // Mirror of left.
+    // ----------------------
+    8,13,8,8,    // 75 Thumb1 (40), 76 ThumbSpread (50), 77 Thumb2 (75), 78 Thumb3 (75)
+    8,12,8,8,    // 79 Index1 (100), 80 IndexSpread (40), 81 Index2 (90), 82 Index3 (90)
+    8,11,8,8,    // 83 Middle1 (100), 84 MiddleSpread (15), 85 Middle2 (90), 86 Middle3 (90)
+    8,11,8,8,    // 87 Ring1 (100), 88 RingSpread (15), 89 Ring2 (90), 90 Ring3 (90)
+    8,12,8,8,    // 91 Little1 (100), 92 LittleSpread (40), 93 Little2 (90), 94 Little3 (90)
     };
     public static float[] MinMuscle;
     public static float[] MaxMuscle;
     public static float[] RangeMuscle;
-    //  public static string[] MusclesName;
     public static int TotalMuscles;
+
     public const ushort UShortMin = ushort.MinValue;
     public const ushort UShortMax = ushort.MaxValue;
     public const ushort UShortRangeDifference = UShortMax - UShortMin;
-    // Stores all muscles as a single appended string
-    //public static string AllMusclesString;
 
     public static void Initalize()
     {
-        TotalMuscles = HumanTrait.MuscleName.Length;
+        TotalMuscles = HumanTrait.MuscleName.Length; // 95
         MinMuscle = new float[TotalMuscles];
         MaxMuscle = new float[TotalMuscles];
         RangeMuscle = new float[TotalMuscles];
-        //MusclesName = new string[TotalMuscles];
 
-        for (int MuscleIndex = 0; MuscleIndex < TotalMuscles; MuscleIndex++)
+        for (int i = 0; i < TotalMuscles; i++)
         {
-            MinMuscle[MuscleIndex] = HumanTrait.GetMuscleDefaultMin(MuscleIndex);
-            MaxMuscle[MuscleIndex] = HumanTrait.GetMuscleDefaultMax(MuscleIndex);
-            RangeMuscle[MuscleIndex] = MaxMuscle[MuscleIndex] - MinMuscle[MuscleIndex];
-            // MusclesName[MuscleIndex] = HumanTrait.MuscleName[MuscleIndex];
-            // AllMusclesString += $"{MusclesName[MuscleIndex]}: Range {RangeMuscle[MuscleIndex]} ";
+            MinMuscle[i] = HumanTrait.GetMuscleDefaultMin(i);
+            MaxMuscle[i] = HumanTrait.GetMuscleDefaultMax(i);
+            RangeMuscle[i] = MaxMuscle[i] - MinMuscle[i];
         }
-        //  BasisDebug.Log(AllMusclesString);
     }
-    public static void DecompressAvatarMuscles_NoLoop(byte[] data, ref NativeArray<float> outputArray, ref int offset)
+    // =======================================================
+    // Bitstream decompression (no managed "ToArray" hop needed,
+    // but keeping your pattern: NativeArray<float> as output).
+    // =======================================================
+
+    public static void DecompressAvatarMuscles_BitPacked(byte[] data, ref NativeArray<float> outputArray, ref int offsetBytes)
     {
-        int dataPos = offset;
+        int bitPos = offsetBytes << 3; // bits
+        int slots = WRITE_ORDER.Length;
 
-        float[] floatArray = outputArray.ToArray();
-        // Sections in the same order as the original method
-        DecompressSpineChestHead(data, ref dataPos, ref floatArray);
+        // You can avoid a managed array by writing directly into outputArray,
+        // but outputArray is a NativeArray<float> and you might want it Burst-safe elsewhere.
+        // We'll write directly to outputArray here.
+        for (int slot = 0; slot < slots; slot++)
+        {
+            int muscleIndex = WRITE_ORDER[slot];
+            int bits = BITS_PER_SLOT[slot];
 
-        // no need to put this data on the network! 6 in total (saves between 6 and 16 bytes)
-        //DecompressEyesJaw(data, ref dataPos, floatArray); // (intentionally skipped as in original)
+            uint q = BitReader.ReadBits(data, ref bitPos, bits);
 
-        DecompressLeftLeg(data, ref dataPos, floatArray);
-        DecompressRightLeg(data, ref dataPos, floatArray);
-        DecompressLeftArm(data, ref dataPos, floatArray);
-        DecompressRightArm(data, ref dataPos, floatArray);
-        DecompressLeftHandFingers(data, ref dataPos, floatArray);
-        DecompressRightHandFingers(data, ref dataPos, floatArray);
+            // dequantize to 0..1
+            uint maxQ = (bits >= 32) ? 0xFFFFFFFFu : ((1u << bits) - 1u);
+            float norm = (maxQ == 0u) ? 0f : (q / (float)maxQ);
 
-        offset = dataPos;
-        outputArray.CopyFrom(floatArray);
+            float min = MinMuscle[muscleIndex];
+            float max = MaxMuscle[muscleIndex];
+            float range = RangeMuscle[muscleIndex];
+
+            float value = min + norm * range;
+            outputArray[muscleIndex] = math.clamp(value, min, max);
+        }
+
+        offsetBytes = (bitPos + 7) >> 3; // advance to next whole byte
     }
+    // -------------------------------------------------------
+    // Small bit reader helper (LSB-first within the stream).
+    // Matches the writer below in the compressor.
+    // -------------------------------------------------------
+    static class BitReader
+    {
+        public static uint ReadBits(byte[] src, ref int bitPos, int bitCount)
+        {
+            int bytePos = bitPos >> 3;
+            int bitInByte = bitPos & 7;
+
+            uint outV = 0;
+            int outShift = 0;
+
+            int bitsLeft = bitCount;
+            while (bitsLeft > 0)
+            {
+                int room = 8 - bitInByte;
+                int take = bitsLeft < room ? bitsLeft : room;
+
+                uint mask = (uint)((1 << take) - 1);
+                uint chunk = (uint)(src[bytePos] >> bitInByte) & mask;
+
+                outV |= (chunk << outShift);
+
+                outShift += take;
+                bitsLeft -= take;
+                bytePos++;
+                bitInByte = 0;
+            }
+
+            bitPos += bitCount;
+            return outV;
+        }
+    }
+    /*
     // ----------------------
     // Section: Spine/Chest/Head
     // ----------------------
@@ -296,4 +377,5 @@ public class BasisOrderedDataSet : MonoBehaviour
         float value = min + normalized * range;
         floatArray[index] = math.clamp(value, min, max);
     }
+        */
 }

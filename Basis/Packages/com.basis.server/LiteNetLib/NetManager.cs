@@ -1348,6 +1348,7 @@ namespace LiteNetLib
             message.CopyTo(new Span<byte>(packet.RawData, headerSize, message.Length));
             return SendRawAndRecycle(packet, remoteEndPoint) > 0;
         }
+
         /// <summary>
         /// Start logic thread and listening on available port
         /// </summary>

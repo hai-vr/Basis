@@ -77,7 +77,6 @@ namespace LiteNetLib.Utils
             netDataWriter.Put(bytes, offset, length);
             return netDataWriter;
         }
-
         /// <summary>
         /// Creates NetDataWriter from the given <paramref name="bytes"/>.
         /// </summary>
@@ -87,7 +86,6 @@ namespace LiteNetLib.Utils
             netDataWriter.Put(bytes);
             return netDataWriter;
         }
-
         public static NetDataWriter FromString(string value)
         {
             var netDataWriter = new NetDataWriter();
@@ -251,7 +249,6 @@ namespace LiteNetLib.Utils
             Buffer.BlockCopy(data, 0, _data, _position, data.Length);
             _position += data.Length;
         }
-
         public void Put(ReadOnlySpan<byte> data)
         {
             if (_autoResize)
@@ -259,7 +256,6 @@ namespace LiteNetLib.Utils
             data.CopyTo(_data.AsSpan(_position));
             _position += data.Length;
         }
-
         public void PutSBytesWithLength(sbyte[] data, int offset, ushort length)
         {
             if (_autoResize)

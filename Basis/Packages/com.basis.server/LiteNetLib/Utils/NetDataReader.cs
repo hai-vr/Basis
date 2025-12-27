@@ -433,7 +433,7 @@ namespace LiteNetLib.Utils
         
         public Guid GetGuid()
         {
-            var result = new Guid(_data.AsSpan(_position, 16));
+            var result =  new Guid(_data.AsSpan(_position, 16));
             _position += 16;
             return result;
         }
@@ -465,13 +465,12 @@ namespace LiteNetLib.Utils
             obj.Deserialize(this);
             return obj;
         }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ReadOnlySpan<byte> GetRemainingBytesSpan()
         {
             return new ReadOnlySpan<byte>(_data, _position, _dataSize - _position);
         }
-
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ReadOnlyMemory<byte> GetRemainingBytesMemory()
         {
