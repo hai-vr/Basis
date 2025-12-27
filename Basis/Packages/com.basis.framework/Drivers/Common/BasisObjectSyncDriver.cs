@@ -33,6 +33,7 @@ public static class BasisObjectSyncDriver
     {
         _remoteTransforms = new TransformAccessArray(0);
         _targetPositions = new NativeList<float3>(128, Allocator.Persistent);
+        TargetCount = _targetPositions.Length;
         _targetRotations = new NativeList<quaternion>(128, Allocator.Persistent);
         _targetScales = new NativeList<float3>(128, Allocator.Persistent); // NEW
         _lerpMultipliers = new NativeList<float>(128, Allocator.Persistent);
@@ -63,7 +64,7 @@ public static class BasisObjectSyncDriver
             }
         }
     }
-
+    public static int TargetCount = -1;
     public static void ScheduleRemoteLerp(float deltaTime)
     {
         _remoteJobHandle.Complete();
@@ -77,15 +78,18 @@ public static class BasisObjectSyncDriver
         if (count == 0) return;
 
         if (_cachedTransforms.Length != count)
+        {
             _cachedTransforms = new Transform[count];
+        }
 
         int index = 0;
-        bool needResize = _targetPositions.Length <= count;
+        bool needResize = TargetCount <= count;
         if (needResize)
         {
+            TargetCount = count;
             _targetPositions.ResizeUninitialized(count);
             _targetRotations.ResizeUninitialized(count);
-            _targetScales.ResizeUninitialized(count);         // NEW
+            _targetScales.ResizeUninitialized(count);
             _lerpMultipliers.ResizeUninitialized(count);
         }
 
@@ -97,7 +101,7 @@ public static class BasisObjectSyncDriver
 
             _targetPositions[index] = obj.BTU.TargetPosition;
             _targetRotations[index] = obj.BTU.TargetRotation;
-            _targetScales[index] = obj.BTU.TargetScales;  // NEW
+            _targetScales[index] = obj.BTU.TargetScales;
             _lerpMultipliers[index] = obj.BTU.LerpMultipliers * deltaTime;
 
             index++;
@@ -105,7 +109,7 @@ public static class BasisObjectSyncDriver
 
         if (_remoteTransforms.isCreated)
         {
-            if (_remoteTransforms.length != _cachedTransforms.Length)
+            if (_remoteTransforms.length != count)
             {
                 _remoteTransforms.Dispose();
                 _remoteTransforms = new TransformAccessArray(_cachedTransforms);
@@ -155,8 +159,6 @@ public static class BasisObjectSyncDriver
 
                 float3 newPos = math.lerp(currentPos, targetPositions[index], lerp);
                 quaternion newRot = math.slerp(currentRot, targetRotations[index], lerp);
-
-                // Scale: lerp from current to target
                 Vector3 currentScale = transform.localScale;
                 float3 newScale = math.lerp(currentScale, targetScales[index], lerp);
 

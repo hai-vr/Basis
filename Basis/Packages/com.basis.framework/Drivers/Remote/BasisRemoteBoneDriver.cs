@@ -685,9 +685,17 @@ public static class RemoteBoneJobSystem
     /// <returns>The final <see cref="JobHandle"/> for dependency chaining.</returns>
     public static JobHandle Schedule(int batchSize = 64)
     {
-        if (!sInitialized || sAuthoring.Length == 0) return default;
+        if (!sInitialized)
+        {
+            return default;
+        }
+        int length = sAuthoring.Length;
+        if (length == 0)
+        {
+            return default;
+        }
 
-        EnsureTempBuffers(sAuthoring.Length);
+        EnsureTempBuffers(length);
 
         // Gather root/head/hips
         var hRoot = new GatherRootJob
@@ -722,7 +730,7 @@ public static class RemoteBoneJobSystem
             tposeHeadRot = sTPoseHeadRot.AsDeferredJobArray(),
             tposeHipsRot = sTPoseHipsRot.AsDeferredJobArray(),
             InOut = sIn.AsDeferredJobArray()
-        }.Schedule(sAuthoring.Length, batchSize, deps);
+        }.Schedule(length, batchSize, deps);
 
         // Run bone simulation
         var BoneSimulation = new BasisRemoteBoneJob
@@ -731,7 +739,7 @@ public static class RemoteBoneJobSystem
             In = sIn.AsDeferredJobArray(),
             GeneratedScales = sScale.AsDeferredJobArray(),
             Out = sOut.AsDeferredJobArray()
-        }.Schedule(sAuthoring.Length, batchSize, combine);
+        }.Schedule(length, batchSize, combine);
 
         // Apply outputs
         Vector3 CameraPosition = BasisLocalCameraDriver.Position;
@@ -750,7 +758,6 @@ public static class RemoteBoneJobSystem
         sPending = ApplyMouthJob;
         return ApplyMouthJob;
     }
-
     /// <summary>
     /// Completes a provided handle and any internally pending chain.
     /// </summary>

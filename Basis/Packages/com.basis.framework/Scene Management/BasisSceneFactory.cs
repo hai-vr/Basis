@@ -145,7 +145,7 @@ public static class BasisSceneFactory
         if (timeSinceLastCheck > RespawnCheckTimer)
         {
             timeSinceLastCheck = 0f; // Reset timer
-            if (BasisLocalPlayer != null && BasisLocalPlayer.transform.position.y < RespawnHeight)
+            if (BasisLocalPlayer != null && BasisLocalPlayer.PlayerSelf.position.y < RespawnHeight)
             {
                 SpawnPlayer(BasisLocalPlayer);
             }
