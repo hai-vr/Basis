@@ -91,17 +91,12 @@ namespace Basis.Scripts.Drivers
 
             // Initialize any jiggle rigs
             var JiggleRigs = RemotePlayer.BasisAvatar.GetComponentsInChildren<JiggleRig>();
-            foreach (JiggleRig Rig in JiggleRigs)
+            int length = JiggleRigs.Length;
+            for (int Index = 0; Index < length; Index++)
             {
+                JiggleRig Rig = JiggleRigs[Index];
                 JiggleRigData Data = Rig.GetJiggleRigData();
-                if (Data.jiggleTreeInputParameters.collisionToggle)
-                {
-                    Rig.HasAnimatedParameters = true;
-                }
-                else
-                {
-                    Rig.HasAnimatedParameters = false;
-                }
+                Rig.HasAnimatedParameters = false;
                 Rig.OnInitialize();
             }
 
