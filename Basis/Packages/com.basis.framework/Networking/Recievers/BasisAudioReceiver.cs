@@ -382,7 +382,7 @@ namespace Basis.Scripts.Networking.Receivers
             }
             if (decoder != null)
             {
-                BasisDebug.Log($"Gain Set To {gain}");
+              //  BasisDebug.Log($"Gain Set To {gain}");
                 OpusDecoderExtensions.SetGain(decoder, gain);
             }
             else

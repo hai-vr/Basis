@@ -134,7 +134,7 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                     return;
                 }
-                BasisNetworkHandleAvatar.HandleAvatarUpdate(Reader,deliveryMethod);
+                BasisNetworkHandleAvatar.HandleAvatarUpdate(Reader, deliveryMethod);
                 Reader.Recycle();
                 break;
             case BasisNetworkCommons.SceneChannel:
@@ -356,7 +356,13 @@ public static class BasisNetworkEvents
         }
         if (BasisSetUserName.Instance != null && BasisSetUserName.Instance.Ready != null)
         {
-            BasisSetUserName.Instance.Ready.interactable = true;
+            BasisDeviceManagement.EnqueueOnMainThread(() =>
+            {
+                if (BasisSetUserName.Instance != null && BasisSetUserName.Instance.Ready != null)
+                {
+                    BasisSetUserName.Instance.Ready.interactable = true;
+                }
+            });
         }
     }
 }

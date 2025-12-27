@@ -115,6 +115,7 @@ namespace Basis.Scripts.UI.NamePlate
         public void Awake()
         {
             Instance = this;
+
             if (BasisDeviceManagement.IsMobileHardware())
             {
                 SelectedNamePlateMaterial = OpaqueNamePlateMaterial;
@@ -123,11 +124,11 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 SelectedNamePlateMaterial = TransParentNamePlateMaterial;
             }
+
             StaticNormalColor = NormalColor;
             StaticIsTalkingColor = IsTalkingColor;
             StaticOutOfRangeColor = OutOfRangeColor;
 
-            // Convert Sprite to Mesh with custom width and height
             RoundedCornersMesh = GenerateRoundedQuad();
         }
 
@@ -143,8 +144,7 @@ namespace Basis.Scripts.UI.NamePlate
             Text.ForceMeshUpdate();
 
             // Generate a new mesh from the text
-            Mesh textMesh = new Mesh();
-            textMesh = Instantiate(Text.mesh);  // Unity handles proper copy
+            Mesh textMesh = Instantiate(Text.mesh);
 
             // Assign to nameplate
             namePlate.bakedMesh = textMesh;
@@ -182,7 +182,6 @@ namespace Basis.Scripts.UI.NamePlate
             };
             combinedMesh.CombineMeshes(combine, false); // false = keep submeshes
 
-            // Assign final mesh and materials
             namePlate.Filter.sharedMesh = combinedMesh;
             namePlate.Renderer.materials = new Material[]
             {
@@ -234,7 +233,6 @@ namespace Basis.Scripts.UI.NamePlate
                 float sin = Mathf.Sin(angle);
                 float cos = Mathf.Cos(angle);
 
-                // Calculate each rounded corner position using the radius
                 Vector2 tl = new Vector2(
                     -halfWidth + (1f - cos) * radius,
                     halfHeight - (1f - sin) * radius
@@ -256,6 +254,7 @@ namespace Basis.Scripts.UI.NamePlate
                 );
 
                 int baseIndex = 1 + CornerIndex;
+
                 m_Vertices[baseIndex] = new Vector3(tl.x, tl.y, zOffset);
                 m_Vertices[baseIndex + cornerCount] = new Vector3(tr.x, tr.y, zOffset);
                 m_Vertices[baseIndex + cornerCount * 2] = new Vector3(br.x, br.y, zOffset);
@@ -293,9 +292,17 @@ namespace Basis.Scripts.UI.NamePlate
             return mesh;
         }
 
+        // =========================================================
+        // Jobified pulsing system (safe structural changes + JIT resize)
+        // =========================================================
+
         // Plates and index mapping
-        private static readonly List<Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate> plates = new();
-        private static readonly Dictionary<Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate, int> indexOf = new();
+        private static readonly List<BasisRemoteNamePlate> plates = new();
+        private static readonly Dictionary<BasisRemoteNamePlate, int> indexOf = new();
+
+        // Pending structural changes (safe to call any time on main thread)
+        private static readonly List<BasisRemoteNamePlate> pendingAdd = new();
+        private static readonly List<BasisRemoteNamePlate> pendingRemove = new();
 
         // Native state (persistent)
         private static NativeArray<ushort> isPulsing;
@@ -311,65 +318,147 @@ namespace Basis.Scripts.UI.NamePlate
 
         private static bool allocated;
 
-        public static void Register(Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate p)
+        public static JobHandle handle;
+        public static int count;
+
+        /// <summary>
+        /// Request registering a plate. The actual add occurs at a safe sync point (before the job schedules).
+        /// </summary>
+        public static void Register(BasisRemoteNamePlate p)
         {
-            int idx = plates.Count;
-            plates.Add(p);
-            indexOf[p] = idx;
-            EnsureCapacity(plates.Count);
+            if (p == null) return;
+            pendingAdd.Add(p);
         }
 
-        public static void Unregister(Basis.Scripts.UI.NamePlate.BasisRemoteNamePlate p)
+        /// <summary>
+        /// Request unregistering a plate. The actual remove occurs at a safe sync point (before the job schedules).
+        /// </summary>
+        public static void Unregister(BasisRemoteNamePlate p)
         {
-            if (!indexOf.TryGetValue(p, out int idx)) return;
+            if (p == null) return;
+            pendingRemove.Add(p);
+        }
 
-            int last = plates.Count - 1;
-            var lastPlate = plates[last];
-
-            plates[idx] = lastPlate;
-            plates.RemoveAt(last);
-
-            indexOf[lastPlate] = idx;
-            indexOf.Remove(p);
-
-            // Copy state from last -> idx so arrays stay aligned
-            if (allocated && idx != last)
+        /// <summary>
+        /// Applies pending adds/removes. Must only be called when no job is running (i.e., after handle.Complete()).
+        /// </summary>
+        private static void ApplyPendingStructuralChanges()
+        {
+            // Remove first
+            for (int r = 0; r < pendingRemove.Count; r++)
             {
-                isPulsing[idx] = isPulsing[last];
-                isVisible[idx] = isVisible[last];
-                isEnabled[idx] = isEnabled[last];
-                startTime[idx] = startTime[last];
-                talkColor[idx] = talkColor[last];
+                var p = pendingRemove[r];
+                if (!indexOf.TryGetValue(p, out int idx)) continue;
+
+                int last = plates.Count - 1;
+                var lastPlate = plates[last];
+
+                plates[idx] = lastPlate;
+                plates.RemoveAt(last);
+
+                indexOf[lastPlate] = idx;
+                indexOf.Remove(p);
+
+                // Keep native arrays aligned (copy last -> idx)
+                if (allocated && idx != last)
+                {
+                    isPulsing[idx] = isPulsing[last];
+                    isVisible[idx] = isVisible[last];
+                    isEnabled[idx] = isEnabled[last];
+                    startTime[idx] = startTime[last];
+                    talkColor[idx] = talkColor[last];
+                }
             }
+            pendingRemove.Clear();
+
+            // Add
+            for (int a = 0; a < pendingAdd.Count; a++)
+            {
+                var p = pendingAdd[a];
+                if (p == null) continue;
+                if (indexOf.ContainsKey(p)) continue;
+
+                int idx = plates.Count;
+                plates.Add(p);
+                indexOf[p] = idx;
+
+                // Optional init
+                if (allocated && idx < isPulsing.Length)
+                {
+                    isPulsing[idx] = 0;
+                    isVisible[idx] = 0;
+                    isEnabled[idx] = 0;
+                    startTime[idx] = 0;
+                    talkColor[idx] = 0;
+                }
+            }
+            pendingAdd.Clear();
         }
 
-        private static void EnsureCapacity(int count)
+        /// <summary>
+        /// Ensures native buffers can hold at least 'count'. Preserves existing data.
+        /// Must only be called when no job is running (i.e., after handle.Complete()).
+        /// </summary>
+        private static void EnsureCapacity(int countNeeded)
         {
-            if (allocated && isPulsing.Length >= count) return;
+            if (allocated && isPulsing.Length >= countNeeded) return;
 
-            int newCap = math.max(64, math.ceilpow2(count));
+            int newCap = math.max(64, math.ceilpow2(countNeeded));
 
-            DisposeArrays();
+            // Create new arrays
+            var newIsPulsing = new NativeArray<ushort>(newCap, Allocator.Persistent);
+            var newIsVisible = new NativeArray<ushort>(newCap, Allocator.Persistent);
+            var newIsEnabled = new NativeArray<ushort>(newCap, Allocator.Persistent);
+            var newStartTime = new NativeArray<double>(newCap, Allocator.Persistent);
+            var newTalkColor = new NativeArray<float4>(newCap, Allocator.Persistent);
 
-            isPulsing = new NativeArray<ushort>(newCap, Allocator.Persistent);
-            isVisible = new NativeArray<ushort>(newCap, Allocator.Persistent);
-            isEnabled = new NativeArray<ushort>(newCap, Allocator.Persistent);
-            startTime = new NativeArray<double>(newCap, Allocator.Persistent);
-            talkColor = new NativeArray<float4>(newCap, Allocator.Persistent);
+            var newOutColor = new NativeArray<float4>(newCap, Allocator.Persistent);
+            var newOutHasChange = new NativeArray<ushort>(newCap, Allocator.Persistent);
+            var newOutStopPulsing = new NativeArray<ushort>(newCap, Allocator.Persistent);
 
-            outColor = new NativeArray<float4>(newCap, Allocator.Persistent);
-            outHasChange = new NativeArray<ushort>(newCap, Allocator.Persistent);
-            outStopPulsing = new NativeArray<ushort>(newCap, Allocator.Persistent);
+            if (allocated)
+            {
+                int copy = math.min(isPulsing.Length, newCap);
+
+                NativeArray<ushort>.Copy(isPulsing, newIsPulsing, copy);
+                NativeArray<ushort>.Copy(isVisible, newIsVisible, copy);
+                NativeArray<ushort>.Copy(isEnabled, newIsEnabled, copy);
+                NativeArray<double>.Copy(startTime, newStartTime, copy);
+                NativeArray<float4>.Copy(talkColor, newTalkColor, copy);
+
+                NativeArray<float4>.Copy(outColor, newOutColor, copy);
+                NativeArray<ushort>.Copy(outHasChange, newOutHasChange, copy);
+                NativeArray<ushort>.Copy(outStopPulsing, newOutStopPulsing, copy);
+
+                DisposeArrays(); // dispose old after copying
+            }
+
+            isPulsing = newIsPulsing;
+            isVisible = newIsVisible;
+            isEnabled = newIsEnabled;
+            startTime = newStartTime;
+            talkColor = newTalkColor;
+
+            outColor = newOutColor;
+            outHasChange = newOutHasChange;
+            outStopPulsing = newOutStopPulsing;
 
             allocated = true;
         }
 
         public static void Dispose()
         {
+            // Ensure no jobs are touching these arrays.
+            handle.Complete();
+
             DisposeArrays();
             plates.Clear();
             indexOf.Clear();
+            pendingAdd.Clear();
+            pendingRemove.Clear();
+
             allocated = false;
+            count = 0;
         }
 
         private static void DisposeArrays()
@@ -386,6 +475,7 @@ namespace Basis.Scripts.UI.NamePlate
             if (outHasChange.IsCreated) outHasChange.Dispose();
             if (outStopPulsing.IsCreated) outStopPulsing.Dispose();
         }
+
         public static void ScheduleSimulate(double timeAsDouble)
         {
             ScheduleSimulate(
@@ -395,30 +485,39 @@ namespace Basis.Scripts.UI.NamePlate
                 BasisRemoteNamePlateDriver.StaticNormalColor
             );
         }
-        public static int count;
-        // Call from your driver each frame/tick
+
+        /// <summary>
+        /// Call from your driver each frame/tick.
+        /// SAFE: completes previous job, applies pending structural changes, resizes buffers, gathers, then schedules.
+        /// </summary>
         public static void ScheduleSimulate(double now, float hold, float fade, Color normalUnityColor)
         {
+            // Make the world safe: no job running while we mutate lists/buffers.
+            handle.Complete();
+
+            ApplyPendingStructuralChanges();
+
             count = plates.Count;
             if (count == 0) return;
 
+            // Resize buffers right before job scheduling (JIT resize)
             EnsureCapacity(count);
 
             // --- Gather phase (main thread) ---
             float4 normal = new float4(normalUnityColor.r, normalUnityColor.g, normalUnityColor.b, normalUnityColor.a);
 
-            for (int Index = 0; Index < count; Index++)
+            for (int i = 0; i < count; i++)
             {
-                var p = plates[Index];
-                // Mirror tiny bits of state into arrays
-                isVisible[Index] = (ushort)(p.IsVisible ? 1 : 0);
-                isEnabled[Index] = (ushort)(p.isActiveAndEnabled ? 1 : 0);
-                isPulsing[Index] = (ushort)(p.GetIsPulsingForJob() ? 1 : 0); // add an internal getter
+                var p = plates[i];
 
-                startTime[Index] = p.GetTalkStartTimeForJob();
+                isVisible[i] = (ushort)(p.IsVisible ? 1 : 0);
+                isEnabled[i] = (ushort)(p.isActiveAndEnabled ? 1 : 0);
+                isPulsing[i] = (ushort)(p.GetIsPulsingForJob() ? 1 : 0); // must exist on plate
 
-                Color tc = p.GetTalkColorForJob();
-                talkColor[Index] = new float4(tc.r, tc.g, tc.b, tc.a);
+                startTime[i] = p.GetTalkStartTimeForJob(); // must exist on plate
+
+                Color tc = p.GetTalkColorForJob(); // must exist on plate
+                talkColor[i] = new float4(tc.r, tc.g, tc.b, tc.a);
             }
 
             // --- Job phase ---
@@ -442,29 +541,34 @@ namespace Basis.Scripts.UI.NamePlate
 
             handle = job.Schedule(count, 64);
         }
+
+        /// <summary>
+        /// Call after ScheduleSimulate to apply job output back onto plates.
+        /// </summary>
         public static void CompleteNamePlates()
         {
             if (count == 0) return;
 
             handle.Complete();
-            // --- Apply phase (main thread) ---
-            for (int Index = 0; Index < count; Index++)
-            {
-                var p = plates[Index];
 
-                if (outStopPulsing[Index] != 0)
+            // --- Apply phase (main thread) ---
+            for (int i = 0; i < count; i++)
+            {
+                var p = plates[i];
+
+                if (outStopPulsing[i] != 0)
                 {
-                    p.StopPulseFromJob();
+                    p.StopPulseFromJob(); // must exist on plate
                 }
 
-                if (outHasChange[Index] != 0)
+                if (outHasChange[i] != 0)
                 {
-                    float4 c = outColor[Index];
-                    p.ApplyColorFromJob(new Color(c.x, c.y, c.z, c.w));
+                    float4 c = outColor[i];
+                    p.ApplyColorFromJob(new Color(c.x, c.y, c.z, c.w)); // must exist on plate
                 }
             }
         }
-        public static JobHandle handle;
+
         [BurstCompile]
         public struct NamePlatePulseJob : IJobParallelFor
         {
@@ -474,17 +578,15 @@ namespace Basis.Scripts.UI.NamePlate
 
             public float4 normalColor;
 
-            // Per-plate state
-            [ReadOnly] public NativeArray<ushort> isPulsing;      // 0/1
-            [ReadOnly] public NativeArray<ushort> isVisible;      // 0/1
-            [ReadOnly] public NativeArray<ushort> isEnabled;      // 0/1
+            [ReadOnly] public NativeArray<ushort> isPulsing; // 0/1
+            [ReadOnly] public NativeArray<ushort> isVisible; // 0/1
+            [ReadOnly] public NativeArray<ushort> isEnabled; // 0/1
             [ReadOnly] public NativeArray<double> startTime;
             [ReadOnly] public NativeArray<float4> talkColor;
 
-            // Outputs
             public NativeArray<float4> outColor;
-            public NativeArray<ushort> outHasChange;              // 0/1
-            public NativeArray<ushort> outStopPulsing;            // 0/1
+            public NativeArray<ushort> outHasChange;     // 0/1
+            public NativeArray<ushort> outStopPulsing;   // 0/1
 
             public void Execute(int i)
             {
@@ -492,6 +594,7 @@ namespace Basis.Scripts.UI.NamePlate
                 outStopPulsing[i] = 0;
 
                 if (isPulsing[i] == 0) return;
+
                 if (isVisible[i] == 0 || isEnabled[i] == 0)
                 {
                     outStopPulsing[i] = 1;
@@ -502,7 +605,7 @@ namespace Basis.Scripts.UI.NamePlate
 
                 if (elapsed < hold)
                 {
-                    // still holding talk color, no need to spam property blocks
+                    // Still holding talk color; don't spam updates.
                     return;
                 }
 

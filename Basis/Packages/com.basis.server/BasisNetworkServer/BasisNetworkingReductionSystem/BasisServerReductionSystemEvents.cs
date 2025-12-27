@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
+using BasisNetworkServer.BasisNetworking;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -119,9 +120,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 long remainingMs = intervalMs - elapsedMs;
 
                 if (remainingMs > 0)
+                {
                     await Task.Delay((int)remainingMs, cts.Token);
+                }
                 else
+                {
                     await Task.Yield();
+                }
             }
         }
         private static void ProcessPendingRemovals()
@@ -148,7 +153,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 {
                     BNL.LogError("Missing Player From Index this is scary! " + id);
                 }
-                BasisServerDeltaCompressor.ReleaseDeltaData(id);
             }
         }
         private static void UpdateCommunicationAndDistances(long nowTicks)
@@ -205,13 +209,23 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         stateI.HasNewDataFrom.Set(playerJ.id, false);
                         ServerSideSyncPlayerMessage tempMsg = stateJ.SyncMessage;
                         tempMsg.interval = StartAtZeroInterval;
-                        BasisServerDeltaCompressor.SendOut(peer, tempMsg);
+                        SendOutFull(peer, tempMsg);
 
 
                         sentTimes[playerJ.id] = nowTicks;
                     }
                 }
             });
+        }
+        private static void SendOutFull(NetPeer peer, ServerSideSyncPlayerMessage msg)
+        {
+            NetDataWriter writer = BasisServerReductionSystemEvents.RentWriter();
+
+            msg.Serialize(writer);
+
+            peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.ReliableSequenced);
+            BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.PlayerAvatarChannel, writer.Length);
+            BasisServerReductionSystemEvents.ReturnWriter(writer);
         }
         public static NetDataWriter RentWriter()
         {
@@ -268,13 +282,20 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                 foreach (var kvp in playerStates)
                 {
-                    if (kvp.Key == id || !kvp.Value.IsActive) continue;
+                    if (kvp.Key == id || !kvp.Value.IsActive)
+                    {
+                        continue;
+                    }
+
                     kvp.Value.HasNewDataFrom.Set(id, true);
                 }
             }
             else
             {
-                if (!state.IsActive) state.IsActive = true;
+                if (!state.IsActive)
+                {
+                    state.IsActive = true;
+                }
 
                 state.Position = BasisNetworkCompressionExtensions.ReadPosition(ref message.AvatarMessage.array);
                 state.SyncMessage.avatarSerialization = message.AvatarMessage;

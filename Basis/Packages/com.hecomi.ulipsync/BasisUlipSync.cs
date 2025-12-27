@@ -306,7 +306,6 @@ namespace uLipSync
             }
             DisposeBuffers();
         }
-
         void DisposeBuffers()
         {
             _allocated = false;

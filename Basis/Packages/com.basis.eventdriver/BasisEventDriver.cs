@@ -1,5 +1,6 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
@@ -122,7 +123,7 @@ public class BasisEventDriver : MonoBehaviour
 
         BasisNetworkManagement.SimulateNetworkCompute(unscaledDeltaTime);
         BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
-
+        BasisRemoteNamePlateDriver.ScheduleSimulate(TimeAsDouble);//simulate colors onto nameplates
 #if UNITY_SERVER
 #else
         InputSystem.Update();
@@ -155,26 +156,6 @@ public class BasisEventDriver : MonoBehaviour
         fixedTimeAsDouble = Time.fixedTimeAsDouble;
         fixedDeltaTime = Time.fixedDeltaTime;
 
-        // Device management tick
-        BasisDeviceManagement.OnDeviceManagementLoop?.Invoke();
-
-        // Eye driver (local)
-        if (BasisLocalEyeDriver.RequiresUpdate())
-        {
-            BasisLocalEyeDriver.Instance.Simulate(DeltaTime);
-        }
-
-        // Local player late simulation
-        if (BasisLocalPlayer.PlayerReady)
-        {
-            BasisLocalPlayer.Instance.FacialBlinkDriver.Simulate(TimeAsDouble);
-        }
-
-#if UNITY_SERVER
-#else
-        BasisLocalMicrophoneDriver.MicrophoneUpdate();
-#endif
-
         // Network apply step + gameplay sync
         BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
         BasisNetworkManagement.SimulateNetworkApply();
@@ -186,12 +167,32 @@ public class BasisEventDriver : MonoBehaviour
             BasisLocalPlayer.Instance.LocalVisemeDriver.Simulate();
         }
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
+
         JigglePhysics.SchedulePose(TimeAsDouble);
+
+        // Device management tick
+        BasisDeviceManagement.OnDeviceManagementLoop?.Invoke();
+
+        // Eye driver (local)
+        if (BasisLocalEyeDriver.RequiresUpdate())
+        {
+            BasisLocalEyeDriver.Instance.Simulate(DeltaTime);
+        }
+        BasisRemoteAudioDriver.Simulate();
+#if UNITY_SERVER
+#else
+        BasisLocalMicrophoneDriver.MicrophoneUpdate();
+#endif
+        // Local player late simulation
+        if (BasisLocalPlayer.PlayerReady)
+        {
+            BasisLocalPlayer.Instance.FacialBlinkDriver.Simulate(TimeAsDouble);
+        }
+
         if (SMModuleDebugOptions.UseGizmos)
         {
             JigglePhysics.ScheduleRender();
         }
-        BasisRemoteNamePlateDriver.ScheduleSimulate(TimeAsDouble);
         JigglePhysics.CompletePose();
         if (SMModuleDebugOptions.UseGizmos)
         {

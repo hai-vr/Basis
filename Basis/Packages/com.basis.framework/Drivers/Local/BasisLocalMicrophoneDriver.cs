@@ -58,13 +58,11 @@ public static class BasisLocalMicrophoneDriver
 
     public static int SampleRate;
 
-    private static bool ScheduleMainHasAudio;
-    private static bool ScheduleMainHasSilence;
-
     public static Action MainThreadOnHasAudio;
     public static Action MainThreadOnHasSilence;
 
-    private static readonly object _lock = new object();
+    private static int _scheduleMainHasAudio;   // 0/1
+    private static int _scheduleMainHasSilence; // 0/1
 
     public static bool isPaused = false;
 
@@ -113,62 +111,53 @@ public static class BasisLocalMicrophoneDriver
     public static bool Initialize()
     {
         if (IsInitialize) return true;
-
-        lock (_lock)
+        try
         {
-            if (IsInitialize) return true;
+            RegisterEvents();
+            SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+            ResetMicrophones(SMDMicrophone.SelectedMicrophone);
+            ConfigureDenoiser(SMDMicrophone.SelectedDenoiserMicrophone);
 
-            try
-            {
-                RegisterEvents();
-                SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
-                ResetMicrophones(SMDMicrophone.SelectedMicrophone);
-                ConfigureDenoiser(SMDMicrophone.SelectedDenoiserMicrophone);
-
-                StartProcessingThread();
-                IsInitialize = true;
-                return true;
-            }
-            catch (Exception ex)
-            {
-                BasisDebug.LogError($"Microphone Initialization Failed: {ex}");
-                DeInitialize();
-                return false;
-            }
+            StartProcessingThread();
+            IsInitialize = true;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogError($"Microphone Initialization Failed: {ex}");
+            DeInitialize();
+            return false;
         }
     }
 
     public static void DeInitialize()
     {
-        lock (_lock)
+        if (!IsInitialize) return;
+
+        StopProcessingThread();
+        UnregisterEvents();
+        StopSelectedMicrophone();
+        if (handle.IsCompleted == false)
         {
-            if (!IsInitialize) return;
-
-            StopProcessingThread();
-            UnregisterEvents();
-            StopSelectedMicrophone();
-            if (handle.IsCompleted == false)
-            {
-                handle.Complete();
-            }
-            if (VAJ.processBufferArray.IsCreated)
-            {
-                VAJ.processBufferArray.Dispose();
-            }
-#if !UNITY_ANDROID && !UNITY_IOS && !UNITY_STANDALONE_LINUX
-            Denoiser?.Dispose();
-            Denoiser = null;
-            _tmp480 = null;
-#endif
-            clip = null;
-            microphoneBufferArray = null;
-            processBufferArray = null;
-            rmsValues = null;
-            _denoiseDry = null;
-
-            IsInitialize = false;
-            BasisDebug.Log("Microphone Driver Deinitialized.");
+            handle.Complete();
         }
+        if (VAJ.processBufferArray.IsCreated)
+        {
+            VAJ.processBufferArray.Dispose();
+        }
+#if !UNITY_ANDROID && !UNITY_IOS && !UNITY_STANDALONE_LINUX
+        Denoiser?.Dispose();
+        Denoiser = null;
+        _tmp480 = null;
+#endif
+        clip = null;
+        microphoneBufferArray = null;
+        processBufferArray = null;
+        rmsValues = null;
+        _denoiseDry = null;
+
+        IsInitialize = false;
+        BasisDebug.Log("Microphone Driver Deinitialized.");
     }
 
     private static void RegisterEvents()
@@ -388,18 +377,13 @@ public static class BasisLocalMicrophoneDriver
 
         processingEvent.Set();
 
-        lock (_lock)
+        if (Interlocked.Exchange(ref _scheduleMainHasAudio, 0) == 1)
         {
-            if (ScheduleMainHasAudio)
-            {
-                MainThreadOnHasAudio?.Invoke();
-                ScheduleMainHasAudio = false;
-            }
-            else if (ScheduleMainHasSilence)
-            {
-                MainThreadOnHasSilence?.Invoke();
-                ScheduleMainHasSilence = false;
-            }
+            MainThreadOnHasAudio?.Invoke();
+        }
+        else if (Interlocked.Exchange(ref _scheduleMainHasSilence, 0) == 1)
+        {
+            MainThreadOnHasSilence?.Invoke();
         }
     }
 
@@ -482,7 +466,9 @@ public static class BasisLocalMicrophoneDriver
                 {
                     // simple scalar multiply
                     for (int i = 0; i < SampleRate; i++)
+                    {
                         processBufferArray[i] *= agcAmp;
+                    }
                 }
             }
 
@@ -500,14 +486,15 @@ public static class BasisLocalMicrophoneDriver
             if (IsTransmitWorthy())
             {
                 OnHasAudio?.Invoke();
-                lock (_lock) { ScheduleMainHasAudio = true; }
+                Interlocked.Exchange(ref _scheduleMainHasAudio, 1);
+                Interlocked.Exchange(ref _scheduleMainHasSilence, 0);
             }
             else
             {
                 OnHasSilence?.Invoke();
-                lock (_lock) { ScheduleMainHasSilence = true; }
+                Interlocked.Exchange(ref _scheduleMainHasSilence, 1);
+                Interlocked.Exchange(ref _scheduleMainHasAudio, 0);
             }
-
             head = (head + SampleRate) % bufferLength;
             dataLength -= SampleRate;
         }
@@ -594,10 +581,10 @@ public static class BasisLocalMicrophoneDriver
         float wet = Mathf.Clamp01(DenoiseWet);
         if (!Mathf.Approximately(wet, 1f) || !Mathf.Approximately(DenoiseMakeupDb, 0f))
         {
-            for (int i = 0; i < SampleRate; i++)
+            for (int Index = 0; Index < SampleRate; Index++)
             {
-                float den = processBufferArray[i] * makeup;
-                processBufferArray[i] = Mathf.Lerp(_denoiseDry[i], den, wet);
+                float den = processBufferArray[Index] * makeup;
+                processBufferArray[Index] = Mathf.Lerp(_denoiseDry[Index], den, wet);
             }
         }
 #endif

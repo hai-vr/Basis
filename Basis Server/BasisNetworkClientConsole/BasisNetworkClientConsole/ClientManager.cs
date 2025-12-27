@@ -19,11 +19,10 @@ namespace Basis.Network
         {
             List<NetPeer> peers = new();
             var passwordBytes = Encoding.UTF8.GetBytes(ConfigManager.Password);
-            var avatarInfo = new AvatarNetworkLoadInformation
+            var avatarInfo = new BasisAvatarNetworkLoad
             {
-                AvatarMetaUrl = "LoadingAvatar",
-                AvatarBundleUrl = "LoadingAvatar",
-                UnlockPassword = "LoadingAvatar"
+                URL = "https://basisframework.b-cdn.net/Avatars/BEE/BEE/dooly%20aho2/773b8fdafc9541d28881c3618cdc195320251212.BEE",
+                UnlockPassword = "ff7b7efadd31214281b54be03575c2ff6aa500e871699eab1e713e05b8427428"
             };
             var avatarBytes = avatarInfo.EncodeToBytes();
 
@@ -42,7 +41,7 @@ namespace Basis.Network
                     clientAvatarChangeMessage = new ClientAvatarChangeMessage
                     {
                         byteArray = avatarBytes,
-                        loadMode = 1,
+                        loadMode = 0,
                         LocalAvatarIndex = 0,
                     },
                     localAvatarSyncMessage = new LocalAvatarSyncMessage
@@ -85,11 +84,10 @@ namespace Basis.Network
             var name = NameGenerator.GenerateRandomPlayerName();
             var uuid = Guid.NewGuid().ToString();
 
-            var avatarInfo = new AvatarNetworkLoadInformation
+            var avatarInfo = new BasisAvatarNetworkLoad
             {
-                AvatarMetaUrl = "LoadingAvatar",
-                AvatarBundleUrl = "LoadingAvatar",
-                UnlockPassword = "LoadingAvatar"
+                URL = "https://basisframework.b-cdn.net/Avatars/BEE/BEE/dooly%20aho2/773b8fdafc9541d28881c3618cdc195320251212.BEE",
+                UnlockPassword = "ff7b7efadd31214281b54be03575c2ff6aa500e871699eab1e713e05b8427428"
             };
             var avatarBytes = avatarInfo.EncodeToBytes();
 
@@ -103,7 +101,7 @@ namespace Basis.Network
                 clientAvatarChangeMessage = new ClientAvatarChangeMessage
                 {
                     byteArray = avatarBytes,
-                    loadMode = 1,
+                    loadMode = 0,
                     LocalAvatarIndex = 0,
 
                 },
