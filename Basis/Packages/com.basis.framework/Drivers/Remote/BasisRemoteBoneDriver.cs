@@ -405,7 +405,7 @@ public static class RemoteBoneJobSystem
     static JobHandle sPending;
     /// <summary>Initialization flag.</summary>
     static bool sInitialized;
-
+    public static int AuthoringLength;
     /// <summary>
     /// Allocates persistent containers and sets initial capacities for all arrays.
     /// Safe to call multiple times; subsequent calls are ignored once initialized.
@@ -550,6 +550,7 @@ public static class RemoteBoneJobSystem
         sHeads.Add(head);
         sHips.Add(hips);
         sKeyToIndex[key] = idx;
+        AuthoringLength = sAuthoring.Length;
         return key;
     }
 
@@ -611,6 +612,7 @@ public static class RemoteBoneJobSystem
         sTPoseHeadRot.RemoveAt(last);
         sTPoseHipsRot.RemoveAt(last);
         sKeyToIndex.Remove(key);
+        AuthoringLength = sAuthoring.Length;
         return true;
     }
 
@@ -689,13 +691,12 @@ public static class RemoteBoneJobSystem
         {
             return default;
         }
-        int length = sAuthoring.Length;
-        if (length == 0)
+        if (AuthoringLength == 0)
         {
             return default;
         }
 
-        EnsureTempBuffers(length);
+        EnsureTempBuffers(AuthoringLength);
 
         // Gather root/head/hips
         var hRoot = new GatherRootJob
@@ -730,7 +731,7 @@ public static class RemoteBoneJobSystem
             tposeHeadRot = sTPoseHeadRot.AsDeferredJobArray(),
             tposeHipsRot = sTPoseHipsRot.AsDeferredJobArray(),
             InOut = sIn.AsDeferredJobArray()
-        }.Schedule(length, batchSize, deps);
+        }.Schedule(AuthoringLength, batchSize, deps);
 
         // Run bone simulation
         var BoneSimulation = new BasisRemoteBoneJob
@@ -739,7 +740,7 @@ public static class RemoteBoneJobSystem
             In = sIn.AsDeferredJobArray(),
             GeneratedScales = sScale.AsDeferredJobArray(),
             Out = sOut.AsDeferredJobArray()
-        }.Schedule(length, batchSize, combine);
+        }.Schedule(AuthoringLength, batchSize, combine);
 
         // Apply outputs
         Vector3 CameraPosition = BasisLocalCameraDriver.Position;
