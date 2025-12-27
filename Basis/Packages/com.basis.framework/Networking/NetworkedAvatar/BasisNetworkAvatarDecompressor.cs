@@ -63,7 +63,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             buffer.Position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset);
 
             buffer.Rotation = SanitizeRotation(
-                BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, BasisNetworkPlayer.RotationCompression, ref offset)
+                BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, ref offset)
             );
 
             // MUSCLES: bitpacked decode

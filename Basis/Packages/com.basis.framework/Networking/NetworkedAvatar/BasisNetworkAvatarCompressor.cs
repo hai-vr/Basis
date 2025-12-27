@@ -92,7 +92,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             BasisUnityBitPackerExtensionsUnsafe.WritePosition(animator.bodyPosition, ref AvatarData.LASM.array, ref offset);
 
             // Rotation
-            BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset, BasisNetworkPlayer.RotationCompression);
+            BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset);
 
             // Muscles (bitpacked)
             CompressAvatarMuscles_BitPacked(ref pose, ref AvatarData.LASM, ref offset);

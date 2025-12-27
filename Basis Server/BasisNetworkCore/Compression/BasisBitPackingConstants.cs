@@ -9,7 +9,7 @@ namespace Basis.Network.Core.Compression
         private static int avatarSyncSize;
         private static bool IsWired = false;
         public static int WritePosition = 12;
-        public static int WriteRotation = 14;
+        public static int WriteRotation = 8;
         public static int WriteScale = 2;
         public static int AvatarSyncSize
         {
@@ -18,6 +18,7 @@ namespace Basis.Network.Core.Compression
                 if (IsWired == false)
                 {
                     IsWired = true;
+                    //156 = 12 + 8 + 2 + 134
                     avatarSyncSize = WritePosition + WriteRotation + WriteScale + SumBitsPerSlot();
                 }
                 return avatarSyncSize;
