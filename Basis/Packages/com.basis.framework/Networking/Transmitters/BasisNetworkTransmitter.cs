@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Profiler;
 using System;
@@ -23,7 +24,7 @@ namespace Basis.Scripts.Networking.Transmitters
         [SerializeField]
         public BasisTransmissionResults TransmissionResults = new BasisTransmissionResults();
 
-        public NetDataWriter AvatarSendWriter = new NetDataWriter(true, LocalAvatarSyncMessage.AvatarSyncSize + 2);
+        public NetDataWriter AvatarSendWriter = new NetDataWriter(true, BasisBitPackingConstants.AvatarSyncSize + 2);
         public Dictionary<byte, AdditionalAvatarData> SendingOutAvatarData = new Dictionary<byte, AdditionalAvatarData>();
 
         public static Action AfterAvatarChanges;

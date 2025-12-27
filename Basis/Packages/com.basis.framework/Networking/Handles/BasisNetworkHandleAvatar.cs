@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
@@ -35,12 +36,12 @@ public static class BasisNetworkHandleAvatar
 
         // Build / cache baseline ONLY on first full for this player
         var lav = ssm.avatarSerialization;
-        if (lav.array != null && lav.array.Length == LocalAvatarSyncMessage.AvatarSyncSize)
+        if (lav.array != null && lav.array.Length == BasisBitPackingConstants.AvatarSyncSize)
         {
             if (!AvatarBaselines.ContainsKey(playerId))
             {
-                byte[] baseline = new byte[LocalAvatarSyncMessage.AvatarSyncSize];
-                Buffer.BlockCopy(lav.array, 0, baseline, 0, LocalAvatarSyncMessage.AvatarSyncSize);
+                byte[] baseline = new byte[BasisBitPackingConstants.AvatarSyncSize];
+                Buffer.BlockCopy(lav.array, 0, baseline, 0, BasisBitPackingConstants.AvatarSyncSize);
                 AvatarBaselines[playerId] = baseline;
             }
             // If a baseline already exists, we DON'T overwrite it.
@@ -86,8 +87,8 @@ public static class BasisNetworkHandleAvatar
         }
 
         // Clone baseline → new avatar bytes
-        byte[] newAvatarArray = new byte[LocalAvatarSyncMessage.AvatarSyncSize];
-        Buffer.BlockCopy(baseline, 0, newAvatarArray, 0, LocalAvatarSyncMessage.AvatarSyncSize);
+        byte[] newAvatarArray = new byte[BasisBitPackingConstants.AvatarSyncSize];
+        Buffer.BlockCopy(baseline, 0, newAvatarArray, 0, BasisBitPackingConstants.AvatarSyncSize);
 
         for (int Index = 0; Index < changeCount; Index++)
         {
@@ -95,7 +96,7 @@ public static class BasisNetworkHandleAvatar
             byte value = reader.GetByte();
 
             // Sanity check – server only writes 0..AvatarSyncSize-1
-            if (index < LocalAvatarSyncMessage.AvatarSyncSize)
+            if (index < BasisBitPackingConstants.AvatarSyncSize)
             {
                 newAvatarArray[index] = value;
             }

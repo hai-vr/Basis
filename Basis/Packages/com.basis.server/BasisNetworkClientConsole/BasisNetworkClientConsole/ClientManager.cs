@@ -41,7 +41,7 @@ namespace Basis.Network
                     clientAvatarChangeMessage = new ClientAvatarChangeMessage
                     {
                         byteArray = avatarBytes,
-                        loadMode = 1,
+                        loadMode = 0,
                         LocalAvatarIndex = 0,
                     },
                     localAvatarSyncMessage = new LocalAvatarSyncMessage
@@ -101,7 +101,7 @@ namespace Basis.Network
                 clientAvatarChangeMessage = new ClientAvatarChangeMessage
                 {
                     byteArray = avatarBytes,
-                    loadMode = 1,
+                    loadMode = 0,
                     LocalAvatarIndex = 0,
 
                 },

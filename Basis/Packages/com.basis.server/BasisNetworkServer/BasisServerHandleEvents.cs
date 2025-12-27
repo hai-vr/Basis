@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using Basis.Network.Core.Compression;
 using Basis.Network.Server.Generic;
 using Basis.Network.Server.Ownership;
 using BasisNetworkCore;
@@ -456,7 +457,7 @@ namespace BasisServerHandle
                 {
                     syncState = new LocalAvatarSyncMessage
                     {
-                        array = new byte[LocalAvatarSyncMessage.AvatarSyncSize],
+                        array = new byte[BasisBitPackingConstants.AvatarSyncSize],
                         AdditionalAvatarDatas = null,
                         AdditionalAvatarDataSize = 0,
                         LinkedAvatarIndex = 0

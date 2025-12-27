@@ -196,22 +196,17 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     {
                         continue;
                     }
-
                     long lastSent = sentTimes[playerJ.id];
                     long elapsed = nowTicks - lastSent;
                     elapsed = Math.Max(0, elapsed); // avoid wrap issues
-
                     long required = (long)(ActualInterval * MsToTick);
                     bool hasNewData = stateI.HasNewDataFrom.Get(playerJ.id);
-
                     if (canSend && hasNewData && elapsed >= required)
                     {
                         stateI.HasNewDataFrom.Set(playerJ.id, false);
                         ServerSideSyncPlayerMessage tempMsg = stateJ.SyncMessage;
                         tempMsg.interval = StartAtZeroInterval;
                         SendOutFull(peer, tempMsg);
-
-
                         sentTimes[playerJ.id] = nowTicks;
                     }
                 }

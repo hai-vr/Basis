@@ -1,3 +1,4 @@
+using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Receivers;
 using System;
@@ -22,7 +23,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             byte[] data = syncMessage.avatarSerialization.array;
             int length = data.Length;
 
-            if (length >= LocalAvatarSyncMessage.AvatarSyncSize)
+            if (length >= BasisBitPackingConstants.AvatarSyncSize)
             {
                 int offset = 0;
                 double interval = (double)BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
@@ -43,7 +44,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             byte[] data = avatarSerialization.array;
             int length = data.Length;
 
-            if (length >= LocalAvatarSyncMessage.AvatarSyncSize)
+            if (length >= BasisBitPackingConstants.AvatarSyncSize)
             {
                 int offset = 0;
                 BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, 0.01f);
@@ -60,8 +61,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             BasisAvatarBuffer buffer = BasisAvatarBufferPool.Get();
 
             buffer.Position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset);
-            if (!IsFinite(buffer.Position))
-                buffer.Position = new Unity.Mathematics.float3(0, 0, 0);
 
             buffer.Rotation = SanitizeRotation(
                 BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, BasisNetworkPlayer.RotationCompression, ref offset)

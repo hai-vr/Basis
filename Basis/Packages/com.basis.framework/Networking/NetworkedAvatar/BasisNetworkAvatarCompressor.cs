@@ -7,6 +7,7 @@
 // =======================================================
 
 using Basis.Network.Core;
+using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
@@ -45,9 +46,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
         static int sPackedBits;
         static int sPackedBytes;
-
-        public static byte[] OutGoingBytes;
-
         public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
         {
             Transform t = animator.transform;
@@ -84,8 +82,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             StoredAvatarData = new BasisStoredAvatarData();
             CompressAvatarData(StoredAvatarData, humanPose, animator, t);
         }
-
-        [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
         public static void CompressAvatarData(BasisStoredAvatarData AvatarData, HumanPose pose, Animator animator, Transform ScaleTransform)
         {
             EnsureInitialized();
@@ -192,7 +188,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 return;
             }
 
-            int slots = BasisOrderedDataSet.WRITE_ORDER.Length;
+            int slots = BasisBitPackingConstants.WRITE_ORDER.Length;
 
             // Compute bit offsets + packed sizes
             sPackedBits = 0;
@@ -200,7 +196,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             for (int i = 0; i < slots; i++)
             {
                 bitOffsManaged[i] = sPackedBits;
-                sPackedBits += BasisOrderedDataSet.BITS_PER_SLOT[i];
+                sPackedBits += BasisBitPackingConstants.BITS_PER_SLOT[i];
             }
             sPackedBytes = (sPackedBits + 7) >> 3;
 
@@ -219,8 +215,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Fill per-slot arrays
             for (int i = 0; i < slots; i++)
             {
-                sOrder[i] = BasisOrderedDataSet.WRITE_ORDER[i];
-                sBitsPerSlot[i] = BasisOrderedDataSet.BITS_PER_SLOT[i];
+                sOrder[i] = BasisBitPackingConstants.WRITE_ORDER[i];
+                sBitsPerSlot[i] = BasisBitPackingConstants.BITS_PER_SLOT[i];
                 sBitOffsets[i] = bitOffsManaged[i];
             }
 

@@ -1,11 +1,11 @@
 using Basis.Network.Core;
+using Basis.Network.Core.Compression;
 
 public static partial class SerializableBasis
 {
     public struct LocalAvatarSyncMessage
     {
         public byte[] array;//position -> rotation -> muscle rotation -> scale
-        public const int AvatarSyncSize = 162;
 
         public AdditionalAvatarData[] AdditionalAvatarDatas;
         public byte AdditionalAvatarDataSize;
@@ -19,6 +19,7 @@ public static partial class SerializableBasis
         public void Deserialize(NetDataReader Writer)
         {
             int Bytes = Writer.AvailableBytes;
+         int AvatarSyncSize = BasisBitPackingConstants.AvatarSyncSize;
             if (Bytes >= AvatarSyncSize)
             {
                 array ??= new byte[AvatarSyncSize];
