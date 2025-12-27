@@ -31,7 +31,7 @@ public struct JiggleRigData {
     [SerializeField] public JiggleColliderSerializable[] jiggleColliders;
     
     [NonSerialized]
-    private Dictionary<Transform, JiggleTransformCachedData> transformToCachedDataMap;
+    private Dictionary<int, JiggleTransformCachedData> transformToCachedDataMap;
 
     private bool TryUpdateSerialization() {
         switch (serializedVersion) {
@@ -39,7 +39,7 @@ public struct JiggleRigData {
                 if (rootBone == null) {
                     return false;
                 }
-                var cachedScale = GetCache(rootBone);
+                var cachedScale = GetCache(rootBone.GetInstanceID());
                 var scale = rootBone.lossyScale;
                 var scaleSample = (scale.x + scale.y + scale.z)/3f;
                 var scaleCorrection = cachedScale.lossyScale*(1f/(scaleSample*scaleSample));
@@ -89,11 +89,11 @@ public struct JiggleRigData {
     }
 
     public void RegenerateCacheLookup() {
-        transformToCachedDataMap = new Dictionary<Transform, JiggleTransformCachedData>();
+        transformToCachedDataMap = new Dictionary<int, JiggleTransformCachedData>();
         var count = transformCachedData.Length;
         for (int i = 0; i < count; i++) {
             var cachedData = transformCachedData[i];
-            transformToCachedDataMap[cachedData.bone] = cachedData;
+            transformToCachedDataMap[cachedData.bone.GetInstanceID()] = cachedData;
         }
     }
 
@@ -209,8 +209,8 @@ public struct JiggleRigData {
     
     public bool GetHasRootTransformError() => !rootBone;
     public bool GetCacheIsValid() => transformCachedData is { Length: > 0 } && transformToCachedDataMap != null && transformToCachedDataMap.Count == transformCachedData.Length;
-    public JiggleTransformCachedData GetCache(Transform t) {
-        return transformToCachedDataMap[t];
+    public JiggleTransformCachedData GetCache(int InstanceID) {
+        return transformToCachedDataMap[InstanceID];
     }
 
     /// <summary>
@@ -227,7 +227,7 @@ public struct JiggleRigData {
         var boneCount = bones.Length;
         for (int i = 0; i < boneCount; i++) {
             var bone = bones[i];
-            var cache = GetCache(bone);
+            var cache = GetCache(bone.GetInstanceID());
             parameters.Add(GetJiggleBoneParameter(cache.normalizedDistanceFromRoot));
         }
         tree.SetParameters(parameters);

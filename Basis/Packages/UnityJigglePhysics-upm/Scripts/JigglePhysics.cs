@@ -322,7 +322,7 @@ namespace GatorDragonGames.JigglePhysics
             {
                 var validChildrenCount = lastJiggleRig.GetValidChildrenCount(t);
                 var currentPosition = t.position;
-                var cache = lastJiggleRig.GetCache(t);
+                var cache = lastJiggleRig.GetCache(t.GetInstanceID());
                 if (Vector3.Distance(t.position, lastPosition) < MERGE_DISTANCE)
                 {
                     if (validChildrenCount > 0)
