@@ -8,6 +8,7 @@ using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.UI.NamePlate;
 using GatorDragonGames.JigglePhysics;
 using System;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -229,10 +230,11 @@ public class BasisEventDriver : MonoBehaviour
     /// <summary>
     /// Application quit hook. Disposes physics and stops microphone processing.
     /// </summary>
-    public void OnApplicationQuit()
+    public async void OnApplicationQuit()
     {
         JigglePhysics.Dispose();
         BasisLocalMicrophoneDriver.StopProcessingThread();
+        await BasisPlayerSettingsManager.FlushAllNow();
     }
 
     /// <summary>
