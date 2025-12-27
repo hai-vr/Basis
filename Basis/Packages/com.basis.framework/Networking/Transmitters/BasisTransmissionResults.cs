@@ -170,12 +170,13 @@ public class BasisTransmissionResults
                 }
             }
         }
+        float MeshLodMulitplier = SMModuleDistanceBasedReductions.MeshLod;
         for (int index = 0; index < receiverCount; index++)
         {
             var receiver = snapshot[index];
             var remote = receiver.RemotePlayer;
             // Distance-based mesh LOD
-            remote.ChangeMeshLOD(distanceSq[index], SMModuleDistanceBasedReductions.MeshLod);
+            remote.ChangeMeshLOD(distanceSq[index], MeshLodMulitplier);
         }
         // Cache current as previous for next hysteresis step
         MicrophoneRange.CopyTo(PrevInMicrophoneRange);
