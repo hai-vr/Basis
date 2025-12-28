@@ -10,8 +10,8 @@ public static class BasisRemoteFaceManagement
 {
     public static NativeArray<EyeState> eyeStates;
     public static NativeArray<BlinkState> blinkStates;
-    public static NativeArray<EyeOutput> eyeIn, eyeOut;
-    public static NativeArray<BlinkOutput> blinkOut;
+    public static NativeArray<float4> eyeIn, eyeOut;
+    public static NativeArray<float> blinkOut;
 
     public static int capacity;
 
@@ -49,25 +49,21 @@ public static class BasisRemoteFaceManagement
     /// </summary>
     public const float LookSpeed = 15;
     public static JobHandle handle;
-    public static void Simulate(double t, float dt,int count, Basis.Scripts.Networking.Receivers.BasisNetworkReceiver[] snapshot)
+    public static void Simulate(double t, float dt, int count, Basis.Scripts.Networking.Receivers.BasisNetworkReceiver[] snapshot)
     {
         if (count <= 0) return;
 
         EnsureArrays(count);
-
-        // MAIN THREAD: snapshot current eye values
         for (int Index = 0; Index < count; Index++)
         {
             var receiver = snapshot[Index];
-
-            // If this can ever be null/short, guard it:
             var arr = receiver.EyesAndMouth;
-            eyeIn[Index] = new EyeOutput
+            eyeIn[Index] = new float4
             {
-                vL = arr[0],
-                hL = arr[1],
-                vR = arr[2],
-                hR = arr[3]
+                x = arr[0],
+                w = arr[1],
+                y = arr[2],
+                z = arr[3]
             };
         }
         float deltaSpeed = LookSpeed * dt;
@@ -94,7 +90,7 @@ public static class BasisRemoteFaceManagement
             blinkOut = blinkOut,
         };
 
-         handle = job.Schedule(count, BatchSize);
+        handle = job.Schedule(count, BatchSize);
     }
     public static void Apply(int count, Basis.Scripts.Networking.Receivers.BasisNetworkReceiver[] snapshot)
     {
@@ -114,15 +110,15 @@ public static class BasisRemoteFaceManagement
                 var e = eyeOut[Index];
                 float[] eyes = receiver.EyesAndMouth;
 
-                eyes[0] = e.vL;
-                eyes[1] = e.hL;
-                eyes[2] = e.vR;
-                eyes[3] = e.hR;
+                eyes[0] = e.x;
+                eyes[1] = e.y;
+                eyes[2] = e.z;
+                eyes[3] = e.w;
                 receiver.EyesAndMouth = eyes;
             }
             if (Face.BlinkingEnabled && !Face.OverrideBlinking && Face.meshRenderer != null)
             {
-                float weight100 = blinkOut[Index].weight01 * 100f;
+                float weight100 = blinkOut[Index] * 100f;
                 for (int b = 0; b < Face.blendShapeCount; b++)
                 {
                     Face.SafeSetBlendShape(Face.blendShapeIndices[b], weight100);
@@ -130,7 +126,7 @@ public static class BasisRemoteFaceManagement
             }
         }
     }
-   static void EnsureArrays(int requiredCount)
+    static void EnsureArrays(int requiredCount)
     {
         if (requiredCount <= capacity && eyeStates.IsCreated)
             return;
@@ -144,9 +140,9 @@ public static class BasisRemoteFaceManagement
 
         eyeStates = new NativeArray<EyeState>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
         blinkStates = new NativeArray<BlinkState>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-        eyeIn = new NativeArray<EyeOutput>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-        eyeOut = new NativeArray<EyeOutput>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-        blinkOut = new NativeArray<BlinkOutput>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        eyeIn = new NativeArray<float4>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        eyeOut = new NativeArray<float4>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        blinkOut = new NativeArray<float>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 
         // Seed RNGs + initial timings
         // Use a changing base seed so two instances don't behave identically.
@@ -224,16 +220,13 @@ public static class BasisRemoteFaceManagement
         public NativeArray<EyeState> eyeStates;
         public NativeArray<BlinkState> blinkStates;
 
-        [ReadOnly] public NativeArray<EyeOutput> eyeIn;
-        public NativeArray<EyeOutput> eyeOut;
+        [ReadOnly] public NativeArray<float4> eyeIn;
+        public NativeArray<float4> eyeOut;
 
-        public NativeArray<BlinkOutput> blinkOut;
+        public NativeArray<float> blinkOut;
 
         public void Execute(int Index)
         {
-            // --------------------
-            // EYES
-            // --------------------
             var es = eyeStates[Index];
             var e = eyeIn[Index];
 
@@ -249,34 +242,27 @@ public static class BasisRemoteFaceManagement
 
                 es.isLooking = 1;
             }
-
             if (es.isLooking != 0)
             {
-                e.vL = math.lerp(e.vL, es.target.y, deltaSpeed);
-                e.vR = math.lerp(e.vR, es.target.y, deltaSpeed);
+                e.x = math.lerp(e.x, es.target.y, deltaSpeed);
+                e.y = math.lerp(e.y, es.target.y, deltaSpeed);
+                e.z = math.lerp(e.z, es.target.x, deltaSpeed);
+                e.w = math.lerp(e.w, -es.target.x, deltaSpeed);
 
-                e.hL = math.lerp(e.hL, es.target.x, deltaSpeed);
-                e.hR = math.lerp(e.hR, -es.target.x, deltaSpeed);
-
-                if (math.abs(e.vL - es.target.y) < 0.01f && math.abs(e.hL - es.target.x) < 0.01f)
+                if (math.abs(e.x - es.target.y) < 0.01f && math.abs(e.z - es.target.x) < 0.01f)
+                {
                     es.isLooking = 0;
+                }
             }
-
             eyeStates[Index] = es;
             eyeOut[Index] = e;
-
-            // --------------------
-            // BLINK
-            // --------------------
             var bs = blinkStates[Index];
             float w01;
-
             // schedule next blink if needed
             if (bs.nextBlinkTime <= 0.0)
             {
                 bs.nextBlinkTime = time + bs.rng.NextFloat(minBlinkInterval, maxBlinkInterval);
             }
-
             if (bs.isClosing == 0 && bs.isOpening == 0 && time >= bs.nextBlinkTime)
             {
                 bs.isClosing = 1;
@@ -291,7 +277,6 @@ public static class BasisRemoteFaceManagement
                 float t = (float)((time - bs.blinkStartTime) / blinkDuration);
                 t = math.saturate(t);
                 w01 = t;
-
                 if (t >= 1f)
                 {
                     bs.isClosing = 0;
@@ -311,20 +296,17 @@ public static class BasisRemoteFaceManagement
             {
                 w01 = 0f;
             }
-
             blinkStates[Index] = bs;
-            blinkOut[Index] = new BlinkOutput { weight01 = w01 };
+            blinkOut[Index] = w01;
         }
     }
-
     public struct EyeState
     {
         public double nextLookAroundTime;
         public float2 target;
         public byte isLooking;
-        public Unity.Mathematics.Random rng;
+        public Random rng;
     }
-
     public struct BlinkState
     {
         public double nextBlinkTime;
@@ -332,16 +314,6 @@ public static class BasisRemoteFaceManagement
         public double openStartTime;
         public byte isClosing;
         public byte isOpening;
-        public Unity.Mathematics.Random rng;
-    }
-
-    public struct EyeOutput
-    {
-        public float vL, hL, vR, hR;
-    }
-
-    public struct BlinkOutput
-    {
-        public float weight01;
+        public Random rng;
     }
 }
