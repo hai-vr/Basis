@@ -8,7 +8,7 @@ namespace Basis.Scripts.Networking.Receivers
     {
         public bool HasCurrentBuffer = false;
         public bool HasNextBuffer = false;
-
+        public bool SentLatest = false;
         public BasisAvatarBuffer Current { get; private set; }
         public BasisAvatarBuffer Next { get; private set; }
 
@@ -20,10 +20,12 @@ namespace Basis.Scripts.Networking.Receivers
         public void SetNext(ref BasisAvatarBuffer NextTarget)
         {
             Next = NextTarget;
+            SentLatest = true;
         }
         public void SetCurrent(ref BasisAvatarBuffer CurrentTarget)
         {
             Current = CurrentTarget;
+            SentLatest = true;
         }
         public void ReleaseCurrent()
         {

@@ -109,14 +109,28 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>Write inputs for a given index (0..FixedCapacity-1) for this frame.</summary>
-    public static bool SetInputs( int index, float humanScale, float3 prevPos, float3 targetPos, float3 prevScale, float3 targetScale, quaternion prevRot, quaternion targetRot, float interpolationTime, NativeArray<float> prevMuscles, NativeArray<float> targetMuscles)
+    public static bool SetFrameTiming(
+        int index,
+        float interpolationTime)
     {
         if ((uint)index >= FixedCapacity)
         {
-            BasisDebug.LogError($"index {index} is out of range [0,{FixedCapacity - 1}]", BasisDebug.LogTag.Remote);
+            BasisDebug.LogError("Exceeded Fixed Capacity!", BasisDebug.LogTag.Networking);
             return false;
         }
+        _interpolationTimes[index] = interpolationTime;
 
+        if (index + 1 > _activeCount) _activeCount = index + 1;
+        return true;
+    }
+    /// <summary>Write inputs for a given index (0..FixedCapacity-1) for this frame.</summary>
+    public static void SetFrameInputs(
+        int index,
+        float humanScale,
+        float3 prevPos, float3 targetPos,
+        float3 prevScale, float3 targetScale,
+        quaternion prevRot, quaternion targetRot)
+    {
         _humanScales[index] = humanScale;
         _prevPositions[index] = prevPos;
         _targetPositions[index] = targetPos;
@@ -124,19 +138,17 @@ public static class BasisRemoteNetworkDriver
         _targetScales[index] = targetScale;
         _prevRotations[index] = prevRot;
         _targetRotations[index] = targetRot;
-        _interpolationTimes[index] = interpolationTime;
 
-        // Flattened write: [index * MuscleCount .. (index+1) * MuscleCount)
+        if (index + 1 > _activeCount) _activeCount = index + 1;
+    }
+
+    public static void SetMuscleWindow( int index, NativeArray<float> prevMuscles,NativeArray<float> targetMuscles)
+    {
         int baseOffset = index * _muscleCount;
         FastCopyMuscles(prevMuscles, 0, _prevMuscles, baseOffset, _muscleCount);
         FastCopyMuscles(targetMuscles, 0, _targetMuscles, baseOffset, _muscleCount);
 
-        // Advance active count if needed
-        if (index + 1 > _activeCount)
-        {
-            _activeCount = index + 1;
-        }
-        return true;
+        if (index + 1 > _activeCount) _activeCount = index + 1;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

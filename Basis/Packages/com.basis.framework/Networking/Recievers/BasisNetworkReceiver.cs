@@ -150,7 +150,9 @@ namespace Basis.Scripts.Networking.Receivers
                     (1.0 / 60.0);
 
                 if (!double.IsFinite(windowDuration) || windowDuration <= 1e-6)
+                {
                     windowDuration = 1e-3;
+                }
 
                 double step = Math.Max(unscaledDeltaTime, 0.0);
                 interpolationTime += (float)(step / windowDuration);
@@ -163,15 +165,18 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     interpolationTime = Mathf.Clamp01(interpolationTime);
                 }
-
-                PassedSimulate = BasisRemoteNetworkDriver.SetInputs(
+                PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime);
+                if (PassedSimulate && BufferHolder.SentLatest)
+                {
+                    BasisRemoteNetworkDriver.SetFrameInputs(
                     playerId, Player.BasisAvatar.HumanScale,
                     first.Position, last.Position,
                     first.Scale, last.Scale,
-                    first.Rotation, last.Rotation,
-                    interpolationTime,
-                    first.Muscles, last.Muscles
+                    first.Rotation, last.Rotation
                 );
+                    BasisRemoteNetworkDriver.SetMuscleWindow(playerId, first.Muscles, last.Muscles);
+                    BufferHolder.SentLatest = false;
+                }
             }
         }
 
