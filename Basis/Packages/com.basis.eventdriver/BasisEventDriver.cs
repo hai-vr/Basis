@@ -194,6 +194,9 @@ public class BasisEventDriver : MonoBehaviour
         {
             JigglePhysics.ScheduleRender();
         }
+        BasisLocalPlayer.Instance.LocalVisemeDriver.Apply();
+        BasisRemoteAudioDriver.Apply();
+        //doing main thread work before this call is ideal for best performance.
         JigglePhysics.CompletePose();
         if (SMModuleDebugOptions.UseGizmos)
         {

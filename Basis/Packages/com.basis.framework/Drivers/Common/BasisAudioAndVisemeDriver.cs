@@ -181,6 +181,10 @@ namespace Basis.Scripts.Drivers
 
             uLipSync.Simulate();
         }
+        public void Apply()
+        {
+            uLipSync.Apply();
+        }
         /// <summary>
         /// Attempts to cleanly shut down the driver, disabling processing and unbinding callbacks.
         /// </summary>

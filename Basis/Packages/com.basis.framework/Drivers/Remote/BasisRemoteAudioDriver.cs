@@ -77,6 +77,15 @@ namespace Basis.Scripts.Drivers
                 VisemeDriver.Simulate();
             }
         }
+        public static void Apply()
+        {
+            int count = Drivers.Count;
+            for (int Index = 0; Index < count; Index++)
+            {
+                BasisAudioAndVisemeDriver VisemeDriver = Drivers[Index];
+                VisemeDriver.Apply();
+            }
+        }
         public static List<BasisAudioAndVisemeDriver> Drivers = new List<BasisAudioAndVisemeDriver>();
     }
 }
