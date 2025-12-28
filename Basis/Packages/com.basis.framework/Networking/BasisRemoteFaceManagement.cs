@@ -11,7 +11,7 @@ public static class BasisRemoteFaceManagement
     public static NativeArray<EyeState> eyeStates;
     public static NativeArray<BlinkState> blinkStates;
     public static NativeArray<EyeOutput> eyeIn, eyeOut;
-    public static NativeArray<BlinkOutput> blinkOut;
+    public static NativeArray<float> blinkOut;
 
     public static int capacity;
 
@@ -53,7 +53,7 @@ public static class BasisRemoteFaceManagement
     {
         if (count <= 0) return;
 
-        EnsureArrays(count);
+        EnsureArrays(count, t, snapshot);
 
         // MAIN THREAD: snapshot current eye values
         for (int Index = 0; Index < count; Index++)
@@ -122,7 +122,7 @@ public static class BasisRemoteFaceManagement
             }
             if (Face.BlinkingEnabled && !Face.OverrideBlinking && Face.meshRenderer != null)
             {
-                float weight100 = blinkOut[Index].weight01 * 100f;
+                float weight100 = blinkOut[Index] * 100f;
                 for (int b = 0; b < Face.blendShapeCount; b++)
                 {
                     Face.SafeSetBlendShape(Face.blendShapeIndices[b], weight100);
@@ -130,52 +130,94 @@ public static class BasisRemoteFaceManagement
             }
         }
     }
-   static void EnsureArrays(int requiredCount)
+    static void EnsureArrays(int requiredCount, double nowTime, Basis.Scripts.Networking.Receivers.BasisNetworkReceiver[] snapshot)
     {
         if (requiredCount <= capacity && eyeStates.IsCreated)
             return;
 
-        // Resize strategy: grow to next power of two to reduce realloc churn
+        int oldCap = capacity;
         int newCap = math.ceilpow2(math.max(16, requiredCount));
 
-        DisposeArrays();
+        // Allocate new arrays first
+        var newEyeStates = new NativeArray<EyeState>(newCap, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        var newBlinkStates = new NativeArray<BlinkState>(newCap, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        var newEyeIn = new NativeArray<EyeOutput>(newCap, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        var newEyeOut = new NativeArray<EyeOutput>(newCap, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        var newBlinkOut = new NativeArray<float>(newCap, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+
+        // If we had old arrays, copy the existing live data across
+        if (eyeStates.IsCreated)
+        {
+            int copyCount = math.min(oldCap, newCap);
+
+            NativeArray<EyeState>.Copy(eyeStates, newEyeStates, copyCount);
+            NativeArray<BlinkState>.Copy(blinkStates, newBlinkStates, copyCount);
+            NativeArray<EyeOutput>.Copy(eyeIn, newEyeIn, copyCount);
+            NativeArray<EyeOutput>.Copy(eyeOut, newEyeOut, copyCount);
+            NativeArray<float>.Copy(blinkOut, newBlinkOut, copyCount);
+
+            DisposeArrays();
+        }
 
         capacity = newCap;
+        eyeStates = newEyeStates;
+        blinkStates = newBlinkStates;
+        eyeIn = newEyeIn;
+        eyeOut = newEyeOut;
+        blinkOut = newBlinkOut;
 
-        eyeStates = new NativeArray<EyeState>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-        blinkStates = new NativeArray<BlinkState>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-        eyeIn = new NativeArray<EyeOutput>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-        eyeOut = new NativeArray<EyeOutput>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-        blinkOut = new NativeArray<BlinkOutput>(capacity, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-
-        // Seed RNGs + initial timings
-        // Use a changing base seed so two instances don't behave identically.
+        // Seed RNGs + initialize ONLY the new slots
         uint baseSeed = (uint)UnityEngine.Random.Range(1, int.MaxValue);
 
-        for (int i = 0; i < capacity; i++)
+        for (int i = oldCap; i < newCap; i++)
         {
             uint eyeSeed = HashToNonZero(baseSeed, (uint)(i * 2 + 1));
             uint blinkSeed = HashToNonZero(baseSeed, (uint)(i * 2 + 2));
 
+            // If this slot corresponds to an existing player index, use their current eye pose as the starting target
+            float2 startTarget = float2.zero;
+            if (i < requiredCount && snapshot != null)
+            {
+                var arr = snapshot[i].EyesAndMouth;
+                // Your packing:
+                // eyeIn.x = arr[0], eyeIn.w = arr[1], eyeIn.y = arr[2], eyeIn.z = arr[3]
+                // In your job you treat target.y as vertical and target.x as horizontal.
+                // So read horizontal from arr[3] (e.z) and vertical from arr[0] or arr[2] depending on your convention.
+                // Using your job's mapping (e.z tracks horiz, e.x tracks vert):
+                float currentVert = arr[0];
+                float currentHoriz = arr[3];
+                startTarget = new float2(currentHoriz, currentVert);
+            }
+
             eyeStates[i] = new EyeState
             {
-                nextLookAroundTime = 0.0, // job will schedule on first tick
-                target = float2.zero,
+                // schedule look later so we don't "pause on a reset tick"
+                nextLookAroundTime = nowTime + Unity.Mathematics.Random.CreateFromIndex(eyeSeed).NextFloat(MinLookAroundInterval, MaxLookAroundInterval),
+                target = startTarget,
                 isLooking = 0,
-                rng = new Unity.Mathematics.Random(eyeSeed)
+                rng = new Unity.Mathematics.Random(eyeSeed),
             };
 
             blinkStates[i] = new BlinkState
             {
-                nextBlinkTime = 0.0, // job will schedule on first tick
+                nextBlinkTime = nowTime + Unity.Mathematics.Random.CreateFromIndex(blinkSeed).NextFloat(MinBlinkInterval, MaxBlinkInterval),
                 blinkStartTime = 0.0,
                 openStartTime = 0.0,
                 isClosing = 0,
                 isOpening = 0,
-                rng = new Unity.Mathematics.Random(blinkSeed)
+                rng = new Unity.Mathematics.Random(blinkSeed),
             };
+
+            // Also seed output so Apply has something sensible immediately
+            if (i < requiredCount && snapshot != null)
+            {
+                var arr = snapshot[i].EyesAndMouth;
+                eyeOut[i] = new EyeOutput() { hL = arr[0], hR = arr[2], vL = arr[3], vR = arr[1] };
+                blinkOut[i] = 0f;
+            }
         }
     }
+
 
     static uint HashToNonZero(uint a, uint b)
     {
@@ -227,7 +269,7 @@ public static class BasisRemoteFaceManagement
         [ReadOnly] public NativeArray<EyeOutput> eyeIn;
         public NativeArray<EyeOutput> eyeOut;
 
-        public NativeArray<BlinkOutput> blinkOut;
+        public NativeArray<float> blinkOut;
 
         public void Execute(int Index)
         {
@@ -313,10 +355,9 @@ public static class BasisRemoteFaceManagement
             }
 
             blinkStates[Index] = bs;
-            blinkOut[Index] = new BlinkOutput { weight01 = w01 };
+            blinkOut[Index] = w01;
         }
     }
-
     public struct EyeState
     {
         public double nextLookAroundTime;
@@ -324,7 +365,6 @@ public static class BasisRemoteFaceManagement
         public byte isLooking;
         public Unity.Mathematics.Random rng;
     }
-
     public struct BlinkState
     {
         public double nextBlinkTime;
@@ -334,14 +374,8 @@ public static class BasisRemoteFaceManagement
         public byte isOpening;
         public Unity.Mathematics.Random rng;
     }
-
     public struct EyeOutput
     {
         public float vL, hL, vR, hR;
-    }
-
-    public struct BlinkOutput
-    {
-        public float weight01;
     }
 }
