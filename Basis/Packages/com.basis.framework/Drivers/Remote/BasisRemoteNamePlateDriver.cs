@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using TMPro;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -490,9 +491,10 @@ namespace Basis.Scripts.UI.NamePlate
         /// Call from your driver each frame/tick.
         /// SAFE: completes previous job, applies pending structural changes, resizes buffers, gathers, then schedules.
         /// </summary>
-        public static void ScheduleSimulate(double now, float hold, float fade, Color normalUnityColor)
+        public static unsafe void ScheduleSimulate(double now, float hold, float fade, Color normalUnityColor)
         {
-            // Make the world safe: no job running while we mutate lists/buffers.
+            // Ensure previous job is not touching arrays before we overwrite gather buffers.
+            // If you want overlap (faster), move this Complete() out to a single sync point per frame.
             handle.Complete();
 
             ApplyPendingStructuralChanges();
@@ -500,24 +502,46 @@ namespace Basis.Scripts.UI.NamePlate
             count = plates.Count;
             if (count == 0) return;
 
-            // Resize buffers right before job scheduling (JIT resize)
             EnsureCapacity(count);
 
+            // Convert once
+            float4 normal = new float4(
+                normalUnityColor.r,
+                normalUnityColor.g,
+                normalUnityColor.b,
+                normalUnityColor.a
+            );
+
+            // --- UNSAFE POINTERS (skip NativeArray.SetItem) ---
+            ushort* pIsPulsing = (ushort*)isPulsing.GetUnsafePtr();
+            ushort* pIsVisible = (ushort*)isVisible.GetUnsafePtr();
+            ushort* pIsEnabled = (ushort*)isEnabled.GetUnsafePtr();
+            double* pStartTime = (double*)startTime.GetUnsafePtr();
+            float4* pTalkColor = (float4*)talkColor.GetUnsafePtr();
+
+            // Optional: if you also want to clear outputs here via pointers (not required)
+            // float4* pOutColor = (float4*)outColor.GetUnsafePtr();
+            // ushort* pOutHasChange = (ushort*)outHasChange.GetUnsafePtr();
+            // ushort* pOutStopPulsing = (ushort*)outStopPulsing.GetUnsafePtr();
+
             // --- Gather phase (main thread) ---
-            float4 normal = new float4(normalUnityColor.r, normalUnityColor.g, normalUnityColor.b, normalUnityColor.a);
-
-            for (int i = 0; i < count; i++)
+            for (int Index = 0; Index < count; Index++)
             {
-                var p = plates[i];
+                var p = plates[Index];
 
-                isVisible[i] = (ushort)(p.IsVisible ? 1 : 0);
-                isEnabled[i] = (ushort)(p.isActiveAndEnabled ? 1 : 0);
-                isPulsing[i] = (ushort)(p.GetIsPulsingForJob() ? 1 : 0); // must exist on plate
+                pIsVisible[Index] = (ushort)(p.IsVisible ? 1 : 0);
+                pIsEnabled[Index] = (ushort)(p.isActiveAndEnabled ? 1 : 0);
+                pIsPulsing[Index] = (ushort)(p.GetIsPulsingForJob() ? 1 : 0);
 
-                startTime[i] = p.GetTalkStartTimeForJob(); // must exist on plate
+                pStartTime[Index] = p.GetTalkStartTimeForJob();
 
-                Color tc = p.GetTalkColorForJob(); // must exist on plate
-                talkColor[i] = new float4(tc.r, tc.g, tc.b, tc.a);
+                Color tc = p.GetTalkColorForJob();
+                pTalkColor[Index] = new float4(tc.r, tc.g, tc.b, tc.a);
+
+                // If you want to eagerly clear outputs (job also clears per-index):
+                // pOutHasChange[i] = 0;
+                // pOutStopPulsing[i] = 0;
+                // pOutColor[i] = normal; // or leave untouched
             }
 
             // --- Job phase ---
