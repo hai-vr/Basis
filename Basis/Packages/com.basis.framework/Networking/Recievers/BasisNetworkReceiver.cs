@@ -49,13 +49,17 @@ namespace Basis.Scripts.Networking.Receivers
 
         private float interpolationTime = 0f; // 0..1 over current First→Last window
 
-        private readonly Queue<BasisAvatarBuffer> _staged = new Queue<BasisAvatarBuffer>(16);
-
         public bool HasBufferHolds;
         public bool PassedSimulate = false;
 
-        const int MaxStage = 64;
+        // ---------------- staging (ring buffer) ----------------
+
+        private const int MaxStage = 64;
         public int StagedCount;
+
+        // Main-thread-only jitter buffer. Bounded. Overwrites oldest when full.
+        private BasisRingBuffer<BasisAvatarBuffer> _stagedRing;
+
         /// <summary>
         /// Main-thread simulation step. Pulls packets, maintains interpolation window,
         /// computes interpolationTime, and feeds inputs to the network driver.
@@ -78,29 +82,25 @@ namespace Basis.Scripts.Networking.Receivers
                 return;
             }
 
-            // 1) Pull network packets to main-thread staging
+            // 1) Pull network packets to main-thread staging ring (bounded)
             while (PayloadQueue.TryDequeue(out var buffer))
             {
-                _staged.Enqueue(buffer);
+                _stagedRing.EnqueueOverwriteOldest(
+                    buffer,
+                    onOverwrite: BasisAvatarBufferPool.Release
+                );
             }
 
-            StagedCount = _staged.Count;
+            StagedCount = _stagedRing.Count;
 
-            if (StagedCount > MaxStage)
-            {
-                int drop = StagedCount - MaxStage;
-                DropOldestFromStaging(drop);
-                BasisDebug.LogWarning($"Staging was larger than 64; dropping {drop}");
-            }
-
-            // 2) Ensure we have a valid interpolation window (First -> Last)
-            // Seed First if missing
+            // 2) Ensure we have a valid interpolation window (Current -> Next)
+            // Seed Current if missing
             if (!BufferHolder.HasCurrentBuffer)
             {
                 TrySeedFirstFromStaging();
             }
 
-            // Fill Last if missing
+            // Fill Next if missing
             if (!BufferHolder.HasNextBuffer)
             {
                 TrySetLastFromStaging();
@@ -116,18 +116,20 @@ namespace Basis.Scripts.Networking.Receivers
             while (interpolationTime >= 1f && StagedCount != 0)
             {
                 BufferHolder.NextBecomesCurrent();
-
                 interpolationTime = 0f;
 
                 TrySetLastFromStaging();
 
-                if (!(BufferHolder.HasCurrentBuffer && BufferHolder.HasNextBuffer))
+                HasBufferHolds = BufferHolder.HasCurrentBuffer && BufferHolder.HasNextBuffer;
+                if (!HasBufferHolds)
                 {
                     break;
                 }
             }
 
             // If staging backlog is large, drop old frames to reduce latency
+            // (Ring is already bounded by MaxStage; this is the "keep only last N" latency clamp.)
+            StagedCount = _stagedRing.Count;
             if (StagedCount > BufferCapacityBeforeCleanup)
             {
                 int drop = StagedCount - BufferCapacityBeforeCleanup;
@@ -142,9 +144,13 @@ namespace Basis.Scripts.Networking.Receivers
                 var first = BufferHolder.Current;
                 var last = BufferHolder.Next;
 
-                double windowDuration = last.SecondsInterval > 0 ? last.SecondsInterval : first.SecondsInterval > 0 ? first.SecondsInterval : (1.0 / 60.0);
+                double windowDuration =
+                    last.SecondsInterval > 0 ? last.SecondsInterval :
+                    first.SecondsInterval > 0 ? first.SecondsInterval :
+                    (1.0 / 60.0);
 
-                if (!double.IsFinite(windowDuration) || windowDuration <= 1e-6) windowDuration = 1e-3;
+                if (!double.IsFinite(windowDuration) || windowDuration <= 1e-6)
+                    windowDuration = 1e-3;
 
                 double step = Math.Max(unscaledDeltaTime, 0.0);
                 interpolationTime += (float)(step / windowDuration);
@@ -186,12 +192,13 @@ namespace Basis.Scripts.Networking.Receivers
                 Muscles
             );
 
-            // Keep local fields current (useful for debug/telemetry)
             ApplyingPosition = outPos;
             ApplyingScale = applyingScale;
             ApplyingRotation = applyingRotation;
+
             HumanPose.bodyPosition = scaledBody;
             HumanPose.bodyRotation = applyingRotation;
+
             // Copy all 95 muscles
             Memcpy95(Muscles, HumanPose.muscles);
 
@@ -205,16 +212,16 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             }
 
-            // Scale must be applied on transform
             Player.AvatarTransform.localScale = applyingScale;
 
-            // HumanPoseHandler must stay on main thread
             PoseHandler.SetHumanPose(ref HumanPose);
+
             if (HasOverridenDestination)
             {
                 var References = RemotePlayer.RemoteAvatarDriver.References;
                 References.Hips.transform.SetPositionAndRotation(OverridenPosition, OverridenRotation);
             }
+
             PassedSimulate = false;
         }
 
@@ -253,10 +260,19 @@ namespace Basis.Scripts.Networking.Receivers
 
             AudioReceiverModule.Initalize(this);
 
-            _staged.Clear();
+            // Reset staging
+            _stagedRing = new BasisRingBuffer<BasisAvatarBuffer>(MaxStage);
+            StagedCount = 0;
+
             BufferHolder.ClearAndRelease();
             interpolationTime = 0f;
             PassedSimulate = false;
+
+            // Clear any packets that arrived before init (rare, but safe)
+            while (PayloadQueue.TryDequeue(out var buf))
+            {
+                BasisAvatarBufferPool.Release(buf);
+            }
 
             if (!hasEvents)
             {
@@ -269,7 +285,6 @@ namespace Basis.Scripts.Networking.Receivers
         {
             AudioReceiverModule.AvatarChanged(this, true);
 
-            // Track which keys got successfully sent
             List<byte> keysToRemove = new List<byte>();
 
             foreach (KeyValuePair<byte, ServerAvatarDataMessageQueue> message in NextMessages)
@@ -305,6 +320,7 @@ namespace Basis.Scripts.Networking.Receivers
                 NextMessages.Remove(key);
             }
         }
+
         private bool IsPastAvatar(byte messageIndex, byte currentIndex)
         {
             int diff = (currentIndex - messageIndex + 256) % 256;
@@ -313,24 +329,23 @@ namespace Basis.Scripts.Networking.Receivers
 
         public override void DeInitialize()
         {
-            if (_staged != null)
+            // Release anything staged in the ring
+            if (_stagedRing != null)
             {
-                StagedCount = _staged.Count;
-                for (int Index = 0; Index < StagedCount; Index++)
+                while (_stagedRing.TryDequeueOldest(out var buf))
                 {
-                    BasisAvatarBufferPool.Release(_staged.Dequeue());
+                    BasisAvatarBufferPool.Release(buf);
                 }
-                _staged.Clear();
                 StagedCount = 0;
             }
 
+            // Release anything still waiting in the concurrent ingress queue
             while (PayloadQueue.TryDequeue(out var buffer))
             {
                 BasisAvatarBufferPool.Release(buffer);
             }
 
             BufferHolder.ClearAndRelease();
-
 
             if (hasEvents && RemotePlayer != null && RemotePlayer.RemoteAvatarDriver != null)
             {
@@ -382,90 +397,50 @@ namespace Basis.Scripts.Networking.Receivers
             playerId = PlayerID;
             hasID = true;
         }
+
+        // ---------------- staging helpers ----------------
+
         private void TrySeedFirstFromStaging()
         {
-            while (_staged.TryDequeue(out var first))
+            while (_stagedRing.TryDequeueOldest(out var first))
             {
-                if (ValidateOrFixup(ref first))
-                {
-                    BufferHolder.SetCurrent(ref first);
-                    BufferHolder.HasCurrentBuffer = true;
-                    return;
-                }
-
-                BasisAvatarBufferPool.Release(first);
+                BufferHolder.SetCurrent(ref first);
+                BufferHolder.HasCurrentBuffer = true;
+                StagedCount = _stagedRing.Count;
             }
+
+            StagedCount = _stagedRing.Count;
         }
 
         private void TrySetLastFromStaging()
         {
             if (!BufferHolder.HasCurrentBuffer) return;
 
-            while (_staged.TryDequeue(out var last))
+            while (_stagedRing.TryDequeueOldest(out var last))
             {
-                if (ValidateOrFixup(ref last))
-                {
-                    BufferHolder.SetNext(ref last);
-                    BufferHolder.HasNextBuffer = true;
-                    return;
-                }
-
-                BasisAvatarBufferPool.Release(last);
+                BufferHolder.SetNext(ref last);
+                BufferHolder.HasNextBuffer = true;
+                StagedCount = _stagedRing.Count;
             }
+
+            StagedCount = _stagedRing.Count;
         }
 
         private void DropOldestFromStaging(int count)
         {
-            count = Mathf.Min(count, StagedCount);
-            for (int Index = 0; Index < count; Index++)
+            int n = Mathf.Min(count, _stagedRing.Count);
+            for (int i = 0; i < n; i++)
             {
-                var buf = _staged.Dequeue();
-                BasisAvatarBufferPool.Release(buf);
+                if (_stagedRing.TryDequeueOldest(out var buf))
+                {
+                    BasisAvatarBufferPool.Release(buf);
+                }
+                else
+                {
+                    break;
+                }
             }
-            StagedCount -= count;
-        }
-
-        // ---------------- validation / fixup ----------------
-
-        /// <summary>
-        /// True if the NativeArray is created and has at least 95 muscle values.
-        /// </summary>
-        private static bool IsValidMuscleArray(NativeArray<float> arr) => arr.IsCreated && arr.Length >= 95;
-
-        /// <summary>
-        /// Validates a buffer and attempts to repair fixable fields in-place.
-        /// Returns true if usable after fixup; false if unrecoverable.
-        /// </summary>
-        private bool ValidateOrFixup(ref BasisAvatarBuffer buf)
-        {
-            if (!IsValidMuscleArray(buf.Muscles))
-            {
-                // Allocate a zeroed 95-length buffer so downstream SIMD/memcpy logic is safe.
-                // NOTE: these must be freed by the pool when the buffer is released.
-                buf.Muscles = new NativeArray<float>(95, Allocator.Persistent, NativeArrayOptions.ClearMemory);
-            }
-
-            // 2) Sanitize transforms to avoid NaNs propagating into the driver.
-            if (!math.all(math.isfinite(buf.Position)))
-            {
-                BasisDebug.LogError($"Infinite Position Detected setting to default", BasisDebug.LogTag.Remote);
-                buf.Position = float3.zero;
-            }
-
-            if (!math.all(math.isfinite(buf.Scale)))
-            {
-                BasisDebug.LogError($"Infinite Scale Detected setting to default", BasisDebug.LogTag.Remote);
-                buf.Scale = new float3(1f, 1f, 1f);
-            }
-
-            // 3) Clamp insane timing
-            if (!double.IsFinite(buf.SecondsInterval) || buf.SecondsInterval < 0.0 || buf.SecondsInterval > 1.0)
-            {
-                BasisDebug.LogError($"Seconds Interval was {buf.SecondsInterval} correcting to 0.016f", BasisDebug.LogTag.Remote);
-                buf.SecondsInterval = 1.0 / 60.0;
-            }
-
-            return true;
+            StagedCount = _stagedRing.Count;
         }
     }
 }
