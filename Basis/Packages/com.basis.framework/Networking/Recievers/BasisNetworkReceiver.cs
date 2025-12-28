@@ -49,18 +49,24 @@ namespace Basis.Scripts.Networking.Receivers
 
         private float interpolationTime = 0f; // 0..1 over current First→Last window
 
-        private readonly Queue<BasisAvatarBuffer> _staged  = new Queue<BasisAvatarBuffer>(16);
+        private readonly Queue<BasisAvatarBuffer> _staged = new Queue<BasisAvatarBuffer>(16);
 
         public bool HasBufferHolds;
         public bool PassedSimulate = false;
 
+        const int MaxStage = 64;
+        public int StagedCount;
         /// <summary>
         /// Main-thread simulation step. Pulls packets, maintains interpolation window,
         /// computes interpolationTime, and feeds inputs to the network driver.
         /// </summary>
         public void Compute(float unscaledDeltaTime)
         {
-            if (Player.BasisAvatar == null) return; // expected briefly on join
+            if (Player.BasisAvatar == null)
+            {
+                return; // expected briefly on join
+            }
+
             if (Player.BasisAvatar.Animator == null)
             {
                 BasisDebug.LogError($"Animator for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
@@ -78,10 +84,11 @@ namespace Basis.Scripts.Networking.Receivers
                 _staged.Enqueue(buffer);
             }
 
-            const int MaxStage = 64;
-            if (_staged.Count > MaxStage)
+            StagedCount = _staged.Count;
+
+            if (StagedCount > MaxStage)
             {
-                int drop = _staged.Count - MaxStage;
+                int drop = StagedCount - MaxStage;
                 DropOldestFromStaging(drop);
                 BasisDebug.LogWarning($"Staging was larger than 64; dropping {drop}");
             }
@@ -106,7 +113,7 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             // Advance window while consumed and we have staged frames
-            while (interpolationTime >= 1f && _staged.Count != 0)
+            while (interpolationTime >= 1f && StagedCount != 0)
             {
                 BufferHolder.NextBecomesCurrent();
 
@@ -121,9 +128,9 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             // If staging backlog is large, drop old frames to reduce latency
-            if (_staged.Count > BufferCapacityBeforeCleanup)
+            if (StagedCount > BufferCapacityBeforeCleanup)
             {
-                int drop = _staged.Count - BufferCapacityBeforeCleanup;
+                int drop = StagedCount - BufferCapacityBeforeCleanup;
                 DropOldestFromStaging(drop);
             }
 
@@ -135,7 +142,7 @@ namespace Basis.Scripts.Networking.Receivers
                 var first = BufferHolder.Current;
                 var last = BufferHolder.Next;
 
-                double windowDuration =last.SecondsInterval > 0 ? last.SecondsInterval :first.SecondsInterval > 0 ? first.SecondsInterval : (1.0 / 60.0);
+                double windowDuration = last.SecondsInterval > 0 ? last.SecondsInterval : first.SecondsInterval > 0 ? first.SecondsInterval : (1.0 / 60.0);
 
                 if (!double.IsFinite(windowDuration) || windowDuration <= 1e-6) windowDuration = 1e-3;
 
@@ -260,7 +267,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void OnCalibration()
         {
-            AudioReceiverModule.AvatarChanged(this,true);
+            AudioReceiverModule.AvatarChanged(this, true);
 
             // Track which keys got successfully sent
             List<byte> keysToRemove = new List<byte>();
@@ -308,12 +315,13 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (_staged != null)
             {
-                int Count = _staged.Count;
-                for (int Index = 0; Index < Count; Index++)
+                StagedCount = _staged.Count;
+                for (int Index = 0; Index < StagedCount; Index++)
                 {
                     BasisAvatarBufferPool.Release(_staged.Dequeue());
                 }
                 _staged.Clear();
+                StagedCount = 0;
             }
 
             while (PayloadQueue.TryDequeue(out var buffer))
@@ -350,7 +358,7 @@ namespace Basis.Scripts.Networking.Receivers
                 int missing = serverSilentUnits - localUnits;
                 if (missing > 0)
                 {
-                    for (int i = 0; i < missing; i++)
+                    for (int Index = 0; Index < missing; Index++)
                     {
                         AudioReceiverModule.OnDecodeSilence();
                     }
@@ -376,10 +384,8 @@ namespace Basis.Scripts.Networking.Receivers
         }
         private void TrySeedFirstFromStaging()
         {
-            while (_staged.Count > 0)
+            while (_staged.TryDequeue(out var first))
             {
-                var first = _staged.Dequeue();
-
                 if (ValidateOrFixup(ref first))
                 {
                     BufferHolder.SetCurrent(ref first);
@@ -395,10 +401,8 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (!BufferHolder.HasCurrentBuffer) return;
 
-            while (_staged.Count > 0)
+            while (_staged.TryDequeue(out var last))
             {
-                var last = _staged.Dequeue();
-
                 if (ValidateOrFixup(ref last))
                 {
                     BufferHolder.SetNext(ref last);
@@ -412,12 +416,13 @@ namespace Basis.Scripts.Networking.Receivers
 
         private void DropOldestFromStaging(int count)
         {
-            count = Mathf.Min(count, _staged.Count);
-            for (int i = 0; i < count; i++)
+            count = Mathf.Min(count, StagedCount);
+            for (int Index = 0; Index < count; Index++)
             {
                 var buf = _staged.Dequeue();
                 BasisAvatarBufferPool.Release(buf);
             }
+            StagedCount -= count;
         }
 
         // ---------------- validation / fixup ----------------
