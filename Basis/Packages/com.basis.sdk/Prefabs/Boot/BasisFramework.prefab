@@ -1019,6 +1019,7 @@ MonoBehaviour:
       DateOfCreation: 
   UseAddressablesToLoadScene: 0
   UseSceneProvidedHere: 0
+  UrpShader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
 --- !u!114 &6910429841152494025
 MonoBehaviour:
   m_ObjectHideFlags: 0

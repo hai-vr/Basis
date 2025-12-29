@@ -138,8 +138,7 @@ namespace Basis.Scripts.Drivers
 
             player.LocalBoneDriver.RemoveAllListeners();
             player.LocalEyeDriver.Initalize(this, player);
-
-            SetIndividualMeshData(true, true);
+            RenderMeshSettings(true, BasisLayerMapper.LocalAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer, true,true);
 
             if (References.Hashead)
             {
@@ -157,7 +156,7 @@ namespace Basis.Scripts.Drivers
 
             ComputeOffsets(player.LocalBoneDriver);
 
-           // player.BasisLocalFootDriver.InitializeVariables();
+            // player.BasisLocalFootDriver.InitializeVariables();
 
             player.LocalHandDriver.ReInitialize(player.BasisAvatar.Animator);
             player.LocalAnimatorDriver.Initialize(player);
@@ -312,7 +311,6 @@ namespace Basis.Scripts.Drivers
         {
             var Avatar = LocalPlayer.BasisAvatar;
             FindSkinnedMeshRenders(LocalPlayer);
-            SetupAvatarLayers(LocalPlayer, BasisLayerMapper.LocalAvatarLayer);
             BasisTransformMapping.AutoDetectReferences(LocalPlayer.BasisAvatar.Animator, Avatar.transform, ref References);
             References.RecordPoses(LocalPlayer.BasisAvatar.Animator);
             LocalPlayer.FaceIsVisible = false;
@@ -589,26 +587,6 @@ namespace Basis.Scripts.Drivers
         {
             SkinnedMeshRenderer = LocalPlayer.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             SkinnedMeshRendererLength = SkinnedMeshRenderer.Length;
-        }
-
-        /// <summary>
-        /// Toggles per-render matrix recalculation on all avatar skinned meshes.
-        /// Toggles updating skinned meshes when offscreen (helpful for VR and detached cameras).
-        /// </summary>
-        /// <param name="forceMatrixRecalculationPerRender">Whether to force matrix recalculation each render.</param>
-        /// /// <param name="updateWhenOffscreen">Whether to force update When Offscreen each render.</param>
-        public void SetIndividualMeshData(bool forceMatrixRecalculationPerRender,bool updateWhenOffscreen)
-        {
-            for (int Index = 0; Index < SkinnedMeshRendererLength; Index++)
-            {
-                SkinnedMeshRenderer Render = SkinnedMeshRenderer[Index];
-                if (Render != null)
-                {
-                    Render.forceMatrixRecalculationPerRender = forceMatrixRecalculationPerRender;
-                    Render.updateWhenOffscreen = updateWhenOffscreen;
-                    Render.forceMeshLod = 0;
-                }
-            }
         }
     }
 }

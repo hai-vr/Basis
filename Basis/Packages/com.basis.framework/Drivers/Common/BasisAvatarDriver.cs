@@ -2,8 +2,10 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.TransformBinders.BoneControl;
 using GatorDragonGames.JigglePhysics;
+using SteamAudio;
 using System.Collections.Generic;
 using UnityEngine;
+using Material = UnityEngine.Material;
 
 namespace Basis.Scripts.Drivers
 {
@@ -300,18 +302,224 @@ namespace Basis.Scripts.Drivers
             }
             JiggleColliders.Clear();
         }
+        // Common albedo/main texture property names across built-in/URP/custom shaders.
+        private static readonly string[] AlbedoProps =
+        {
+        "_MainTex",          // Some custom / Pyi
+        "_BaseMap",          // URP Lit/Unlit
+        "_Albedo",           // Some custom
+        "_Diffuse",          // Some custom
+        "_BaseColorMap",     // Some ShaderGraph setups
+        "_ColorTexture",     // Some toon shaders
+        "_Tex",              // Generic
+        "_Texture"           // Generic
+    };
+        private static readonly string[] NormalProps =
+{
+    "_BumpMap", "_NormalMap", "_NormalTex", "_NormalTexture"
+};
+
+        private static readonly string[] MetallicProps =
+        {
+    "_MetallicGlossMap", "_MetallicMap", "_MetalMap", "_MetallicTex"
+};
+
+        private static readonly string[] OcclusionProps =
+        {
+    "_OcclusionMap", "_Occlusion", "_AOMap", "_AmbientOcclusionMap"
+};
+
+        private static readonly string[] ColorProps =
+        {
+    "_BaseColor", "_Color", "_Tint", "_MainColor"
+};
 
         /// <summary>
-        /// Sets the Unity layer on all avatar renderers to the provided value.
+        /// Fix renderers + repair broken shaders by swapping to a URP shader and copying over textures/colors.
         /// </summary>
-        /// <param name="Player">Player whose avatar renderers will be updated.</param>
-        /// <param name="Layer">Layer index to assign to each renderer's GameObject.</param>
-        public static void SetupAvatarLayers(BasisPlayer Player, int Layer)
+        public static void RenderMeshSettings(bool forceLodToZero, int layer, int skinnedMeshRendererLength, SkinnedMeshRenderer[] skinnedMeshRenderers, bool updateWhenOffscreen, bool forceMatrixRecalculationPerRender)
         {
-            int RenderCount = Player.BasisAvatar.Renders.Length;
-            for (int Index = 0; Index < RenderCount; Index++)
+            if (skinnedMeshRenderers == null || skinnedMeshRendererLength <= 0)
             {
-                Player.BasisAvatar.Renders[Index].gameObject.layer = Layer;
+                return;
+            }
+
+            for (int Index = 0; Index < skinnedMeshRendererLength; Index++)
+            {
+                var r = skinnedMeshRenderers[Index];
+                if (r == null)
+                {
+                    continue;
+                }
+
+                r.updateWhenOffscreen = updateWhenOffscreen;
+                r.forceMatrixRecalculationPerRender = forceMatrixRecalculationPerRender;
+                r.gameObject.layer = layer;
+
+                if (forceLodToZero)
+                {
+                    r.forceMeshLod = 0;
+                }
+                MaterialCorrection(skinnedMeshRenderers[Index], BundledContentHolder.Instance.UrpShader);
+            }
+        }
+        private static bool TryGetFirstColor(Material mat, out Color value, out string foundProp)
+        {
+            for (int i = 0; i < ColorProps.Length; i++)
+            {
+                string p = ColorProps[i];
+                if (mat.HasProperty(p))
+                {
+                    value = mat.GetColor(p);
+                    foundProp = p;
+                    return true;
+                }
+            }
+            value = Color.white;
+            foundProp = string.Empty;
+            return false;
+        }
+
+        private static bool TryGetFirstTextureWithScaleAndOffset(Material mat, string[] props, out TexTransform result, out string foundProp)
+        {
+            for (int i = 0; i < props.Length; i++)
+            {
+                string p = props[i];
+                if (TryGetTextureWithScaleAndOffset(mat, p, out result))
+                {
+                    foundProp = p;
+                    return true;
+                }
+            }
+            result = default;
+            foundProp = string.Empty;
+            return false;
+        }
+        public static bool TryGetTextureWithScaleAndOffset(Material mat, string propertyName, out TexTransform result)
+        {
+            result = default;
+
+            if (mat == null)
+            {
+                return false;
+            }
+
+            Texture tex = mat.GetTexture(propertyName);
+            if (tex == null)
+            {
+                return false;
+            }
+
+            Vector2 scale = mat.GetTextureScale(propertyName);
+            Vector2 offset = mat.GetTextureOffset(propertyName);
+
+            result = new TexTransform(tex, scale, offset);
+            return true;
+        }
+
+        public static void MaterialCorrection(SkinnedMeshRenderer renderer, Shader fallbackUrpShader)
+        {
+            if (renderer == null)
+            {
+                return;
+            }
+
+            var materials = renderer.sharedMaterials;
+            if (materials == null || materials.Length == 0)
+            {
+                return;
+            }
+
+            if (fallbackUrpShader == null)
+            {
+                Debug.LogWarning("MaterialCorrection: fallbackUrpShader is null, cannot swap shaders.");
+                return;
+            }
+
+            bool anyChanged = false;
+
+            for (int mi = 0; mi < materials.Length; mi++)
+            {
+                var mat = materials[mi];
+                if (mat == null)
+                {
+                    continue;
+                }
+
+                var shader = mat.shader;
+                if (shader == null)
+                {
+                    continue;
+                }
+
+                bool shaderBroken = !shader.isSupported || (!string.IsNullOrEmpty(shader.name) && shader.name.Contains("InternalErrorShader"));
+
+                if (!shaderBroken)
+                {
+                    continue;
+                }
+                bool hasAlbedo = TryGetFirstTextureWithScaleAndOffset(mat, AlbedoProps, out TexTransform albedo, out string albedoProp);
+                bool hasNormal = TryGetFirstTextureWithScaleAndOffset(mat, NormalProps, out TexTransform normal, out string normalProp);
+                bool hasMetal = TryGetFirstTextureWithScaleAndOffset(mat, MetallicProps, out TexTransform metal, out string metalProp);
+                bool hasOcc = TryGetFirstTextureWithScaleAndOffset(mat, OcclusionProps, out TexTransform occ, out string occProp);
+                bool hasColor = TryGetFirstColor(mat, out Color baseColor, out string colorProp);
+                var fixedMat = new Material(fallbackUrpShader)
+                {
+                    name = mat.name + " (Fixed)"
+                };
+                if (hasAlbedo)
+                {
+                    fixedMat.SetTexture("_BaseMap", albedo.texture);
+                    fixedMat.SetTextureScale("_BaseMap", albedo.scale);
+                    fixedMat.SetTextureOffset("_BaseMap", albedo.offset);
+                }
+                if (hasColor)
+                {
+                    fixedMat.SetColor("_BaseColor", baseColor);
+                }
+                if (hasNormal)
+                {
+                    fixedMat.EnableKeyword("_NORMALMAP");
+                    fixedMat.SetTexture("_BumpMap", normal.texture);
+                    fixedMat.SetTextureScale("_BumpMap", normal.scale);
+                    fixedMat.SetTextureOffset("_BumpMap", normal.offset);
+                    fixedMat.SetFloat("_BumpScale", 0.2f);
+                }
+                if (hasMetal)
+                {
+                    fixedMat.EnableKeyword("_METALLICSPECGLOSSMAP");
+                    fixedMat.SetTexture("_MetallicGlossMap", metal.texture);
+                    fixedMat.SetTextureScale("_MetallicGlossMap", metal.scale);
+                    fixedMat.SetTextureOffset("_MetallicGlossMap", metal.offset);
+                }
+                fixedMat.SetFloat("_Metallic", 0.2f);
+                fixedMat.SetFloat("_Smoothness", 0.2f);
+                if (hasOcc)
+                {
+                    fixedMat.SetTexture("_OcclusionMap", occ.texture);
+                    fixedMat.SetTextureScale("_OcclusionMap", occ.scale);
+                    fixedMat.SetTextureOffset("_OcclusionMap", occ.offset);
+
+                    fixedMat.SetFloat("_OcclusionStrength", 0.2f);
+                }
+                materials[mi] = fixedMat;
+                anyChanged = true;
+            }
+            if (anyChanged)
+            {
+                renderer.sharedMaterials = materials;
+            }
+        }
+        public struct TexTransform
+        {
+            public Texture texture;
+            public Vector2 scale;
+            public Vector2 offset;
+            public TexTransform(Texture tex, Vector2 scale, Vector2 offset)
+            {
+                this.texture = tex;
+                this.scale = scale;
+                this.offset = offset;
             }
         }
     }

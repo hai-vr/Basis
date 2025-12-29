@@ -46,6 +46,7 @@ public partial class BundledContentHolder : MonoBehaviour
     /// </summary>
     public bool UseSceneProvidedHere = false;
 
+    public Shader UrpShader;
     /// <summary>
     /// Retrieves the appropriate <see cref="ContentPoliceSelector"/> for the specified selector type.
     /// </summary>

@@ -78,7 +78,6 @@ namespace Basis.Scripts.Drivers
             // Cache renderers and prep avatar layer/tpose
             SkinnedMeshRenderer = Player.BasisAvatar.Animator.GetComponentsInChildren<SkinnedMeshRenderer>(true);
             SkinnedMeshRendererLength = SkinnedMeshRenderer.Length;
-            SetupAvatarLayers(Player, BasisLayerMapper.RemoteAvatarLayer);
             PutAvatarIntoTPose();
 
             RemotePlayer.BasisAvatar.HumanScale = RemotePlayer.BasisAvatar.Animator.humanScale;
@@ -125,7 +124,8 @@ namespace Basis.Scripts.Drivers
                 RemotePlayer.RemoteFaceDriver.Initialize(Player, RemotePlayer.BasisAvatar);
             }
             // Renderer perf flags
-            UpdateWhenOffscreenAndDisableMatrixRecal(false);
+            RenderMeshSettings(false,BasisLayerMapper.RemoteAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer, false, false);
+
             RemotePlayer.BasisAvatar.Animator.logWarnings = false;
 
             // Ensure stale data is removed
@@ -277,21 +277,6 @@ namespace Basis.Scripts.Drivers
             else
             {
                 return false;
-            }
-        }
-
-        /// <summary>
-        /// Bulk-sets <see cref="SkinnedMeshRenderer.updateWhenOffscreen"/> and disables
-        /// per-render matrix recalculation for all cached renderers.
-        /// </summary>
-        /// <param name="State">Desired <see cref="SkinnedMeshRenderer.updateWhenOffscreen"/> state.</param>
-        public void UpdateWhenOffscreenAndDisableMatrixRecal(bool State)
-        {
-            for (int Index = 0; Index < SkinnedMeshRendererLength; Index++)
-            {
-                SkinnedMeshRenderer Render = SkinnedMeshRenderer[Index];
-                Render.updateWhenOffscreen = State;
-                Render.forceMatrixRecalculationPerRender = false;
             }
         }
     }
