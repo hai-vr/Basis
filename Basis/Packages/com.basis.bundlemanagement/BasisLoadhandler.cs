@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using static basisSerialize;
+using static BasisSerialization;
 using static BundledContentHolder;
 public static class BasisLoadHandler
 {
@@ -211,7 +211,7 @@ public static class BasisLoadHandler
             BasisDebug.Log("Disc info updated.", BasisDebug.LogTag.Event);
         }
         string filePath = BasisIOManagement.GenerateFilePath($"{discInfo.UniqueVersion}{BasisBeeConstants.BasisMetaExtension}", BasisBeeConstants.AssetBundlesFolder);
-        byte[] serializedData = basisSerialize.SerializeValue(discInfo, DataFormat.Binary);
+        byte[] serializedData = BasisSerialization.SerializeValue(discInfo);
 
         try
         {
@@ -285,7 +285,7 @@ public static class BasisLoadHandler
                 try
                 {
                     byte[] fileData = await File.ReadAllBytesAsync(file);
-                    BasisBEEExtensionMeta discInfo = basisSerialize.DeserializeValue<BasisBEEExtensionMeta>(fileData, DataFormat.Binary);
+                    BasisBEEExtensionMeta discInfo = BasisSerialization.DeserializeValue<BasisBEEExtensionMeta>(fileData);
                     OnDiscData.TryAdd(discInfo.StoredRemote.RemoteBeeFileLocation, discInfo);
                 }
                 catch (Exception ex)

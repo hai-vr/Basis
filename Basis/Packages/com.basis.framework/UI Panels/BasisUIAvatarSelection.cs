@@ -159,10 +159,23 @@ namespace Basis.Scripts.UI.UI_Panels
                     Url = loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation
                 };
 
-                if (!BasisDataStoreAvatarKeys.DisplayKeys().Exists(k => k.Url == key.Url && k.Pass == key.Pass))
+                BasisDataStoreAvatarKeys.AvatarKey[] keys = BasisDataStoreAvatarKeys.DisplayKeys();
+                bool found = false;
+                for (int keysIndex = 0; keysIndex < keys.Length; keysIndex++)
+                {
+                    var cur = keys[keysIndex];
+                    if (cur != null && cur.Url == key.Url && cur.Pass == key.Pass)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
                 {
                     await BasisDataStoreAvatarKeys.AddNewKey(key);
                 }
+
             }
 
             // Work on a copy to prevent modification issues
@@ -355,9 +368,9 @@ namespace Basis.Scripts.UI.UI_Panels
                         {
                             await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, Report, CancellationToken);
                             SelectionButton.Text.text = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName;
-                            if (wrapper.LoadableBundle.BasisBundleConnector.ImageBytes != null)
+                            if (wrapper.LoadableBundle.BasisBundleConnector.ImageBase64 != null)
                             {
-                                SelectionButton.Image.texture = BasisTextureCompression.FromPngBytes(wrapper.LoadableBundle.BasisBundleConnector.ImageBytes);
+                                SelectionButton.Image.texture = BasisTextureCompression.FromPngBytes(wrapper.LoadableBundle.BasisBundleConnector.ImageBase64);
                                 AvatarImages.Add(SelectionButton.Image.texture);
                             }
                             else
@@ -429,9 +442,9 @@ namespace Basis.Scripts.UI.UI_Panels
                             break;
                     }
                 }
-                if (avatarLoadRequest.BasisBundleConnector.ImageBytes != null)
+                if (avatarLoadRequest.BasisBundleConnector.ImageBase64 != null)
                 {
-                    AvatarBigImage.texture = BasisTextureCompression.FromPngBytes(avatarLoadRequest.BasisBundleConnector.ImageBytes);
+                    AvatarBigImage.texture = BasisTextureCompression.FromPngBytes(avatarLoadRequest.BasisBundleConnector.ImageBase64);
                     AvatarImages.Add(AvatarBigImage.texture);
                 }
                 else

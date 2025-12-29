@@ -32,8 +32,20 @@ namespace Basis.BasisUI
                     Pass = loadableBundle.UnlockPassword,
                     Url = loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation
                 };
+                BasisDataStoreAvatarKeys.AvatarKey[] keys = BasisDataStoreAvatarKeys.DisplayKeys();
 
-                if (!BasisDataStoreAvatarKeys.DisplayKeys().Exists(k => k.Url == key.Url && k.Pass == key.Pass))
+                bool found = false;
+                for (int Index = 0; Index < keys.Length; Index++)
+                {
+                    var cur = keys[Index];
+                    if (cur != null && cur.Url == key.Url && cur.Pass == key.Pass)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
                 {
                     await BasisDataStoreAvatarKeys.AddNewKey(key);
                 }
@@ -137,12 +149,12 @@ namespace Basis.BasisUI
                         await BasisBeeManagement.HandleMetaOnlyLoad(Wrapper, report, cancellationToken);
                         if (cancellationToken.IsCancellationRequested) return;
                         title = Wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName;
-                        byte[] imageBytes = Wrapper.LoadableBundle.BasisBundleConnector.ImageBytes;
+                        string imageBytes = Wrapper.LoadableBundle.BasisBundleConnector.ImageBase64;
                         if (imageBytes != null)
                         {
                             IconTexture =
                                 BasisTextureCompression.FromPngBytes(Wrapper.LoadableBundle.BasisBundleConnector
-                                    .ImageBytes);
+                                    .ImageBase64);
                             IconSprite = Sprite.Create(IconTexture,
                                 new Rect(0, 0, IconTexture.width, IconTexture.height), Vector2.zero);
                         }

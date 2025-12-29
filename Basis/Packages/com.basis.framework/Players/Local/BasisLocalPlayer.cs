@@ -247,7 +247,7 @@ namespace Basis.Scripts.BasisSdk.Players
             if (BasisLoadHandler.IsMetaDataOnDisc(LastUsedAvatar.UniqueID, out BasisBEEExtensionMeta info))
             {
                 await BasisDataStoreAvatarKeys.LoadKeys();
-                List<BasisDataStoreAvatarKeys.AvatarKey> activeKeys = BasisDataStoreAvatarKeys.DisplayKeys();
+                BasisDataStoreAvatarKeys.AvatarKey[] activeKeys = BasisDataStoreAvatarKeys.DisplayKeys();
                 foreach (BasisDataStoreAvatarKeys.AvatarKey Key in activeKeys)
                 {
                     if (Key.Url == LastUsedAvatar.UniqueID)

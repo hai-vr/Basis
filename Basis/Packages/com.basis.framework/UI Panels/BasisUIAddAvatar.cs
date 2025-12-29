@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace Basis.Scripts.UI.UI_Panels
@@ -202,9 +203,18 @@ namespace Basis.Scripts.UI.UI_Panels
                     return;
                 }
 
-                List<BasisDataStoreAvatarKeys.AvatarKey> activeKeys = BasisDataStoreAvatarKeys.DisplayKeys();
-                bool keyExists = activeKeys.Exists(key => key.Url == url && key.Pass == password);
-
+                BasisDataStoreAvatarKeys.AvatarKey[] keys = BasisDataStoreAvatarKeys.DisplayKeys();
+                bool keyExists = false;
+                for (int Index = 0; Index < keys.Length; Index++)
+                {
+                    var cur = keys[Index];
+                    if (cur != null && cur.Url == url && cur.Pass == password)
+                    {
+                        keyExists = true;
+                        break;
+                    }
+                }
+                
                 if (keyExists)
                 {
                     DisplayError("The avatar key with the same URL and Password already exists. No duplicate will be added.");

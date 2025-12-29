@@ -7,16 +7,18 @@ using UnityEngine;
 public class BasisBundleConnector
 {
     public string UniqueVersion;
+    [SerializeField]
     public BasisBundleDescription BasisBundleDescription;
+    [SerializeField]
     public BasisBundleGenerated[] BasisBundleGenerated;
-    public byte[] ImageBytes;
+    public string ImageBase64;
     public string DateOfCreation;
-    public BasisBundleConnector(string version, BasisBundleDescription basisBundleDescription, BasisBundleGenerated[] basisBundleGenerated, byte[] imageBytes)
+    public BasisBundleConnector(string version, BasisBundleDescription basisBundleDescription, BasisBundleGenerated[] basisBundleGenerated, string imageBytes)
     {
         UniqueVersion = version ?? throw new ArgumentNullException(nameof(version));
         BasisBundleDescription = basisBundleDescription ?? throw new ArgumentNullException(nameof(basisBundleDescription));
         BasisBundleGenerated = basisBundleGenerated ?? throw new ArgumentNullException(nameof(basisBundleGenerated));
-        ImageBytes = imageBytes;
+        ImageBase64 = imageBytes;
         DateOfCreation = DateTime.UtcNow.ToString("o");
     }
     public BasisBundleConnector()

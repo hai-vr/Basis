@@ -1,13 +1,14 @@
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Basis.Scripts.BasisSdk.Players;
-using Basis.Scripts.UI.UI_Panels;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace Basis.BasisUI
 {
@@ -96,8 +97,17 @@ namespace Basis.BasisUI
                 }
 
                 // Does the avatar list contain the given URL?
-                List<BasisDataStoreAvatarKeys.AvatarKey> activeKeys = BasisDataStoreAvatarKeys.DisplayKeys();
-                bool keyExists = activeKeys.Exists(key => key.Url == processedUrl && key.Pass == password);
+                BasisDataStoreAvatarKeys.AvatarKey[] activeKeys = BasisDataStoreAvatarKeys.DisplayKeys();
+                bool keyExists = false;
+                for (int keysIndex = 0; keysIndex < activeKeys.Length; keysIndex++)
+                {
+                    var cur = activeKeys[keysIndex];
+                    if (cur != null && cur.Url == processedUrl && cur.Pass == password)
+                    {
+                        keyExists = true;
+                        break;
+                    }
+                }
 
                 if (keyExists)
                 {

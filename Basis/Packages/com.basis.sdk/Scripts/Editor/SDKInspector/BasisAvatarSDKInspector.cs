@@ -340,7 +340,7 @@ public partial class BasisAvatarSDKInspector : Editor
             {
                 Image = AssetPreview.GetAssetPreview(Avatar.gameObject);
             }
-            byte[] ImageBytes = null;
+            string ImageBytes = null;
             if (Image != null)
             {
                 ImageBytes = BasisTextureCompression.ToPngBytes(Image);

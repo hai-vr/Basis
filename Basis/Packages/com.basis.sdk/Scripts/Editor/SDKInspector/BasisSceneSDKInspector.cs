@@ -64,7 +64,7 @@ public class BasisSceneSDKInspector : Editor
             return;
         }
         Texture2D Image = AssetPreview.GetAssetPreview(BasisScene);
-        byte[] ImageBytes = null;
+        string ImageBytes = null;
         if (Image != null)
         {
             ImageBytes = BasisTextureCompression.ToPngBytes(Image);

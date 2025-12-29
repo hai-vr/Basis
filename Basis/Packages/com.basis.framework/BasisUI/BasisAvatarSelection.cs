@@ -127,9 +127,9 @@ namespace Basis.BasisUI
                     {
                         await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, Report, CancellationToken);
                         title = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName;
-                        if (wrapper.LoadableBundle.BasisBundleConnector.ImageBytes != null)
+                        if (wrapper.LoadableBundle.BasisBundleConnector.ImageBase64 != null)
                         {
-                            texture = BasisTextureCompression.FromPngBytes(wrapper.LoadableBundle.BasisBundleConnector.ImageBytes);
+                            texture = BasisTextureCompression.FromPngBytes(wrapper.LoadableBundle.BasisBundleConnector.ImageBase64);
                         }
                         else
                         {

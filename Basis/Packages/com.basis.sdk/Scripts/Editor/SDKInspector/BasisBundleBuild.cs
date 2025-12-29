@@ -8,13 +8,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
-using static basisSerialize;
+using static BasisSerialization;
 
 public static class BasisBundleBuild
 {
     public static event Func<BasisContentBase, List<BuildTarget>, Task> PreBuildBundleEvents;
 
-    public static async Task<(bool, string)> GameObjectBundleBuild(byte[] Image, BasisContentBase BasisContentBase, List<BuildTarget> Targets,bool useProvidedPassword = false, string OverridenPassword = "")
+    public static async Task<(bool, string)> GameObjectBundleBuild(string Image, BasisContentBase BasisContentBase, List<BuildTarget> Targets,bool useProvidedPassword = false, string OverridenPassword = "")
     {
         int TargetCount = Targets.Count;
         for (int Index = 0; Index < TargetCount; Index++)
@@ -35,7 +35,7 @@ public static class BasisBundleBuild
         Debug.Log($"{target.ToString()} Build Target Installed: {isSupported}");
         return isSupported;
     }
-    public static async Task<(bool, string)> SceneBundleBuild(byte[] Image,BasisContentBase BasisContentBase, List<BuildTarget> Targets,bool useProvidedPassword = false, string OverridenPassword = "")
+    public static async Task<(bool, string)> SceneBundleBuild(string Image,BasisContentBase BasisContentBase, List<BuildTarget> Targets,bool useProvidedPassword = false, string OverridenPassword = "")
     {
         int TargetCount = Targets.Count;
         for (int Index = 0; Index < TargetCount; Index++)
@@ -48,7 +48,7 @@ public static class BasisBundleBuild
         UnityEngine.SceneManagement.Scene Scene = BasisContentBase.gameObject.scene;
         return await BuildBundle(BasisContentBase, Image, Targets, useProvidedPassword, OverridenPassword, (content, obj, hex, target) => BasisAssetBundlePipeline.BuildAssetBundle(Scene, obj, hex, target));
     }
-    public static async Task<(bool, string)> BuildBundle(BasisContentBase basisContentBase, byte[] Images, List<BuildTarget> targets, bool useProvidedPassword, string OverridenPassword, Func<BasisContentBase, BasisAssetBundleObject, string, BuildTarget, Task<(bool, (BasisBundleGenerated, AssetBundleBuilder.InformationHash))>> buildFunction)
+    public static async Task<(bool, string)> BuildBundle(BasisContentBase basisContentBase, string Images, List<BuildTarget> targets, bool useProvidedPassword, string OverridenPassword, Func<BasisContentBase, BasisAssetBundleObject, string, BuildTarget, Task<(bool, (BasisBundleGenerated, AssetBundleBuilder.InformationHash))>> buildFunction)
     {
         try
         {
@@ -118,7 +118,7 @@ public static class BasisBundleBuild
             string generatedID = BasisGenerateUniqueID.GenerateUniqueID();
             BasisBundleConnector basisBundleConnector = new BasisBundleConnector(generatedID, basisContentBase.BasisBundleDescription, bundles,Images);
 
-            byte[] BasisbundleconnectorUnEncrypted = basisSerialize.SerializeValue<BasisBundleConnector>(basisBundleConnector, DataFormat.JSON);
+            byte[] BasisbundleconnectorUnEncrypted = BasisSerialization.SerializeValue<BasisBundleConnector>(basisBundleConnector);
             var BasisPassword = new BasisEncryptionWrapper.BasisPassword
             {
                 VP = Password

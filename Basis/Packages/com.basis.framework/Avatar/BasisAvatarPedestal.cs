@@ -142,9 +142,9 @@ public class BasisAvatarPedestal : BasisInteractableObject
                                 else
                                 {
                                     await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, BasisProgressReport, cancellationToken);
-                                    if (wrapper.LoadableBundle.BasisBundleConnector.ImageBytes != null)
+                                    if (wrapper.LoadableBundle.BasisBundleConnector.ImageBase64 != null)
                                     {
-                                        LoadedImage = BasisTextureCompression.FromPngBytes(wrapper.LoadableBundle.BasisBundleConnector.ImageBytes);
+                                        LoadedImage = BasisTextureCompression.FromPngBytes(wrapper.LoadableBundle.BasisBundleConnector.ImageBase64);
                                     }
                                     else
                                     {
