@@ -48,7 +48,6 @@
   <Project Path="BasisSDKEditor.csproj" />
   <Project Path="com.gator-dragon-games.jigglephysics.csproj" />
   <Project Path="Unity.UnifiedRayTracing.Runtime.csproj" />
-  <Project Path="BasisSerializer.OdinSerializer.csproj" />
   <Project Path="Unity.VisualEffectGraph.Runtime.csproj" />
   <Project Path="Unity.Services.Core.Editor.csproj" />
   <Project Path="Unity.Burst.CodeGen.csproj" />

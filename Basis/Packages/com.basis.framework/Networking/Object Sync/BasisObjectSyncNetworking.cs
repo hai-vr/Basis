@@ -4,12 +4,10 @@ using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.NetworkedAvatar;
-using BasisSerializer.OdinSerializer;
 using Basis.Network.Core;
 using UnityEngine;
 public class BasisObjectSyncNetworking : BasisNetworkBehaviour
 {
-    [PreviouslySerializedAs("InteractableObjects")]
     public BasisPickupInteractable BasisPickupInteractable;
     public bool CanNetworkSteal = true;
     [SerializeField]

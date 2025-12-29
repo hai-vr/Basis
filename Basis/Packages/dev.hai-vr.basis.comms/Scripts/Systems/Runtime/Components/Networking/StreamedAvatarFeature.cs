@@ -212,19 +212,26 @@ namespace HVR.Basis.Comms
 
         private bool TryDecode(ArraySegment<byte> subBuffer, out StreamedAvatarFeaturePayload result)
         {
-            var dataStart = 1;
+            const int dataStart = 1;
+
             if (subBuffer.Count != dataStart + valueArraySize)
             {
                 result = default;
                 return false;
             }
 
-            var deltaTimeInFractions = subBuffer.get_Item(0);
+            var buffer = subBuffer.Array;
+            var offset = subBuffer.Offset;
 
-            var floatValues = new float[subBuffer.Count]; // FIXME: Wasteful alloc
-            for (var dataIndex = 0; dataIndex < valueArraySize; dataIndex++)
+            // First byte: delta time
+            var deltaTimeInFractions = buffer[offset];
+
+            // Only allocate what you actually need
+            var floatValues = new float[valueArraySize];
+
+            for (var i = 0; i < valueArraySize; i++)
             {
-                floatValues[dataIndex] = subBuffer.get_Item(dataStart + dataIndex) / EncodingRange;
+                floatValues[i] = buffer[offset + dataStart + i] / EncodingRange;
             }
 
             result = new StreamedAvatarFeaturePayload

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Behaviour;
@@ -171,12 +171,25 @@ namespace HVR.Basis.Comms
 
         private void OnEventReceived(ArraySegment<byte> subBuffer)
         {
-            if (subBuffer.Count != 1) { HVRLogging.ProtocolError("Protocol error (in ObjectStateActuation): Unexpected length."); return; }
+            if (subBuffer.Count != 1)
+            {
+                HVRLogging.ProtocolError("Protocol error (in ObjectStateActuation): Unexpected length.");
+                return;
+            }
 
-            var item = subBuffer.get_Item(0);
-            if (item > 1) { HVRLogging.ProtocolError("Protocol error (in ObjectStateActuation): Unexpected value."); return; }
+            var buffer = subBuffer.Array;
+            var offset = subBuffer.Offset;
 
-            var state = item == 1;
+            byte item = buffer[offset];
+
+            if (item > 1)
+            {
+                HVRLogging.ProtocolError("Protocol error (in ObjectStateActuation): Unexpected value.");
+                return;
+            }
+
+            bool state = (item == 1);
+
             if (_currentTargetState != state)
             {
                 InternalConfirmedUpdateStateChange(state);

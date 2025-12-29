@@ -1,4 +1,3 @@
-using BasisSerializer.OdinSerializer;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -9,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
+using static basisSerialize;
 
 public static class BasisBundleBuild
 {
@@ -118,7 +118,7 @@ public static class BasisBundleBuild
             string generatedID = BasisGenerateUniqueID.GenerateUniqueID();
             BasisBundleConnector basisBundleConnector = new BasisBundleConnector(generatedID, basisContentBase.BasisBundleDescription, bundles,Images);
 
-            byte[] BasisbundleconnectorUnEncrypted = BasisSerializer.OdinSerializer.SerializationUtility.SerializeValue<BasisBundleConnector>(basisBundleConnector, DataFormat.JSON);
+            byte[] BasisbundleconnectorUnEncrypted = basisSerialize.SerializeValue<BasisBundleConnector>(basisBundleConnector, DataFormat.JSON);
             var BasisPassword = new BasisEncryptionWrapper.BasisPassword
             {
                 VP = Password

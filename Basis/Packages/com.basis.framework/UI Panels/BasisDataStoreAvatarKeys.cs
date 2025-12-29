@@ -1,8 +1,8 @@
-using BasisSerializer.OdinSerializer;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using UnityEngine;
+using static basisSerialize;
 
 namespace Basis.Scripts.UI.UI_Panels
 {
@@ -52,7 +52,7 @@ namespace Basis.Scripts.UI.UI_Panels
                 try
                 {
                     byte[] byteData = await File.ReadAllBytesAsync(FilePath);
-                    keys = SerializationUtility.DeserializeValue<List<AvatarKey>>(byteData, DataFormat.Binary);
+                    keys = basisSerialize.DeserializeValue<List<AvatarKey>>(byteData, DataFormat.Binary);
                     BasisDebug.Log("Keys loaded successfully. Count: " + keys.Count);
                 }
                 catch (System.Exception e)
@@ -70,7 +70,7 @@ namespace Basis.Scripts.UI.UI_Panels
         {
             try
             {
-                byte[] byteData = SerializationUtility.SerializeValue<List<AvatarKey>>(keys, DataFormat.Binary);
+                byte[] byteData = basisSerialize.SerializeValue<List<AvatarKey>>(keys, DataFormat.Binary);
                 await File.WriteAllBytesAsync(FilePath, byteData);
                 BasisDebug.Log($"Keys saved to file at: {FilePath}");
             }
