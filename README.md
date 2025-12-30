@@ -85,7 +85,6 @@ Distributed under the MIT License. See [MIT License](https://opensource.org/lice
  ### Built With
 
 This would not be possible without the following:
-- [OdinSerializer](https://github.com/TeamSirenix/odin-serializer)
 - [ULipSync](https://github.com/hecomi/uLipSync)
 - [UnityJigglePhysics](https://github.com/naelstrof/UnityJigglePhysics)
 - [opussharp](https://github.com/AvionBlock/OpusSharp)
