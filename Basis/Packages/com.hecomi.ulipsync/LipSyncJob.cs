@@ -26,7 +26,6 @@ namespace uLipSync
         [ReadOnly] public NativeArray<float> phonemes;
 
         // NEW: Silence handling (set these from your caller)
-        [ReadOnly] public float silenceRmsThreshold; // e.g. 2e-4f
         [ReadOnly] public int restPhonemeIndex;    // index of neutral/closed mouth
 
         public NativeArray<float> mfcc;
@@ -42,17 +41,8 @@ namespace uLipSync
         public int MFCCLength;
         public void Execute()
         {
-            float volume = Algorithm.GetRMSVolume(input);
-
             ScoresLength = scores.Length;
             MFCCLength = mfcc.Length;
-            // ----- Silence gate: if RMS is tiny, force stable rest output and exit fast -----
-            if (volume <= silenceRmsThreshold)
-            {
-                OneHotRest(scores, restPhonemeIndex);
-                info[0] = new Info { volume = volume, mainPhonemeIndex = SafeRestIndex(restPhonemeIndex, ScoresLength) };
-                return;
-            }
 
             Algorithm.CopyRingBuffer(input, out var buffer, startIndex);
             Algorithm.LowPassFilter(ref buffer, outputSampleRate, targetSampleRate / 2, range);
@@ -85,7 +75,7 @@ namespace uLipSync
             if (IsLowEnergy())
             {
                 OneHotRest(scores, restPhonemeIndex);
-                info[0] = new Info { volume = volume, mainPhonemeIndex = SafeRestIndex(restPhonemeIndex, ScoresLength) };
+                info[0] = new Info { volume = Algorithm.GetRMSVolume(input), mainPhonemeIndex = SafeRestIndex(restPhonemeIndex, ScoresLength) };
                 buffer.Dispose();
                 data.Dispose();
                 spectrum.Dispose();
@@ -100,7 +90,7 @@ namespace uLipSync
 
             info[0] = new Info
             {
-                volume = volume,
+                volume = Algorithm.GetRMSVolume(input),
                 mainPhonemeIndex = winner
             };
             buffer.Dispose();

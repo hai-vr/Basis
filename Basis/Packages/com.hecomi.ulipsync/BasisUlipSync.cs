@@ -112,7 +112,6 @@ namespace uLipSync
                 compareMethod = profile.compareMethod,
                 scores = _scores,
                 info = _info,
-                silenceRmsThreshold = 0.05f,
                 restPhonemeIndex = 0,
             };
 
@@ -216,12 +215,18 @@ namespace uLipSync
                 var bs = infos[i];
                 int bsIndex = bs.index;
 
-                if ((uint)bsIndex >= (uint)meshBlendShapeCount) continue;
+                if ((uint)bsIndex >= (uint)meshBlendShapeCount)
+                {
+                    continue;
+                }
 
                 MultipliedWeight = bs.weight * baseMultiply;
                 finalWeight = math.clamp(MultipliedWeight, 0f, 100f);
 
-                if (float.IsNaN(finalWeight)) finalWeight = 0f;
+                if (float.IsNaN(finalWeight))
+                {
+                    finalWeight = 0f;
+                }
 
                 smr.SetBlendShapeWeight(bsIndex, finalWeight);
             }
