@@ -38,7 +38,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public void ClearAdditional() => SendingOutAvatarData.Clear();
         public override void Initialize()
         {
-            TransmissionResults.LastIndexLength = -1;
+            TransmissionResults.Initalize();
             AudioTransmission.Initialize(this);
             OnAvatarCalibrationLocal();
 
@@ -52,6 +52,7 @@ namespace Basis.Scripts.Networking.Transmitters
         }
         public override void DeInitialize()
         {
+            TransmissionResults.DeInitalize();
             AudioTransmission?.DeInitialize();
 
             if (HasEvents)
@@ -59,7 +60,6 @@ namespace Basis.Scripts.Networking.Transmitters
                 Player.OnAvatarSwitched -= OnAvatarCalibrationLocal;
                 Player.OnAvatarSwitched -= SendOutAvatarChange;
                 AfterAvatarChanges -= TransmissionResults.Simulate;
-                TransmissionResults.ReleaseResults();
                 HasEvents = false;
             }
             BasisRemoteFaceManagement.Dispose();
