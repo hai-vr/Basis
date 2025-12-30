@@ -291,6 +291,7 @@ public static class BasisLoadHandler
                 catch (Exception ex)
                 {
                     BasisDebug.LogError($"Failed to load disc info from {file}: {ex.Message}", BasisDebug.LogTag.Event);
+                    File.Delete(file);
                 }
             }));
         }

@@ -4880,6 +4880,110 @@ MonoBehaviour:
       BasisBundleGenerated: []
       ImageBase64: 
       DateOfCreation: 
+  - UnlockPassword: 09b3bae8699e472fd2de60872f25f40776dd0daa66a79ea562de4bfa1867bd4e
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://cdn.yewnyx.net/basis/gymcat/1/66ef7c78f045459eac9e6cf64b58a71220251230.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+      ImageBase64: 
+      DateOfCreation: 
+  - UnlockPassword: 344c5837d816a975fbe0879c443cff3b49b379465a7508da575fec6a6e51c69d
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://cdn.yewnyx.net/basis/space/1/d03026bcac1b47e1b1a77ab7821a0bd620251230.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+      ImageBase64: 
+      DateOfCreation: 
+  - UnlockPassword: cbab94357ce69a7d0e5b3b268a1752a0de3551713aa1297d7c6a526c42b34f8f
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://cdn.yewnyx.net/basis/space_noet/1/f78b0c36182e423bafe9a847c7df16df20251230.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+      ImageBase64: 
+      DateOfCreation: 
+  - UnlockPassword: e4e76d3f304ae352d02c83746e2daf2493c493fb2d618d9a98b36a5899be9115
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://cdn.yewnyx.net/basis/spaceman/1/1029e4e881ff4ad5a542d9e64363136c20251230.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+      ImageBase64: 
+      DateOfCreation: 
+  - UnlockPassword: a52466519c896fdc97716fc0103d4179ac81a9dad28db8fc79a2bab716f7a55f
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://cdn.yewnyx.net/basis/yun/1/a284a2a0da164d65b2d4d854b3d4bfd620251230.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+      ImageBase64: 
+      DateOfCreation: 
+  - UnlockPassword: 635a1b4b342d458ecf163a008aad4430db48df25a83044eff54c1376edc57912
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://cdn.yewnyx.net/basis/yun_noet/1/c22d649fbde84159ad6a111954d9de2220251230.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+      ImageBase64: 
+      DateOfCreation: 
+  - UnlockPassword: 4d06e6f36b24bc173d29206c39a21f043ed7ca29be43bcb30202de4073ae7a41
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/bee2/thirdpartyavatars/leona_ft/b6ee1a2bd1b44ce1825ae5097c2f956620251230.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+      ImageBase64: 
+      DateOfCreation: 
+  - UnlockPassword: 42d94510b226c4d72a7ce811eca5eff87c2426f3668b53aa559403913eed8aaa
+    BasisRemoteBundleEncrypted:
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/bee2/thirdpartyavatars/leona_noft/7c12b73f0c4c40d1a859521a595c999220251230.BEE
+    BasisLocalEncryptedBundle:
+      DownloadedBeeFileLocation: 
+    BasisBundleConnector:
+      UniqueVersion: LoadingAvatar
+      BasisBundleDescription:
+        AssetBundleName: 
+        AssetBundleDescription: 
+      BasisBundleGenerated: []
+      ImageBase64: 
+      DateOfCreation: 
   CreationDateLabel: {fileID: 6096279563017637389}
   FileSizeLabel: {fileID: 5597430267713344022}
   AvatarIDField: {fileID: 2666729407467078028}
