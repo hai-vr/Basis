@@ -1,6 +1,7 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Helpers;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
@@ -30,7 +31,6 @@ public partial class BasisTransmissionResults
     public bool AnyMicrophoneRangeChanged;
     public bool AnyHearingRangeChanged;
     public bool AnyAvatarRangeChanged;
-    public bool AnyIdOrderOrLengthChanged;
 
     [SerializeReference]
     public BasisLocalBoneControl MouthBone;
@@ -45,8 +45,6 @@ public partial class BasisTransmissionResults
     public NativeArray<bool> PrevInMicrophoneRange;
     public NativeArray<bool> PrevInHearingRange;
     public NativeArray<bool> PrevInAvatarRange;
-    public NativeArray<ushort> IndexToPlayerId;
-    public NativeArray<ushort> LastIndexToPlayerId;
     public VoiceReceiversMessage VRM = new VoiceReceiversMessage();
     /// <summary>
     /// Called each frame; drives scheduling of distance job and network sync.
@@ -93,7 +91,6 @@ public partial class BasisTransmissionResults
                 BasisDebug.LogError("Bad TargetPosition Inserted");
                 targetPositions[index] = outgoing;
             }
-            IndexToPlayerId[index] = ID;
         }
         distanceJobHandle = distanceJob.Schedule();
         // Compress avatar state (doesn't touch mouth bone used as input)
@@ -105,13 +102,12 @@ public partial class BasisTransmissionResults
         AnyMicrophoneRangeChanged = distanceJob.AnyChangedArray[0];
         AnyHearingRangeChanged = distanceJob.AnyChangedArray[1];
         AnyAvatarRangeChanged = distanceJob.AnyChangedArray[2];
-        AnyIdOrderOrLengthChanged = distanceJob.AnyChangedArray[3];
 
         SquaredSmallestDistance = distanceJob.SMD[0];
 
-        bool MicrophoneChange = AnyIdOrderOrLengthChanged || AnyMicrophoneRangeChanged;
-        bool HearingChange = AnyIdOrderOrLengthChanged || AnyHearingRangeChanged;
-        bool AvatarChange = AnyIdOrderOrLengthChanged || AnyAvatarRangeChanged;
+        bool MicrophoneChange = IndexChanged || AnyMicrophoneRangeChanged;
+        bool HearingChange = IndexChanged || AnyHearingRangeChanged;
+        bool AvatarChange = IndexChanged || AnyAvatarRangeChanged;
 
         if (HearingChange)
         {
@@ -159,7 +155,6 @@ public partial class BasisTransmissionResults
         MicrophoneRange.CopyTo(PrevInMicrophoneRange);
         hearingRange.CopyTo(PrevInHearingRange);
         AvatarRange.CopyTo(PrevInAvatarRange);
-        IndexToPlayerId.CopyTo(LastIndexToPlayerId);
 
         //update the server with who we are talking to
         if (MicrophoneChange)
@@ -173,7 +168,9 @@ public partial class BasisTransmissionResults
             {
                 if (MicrophoneRange[index])
                 {
-                    TalkingPoints.Add(IndexToPlayerId[index]);
+                    BasisNetworkReceiver remote = snapshot[index];
+                    ushort ID = remote.playerId;
+                    TalkingPoints.Add(ID);
                 }
             }
             BasisNetworkTransmitter.HasReasonToSendAudio = TalkingPoints.Count != 0;
@@ -205,6 +202,7 @@ public partial class BasisTransmissionResults
             var Anim = avatar.Animator;
             BasisAvatarRecorder.StoreData(intervalSeconds, Anim.bodyRotation, Anim.bodyPosition, BasisNetworkTransmitter.HumanPose.muscles, Anim.transform.localScale.y);
         }
+        IndexChanged = false;
         // account for overshoot using the interval that actually accumulated
         timer -= previousInterval;
     }
@@ -226,12 +224,6 @@ public partial class BasisTransmissionResults
         PrevInHearingRange = new NativeArray<bool>(receiverCount, Allocator.Persistent);
         PrevInAvatarRange = new NativeArray<bool>(receiverCount, Allocator.Persistent);
         targetPositions = new NativeArray<float3>(receiverCount, Allocator.Persistent);
-        IndexToPlayerId = new NativeArray<ushort>(receiverCount, Allocator.Persistent);
-        LastIndexToPlayerId = new NativeArray<ushort>(receiverCount, Allocator.Persistent);
-        for (int Index = 0; Index < receiverCount; Index++)
-        {
-            LastIndexToPlayerId[Index] = ushort.MaxValue;//this means that we cant support the full ushort max value but i dont think we will ever need 65535
-        }
 
         distanceJob.distanceSq = distanceSq;
         distanceJob.MicrophoneRange = MicrophoneRange;
@@ -241,8 +233,6 @@ public partial class BasisTransmissionResults
         distanceJob.PrevInHearingRange = PrevInHearingRange;
         distanceJob.PrevInAvatarRange = PrevInAvatarRange;
         distanceJob.targetPositions = targetPositions;
-        distanceJob.IndexToPlayerId = IndexToPlayerId;
-        distanceJob.LastIndexToPlayerId = LastIndexToPlayerId;
     }
     public bool CanDoSimulate(float previousInterval, out BasisAvatar BasisAvatar)
     {
@@ -265,11 +255,13 @@ public partial class BasisTransmissionResults
     }
     public void Initalize()
     {
-        distanceJob.AnyChangedArray = new NativeArray<bool>(4, Allocator.Persistent);
+        distanceJob.AnyChangedArray = new NativeArray<bool>(3, Allocator.Persistent);
         distanceJob.SMD = new NativeArray<float>(1, Allocator.Persistent);
+        BasisNetworkPlayer.OnRemotePlayerJoined += OnPlayerIndexChanged;
     }
     public void DeInitalize()
     {
+        BasisNetworkPlayer.OnRemotePlayerLeft += OnPlayerIndexChanged;
         ReleaseResults();
 
         if (distanceJob.AnyChangedArray.IsCreated)
@@ -281,6 +273,11 @@ public partial class BasisTransmissionResults
         {
             distanceJob.SMD.Dispose();
         }
+    }
+    public bool IndexChanged;
+    public void OnPlayerIndexChanged(BasisNetworkPlayer BNP, BasisRemotePlayer BRP)
+    {
+        IndexChanged = true;
     }
     /// <summary>
     /// Dispose NativeArrays and complete outstanding jobs.
@@ -301,7 +298,5 @@ public partial class BasisTransmissionResults
         if (PrevInMicrophoneRange.IsCreated) PrevInMicrophoneRange.Dispose();
         if (PrevInHearingRange.IsCreated) PrevInHearingRange.Dispose();
         if (PrevInAvatarRange.IsCreated) PrevInAvatarRange.Dispose();
-        if (LastIndexToPlayerId.IsCreated) LastIndexToPlayerId.Dispose();
-        if (IndexToPlayerId.IsCreated) IndexToPlayerId.Dispose();
     }
 }
