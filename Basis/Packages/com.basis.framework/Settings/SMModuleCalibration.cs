@@ -12,7 +12,6 @@ public class SMModuleCalibration : BasisSettingsBase
     // Cache last applied state so we only apply when it actually changes.
     private static bool _hasApplied;
     private static BasisSelectedHeightMode _lastHeightMode;
-    private static float _lastSelectedPlayerHeight;
     private static float _lastSelectedScale;
     private static bool _lastApplyCustomScale;
 
@@ -43,20 +42,6 @@ public class SMModuleCalibration : BasisSettingsBase
 
             case "selectedheight":
                 {
-                    var old = BasisHeightDriver.CustomPlayerEyeHeight;
-                    if (SliderReadOption(optionValue, out var parsed))
-                    {
-                        // Avoid tiny float jitter causing re-apply spam.
-                        if (!Mathf.Approximately(old, parsed))
-                        {
-                            BasisHeightDriver.CustomPlayerEyeHeight = parsed;
-                            _dirty = true;
-                        }
-                    }
-                    else
-                    {
-                        BasisDebug.LogError("Missing Selected Height", BasisDebug.LogTag.Device);
-                    }
                     break;
                 }
 
@@ -122,7 +107,6 @@ public class SMModuleCalibration : BasisSettingsBase
         bool sameAsLast =
             _hasApplied &&
             _lastHeightMode == HeightMode &&
-            Mathf.Approximately(_lastSelectedPlayerHeight, BasisHeightDriver.CustomPlayerEyeHeight) &&
             Mathf.Approximately(_lastSelectedScale, SelectedScale) &&
             _lastApplyCustomScale == ApplyCustomScale;
 
@@ -137,7 +121,6 @@ public class SMModuleCalibration : BasisSettingsBase
         }
         _hasApplied = true;
         _lastHeightMode = HeightMode;
-        _lastSelectedPlayerHeight = BasisHeightDriver.CustomPlayerEyeHeight;
         _lastSelectedScale = SelectedScale;
         _lastApplyCustomScale = ApplyCustomScale;
 
@@ -145,7 +128,6 @@ public class SMModuleCalibration : BasisSettingsBase
 
         BasisDebug.Log(
             $"Applied height settings. HeightMode {HeightMode} " +
-            $"SelectedPlayerHeight {BasisHeightDriver.CustomPlayerEyeHeight}, " +
             $"SelectedScale {SelectedScale}, ApplyCustomScale {ApplyCustomScale}"
         );
     }

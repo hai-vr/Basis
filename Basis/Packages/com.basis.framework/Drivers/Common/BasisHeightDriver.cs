@@ -1,7 +1,6 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
-using UnityEngine;
 public static class BasisHeightDriver
 {
     public static void ApplyScaleAndHeight()
@@ -182,42 +181,30 @@ public static class BasisHeightDriver
     /// not the total height but the eye height
     /// </summary>
     public const float FallbackHeightInMeters = 1.61f;
-
     /// <summary>
     /// Measured eye height for the player (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
     /// </summary>
     public static float PlayerEyeHeight = FallbackHeightInMeters;
-
     /// <summary>
     /// Measured eye height for the avatar (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
     /// </summary>
     public static float AvatarEyeHeight = FallbackHeightInMeters;
-
     /// <summary>
     /// Measured arm span for the player (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
     /// </summary>
     public static float PlayerArmSpan = FallbackHeightInMeters;
-
     /// <summary>
     /// Measured arm span for the avatar (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
     /// </summary>
     public static float AvatarArmSpan = FallbackHeightInMeters;
-
-    /// <summary>
-    /// Custom player eye height (meters) supplied by user or calibration UI.
-    /// </summary>
-    public static float CustomPlayerEyeHeight = FallbackHeightInMeters;
-
     /// <summary>
     /// The player height (meters)"/>.
     /// </summary>
     public static float SelectedPlayerHeight = FallbackHeightInMeters;
-
     /// <summary>
     /// The avatar height (meters)/>.
     /// </summary>
     public static float SelectedAvatarHeight = FallbackHeightInMeters;
-
     /// <summary>
     /// The avatar height (meters)/>.
     /// </summary>
@@ -226,7 +213,6 @@ public static class BasisHeightDriver
     /// The player-to-default scale/>.
     /// </summary>
     public static float PlayerToAvatarScale = 1f;
-
     /// <summary>
     /// The avatar-to-avatar-default scale currently"/>.
     /// </summary>
