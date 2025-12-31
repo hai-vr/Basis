@@ -96,12 +96,6 @@ namespace Basis.Scripts.Eye_Follow
         /// <summary>True if a head transform is present in the current avatar.</summary>
         public static bool HasHead = false;
 
-        /// <summary>Whether a gizmo sphere has been created for the left eye target.</summary>
-        public bool LeftEyeHasGizmo;
-
-        /// <summary>Whether a gizmo sphere has been created for the right eye target.</summary>
-        public bool RightEyeHasGizmo;
-
         /// <summary>Gizmo index for the left eye target sphere.</summary>
         public int LeftEyeGizmoIndex;
 
@@ -331,24 +325,6 @@ namespace Basis.Scripts.Eye_Follow
                 {
                     RightEyeTargetWorld = CenterTargetWorld + RightEyeInitallocalSpace.position;
                     rightEyeTransform.rotation = LookAtTarget(rightEyeTransform.position, RightEyeTargetWorld, math.mul(RightEyeInitallocalSpace.rotation, InversedHeadRotation), Up);
-                }
-
-                if (SMModuleDebugOptions.UseGizmos)
-                {
-                    if (RightEyeHasGizmo)
-                    {
-                        if (BasisGizmoManager.UpdateSphereGizmo(RightEyeGizmoIndex, RightEyeTargetWorld) == false)
-                        {
-                            RightEyeHasGizmo = false;
-                        }
-                    }
-                    if (LeftEyeHasGizmo)
-                    {
-                        if (BasisGizmoManager.UpdateSphereGizmo(LeftEyeGizmoIndex, LeftEyeTargetWorld) == false)
-                        {
-                            LeftEyeHasGizmo = false;
-                        }
-                    }
                 }
             }
         }

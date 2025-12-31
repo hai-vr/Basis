@@ -90,7 +90,7 @@ public static class BasisGizmoManager
     /// <summary>
     /// Updates an existing sphere gizmo.
     /// </summary>
-    public static bool UpdateSphereGizmo(int linkedID, Vector3 position)
+    public static bool UpdateSphereGizmo(int linkedID, Vector3 position,Vector3 Scale)
     {
         if (!Gizmos.TryGetValue(linkedID, out BasisGizmos gizmo))
         {
@@ -99,6 +99,7 @@ public static class BasisGizmoManager
         }
 
         gizmo.UpdatePosition(position);
+        gizmo.UpdateSize(Scale);
         return true;
     }
     public static bool CreateLineGizmo(string GizmoName,int linkedID, Vector3 start, Vector3 end, float width, Color color,GameObject Reference)

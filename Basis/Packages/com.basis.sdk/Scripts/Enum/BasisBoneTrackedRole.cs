@@ -11,39 +11,43 @@ namespace Basis.Scripts.TransformBinders.BoneControl
 
         LeftUpperLeg,
         RightUpperLeg,
+
         LeftLowerLeg,
         RightLowerLeg,
+
         LeftFoot,
         RightFoot,
+
         LeftShoulder,
         RightShoulder,
+
         LeftUpperArm,
         RightUpperArm,
+
         LeftLowerArm,
         RightLowerArm,
+
         LeftHand,
         RightHand,
+
         LeftToes,
         RightToes,
 
         Mouth,
     }
+
     public static class BasisBoneTrackedRoleCommonCheck
     {
         public static bool CheckItsFBTracker(BasisBoneTrackedRole role)
         {
-            return CheckIfHeadAreaTracker(role) == false &&
-                   role != BasisBoneTrackedRole.LeftHand &&
-                   role != BasisBoneTrackedRole.RightHand &&
-                   role != BasisBoneTrackedRole.LeftUpperLeg &&
-                   role != BasisBoneTrackedRole.RightUpperLeg &&
-                   role != BasisBoneTrackedRole.LeftUpperArm &&
-                   role != BasisBoneTrackedRole.RightUpperArm &&
-                   role != BasisBoneTrackedRole.Spine;
-        }
-        public static bool CheckIfHeadAreaTracker(BasisBoneTrackedRole role)
-        {
-            return role == BasisBoneTrackedRole.CenterEye || role == BasisBoneTrackedRole.Head || role == BasisBoneTrackedRole.Neck || role == BasisBoneTrackedRole.Mouth;
+            return role != BasisBoneTrackedRole.LeftHand
+                && role != BasisBoneTrackedRole.RightHand
+
+                && role != BasisBoneTrackedRole.CenterEye
+                && role != BasisBoneTrackedRole.Head
+                && role != BasisBoneTrackedRole.Neck
+                && role != BasisBoneTrackedRole.Mouth
+                && role != BasisBoneTrackedRole.Spine;
         }
     }
 }

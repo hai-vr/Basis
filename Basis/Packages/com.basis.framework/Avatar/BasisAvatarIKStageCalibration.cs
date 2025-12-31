@@ -106,23 +106,28 @@ namespace Basis.Scripts.Avatar
             }
             List<BasisTrackerMapping> boneTransformMappings = new List<BasisTrackerMapping>();
             int Count = trackInputRoles.Count;
-            Dictionary<BasisBoneTrackedRole, Transform> StoredRolesTransforms = GetAllRolesAsTransform();
+            Dictionary<BasisBoneTrackedRole, Transform> StoredRolesTransforms = BasisLocalPlayer.Instance.LocalAvatarDriver.StoredRolesTransforms;
             for (int Index = 0; Index < Count; Index++)
             {
                 BasisBoneTrackedRole role = trackInputRoles[Index];
                 if (BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out BasisLocalBoneControl control, role))
                 {
-                    float ScaledDistance = MaxDistanceBeforeTrackerIsIrrelivant(role) * BasisHeightDriver.PlayerToAvatarScale;
-                    BasisDebug.Log("Using a scaler of  " + BasisHeightDriver.PlayerToAvatarScale + " leading to a scaled Distance of " + ScaledDistance);
+                    //0.3f * 1 
+                    float ScaledDistance = MaxDistanceBeforeTrackerIsIrrelivant(role) * BasisHeightDriver.heightScaleFactor;
                     if (StoredRolesTransforms.TryGetValue(role, out Transform Transform))
                     {
+                      //  BasisLocalPlayer.Instance.LocalBoneDriver.AddGizmo($"{control.name} IK Calibration with Scaler Distance {ScaledDistance}", Transform, ScaledDistance, control.Color, role);
                         BasisTrackerMapping mapping = new BasisTrackerMapping(control, Transform, role, connectors, ScaledDistance);
                         boneTransformMappings.Add(mapping);
+                    }
+                    else
+                    {
+                        BasisDebug.LogError($"Missing Mapping in Roles Transforms {role}");
                     }
                 }
                 else
                 {
-                    BasisDebug.LogError("Missing bone control for role " + role);
+                    BasisDebug.LogError($"Missing bone control for role {role}");
                 }
             }
             List<BasisBoneTrackedRole> roles = new List<BasisBoneTrackedRole>();
@@ -216,22 +221,25 @@ namespace Basis.Scripts.Avatar
        // { BasisBoneTrackedRole.RightEye, RightEye },
 
         { BasisBoneTrackedRole.LeftShoulder, Mapping.leftShoulder },
-        { BasisBoneTrackedRole.LeftUpperArm, Mapping.leftUpperArm },
-        { BasisBoneTrackedRole.LeftLowerArm, Mapping.leftLowerArm },
-        { BasisBoneTrackedRole.LeftHand, Mapping.leftHand },
-
         { BasisBoneTrackedRole.RightShoulder, Mapping.RightShoulder },
+
+        { BasisBoneTrackedRole.LeftUpperArm, Mapping.leftUpperArm },
         { BasisBoneTrackedRole.RightUpperArm,Mapping. RightUpperArm },
+
         { BasisBoneTrackedRole.RightLowerArm, Mapping.RightLowerArm },
+        { BasisBoneTrackedRole.LeftLowerArm, Mapping.leftLowerArm },
+
+        { BasisBoneTrackedRole.LeftHand, Mapping.leftHand },
         { BasisBoneTrackedRole.RightHand, Mapping.rightHand },
 
         { BasisBoneTrackedRole.LeftUpperLeg,Mapping.LeftUpperLeg },
         { BasisBoneTrackedRole.LeftLowerLeg,Mapping. LeftLowerLeg },
+        { BasisBoneTrackedRole.RightUpperLeg, Mapping.RightUpperLeg },
+        { BasisBoneTrackedRole.RightLowerLeg,Mapping. RightLowerLeg },
+
         { BasisBoneTrackedRole.LeftFoot, Mapping.leftFoot },
         { BasisBoneTrackedRole.LeftToes,Mapping. leftToe },
 
-        { BasisBoneTrackedRole.RightUpperLeg, Mapping.RightUpperLeg },
-        { BasisBoneTrackedRole.RightLowerLeg,Mapping. RightLowerLeg },
         { BasisBoneTrackedRole.RightFoot, Mapping.rightFoot },
         { BasisBoneTrackedRole.RightToes,Mapping. rightToe },
             };
@@ -246,8 +254,20 @@ namespace Basis.Scripts.Avatar
 
             switch (role)
             {
+                case BasisBoneTrackedRole.CenterEye:
+                    return 0;
+
+                case BasisBoneTrackedRole.Head:
+                    return 0;
+
+                case BasisBoneTrackedRole.Neck:
+                    return 0;
+                case BasisBoneTrackedRole.Mouth:
+                    return 0;
+                case BasisBoneTrackedRole.Spine:
+                    return 0;
                 case BasisBoneTrackedRole.Chest:
-                    return 0.45f;
+                    return 0.35f;
                 case BasisBoneTrackedRole.Hips:
                     return 0.45f;
 
@@ -257,29 +277,39 @@ namespace Basis.Scripts.Avatar
                     return 0.5f;
 
                 case BasisBoneTrackedRole.LeftFoot:
-                    return 0.5f;
+                    return 0.35f;
                 case BasisBoneTrackedRole.RightFoot:
-                    return 0.5f;
+                    return 0.35f;
 
                 case BasisBoneTrackedRole.LeftShoulder:
-                    return 0.4f;
+                    return 0.3f;
                 case BasisBoneTrackedRole.RightShoulder:
-                    return 0.4f;
+                    return 0.3f;
+
+                case BasisBoneTrackedRole.LeftUpperLeg:
+                    return 0.3f;
+                case BasisBoneTrackedRole.RightUpperLeg:
+                    return 0.3f;
 
                 case BasisBoneTrackedRole.LeftLowerArm:
-                    return 0.6f;
+                    return 0.4f;
                 case BasisBoneTrackedRole.RightLowerArm:
-                    return 0.6f;
+                    return 0.4f;
 
                 case BasisBoneTrackedRole.LeftHand:
-                    return 0.4f;
+                    return 0.2f;
                 case BasisBoneTrackedRole.RightHand:
-                    return 0.4f;
+                    return 0.2f;
 
                 case BasisBoneTrackedRole.LeftToes:
-                    return 0.4f;
+                    return 0.2f;
                 case BasisBoneTrackedRole.RightToes:
-                    return 0.4f;
+                    return 0.2f;
+
+                case BasisBoneTrackedRole.LeftUpperArm:
+                    return 0;
+                case BasisBoneTrackedRole.RightUpperArm:
+                    return 0;
                 default:
                     BasisDebug.LogError($"Unknown role {role}");
                     return 0;
@@ -293,6 +323,7 @@ namespace Basis.Scripts.Avatar
         BasisBoneTrackedRole.Hips,
         BasisBoneTrackedRole.RightFoot,
         BasisBoneTrackedRole.LeftFoot,
+
         BasisBoneTrackedRole.LeftLowerLeg,
         BasisBoneTrackedRole.RightLowerLeg,
         BasisBoneTrackedRole.LeftLowerArm,

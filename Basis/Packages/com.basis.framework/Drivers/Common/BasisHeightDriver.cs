@@ -156,7 +156,6 @@ public static class BasisHeightDriver
         //1.6 / 1.7 = 
         PlayerToAvatarScale = SelectedPlayerHeight / SelectedAvatarHeight * ApplyScale;
         AvatarToPlayerScale = SelectedAvatarHeight / SelectedPlayerHeight * ApplyScale;
-
         if (SelectedPlayerHeight <= 0f)
         {
             SelectedPlayerHeight = 1.6f;
