@@ -493,7 +493,7 @@ public partial class BasisAvatarSDKInspector : Editor
     {
         if (!Application.isPlaying)
         {
-            int result = EditorUtility.DisplayDialogComplex("Confirmation", "this feature requires the editor to be in playmode. do you want to enter play mode now?", "Yes", "No", ""
+            int result = EditorUtility.DisplayDialogComplex("Confirmation", "this feature requires the editor to be in playmode. do you want to enter play mode now? once done you will need to press it again! please also make sure you have a floor in your scene!", "Yes", "No", ""
         );
 
             switch (result)

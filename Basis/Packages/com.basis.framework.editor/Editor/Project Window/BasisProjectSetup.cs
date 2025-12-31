@@ -259,8 +259,8 @@ public partial class BasisProjectSetup : EditorWindow
                     EditorGUILayout.LabelField("Avatar setup — do this:", header);
                     EditorGUILayout.LabelField(
                         "1) Add the component “BasisAvatar” to your avatar root.\n" +
-                        "3) Set viewpoint/eye height as needed.\n" +
-                        "4) Enter Play and sanity check movement/teleport. by clicking test in editor", body);
+                        "2) Set viewpoint/eye height as needed.\n" +
+                        "3) Enter Play and sanity check movement/teleport. by clicking test in editor", body);
 
                     EditorGUILayout.Space(4);
                     using (new EditorGUILayout.HorizontalScope())
