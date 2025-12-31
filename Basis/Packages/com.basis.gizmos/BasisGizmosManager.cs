@@ -72,10 +72,9 @@ public static class BasisGizmoManager
         {
             basisGizmos.ConfigureMeshGizmo(material, Resources.GetBuiltinResource<Mesh>("New-Sphere.fbx"), color);
             Gizmos[linkedID] = basisGizmos;
-
             tempSphere.name = GizmoName;
-            tempSphere.transform.position = position;
-            tempSphere.transform.localScale = Vector3.one * size;
+            basisGizmos.UpdatePosition(position);
+            basisGizmos.UpdateSize(Vector3.one * size);
 
             BasisDebug.Log($"Created SphereGizmo with ID {linkedID}", BasisDebug.LogTag.Gizmo);
             return true;

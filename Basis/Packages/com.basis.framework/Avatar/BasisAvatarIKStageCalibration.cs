@@ -112,8 +112,8 @@ namespace Basis.Scripts.Avatar
                 BasisBoneTrackedRole role = trackInputRoles[Index];
                 if (BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out BasisLocalBoneControl control, role))
                 {
-                    float ScaledDistance = MaxDistanceBeforeTrackerIsIrrelivant(role) * BasisHeightDriver.AvatarToPlayerScale;
-                    BasisDebug.Log("Using a scaler of  " + BasisHeightDriver.AvatarToPlayerScale + " leading to a scaled Distance of " + ScaledDistance);
+                    float ScaledDistance = MaxDistanceBeforeTrackerIsIrrelivant(role) * BasisHeightDriver.PlayerToAvatarScale;
+                    BasisDebug.Log("Using a scaler of  " + BasisHeightDriver.PlayerToAvatarScale + " leading to a scaled Distance of " + ScaledDistance);
                     if (StoredRolesTransforms.TryGetValue(role, out Transform Transform))
                     {
                         BasisTrackerMapping mapping = new BasisTrackerMapping(control, Transform, role, connectors, ScaledDistance);

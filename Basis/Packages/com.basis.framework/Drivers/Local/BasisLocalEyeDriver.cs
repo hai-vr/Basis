@@ -160,7 +160,6 @@ namespace Basis.Scripts.Eye_Follow
                 }
                 HasEvents = false;
             }
-            BasisGizmoManager.OnUseGizmosChanged -= UpdateGizmoUsage;
             if (Player.FaceRenderer != null)
             {
                 Player.FaceRenderer.Check -= UpdateFaceVisibility;
@@ -213,8 +212,6 @@ namespace Basis.Scripts.Eye_Follow
                 rightEyeInitialRotation = rightEyeTransform.localRotation;
             }
 
-            BasisGizmoManager.OnUseGizmosChanged += UpdateGizmoUsage;
-
             if (BasisLocalPlayer.Instance != null && BasisLocalPlayer.Instance.FaceRenderer != null)
             {
                 BasisDebug.Log("Wired up Renderer Check For Blinking");
@@ -237,33 +234,6 @@ namespace Basis.Scripts.Eye_Follow
         private void UpdateFaceVisibility(bool State)
         {
             IsEnabled = State;
-        }
-
-        /// <summary>
-        /// Creates or removes gizmo spheres for eye targets based on <paramref name="State"/>.
-        /// </summary>
-        /// <param name="State">Whether gizmos should be active.</param>
-        public void UpdateGizmoUsage(bool State)
-        {
-            BasisDebug.Log("Running Bone EyeFollow Gizmos");
-            if (State)
-            {
-                if (LeftEyeHasGizmo == false)
-                {
-                    BasisGizmoManager.CreateSphereGizmo("LeftEye Target", out LeftEyeGizmoIndex, LeftEyeTargetWorld, 0.1f, Color.cyan);
-                    LeftEyeHasGizmo = true;
-                }
-                if (RightEyeHasGizmo == false)
-                {
-                    BasisGizmoManager.CreateSphereGizmo("RightEye Target", out RightEyeGizmoIndex, RightEyeTargetWorld, 0.1f, Color.magenta);
-                    RightEyeHasGizmo = true;
-                }
-            }
-            else
-            {
-                LeftEyeHasGizmo = false;
-                RightEyeHasGizmo = false;
-            }
         }
 
         /// <summary>

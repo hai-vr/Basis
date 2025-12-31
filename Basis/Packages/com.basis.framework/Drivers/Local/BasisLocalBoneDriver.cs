@@ -181,7 +181,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void DrawGizmos()
         {
-            float Size = BasisHeightDriver.AvatarToPlayerScale;
+            float Size = BasisHeightDriver.PlayerToAvatarScale;
             for (int Index = 0; Index < ControlsLength; Index++)
             {
                 DrawGizmos(Controls[Index], Size);
