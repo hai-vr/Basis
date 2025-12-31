@@ -193,10 +193,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Compute bit offsets + packed sizes
             sPackedBits = 0;
             var bitOffsManaged = new int[slots];
-            for (int i = 0; i < slots; i++)
+            for (int SlotIndex = 0; SlotIndex < slots; SlotIndex++)
             {
-                bitOffsManaged[i] = sPackedBits;
-                sPackedBits += BasisBitPackingConstants.BITS_PER_SLOT[i];
+                bitOffsManaged[SlotIndex] = sPackedBits;
+                sPackedBits += BasisBitPackingConstants.BITS_PER_SLOT[SlotIndex];
             }
             sPackedBytes = (sPackedBits + 7) >> 3;
 
@@ -213,11 +213,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             sQuantized = new NativeArray<uint>(slots, Allocator.Persistent);
 
             // Fill per-slot arrays
-            for (int i = 0; i < slots; i++)
+            for (int Index = 0; Index < slots; Index++)
             {
-                sOrder[i] = BasisBitPackingConstants.WRITE_ORDER[i];
-                sBitsPerSlot[i] = BasisBitPackingConstants.BITS_PER_SLOT[i];
-                sBitOffsets[i] = bitOffsManaged[i];
+                sOrder[Index] = BasisBitPackingConstants.WRITE_ORDER[Index];
+                sBitsPerSlot[Index] = BasisBitPackingConstants.BITS_PER_SLOT[Index];
+                sBitOffsets[Index] = bitOffsManaged[Index];
             }
 
             // Fill per-muscle LUTs

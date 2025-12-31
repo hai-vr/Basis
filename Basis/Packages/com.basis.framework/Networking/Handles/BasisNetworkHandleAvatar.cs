@@ -12,7 +12,7 @@ public static class BasisNetworkHandleAvatar
 {
     public static ConcurrentQueue<ServerSideSyncPlayerMessage> Message = new ConcurrentQueue<ServerSideSyncPlayerMessage>();
 
-    // Baseline 176-byte array per player (fixed once per player)
+    // Baseline byte array per player (fixed once per player)
     private static readonly ConcurrentDictionary<ushort, byte[]> AvatarBaselines = new ConcurrentDictionary<ushort, byte[]>();
 
     public static void HandleAvatarUpdate(NetPacketReader reader, DeliveryMethod deliveryMethod)

@@ -29,11 +29,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EnsureAllocated()
         {
-            if (IsDisposed)
-            {
-                throw new ObjectDisposedException(nameof(BasisAvatarBuffer));
-            }
-
             if (!Muscles.IsCreated || Muscles.Length != MuscleCount)
             {
                 if (Muscles.IsCreated)
@@ -49,7 +44,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// Reset fields to defaults. Optionally zero the muscle array.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Reset(bool clearMuscles = false)
+        public void Reset()
         {
             if (IsDisposed)
             {
@@ -62,15 +57,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             Scale = new float3(1f, 1f, 1f);
             Position = new float3(0f, 0f, 0f);
             SecondsInterval = 0.01;
-
-            if (clearMuscles && Muscles.IsCreated)
-            {
-                // Simple safe clear; switch to UnsafeUtility.MemClear if you need even more speed.
-                for (int i = 0; i < Muscles.Length; i++)
-                {
-                    Muscles[i] = 0f;
-                }
-            }
         }
 
         public void Dispose()
@@ -114,7 +100,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 {
                     // Pool empty: allocate a fresh buffer.
                     var fresh = new BasisAvatarBuffer();
-                    fresh.Reset(clearMuscles: false);
+                    fresh.Reset();
                     return fresh;
                 }
 
@@ -128,7 +114,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                     // Mark as out of pool.
                     Interlocked.Exchange(ref head.PooledFlag, 0);
 
-                    head.Reset(clearMuscles: false);
+                    head.Reset();
                     return head;
                 }
 
@@ -163,7 +149,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 return;
             }
 
-            item.Reset(clearMuscles: false);
+            item.Reset();
 
             while (true)
             {

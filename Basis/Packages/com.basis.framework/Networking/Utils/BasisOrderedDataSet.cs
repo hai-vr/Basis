@@ -23,9 +23,18 @@ public class BasisOrderedDataSet : MonoBehaviour
 
         for (int i = 0; i < TotalMuscles; i++)
         {
-            MinMuscle[i] = HumanTrait.GetMuscleDefaultMin(i);
-            MaxMuscle[i] = HumanTrait.GetMuscleDefaultMax(i);
-            RangeMuscle[i] = MaxMuscle[i] - MinMuscle[i];
+            if(i == 36 || i == 28)//toe joint up down. 
+            {
+                MinMuscle[i] = -20;
+                MaxMuscle[i] = 20;
+                RangeMuscle[i] = MaxMuscle[i] - MinMuscle[i];
+            }
+            else
+            {
+                MinMuscle[i] = HumanTrait.GetMuscleDefaultMin(i);
+                MaxMuscle[i] = HumanTrait.GetMuscleDefaultMax(i);
+                RangeMuscle[i] = MaxMuscle[i] - MinMuscle[i];
+            }
         }
     }
     // =======================================================

@@ -2,10 +2,8 @@ using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Receivers;
 using System;
-using Unity.Collections;
 using Unity.Mathematics;
 using static SerializableBasis;
-
 namespace Basis.Scripts.Networking.NetworkedAvatar
 {
     public static class BasisNetworkAvatarDecompressor
@@ -19,7 +17,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public static void DecompressAndProcessAvatar(BasisNetworkReceiver baseReceiver, ServerSideSyncPlayerMessage syncMessage)
         {
             if (syncMessage.avatarSerialization.array == null)
+            {
                 throw new ArgumentException("Cannot serialize avatar data.");
+            }
 
             byte[] data = syncMessage.avatarSerialization.array;
             int length = data.Length;
@@ -40,7 +40,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public static void DecompressAndProcessAvatar(BasisNetworkReceiver baseReceiver, LocalAvatarSyncMessage avatarSerialization)
         {
             if (avatarSerialization.array == null)
+            {
                 throw new ArgumentException("Cannot serialize initial avatar data.");
+            }
 
             byte[] data = avatarSerialization.array;
             int length = data.Length;
@@ -67,7 +69,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Reject NaN, Infinity, zero, negative, or insane values
             if (!double.IsFinite(secondsInterval) || secondsInterval <= 0.0 || secondsInterval > 1.0)
             {
-                BasisDebug.LogError($"SecondsInterval was {secondsInterval}, correcting to 0.0166667",BasisDebug.LogTag.Remote);
+                BasisDebug.LogError($"SecondsInterval was {secondsInterval}, correcting to 0.0166667", BasisDebug.LogTag.Remote);
                 secondsInterval = 1.0 / 60.0;
             }
             buffer.SecondsInterval = secondsInterval;
@@ -101,9 +103,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             return math.normalize(q);
         }
-
-        private static bool IsFinite(Unity.Mathematics.float3 v) => math.isfinite(v.x) && math.isfinite(v.y) && math.isfinite(v.z);
-
         public static float MuscleDecompress(ushort value, float minValue, float maxValue)
         {
             float normalized = value / FloatRangeDifference;
@@ -117,13 +116,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (message.AdditionalAvatarDataSize > 0 && message.AdditionalAvatarDatas != null)
             {
                 bool isDifferentAvatar = message.LinkedAvatarIndex != baseReceiver.LastLinkedAvatarIndex;
-                if (isDifferentAvatar) return;
-
-                for (int i = 0; i < message.AdditionalAvatarDataSize; i++)
+                if (isDifferentAvatar)
                 {
-                    AdditionalAvatarData data = message.AdditionalAvatarDatas[i];
+                    return;
+                }
+
+                for (int Index = 0; Index < message.AdditionalAvatarDataSize; Index++)
+                {
+                    AdditionalAvatarData data = message.AdditionalAvatarDatas[Index];
                     if (data.messageIndex < baseReceiver.NetworkBehaviourCount)
+                    {
                         baseReceiver.NetworkBehaviours[data.messageIndex].OnNetworkMessageServerReductionSystem(data.array);
+                    }
                 }
             }
         }
