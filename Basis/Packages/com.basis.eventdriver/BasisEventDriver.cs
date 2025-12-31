@@ -115,6 +115,10 @@ public class BasisEventDriver : MonoBehaviour
         TimeAsDouble = Time.timeAsDouble;
         unscaledDeltaTime = Time.unscaledDeltaTime;
 
+        if (BasisLocalPlayer.PlayerReady)
+        {
+            BasisLocalPlayer.Instance.LocalVisemeDriver.Simulate();
+        }
         // Drain everything that arrived from worker threads
         while (BasisDeviceManagement.mainThreadActions.TryDequeue(out System.Action action))
         {
@@ -163,10 +167,6 @@ public class BasisEventDriver : MonoBehaviour
 
         // JigglePhysics: schedule/complete passes
         JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime);
-        if (BasisLocalPlayer.PlayerReady)
-        {
-            BasisLocalPlayer.Instance.LocalVisemeDriver.Simulate();
-        }
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
 
         JigglePhysics.SchedulePose(TimeAsDouble);
@@ -174,11 +174,12 @@ public class BasisEventDriver : MonoBehaviour
         // Device management tick
         BasisDeviceManagement.OnDeviceManagementLoop?.Invoke();
 
-        // Eye driver (local)
-        if (BasisLocalEyeDriver.RequiresUpdate())
+        if (BasisLocalPlayer.PlayerReady)
         {
-            BasisLocalEyeDriver.Instance.Simulate(DeltaTime);
+            // Eye driver (local)
+            BasisLocalEyeDriver.Simulate(DeltaTime);
         }
+
         BasisRemoteAudioDriver.Simulate();
 #if UNITY_SERVER
 #else
@@ -194,10 +195,6 @@ public class BasisEventDriver : MonoBehaviour
         {
             JigglePhysics.ScheduleRender();
         }
-        if (BasisLocalPlayer.PlayerReady)
-        {
-            BasisLocalPlayer.Instance.LocalVisemeDriver.Apply();
-        }
         BasisRemoteAudioDriver.Apply();
         //doing main thread work before this call is ideal for best performance.
         JigglePhysics.CompletePose();
@@ -207,7 +204,10 @@ public class BasisEventDriver : MonoBehaviour
         }
         BasisRemoteNamePlateDriver.CompleteNamePlates();
 
-
+        if (BasisLocalPlayer.PlayerReady)
+        {
+            BasisLocalPlayer.Instance.LocalVisemeDriver.Apply();
+        }
 #if UNITY_SERVER
         OnBeforeRender();
 #endif

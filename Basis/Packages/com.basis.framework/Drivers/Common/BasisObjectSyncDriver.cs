@@ -27,6 +27,7 @@ public static class BasisObjectSyncDriver
     private static NativeList<float> _lerpMultipliers;
 
     private static Transform[] _cachedTransforms = Array.Empty<Transform>();
+    private static Transform[] _lastCachedTransforms = Array.Empty<Transform>();
     private static JobHandle _remoteJobHandle;
 
     public static void Initalization()
@@ -72,10 +73,17 @@ public static class BasisObjectSyncDriver
         int count = 0;
         foreach (var obj in RemoteOwnedObjectSyncs)
         {
-            if (obj == null || obj.IsOwnedLocallyOnClient) continue;
+            if (obj == null || obj.IsOwnedLocallyOnClient)
+            {
+                continue;
+            }
+
             count++;
         }
-        if (count == 0) return;
+        if (count == 0)
+        {
+            return;
+        }
 
         if (_cachedTransforms.Length != count)
         {
@@ -93,9 +101,12 @@ public static class BasisObjectSyncDriver
             _lerpMultipliers.ResizeUninitialized(count);
         }
 
-        foreach (BasisObjectSyncNetworking obj in RemoteOwnedObjectSyncs)
+        foreach (var obj in RemoteOwnedObjectSyncs)
         {
-            if (obj == null || obj.IsOwnedLocallyOnClient) continue;
+            if (obj == null || obj.IsOwnedLocallyOnClient)
+            {
+                continue;
+            }
 
             _cachedTransforms[index] = obj.SelfTransform;
 
@@ -107,28 +118,49 @@ public static class BasisObjectSyncDriver
             index++;
         }
 
+        if (_lastCachedTransforms.Length != count)
+        {
+            _lastCachedTransforms = new Transform[count];
+        }
+
+
         if (_remoteTransforms.isCreated)
         {
             if (_remoteTransforms.length != count)
             {
                 _remoteTransforms.Dispose();
                 _remoteTransforms = new TransformAccessArray(_cachedTransforms);
+                Array.Copy(_cachedTransforms, _lastCachedTransforms, count);
             }
             else
             {
-                _remoteTransforms.SetTransforms(_cachedTransforms);
+                bool TransformsChanged = false;
+                for (int Index = 0; Index < count; Index++)
+                {
+                    if (_lastCachedTransforms[Index] != _cachedTransforms[Index])
+                    {
+                        TransformsChanged = true;
+                        break;
+                    }
+                }
+
+                if(TransformsChanged)
+                {
+                    _remoteTransforms.SetTransforms(_cachedTransforms);
+                    Array.Copy(_cachedTransforms, _lastCachedTransforms, count);
+                }
             }
         }
         else
         {
             _remoteTransforms = new TransformAccessArray(_cachedTransforms);
+            Array.Copy(_cachedTransforms, _lastCachedTransforms, count);
         }
-
         var job = new RemoteSyncJob
         {
             targetPositions = _targetPositions,
             targetRotations = _targetRotations,
-            targetScales = _targetScales,     // NEW
+            targetScales = _targetScales,
             lerpMultipliers = _lerpMultipliers
         };
 
@@ -145,7 +177,7 @@ public static class BasisObjectSyncDriver
     {
         [ReadOnly] public NativeList<float3> targetPositions;
         [ReadOnly] public NativeList<quaternion> targetRotations;
-        [ReadOnly] public NativeList<float3> targetScales;     // NEW
+        [ReadOnly] public NativeList<float3> targetScales;
         [ReadOnly] public NativeList<float> lerpMultipliers;
 
         public void Execute(int index, TransformAccess transform)

@@ -123,7 +123,7 @@ namespace HVR.Basis.Comms
             _anyAddressUpdated = _anyAddressUpdated || value != 0f;
             if (_anyAddressUpdated && _eyeFollowDriverLateInit != null)
             {
-                _eyeFollowDriverLateInit.IsEnabled = false;
+                BasisLocalEyeDriver.IsEnabled = false;
             }
 
             if (address == EyeLeftXAddress)
@@ -161,10 +161,10 @@ namespace HVR.Basis.Comms
                     // FIXME: This wrongly assumes that eye bone transforms are oriented the same.
                     // This needs to be fixed later by using the work-in-progress normalized muscle system instead.
                     case EyeSide.Left:
-                        _eyeFollowDriverLateInit.leftEyeTransform.localRotation = math.mul(_eyeFollowDriverLateInit.leftEyeInitialRotation, Euler);
+                        BasisLocalEyeDriver.leftEyeTransform.localRotation = math.mul(BasisLocalEyeDriver.leftEyeInitialRotation, Euler);
                         break;
                     case EyeSide.Right:
-                        _eyeFollowDriverLateInit.rightEyeTransform.localRotation = math.mul(_eyeFollowDriverLateInit.rightEyeInitialRotation, Euler);
+                        BasisLocalEyeDriver.rightEyeTransform.localRotation = math.mul(BasisLocalEyeDriver.rightEyeInitialRotation, Euler);
                         break;
                     default:
                         throw new ArgumentOutOfRangeException(nameof(side), side, null);

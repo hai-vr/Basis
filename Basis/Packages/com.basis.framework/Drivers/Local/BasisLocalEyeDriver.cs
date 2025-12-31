@@ -31,13 +31,13 @@ namespace Basis.Scripts.Eye_Follow
     public class BasisLocalEyeDriver
     {
         /// <summary>Initial local rotation of the left eye (captured on initialize).</summary>
-        public quaternion leftEyeInitialRotation;
+        public static quaternion leftEyeInitialRotation;
 
         /// <summary>Initial local rotation of the right eye (captured on initialize).</summary>
-        public quaternion rightEyeInitialRotation;
+        public static quaternion rightEyeInitialRotation;
 
         /// <summary>Tracks whether runtime events have been subscribed.</summary>
-        public bool HasEvents = false;
+        public static bool HasEvents = false;
 
         /// <summary>
         /// Global switch to bypass updates for all instances. When <c>true</c>,
@@ -46,97 +46,97 @@ namespace Basis.Scripts.Eye_Follow
         public static bool Override = false;
 
         /// <summary>Current look interpolation speed used by <see cref="Simulate(float)"/>.</summary>
-        public float lookSpeed;
+        public static float lookSpeed;
 
         /// <summary>Minimum seconds between randomized look-around target changes.</summary>
-        public float MinLookAroundInterval = 1;
+        public static float MinLookAroundInterval = 1;
 
         /// <summary>Maximum seconds between randomized look-around target changes.</summary>
-        public float MaxLookAroundInterval = 6;
+        public static float MaxLookAroundInterval = 6;
 
         /// <summary>Maximum randomized offset distance from the forward gaze target (in meters).</summary>
-        public float MaximumLookDistance = 0.25f;
+        public static float MaximumLookDistance = 0.25f;
 
         /// <summary>Lower bound for randomized look speed per interval.</summary>
-        public float minLookSpeed = 0.03f;
+        public static float minLookSpeed = 0.03f;
 
         /// <summary>Upper bound for randomized look speed per interval.</summary>
-        public float maxLookSpeed = 0.1f;
+        public static float maxLookSpeed = 0.1f;
 
         /// <summary>World-space transform of the left eye bone.</summary>
-        public Transform leftEyeTransform;
+        public static Transform leftEyeTransform;
 
         /// <summary>World-space transform of the right eye bone.</summary>
-        public Transform rightEyeTransform;
+        public static Transform rightEyeTransform;
 
         /// <summary>World-space transform of the head.</summary>
-        public Transform HeadTransform;
+        public static Transform HeadTransform;
 
         /// <summary>
         /// Captured left-eye reference pose relative to the head at initialization
         /// (position is offset from head, rotation is world rotation at capture).
         /// </summary>
-        public BasisCalibratedCoords LeftEyeInitallocalSpace;
+        public static BasisCalibratedCoords LeftEyeInitallocalSpace;
 
         /// <summary>
         /// Captured right-eye reference pose relative to the head at initialization
         /// (position is offset from head, rotation is world rotation at capture).
         /// </summary>
-        public BasisCalibratedCoords RightEyeInitallocalSpace;
+        public static BasisCalibratedCoords RightEyeInitallocalSpace;
 
         /// <summary>The current randomized gaze center in world space.</summary>
-        public Vector3 RandomizedPosition;
+        public static Vector3 RandomizedPosition;
 
         /// <summary>True if a left eye bone is present in the current avatar.</summary>
-        public bool HasLeftEye = false;
+        public static bool HasLeftEye = false;
 
         /// <summary>True if a right eye bone is present in the current avatar.</summary>
-        public bool HasRightEye = false;
+        public static bool HasRightEye = false;
 
         /// <summary>True if a head transform is present in the current avatar.</summary>
         public static bool HasHead = false;
 
         /// <summary>Gizmo index for the left eye target sphere.</summary>
-        public int LeftEyeGizmoIndex;
+        public static int LeftEyeGizmoIndex;
 
         /// <summary>Gizmo index for the right eye target sphere.</summary>
-        public int RightEyeGizmoIndex;
+        public static int RightEyeGizmoIndex;
 
         /// <summary>Computed left-eye target position in world space.</summary>
-        public Vector3 LeftEyeTargetWorld;
+        public static Vector3 LeftEyeTargetWorld;
 
         /// <summary>Computed right-eye target position in world space.</summary>
-        public Vector3 RightEyeTargetWorld;
+        public static Vector3 RightEyeTargetWorld;
 
         /// <summary>Current center gaze target position in world space.</summary>
-        public Vector3 CenterTargetWorld;
+        public static Vector3 CenterTargetWorld;
 
         /// <summary>The current randomized offset applied to the forward gaze.</summary>
-        public Vector3 AppliedOffset;
+        public static Vector3 AppliedOffset;
 
         /// <summary>Local forward direction from the head used as the base gaze vector.</summary>
-        public Vector3 EyeForwards = new float3(0, 0, 1);
+        public static Vector3 EyeForwards = new float3(0, 0, 1);
 
         /// <summary>The active interval length (seconds) until the next randomization.</summary>
-        public float CurrentLookAroundInterval;
+        public static float CurrentLookAroundInterval;
 
         /// <summary>Elapsed time accumulator for interval timing (seconds).</summary>
-        public float timer;
+        public static float timer;
 
         /// <summary>
         /// Distance threshold at which the target teleports instead of smoothing
         /// (useful after disabling, teleport, or large head movement).
         /// </summary>
-        public float DistanceBeforeTeleport = 30;
+        public static float DistanceBeforeTeleport = 30;
 
         /// <summary>Singleton-like reference to the most recently initialized instance.</summary>
         public static BasisLocalEyeDriver Instance;
 
         /// <summary>Tracks if the driver was recently disabled to force a teleport catch-up.</summary>
-        public bool wasDisabled = false;
+        public static bool wasDisabled = false;
 
         /// <summary>Whether the driver is currently enabled (e.g., face visible).</summary>
-        public bool IsEnabled;
+        public static bool IsEnabled;
 
         /// <summary>
         /// Cleans up subscriptions and static flags on destroy.
@@ -278,7 +278,7 @@ namespace Basis.Scripts.Eye_Follow
         /// teleports for large changes or after disable, and rotates each eye toward its target.
         /// </summary>
         /// <param name="DeltaTime">Time step in seconds (typically <see cref="Time.deltaTime"/>).</param>
-        public void Simulate(float DeltaTime)
+        public static void Simulate(float DeltaTime)
         {
             if (IsEnabled)
             {
@@ -339,7 +339,7 @@ namespace Basis.Scripts.Eye_Follow
         /// <param name="initialRotation">Reference rotation captured at initialization.</param>
         /// <param name="UP">Up vector used to resolve roll.</param>
         /// <returns>Quaternion rotation that points the eye toward the target.</returns>
-        private Quaternion LookAtTarget(Vector3 observerPosition, Vector3 targetPosition, Quaternion initialRotation, Vector3 up)
+        private static Quaternion LookAtTarget(Vector3 observerPosition, Vector3 targetPosition, Quaternion initialRotation, Vector3 up)
         {
             const float EPS = 1e-8f;
 
@@ -359,14 +359,6 @@ namespace Basis.Scripts.Eye_Follow
             }
 
             Quaternion look = Quaternion.LookRotation(forward, up);
-
-            // 3) If you want to BLEND toward the new look (instead of snapping), add a blend factor:
-            // float blend = 0.2f; // 0=keep initialRotation, 1=full look
-            // return Quaternion.Slerp(initialRotation, look, blend);
-
-            // 4) If you intended to PRESERVE a captured local offset (e.g., eye bone rest pose),
-            // compute it once at init: offset = Quaternion.Inverse(referenceLook) * initialRotation;
-            // then use: return look * offset;
 
             return look;
         }
