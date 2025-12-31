@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using System.Security.Cryptography;
 using UnityEngine;
 
@@ -32,7 +33,14 @@ public class SMModuleCalibration : BasisSettingsBase
                             HeightMode = BasisSelectedHeightMode.EyeHeight;
                             break;
                         case "Arm Distance":
-                            HeightMode = BasisSelectedHeightMode.ArmSpan;
+                            if (BasisDeviceManagement.IsUserInDesktop())
+                            {
+                                HeightMode = BasisSelectedHeightMode.EyeHeight;
+                            }
+                            else
+                            {
+                                HeightMode = BasisSelectedHeightMode.ArmSpan;
+                            }
                             break;
                     }
 
