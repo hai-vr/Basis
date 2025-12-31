@@ -181,7 +181,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void DrawGizmos()
         {
-            float Size = BasisHeightDriver.SelectedAvatarToAvatarDefaultScale;
+            float Size = BasisHeightDriver.AvatarToPlayerScale;
             for (int Index = 0; Index < ControlsLength; Index++)
             {
                 DrawGizmos(Controls[Index], Size);
@@ -366,7 +366,7 @@ namespace Basis.Scripts.Drivers
         public void UpdateGizmoUsage(bool State)
         {
             BasisDebug.Log("Running Bone Driver Gizmos", BasisDebug.LogTag.Gizmo);
-            float Size = BasisHeightDriver.SelectedAvatarToAvatarDefaultScale;
+            float Size = BasisHeightDriver.AvatarToPlayerScale;
             for (int Index = 0; Index < ControlsLength; Index++)
             {
                 BasisLocalBoneControl Control = Controls[Index];

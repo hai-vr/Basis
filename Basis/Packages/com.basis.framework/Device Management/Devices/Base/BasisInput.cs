@@ -628,12 +628,12 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public void ConvertToScaledDeviceCoord(ref BasisCalibratedCoords UnscaledDeviceCoord,ref BasisCalibratedCoords ScaledDeviceCoord)
         {
-            ScaledDeviceCoord.position = OffsetCoords.position + (UnscaledDeviceCoord.position * BasisHeightDriver.SelectedAvatarToAvatarDefaultScale);
+            ScaledDeviceCoord.position = OffsetCoords.position + (UnscaledDeviceCoord.position * BasisHeightDriver.AvatarToPlayerScale);
             ScaledDeviceCoord.rotation = UnscaledDeviceCoord.rotation;
         }
         public void ConvertToScaledDeviceCoord()
         {
-            ScaledDeviceCoord.position = OffsetCoords.position + (UnscaledDeviceCoord.position * BasisHeightDriver.SelectedAvatarToAvatarDefaultScale);
+            ScaledDeviceCoord.position = OffsetCoords.position + (UnscaledDeviceCoord.position * BasisHeightDriver.AvatarToPlayerScale);
             ScaledDeviceCoord.rotation = UnscaledDeviceCoord.rotation;
         }
 

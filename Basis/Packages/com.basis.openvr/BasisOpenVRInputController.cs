@@ -159,7 +159,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             UnscaledDeviceCoord.rotation = DeviceLocalSpace.rot;
 
             // scale from the avatar currently selected to the avatar's "default" rig size
-            float avatarScale = BasisHeightDriver.SelectedAvatarToAvatarDefaultScale;
+            float avatarScale = BasisHeightDriver.AvatarToPlayerScale;
 
             // Wrist data from skeleton
             int idxWrist = SteamVR_Skeleton_JointIndexes.wrist;

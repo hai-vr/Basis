@@ -68,22 +68,21 @@ MonoBehaviour:
         LengthUsed: 0
       SilentForHowLong: 0
     TransmissionResults:
-      LastIndexLength: -1
+      LengthOfArrays: -1
       TalkingPoints: 
       intervalSeconds: 0.5
       timer: 0
-      SmallestDistanceToAnotherPlayer: 0
+      SquaredSmallestDistance: 0
       UnClampedInterval: 0
       DefaultInterval: 0
       AnyMicrophoneRangeChanged: 0
       AnyHearingRangeChanged: 0
       AnyAvatarRangeChanged: 0
-      AnyIdOrderOrLengthChanged: 0
-      outMin: 0
       MouthBone:
         rid: -2
       BasisNetworkTransmitter:
         rid: -2
+      IndexChanged: 0
   references:
     version: 2
     RefIds:
@@ -454,6 +453,7 @@ MonoBehaviour:
   - SelectedHeight
   - custom scale
   - selected scale
+  - real world eye height
 --- !u!1 &6119941615115968628
 GameObject:
   m_ObjectHideFlags: 0
@@ -1001,7 +1001,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
-      ImageBytes: 
+      ImageBase64: 
       DateOfCreation: 
   DefaultAvatar:
     UnlockPassword: 
@@ -1015,7 +1015,7 @@ MonoBehaviour:
         AssetBundleName: 
         AssetBundleDescription: 
       BasisBundleGenerated: []
-      ImageBytes: 
+      ImageBase64: 
       DateOfCreation: 
   UseAddressablesToLoadScene: 0
   UseSceneProvidedHere: 0

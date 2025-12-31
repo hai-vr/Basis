@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using System.Security.Cryptography;
 using UnityEngine;
 
 public class SMModuleCalibration : BasisSettingsBase
@@ -6,6 +7,7 @@ public class SMModuleCalibration : BasisSettingsBase
     public static BasisSelectedHeightMode HeightMode = BasisSelectedHeightMode.EyeHeight;
     public static bool ApplyCustomScale = false;
     public static float SelectedScale = 1.6f;
+    public static float SelectedEyeHeight = 1.61f;
 
     // Cache last applied state so we only apply when it actually changes.
     private static bool _hasApplied;
@@ -32,9 +34,6 @@ public class SMModuleCalibration : BasisSettingsBase
                             break;
                         case "Arm Distance":
                             HeightMode = BasisSelectedHeightMode.ArmSpan;
-                            break;
-                        case "Calibration Eye Height":
-                            HeightMode = BasisSelectedHeightMode.Custom;
                             break;
                     }
 
@@ -89,7 +88,23 @@ public class SMModuleCalibration : BasisSettingsBase
                     }
                     break;
                 }
-
+            case "real world eye height":
+                {
+                    var old = SelectedEyeHeight;
+                    if (SliderReadOption(optionValue, out var CurrentSelectedEyeHeight))
+                    {
+                        if (!Mathf.Approximately(old, CurrentSelectedEyeHeight))
+                        {
+                            SelectedEyeHeight = CurrentSelectedEyeHeight;
+                            _dirty = true;
+                        }
+                    }
+                    else
+                    {
+                        BasisDebug.LogError("Missing Selected Scale", BasisDebug.LogTag.Device);
+                    }
+                }
+                break;
             default:
                 BasisDebug.LogError($"UnImplemented Settings Name! {matchedSettingName}", BasisDebug.LogTag.Device);
                 break;

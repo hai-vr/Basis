@@ -621,6 +621,12 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Avatar height Scale", 0.1f, 5f, false, 2, ValueDisplayMode.Meters),
                 BasisSettingsDefaults.SelectedScale);
 
+
+            // Avatar Scale slider
+            //   var RealWorldEyeHeightRange = PanelSlider.CreateEntryAndBind(
+            //   IkGroup,
+            //    PanelSlider.SliderSettings.Advanced("Real Eye Height", 0.1f, 3, false, 2, ValueDisplayMode.Meters),
+            // BasisSettingsDefaults.realworldeyeheight);
             // Calibration Eye Height slider
             // sliderCalibrationHeightRange = PanelSlider.CreateEntryAndBind(
             //   IkGroup,

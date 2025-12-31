@@ -165,7 +165,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
 
         // scale camera to avatar size
         transform.localScale = new Vector3(cameraDefaultScale, cameraDefaultScale, cameraDefaultScale) *
-                               BasisHeightDriver.SelectedAvatarToAvatarDefaultScale;
+                               BasisHeightDriver.AvatarToPlayerScale;
 
         // run after player movement
         BasisLocalPlayer.AfterFinalMove.AddAction(202, UpdateCamera);
@@ -196,7 +196,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     private void OnHeightChanged()
     {
         transform.localScale = new Vector3(cameraDefaultScale, cameraDefaultScale, cameraDefaultScale) *
-                               BasisHeightDriver.SelectedAvatarToAvatarDefaultScale;
+                               BasisHeightDriver.AvatarToPlayerScale;
     }
 
     /// <summary>

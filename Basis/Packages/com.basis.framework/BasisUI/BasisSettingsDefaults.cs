@@ -32,6 +32,9 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<float> SelectedScale =>
 new("selected scale", new BasisPlatformDefault<float>(1.6f));
+
+        public static BasisSettingsBinding<float> realworldeyeheight =>
+new("real world eye height", new BasisPlatformDefault<float>(1.61f));
         public static BasisSettingsBinding<bool> CustomScale =>
 new("custom scale", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> AvatarRange =>

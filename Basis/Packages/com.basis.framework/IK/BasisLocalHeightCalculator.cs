@@ -57,17 +57,15 @@ public static class BasisLocalHeightCalculator
         else
         {
             BasisDebug.LogWarning("Both hands were not discovered. Using default player arm span.", BasisDebug.LogTag.Avatar);
-            BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.DefaultPlayerArmSpan;
+            BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.FallbackHeightInMeters;
         }
-        BasisHeightDriver.ArmRatioPlayerToDefaultScale = BasisHeightDriver.PlayerArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultPlayerArmSpan);
-        BasisDebug.Log($"ArmRatioPlayerToDefaultScale Set To {BasisHeightDriver.ArmRatioPlayerToDefaultScale}", BasisDebug.LogTag.Avatar);
     }
     public static void CalculatePlayerEyeHeight()
     {
         if (SMModuleSitStand.IsSteatedMode)
         {
             BasisDebug.Log("Was Seated Mode taking standard size of 1.7m", BasisDebug.LogTag.Avatar);
-            BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.DefaultPlayerEyeHeight;
+            BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
         }
         else
         {
@@ -81,7 +79,7 @@ public static class BasisLocalHeightCalculator
             else
             {
                 // Prefer avatar eye height if it looks valid; otherwise fall back to default player height.
-                float fallback = BasisHeightDriver.AvatarEyeHeight > 0f ? BasisHeightDriver.AvatarEyeHeight : BasisHeightDriver.DefaultPlayerEyeHeight;
+                float fallback = BasisHeightDriver.AvatarEyeHeight > 0f ? BasisHeightDriver.AvatarEyeHeight : BasisHeightDriver.FallbackHeightInMeters;
 
                 BasisHeightDriver.PlayerEyeHeight = fallback;
 
@@ -90,13 +88,11 @@ public static class BasisLocalHeightCalculator
         }
         if (BasisHeightDriver.PlayerEyeHeight <= 0f)
         {
-            BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.DefaultPlayerEyeHeight;
+            BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
             BasisDebug.LogWarning(
-                $"Player eye height was invalid. Set to default: {BasisHeightDriver.DefaultPlayerEyeHeight}",
+                $"Player eye height was invalid. Set to default: {BasisHeightDriver.FallbackHeightInMeters}",
                 BasisDebug.LogTag.Avatar);
         }
-        BasisHeightDriver.EyeRatioPlayerToDefaultScale = BasisHeightDriver.PlayerEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.DefaultPlayerEyeHeight);
-        BasisDebug.Log($"EyeRatioPlayerToDefaultScale Set To {BasisHeightDriver.EyeRatioPlayerToDefaultScale}", BasisDebug.LogTag.Avatar);
     }
     public static void CalculateAvatarEyeHeight()
     {
@@ -107,14 +103,12 @@ public static class BasisLocalHeightCalculator
             return;
         }
         BasisHeightDriver.AvatarEyeHeight = Local.LocalAvatarDriver.ActiveAvatarEyeHeight();
-        BasisHeightDriver.AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight > 0f ? BasisHeightDriver.AvatarEyeHeight : BasisHeightDriver.FallbackSizeInMeters;
+        BasisHeightDriver.AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight > 0f ? BasisHeightDriver.AvatarEyeHeight : BasisHeightDriver.FallbackHeightInMeters;
         if (BasisHeightDriver.AvatarEyeHeight <= 0f)
         {
-            BasisHeightDriver.AvatarEyeHeight = BasisHeightDriver.FallbackSizeInMeters;
-            BasisDebug.LogWarning($"Avatar eye height was invalid. Set to default: {BasisHeightDriver.FallbackSizeInMeters}", BasisDebug.LogTag.Avatar);
+            BasisHeightDriver.AvatarEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
+            BasisDebug.LogWarning($"Avatar eye height was invalid. Set to default: {BasisHeightDriver.FallbackHeightInMeters}", BasisDebug.LogTag.Avatar);
         }
-        BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.FallbackSizeInMeters);
-        BasisDebug.Log($"EyeRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
     }
     public static void CalculateAvatarArmSpan()
     {
@@ -139,10 +133,6 @@ public static class BasisLocalHeightCalculator
 
         float averageArmLength = (leftArmLength + rightArmLength) * 0.5f;
         BasisHeightDriver.AvatarArmSpan = averageArmLength * 2f;
-
-
         BasisDebug.Log($"Current Avatar Arm Span: {BasisHeightDriver.AvatarArmSpan}", BasisDebug.LogTag.Avatar);
-        BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarArmSpan);
-        BasisDebug.Log($"ArmRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
     }
 }

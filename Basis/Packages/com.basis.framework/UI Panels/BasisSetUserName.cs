@@ -96,7 +96,7 @@ namespace Basis.Scripts.UI.UI_Panels
         {
             if (BasisLocalPlayer.Instance != null)
             {
-                this.transform.localScale = InitalScale * BasisHeightDriver.SelectedAvatarToAvatarDefaultScale;
+                this.transform.localScale = InitalScale * BasisHeightDriver.AvatarToPlayerScale;
             }
         }
 

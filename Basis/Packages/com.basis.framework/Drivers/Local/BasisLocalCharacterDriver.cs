@@ -312,7 +312,7 @@ namespace Basis.Scripts.BasisCharacterController
             }
             else
             {
-                eyeHeight = BasisHeightDriver.FallbackSizeInMeters;
+                eyeHeight = BasisHeightDriver.FallbackHeightInMeters;
             }
             float adjustedHeight = eyeHeight;
             if (MinimumColliderSize > adjustedHeight)

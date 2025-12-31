@@ -104,17 +104,6 @@ public static class BasisHeightDriver
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame?.Invoke();
         });
     }
-    public static void UpdateRatios()
-    {
-        BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.FallbackSizeInMeters);
-        BasisDebug.Log($"EyeRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.EyeRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
-        BasisHeightDriver.EyeRatioPlayerToDefaultScale = BasisHeightDriver.PlayerEyeHeight / Mathf.Max(0.0001f, BasisHeightDriver.DefaultPlayerEyeHeight);
-        BasisDebug.Log($"EyeRatioPlayerToDefaultScale Set To {BasisHeightDriver.EyeRatioPlayerToDefaultScale}", BasisDebug.LogTag.Avatar);
-        BasisHeightDriver.ArmRatioPlayerToDefaultScale = BasisHeightDriver.PlayerArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultPlayerArmSpan);
-        BasisDebug.Log($"ArmRatioPlayerToDefaultScale Set To {BasisHeightDriver.ArmRatioPlayerToDefaultScale}", BasisDebug.LogTag.Avatar);
-        BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale = BasisHeightDriver.AvatarArmSpan / Mathf.Max(0.0001f, BasisHeightDriver.DefaultAvatarArmSpan);
-        BasisDebug.Log($"ArmRatioAvatarToAvatarDefaultScale Set To {BasisHeightDriver.ArmRatioAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
-    }
     public static void RevaluateUnscaledHeight(BasisSelectedHeightMode Height)
     {
         switch (Height)
@@ -123,9 +112,6 @@ public static class BasisHeightDriver
                 UnScaledSelectedAvatarHeight = AvatarArmSpan;
                 break;
             case BasisSelectedHeightMode.EyeHeight:
-                UnScaledSelectedAvatarHeight = AvatarEyeHeight;
-                break;
-            case BasisSelectedHeightMode.Custom://currently unusued while we fix everything else
                 UnScaledSelectedAvatarHeight = AvatarEyeHeight;
                 break;
         }
@@ -141,7 +127,6 @@ public static class BasisHeightDriver
         {
             Height = BasisSelectedHeightMode.EyeHeight;
         }
-        UpdateRatios();
         var player = BasisLocalPlayer.Instance;
         if (player == null)
         {
@@ -160,28 +145,19 @@ public static class BasisHeightDriver
             case BasisSelectedHeightMode.ArmSpan:
                 SelectedPlayerHeight = PlayerArmSpan * ApplyScale;
                 SelectedAvatarHeight = AvatarArmSpan * ApplyScale;
-                SelectedPlayerToDefaultScale = ArmRatioPlayerToDefaultScale * ApplyScale;
-                SelectedAvatarToAvatarDefaultScale = ArmRatioAvatarToAvatarDefaultScale * ApplyScale;
-
                 UnScaledSelectedAvatarHeight = AvatarArmSpan;
                 break;
             case BasisSelectedHeightMode.EyeHeight:
                 SelectedPlayerHeight = PlayerEyeHeight * ApplyScale;
                 SelectedAvatarHeight = AvatarEyeHeight * ApplyScale;
-                SelectedPlayerToDefaultScale = EyeRatioPlayerToDefaultScale * ApplyScale;
-                SelectedAvatarToAvatarDefaultScale = EyeRatioAvatarToAvatarDefaultScale * ApplyScale;
-
-                UnScaledSelectedAvatarHeight = AvatarEyeHeight;
-                break;
-            case BasisSelectedHeightMode.Custom://currently unusued while we fix everything else
-                SelectedPlayerHeight = CustomPlayerEyeHeight * ApplyScale;
-                SelectedAvatarHeight = AvatarEyeHeight * ApplyScale;
-                SelectedPlayerToDefaultScale = (SelectedPlayerHeight / FallbackSizeInMeters) * ApplyScale;
-                SelectedAvatarToAvatarDefaultScale = (SelectedPlayerHeight / FallbackSizeInMeters) * ApplyScale;
-
                 UnScaledSelectedAvatarHeight = AvatarEyeHeight;
                 break;
         }
+
+        //1.6 / 1.7 = 
+        PlayerToAvatarScale = SelectedPlayerHeight / SelectedAvatarHeight * ApplyScale;
+        AvatarToPlayerScale = SelectedAvatarHeight / SelectedPlayerHeight * ApplyScale;
+
         if (SelectedPlayerHeight <= 0f)
         {
             SelectedPlayerHeight = 1.6f;
@@ -190,104 +166,69 @@ public static class BasisHeightDriver
         {
             SelectedAvatarHeight = 1.6f;
         }
-        if (SelectedPlayerToDefaultScale <= 0f)
+        if (PlayerToAvatarScale <= 0f)
         {
-            SelectedPlayerToDefaultScale = 1;
+            PlayerToAvatarScale = 1;
         }
-        if (SelectedAvatarToAvatarDefaultScale <= 0f)
+        if (AvatarToPlayerScale <= 0f)
         {
-            SelectedAvatarToAvatarDefaultScale = 1;
+            AvatarToPlayerScale = 1;
         }
-        BasisDebug.Log($"Height Mode is {Height} with height {SelectedPlayerHeight} with avatar height {SelectedAvatarHeight} with selected player to default scale {SelectedPlayerToDefaultScale} select avatar to avatar scale {SelectedAvatarToAvatarDefaultScale}", BasisDebug.LogTag.Avatar);
+        BasisDebug.Log($"Height Mode is {Height} with height {SelectedPlayerHeight} with avatar height {SelectedAvatarHeight} with selected player to default scale {PlayerToAvatarScale} select avatar to avatar scale {AvatarToPlayerScale}", BasisDebug.LogTag.Avatar);
     }
     public static float heightScaleFactor = 1;
     /// <summary>
     /// Fallback height (meters) used when no measurement is available.
     /// not the total height but the eye height
     /// </summary>
-    public const float FallbackSizeInMeters = 1.61f;
-
-    /// <summary>
-    /// Default measured eye height for the player (meters).
-    /// </summary>
-    public static float DefaultPlayerEyeHeight = FallbackSizeInMeters;
-
-    /// <summary>
-    /// Default measured arm span for the player (meters).
-    /// </summary>
-    public static float DefaultPlayerArmSpan = FallbackSizeInMeters;
-
-    /// <summary>
-    /// Default measured arm span for the avatar (meters).
-    /// </summary>
-    public static float DefaultAvatarArmSpan = FallbackSizeInMeters;
+    public const float FallbackHeightInMeters = 1.61f;
 
     /// <summary>
     /// Measured eye height for the player (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
     /// </summary>
-    public static float PlayerEyeHeight = FallbackSizeInMeters;
+    public static float PlayerEyeHeight = FallbackHeightInMeters;
 
     /// <summary>
     /// Measured eye height for the avatar (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
     /// </summary>
-    public static float AvatarEyeHeight = FallbackSizeInMeters;
+    public static float AvatarEyeHeight = FallbackHeightInMeters;
 
     /// <summary>
     /// Measured arm span for the player (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
     /// </summary>
-    public static float PlayerArmSpan = FallbackSizeInMeters;
+    public static float PlayerArmSpan = FallbackHeightInMeters;
 
     /// <summary>
     /// Measured arm span for the avatar (meters). Defaults to <see cref="BasisLocalPlayer.FallbackSize"/>.
     /// </summary>
-    public static float AvatarArmSpan = FallbackSizeInMeters;
+    public static float AvatarArmSpan = FallbackHeightInMeters;
 
     /// <summary>
     /// Custom player eye height (meters) supplied by user or calibration UI.
     /// </summary>
-    public static float CustomPlayerEyeHeight = FallbackSizeInMeters;
-
-    /// <summary>
-    /// Ratio mapping the player's measured eye height to a default reference scale.
-    /// </summary>
-    public static float EyeRatioPlayerToDefaultScale = 1f;
-
-    /// <summary>
-    /// Ratio mapping the avatar's measured eye height to the avatar's default reference scale.
-    /// </summary>
-    public static float EyeRatioAvatarToAvatarDefaultScale = 1f; // should be used for the player
-
-    /// <summary>
-    /// Ratio mapping the player's measured arm span to a default reference scale.
-    /// </summary>
-    public static float ArmRatioPlayerToDefaultScale = 1f;
-
-    /// <summary>
-    /// Ratio mapping the avatar's measured arm span to the avatar's default reference scale.
-    /// </summary>
-    public static float ArmRatioAvatarToAvatarDefaultScale = 1f; // should be used for the player
+    public static float CustomPlayerEyeHeight = FallbackHeightInMeters;
 
     /// <summary>
     /// The player height (meters)"/>.
     /// </summary>
-    public static float SelectedPlayerHeight = FallbackSizeInMeters;
+    public static float SelectedPlayerHeight = FallbackHeightInMeters;
 
     /// <summary>
     /// The avatar height (meters)/>.
     /// </summary>
-    public static float SelectedAvatarHeight = FallbackSizeInMeters;
+    public static float SelectedAvatarHeight = FallbackHeightInMeters;
 
     /// <summary>
     /// The avatar height (meters)/>.
     /// </summary>
-    public static float UnScaledSelectedAvatarHeight = FallbackSizeInMeters;
+    public static float UnScaledSelectedAvatarHeight = FallbackHeightInMeters;
     /// <summary>
     /// The player-to-default scale/>.
     /// </summary>
-    public static float SelectedPlayerToDefaultScale = 1f;
+    public static float PlayerToAvatarScale = 1f;
 
     /// <summary>
     /// The avatar-to-avatar-default scale currently"/>.
     /// </summary>
-    public static float SelectedAvatarToAvatarDefaultScale = 1f;
+    public static float AvatarToPlayerScale = 1f;
 }
