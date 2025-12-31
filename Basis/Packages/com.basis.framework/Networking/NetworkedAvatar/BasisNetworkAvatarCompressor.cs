@@ -95,13 +95,15 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset);
 
             // Muscles (bitpacked)
-            CompressAvatarMuscles_BitPacked(ref pose, ref AvatarData.LASM, ref offset);
+            JobHandle Handle = CompressAvatarMuscles_BitPacked(ref pose, ref AvatarData.LASM, ref offset, out int offsetForComplete);
 
             // Scale
             CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
+
+            Complete(Handle, ref AvatarData.LASM, offsetForComplete);
         }
 
-        public static void CompressAvatarMuscles_BitPacked(ref HumanPose pose, ref LocalAvatarSyncMessage message, ref int offset)
+        public static JobHandle CompressAvatarMuscles_BitPacked(ref HumanPose pose, ref LocalAvatarSyncMessage message, ref int offset,out int SuppliedIndex)
         {
             EnsureMusclesBuffer(UnityMuscleCount);
 
@@ -142,6 +144,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             JobHandle h1 = qJob.Schedule(sOrder.Length, 32);
             JobHandle h2 = pJob.Schedule(h1);
+            SuppliedIndex = offset;
+            offset += sPackedBytes;
+            return h2;
+        }
+        public static void Complete(JobHandle h2, ref LocalAvatarSyncMessage message,int SuppliedIndex)
+        {
             h2.Complete();
 
             // Copy packed bytes into final message buffer at offset
@@ -150,11 +158,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 void* srcPtr = sPacked.GetUnsafeReadOnlyPtr();
                 fixed (byte* dst = message.array)
                 {
-                    UnsafeUtility.MemCpy(dst + offset, srcPtr, sPackedBytes);
+                    UnsafeUtility.MemCpy(dst + SuppliedIndex, srcPtr, sPackedBytes);
                 }
             }
-
-            offset += sPackedBytes;
         }
 
         public static void CompressScale(float scale, ref LocalAvatarSyncMessage message, ref int offset)
