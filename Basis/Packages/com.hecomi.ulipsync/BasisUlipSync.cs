@@ -79,7 +79,7 @@ namespace uLipSync
         const float epsilon = 1e-6f;
 
         public bool HasJob = false;
-
+        public LipSyncWorkspace ws;
         // =========================================================
         // Fast scheduling: swap buffers, job reads frozen buffer
         // =========================================================
@@ -113,6 +113,7 @@ namespace uLipSync
                 scores = _scores,
                 info = _info,
                 restPhonemeIndex = 0,
+                  ws = ws,
             };
 
             _jobHandle = lipSyncJob.Schedule();
@@ -337,6 +338,15 @@ namespace uLipSync
 
                 BlendShapeInfos[i] = bs; // if struct
             }
+            int targetRate = math.max(profile.targetSampleRate, 1);
+            int melDiv = math.max(profile.melFilterBankChannels, 1);
+            ws = LipSyncWorkspace.Create(
+     inputLen: CachedInputSampleCount,
+     sampleRate: outputSampleRate,
+     targetSampleRate: targetRate,
+     melDiv: melDiv,
+     firRangeHz: 500f,
+     allocator: Allocator.Persistent);
         }
 
         public void OnDestroy()
