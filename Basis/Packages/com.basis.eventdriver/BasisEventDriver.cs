@@ -1,14 +1,12 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
-using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.UI.NamePlate;
 using GatorDragonGames.JigglePhysics;
 using System;
-using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -173,11 +171,10 @@ public class BasisEventDriver : MonoBehaviour
 
         // Device management tick
         BasisDeviceManagement.OnDeviceManagementLoop?.Invoke();
-
         if (BasisLocalPlayer.PlayerReady)
         {
             // Eye driver (local)
-            BasisLocalEyeDriver.Simulate(DeltaTime);
+            BasisLocalPlayer.Instance.LocalEyeDriver.Simulate(DeltaTime);
         }
 
         BasisRemoteAudioDriver.Simulate();
@@ -203,9 +200,9 @@ public class BasisEventDriver : MonoBehaviour
             JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
         }
         BasisRemoteNamePlateDriver.CompleteNamePlates();
-
         if (BasisLocalPlayer.PlayerReady)
         {
+            BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
             BasisLocalPlayer.Instance.LocalVisemeDriver.Apply();
         }
 #if UNITY_SERVER

@@ -1,8 +1,6 @@
-using Basis.Network.Core;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Behaviour;
-using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Networking.Transmitters;
 using HVR.Basis.Comms.HVRUtility;
@@ -50,7 +48,6 @@ namespace HVR.Basis.Comms
         // Nullability is needed for local tests without initialization scene.
         // - Becomes non-null after HVRAvatarComms.OnAvatarNetworkReady is successfully invoked
         [NonSerialized] internal MutualizedFeatureInterpolator featureInterpolator;
-        [NonSerialized] public BasisLocalEyeDriver _eyeFollowDriverLateInit;
         #endregion
         public BasisNetworkReceiver Receiver = null;
         private bool _eyeFollowDriverApplicable;
@@ -67,7 +64,6 @@ namespace HVR.Basis.Comms
             {
                 acquisition.RegisterAddresses(OurAddresses, OnAddressUpdated);
                 _eyeFollowDriverApplicable = true;
-                _eyeFollowDriverLateInit = BasisLocalPlayer.Instance.LocalEyeDriver;
             }
         }
 
@@ -121,7 +117,7 @@ namespace HVR.Basis.Comms
             // FIXME: Temp fix, we'll need to hook to NetworkReady instead.
             // This is a quick fix so that we don't need to reupload the avatar.
             _anyAddressUpdated = _anyAddressUpdated || value != 0f;
-            if (_anyAddressUpdated && _eyeFollowDriverLateInit != null)
+            if (_anyAddressUpdated)
             {
                 BasisLocalEyeDriver.IsEnabled = false;
             }
@@ -199,10 +195,6 @@ namespace HVR.Basis.Comms
 
         private void SetBuiltInEyeFollowDriverOverriden(bool value)
         {
-            if (_eyeFollowDriverLateInit == null)
-            {
-                return;
-            }
             BasisLocalEyeDriver.Override = value;
         }
 

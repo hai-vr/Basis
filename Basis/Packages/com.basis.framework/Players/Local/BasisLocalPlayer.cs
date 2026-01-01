@@ -5,11 +5,9 @@ using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
-using Basis.Scripts.Eye_Follow;
 using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -145,18 +143,18 @@ namespace Basis.Scripts.BasisSdk.Players
         public BasisLocalAnimatorDriver LocalAnimatorDriver = new BasisLocalAnimatorDriver();
 
         /// <summary>
+        ///
+        /// </summary>
+        [Header("Eye Driver")]
+        [SerializeField]
+        public BasisLocalEyeDriver LocalEyeDriver = new BasisLocalEyeDriver();
+
+        /// <summary>
         /// Finger pose driver for hand tracking/controllers.
         /// </summary>
         [Header("Hand Driver")]
         [SerializeField]
         public BasisLocalHandDriver LocalHandDriver = new BasisLocalHandDriver();
-
-        /// <summary>
-        /// Eye gaze/pupil/eyelid driver for the local avatar.
-        /// </summary>
-        [Header("Eye Driver")]
-        [SerializeField]
-        public BasisLocalEyeDriver LocalEyeDriver = new BasisLocalEyeDriver();
 
         /// <summary>
         /// Audio capture and viseme (mouth shape) driver for lip sync.
@@ -374,10 +372,7 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 LocalHandDriver.Dispose();
             }
-            if (LocalEyeDriver != null)
-            {
-                LocalEyeDriver.OnDestroy(this);
-            }
+            BasisLocalEyeDriver.OnDisable();
             if (FacialBlinkDriver != null)
             {
                 FacialBlinkDriver.OnDestroy();
