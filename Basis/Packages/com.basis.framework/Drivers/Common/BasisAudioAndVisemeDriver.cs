@@ -52,7 +52,7 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// uLipSync core component that analyses incoming audio to phoneme weights.
         /// </summary>
-        public uLipSync.BasisUlipSync uLipSync = new BasisUlipSync();
+        public BasisUlipSync uLipSync = new BasisUlipSync();
 
         /// <summary>
         /// Table mapping phoneme strings (e.g., "A", "E") to avatar blendshape indices.
