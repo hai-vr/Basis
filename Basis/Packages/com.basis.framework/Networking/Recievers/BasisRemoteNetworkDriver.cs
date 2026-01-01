@@ -20,8 +20,13 @@ public static class BasisRemoteNetworkDriver
     static NativeArray<float3> _outPositions;
     static NativeArray<float3> _outScales;
     static NativeArray<quaternion> _outRotations;
-    static NativeArray<float> _humanScales; 
+    static NativeArray<float> _humanScales;
     static NativeArray<float3> _scaledBodyPositions;
+
+
+    static NativeArray<double> _windowDuration;
+    static NativeArray<float> _unscaledDeltaTime;
+    static NativeArray<float> _OutputInterpolation;
     // Muscles (flattened: players * muscles)
     static NativeArray<float> _prevMuscles;
     static NativeArray<float> _targetMuscles;
@@ -67,7 +72,9 @@ public static class BasisRemoteNetworkDriver
             _prevRotations[Index] = quaternion.identity;
             _targetRotations[Index] = quaternion.identity;
             _interpolationTimes[Index] = 0f;
-
+            _windowDuration[Index] = 0f;
+            _unscaledDeltaTime[Index] = 0f;
+            _OutputInterpolation[Index] = 0f;
             // New: default human scale to 1
             _humanScales[Index] = 1;
             _scaledBodyPositions[Index] = float3.zero;
@@ -109,9 +116,7 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>Write inputs for a given index (0..FixedCapacity-1) for this frame.</summary>
-    public static bool SetFrameTiming(
-        int index,
-        float interpolationTime)
+    public static bool SetFrameTiming(int index,float interpolationTime,double windowDuration,float unscaledDeltaTime)
     {
         if ((uint)index >= FixedCapacity)
         {
@@ -119,6 +124,8 @@ public static class BasisRemoteNetworkDriver
             return false;
         }
         _interpolationTimes[index] = interpolationTime;
+        _windowDuration[index] = windowDuration;
+        _unscaledDeltaTime[index] = unscaledDeltaTime;
 
         if (index + 1 > _activeCount) _activeCount = index + 1;
         return true;
@@ -142,7 +149,7 @@ public static class BasisRemoteNetworkDriver
         if (index + 1 > _activeCount) _activeCount = index + 1;
     }
 
-    public static void SetMuscleWindow( int index, NativeArray<float> prevMuscles,NativeArray<float> targetMuscles)
+    public static void SetMuscleWindow(int index, NativeArray<float> prevMuscles, NativeArray<float> targetMuscles)
     {
         int baseOffset = index * _muscleCount;
         FastCopyMuscles(prevMuscles, 0, _prevMuscles, baseOffset, _muscleCount);
@@ -177,6 +184,9 @@ public static class BasisRemoteNetworkDriver
             PreviousRotations = _prevRotations,
             TargetRotations = _targetRotations,
             InterpolationTimes = _interpolationTimes,
+            OutputInterpolation = _OutputInterpolation,
+            unscaledDeltaTime = _unscaledDeltaTime,
+            windowDuration = _windowDuration,
             OutputPositions = _outPositions,
             OutputScales = _outScales,
             OutputRotations = _outRotations
@@ -232,7 +242,7 @@ public static class BasisRemoteNetworkDriver
 
     /// <summary>Read back the computed outputs for an index after Apply().</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void GetOutputs_NoAlloc(int index,out float3 outPos,out float3 outScale,out quaternion outRot,out float3 BodyPosition,float[] outMuscles)
+    public static void GetOutputs_NoAlloc(int index, out float3 outPos, out float3 outScale, out quaternion outRot, out float3 BodyPosition, float[] outMuscles,out float FinalInterpolation)
     {
         outPos = _outPositions[index];
         outScale = _outScales[index];
@@ -252,6 +262,7 @@ public static class BasisRemoteNetworkDriver
             }
         }
         BodyPosition = _scaledBodyPositions[index];
+        FinalInterpolation = _OutputInterpolation[index];
     }
 
     static void AllocateAll(int capacity)
@@ -272,6 +283,10 @@ public static class BasisRemoteNetworkDriver
         // New: human scale + scaled body
         _humanScales = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
         _scaledBodyPositions = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+
+        _windowDuration = new NativeArray<double>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _unscaledDeltaTime = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _OutputInterpolation = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
 
         // Muscles (flattened)
         int flat = capacity * _muscleCount;
@@ -310,6 +325,10 @@ public static class BasisRemoteNetworkDriver
         if (euroValuesOutput.IsCreated) euroValuesOutput.Dispose();
         if (positionFilters.IsCreated) positionFilters.Dispose();
         if (derivativeFilters.IsCreated) derivativeFilters.Dispose();
+
+        if (_windowDuration.IsCreated) _windowDuration.Dispose();
+        if (_unscaledDeltaTime.IsCreated) _unscaledDeltaTime.Dispose();
+        if (_OutputInterpolation.IsCreated) _OutputInterpolation.Dispose();
     }
     /*
  * BasicOneEuroFilterParallelJob.cs
@@ -398,6 +417,8 @@ public static class BasisRemoteNetworkDriver
         [ReadOnly] public NativeArray<quaternion> TargetRotations;
 
         [ReadOnly] public NativeArray<float> InterpolationTimes;
+        [ReadOnly] public NativeArray<double> windowDuration;
+        [ReadOnly] public NativeArray<float> unscaledDeltaTime;
 
         [WriteOnly]
         public NativeArray<float3> OutputPositions;
@@ -405,14 +426,35 @@ public static class BasisRemoteNetworkDriver
         public NativeArray<float3> OutputScales;
         [WriteOnly]
         public NativeArray<quaternion> OutputRotations;
-
+        [WriteOnly]
+        public NativeArray<float> OutputInterpolation;
         public void Execute(int index)
         {
-            float t = InterpolationTimes[index];
+            float interpolationTime = InterpolationTimes[index];
+            double WindowOfDuration = windowDuration[index];
 
-            OutputPositions[index] = math.lerp(PreviousPositions[index], TargetPositions[index], t);
-            OutputScales[index] = math.lerp(PreviousScales[index], TargetScales[index], t);
-            OutputRotations[index] = math.slerp(PreviousRotations[index], TargetRotations[index], t);
+            if (!double.IsFinite(WindowOfDuration) || WindowOfDuration <= 1e-6)
+            {
+                WindowOfDuration = 1e-3;
+            }
+
+            double step = Math.Max(unscaledDeltaTime[index], 0.0);
+            interpolationTime += (float)(step / WindowOfDuration);
+
+
+            if (!float.IsFinite(interpolationTime))
+            {
+                interpolationTime = 0f;
+            }
+            else
+            {
+                interpolationTime = Mathf.Clamp01(interpolationTime);
+            }
+
+            OutputPositions[index] = math.lerp(PreviousPositions[index], TargetPositions[index], interpolationTime);
+            OutputScales[index] = math.lerp(PreviousScales[index], TargetScales[index], interpolationTime);
+            OutputRotations[index] = math.slerp(PreviousRotations[index], TargetRotations[index], interpolationTime);
+            OutputInterpolation[index] = interpolationTime;
         }
     }
 

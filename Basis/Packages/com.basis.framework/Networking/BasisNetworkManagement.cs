@@ -140,7 +140,8 @@ namespace Basis.Scripts.Networking
         /// Job handle for bone simulation tasks.
         /// </summary>
         public static JobHandle BoneJobSystem;
-
+        private static float _timer;
+        public static bool HasRequested;
         /// <summary>
         /// Simulates network computation step (state updates, bone drivers, profiler update).
         /// </summary>
@@ -170,8 +171,6 @@ namespace Basis.Scripts.Networking
                 }
             }
         }
-        private static float _timer;
-        public static bool HasRequested;
         /// <summary>
         /// Applies networked state changes to receivers.
         /// </summary>

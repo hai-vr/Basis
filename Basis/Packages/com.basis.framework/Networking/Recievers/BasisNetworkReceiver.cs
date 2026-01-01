@@ -144,28 +144,9 @@ namespace Basis.Scripts.Networking.Receivers
                 var first = BufferHolder.Current;
                 var last = BufferHolder.Next;
 
-                double windowDuration =
-                    last.SecondsInterval > 0 ? last.SecondsInterval :
-                    first.SecondsInterval > 0 ? first.SecondsInterval :
-                    (1.0 / 60.0);
+                double windowDuration = last.SecondsInterval > 0 ? last.SecondsInterval :first.SecondsInterval > 0 ? first.SecondsInterval : (1.0 / 60.0);
 
-                if (!double.IsFinite(windowDuration) || windowDuration <= 1e-6)
-                {
-                    windowDuration = 1e-3;
-                }
-
-                double step = Math.Max(unscaledDeltaTime, 0.0);
-                interpolationTime += (float)(step / windowDuration);
-
-                if (!float.IsFinite(interpolationTime))
-                {
-                    interpolationTime = 0f;
-                }
-                else
-                {
-                    interpolationTime = Mathf.Clamp01(interpolationTime);
-                }
-                PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime);
+                PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime,windowDuration,unscaledDeltaTime);
                 if (PassedSimulate && BufferHolder.SentLatest)
                 {
                     BasisRemoteNetworkDriver.SetFrameInputs(
@@ -194,7 +175,8 @@ namespace Basis.Scripts.Networking.Receivers
                 out float3 applyingScale,
                 out var applyingRotation,
                 out float3 scaledBody,          // HumanPose.bodyPosition (units in avatar-space)
-                Muscles
+                Muscles,
+                out interpolationTime
             );
 
             ApplyingPosition = outPos;
@@ -203,7 +185,6 @@ namespace Basis.Scripts.Networking.Receivers
 
             HumanPose.bodyPosition = scaledBody;
             HumanPose.bodyRotation = applyingRotation;
-
             // Copy all 95 muscles
             Memcpy95(Muscles, HumanPose.muscles);
 
