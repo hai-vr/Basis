@@ -60,6 +60,8 @@ namespace Basis.Scripts.Networking.Receivers
         // Main-thread-only jitter buffer. Bounded. Overwrites oldest when full.
         private BasisRingBuffer<BasisAvatarBuffer> _stagedRing;
 
+        public Transform AvatarTransform;
+        public bool HasChangedAvatarTransform = false;
         /// <summary>
         /// Main-thread simulation step. Pulls packets, maintains interpolation window,
         /// computes interpolationTime, and feeds inputs to the network driver.
@@ -76,7 +78,12 @@ namespace Basis.Scripts.Networking.Receivers
                 BasisDebug.LogError($"Animator for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
                 return;
             }
-            if (Player.AvatarTransform == null)
+            if(AvatarTransform != Player.AvatarTransform)
+            {
+                AvatarTransform = Player.AvatarTransform;
+                HasChangedAvatarTransform = true;
+            }
+            if (AvatarTransform == null)
             {
                 BasisDebug.LogError($"AvatarTransform for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
                 return;
@@ -172,7 +179,7 @@ namespace Basis.Scripts.Networking.Receivers
             BasisRemoteNetworkDriver.GetOutputs_NoAlloc(
                 playerId,
                 out var outPos,                 // world pos (unused by HumanPose)
-                out float3 applyingScale,
+                out bool applyingScale,
                 out var applyingRotation,
                 out float3 scaledBody,          // HumanPose.bodyPosition (units in avatar-space)
                 Muscles,
@@ -180,7 +187,6 @@ namespace Basis.Scripts.Networking.Receivers
             );
 
             ApplyingPosition = outPos;
-            ApplyingScale = applyingScale;
             ApplyingRotation = applyingRotation;
 
             HumanPose.bodyPosition = scaledBody;
@@ -197,8 +203,11 @@ namespace Basis.Scripts.Networking.Receivers
                     UnsafeUtility.MemCpy(pDst + EyesAndMouthOffset, pSrc, EyeAndMouthCountInBytes);
                 }
             }
-
-            Player.AvatarTransform.localScale = applyingScale;
+            if (applyingScale || HasChangedAvatarTransform)
+            {
+                BasisRemoteNetworkDriver.GetScaleOutput(playerId, out float3 scale);
+                AvatarTransform.localScale = scale;
+            }
 
             PoseHandler.SetHumanPose(ref HumanPose);
 

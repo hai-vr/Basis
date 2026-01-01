@@ -308,7 +308,6 @@ namespace Basis.Scripts.UI.NamePlate
         // Native state (persistent)
         private static NativeArray<ushort> isPulsing;
         private static NativeArray<ushort> isVisible;
-        private static NativeArray<ushort> isEnabled;
         private static NativeArray<double> startTime;
         private static NativeArray<float4> talkColor;
 
@@ -365,7 +364,6 @@ namespace Basis.Scripts.UI.NamePlate
                 {
                     isPulsing[idx] = isPulsing[last];
                     isVisible[idx] = isVisible[last];
-                    isEnabled[idx] = isEnabled[last];
                     startTime[idx] = startTime[last];
                     talkColor[idx] = talkColor[last];
                 }
@@ -388,7 +386,6 @@ namespace Basis.Scripts.UI.NamePlate
                 {
                     isPulsing[idx] = 0;
                     isVisible[idx] = 0;
-                    isEnabled[idx] = 0;
                     startTime[idx] = 0;
                     talkColor[idx] = 0;
                 }
@@ -409,7 +406,6 @@ namespace Basis.Scripts.UI.NamePlate
             // Create new arrays
             var newIsPulsing = new NativeArray<ushort>(newCap, Allocator.Persistent);
             var newIsVisible = new NativeArray<ushort>(newCap, Allocator.Persistent);
-            var newIsEnabled = new NativeArray<ushort>(newCap, Allocator.Persistent);
             var newStartTime = new NativeArray<double>(newCap, Allocator.Persistent);
             var newTalkColor = new NativeArray<float4>(newCap, Allocator.Persistent);
 
@@ -423,7 +419,6 @@ namespace Basis.Scripts.UI.NamePlate
 
                 NativeArray<ushort>.Copy(isPulsing, newIsPulsing, copy);
                 NativeArray<ushort>.Copy(isVisible, newIsVisible, copy);
-                NativeArray<ushort>.Copy(isEnabled, newIsEnabled, copy);
                 NativeArray<double>.Copy(startTime, newStartTime, copy);
                 NativeArray<float4>.Copy(talkColor, newTalkColor, copy);
 
@@ -436,7 +431,6 @@ namespace Basis.Scripts.UI.NamePlate
 
             isPulsing = newIsPulsing;
             isVisible = newIsVisible;
-            isEnabled = newIsEnabled;
             startTime = newStartTime;
             talkColor = newTalkColor;
 
@@ -468,7 +462,6 @@ namespace Basis.Scripts.UI.NamePlate
 
             if (isPulsing.IsCreated) isPulsing.Dispose();
             if (isVisible.IsCreated) isVisible.Dispose();
-            if (isEnabled.IsCreated) isEnabled.Dispose();
             if (startTime.IsCreated) startTime.Dispose();
             if (talkColor.IsCreated) talkColor.Dispose();
 
@@ -515,7 +508,6 @@ namespace Basis.Scripts.UI.NamePlate
             // --- UNSAFE POINTERS (skip NativeArray.SetItem) ---
             ushort* pIsPulsing = (ushort*)isPulsing.GetUnsafePtr();
             ushort* pIsVisible = (ushort*)isVisible.GetUnsafePtr();
-            ushort* pIsEnabled = (ushort*)isEnabled.GetUnsafePtr();
             double* pStartTime = (double*)startTime.GetUnsafePtr();
             float4* pTalkColor = (float4*)talkColor.GetUnsafePtr();
 
@@ -527,10 +519,9 @@ namespace Basis.Scripts.UI.NamePlate
             // --- Gather phase (main thread) ---
             for (int Index = 0; Index < count; Index++)
             {
-                var p = plates[Index];
+                BasisRemoteNamePlate p = plates[Index];
 
                 pIsVisible[Index] = (ushort)(p.IsVisible ? 1 : 0);
-                pIsEnabled[Index] = (ushort)(p.isActiveAndEnabled ? 1 : 0);
                 pIsPulsing[Index] = (ushort)(p.GetIsPulsingForJob() ? 1 : 0);
 
                 pStartTime[Index] = p.GetTalkStartTimeForJob();
@@ -554,7 +545,6 @@ namespace Basis.Scripts.UI.NamePlate
 
                 isPulsing = isPulsing,
                 isVisible = isVisible,
-                isEnabled = isEnabled,
                 startTime = startTime,
                 talkColor = talkColor,
 
@@ -604,7 +594,6 @@ namespace Basis.Scripts.UI.NamePlate
 
             [ReadOnly] public NativeArray<ushort> isPulsing; // 0/1
             [ReadOnly] public NativeArray<ushort> isVisible; // 0/1
-            [ReadOnly] public NativeArray<ushort> isEnabled; // 0/1
             [ReadOnly] public NativeArray<double> startTime;
             [ReadOnly] public NativeArray<float4> talkColor;
 
@@ -619,7 +608,7 @@ namespace Basis.Scripts.UI.NamePlate
 
                 if (isPulsing[i] == 0) return;
 
-                if (isVisible[i] == 0 || isEnabled[i] == 0)
+                if (isVisible[i] == 0)
                 {
                     outStopPulsing[i] = 1;
                     return;

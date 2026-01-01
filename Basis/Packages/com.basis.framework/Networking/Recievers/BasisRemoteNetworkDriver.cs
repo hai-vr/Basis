@@ -27,6 +27,7 @@ public static class BasisRemoteNetworkDriver
     static NativeArray<double> _windowDuration;
     static NativeArray<float> _unscaledDeltaTime;
     static NativeArray<float> _OutputInterpolation;
+    static NativeArray<bool> _HasScaleChange;
     // Muscles (flattened: players * muscles)
     static NativeArray<float> _prevMuscles;
     static NativeArray<float> _targetMuscles;
@@ -75,6 +76,7 @@ public static class BasisRemoteNetworkDriver
             _windowDuration[Index] = 0f;
             _unscaledDeltaTime[Index] = 0f;
             _OutputInterpolation[Index] = 0f;
+            _HasScaleChange[Index] = false;
             // New: default human scale to 1
             _humanScales[Index] = 1;
             _scaledBodyPositions[Index] = float3.zero;
@@ -185,6 +187,7 @@ public static class BasisRemoteNetworkDriver
             TargetRotations = _targetRotations,
             InterpolationTimes = _interpolationTimes,
             OutputInterpolation = _OutputInterpolation,
+            HasScaleChange = _HasScaleChange,
             unscaledDeltaTime = _unscaledDeltaTime,
             windowDuration = _windowDuration,
             OutputPositions = _outPositions,
@@ -242,10 +245,10 @@ public static class BasisRemoteNetworkDriver
 
     /// <summary>Read back the computed outputs for an index after Apply().</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void GetOutputs_NoAlloc(int index, out float3 outPos, out float3 outScale, out quaternion outRot, out float3 BodyPosition, float[] outMuscles,out float FinalInterpolation)
+    public static void GetOutputs_NoAlloc(int index, out float3 outPos, out bool outScale, out quaternion outRot, out float3 BodyPosition, float[] outMuscles,out float FinalInterpolation)
     {
         outPos = _outPositions[index];
-        outScale = _outScales[index];
+        outScale = _HasScaleChange[index];
         outRot = _outRotations[index];
 
         int baseOffset = index * _muscleCount;
@@ -263,6 +266,11 @@ public static class BasisRemoteNetworkDriver
         }
         BodyPosition = _scaledBodyPositions[index];
         FinalInterpolation = _OutputInterpolation[index];
+
+    }
+    public static void GetScaleOutput(int index, out float3 outScale)
+    {
+        outScale = _outScales[index];
     }
 
     static void AllocateAll(int capacity)
@@ -287,6 +295,7 @@ public static class BasisRemoteNetworkDriver
         _windowDuration = new NativeArray<double>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
         _unscaledDeltaTime = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
         _OutputInterpolation = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
+        _HasScaleChange = new NativeArray<bool>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
 
         // Muscles (flattened)
         int flat = capacity * _muscleCount;
@@ -329,6 +338,7 @@ public static class BasisRemoteNetworkDriver
         if (_windowDuration.IsCreated) _windowDuration.Dispose();
         if (_unscaledDeltaTime.IsCreated) _unscaledDeltaTime.Dispose();
         if (_OutputInterpolation.IsCreated) _OutputInterpolation.Dispose();
+        if(_HasScaleChange.IsCreated) _HasScaleChange.Dispose();
     }
     /*
  * BasicOneEuroFilterParallelJob.cs
@@ -428,6 +438,9 @@ public static class BasisRemoteNetworkDriver
         public NativeArray<quaternion> OutputRotations;
         [WriteOnly]
         public NativeArray<float> OutputInterpolation;
+
+        [WriteOnly]
+        public NativeArray<bool> HasScaleChange;
         public void Execute(int index)
         {
             float interpolationTime = InterpolationTimes[index];
@@ -455,6 +468,11 @@ public static class BasisRemoteNetworkDriver
             OutputScales[index] = math.lerp(PreviousScales[index], TargetScales[index], interpolationTime);
             OutputRotations[index] = math.slerp(PreviousRotations[index], TargetRotations[index], interpolationTime);
             OutputInterpolation[index] = interpolationTime;
+
+            const float scaleEpsSq = 1e-10f;
+            float3 prevS = PreviousScales[index];
+            float3 targS = TargetScales[index];
+            HasScaleChange[index] = math.lengthsq(targS - prevS) > scaleEpsSq;
         }
     }
 
