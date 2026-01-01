@@ -79,7 +79,14 @@ namespace uLipSync
         const float epsilon = 1e-6f;
 
         public bool HasJob = false;
+
+        // =========================
+        // NEW: Workspace + precomputed plans (allocate once, reuse)
+        // =========================
         public LipSyncWorkspace ws;
+        MelFilterPlan _melPlan;
+        DctPlan _dctPlan;
+
         // =========================================================
         // Fast scheduling: swap buffers, job reads frozen buffer
         // =========================================================
@@ -104,7 +111,11 @@ namespace uLipSync
                 startIndex = _frozenStartIndex,
                 outputSampleRate = outputSampleRate,
                 targetSampleRate = profile.targetSampleRate,
-                melFilterBankChannels = profile.melFilterBankChannels,
+
+                // NOTE: melFilterBankChannels is not used anymore in the optimized job,
+                // but keep it if your LipSyncJob struct still has it.
+                // melFilterBankChannels = profile.melFilterBankChannels,
+
                 means = _means,
                 standardDeviations = _standardDeviations,
                 mfcc = _mfcc,
@@ -113,7 +124,11 @@ namespace uLipSync
                 scores = _scores,
                 info = _info,
                 restPhonemeIndex = 0,
-                  ws = ws,
+
+                // NEW: pass workspace + precomputed plans
+                ws = ws,
+                melPlan = _melPlan,
+                dctPlan = _dctPlan,
             };
 
             _jobHandle = lipSyncJob.Schedule();
@@ -217,17 +232,13 @@ namespace uLipSync
                 int bsIndex = bs.index;
 
                 if ((uint)bsIndex >= (uint)meshBlendShapeCount)
-                {
                     continue;
-                }
 
                 MultipliedWeight = bs.weight * baseMultiply;
                 finalWeight = math.clamp(MultipliedWeight, 0f, 100f);
 
                 if (float.IsNaN(finalWeight))
-                {
                     finalWeight = 0f;
-                }
 
                 smr.SetBlendShapeWeight(bsIndex, finalWeight);
             }
@@ -318,35 +329,65 @@ namespace uLipSync
             _phonemeRatios = new float[phonemeCount];
 
             // Map phoneme names -> index once
-            if (profile == null || BlendShapeInfos == null) return;
-
-            Dictionary<string, int> phonemeNameToIndex = new Dictionary<string, int>(32);
-            for (int i = 0; i < phonemeCount; i++)
+            if (BlendShapeInfos != null)
             {
-                var name = profile.GetPhoneme(i);
-                if (!string.IsNullOrEmpty(name)) phonemeNameToIndex[name] = i;
+                Dictionary<string, int> phonemeNameToIndex = new Dictionary<string, int>(32);
+                for (int i = 0; i < phonemeCount; i++)
+                {
+                    var name = profile.GetPhoneme(i);
+                    if (!string.IsNullOrEmpty(name)) phonemeNameToIndex[name] = i;
+                }
+
+                int blendShapeLength = BlendShapeInfos.Length;
+                for (int i = 0; i < blendShapeLength; i++)
+                {
+                    var bs = BlendShapeInfos[i];
+                    bs.phonemeIndex =
+                        !string.IsNullOrEmpty(bs.phoneme) && phonemeNameToIndex.TryGetValue(bs.phoneme, out int idx)
+                            ? idx
+                            : -1;
+
+                    BlendShapeInfos[i] = bs; // if struct
+                }
             }
 
-            int blendShapeLength = BlendShapeInfos.Length;
-            for (int i = 0; i < blendShapeLength; i++)
-            {
-                var bs = BlendShapeInfos[i];
-                bs.phonemeIndex =
-                    !string.IsNullOrEmpty(bs.phoneme) && phonemeNameToIndex.TryGetValue(bs.phoneme, out int idx)
-                        ? idx
-                        : -1;
-
-                BlendShapeInfos[i] = bs; // if struct
-            }
+            // =========================
+            // NEW: Allocate workspace + precomputed mel/dct plans
+            // =========================
             int targetRate = math.max(profile.targetSampleRate, 1);
             int melDiv = math.max(profile.melFilterBankChannels, 1);
+
+            // Choose MFCC length = what you output (profile.mfccNum)
+            int mfccLen = math.max(profile.mfccNum, 1);
+
+            // Create workspace. IMPORTANT:
+            // This assumes you're using the updated LipSyncWorkspace.Create signature from the optimized code:
+            // Create(inputLen, outputSampleRate, targetSampleRate, melDiv, fftN, firRangeHz, allocator)
+            // Pass fftN=0 to auto-pick next pow2 >= downsample length.
             ws = LipSyncWorkspace.Create(
-     inputLen: CachedInputSampleCount,
-     sampleRate: outputSampleRate,
-     targetSampleRate: targetRate,
-     melDiv: melDiv,
-     firRangeHz: 500f,
-     allocator: Allocator.Persistent);
+                inputLen: CachedInputSampleCount,
+                outputSampleRate: outputSampleRate,
+                targetSampleRate: targetRate,
+                melDiv: melDiv,
+                fftN: 0,
+                firRangeHz: 500f,
+                allocator: Allocator.Persistent
+            );
+
+            // Build plans using the workspace FFT size (ws.frame.Length == fftN)
+            // Mel plan should use TARGET sample rate (because spectrum is computed after downsample to target rate)
+            _melPlan = MelFilterPlan.Build(
+                fftN: ws.frame.Length,
+                sampleRate: targetRate,
+                melDiv: melDiv,
+                alloc: Allocator.Persistent
+            );
+
+            _dctPlan = DctPlan.Build(
+                melDiv: melDiv,
+                mfccLen: mfccLen,
+                alloc: Allocator.Persistent
+            );
         }
 
         public void OnDestroy()
@@ -374,6 +415,11 @@ namespace uLipSync
             SafeDispose(ref _scores);
             SafeDispose(ref _phonemes);
             SafeDispose(ref _info);
+
+            // NEW: dispose plans + workspace
+            if (_melPlan.IsCreated) _melPlan.Dispose();
+            if (_dctPlan.IsCreated) _dctPlan.Dispose();
+            if (ws.IsCreated) ws.Dispose();
 
             _phonemeRatios = null;
         }
