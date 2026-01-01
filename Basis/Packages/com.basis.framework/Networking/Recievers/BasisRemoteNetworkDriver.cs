@@ -245,24 +245,10 @@ public static class BasisRemoteNetworkDriver
 
     /// <summary>Read back the computed outputs for an index after Apply().</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void GetOutputs_NoAlloc(int index, out bool outScale, out quaternion outRot, out float3 BodyPosition, float[] outMuscles,out float FinalInterpolation)
+    public static void GetOutputs_NoAlloc(int index, out bool outScale, out quaternion outRot, out float3 BodyPosition,out float FinalInterpolation)
     {
         outScale = _HasScaleChange[index];
         outRot = _outRotations[index];
-
-        int baseOffset = index * _muscleCount;
-
-        unsafe
-        {
-            // source: NativeArray<float> (contiguous)
-            float* src = (float*)euroValuesOutput.GetUnsafeReadOnlyPtr() + baseOffset;
-
-            // dest: managed float[] pinned just for the copy
-            fixed (float* dst = outMuscles)
-            {
-                UnsafeUtility.MemCpy(dst, src, _muscleCount * sizeof(float));
-            }
-        }
         BodyPosition = _scaledBodyPositions[index];
         FinalInterpolation = _OutputInterpolation[index];
 
@@ -274,6 +260,21 @@ public static class BasisRemoteNetworkDriver
     public static void GetScaleOutput(int index, out float3 outScale)
     {
         outScale = _outScales[index];
+    }
+    public static void GetMuscleArray(int index,ref HumanPose PoseData)
+    {
+        int baseOffset = index * _muscleCount;
+        unsafe
+        {
+            // source: NativeArray<float> (contiguous)
+            float* src = (float*)euroValuesOutput.GetUnsafeReadOnlyPtr() + baseOffset;
+
+            // dest: managed float[] pinned just for the copy
+            fixed (float* dst = PoseData.muscles)
+            {
+                UnsafeUtility.MemCpy(dst, src, _muscleCount * sizeof(float));
+            }
+        }
     }
 
     static void AllocateAll(int capacity)

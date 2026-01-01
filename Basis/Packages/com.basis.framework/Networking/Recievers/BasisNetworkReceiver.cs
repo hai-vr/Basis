@@ -41,7 +41,6 @@ namespace Basis.Scripts.Networking.Receivers
         public bool hasEvents = false;
 
         public float[] EyesAndMouth = new float[] { 0, 0, 0, 0, 1, 0 }; // default neutral eyes, mouth open=1 for breathing
-        public float[] Muscles = new float[95];
 
         public quaternion ApplyingRotation;
         public float3 ApplyingScale;
@@ -180,7 +179,6 @@ namespace Basis.Scripts.Networking.Receivers
                 out bool applyingScale,
                 out var applyingRotation,
                 out float3 scaledBody,          // HumanPose.bodyPosition (units in avatar-space)
-                Muscles,
                 out interpolationTime
             );
             ApplyingRotation = applyingRotation;
@@ -189,8 +187,8 @@ namespace Basis.Scripts.Networking.Receivers
 
             HumanPose.bodyPosition = scaledBody;
             HumanPose.bodyRotation = applyingRotation;
-            // Copy all 95 muscles
-            Memcpy95(Muscles, HumanPose.muscles);
+
+            BasisRemoteNetworkDriver.GetMuscleArray(playerId, ref HumanPose);
 
             // Overlay eyes/mouth in one shot
             unsafe
@@ -216,20 +214,6 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             PassedSimulate = false;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static void Memcpy95(float[] src, float[] dst)
-        {
-            const int MuscleCount = 95;
-            unsafe
-            {
-                fixed (float* pSrc = src)
-                fixed (float* pDst = dst)
-                {
-                    UnsafeUtility.MemCpy(pDst, pSrc, MuscleCount * sizeof(float));
-                }
-            }
         }
 
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)
