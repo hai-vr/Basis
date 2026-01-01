@@ -81,8 +81,8 @@
   <Project Path="Meta.XR.ImmersiveDebugger.Editor.csproj" />
   <Project Path="Unity.XR.CoreUtils.Editor.csproj" />
   <Project Path="Unity.MemoryProfiler.Editor.MemoryProfilerModule.csproj" />
-  <Project Path="Basis.uLipSync.Runtime.csproj" />
   <Project Path="Unity.XR.OpenXR.Editor.csproj" />
+  <Project Path="Basis.uLipSync.Runtime.csproj" />
   <Project Path="Unity.Services.Core.Configuration.Editor.csproj" />
   <Project Path="Unity.Services.Core.Configuration.csproj" />
   <Project Path="BasisNetworkServer.csproj" />

@@ -1,4 +1,3 @@
-using System;
 using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
@@ -8,468 +7,12 @@ using Unity.Mathematics;
 
 namespace uLipSync
 {
-    // ============================
-    // FFT Plan (precompute once)
-    // ============================
-    public struct FftPlan : IDisposable
-    {
-        public NativeArray<int> bitrev;       // [N]
-        public NativeArray<int> stageOffsets; // [stages+1] offsets into twiddles
-        public NativeArray<float> twRe;       // packed twiddles
-        public NativeArray<float> twIm;
-
-        public int N;
-        public int stages;
-
-        public bool IsCreated => bitrev.IsCreated && stageOffsets.IsCreated && twRe.IsCreated && twIm.IsCreated;
-
-        public void Dispose()
-        {
-            if (bitrev.IsCreated) bitrev.Dispose();
-            if (stageOffsets.IsCreated) stageOffsets.Dispose();
-            if (twRe.IsCreated) twRe.Dispose();
-            if (twIm.IsCreated) twIm.Dispose();
-        }
-
-        static int Log2Pow2(int n)
-        {
-            int s = 0;
-            while ((1 << s) < n) s++;
-            return s;
-        }
-
-        public static FftPlan Build(int N, Allocator alloc)
-        {
-            // N must be pow2
-            int stages = Log2Pow2(N);
-
-            // bit reversal indices
-            var bitrev = new NativeArray<int>(N, alloc);
-            for (int i = 0; i < N; i++)
-            {
-                int x = i;
-                int r = 0;
-                for (int b = 0; b < stages; b++)
-                {
-                    r = (r << 1) | (x & 1);
-                    x >>= 1;
-                }
-                bitrev[i] = r;
-            }
-
-            // twiddles per stage:
-            // for each stage len = 2..N, half=len/2, twiddle for j=0..half-1
-            // pack all in one array to keep it Burst-friendly.
-            int totalTw = 0;
-            var stageOffsets = new NativeArray<int>(stages + 1, alloc);
-            int len = 2;
-            for (int s = 0; s < stages; s++, len <<= 1)
-            {
-                stageOffsets[s] = totalTw;
-                totalTw += (len >> 1);
-            }
-            stageOffsets[stages] = totalTw;
-
-            var twRe = new NativeArray<float>(totalTw, alloc);
-            var twIm = new NativeArray<float>(totalTw, alloc);
-
-            len = 2;
-            for (int s = 0; s < stages; s++, len <<= 1)
-            {
-                int half = len >> 1;
-                float ang = -2f * math.PI / len;
-                for (int j = 0; j < half; j++)
-                {
-                    float a = ang * j;
-                    int idx = stageOffsets[s] + j;
-                    twRe[idx] = math.cos(a);
-                    twIm[idx] = math.sin(a);
-                }
-            }
-
-            return new FftPlan
-            {
-                N = N,
-                stages = stages,
-                bitrev = bitrev,
-                stageOffsets = stageOffsets,
-                twRe = twRe,
-                twIm = twIm
-            };
-        }
-    }
-
-    // ============================
-    // Mel + DCT plans unchanged
-    // (your existing MelFilterPlan/DctPlan are good)
-    // ============================
-
-    public struct LipSyncWorkspace : IDisposable
-    {
-        public NativeArray<float> buffer;        // inputLen
-        public NativeArray<float> down;          // downLen
-        public NativeArray<float> frame;         // fftN
-        public NativeArray<float> powerHalf;     // fftN/2+1
-        public NativeArray<float> melSpectrum;   // melDiv
-
-        public NativeArray<float> tmp;           // scratch >= max(inputLen, downLen, fftN)
-        public NativeArray<float> fftRe;         // fftN
-        public NativeArray<float> fftIm;         // fftN
-
-        public NativeArray<float> firTaps;       // firLen (precomputed)
-        public NativeArray<float> hammingWindow; // fftN (precomputed)
-
-        // NEW: standardization scratch (per frame)
-        public NativeArray<float> mfccZ;         // mfccLen
-
-        // NEW: FFT plan
-        public FftPlan fftPlan;
-
-        public bool IsCreated =>
-            buffer.IsCreated && down.IsCreated && frame.IsCreated &&
-            powerHalf.IsCreated && melSpectrum.IsCreated &&
-            tmp.IsCreated && fftRe.IsCreated && fftIm.IsCreated &&
-            firTaps.IsCreated && hammingWindow.IsCreated &&
-            mfccZ.IsCreated && fftPlan.IsCreated;
-
-        public void Dispose()
-        {
-            if (buffer.IsCreated) buffer.Dispose();
-            if (down.IsCreated) down.Dispose();
-            if (frame.IsCreated) frame.Dispose();
-            if (powerHalf.IsCreated) powerHalf.Dispose();
-            if (melSpectrum.IsCreated) melSpectrum.Dispose();
-            if (tmp.IsCreated) tmp.Dispose();
-            if (fftRe.IsCreated) fftRe.Dispose();
-            if (fftIm.IsCreated) fftIm.Dispose();
-            if (firTaps.IsCreated) firTaps.Dispose();
-            if (hammingWindow.IsCreated) hammingWindow.Dispose();
-            if (mfccZ.IsCreated) mfccZ.Dispose();
-            if (fftPlan.IsCreated) fftPlan.Dispose();
-        }
-
-        public static int ComputeDownsampleLength(int inputLen, int outputSampleRate, int targetSampleRate)
-        {
-            if (outputSampleRate <= targetSampleRate) return inputLen;
-
-            if (outputSampleRate % targetSampleRate == 0)
-            {
-                int skip = outputSampleRate / targetSampleRate;
-                return inputLen / skip;
-            }
-
-            float df = (float)outputSampleRate / targetSampleRate;
-            return (int)math.round(inputLen / df);
-        }
-
-        public static int ComputeLowPassFirLength(float sampleRate, float cutoffHz, float rangeHz)
-        {
-            float range = rangeHz / sampleRate;
-            int n = (int)math.round(3.1f / range);
-            if (((n + 1) & 1) == 0) n += 1;
-            return n;
-        }
-
-        static int NextPow2(int x)
-        {
-            x = math.max(1, x);
-            x--;
-            x |= x >> 1;
-            x |= x >> 2;
-            x |= x >> 4;
-            x |= x >> 8;
-            x |= x >> 16;
-            return x + 1;
-        }
-
-        public static LipSyncWorkspace Create(
-            int inputLen,
-            int outputSampleRate,
-            int targetSampleRate,
-            int melDiv,
-            int mfccLen,
-            int fftN,
-            float firRangeHz,
-            Allocator allocator)
-        {
-            int downLen = ComputeDownsampleLength(inputLen, outputSampleRate, targetSampleRate);
-
-            if (fftN <= 0) fftN = NextPow2(downLen);
-            if ((fftN & (fftN - 1)) != 0) fftN = NextPow2(fftN);
-            fftN = math.max(fftN, downLen);
-
-            float cutoffHz = targetSampleRate * 0.5f;
-            int firLen = ComputeLowPassFirLength(outputSampleRate, cutoffHz, firRangeHz);
-
-            int specLen = fftN / 2 + 1;
-
-            var ws = new LipSyncWorkspace
-            {
-                buffer = new NativeArray<float>(inputLen, allocator),
-                down = new NativeArray<float>(downLen, allocator),
-                frame = new NativeArray<float>(fftN, allocator),
-                powerHalf = new NativeArray<float>(specLen, allocator),
-                melSpectrum = new NativeArray<float>(melDiv, allocator),
-
-                tmp = new NativeArray<float>(math.max(math.max(inputLen, downLen), fftN), allocator),
-                fftRe = new NativeArray<float>(fftN, allocator),
-                fftIm = new NativeArray<float>(fftN, allocator),
-
-                firTaps = new NativeArray<float>(firLen, allocator),
-                hammingWindow = new NativeArray<float>(fftN, allocator),
-
-                mfccZ = new NativeArray<float>(mfccLen, allocator),
-
-                fftPlan = FftPlan.Build(fftN, allocator),
-            };
-
-            PrecomputeLowPassTaps(ws.firTaps, outputSampleRate, cutoffHz, firRangeHz);
-            PrecomputeHamming(ws.hammingWindow);
-
-            return ws;
-        }
-
-        static void PrecomputeHamming(NativeArray<float> window)
-        {
-            unsafe
-            {
-                float* w = (float*)window.GetUnsafePtr();
-                int len = window.Length;
-                float inv = 1f / (len - 1);
-                for (int i = 0; i < len; i++)
-                {
-                    float x = i * inv;
-                    w[i] = 0.54f - 0.46f * math.cos(2f * math.PI * x);
-                }
-            }
-        }
-
-        static void PrecomputeLowPassTaps(NativeArray<float> taps, float sampleRate, float cutoffHz, float rangeHz)
-        {
-            float cutoff = (cutoffHz - rangeHz) / sampleRate;
-            float range = rangeHz / sampleRate;
-
-            int n = (int)math.round(3.1f / range);
-            if (((n + 1) & 1) == 0) n += 1;
-            n = math.min(n, taps.Length);
-
-            unsafe
-            {
-                float* b = (float*)taps.GetUnsafePtr();
-                float half = (n - 1) * 0.5f;
-
-                for (int i = 0; i < n; i++)
-                {
-                    float x = i - half;
-                    float ang = 2f * math.PI * cutoff * x;
-                    if (math.abs(ang) < 1e-12f) b[i] = 2f * cutoff;
-                    else b[i] = 2f * cutoff * math.sin(ang) / ang;
-                }
-                for (int i = n; i < taps.Length; i++) b[i] = 0f;
-            }
-        }
-    }
-    // =======================================================
-    // MelFilterPlan
-    // - Precomputes sparse triangular mel filter bank mapping
-    // - Packed as CSR-ish: starts/lengths + bins/weights
-    // - Burst-friendly: apply via pointers
-    // =======================================================
-    public struct MelFilterPlan : IDisposable
-    {
-        public NativeArray<int> starts;     // [melDiv] start offset into bins/weights
-        public NativeArray<int> lengths;    // [melDiv] number of weights per mel band
-        public NativeArray<int> bins;       // [totalWeights] spectrum bin index per weight
-        public NativeArray<float> weights;  // [totalWeights] weight per bin
-
-        public int melDiv;
-        public int fftN;
-        public int specLen;
-        public float sampleRate;
-
-        public bool IsCreated =>
-            starts.IsCreated && lengths.IsCreated &&
-            bins.IsCreated && weights.IsCreated;
-
-        public void Dispose()
-        {
-            if (starts.IsCreated) starts.Dispose();
-            if (lengths.IsCreated) lengths.Dispose();
-            if (bins.IsCreated) bins.Dispose();
-            if (weights.IsCreated) weights.Dispose();
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static float ToMel(float hz, bool slaney = false)
-        {
-            // HTK-ish (1127) or Slaney-ish (2595). Both are common.
-            float a = slaney ? 2595f : 1127f;
-            return a * math.log(hz / 700f + 1f);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static float ToHz(float mel, bool slaney = false)
-        {
-            float a = slaney ? 2595f : 1127f;
-            return 700f * (math.exp(mel / a) - 1f);
-        }
-
-        public static MelFilterPlan Build(int fftN, float sampleRate, int melDiv, Allocator alloc, bool slaney = false)
-        {
-            fftN = math.max(2, fftN);
-            melDiv = math.max(1, melDiv);
-
-            int specLen = fftN / 2 + 1;
-
-            float fMax = sampleRate * 0.5f;
-            float melMax = ToMel(fMax, slaney);
-
-            float df = fMax / (specLen - 1);      // Hz per bin
-            float dMel = melMax / (melDiv + 1);   // mel spacing including endpoints
-
-            // First pass: figure out total number of weights
-            int total = 0;
-            var tmpStarts = new NativeArray<int>(melDiv, Allocator.Temp);
-            var tmpLens = new NativeArray<int>(melDiv, Allocator.Temp);
-
-            for (int n = 0; n < melDiv; n++)
-            {
-                float melBegin = dMel * n;
-                float melCenter = dMel * (n + 1);
-                float melEnd = dMel * (n + 2);
-
-                float fBegin = ToHz(melBegin, slaney);
-                float fCenter = ToHz(melCenter, slaney);
-                float fEnd = ToHz(melEnd, slaney);
-
-                int iBegin = math.clamp((int)math.ceil(fBegin / df), 0, specLen - 1);
-                int iCenter = math.clamp((int)math.round(fCenter / df), 0, specLen - 1);
-                int iEnd = math.clamp((int)math.floor(fEnd / df), 0, specLen - 1);
-
-                if (iCenter < iBegin) iCenter = iBegin;
-                if (iEnd < iCenter) iEnd = iCenter;
-
-                int len = iEnd - iBegin + 1;
-                tmpStarts[n] = total;
-                tmpLens[n] = len;
-                total += len;
-            }
-
-            var plan = new MelFilterPlan
-            {
-                melDiv = melDiv,
-                fftN = fftN,
-                specLen = specLen,
-                sampleRate = sampleRate,
-
-                starts = new NativeArray<int>(melDiv, alloc),
-                lengths = new NativeArray<int>(melDiv, alloc),
-                bins = new NativeArray<int>(total, alloc),
-                weights = new NativeArray<float>(total, alloc),
-            };
-
-            // Second pass: fill bins + weights
-            int cursor = 0;
-            for (int n = 0; n < melDiv; n++)
-            {
-                plan.starts[n] = tmpStarts[n];
-                plan.lengths[n] = tmpLens[n];
-
-                float melBegin = dMel * n;
-                float melCenter = dMel * (n + 1);
-                float melEnd = dMel * (n + 2);
-
-                float fBegin = ToHz(melBegin, slaney);
-                float fCenter = ToHz(melCenter, slaney);
-                float fEnd = ToHz(melEnd, slaney);
-
-                int iBegin = math.clamp((int)math.ceil(fBegin / df), 0, specLen - 1);
-                int iCenter = math.clamp((int)math.round(fCenter / df), 0, specLen - 1);
-                int iEnd = math.clamp((int)math.floor(fEnd / df), 0, specLen - 1);
-
-                if (iCenter < iBegin) iCenter = iBegin;
-                if (iEnd < iCenter) iEnd = iCenter;
-
-                float denomL = math.max(fCenter - fBegin, 1e-12f);
-                float denomR = math.max(fEnd - fCenter, 1e-12f);
-
-                // Normalization: keeps overall scale somewhat consistent.
-                // (This is not the only possible normalization; just a sane one.)
-                float norm = 0.5f / math.max(fEnd - fBegin, 1e-12f);
-
-                for (int i = iBegin; i <= iEnd; i++)
-                {
-                    float f = df * i;
-                    float a = (i < iCenter) ? ((f - fBegin) / denomL) : ((fEnd - f) / denomR);
-                    a = math.max(a, 0f) * norm;
-
-                    plan.bins[cursor] = i;
-                    plan.weights[cursor] = a;
-                    cursor++;
-                }
-            }
-
-            tmpStarts.Dispose();
-            tmpLens.Dispose();
-            return plan;
-        }
-    }
-
-    // =======================================================
-    // DctPlan
-    // - Precomputes cos table for MFCC DCT-II (skipping c0)
-    // - Layout: row-major [mfccLen * melDiv]
-    // - Burst-friendly: apply via pointers
-    // =======================================================
-    public struct DctPlan : IDisposable
-    {
-        public NativeArray<float> cosTable; // [mfccLen * melDiv]
-        public int melDiv;
-        public int mfccLen;
-
-        public bool IsCreated => cosTable.IsCreated;
-
-        public void Dispose()
-        {
-            if (cosTable.IsCreated) cosTable.Dispose();
-        }
-
-        public static DctPlan Build(int melDiv, int mfccLen, Allocator alloc)
-        {
-            melDiv = math.max(1, melDiv);
-            mfccLen = math.max(1, mfccLen);
-
-            var plan = new DctPlan
-            {
-                melDiv = melDiv,
-                mfccLen = mfccLen,
-                cosTable = new NativeArray<float>(mfccLen * melDiv, alloc)
-            };
-
-            float a = math.PI / melDiv;
-
-            // r = 0..mfccLen-1 corresponds to DCT index i=r+1 (skip c0)
-            for (int r = 0; r < mfccLen; r++)
-            {
-                int i = r + 1;
-                int baseIdx = r * melDiv;
-
-                for (int j = 0; j < melDiv; j++)
-                {
-                    float ang = (j + 0.5f) * i * a;
-                    plan.cosTable[baseIdx + j] = math.cos(ang);
-                }
-            }
-
-            return plan;
-        }
-    }
 
     // =======================================================
     // LipSyncJob with the optimizations
     // =======================================================
     [BurstCompile]
-    public unsafe struct LipSyncJob : IJob
+    public unsafe struct BasisLipSyncJob : IJob
     {
         public struct Info
         {
@@ -492,14 +35,14 @@ namespace uLipSync
 
         [ReadOnly] public int restPhonemeIndex;
 
-        [ReadOnly] public MelFilterPlan melPlan;
-        [ReadOnly] public DctPlan dctPlan;
+        [ReadOnly] public BasisMelFilterPlan melPlan;
+        [ReadOnly] public BasisDctPlan dctPlan;
 
         public NativeArray<float> mfcc;
         public NativeArray<float> scores;
         public NativeArray<Info> info;
 
-        public LipSyncWorkspace ws;
+        public BasisLipSyncWorkspace ws;
 
         const float EPS = 1e-12f;
         const float LN10 = 2.302585092994046f;
@@ -564,7 +107,7 @@ namespace uLipSync
         // -------------------------------
         // Burst-safe plan applications
         // -------------------------------
-        static void ApplyMelPlan_BurstSafe(NativeArray<float> powerHalf, NativeArray<float> melOut, in MelFilterPlan plan)
+        static void ApplyMelPlan_BurstSafe(NativeArray<float> powerHalf, NativeArray<float> melOut, in BasisMelFilterPlan plan)
         {
             unsafe
             {
@@ -579,7 +122,7 @@ namespace uLipSync
             }
         }
 
-        static void DctMfccFromPlan_BurstSafe(NativeArray<float> melDb, NativeArray<float> mfccOut, in DctPlan plan)
+        static void DctMfccFromPlan_BurstSafe(NativeArray<float> melDb, NativeArray<float> mfccOut, in BasisDctPlan plan)
         {
             unsafe
             {
@@ -775,7 +318,7 @@ namespace uLipSync
         // -------------------------------
         // Planned FFT
         // -------------------------------
-        static void FFTPowerHalf_Planned(NativeArray<float> timeFrame, NativeArray<float> powerHalf, NativeArray<float> re, NativeArray<float> im, in FftPlan plan)
+        static void FFTPowerHalf_Planned(NativeArray<float> timeFrame, NativeArray<float> powerHalf, NativeArray<float> re, NativeArray<float> im, in BasisFftPlan plan)
         {
             FFTPowerHalf_Planned(
                 (float*)timeFrame.GetUnsafeReadOnlyPtr(),

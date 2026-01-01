@@ -33,7 +33,7 @@ public unsafe class BasisUlipSync
     NativeArray<float> _phonemes;      // raw packed
     NativeArray<float> _phonemesZ;     // NEW: standardized packed
     NativeArray<float> _scores;
-    NativeArray<LipSyncJob.Info> _info;
+    NativeArray<BasisLipSyncJob.Info> _info;
 
     public int phonemeCount;
     public int outputSampleRate;
@@ -68,9 +68,9 @@ public unsafe class BasisUlipSync
     public bool HasJob;
 
     // Workspace + plans
-    public LipSyncWorkspace ws;
-    MelFilterPlan _melPlan;
-    DctPlan _dctPlan;
+    public BasisLipSyncWorkspace ws;
+    BasisMelFilterPlan _melPlan;
+    BasisDctPlan _dctPlan;
 
     // Blendshape write-throttle
     float[] _lastApplied; // [meshBlendShapeCount]
@@ -94,7 +94,7 @@ public unsafe class BasisUlipSync
 
         NativeArray<float> frozenInput = oldActive == 0 ? _inputA : _inputB;
 
-        var job = new LipSyncJob
+        var job = new BasisLipSyncJob
         {
             input = frozenInput,
             startIndex = frozenStartIndex,
@@ -316,7 +316,7 @@ public unsafe class BasisUlipSync
         int melDiv = math.max(profile.melFilterBankChannels, 1);
         int mfccLen2 = math.max(profile.mfccNum, 1);
 
-        ws = LipSyncWorkspace.Create(
+        ws = BasisLipSyncWorkspace.Create(
             inputLen: CachedInputSampleCount,
             outputSampleRate: outputSampleRate,
             targetSampleRate: targetRate,
@@ -327,14 +327,14 @@ public unsafe class BasisUlipSync
             allocator: Allocator.Persistent
         );
 
-        _melPlan = MelFilterPlan.Build(
+        _melPlan = BasisMelFilterPlan.Build(
             fftN: ws.frame.Length,
             sampleRate: targetRate,
             melDiv: melDiv,
             alloc: Allocator.Persistent
         );
 
-        _dctPlan = DctPlan.Build(
+        _dctPlan = BasisDctPlan.Build(
             melDiv: melDiv,
             mfccLen: mfccLen2,
             alloc: Allocator.Persistent
