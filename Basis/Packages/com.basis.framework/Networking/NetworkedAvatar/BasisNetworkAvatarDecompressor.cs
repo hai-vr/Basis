@@ -28,8 +28,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             {
                 int offset = 0;
                 double interval = (double)BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
-                BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, (interval + (double)syncMessage.interval) / 1000.0);
-                EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, syncMessage.avatarSerialization);
+                if (CreateAvatarBuffer(data, ref offset, (interval + (double)syncMessage.interval) / 1000.0, out BasisAvatarBuffer avatarBuffer))
+                {
+                    EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, syncMessage.avatarSerialization);
+                }
             }
             else
             {
@@ -50,8 +52,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (length >= BasisBitPackingConstants.AvatarSyncSize)
             {
                 int offset = 0;
-                BasisAvatarBuffer avatarBuffer = CreateAvatarBuffer(data, ref offset, 0.01f);
-                EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, avatarSerialization);
+                if (CreateAvatarBuffer(data, ref offset, 0.01f, out BasisAvatarBuffer avatarBuffer))
+                {
+                    EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, avatarSerialization);
+                }
             }
             else
             {
@@ -59,34 +63,37 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
         }
 
-        private static BasisAvatarBuffer CreateAvatarBuffer(byte[] data, ref int offset, double secondsInterval)
+        private static bool CreateAvatarBuffer(byte[] data, ref int offset, double secondsInterval, out BasisAvatarBuffer BasisAvatarBuffer)
         {
-            BasisAvatarBuffer buffer = BasisAvatarBufferPool.Get();
-            buffer.Position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset);
-            buffer.Rotation = SanitizeRotation(BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, ref offset));
-            BasisOrderedDataSet.DecompressAvatarMuscles_BitPacked(data, ref buffer.Muscles, ref offset);
-            buffer.Scale = MuscleDecompress(BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset), MinimumValueSupported, MaximumValueSupported);
+            BasisAvatarBuffer = BasisAvatarBufferPool.Get();
+            BasisAvatarBuffer.Position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset);
+            BasisAvatarBuffer.Rotation = SanitizeRotation(BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, ref offset));
+            BasisOrderedDataSet.DecompressAvatarMuscles_BitPacked(data, ref BasisAvatarBuffer.Muscles, ref offset);
+            BasisAvatarBuffer.Scale = MuscleDecompress(BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset), MinimumValueSupported, MaximumValueSupported);
             // Reject NaN, Infinity, zero, negative, or insane values
             if (!double.IsFinite(secondsInterval) || secondsInterval <= 0.0 || secondsInterval > 1.0)
             {
                 BasisDebug.LogError($"SecondsInterval was {secondsInterval}, correcting to 0.0166667", BasisDebug.LogTag.Remote);
-                secondsInterval = 1.0 / 60.0;
+                BasisAvatarBufferPool.Release(BasisAvatarBuffer);
+                return false;
             }
-            buffer.SecondsInterval = secondsInterval;
+            BasisAvatarBuffer.SecondsInterval = secondsInterval;
 
             // 2) Sanitize transforms to avoid NaNs propagating into the driver.
-            if (!math.all(math.isfinite(buffer.Position)))
+            if (!math.all(math.isfinite(BasisAvatarBuffer.Position)))
             {
                 BasisDebug.LogError($"Infinite Position Detected setting to default", BasisDebug.LogTag.Remote);
-                buffer.Position = Unity.Mathematics.float3.zero;
+                BasisAvatarBufferPool.Release(BasisAvatarBuffer);
+                return false;
             }
 
-            if (!math.all(math.isfinite(buffer.Scale)))
+            if (!math.all(math.isfinite(BasisAvatarBuffer.Scale)))
             {
                 BasisDebug.LogError($"Infinite Scale Detected setting to default", BasisDebug.LogTag.Remote);
-                buffer.Scale = new Unity.Mathematics.float3(1f, 1f, 1f);
+                BasisAvatarBufferPool.Release(BasisAvatarBuffer);
+                return false;
             }
-            return buffer;
+            return true;
         }
         private static quaternion SanitizeRotation(quaternion q)
         {
