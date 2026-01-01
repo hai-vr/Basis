@@ -1,12 +1,16 @@
 // =======================================================
-// Optimized BasisUlipSync changes:
-// - Precompute standardized phonemes: _phonemesZ
-// - Better memory ordering on audio/main exchange
-// - Apply thresholded blendshape updates
+// Further-optimized BasisUlipSync update:
+// - Precompute _invStd (1/(std+eps)) once
+// - Precompute _phonemesZ using pointers + float4 loads
+// - Precompute _phonemeNorms for cosine (optional but cheap)
+// - Don’t renormalize scores in Apply (job can output normalized or not)
+// - Avoid per-frame Dictionary work (already done) + avoid extra copies
+// - Safer audio->main thread exchange (already good) + minor tweaks
 // =======================================================
 using System.Collections.Generic;
 using System.Threading;
 using uLipSync;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
@@ -28,10 +32,15 @@ public unsafe class BasisUlipSync
 
     NativeArray<float> _mfcc;
     NativeArray<float> _mfccForOther;
+
     NativeArray<float> _means;
     NativeArray<float> _standardDeviations;
-    NativeArray<float> _phonemes;      // raw packed
-    NativeArray<float> _phonemesZ;     // NEW: standardized packed
+
+    NativeArray<float> _invStd;         // NEW: 1/(std+eps) precomputed
+    NativeArray<float> _phonemes;       // raw packed
+    NativeArray<float> _phonemesZ;      // standardized packed
+    NativeArray<float> _phonemeNorms;   // NEW: per-phoneme norm for cosine (optional)
+
     NativeArray<float> _scores;
     NativeArray<BasisLipSyncJob.Info> _info;
 
@@ -76,6 +85,12 @@ public unsafe class BasisUlipSync
     float[] _lastApplied; // [meshBlendShapeCount]
     const float BlendshapeWriteEps = 0.25f; // tweak
 
+    // If you keep job normalization off (recommended for speed), but want _phonemeRatios normalized:
+    // set this to true. Otherwise it just copies scores as-is.
+    public bool NormalizeRatiosInApply = false;
+
+    const float Z_EPS = 1e-12f;
+
     public void Simulate()
     {
         if (Interlocked.Exchange(ref _isDataReceived, 0) != 1) return;
@@ -94,6 +109,9 @@ public unsafe class BasisUlipSync
 
         NativeArray<float> frozenInput = oldActive == 0 ? _inputA : _inputB;
 
+        // Normalize scores in job? (0 = skip, 1 = normalize)
+        byte normalizeScores = NormalizeRatiosInApply ? (byte)0 : (byte)1; // if we normalize in Apply, skip in job
+
         var job = new BasisLipSyncJob
         {
             input = frozenInput,
@@ -104,17 +122,22 @@ public unsafe class BasisUlipSync
 
             means = _means,
             standardDeviations = _standardDeviations,
+            invStd = _invStd,                 // NEW
+            phonemesZ = _phonemesZ,           // standardized phonemes
+            phonemeNorms = _phonemeNorms,     // NEW (optional)
+            compareMethod = profile.compareMethod,
 
             mfcc = _mfcc,
-            phonemesZ = _phonemesZ, // NEW
-            compareMethod = profile.compareMethod,
             scores = _scores,
             info = _info,
+
             restPhonemeIndex = 0,
 
             ws = ws,
             melPlan = _melPlan,
             dctPlan = _dctPlan,
+
+            normalizeScores = normalizeScores,
         };
 
         _jobHandle = job.Schedule();
@@ -141,12 +164,21 @@ public unsafe class BasisUlipSync
             );
         }
 
+        // Copy scores -> ratios (optionally normalize)
         if (_scores.IsCreated && phonemeCount > 0 && _phonemeRatios != null && _phonemeRatios.Length >= phonemeCount)
         {
-            float sum = 0f;
-            for (int i = 0; i < phonemeCount; i++) sum += _scores[i];
-            float inv = sum > 0f ? 1f / sum : 0f;
-            for (int i = 0; i < phonemeCount; i++) _phonemeRatios[i] = _scores[i] * inv;
+            if (!NormalizeRatiosInApply)
+            {
+                // If job normalized, this is just a copy (fast, predictable)
+                for (int i = 0; i < phonemeCount; i++) _phonemeRatios[i] = _scores[i];
+            }
+            else
+            {
+                float sum = 0f;
+                for (int i = 0; i < phonemeCount; i++) sum += _scores[i];
+                float inv = sum > 0f ? 1f / sum : 0f;
+                for (int i = 0; i < phonemeCount; i++) _phonemeRatios[i] = _scores[i] * inv;
+            }
         }
 
         var smr = skinnedMeshRenderer;
@@ -205,7 +237,6 @@ public unsafe class BasisUlipSync
             finalWeight = math.clamp(MultipliedWeight, 0f, 100f);
             if (float.IsNaN(finalWeight)) finalWeight = 0f;
 
-            // NEW: avoid spamming SetBlendShapeWeight
             float prev = _lastApplied[bsIndex];
             if (math.abs(finalWeight - prev) > BlendshapeWriteEps)
             {
@@ -241,7 +272,8 @@ public unsafe class BasisUlipSync
         int Count = profile.mfccs.Count;
         phonemeCount = math.max(Count, 1);
         mfccsCount = Count;
-        PhonemesCount = profile.mfccNum * phonemeCount;
+        int mfccLen = math.max(profile.mfccNum, 1);
+        PhonemesCount = mfccLen * phonemeCount;
 
         SafeCreate(ref _inputA, CachedInputSampleCount, NativeArrayOptions.UninitializedMemory);
         SafeCreate(ref _inputB, CachedInputSampleCount, NativeArrayOptions.UninitializedMemory);
@@ -250,13 +282,18 @@ public unsafe class BasisUlipSync
         _writeIndexB = 0;
         _isDataReceived = 0;
 
-        SafeCreate(ref _mfcc, profile.mfccNum);
-        SafeCreate(ref _mfccForOther, profile.mfccNum);
-        SafeCreate(ref _means, profile.mfccNum);
-        SafeCreate(ref _standardDeviations, profile.mfccNum);
+        SafeCreate(ref _mfcc, mfccLen);
+        SafeCreate(ref _mfccForOther, mfccLen);
+
+        SafeCreate(ref _means, mfccLen);
+        SafeCreate(ref _standardDeviations, mfccLen);
+        SafeCreate(ref _invStd, mfccLen); // NEW
+
         SafeCreate(ref _scores, phonemeCount);
         SafeCreate(ref _phonemes, PhonemesCount);
-        SafeCreate(ref _phonemesZ, PhonemesCount); // NEW
+        SafeCreate(ref _phonemesZ, PhonemesCount);
+        SafeCreate(ref _phonemeNorms, phonemeCount); // NEW
+
         SafeCreate(ref _info, 1);
 
         // Pack raw phonemes
@@ -266,12 +303,12 @@ public unsafe class BasisUlipSync
         {
             var src = profile.mfccs[p].mfccNativeArray;
             int remaining = PhonemesCount - write;
-            int len = math.min(profile.mfccNum, remaining);
+            int len = math.min(mfccLen, remaining);
             NativeArray<float>.Copy(src, 0, _phonemes, write, len);
             write += len;
         }
 
-        // Means/std
+        // Means
         var meansArr = profile.means;
         if (meansArr != null && _means.IsCreated)
         {
@@ -281,6 +318,7 @@ public unsafe class BasisUlipSync
             for (int i = len; i < dstLen; i++) _means[i] = 0f;
         }
 
+        // Std
         var stdArr = profile.standardDeviation;
         if (stdArr != null && _standardDeviations.IsCreated)
         {
@@ -290,11 +328,18 @@ public unsafe class BasisUlipSync
             for (int i = len; i < dstLen; i++) _standardDeviations[i] = 1f;
         }
 
-        // NEW: precompute standardized phonemesZ = (phoneme - mean)/std
-        PrecomputePhonemesZ(_phonemes, _phonemesZ, _means, _standardDeviations, profile.mfccNum, phonemeCount);
+        // NEW: invStd once
+        PrecomputeInvStd(_standardDeviations, _invStd);
+
+        // NEW: precompute standardized phonemesZ (pointer + float4)
+        PrecomputePhonemesZ(_phonemes, _phonemesZ, _means, _invStd, mfccLen, phonemeCount);
+
+        // NEW: precompute phoneme norms for cosine
+        PrecomputePhonemeNorms(_phonemesZ, _phonemeNorms, mfccLen, phonemeCount);
 
         _phonemeRatios = new float[phonemeCount];
 
+        // Pre-map phoneme name -> index once
         if (BlendShapeInfos != null)
         {
             Dictionary<string, int> map = new Dictionary<string, int>(32);
@@ -314,14 +359,13 @@ public unsafe class BasisUlipSync
 
         int targetRate = math.max(profile.targetSampleRate, 1);
         int melDiv = math.max(profile.melFilterBankChannels, 1);
-        int mfccLen2 = math.max(profile.mfccNum, 1);
 
         ws = BasisLipSyncWorkspace.Create(
             inputLen: CachedInputSampleCount,
             outputSampleRate: outputSampleRate,
             targetSampleRate: targetRate,
             melDiv: melDiv,
-            mfccLen: mfccLen2,
+            mfccLen: mfccLen,
             fftN: 0,
             firRangeHz: 500f,
             allocator: Allocator.Persistent
@@ -336,29 +380,98 @@ public unsafe class BasisUlipSync
 
         _dctPlan = BasisDctPlan.Build(
             melDiv: melDiv,
-            mfccLen: mfccLen2,
+            mfccLen: mfccLen,
             alloc: Allocator.Persistent
         );
     }
 
+    [BurstCompile]
+    static void PrecomputeInvStd(NativeArray<float> std, NativeArray<float> invStd)
+    {
+        int n = math.min(std.Length, invStd.Length);
+        unsafe
+        {
+            float* s = (float*)std.GetUnsafeReadOnlyPtr();
+            float* inv = (float*)invStd.GetUnsafePtr();
+            for (int i = 0; i < n; i++)
+                inv[i] = math.rcp(s[i] + Z_EPS);
+        }
+    }
+
+    // Standardize phonemes once using float4 loads
+    [BurstCompile]
     static void PrecomputePhonemesZ(
         NativeArray<float> phonemesRaw,
         NativeArray<float> phonemesZ,
         NativeArray<float> means,
-        NativeArray<float> std,
+        NativeArray<float> invStd,
         int mfccLen,
         int phonemeCount)
     {
         int total = mfccLen * phonemeCount;
         if (phonemesRaw.Length < total || phonemesZ.Length < total) return;
+        if (means.Length < mfccLen || invStd.Length < mfccLen) return;
 
-        for (int p = 0; p < phonemeCount; p++)
+        unsafe
         {
-            int baseOff = p * mfccLen;
-            for (int i = 0; i < mfccLen; i++)
+            float* raw = (float*)phonemesRaw.GetUnsafeReadOnlyPtr();
+            float* z = (float*)phonemesZ.GetUnsafePtr();
+            float* mu = (float*)means.GetUnsafeReadOnlyPtr();
+            float* inv = (float*)invStd.GetUnsafeReadOnlyPtr();
+
+            int vecLimit = mfccLen & ~3;
+
+            for (int p = 0; p < phonemeCount; p++)
             {
-                float inv = math.rcp(std[i] + 1e-12f);
-                phonemesZ[baseOff + i] = (phonemesRaw[baseOff + i] - means[i]) * inv;
+                int baseOff = p * mfccLen;
+
+                int i = 0;
+                for (; i < vecLimit; i += 4)
+                {
+                    float4 r = *(float4*)(raw + baseOff + i);
+                    float4 m = *(float4*)(mu + i);
+                    float4 k = *(float4*)(inv + i);
+                    *(float4*)(z + baseOff + i) = (r - m) * k;
+                }
+
+                for (; i < mfccLen; i++)
+                    z[baseOff + i] = (raw[baseOff + i] - mu[i]) * inv[i];
+            }
+        }
+    }
+
+    // Precompute per-phoneme norm (sqrt(sum(z^2))) for cosine scoring
+    [BurstCompile]
+    static void PrecomputePhonemeNorms(NativeArray<float> phonemesZ, NativeArray<float> norms, int mfccLen, int phonemeCount)
+    {
+        int total = mfccLen * phonemeCount;
+        if (phonemesZ.Length < total || norms.Length < phonemeCount) return;
+
+        unsafe
+        {
+            float* z = (float*)phonemesZ.GetUnsafeReadOnlyPtr();
+            float* outN = (float*)norms.GetUnsafePtr();
+
+            int vecLimit = mfccLen & ~3;
+
+            for (int p = 0; p < phonemeCount; p++)
+            {
+                int baseOff = p * mfccLen;
+                float sum = 0f;
+
+                int i = 0;
+                for (; i < vecLimit; i += 4)
+                {
+                    float4 v = *(float4*)(z + baseOff + i);
+                    sum += math.dot(v, v);
+                }
+                for (; i < mfccLen; i++)
+                {
+                    float v = z[baseOff + i];
+                    sum += v * v;
+                }
+
+                outN[p] = math.sqrt(sum) + Z_EPS;
             }
         }
     }
@@ -380,11 +493,16 @@ public unsafe class BasisUlipSync
 
         SafeDispose(ref _mfcc);
         SafeDispose(ref _mfccForOther);
+
         SafeDispose(ref _means);
         SafeDispose(ref _standardDeviations);
+        SafeDispose(ref _invStd);
+
         SafeDispose(ref _scores);
         SafeDispose(ref _phonemes);
         SafeDispose(ref _phonemesZ);
+        SafeDispose(ref _phonemeNorms);
+
         SafeDispose(ref _info);
 
         if (_melPlan.IsCreated) _melPlan.Dispose();
@@ -413,6 +531,7 @@ public unsafe class BasisUlipSync
         {
             int w = (buf == 0) ? Volatile.Read(ref _writeIndexA) : Volatile.Read(ref _writeIndexB);
 
+            // Write mono-downmixed (take first channel) in ring
             for (int s = 0; s < length; s += ch)
             {
                 dst[w] = src[s];
@@ -420,7 +539,6 @@ public unsafe class BasisUlipSync
                 if (w == cap) w = 0;
             }
 
-            // publish write index with fence
             if (buf == 0) Volatile.Write(ref _writeIndexA, w);
             else Volatile.Write(ref _writeIndexB, w);
         }

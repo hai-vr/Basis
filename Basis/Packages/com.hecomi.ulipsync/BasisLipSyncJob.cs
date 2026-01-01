@@ -7,6 +7,14 @@ using Unity.Mathematics;
 
 namespace uLipSync
 {
+    /// <summary>
+    /// Optimized version:
+    /// - Early silence check BEFORE FIR/FFT pipeline
+    /// - Pointer-based inner loops (removes NativeArray bounds checks in hot paths)
+    /// - Optional normalization (skip if you only need argmax)
+    /// - Cosine scoring uses precomputed phoneme norms (optional but recommended)
+    /// - Standardization uses precomputed invStd (optional but recommended)
+    /// </summary>
     [BurstCompile]
     public unsafe struct BasisLipSyncJob : IJob
     {
@@ -16,6 +24,9 @@ namespace uLipSync
             public int mainPhonemeIndex;
         }
 
+        // -------------------------------
+        // Inputs
+        // -------------------------------
         [ReadOnly] public NativeArray<float> input;
         [ReadOnly] public int startIndex;
 
@@ -23,23 +34,44 @@ namespace uLipSync
         [ReadOnly] public int targetSampleRate;
 
         [ReadOnly] public CompareMethod compareMethod;
+
+        // Means/stds can remain, but fastest is to provide invStd directly (see invStd below)
         [ReadOnly] public NativeArray<float> means;
         [ReadOnly] public NativeArray<float> standardDeviations;
 
-        // NEW: standardized phonemes
-        [ReadOnly] public NativeArray<float> phonemesZ; // [phonemeCount * mfccLen]
+        // NEW (recommended): precomputed invStd = 1/(std+EPS) computed once outside the job
+        // If you don’t have it, you can pass an empty array and it will fall back to standardDeviations.
+        [ReadOnly] public NativeArray<float> invStd;
+
+        // Standardized phonemes (z-space) flattened [phonemeCount * mfccLen]
+        [ReadOnly] public NativeArray<float> phonemesZ;
+
+        // NEW (recommended for cosine): precomputed phonemeNorms[p] = sqrt(sum(phonemesZ[p]^2))
+        // If you don’t have it, pass an empty array and it will compute norms per score call (slower).
+        [ReadOnly] public NativeArray<float> phonemeNorms;
 
         [ReadOnly] public int restPhonemeIndex;
 
         [ReadOnly] public BasisMelFilterPlan melPlan;
         [ReadOnly] public BasisDctPlan dctPlan;
 
+        // If 0: skip normalization (faster; fine if you only need winner)
+        // If 1: normalize scores to sum=1
+        [ReadOnly] public byte normalizeScores;
+
+        // -------------------------------
+        // Outputs
+        // -------------------------------
         public NativeArray<float> mfcc;
         public NativeArray<float> scores;
         public NativeArray<Info> info;
 
+        // Workspace
         public BasisLipSyncWorkspace ws;
 
+        // -------------------------------
+        // Constants
+        // -------------------------------
         const float EPS = 1e-12f;
         const float LN10 = 2.302585092994046f;
         const float DB_SCALE = 10f / LN10;     // 10*log10(x) = (10/LN10)*ln(x)
@@ -53,52 +85,52 @@ namespace uLipSync
             // 1) Copy ring -> ws.buffer
             CopyRingBuffer(input, ws.buffer, startIndex);
 
-            // 2) FIR lowpass (FIXED: proper convolution, no double-add)
-            LowPassFilterInPlace_Precomputed(ws.buffer, ws.tmp, ws.firTaps);
-
-            // NEW: early silence check (cheap RMS on ws.buffer)
+            // 2) Early silence check BEFORE expensive pipeline
             float rms = GetRMSVolume(ws.buffer);
             if (rms < 1e-4f) // tune threshold
             {
                 int rest = SafeRestIndex(restPhonemeIndex, ScoresLength);
                 OneHotRest(scores, rest);
                 info[0] = new Info { volume = rms, mainPhonemeIndex = rest };
-                // keep mfcc stable-ish
                 for (int i = 0; i < MFCCLength; i++) mfcc[i] = 0f;
                 return;
             }
 
-            // 3) Downsample + PreEmphasis fused into ws.down (no tmp memcpy)
+            // 3) FIR lowpass (proper convolution)
+            LowPassFilterInPlace_Precomputed(ws.buffer, ws.tmp, ws.firTaps);
+
+            // 4) Downsample + PreEmphasis fused into ws.down
             DownSampleAndPreEmphasis(ws.buffer, ws.down, outputSampleRate, targetSampleRate, PREEMPH);
 
-            // 4) Prepare FFT frame + window
+            // 5) Prepare FFT frame + window
             PrepareWindowedFrame(ws.down, ws.frame, ws.hammingWindow);
 
-            // 5) FFT power spectrum half using precomputed plan
+            // 6) FFT power spectrum half using precomputed plan
             FFTPowerHalf_Planned(ws.frame, ws.powerHalf, ws.fftRe, ws.fftIm, ws.fftPlan);
 
-            // 6) Mel filterbank
+            // 7) Mel filterbank
             ApplyMelPlan_BurstSafe(ws.powerHalf, ws.melSpectrum, melPlan);
 
-            // floor to EPS
-            for (int k = 0; k < ws.melSpectrum.Length; k++)
+            // floor to EPS (pointer loop)
+            unsafe
             {
-                ws.melSpectrum[k] = math.max(ws.melSpectrum[k], EPS);
+                float* m = (float*)ws.melSpectrum.GetUnsafePtr();
+                int ml = ws.melSpectrum.Length;
+                for (int i = 0; i < ml; i++) m[i] = math.max(m[i], EPS);
             }
 
-            // 7) power -> dB using ln
+            // 8) power -> dB (ln)
             PowerToDbLnInPlace(ws.melSpectrum);
 
-            // 8) DCT -> mfcc
+            // 9) DCT -> mfcc
             DctMfccFromPlan_BurstSafe(ws.melSpectrum, mfcc, dctPlan);
 
-            // sanitize + standardize mfccZ once
-            StandardizeMfccToZ(mfcc, ws.mfccZ, means, standardDeviations);
+            // 10) Standardize mfcc -> ws.mfccZ (pointer, optional invStd)
+            StandardizeMfccToZ(mfcc, ws.mfccZ, means, standardDeviations, invStd);
 
-            // 9) Score against standardized phonemesZ (fast)
-            CalcScoresAgainstPhonemesZ(ws.mfccZ);
+            // 11) Score against standardized phonemesZ (pointer-based hot loop)
+            int winner = CalcScoresAgainstPhonemesZ_AndGetWinner(ws.mfccZ);
 
-            int winner = GetMaxIndexOrRest();
             info[0] = new Info { volume = rms, mainPhonemeIndex = winner };
         }
 
@@ -107,45 +139,41 @@ namespace uLipSync
         // -------------------------------
         static void ApplyMelPlan_BurstSafe(NativeArray<float> powerHalf, NativeArray<float> melOut, in BasisMelFilterPlan plan)
         {
-            unsafe
-            {
-                ApplyMelPlanPtr(
-                    (float*)powerHalf.GetUnsafeReadOnlyPtr(),
-                    (float*)melOut.GetUnsafePtr(),
-                    (int*)plan.starts.GetUnsafeReadOnlyPtr(),
-                    (int*)plan.lengths.GetUnsafeReadOnlyPtr(),
-                    (int*)plan.bins.GetUnsafeReadOnlyPtr(),
-                    (float*)plan.weights.GetUnsafeReadOnlyPtr(),
-                    plan.melDiv);
-            }
+            ApplyMelPlanPtr(
+                (float*)powerHalf.GetUnsafeReadOnlyPtr(),
+                (float*)melOut.GetUnsafePtr(),
+                (int*)plan.starts.GetUnsafeReadOnlyPtr(),
+                (int*)plan.lengths.GetUnsafeReadOnlyPtr(),
+                (int*)plan.bins.GetUnsafeReadOnlyPtr(),
+                (float*)plan.weights.GetUnsafeReadOnlyPtr(),
+                plan.melDiv);
         }
 
         static void DctMfccFromPlan_BurstSafe(NativeArray<float> melDb, NativeArray<float> mfccOut, in BasisDctPlan plan)
         {
-            unsafe
-            {
-                DctMfccFromCosTablePtr(
-                    (float*)melDb.GetUnsafeReadOnlyPtr(),
-                    (float*)mfccOut.GetUnsafePtr(),
-                    (float*)plan.cosTable.GetUnsafeReadOnlyPtr(),
-                    plan.melDiv,
-                    plan.mfccLen);
-            }
+            DctMfccFromCosTablePtr(
+                (float*)melDb.GetUnsafeReadOnlyPtr(),
+                (float*)mfccOut.GetUnsafePtr(),
+                (float*)plan.cosTable.GetUnsafeReadOnlyPtr(),
+                plan.melDiv,
+                plan.mfccLen);
         }
 
         [BurstCompile]
-        static unsafe void ApplyMelPlanPtr(float* powerHalf, float* melOut,int* starts, int* lengths, int* bins, float* weights, int melDiv)
+        static unsafe void ApplyMelPlanPtr(float* powerHalf, float* melOut, int* starts, int* lengths, int* bins, float* weights, int melDiv)
         {
             for (int n = 0; n < melDiv; n++)
             {
                 int start = starts[n];
                 int len = lengths[n];
                 float sum = 0f;
+
                 for (int k = 0; k < len; k++)
                 {
                     int idx = start + k;
                     sum += powerHalf[bins[idx]] * weights[idx];
                 }
+
                 melOut[n] = sum;
             }
         }
@@ -157,10 +185,9 @@ namespace uLipSync
             {
                 float sum = 0f;
                 int baseIdx = r * melDiv;
+
                 for (int j = 0; j < melDiv; j++)
-                {
                     sum += melDb[j] * cosTable[baseIdx + j];
-                }
 
                 mfccOut[r] = sum;
             }
@@ -193,11 +220,13 @@ namespace uLipSync
         }
 
         // -------------------------------
-        // FIR lowpass (fixed + predictable)
+        // FIR lowpass
         // -------------------------------
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static void LowPassFilterInPlace_Precomputed(NativeArray<float> data, NativeArray<float> tmp, NativeArray<float> taps)
         {
             UnsafeUtility.MemCpy(tmp.GetUnsafePtr(), data.GetUnsafeReadOnlyPtr(), (long)data.Length * sizeof(float));
+
             LowPassFilterWithTaps(
                 (float*)data.GetUnsafePtr(), data.Length,
                 (float*)tmp.GetUnsafeReadOnlyPtr(),
@@ -212,10 +241,9 @@ namespace uLipSync
             {
                 float acc = 0f;
                 int maxJ = math.min(bLen, i + 1);
+
                 for (int j = 0; j < maxJ; j++)
-                {
                     acc += b[j] * src[i - j];
-                }
 
                 dst[i] = acc;
             }
@@ -226,41 +254,23 @@ namespace uLipSync
         // -------------------------------
         static void DownSampleAndPreEmphasis(in NativeArray<float> input, NativeArray<float> output, int sampleRate, int targetSampleRate, float p)
         {
-            if (sampleRate <= targetSampleRate)
+            unsafe
             {
-                // copy + preemph in one pass
-                unsafe
-                {
-                    float* src = (float*)input.GetUnsafeReadOnlyPtr();
-                    float* dst = (float*)output.GetUnsafePtr();
-                    int n = output.Length;
-                    if (n <= 0)
-                    {
-                        return;
-                    }
+                float* src = (float*)input.GetUnsafeReadOnlyPtr();
+                float* dst = (float*)output.GetUnsafePtr();
+                int n = output.Length;
+                if (n <= 0) return;
 
+                if (sampleRate <= targetSampleRate)
+                {
                     dst[0] = src[0];
-                    for (int i = 1; i < n; i++)
-                    {
-                        dst[i] = src[i] - p * src[i - 1];
-                    }
+                    for (int i = 1; i < n; i++) dst[i] = src[i] - p * src[i - 1];
+                    return;
                 }
-                return;
-            }
 
-            if (sampleRate % targetSampleRate == 0)
-            {
-                int skip = sampleRate / targetSampleRate;
-                unsafe
+                if (sampleRate % targetSampleRate == 0)
                 {
-                    float* src = (float*)input.GetUnsafeReadOnlyPtr();
-                    float* dst = (float*)output.GetUnsafePtr();
-                    int n = output.Length;
-                    if (n <= 0)
-                    {
-                        return;
-                    }
-
+                    int skip = sampleRate / targetSampleRate;
                     float prev = src[0];
                     dst[0] = prev;
 
@@ -271,20 +281,11 @@ namespace uLipSync
                         prev = cur;
                     }
                 }
-            }
-            else
-            {
-                float df = (float)sampleRate / targetSampleRate;
-                unsafe
+                else
                 {
-                    float* src = (float*)input.GetUnsafeReadOnlyPtr();
-                    float* dst = (float*)output.GetUnsafePtr();
-                    int n = output.Length;
+                    float df = (float)sampleRate / targetSampleRate;
                     int inLen = input.Length;
-                    if (n <= 0)
-                    {
-                        return;
-                    }
+
                     float x0 = src[0];
                     dst[0] = x0;
                     float prev = x0;
@@ -319,26 +320,17 @@ namespace uLipSync
                 int N = frame.Length;
 
                 int i = 0;
-                for (; i < downLen; i++)
-                {
-                    dst[i] = src[i];
-                }
+                for (; i < downLen; i++) dst[i] = src[i];
+                for (; i < N; i++) dst[i] = 0f;
 
-                for (; i < N; i++)
-                {
-                    dst[i] = 0f;
-                }
-
-                for (int k = 0; k < N; k++)
-                {
-                    dst[k] *= w[k];
-                }
+                for (int k = 0; k < N; k++) dst[k] *= w[k];
             }
         }
 
         // -------------------------------
         // Planned FFT
         // -------------------------------
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static void FFTPowerHalf_Planned(NativeArray<float> timeFrame, NativeArray<float> powerHalf, NativeArray<float> re, NativeArray<float> im, in BasisFftPlan plan)
         {
             FFTPowerHalf_Planned(
@@ -367,7 +359,6 @@ namespace uLipSync
             int N,
             int stages)
         {
-            // bitrev reorder into re/im
             for (int i = 0; i < N; i++)
             {
                 int j = bitrev[i];
@@ -411,7 +402,7 @@ namespace uLipSync
         }
 
         // -------------------------------
-        // Power -> dB using ln (faster than log10)
+        // Power -> dB (ln)
         // -------------------------------
         static void PowerToDbLnInPlace(NativeArray<float> array)
         {
@@ -425,181 +416,214 @@ namespace uLipSync
         }
 
         // -------------------------------
-        // Standardize mfcc once -> z
+        // Standardize mfcc -> z (pointer + optional invStd)
         // -------------------------------
-        static void StandardizeMfccToZ(NativeArray<float> mfcc, NativeArray<float> z, NativeArray<float> means, NativeArray<float> std)
+        static void StandardizeMfccToZ(
+            NativeArray<float> mfcc,
+            NativeArray<float> z,
+            NativeArray<float> means,
+            NativeArray<float> std,
+            NativeArray<float> invStdOpt)
         {
-            int n = mfcc.Length;
-            for (int i = 0; i < n; i++)
+            unsafe
             {
-                float v = mfcc[i];
-                if (float.IsNaN(v) || float.IsInfinity(v))
+                float* m = (float*)mfcc.GetUnsafePtr();
+                float* zz = (float*)z.GetUnsafePtr();
+                float* mu = (float*)means.GetUnsafeReadOnlyPtr();
+
+                int n = mfcc.Length;
+
+                bool hasInv = invStdOpt.IsCreated && invStdOpt.Length == n;
+                float* inv = hasInv ? (float*)invStdOpt.GetUnsafeReadOnlyPtr() : null;
+                float* st = (!hasInv) ? (float*)std.GetUnsafeReadOnlyPtr() : null;
+
+                for (int i = 0; i < n; i++)
                 {
-                    v = 0f;
+                    float v = m[i];
+
+                    // If you never see NaNs after EPS-flooring, delete this branch for speed.
+                    if (float.IsNaN(v) || float.IsInfinity(v)) v = 0f;
+
+                    m[i] = v;
+
+                    float invv = hasInv ? inv[i] : math.rcp(st[i] + EPS);
+                    zz[i] = (v - mu[i]) * invv;
                 }
-
-                mfcc[i] = v;
-
-                float inv = math.rcp(std[i] + EPS);
-                z[i] = (v - means[i]) * inv;
             }
         }
 
         // -------------------------------
-        // Scoring using standardized vectors
+        // Scoring (pointer-based) + winner
         // -------------------------------
-        void CalcScoresAgainstPhonemesZ(NativeArray<float> z)
+        int CalcScoresAgainstPhonemesZ_AndGetWinner(NativeArray<float> zArr)
         {
-            float sum = 0f;
-
-            switch (compareMethod)
+            unsafe
             {
-                case CompareMethod.L1Norm:
-                    for (int p = 0; p < ScoresLength; p++)
-                    {
-                        float s = ScoreL1_Z(p, z);
-                        scores[p] = s;
-                        sum += s;
-                    }
-                    break;
+                float* z = (float*)zArr.GetUnsafeReadOnlyPtr();
+                float* ph = (float*)phonemesZ.GetUnsafeReadOnlyPtr();
+                float* sc = (float*)scores.GetUnsafePtr();
 
-                case CompareMethod.L2Norm:
-                    for (int p = 0; p < ScoresLength; p++)
-                    {
-                        float s = ScoreL2_Z(p, z);
-                        scores[p] = s;
-                        sum += s;
-                    }
-                    break;
+                int mfccLen = MFCCLength;
+                int phonemeCount = ScoresLength;
 
-                case CompareMethod.CosineSimilarity:
-                    for (int p = 0; p < ScoresLength; p++)
-                    {
-                        float s = ScoreCos_Z(p, z);
-                        scores[p] = s;
-                        sum += s;
-                    }
-                    break;
+                float sum = 0f;
+                int bestIdx = -1;
+                float bestVal = -1f;
 
-                default:
-                    for (int p = 0; p < ScoresLength; p++) scores[p] = 0f;
-                    sum = 0f;
-                    break;
-            }
+                bool hasNorms = phonemeNorms.IsCreated && phonemeNorms.Length == phonemeCount;
+                float* norms = hasNorms ? (float*)phonemeNorms.GetUnsafeReadOnlyPtr() : null;
 
-            if (sum > 0f && !(float.IsNaN(sum) || float.IsInfinity(sum)))
-            {
-                float inv = math.rcp(sum);
-                for (int i = 0; i < ScoresLength; i++) scores[i] *= inv;
+                switch (compareMethod)
+                {
+                    case CompareMethod.L1Norm:
+                        for (int p = 0; p < phonemeCount; p++)
+                        {
+                            float s = ScoreL1_Z_Ptr(ph + p * mfccLen, z, mfccLen);
+                            sc[p] = s;
+
+                            sum += s;
+                            if (s > bestVal) { bestVal = s; bestIdx = p; }
+                        }
+                        break;
+
+                    case CompareMethod.L2Norm:
+                        for (int p = 0; p < phonemeCount; p++)
+                        {
+                            float s = ScoreL2_Z_Ptr(ph + p * mfccLen, z, mfccLen);
+                            sc[p] = s;
+
+                            sum += s;
+                            if (s > bestVal) { bestVal = s; bestIdx = p; }
+                        }
+                        break;
+
+                    case CompareMethod.CosineSimilarity:
+                        for (int p = 0; p < phonemeCount; p++)
+                        {
+                            float* phPtr = ph + p * mfccLen;
+                            float s = ScoreCos_Z_Ptr(phPtr, z, mfccLen, hasNorms ? norms[p] : -1f);
+                            sc[p] = s;
+
+                            sum += s;
+                            if (s > bestVal) { bestVal = s; bestIdx = p; }
+                        }
+                        break;
+
+                    default:
+                        for (int p = 0; p < phonemeCount; p++) sc[p] = 0f;
+                        sum = 0f;
+                        bestIdx = -1;
+                        bestVal = -1f;
+                        break;
+                }
+
+                // If no valid winner, force rest
+                if (bestIdx < 0 || bestVal <= 0f || float.IsNaN(bestVal) || float.IsInfinity(bestVal))
+                {
+                    int rest = SafeRestIndex(restPhonemeIndex, phonemeCount);
+                    OneHotRest(scores, rest);
+                    return rest;
+                }
+
+                // Optional normalization (skip unless you truly need probabilities)
+                if (normalizeScores != 0 && sum > 0f && !(float.IsNaN(sum) || float.IsInfinity(sum)))
+                {
+                    float invSum = math.rcp(sum);
+                    for (int i = 0; i < phonemeCount; i++) sc[i] *= invSum;
+                }
+
+                return bestIdx;
             }
         }
 
         [BurstCompile]
-        float ScoreL1_Z(int index, NativeArray<float> z)
+        static unsafe float ScoreL1_Z_Ptr(float* ph, float* z, int len)
         {
-            int baseOff = index * MFCCLength;
             float acc = 0f;
 
             int i = 0;
-            int limit = MFCCLength & ~3;
+            int limit = len & ~3;
 
             for (; i < limit; i += 4)
             {
-                float4 a = new float4(z[i], z[i + 1], z[i + 2], z[i + 3]);
-                float4 b = new float4(
-                    phonemesZ[baseOff + i],
-                    phonemesZ[baseOff + i + 1],
-                    phonemesZ[baseOff + i + 2],
-                    phonemesZ[baseOff + i + 3]
-                );
+                float4 a = *(float4*)(z + i);
+                float4 b = *(float4*)(ph + i);
                 float4 d = math.abs(a - b);
                 acc += d.x + d.y + d.z + d.w;
             }
 
-            for (; i < MFCCLength; i++)
-            {
-                acc += math.abs(z[i] - phonemesZ[baseOff + i]);
-            }
+            for (; i < len; i++)
+                acc += math.abs(z[i] - ph[i]);
 
-            float distance = acc * math.rcp(MFCCLength);
-            // keep your original exp mapping
+            float distance = acc * math.rcp(len);
             return math.exp(-distance * LN10);
         }
 
         [BurstCompile]
-        float ScoreL2_Z(int index, NativeArray<float> z)
+        static unsafe float ScoreL2_Z_Ptr(float* ph, float* z, int len)
         {
-            int baseOff = index * MFCCLength;
             float acc = 0f;
 
             int i = 0;
-            int limit = MFCCLength & ~3;
+            int limit = len & ~3;
 
             for (; i < limit; i += 4)
             {
-                float4 a = new float4(z[i], z[i + 1], z[i + 2], z[i + 3]);
-                float4 b = new float4(
-                    phonemesZ[baseOff + i],
-                    phonemesZ[baseOff + i + 1],
-                    phonemesZ[baseOff + i + 2],
-                    phonemesZ[baseOff + i + 3]
-                );
+                float4 a = *(float4*)(z + i);
+                float4 b = *(float4*)(ph + i);
                 float4 d = a - b;
                 acc += math.dot(d, d);
             }
 
-            for (; i < MFCCLength; i++)
+            for (; i < len; i++)
             {
-                float d = z[i] - phonemesZ[baseOff + i];
+                float d = z[i] - ph[i];
                 acc += d * d;
             }
 
-            float distance = math.sqrt(acc * math.rcp(MFCCLength));
+            float distance = math.sqrt(acc * math.rcp(len));
             return math.exp(-distance * LN10);
         }
 
         [BurstCompile]
-        float ScoreCos_Z(int index, NativeArray<float> z)
+        static unsafe float ScoreCos_Z_Ptr(float* ph, float* z, int len, float phonemeNormOrNeg)
         {
-            int baseOff = index * MFCCLength;
-
             float prod = 0f;
             float nnx = 0f;
             float nny = 0f;
 
             int i = 0;
-            int limit = MFCCLength & ~3;
+            int limit = len & ~3;
 
             for (; i < limit; i += 4)
             {
-                float4 a = new float4(z[i], z[i + 1], z[i + 2], z[i + 3]);
-                float4 b = new float4(
-                    phonemesZ[baseOff + i],
-                    phonemesZ[baseOff + i + 1],
-                    phonemesZ[baseOff + i + 2],
-                    phonemesZ[baseOff + i + 3]
-                );
+                float4 a = *(float4*)(z + i);
+                float4 b = *(float4*)(ph + i);
 
                 prod += math.dot(a, b);
                 nnx += math.dot(a, a);
                 nny += math.dot(b, b);
             }
 
-            for (; i < MFCCLength; i++)
+            for (; i < len; i++)
             {
                 float a = z[i];
-                float b = phonemesZ[baseOff + i];
+                float b = ph[i];
                 prod += a * b;
                 nnx += a * a;
                 nny += b * b;
             }
 
-            float denom = math.sqrt(nnx) * math.sqrt(nny) + EPS;
-            float sim = prod / denom;
+            float nx = math.sqrt(nnx) + EPS;
+
+            // Use precomputed phoneme norm if provided
+            float ny = (phonemeNormOrNeg > 0f) ? (phonemeNormOrNeg + EPS) : (math.sqrt(nny) + EPS);
+
+            float sim = prod / (nx * ny);
             if (float.IsNaN(sim) || float.IsInfinity(sim)) sim = 0f;
             sim = math.clamp(sim, 0f, 1f);
 
-            // keep your sharpness curve
+            // sharpness curve
             float s = math.max(sim, EPS);
             float s2 = s * s;
             float s4 = s2 * s2;
@@ -608,31 +632,9 @@ namespace uLipSync
             return s16;
         }
 
-        int GetMaxIndexOrRest()
-        {
-            int idx = -1;
-            float best = -1f;
-
-            for (int i = 0; i < ScoresLength; i++)
-            {
-                float s = scores[i];
-                if (s > best)
-                {
-                    best = s;
-                    idx = i;
-                }
-            }
-
-            if (idx < 0 || best <= 0f)
-            {
-                int rest = SafeRestIndex(restPhonemeIndex, ScoresLength);
-                OneHotRest(scores, rest);
-                return rest;
-            }
-
-            return idx;
-        }
-
+        // -------------------------------
+        // Rest helpers
+        // -------------------------------
         static int SafeRestIndex(int rest, int len)
         {
             if (len <= 0) return 0;
@@ -642,18 +644,19 @@ namespace uLipSync
         static void OneHotRest(NativeArray<float> s, int rest)
         {
             rest = SafeRestIndex(rest, s.Length);
-            for (int i = 0; i < s.Length; i++)
+            unsafe
             {
-                s[i] = 0f;
-            }
-
-            if (s.Length > 0)
-            {
-                s[rest] = 1f;
+                float* p = (float*)s.GetUnsafePtr();
+                for (int i = 0; i < s.Length; i++) p[i] = 0f;
+                if (s.Length > 0) p[rest] = 1f;
             }
         }
 
-        public static float GetRMSVolume(in NativeArray<float> array) => GetRMSVolume((float*)array.GetUnsafeReadOnlyPtr(), array.Length);
+        // -------------------------------
+        // RMS
+        // -------------------------------
+        public static float GetRMSVolume(in NativeArray<float> array)
+            => GetRMSVolume((float*)array.GetUnsafeReadOnlyPtr(), array.Length);
 
         [BurstCompile]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -670,6 +673,7 @@ namespace uLipSync
                 float x2 = p[2]; sum += x2 * x2;
                 float x3 = p[3]; sum += x3 * x3;
             }
+
             for (; p < end; p++)
             {
                 float x = *p;
