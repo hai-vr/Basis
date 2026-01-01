@@ -7,14 +7,6 @@ using Unity.Mathematics;
 
 namespace uLipSync
 {
-    /// <summary>
-    /// Optimized version:
-    /// - Early silence check BEFORE FIR/FFT pipeline
-    /// - Pointer-based inner loops (removes NativeArray bounds checks in hot paths)
-    /// - Optional normalization (skip if you only need argmax)
-    /// - Cosine scoring uses precomputed phoneme norms (optional but recommended)
-    /// - Standardization uses precomputed invStd (optional but recommended)
-    /// </summary>
     [BurstCompile]
     public unsafe struct BasisLipSyncJob : IJob
     {
@@ -187,7 +179,9 @@ namespace uLipSync
                 int baseIdx = r * melDiv;
 
                 for (int j = 0; j < melDiv; j++)
+                {
                     sum += melDb[j] * cosTable[baseIdx + j];
+                }
 
                 mfccOut[r] = sum;
             }
@@ -243,7 +237,9 @@ namespace uLipSync
                 int maxJ = math.min(bLen, i + 1);
 
                 for (int j = 0; j < maxJ; j++)
+                {
                     acc += b[j] * src[i - j];
+                }
 
                 dst[i] = acc;
             }

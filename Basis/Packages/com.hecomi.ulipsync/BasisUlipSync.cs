@@ -1,12 +1,3 @@
-// =======================================================
-// Further-optimized BasisUlipSync update:
-// - Precompute _invStd (1/(std+eps)) once
-// - Precompute _phonemesZ using pointers + float4 loads
-// - Precompute _phonemeNorms for cosine (optional but cheap)
-// - Don’t renormalize scores in Apply (job can output normalized or not)
-// - Avoid per-frame Dictionary work (already done) + avoid extra copies
-// - Safer audio->main thread exchange (already good) + minor tweaks
-// =======================================================
 using System.Collections.Generic;
 using System.Threading;
 using uLipSync;
@@ -146,7 +137,11 @@ public unsafe class BasisUlipSync
 
     public void Apply()
     {
-        if (!HasJob) return;
+        if (!HasJob)
+        {
+            return;
+        }
+
         HasJob = false;
 
         _jobHandle.Complete();
