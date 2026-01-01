@@ -7,10 +7,6 @@ using Unity.Mathematics;
 
 namespace uLipSync
 {
-
-    // =======================================================
-    // LipSyncJob with the optimizations
-    // =======================================================
     [BurstCompile]
     public unsafe struct BasisLipSyncJob : IJob
     {
@@ -86,7 +82,9 @@ namespace uLipSync
 
             // floor to EPS
             for (int k = 0; k < ws.melSpectrum.Length; k++)
+            {
                 ws.melSpectrum[k] = math.max(ws.melSpectrum[k], EPS);
+            }
 
             // 7) power -> dB using ln
             PowerToDbLnInPlace(ws.melSpectrum);
@@ -136,8 +134,7 @@ namespace uLipSync
         }
 
         [BurstCompile]
-        static unsafe void ApplyMelPlanPtr(float* powerHalf, float* melOut,
-            int* starts, int* lengths, int* bins, float* weights, int melDiv)
+        static unsafe void ApplyMelPlanPtr(float* powerHalf, float* melOut,int* starts, int* lengths, int* bins, float* weights, int melDiv)
         {
             for (int n = 0; n < melDiv; n++)
             {
@@ -160,7 +157,11 @@ namespace uLipSync
             {
                 float sum = 0f;
                 int baseIdx = r * melDiv;
-                for (int j = 0; j < melDiv; j++) sum += melDb[j] * cosTable[baseIdx + j];
+                for (int j = 0; j < melDiv; j++)
+                {
+                    sum += melDb[j] * cosTable[baseIdx + j];
+                }
+
                 mfccOut[r] = sum;
             }
         }
@@ -212,7 +213,10 @@ namespace uLipSync
                 float acc = 0f;
                 int maxJ = math.min(bLen, i + 1);
                 for (int j = 0; j < maxJ; j++)
+                {
                     acc += b[j] * src[i - j];
+                }
+
                 dst[i] = acc;
             }
         }
@@ -230,11 +234,16 @@ namespace uLipSync
                     float* src = (float*)input.GetUnsafeReadOnlyPtr();
                     float* dst = (float*)output.GetUnsafePtr();
                     int n = output.Length;
-                    if (n <= 0) return;
+                    if (n <= 0)
+                    {
+                        return;
+                    }
 
                     dst[0] = src[0];
                     for (int i = 1; i < n; i++)
+                    {
                         dst[i] = src[i] - p * src[i - 1];
+                    }
                 }
                 return;
             }
@@ -247,7 +256,10 @@ namespace uLipSync
                     float* src = (float*)input.GetUnsafeReadOnlyPtr();
                     float* dst = (float*)output.GetUnsafePtr();
                     int n = output.Length;
-                    if (n <= 0) return;
+                    if (n <= 0)
+                    {
+                        return;
+                    }
 
                     float prev = src[0];
                     dst[0] = prev;
@@ -269,11 +281,10 @@ namespace uLipSync
                     float* dst = (float*)output.GetUnsafePtr();
                     int n = output.Length;
                     int inLen = input.Length;
-                    if (n <= 0) return;
-
-                    // j=0
-                    float fIndex0 = 0f;
-                    int i0 = 0;
+                    if (n <= 0)
+                    {
+                        return;
+                    }
                     float x0 = src[0];
                     dst[0] = x0;
                     float prev = x0;
@@ -308,10 +319,20 @@ namespace uLipSync
                 int N = frame.Length;
 
                 int i = 0;
-                for (; i < downLen; i++) dst[i] = src[i];
-                for (; i < N; i++) dst[i] = 0f;
+                for (; i < downLen; i++)
+                {
+                    dst[i] = src[i];
+                }
 
-                for (int k = 0; k < N; k++) dst[k] *= w[k];
+                for (; i < N; i++)
+                {
+                    dst[i] = 0f;
+                }
+
+                for (int k = 0; k < N; k++)
+                {
+                    dst[k] *= w[k];
+                }
             }
         }
 
@@ -412,7 +433,11 @@ namespace uLipSync
             for (int i = 0; i < n; i++)
             {
                 float v = mfcc[i];
-                if (float.IsNaN(v) || float.IsInfinity(v)) v = 0f;
+                if (float.IsNaN(v) || float.IsInfinity(v))
+                {
+                    v = 0f;
+                }
+
                 mfcc[i] = v;
 
                 float inv = math.rcp(std[i] + EPS);
@@ -492,7 +517,9 @@ namespace uLipSync
             }
 
             for (; i < MFCCLength; i++)
+            {
                 acc += math.abs(z[i] - phonemesZ[baseOff + i]);
+            }
 
             float distance = acc * math.rcp(MFCCLength);
             // keep your original exp mapping
@@ -609,15 +636,21 @@ namespace uLipSync
         static int SafeRestIndex(int rest, int len)
         {
             if (len <= 0) return 0;
-            if (rest < 0 || rest >= len) return 0;
-            return rest;
+            return rest < 0 || rest >= len ? 0 : rest;
         }
 
         static void OneHotRest(NativeArray<float> s, int rest)
         {
             rest = SafeRestIndex(rest, s.Length);
-            for (int i = 0; i < s.Length; i++) s[i] = 0f;
-            if (s.Length > 0) s[rest] = 1f;
+            for (int i = 0; i < s.Length; i++)
+            {
+                s[i] = 0f;
+            }
+
+            if (s.Length > 0)
+            {
+                s[rest] = 1f;
+            }
         }
 
         public static float GetRMSVolume(in NativeArray<float> array) => GetRMSVolume((float*)array.GetUnsafeReadOnlyPtr(), array.Length);
