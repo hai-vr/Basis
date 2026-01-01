@@ -245,9 +245,8 @@ public static class BasisRemoteNetworkDriver
 
     /// <summary>Read back the computed outputs for an index after Apply().</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void GetOutputs_NoAlloc(int index, out float3 outPos, out bool outScale, out quaternion outRot, out float3 BodyPosition, float[] outMuscles,out float FinalInterpolation)
+    public static void GetOutputs_NoAlloc(int index, out bool outScale, out quaternion outRot, out float3 BodyPosition, float[] outMuscles,out float FinalInterpolation)
     {
-        outPos = _outPositions[index];
         outScale = _HasScaleChange[index];
         outRot = _outRotations[index];
 
@@ -267,6 +266,10 @@ public static class BasisRemoteNetworkDriver
         BodyPosition = _scaledBodyPositions[index];
         FinalInterpolation = _OutputInterpolation[index];
 
+    }
+    public static void GetPositionOutput(int index, out float3 outPos)
+    {
+        outPos = _outPositions[index];
     }
     public static void GetScaleOutput(int index, out float3 outScale)
     {

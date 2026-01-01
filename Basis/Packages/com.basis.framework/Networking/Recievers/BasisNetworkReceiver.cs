@@ -44,7 +44,6 @@ namespace Basis.Scripts.Networking.Receivers
         public float[] Muscles = new float[95];
 
         public quaternion ApplyingRotation;
-        public float3 ApplyingPosition;
         public float3 ApplyingScale;
 
         private float interpolationTime = 0f; // 0..1 over current First→Last window
@@ -178,16 +177,15 @@ namespace Basis.Scripts.Networking.Receivers
 
             BasisRemoteNetworkDriver.GetOutputs_NoAlloc(
                 playerId,
-                out var outPos,                 // world pos (unused by HumanPose)
                 out bool applyingScale,
                 out var applyingRotation,
                 out float3 scaledBody,          // HumanPose.bodyPosition (units in avatar-space)
                 Muscles,
                 out interpolationTime
             );
-
-            ApplyingPosition = outPos;
             ApplyingRotation = applyingRotation;
+
+          //  BasisRemoteNetworkDriver.GetPositionOutput(playerId, out float3 position);
 
             HumanPose.bodyPosition = scaledBody;
             HumanPose.bodyRotation = applyingRotation;
