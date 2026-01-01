@@ -1,27 +1,10 @@
-// =======================================================
-// FULL PASS: “all those optimizations” version (drop-in style)
-// - FIR correctness fix + faster structure
-// - Early silence check BEFORE FFT/Mel/DCT
-// - Fuse Downsample + PreEmphasis (removes tmp memcpy)
-// - Replace log10 with ln (10/LN10 * ln)
-// - Precompute FFT plan (bitrev + twiddles) once (workspace reuse)
-// - Precompute standardized phoneme vectors once (_phonemesZ)
-// - Standardize mfcc once per frame (ws.mfccZ) and score against _phonemesZ
-// - Optional parallel scoring hook (kept as single-threaded job here)
-// - Main thread: avoid SetBlendShapeWeight spam (threshold)
-// - Tighten audio/main memory ordering (Volatile.Read/Write)
-// =======================================================
-
 using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
 
 namespace uLipSync
 {
@@ -430,30 +413,6 @@ namespace uLipSync
             tmpLens.Dispose();
             return plan;
         }
-
-        // Optional helper: Burst-friendly pointer application
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void ApplyPtr(
-            float* powerHalf,  // [specLen]
-            float* melOut,     // [melDiv]
-            int* starts, int* lengths,
-            int* bins, float* weights,
-            int melDiv)
-        {
-            for (int n = 0; n < melDiv; n++)
-            {
-                int start = starts[n];
-                int len = lengths[n];
-
-                float sum = 0f;
-                for (int k = 0; k < len; k++)
-                {
-                    int idx = start + k;
-                    sum += powerHalf[bins[idx]] * weights[idx];
-                }
-                melOut[n] = sum;
-            }
-        }
     }
 
     // =======================================================
@@ -503,27 +462,6 @@ namespace uLipSync
             }
 
             return plan;
-        }
-
-        // Optional helper: Burst-friendly pointer application
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void ApplyPtr(
-            float* melDb,     // [melDiv]
-            float* mfccOut,   // [mfccLen]
-            float* cosTable,  // [mfccLen * melDiv]
-            int melDiv,
-            int mfccLen)
-        {
-            for (int r = 0; r < mfccLen; r++)
-            {
-                float sum = 0f;
-                int baseIdx = r * melDiv;
-
-                for (int j = 0; j < melDiv; j++)
-                    sum += melDb[j] * cosTable[baseIdx + j];
-
-                mfccOut[r] = sum;
-            }
         }
     }
 
@@ -1139,8 +1077,7 @@ namespace uLipSync
             if (s.Length > 0) s[rest] = 1f;
         }
 
-        public static float GetRMSVolume(in NativeArray<float> array)
-            => GetRMSVolume((float*)array.GetUnsafeReadOnlyPtr(), array.Length);
+        public static float GetRMSVolume(in NativeArray<float> array) => GetRMSVolume((float*)array.GetUnsafeReadOnlyPtr(), array.Length);
 
         [BurstCompile]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

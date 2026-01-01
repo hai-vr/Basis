@@ -1,4 +1,3 @@
-using Basis.Scripts.BasisSdk.Players;
 using System.Collections;
 using UnityEngine;
 using Vector3 = UnityEngine.Vector3;
@@ -72,6 +71,8 @@ namespace Basis.Scripts.Drivers
             SpriteRendererIconTransform = SpriteRendererIcon.transform;
 
             StartingScale = SpriteRendererIconTransform.localScale;
+            LastUsedColor = SpriteRendererIcon.color;
+
             largerScale = StartingScale * 1.2f;
             // Ensure initial visibility matches current mode/state
             ApplyDisplayModeVisibility(true);
@@ -163,10 +164,14 @@ namespace Basis.Scripts.Drivers
             // Update visibility for ActivityDetection mode
             ApplyDisplayModeVisibility(false);
 
-            SpriteRendererIcon.color = UnMutedMutedIconColorActive;
-            SpriteRendererIconTransform.localScale = largerScale;
+            if (LastUsedColor != UnMutedMutedIconColorActive)
+            {
+                SpriteRendererIcon.color = UnMutedMutedIconColorActive;
+                SpriteRendererIconTransform.localScale = largerScale;
+                LastUsedColor = UnMutedMutedIconColorActive;
+            }
         }
-
+        public Color LastUsedColor;
         public void MicrophoneNotTransmitting()
         {
             LocalIsTransmitting = false;
@@ -174,10 +179,13 @@ namespace Basis.Scripts.Drivers
             // Update visibility for ActivityDetection mode
             ApplyDisplayModeVisibility(false);
 
-            SpriteRendererIcon.color = UnMutedMutedIconColorInactive;
-            SpriteRendererIconTransform.localScale = StartingScale;
+            if (LastUsedColor != UnMutedMutedIconColorActive)
+            {
+                SpriteRendererIcon.color = UnMutedMutedIconColorInactive;
+                SpriteRendererIconTransform.localScale = StartingScale;
+                LastUsedColor = UnMutedMutedIconColorActive;
+            }
         }
-
         public void OnPausedEvent(bool IsMuted)
         {
             UpdateMicrophoneVisuals(IsMuted, true);
