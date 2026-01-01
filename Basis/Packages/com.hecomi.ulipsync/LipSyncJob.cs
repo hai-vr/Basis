@@ -884,7 +884,10 @@ namespace uLipSync
         static void Normalize(float* array, int len, float value = 1f)
         {
             float max = GetMaxValue(array, len);
-            if (max < math.EPSILON) return;
+            if (max < math.EPSILON)
+            {
+                return;
+            }
 
             float r = value / max;
             float* p = array;

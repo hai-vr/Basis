@@ -105,17 +105,12 @@ namespace uLipSync
             _jobInput = (oldActive == 0) ? _inputA : _inputB;
             _frozenStartIndex = (oldActive == 0) ? _writeIndexA : _writeIndexB;
 
-            var lipSyncJob = new LipSyncJob
+            LipSyncJob lipSyncJob = new LipSyncJob
             {
                 input = _jobInput,
                 startIndex = _frozenStartIndex,
                 outputSampleRate = outputSampleRate,
                 targetSampleRate = profile.targetSampleRate,
-
-                // NOTE: melFilterBankChannels is not used anymore in the optimized job,
-                // but keep it if your LipSyncJob struct still has it.
-                // melFilterBankChannels = profile.melFilterBankChannels,
-
                 means = _means,
                 standardDeviations = _standardDeviations,
                 mfcc = _mfcc,
