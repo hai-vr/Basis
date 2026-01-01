@@ -241,26 +241,6 @@ namespace Basis.Scripts.Eye_Follow
             }
             CenterTargetWorld = RandomizedPosition; // will be caught up
         }
-
-        /// <summary>
-        /// Restores initial eye rotations and disables head availability when the driver is disabled.
-        /// </summary>
-        public void OnDisable()
-        {
-            if (HasLeftEye && leftEyeTransform != null)
-            {
-                leftEyeTransform.rotation = LeftEyeInitallocalSpace.rotation;
-            }
-
-            if (HasRightEye && rightEyeTransform != null)
-            {
-                rightEyeTransform.rotation = RightEyeInitallocalSpace.rotation;
-            }
-            CenterTargetWorld = RandomizedPosition;
-            wasDisabled = true;
-            HasHead = false;
-        }
-
         /// <summary>
         /// Returns whether the driver should run simulation this frame.
         /// </summary>

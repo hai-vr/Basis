@@ -33,7 +33,7 @@ namespace Basis.Scripts.Drivers
         public float VRextraViewportPad = 0.022f;
 
         public Vector2 iconHalfRU;
-        Vector3[] corners = new Vector3[4];
+        private Vector3[] corners = new Vector3[4];
         Rect FrustumRequest = new Rect(0, 0, 1, 1);
 
         // --- State ---
@@ -74,7 +74,7 @@ namespace Basis.Scripts.Drivers
             StartingScale = SpriteRendererIconTransform.localScale;
             largerScale = StartingScale * 1.2f;
             // Ensure initial visibility matches current mode/state
-            ApplyDisplayModeVisibility();
+            ApplyDisplayModeVisibility(true);
         }
 
         // ---------------- Layout Helpers ----------------
@@ -161,7 +161,7 @@ namespace Basis.Scripts.Drivers
             LocalIsTransmitting = true;
 
             // Update visibility for ActivityDetection mode
-            ApplyDisplayModeVisibility();
+            ApplyDisplayModeVisibility(false);
 
             SpriteRendererIcon.color = UnMutedMutedIconColorActive;
             SpriteRendererIconTransform.localScale = largerScale;
@@ -172,7 +172,7 @@ namespace Basis.Scripts.Drivers
             LocalIsTransmitting = false;
 
             // Update visibility for ActivityDetection mode
-            ApplyDisplayModeVisibility();
+            ApplyDisplayModeVisibility(false);
 
             SpriteRendererIcon.color = UnMutedMutedIconColorInactive;
             SpriteRendererIconTransform.localScale = StartingScale;
@@ -199,7 +199,7 @@ namespace Basis.Scripts.Drivers
             }
 
             // Visibility per display mode
-            ApplyDisplayModeVisibility();
+            ApplyDisplayModeVisibility(false);
 
             if (IsMuted)
             {
@@ -238,16 +238,16 @@ namespace Basis.Scripts.Drivers
                 scaleCoroutine = null;
             }
 
-            ApplyDisplayModeVisibility();
+            ApplyDisplayModeVisibility(false);
         }
-
+        public static bool LastShownState = false;
         /// <summary>
         /// Centralized visibility logic for all enum modes.
         /// - Off:            icon hidden always.
         /// - AlwaysVisible:  icon shown always.
         /// - ActivityDetection: icon shown when muted OR transmitting; hidden otherwise.
         /// </summary>
-        private void ApplyDisplayModeVisibility()
+        private void ApplyDisplayModeVisibility(bool ForcedUpdate)
         {
             bool shouldShow;
             switch (DisplayMode)
@@ -269,8 +269,11 @@ namespace Basis.Scripts.Drivers
                     shouldShow = true;
                     break;
             }
-
-            SetIconVisible(shouldShow);
+            if (LastShownState != shouldShow || ForcedUpdate)
+            {
+                LastShownState = shouldShow;
+                SetIconVisible(shouldShow);
+            }
         }
 
         /// <summary>
