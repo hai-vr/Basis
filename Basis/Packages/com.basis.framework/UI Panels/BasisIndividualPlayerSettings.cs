@@ -120,7 +120,7 @@ public class BasisIndividualPlayerSettings : BasisUIBase
 
         if (RemotePlayer != null)
         {
-            RemotePlayer.RequestAvatarStateRefresh();
+            RemotePlayer.ReloadAvatar();
         }
     }
 
@@ -134,7 +134,7 @@ public class BasisIndividualPlayerSettings : BasisUIBase
 
         if (RemotePlayer != null)
         {
-            RemotePlayer.RequestAvatarStateRefresh();
+            RemotePlayer.ReloadAvatar();
         }
     }
 
