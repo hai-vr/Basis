@@ -10,123 +10,75 @@ using static SerializableBasis;
 
 namespace Basis.Scripts.BasisSdk.Players
 {
-    /// <summary>
-    /// Remote (non-local) player representation used by the Basis SDK.
-    /// Handles avatar creation/loading, remote eye/bone driving, network pose consumption,
-    /// mesh LOD adjustments, and remote name plate lifecycle.
-    /// </summary>
-    /// <remarks>
-    /// This class owns a number of runtime-only components and addressable resources.
-    /// Call <see cref="OnDestroy"/> to dispose drivers and release addressable instances
-    /// created during <see cref="RemoteInitialize(ClientAvatarChangeMessage, ClientMetaDataMessage, string)"/>.
-    /// </remarks>
     [System.Serializable]
     public class BasisRemotePlayer : BasisPlayer
     {
         #region Drivers & Receivers
-        /// <summary>
-        /// Driver responsible for avatar-specific remote updates (e.g., bone jobs hookup).
-        /// </summary>
+
         [Header("Avatar Driver")]
         [SerializeField]
         public BasisRemoteAvatarDriver RemoteAvatarDriver = new BasisRemoteAvatarDriver();
 
-        /// <summary>
-        /// Network receiver that provides pose/animation buffers and messages for this player.
-        /// </summary>
         [Header("Network Receiver")]
         [SerializeField]
         public BasisNetworkReceiver NetworkReceiver;
 
-        /// <summary>
-        /// Network Face Driver that provides eye and blink support
-        /// </summary>
         [Header("Face Driver")]
         [SerializeField]
         public BasisRemoteFaceDriver RemoteFaceDriver;
+
         #endregion
 
         #region UI / Name Plate
 
-        /// <summary>
-        /// Instance of the remote player's name plate UI, if present.
-        /// </summary>
         [Header("Name Plate")]
         [SerializeField]
         public BasisRemoteNamePlate RemoteNamePlate = null;
 
-        /// <summary>
-        /// A cached prefab instance for name plates loaded via Addressables.
-        /// </summary>
-        /// <remarks>
-        /// This static cache is never unloaded in the current implementation (intentional memoization),
-        /// which means memory is retained for the lifetime of the process.
-        /// </remarks>
         public static GameObject NamePlate;
 
         #endregion
 
         #region State / Data
 
-        /// <summary>
-        /// Whether this remote player is currently considered out of interaction range
-        /// from the local player (used by higher-level systems to gate updates or rendering).
-        /// </summary>
         public bool OutOfRangeFromLocal = false;
-
-        /// <summary>
-        /// The most recent avatar change message received for this player.
-        /// </summary>
         public ClientAvatarChangeMessage CACM;
-
-        /// <summary>
-        /// Whether the remote player is within the range where avatar rendering is allowed.
-        /// </summary>
         public bool InAvatarRange = true;
 
-        /// <summary>
-        /// The "always-requested" load mode for the avatar.
-        /// <list type="bullet">
-        /// <item><description><c>0</c> – Downloading/remote mode</description></item>
-        /// <item><description><c>1</c> – Local mode</description></item>
-        /// </list>
-        /// </summary>
         public byte AlwaysRequestedMode; // 0 downloading, 1 local
 
-        /// <summary>
-        /// The last bundle requested for this player (used by <see cref="ReloadAvatar"/>).
-        /// </summary>
         [HideInInspector]
         public BasisLoadableBundle AlwaysRequestedAvatar;
 
-        /// <summary>
-        /// Index into a remote player data array managed elsewhere (for external systems).
-        /// </summary>
         public int RemotePlayerDataIndex;
-
-        /// <summary>
-        /// Optional transform indicating the mouth position, used by lip sync or VFX.
-        /// </summary>
         public Transform MouthTransform;
-
-        /// <summary>
-        /// The last computed mesh LOD value applied to this player's renderers. Defaults to <c>-1</c> (unset).
-        /// </summary>
         public short LastComputedMeshLod = -1;
+
+        #endregion
+
+        #region Avatar Load State Fingerprint (NEW)
+
+        // Tracks what we have ACTUALLY loaded right now
+        private string _loadedAvatarKey = null;
+        private byte _loadedMode = 255; // invalid sentinel
+        private bool _loadedIsFallback = true;
+
+        // Coalesce repeated refresh calls
+        private bool _pendingRefresh = false;
+
+        private static string GetAvatarKey(BasisLoadableBundle blb)
+        {
+            if (blb == null) return string.Empty;
+
+            // Use a stable identifier for the avatar. This is the minimum viable key.
+            // If you have a better unique GUID/hash in the bundle, use that instead.
+            return blb.BasisRemoteBundleEncrypted.RemoteBeeFileLocation ?? string.Empty;
+        }
 
         #endregion
 
         #region Initialization / Addressables
 
-        /// <summary>
-        /// Loads (and caches) a name plate prefab from Addressables and returns the cached instance.
-        /// </summary>
-        /// <param name="LoadableNamePlatename">The Addressables key or path for the name plate prefab.</param>
-        /// <returns>The cached name plate <see cref="GameObject"/> instance.</returns>
-        /// <remarks>
-        /// This method uses a static cache and does not release the loaded asset.
-        /// As noted in the code comment, this currently leaks memory for the lifetime of the process.
-        /// </remarks>
         public static GameObject LoadFromHandle(string LoadableNamePlatename)
         {
             if (NamePlate == null)
@@ -138,16 +90,6 @@ namespace Basis.Scripts.BasisSdk.Players
             return NamePlate;
         }
 
-        /// <summary>
-        /// Initializes this remote player with network-transported identity and UI state,
-        /// creating and attaching a name plate instance.
-        /// </summary>
-        /// <param name="cACM">Initial avatar change message for this player.</param>
-        /// <param name="PlayerMetaDataMessage">Player metadata containing display name and UUID.</param>
-        /// <param name="LoadableNamePlatename">
-        /// Optional Addressables key/path for the name plate prefab.
-        /// Defaults to <c>"Assets/UI/Prefabs/NamePlate.prefab"</c>.
-        /// </param>
         public void RemoteInitialize(
             ClientAvatarChangeMessage cACM,
             ClientMetaDataMessage PlayerMetaDataMessage,
@@ -176,20 +118,13 @@ namespace Basis.Scripts.BasisSdk.Players
 
         #region Avatar Loading
 
-        /// <summary>
-        /// Loads the avatar from an initial <see cref="ClientAvatarChangeMessage"/> if no avatar exists yet.
-        /// </summary>
-        /// <param name="CACM">The message containing the initial avatar payload/bytes.</param>
-        /// <remarks>
-        /// This is an async-void method intended to be fire-and-forget on the main thread.
-        /// Prefer <see cref="CreateAvatar(byte, BasisLoadableBundle)"/> for awaited flows.
-        /// </remarks>
         public void LoadAvatarFromInitial(ClientAvatarChangeMessage CACM)
         {
             if (BasisAvatar == null)
             {
                 this.CACM = CACM;
-                BasisLoadableBundle BasisLoadedBundle = BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(CACM.byteArray);
+                BasisLoadableBundle BasisLoadedBundle =
+                    BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(CACM.byteArray);
 
                 InAvatarRange = false;
 
@@ -198,9 +133,17 @@ namespace Basis.Scripts.BasisSdk.Players
                     AlwaysRequestedAvatar = BasisLoadedBundle;
                     AlwaysRequestedMode = CACM.loadMode;
 
-                    BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,
-                    BasisAvatarFactory.LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation,
-                    Vector3.zero, Quaternion.identity);
+                    BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(
+                        this,
+                        BasisAvatarFactory.LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation,
+                        Vector3.zero,
+                        Quaternion.identity
+                    );
+
+                    // We just set fallback
+                    _loadedIsFallback = true;
+                    _loadedAvatarKey = null;
+                    _loadedMode = 255;
                 }
                 else
                 {
@@ -209,69 +152,148 @@ namespace Basis.Scripts.BasisSdk.Players
             }
         }
 
-        /// <summary>
-        /// Re-creates the avatar using the last requested mode and bundle,
-        /// if available (used after settings or visibility changes).
-        /// </summary>
-        /// <remarks>
-        /// This is an async-void method intended for fire-and-forget usage.
-        /// </remarks>
-        public async void ReloadAvatar()
-        {
-            if (AlwaysRequestedAvatar != null)
-            {
-                await CreateAvatar(AlwaysRequestedMode, AlwaysRequestedAvatar);
-            }
-        }
         public bool IsLoadingAnAvatar = false;
+
         /// <summary>
-        /// Creates or replaces the current avatar using the provided load mode and bundle.
-        /// Applies user visibility settings and distance gating before loading,
-        /// and falls back to the loading avatar if not visible/in range.
+        /// Your original CreateAvatar remains useful when you explicitly want to load a specific bundle/mode.
+        /// It also updates the loaded fingerprint so we can avoid future redundant loads.
         /// </summary>
-        /// <param name="Mode">Avatar load mode (e.g., 0 = remote/downloading, 1 = local).</param>
-        /// <param name="BasisLoadableBundle">The bundle describing the avatar to load.</param>
-        /// <returns>A task that completes when the avatar is loaded or a fallback is applied.</returns>
-        public async Task CreateAvatar(byte Mode, BasisLoadableBundle BasisLoadableBundle)
+        public async Task CreateAvatar(byte mode, BasisLoadableBundle blb)
         {
-            IsLoadingAnAvatar = true;
-            if (BasisLoadableBundle == null ||
-                string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
+            // Normalize input immediately
+            if (blb == null || string.IsNullOrEmpty(blb.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
             {
                 BasisDebug.LogError("trying to create Avatar with empty Bundle", BasisDebug.LogTag.Remote);
-                BasisLoadableBundle = BasisAvatarFactory.LoadingAvatar;
-                Mode = 0;
+
+                blb = BasisAvatarFactory.LoadingAvatar;
+                mode = 0;
             }
 
-            // Fetch per-player visibility settings.
-            BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
-
-            // Remember last requested avatar and mode for potential reloads.
-            AlwaysRequestedAvatar = BasisLoadableBundle;
-            AlwaysRequestedMode = Mode;
-
-            if (BasisPlayerSettingsData.AvatarVisible && InAvatarRange)
+            // If we already know this avatar cannot be shown, ensure fallback (once) and bail
+            if (!InAvatarRange)
             {
-                await BasisAvatarFactory.LoadAvatarRemote(this, Mode, BasisLoadableBundle, Vector3.zero, Quaternion.identity);
+                EnsureFallbackOnce();
+                LastComputedMeshLod = -1;
+                return;
+            }
+
+            IsLoadingAnAvatar = true;
+
+            // Fetch per-player visibility settings only if needed
+            BasisPlayerSettingsData settings = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
+
+            // Remember last requested avatar and mode for potential refreshes
+            AlwaysRequestedAvatar = blb;
+            AlwaysRequestedMode = mode;
+
+            if (settings.AvatarVisible)
+            {
+                await BasisAvatarFactory.LoadAvatarRemote(this, mode, blb, Vector3.zero, Quaternion.identity);
+
+                // Update fingerprint: we loaded a real avatar
+                _loadedAvatarKey = GetAvatarKey(blb);
+                _loadedMode = mode;
+                _loadedIsFallback = false;
             }
             else
             {
-                BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,
-                    BasisAvatarFactory.LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation,
-                    Vector3.zero, Quaternion.identity);
+                EnsureFallbackOnce();
             }
 
             LastComputedMeshLod = -1;
             IsLoadingAnAvatar = false;
         }
 
+        /// <summary>
+        /// NEW: Call this instead of ReloadAvatar(). It decides whether anything needs doing.
+        /// It coalesces calls to avoid jitter thrash.
+        /// </summary>
+        public void RequestAvatarStateRefresh()
+        {
+            if (_pendingRefresh) return;
+            _pendingRefresh = true;
+            _ = RefreshAvatarStateInternal();
+        }
+
+        private async Task RefreshAvatarStateInternal()
+        {
+            // Coalesce multiple triggers in the same frame / tick
+            await Task.Yield();
+            _pendingRefresh = false;
+
+            if (IsLoadingAnAvatar) return;
+
+            // If we have no requested avatar yet, nothing to load.
+            if (AlwaysRequestedAvatar == null)
+            {
+                // You can choose to fallback here, but typically initial setup handles it.
+                return;
+            }
+
+            // 1) Range gating: out of range => fallback (but only once)
+            if (!InAvatarRange)
+            {
+                EnsureFallbackOnce();
+                LastComputedMeshLod = -1;
+                return;
+            }
+
+            // 2) Visibility gating
+            BasisPlayerSettingsData settings = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
+            if (!settings.AvatarVisible)
+            {
+                EnsureFallbackOnce();
+                LastComputedMeshLod = -1;
+                return;
+            }
+
+            // 3) In range + visible: load ONLY if desired != loaded
+            string desiredKey = GetAvatarKey(AlwaysRequestedAvatar);
+            byte desiredMode = AlwaysRequestedMode;
+
+            bool needsLoad =
+                _loadedIsFallback ||
+                _loadedMode != desiredMode ||
+                _loadedAvatarKey != desiredKey;
+
+            if (!needsLoad) return;
+
+            IsLoadingAnAvatar = true;
+            try
+            {
+                await BasisAvatarFactory.LoadAvatarRemote(this, desiredMode, AlwaysRequestedAvatar, Vector3.zero, Quaternion.identity);
+
+                _loadedAvatarKey = desiredKey;
+                _loadedMode = desiredMode;
+                _loadedIsFallback = false;
+                LastComputedMeshLod = -1;
+            }
+            finally
+            {
+                IsLoadingAnAvatar = false;
+            }
+        }
+
+        private void EnsureFallbackOnce()
+        {
+            if (_loadedIsFallback) return;
+
+            BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(
+                this,
+                BasisAvatarFactory.LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation,
+                Vector3.zero,
+                Quaternion.identity
+            );
+
+            _loadedIsFallback = true;
+            _loadedAvatarKey = null;
+            _loadedMode = 255;
+        }
+
         #endregion
 
         #region Teardown
 
-        /// <summary>
-        /// Disposes owned drivers and releases addressable instances (name plate, bone jobs).
-        /// </summary>
         public void OnDestroy()
         {
             if (RemoteFaceDriver != null)
@@ -294,27 +316,11 @@ namespace Basis.Scripts.BasisSdk.Players
 
         #region LOD
 
-        /// <summary>
-        /// Computes and applies a mesh LOD level for all avatar renderers based on the
-        /// distance to the local player and a reduction multiplier.
-        /// </summary>
-        /// <param name="DistanceToPlayer">World-space distance to the local player.</param>
-        /// <param name="ReductionMultiplier">
-        /// Multiplier applied to the distance before mapping to LOD levels.
-        /// Higher values cause LODs to drop off sooner.
-        /// </param>
-        /// <remarks>
-        /// Maps the normalized distance into four discrete levels [0..3] and writes
-        /// the result to <see cref="Renderer.forceMeshLod"/> for each renderer.
-        /// </remarks>
         public void ChangeMeshLOD(float DistanceToPlayer, float ReductionMultiplier)
         {
             if (BasisAvatar != null && BasisAvatar.Renders != null)
             {
-                // Normalize distance into [0,1]
                 float normalized = DistanceToPlayer * ReductionMultiplier;
-
-                // Map evenly to 0–3 LOD (4 levels total)
                 short grid = (short)Mathf.Clamp(Mathf.FloorToInt(normalized * 4f), 0, 3);
 
                 if (LastComputedMeshLod != grid)
