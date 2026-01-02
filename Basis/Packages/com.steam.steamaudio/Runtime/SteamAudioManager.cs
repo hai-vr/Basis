@@ -495,7 +495,10 @@ namespace SteamAudio
             if (mAudioEngineState == null)
                 return;
 
-            mAudioEngineState.SetHRTFDisabled(SteamAudioSettings.Singleton.hrtfDisabled);
+            SteamAudioSettings settings = SteamAudioSettings.Singleton;
+            SteamAudioListener SteamAudioListener = SteamAudioManager.GetSteamAudioListener();
+
+            mAudioEngineState.SetHRTFDisabled(settings.hrtfDisabled);
             var perspectiveCorrection = GetPerspectiveCorrection();
             mAudioEngineState.SetPerspectiveCorrection(perspectiveCorrection);
 
@@ -525,12 +528,11 @@ namespace SteamAudio
                 sharedInputs.listener.up = Common.ConvertVector(mListener.up);
                 sharedInputs.listener.right = Common.ConvertVector(mListener.right);
             }
-
-            sharedInputs.numRays = SteamAudioSettings.Singleton.realTimeRays;
-            sharedInputs.numBounces = SteamAudioSettings.Singleton.realTimeBounces;
-            sharedInputs.duration = SteamAudioSettings.Singleton.realTimeDuration;
-            sharedInputs.order = SteamAudioSettings.Singleton.realTimeAmbisonicOrder;
-            sharedInputs.irradianceMinDistance = SteamAudioSettings.Singleton.realTimeIrradianceMinDistance;
+            sharedInputs.numRays = settings.realTimeRays;
+            sharedInputs.numBounces = settings.realTimeBounces;
+            sharedInputs.duration = settings.realTimeDuration;
+            sharedInputs.order = settings.realTimeAmbisonicOrder;
+            sharedInputs.irradianceMinDistance = settings.realTimeIrradianceMinDistance;
             sharedInputs.pathingVisualizationCallback = null;
             sharedInputs.pathingUserData = IntPtr.Zero;
 
@@ -538,12 +540,14 @@ namespace SteamAudio
 
             foreach (var source in mSources)
             {
-                source.SetInputs(SimulationFlags.Direct);
+                source.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
+                source.SetInputs(SimulationFlags.Direct, Position, Rotation, SteamAudioListener);
             }
 
             foreach (var listener in mListeners)
             {
-                listener.SetInputs(SimulationFlags.Direct);
+                listener.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
+                listener.SetInputs(SimulationFlags.Direct, settings, Position, Rotation);
             }
 
             mSimulator.RunDirect();
@@ -553,14 +557,11 @@ namespace SteamAudio
                 source.UpdateOutputs(SimulationFlags.Direct);
             }
 
-            foreach (var listener in mListeners)
-            {
-                listener.UpdateOutputs(SimulationFlags.Direct);
-            }
-
             mSimulationUpdateTimeElapsed += Time.deltaTime;
-            if (mSimulationUpdateTimeElapsed < SteamAudioSettings.Singleton.simulationUpdateInterval)
+            if (mSimulationUpdateTimeElapsed < settings.simulationUpdateInterval)
+            {
                 return;
+            }
 
             mSimulationUpdateTimeElapsed = 0.0f;
 
@@ -574,23 +575,20 @@ namespace SteamAudio
                     {
                         source.UpdateOutputs(SimulationFlags.Reflections | SimulationFlags.Pathing);
                     }
-
-                    foreach (var listener in mListeners)
-                    {
-                        listener.UpdateOutputs(SimulationFlags.Reflections | SimulationFlags.Pathing);
-                    }
                 }
 
                 mSimulator.SetSharedInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, sharedInputs);
 
                 foreach (var source in mSources)
                 {
-                    source.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing);
+                    source.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
+                    source.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, Position, Rotation, SteamAudioListener);
                 }
 
                 foreach (var listener in mListeners)
                 {
-                    listener.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing);
+                    listener.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
+                    listener.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, settings, Position, Rotation);
                 }
 
                 if (SteamAudioSettings.Singleton.sceneType == SceneType.Custom)

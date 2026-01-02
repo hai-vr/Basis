@@ -235,11 +235,13 @@ namespace SteamAudio
             }
         }
         public Transform Transform;
+        public bool IsUnityEngineUsed;
         private void OnEnable()
         {
             Transform = this.transform;
             mSource.AddToSimulator(mSimulator);
             SteamAudioManager.AddSource(this);
+            IsUnityEngineUsed = SteamAudioSettings.Singleton.audioEngine == AudioEngineType.Unity;
 
             if (mAudioEngineSource != null)
             {
@@ -281,17 +283,15 @@ namespace SteamAudio
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetInputs(SimulationFlags flags)
+        public void SetInputs(SimulationFlags flags, UnityEngine.Vector3 pos, Quaternion rot, SteamAudioListener listener)
         {
             // --- Fast transform read: one native hop ---
-            Transform.GetPositionAndRotation(out var pos, out var rot);
             var ahead = rot * UnityEngine.Vector3.forward; // pure math (managed), no extra native calls
             var up = rot * UnityEngine.Vector3.up;
             var right = rot * UnityEngine.Vector3.right;
 
             // --- Cache frequently used refs/values ---
             var settings = mSettings; // SteamAudioSettings.Singleton if that's what mSettings is
-            var listener = SteamAudioManager.GetSteamAudioListener();
 
             // Precompute booleans once
             bool reflectionsRealtime = reflectionsType == ReflectionsType.Realtime;
@@ -404,8 +404,7 @@ namespace SteamAudio
         {
             var outputs = mSource.GetOutputs(flags);
 
-            if (SteamAudioSettings.Singleton.audioEngine == AudioEngineType.Unity &&
-                ((flags & SimulationFlags.Direct) != 0))
+            if (IsUnityEngineUsed && ((flags & SimulationFlags.Direct) != 0))
             {
                 if (distanceAttenuation && distanceAttenuationInput == DistanceAttenuationInput.PhysicsBased)
                 {
