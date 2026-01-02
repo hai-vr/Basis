@@ -39,12 +39,17 @@ namespace Basis.BTween
             return this;
         }
 
-        public override bool Process(float currentTime)
+        public override bool Process(double currentTime)
         {
-            if (base.Process(currentTime)) return true;
+            if (base.Process(currentTime))
+                return true;
 
-            float blend = BlendValue(currentTime);
-            Target.anchoredPosition = Vector2.Lerp(StartValue, EndValue, blend);
+            double t = BlendValue(currentTime);
+
+            double x = StartValue.x + (EndValue.x - StartValue.x) * t;
+            double y = StartValue.y + (EndValue.y - StartValue.y) * t;
+
+            Target.anchoredPosition = new Vector2((float)x, (float)y);
             return false;
         }
 

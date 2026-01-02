@@ -1,3 +1,4 @@
+using Basis.BTween;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
@@ -51,10 +52,15 @@ public class BasisEventDriver : MonoBehaviour
     /// Unscaled frame delta time in seconds.
     /// </summary>
     public float unscaledDeltaTime;
+
     /// <summary>
-    /// material we use to display jiggle physics visually
+    /// realtimeSinceStartupAsDouble
     /// </summary>
-    [SerializeField]
+    public double realtimeSinceStartupAsDouble;
+   /// <summary>
+   /// material we use to display jiggle physics visually
+   /// </summary>
+   [SerializeField]
     private Material proceduralMaterial;
     /// <summary>
     /// mesh we use to display around the jiggle physics
@@ -158,6 +164,7 @@ public class BasisEventDriver : MonoBehaviour
     {
         fixedTimeAsDouble = Time.fixedTimeAsDouble;
         fixedDeltaTime = Time.fixedDeltaTime;
+        realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
 
         // Network apply step + gameplay sync
         BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
@@ -192,6 +199,7 @@ public class BasisEventDriver : MonoBehaviour
         {
             JigglePhysics.ScheduleRender();
         }
+        BTweenManager.Simulate(realtimeSinceStartupAsDouble);
         BasisRemoteAudioDriver.Apply();
         //doing main thread work before this call is ideal for best performance.
         JigglePhysics.CompletePose();
