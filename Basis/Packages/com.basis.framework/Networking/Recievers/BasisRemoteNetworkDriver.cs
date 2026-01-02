@@ -414,7 +414,11 @@ public static class BasisRemoteNetworkDriver
         public void Execute(int index)
         {
             float t = InterpolationTimes[index];
-            if (!math.isfinite(t)) t = 0f;
+            if (!math.isfinite(t))
+            {
+                t = 0f;
+            }
+
             t = math.clamp(t, 0f, 1f);
 
             OutputPositions[index] = math.lerp(PreviousPositions[index], TargetPositions[index], t);
