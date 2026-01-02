@@ -58,8 +58,6 @@ namespace Basis.Scripts.Networking.Receivers
         // Main-thread-only jitter buffer. Bounded. Overwrites oldest when full.
         private BasisRingBuffer<BasisAvatarBuffer> _stagedRing;
 
-        public Transform AvatarTransform;
-        public bool HasChangedAvatarTransform = false;
         /// <summary>
         /// Main-thread simulation step. Pulls packets, maintains interpolation window,
         /// computes interpolationTime, and feeds inputs to the network driver.
@@ -76,12 +74,7 @@ namespace Basis.Scripts.Networking.Receivers
                 BasisDebug.LogError($"Animator for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
                 return;
             }
-            if(AvatarTransform != Player.AvatarTransform)
-            {
-                AvatarTransform = Player.AvatarTransform;
-                HasChangedAvatarTransform = true;
-            }
-            if (AvatarTransform == null)
+            if (Player.AvatarTransform == null)
             {
                 BasisDebug.LogError($"AvatarTransform for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
                 return;
@@ -149,9 +142,17 @@ namespace Basis.Scripts.Networking.Receivers
                 var first = BufferHolder.Current;
                 var last = BufferHolder.Next;
 
-                double windowDuration = last.SecondsInterval > 0 ? last.SecondsInterval :first.SecondsInterval > 0 ? first.SecondsInterval : (1.0 / 60.0);
+                double windowDuration = last.SecondsInterval > 0 ? last.SecondsInterval : first.SecondsInterval > 0 ? first.SecondsInterval : (1.0 / 60.0);
 
-                PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime,windowDuration,unscaledDeltaTime);
+                if (!double.IsFinite(windowDuration) || windowDuration <= 1e-6)
+                {
+                    windowDuration = 1e-3;
+                }
+
+                double step = Math.Max(unscaledDeltaTime, 0.0);
+                interpolationTime += (float)(step / windowDuration);
+
+                PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime);
                 if (PassedSimulate && BufferHolder.SentLatest)
                 {
                     BasisRemoteNetworkDriver.SetFrameInputs(
@@ -176,19 +177,16 @@ namespace Basis.Scripts.Networking.Receivers
 
             BasisRemoteNetworkDriver.GetOutputs_NoAlloc(
                 playerId,
-                out bool applyingScale,
-                out var applyingRotation,
-                out float3 scaledBody,          // HumanPose.bodyPosition (units in avatar-space)
-                out interpolationTime
+                out var outscale,
+                out ApplyingRotation,
+                out float3 scaledBody          // HumanPose.bodyPosition (units in avatar-space)
             );
-            ApplyingRotation = applyingRotation;
 
-          //  BasisRemoteNetworkDriver.GetPositionOutput(playerId, out float3 position);
+            BasisRemoteNetworkDriver.GetMuscleArray(playerId,ref HumanPose);
+            BasisRemoteNetworkDriver.GetScaleOutput(playerId, out ApplyingScale);
 
             HumanPose.bodyPosition = scaledBody;
-            HumanPose.bodyRotation = applyingRotation;
-
-            BasisRemoteNetworkDriver.GetMuscleArray(playerId, ref HumanPose);
+            HumanPose.bodyRotation = ApplyingRotation;
 
             // Overlay eyes/mouth in one shot
             unsafe
@@ -199,11 +197,8 @@ namespace Basis.Scripts.Networking.Receivers
                     UnsafeUtility.MemCpy(pDst + EyesAndMouthOffset, pSrc, EyeAndMouthCountInBytes);
                 }
             }
-            if (applyingScale || HasChangedAvatarTransform)
-            {
-                BasisRemoteNetworkDriver.GetScaleOutput(playerId, out float3 scale);
-                AvatarTransform.localScale = scale;
-            }
+
+            Player.AvatarTransform.localScale = ApplyingScale;
 
             PoseHandler.SetHumanPose(ref HumanPose);
 
@@ -215,7 +210,6 @@ namespace Basis.Scripts.Networking.Receivers
 
             PassedSimulate = false;
         }
-
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)
         {
             PayloadQueue.Enqueue(avatarBuffer);
@@ -374,9 +368,6 @@ namespace Basis.Scripts.Networking.Receivers
             playerId = PlayerID;
             hasID = true;
         }
-
-        // ---------------- staging helpers ----------------
-
         private void TrySeedFirstFromStaging()
         {
             while (_stagedRing.TryDequeueOldest(out var first))
