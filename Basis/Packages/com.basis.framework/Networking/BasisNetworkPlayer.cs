@@ -143,7 +143,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         }
         public void OnAvatarServerReductionSystemMessageSend(byte MessageIndex, byte[] buffer = null)
         {
-            if (BasisNetworkManagement.Instance != null && BasisNetworkManagement.Transmitter != null)
+            if (BasisNetworkManagement.Transmitter != null)
             {
                 AdditionalAvatarData AAD = new AdditionalAvatarData
                 {
