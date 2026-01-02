@@ -80,21 +80,13 @@ namespace SteamAudio
         bool mSceneCommitRequired = false;
         Camera mMainCamera;
 
-        static SteamAudioManager sSingleton = null;
-
-        public static SteamAudioManager Singleton
-        {
-            get
-            {
-                return sSingleton;
-            }
-        }
+        public static SteamAudioManager Singleton = null;
 
         public static Context Context
         {
             get
             {
-                return sSingleton.mContext;
+                return Singleton.mContext;
             }
         }
 
@@ -102,7 +94,7 @@ namespace SteamAudio
         {
             get
             {
-                return sSingleton.mHRTFs[sSingleton.currentHRTF];
+                return Singleton.mHRTFs[Singleton.currentHRTF];
             }
         }
 
@@ -110,7 +102,7 @@ namespace SteamAudio
         {
             get
             {
-                return sSingleton.mEmbreeDevice.Get();
+                return Singleton.mEmbreeDevice.Get();
             }
         }
 
@@ -118,7 +110,7 @@ namespace SteamAudio
         {
             get
             {
-                return sSingleton.mOpenCLDevice.Get();
+                return Singleton.mOpenCLDevice.Get();
             }
         }
 
@@ -126,7 +118,7 @@ namespace SteamAudio
         {
             get
             {
-                return sSingleton.mRadeonRaysDevice.Get();
+                return Singleton.mRadeonRaysDevice.Get();
             }
         }
 
@@ -134,7 +126,7 @@ namespace SteamAudio
         {
             get
             {
-                return sSingleton.mTrueAudioNextDevice.Get();
+                return Singleton.mTrueAudioNextDevice.Get();
             }
         }
 
@@ -142,7 +134,7 @@ namespace SteamAudio
         {
             get
             {
-                return sSingleton.mCurrentScene;
+                return Singleton.mCurrentScene;
             }
         }
 
@@ -150,7 +142,7 @@ namespace SteamAudio
         {
             get
             {
-                return sSingleton.mSimulator;
+                return Singleton.mSimulator;
             }
         }
 
@@ -158,18 +150,18 @@ namespace SteamAudio
         {
             get
             {
-                return sSingleton.mAudioSettings;
+                return Singleton.mAudioSettings;
             }
         }
 
         public static AudioEngineState GetAudioEngineState()
         {
-            return sSingleton.mAudioEngineState;
+            return Singleton.mAudioEngineState;
         }
 
         public static SteamAudioListener GetSteamAudioListener()
         {
-            return sSingleton.mListenerComponent;
+            return Singleton.mListenerComponent;
         }
 
         public int NumThreadsForCPUCorePercentage(int percentage)
@@ -181,8 +173,8 @@ namespace SteamAudio
         {
             var sceneType = SteamAudioSettings.Singleton.sceneType;
 
-            if ((sceneType == SceneType.Embree && sSingleton.mEmbreeInitFailed) ||
-                (sceneType == SceneType.RadeonRays && (sSingleton.mOpenCLInitFailed || sSingleton.mRadeonRaysInitFailed)))
+            if ((sceneType == SceneType.Embree && Singleton.mEmbreeInitFailed) ||
+                (sceneType == SceneType.RadeonRays && (Singleton.mOpenCLInitFailed || Singleton.mRadeonRaysInitFailed)))
             {
                 sceneType = SceneType.Default;
             }
@@ -194,7 +186,7 @@ namespace SteamAudio
         {
             var reflectionEffectType = SteamAudioSettings.Singleton.reflectionEffectType;
 
-            if ((reflectionEffectType == ReflectionEffectType.TrueAudioNext && (sSingleton.mOpenCLInitFailed || sSingleton.mTrueAudioNextInitFailed)))
+            if ((reflectionEffectType == ReflectionEffectType.TrueAudioNext && (Singleton.mOpenCLInitFailed || Singleton.mTrueAudioNextInitFailed)))
             {
                 reflectionEffectType = ReflectionEffectType.Convolution;
             }
@@ -240,7 +232,7 @@ namespace SteamAudio
                 simulationSettings.numDiffuseSamples = 1024;
                 simulationSettings.maxDuration = SteamAudioSettings.Singleton.bakingDuration;
                 simulationSettings.maxOrder = SteamAudioSettings.Singleton.bakingAmbisonicOrder;
-                simulationSettings.numThreads = sSingleton.NumThreadsForCPUCorePercentage(SteamAudioSettings.Singleton.bakingCPUCoresPercentage);
+                simulationSettings.numThreads = Singleton.NumThreadsForCPUCorePercentage(SteamAudioSettings.Singleton.bakingCPUCoresPercentage);
                 simulationSettings.rayBatchSize = 16;
             }
             else
@@ -252,7 +244,7 @@ namespace SteamAudio
                 simulationSettings.maxDuration = (simulationSettings.reflectionType == ReflectionEffectType.TrueAudioNext) ? SteamAudioSettings.Singleton.TANDuration : SteamAudioSettings.Singleton.realTimeDuration;
                 simulationSettings.maxOrder = (simulationSettings.reflectionType == ReflectionEffectType.TrueAudioNext) ? SteamAudioSettings.Singleton.TANAmbisonicOrder : SteamAudioSettings.Singleton.realTimeAmbisonicOrder;
                 simulationSettings.maxNumSources = (simulationSettings.reflectionType == ReflectionEffectType.TrueAudioNext) ? SteamAudioSettings.Singleton.TANMaxSources : SteamAudioSettings.Singleton.realTimeMaxSources;
-                simulationSettings.numThreads = sSingleton.NumThreadsForCPUCorePercentage(SteamAudioSettings.Singleton.realTimeCPUCoresPercentage);
+                simulationSettings.numThreads = Singleton.NumThreadsForCPUCorePercentage(SteamAudioSettings.Singleton.realTimeCPUCoresPercentage);
                 simulationSettings.rayBatchSize = 16;
                 simulationSettings.numVisSamples = SteamAudioSettings.Singleton.bakingVisibilitySamples;
                 simulationSettings.samplingRate = AudioSettings.samplingRate;
@@ -261,14 +253,14 @@ namespace SteamAudio
 
             if (simulationSettings.sceneType == SceneType.RadeonRays)
             {
-                simulationSettings.openCLDevice = sSingleton.mOpenCLDevice.Get();
-                simulationSettings.radeonRaysDevice = sSingleton.mRadeonRaysDevice.Get();
+                simulationSettings.openCLDevice = Singleton.mOpenCLDevice.Get();
+                simulationSettings.radeonRaysDevice = Singleton.mRadeonRaysDevice.Get();
             }
 
             if (!baking && simulationSettings.reflectionType == ReflectionEffectType.TrueAudioNext)
             {
-                simulationSettings.openCLDevice = sSingleton.mOpenCLDevice.Get();
-                simulationSettings.tanDevice = sSingleton.mTrueAudioNextDevice.Get();
+                simulationSettings.openCLDevice = Singleton.mOpenCLDevice.Get();
+                simulationSettings.tanDevice = Singleton.mTrueAudioNextDevice.Get();
             }
 
             return simulationSettings;
@@ -478,23 +470,23 @@ namespace SteamAudio
         // you are using third-party audio middleware).
         public static void NotifyAudioListenerChangedTo(Transform listenerTransform)
         {
-            sSingleton.mListener = listenerTransform;
-            if (sSingleton.mListener)
+            Singleton.mListener = listenerTransform;
+            if (Singleton.mListener)
             {
-                sSingleton.mListenerComponent = sSingleton.mListener.GetComponent<SteamAudioListener>();
+                Singleton.mListenerComponent = Singleton.mListener.GetComponent<SteamAudioListener>();
             }
         }
 
         // Call this function when you create or change the main camera.
         public static void NotifyMainCameraChanged()
         {
-            sSingleton.mMainCamera = Camera.main;
+            Singleton.mMainCamera = Camera.main;
         }
 
         // Call this function to request that changes to a scene be committed. Call only when changes have happened.
         public static void ScheduleCommitScene()
         {
-            sSingleton.mSceneCommitRequired = true;
+            Singleton.mSceneCommitRequired = true;
         }
 
 #if STEAMAUDIO_ENABLED
@@ -650,107 +642,107 @@ namespace SteamAudio
                 DontDestroyOnLoad(managerObject);
             }
 
-            sSingleton = manager;
+            Singleton = manager;
 
             manager.OnApplicationStart(reason);
         }
 
         public static void ShutDown()
         {
-            if (sSingleton.mSimulationThread != null)
+            if (Singleton.mSimulationThread != null)
             {
-                sSingleton.mStopSimulationThread = true;
-                sSingleton.mSimulationThreadWaitHandle.Set();
-                sSingleton.mSimulationThread.Join();
+                Singleton.mStopSimulationThread = true;
+                Singleton.mSimulationThreadWaitHandle.Set();
+                Singleton.mSimulationThread.Join();
             }
 
             RemoveAllDynamicObjects(force: true);
             RemoveAllAdditiveScenes();
 
-            if (sSingleton.mAudioEngineState != null)
+            if (Singleton.mAudioEngineState != null)
             {
-                sSingleton.mAudioEngineState.Destroy();
+                Singleton.mAudioEngineState.Destroy();
             }
 
-            if (sSingleton.mSimulator != null)
+            if (Singleton.mSimulator != null)
             {
-                sSingleton.mSimulator.Release();
-                sSingleton.mSimulator = null;
+                Singleton.mSimulator.Release();
+                Singleton.mSimulator = null;
             }
 
-            if (sSingleton.mTrueAudioNextDevice != null)
+            if (Singleton.mTrueAudioNextDevice != null)
             {
-                sSingleton.mTrueAudioNextDevice.Release();
-                sSingleton.mTrueAudioNextDevice = null;
+                Singleton.mTrueAudioNextDevice.Release();
+                Singleton.mTrueAudioNextDevice = null;
             }
 
-            if (sSingleton.mRadeonRaysDevice != null)
+            if (Singleton.mRadeonRaysDevice != null)
             {
-                sSingleton.mRadeonRaysDevice.Release();
-                sSingleton.mRadeonRaysDevice = null;
+                Singleton.mRadeonRaysDevice.Release();
+                Singleton.mRadeonRaysDevice = null;
             }
 
-            if (sSingleton.mOpenCLDevice != null)
+            if (Singleton.mOpenCLDevice != null)
             {
-                sSingleton.mOpenCLDevice.Release();
-                sSingleton.mOpenCLDevice = null;
+                Singleton.mOpenCLDevice.Release();
+                Singleton.mOpenCLDevice = null;
             }
 
-            if (sSingleton.mEmbreeDevice != null)
+            if (Singleton.mEmbreeDevice != null)
             {
-                sSingleton.mEmbreeDevice.Release();
-                sSingleton.mEmbreeDevice = null;
+                Singleton.mEmbreeDevice.Release();
+                Singleton.mEmbreeDevice = null;
             }
 
-            if (sSingleton.mHRTFs != null)
+            if (Singleton.mHRTFs != null)
             {
-                for (var i = 0; i < sSingleton.mHRTFs.Length; ++i)
+                for (var i = 0; i < Singleton.mHRTFs.Length; ++i)
                 {
-                    sSingleton.mHRTFs[i].Release();
-                    sSingleton.mHRTFs[i] = null;
+                    Singleton.mHRTFs[i].Release();
+                    Singleton.mHRTFs[i] = null;
                 }
             }
 
-            SceneManager.sceneLoaded -= sSingleton.OnSceneLoaded;
-            SceneManager.sceneUnloaded -= sSingleton.OnSceneUnloaded;
+            SceneManager.sceneLoaded -= Singleton.OnSceneLoaded;
+            SceneManager.sceneUnloaded -= Singleton.OnSceneUnloaded;
 
-            sSingleton.mContext.Release();
-            sSingleton.mContext = null;
+            Singleton.mContext.Release();
+            Singleton.mContext = null;
         }
 
         public static void Reinitialize()
         {
-            if (sSingleton.mSimulationThread != null)
+            if (Singleton.mSimulationThread != null)
             {
-                sSingleton.mStopSimulationThread = true;
-                sSingleton.mSimulationThreadWaitHandle.Set();
-                sSingleton.mSimulationThread.Join();
+                Singleton.mStopSimulationThread = true;
+                Singleton.mSimulationThreadWaitHandle.Set();
+                Singleton.mSimulationThread.Join();
             }
 
             RemoveAllDynamicObjects(force: true);
             RemoveAllAdditiveScenes();
 
-            if (sSingleton.mAudioEngineState != null)
+            if (Singleton.mAudioEngineState != null)
             {
-                sSingleton.mAudioEngineState.Destroy();
+                Singleton.mAudioEngineState.Destroy();
             }
 
-            sSingleton.mSimulator = null;
+            Singleton.mSimulator = null;
 
             UnityEngine.AudioSettings.Reset(UnityEngine.AudioSettings.GetConfiguration());
 
-            if ((sSingleton.mEmbreeDevice == null || sSingleton.mEmbreeDevice.Get() == IntPtr.Zero)
+            if ((Singleton.mEmbreeDevice == null || Singleton.mEmbreeDevice.Get() == IntPtr.Zero)
                 && SteamAudioSettings.Singleton.sceneType == SceneType.Embree)
             {
                 try
                 {
-                    sSingleton.mEmbreeInitFailed = false;
+                    Singleton.mEmbreeInitFailed = false;
 
-                    sSingleton.mEmbreeDevice = new EmbreeDevice(sSingleton.mContext);
+                    Singleton.mEmbreeDevice = new EmbreeDevice(Singleton.mContext);
                 }
                 catch (Exception e)
                 {
-                    sSingleton.mEmbreeInitFailed = true;
+                    Singleton.mEmbreeInitFailed = true;
 
                     Debug.LogException(e);
                     Debug.LogWarning("Embree initialization failed, reverting to Phonon for ray tracing.");
@@ -759,22 +751,22 @@ namespace SteamAudio
 
             var requiresTAN = (SteamAudioSettings.Singleton.reflectionEffectType == ReflectionEffectType.TrueAudioNext);
 
-            if ((sSingleton.mOpenCLDevice == null || sSingleton.mOpenCLDevice.Get() == IntPtr.Zero) &&
+            if ((Singleton.mOpenCLDevice == null || Singleton.mOpenCLDevice.Get() == IntPtr.Zero) &&
                 (SteamAudioSettings.Singleton.sceneType == SceneType.RadeonRays ||
                 SteamAudioSettings.Singleton.reflectionEffectType == ReflectionEffectType.TrueAudioNext))
             {
                 try
                 {
-                    sSingleton.mOpenCLInitFailed = false;
+                    Singleton.mOpenCLInitFailed = false;
 
-                    sSingleton.mOpenCLDevice = new OpenCLDevice(sSingleton.mContext, SteamAudioSettings.Singleton.deviceType,
+                    Singleton.mOpenCLDevice = new OpenCLDevice(Singleton.mContext, SteamAudioSettings.Singleton.deviceType,
                         SteamAudioSettings.Singleton.maxReservedComputeUnits,
                         SteamAudioSettings.Singleton.fractionComputeUnitsForIRUpdate,
                         requiresTAN);
                 }
                 catch (Exception e)
                 {
-                    sSingleton.mOpenCLInitFailed = true;
+                    Singleton.mOpenCLInitFailed = true;
 
                     Debug.LogException(e);
 
@@ -788,44 +780,44 @@ namespace SteamAudio
                 }
             }
 
-            if ((sSingleton.mRadeonRaysDevice == null || sSingleton.mRadeonRaysDevice.Get() == IntPtr.Zero) &&
+            if ((Singleton.mRadeonRaysDevice == null || Singleton.mRadeonRaysDevice.Get() == IntPtr.Zero) &&
                 SteamAudioSettings.Singleton.sceneType == SceneType.RadeonRays &&
-                !sSingleton.mOpenCLInitFailed)
+                !Singleton.mOpenCLInitFailed)
             {
                 try
                 {
-                    sSingleton.mRadeonRaysInitFailed = false;
+                    Singleton.mRadeonRaysInitFailed = false;
 
-                    sSingleton.mRadeonRaysDevice = new RadeonRaysDevice(sSingleton.mOpenCLDevice);
+                    Singleton.mRadeonRaysDevice = new RadeonRaysDevice(Singleton.mOpenCLDevice);
                 }
                 catch (Exception e)
                 {
-                    sSingleton.mRadeonRaysInitFailed = true;
+                    Singleton.mRadeonRaysInitFailed = true;
 
                     Debug.LogException(e);
                     Debug.LogWarning("Radeon Rays initialization failed, reverting to Phonon for ray tracing.");
                 }
             }
 
-            if ((sSingleton.mTrueAudioNextDevice == null || sSingleton.mTrueAudioNextDevice.Get() == IntPtr.Zero) &&
+            if ((Singleton.mTrueAudioNextDevice == null || Singleton.mTrueAudioNextDevice.Get() == IntPtr.Zero) &&
                 SteamAudioSettings.Singleton.reflectionEffectType == ReflectionEffectType.TrueAudioNext &&
-                !sSingleton.mOpenCLInitFailed)
+                !Singleton.mOpenCLInitFailed)
             {
                 try
                 {
-                    sSingleton.mTrueAudioNextInitFailed = false;
+                    Singleton.mTrueAudioNextInitFailed = false;
 
                     var frameSize = AudioSettings.frameSize;
                     var irSize = Mathf.CeilToInt(SteamAudioSettings.Singleton.realTimeDuration * AudioSettings.samplingRate);
                     var order = SteamAudioSettings.Singleton.realTimeAmbisonicOrder;
                     var maxSources = SteamAudioSettings.Singleton.TANMaxSources;
 
-                    sSingleton.mTrueAudioNextDevice = new TrueAudioNextDevice(sSingleton.mOpenCLDevice, frameSize, irSize,
+                    Singleton.mTrueAudioNextDevice = new TrueAudioNextDevice(Singleton.mOpenCLDevice, frameSize, irSize,
                         order, maxSources);
                 }
                 catch (Exception e)
                 {
-                    sSingleton.mTrueAudioNextInitFailed = true;
+                    Singleton.mTrueAudioNextInitFailed = true;
 
                     Debug.LogException(e);
                     Debug.LogWarning("TrueAudio Next initialization failed, reverting to Convolution for reflection effect processing.");
@@ -835,19 +827,19 @@ namespace SteamAudio
             var simulationSettings = GetSimulationSettings(false);
             var persPectiveCorrection = GetPerspectiveCorrection();
 
-            sSingleton.mSimulator = new Simulator(sSingleton.mContext, simulationSettings);
+            Singleton.mSimulator = new Simulator(Singleton.mContext, simulationSettings);
 
-            sSingleton.mStopSimulationThread = false;
-            sSingleton.mSimulationThread = new Thread(sSingleton.RunSimulation);
-            sSingleton.mSimulationThread.Start();
+            Singleton.mStopSimulationThread = false;
+            Singleton.mSimulationThread = new Thread(Singleton.RunSimulation);
+            Singleton.mSimulationThread.Start();
 
-            sSingleton.mAudioEngineState = AudioEngineState.Create(SteamAudioSettings.Singleton.audioEngine);
-            if (sSingleton.mAudioEngineState != null)
+            Singleton.mAudioEngineState = AudioEngineState.Create(SteamAudioSettings.Singleton.audioEngine);
+            if (Singleton.mAudioEngineState != null)
             {
-                sSingleton.mAudioEngineState.Initialize(sSingleton.mContext.Get(), sSingleton.mHRTFs[0].Get(), simulationSettings, persPectiveCorrection);
+                Singleton.mAudioEngineState.Initialize(Singleton.mContext.Get(), Singleton.mHRTFs[0].Get(), simulationSettings, persPectiveCorrection);
 
-                var listeners = new SteamAudioListener[sSingleton.mListeners.Count];
-                sSingleton.mListeners.CopyTo(listeners);
+                var listeners = new SteamAudioListener[Singleton.mListeners.Count];
+                Singleton.mListeners.CopyTo(listeners);
                 foreach (var listener in listeners)
                 {
                     listener.enabled = false;
@@ -859,22 +851,22 @@ namespace SteamAudio
 
         public static void AddSource(SteamAudioSource source)
         {
-            sSingleton.mSources.Add(source);
+            Singleton.mSources.Add(source);
         }
 
         public static void RemoveSource(SteamAudioSource source)
         {
-            sSingleton.mSources.Remove(source);
+            Singleton.mSources.Remove(source);
         }
 
         public static void AddListener(SteamAudioListener listener)
         {
-            sSingleton.mListeners.Add(listener);
+            Singleton.mListeners.Add(listener);
         }
 
         public static void RemoveListener(SteamAudioListener listener)
         {
-            sSingleton.mListeners.Remove(listener);
+            Singleton.mListeners.Remove(listener);
         }
 
 #if UNITY_EDITOR
@@ -1295,7 +1287,7 @@ namespace SteamAudio
         {
             if (!additive)
             {
-                sSingleton.mCurrentScene = CreateScene(context);
+                Singleton.mCurrentScene = CreateScene(context);
             }
         }
 
@@ -1311,10 +1303,10 @@ namespace SteamAudio
             if (dataAsset != null)
             {
                 Scene subScene = null;
-                if (sSingleton.mDynamicObjects.ContainsKey(assetName))
+                if (Singleton.mDynamicObjects.ContainsKey(assetName))
                 {
-                    subScene = sSingleton.mDynamicObjects[assetName];
-                    sSingleton.mDynamicObjectRefCounts[assetName]++;
+                    subScene = Singleton.mDynamicObjects[assetName];
+                    Singleton.mDynamicObjectRefCounts[assetName]++;
                 }
                 else
                 {
@@ -1323,8 +1315,8 @@ namespace SteamAudio
                     subStaticMesh.AddToScene(subScene);
                     subStaticMesh.Release();
 
-                    sSingleton.mDynamicObjects.Add(assetName, subScene);
-                    sSingleton.mDynamicObjectRefCounts.Add(assetName, 1);
+                    Singleton.mDynamicObjects.Add(assetName, subScene);
+                    Singleton.mDynamicObjectRefCounts.Add(assetName, 1);
                 }
 
                 instancedMesh = new InstancedMesh(parentScene, subScene, dynamicObject.transform);
@@ -1341,9 +1333,9 @@ namespace SteamAudio
         {
             var assetName = (dynamicObject.asset) ? dynamicObject.asset.name : "";
 
-            if (sSingleton.mDynamicObjectRefCounts.ContainsKey(assetName))
+            if (Singleton.mDynamicObjectRefCounts.ContainsKey(assetName))
             {
-                sSingleton.mDynamicObjectRefCounts[assetName]--;
+                Singleton.mDynamicObjectRefCounts[assetName]--;
             }
         }
 
@@ -1493,12 +1485,12 @@ namespace SteamAudio
             hit.triangleIndex = 0;
             hit.materialIndex = 0;
 
-            var numHits = Physics.RaycastNonAlloc(origin, direction, sSingleton.mRayHits, maxDistance, layerMask);
+            var numHits = Physics.RaycastNonAlloc(origin, direction, Singleton.mRayHits, maxDistance, layerMask);
             if (numHits > 0)
             {
-                hit.distance = sSingleton.mRayHits[0].distance;
-                hit.normal = Common.ConvertVector(sSingleton.mRayHits[0].normal);
-                hit.material = GetMaterialBufferForTransform(sSingleton.mRayHits[0].collider.transform);
+                hit.distance = Singleton.mRayHits[0].distance;
+                hit.normal = Common.ConvertVector(Singleton.mRayHits[0].normal);
+                hit.material = GetMaterialBufferForTransform(Singleton.mRayHits[0].collider.transform);
             }
             else
             {
@@ -1518,7 +1510,7 @@ namespace SteamAudio
 
             var layerMask = SteamAudioSettings.Singleton.layerMask;
 
-            var numHits = Physics.RaycastNonAlloc(origin, direction, sSingleton.mRayHits, maxDistance, layerMask);
+            var numHits = Physics.RaycastNonAlloc(origin, direction, Singleton.mRayHits, maxDistance, layerMask);
 
             occluded = (byte)((numHits > 0) ? 1 : 0);
         }
@@ -1600,14 +1592,14 @@ namespace SteamAudio
         {
             var sceneType = GetSceneType();
 
-            var scene = new Scene(context, sceneType, sSingleton.mEmbreeDevice, sSingleton.mRadeonRaysDevice,
+            var scene = new Scene(context, sceneType, Singleton.mEmbreeDevice, Singleton.mRadeonRaysDevice,
                 ClosestHit, AnyHit);
 
             if (sceneType == SceneType.Custom)
             {
-                if (sSingleton.mMaterialBuffer == IntPtr.Zero)
+                if (Singleton.mMaterialBuffer == IntPtr.Zero)
                 {
-                    sSingleton.mMaterialBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(Material)));
+                    Singleton.mMaterialBuffer = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(Material)));
                 }
             }
 
@@ -1626,9 +1618,9 @@ namespace SteamAudio
         {
             var unreferencedDynamicObjects = new List<string>();
 
-            foreach (var scene in sSingleton.mDynamicObjectRefCounts.Keys)
+            foreach (var scene in Singleton.mDynamicObjectRefCounts.Keys)
             {
-                if (force || sSingleton.mDynamicObjectRefCounts[scene] == 0)
+                if (force || Singleton.mDynamicObjectRefCounts[scene] == 0)
                 {
                     unreferencedDynamicObjects.Add(scene);
                 }
@@ -1636,21 +1628,21 @@ namespace SteamAudio
 
             foreach (var scene in unreferencedDynamicObjects)
             {
-                sSingleton.mDynamicObjects[scene].Release();
-                sSingleton.mDynamicObjects.Remove(scene);
-                sSingleton.mDynamicObjectRefCounts.Remove(scene);
+                Singleton.mDynamicObjects[scene].Release();
+                Singleton.mDynamicObjects.Remove(scene);
+                Singleton.mDynamicObjectRefCounts.Remove(scene);
             }
         }
 
         // Unloads all currently-loaded scenes.
         static void RemoveAllAdditiveScenes()
         {
-            Marshal.FreeHGlobal(sSingleton.mMaterialBuffer);
+            Marshal.FreeHGlobal(Singleton.mMaterialBuffer);
 
-            if (sSingleton.mCurrentScene != null)
+            if (Singleton.mCurrentScene != null)
             {
-                sSingleton.mCurrentScene.Release();
-                sSingleton.mCurrentScene = null;
+                Singleton.mCurrentScene.Release();
+                Singleton.mCurrentScene = null;
             }
         }
 
@@ -1677,9 +1669,9 @@ namespace SteamAudio
                 material = SteamAudioSettings.Singleton.defaultMaterial.GetMaterial();
             }
 
-            Marshal.StructureToPtr(material, sSingleton.mMaterialBuffer, true);
+            Marshal.StructureToPtr(material, Singleton.mMaterialBuffer, true);
 
-            return sSingleton.mMaterialBuffer;
+            return Singleton.mMaterialBuffer;
         }
 
         // Gather a list of all GameObjects to export in a scene, excluding dynamic objects.
