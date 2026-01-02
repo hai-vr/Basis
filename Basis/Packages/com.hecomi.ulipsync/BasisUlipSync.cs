@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using uLipSync;
@@ -16,42 +17,43 @@ public unsafe class BasisUlipSync
     JobHandle _jobHandle;
     bool _allocated;
 
+    // Double-buffered audio ring
     NativeArray<float> _inputA, _inputB;
     volatile int _activeInputBuffer;
     volatile int _writeIndexA, _writeIndexB;
     volatile int _isDataReceived;
 
+    // MFCC + scoring buffers
     NativeArray<float> _mfcc;
     NativeArray<float> _mfccForOther;
 
     NativeArray<float> _means;
     NativeArray<float> _standardDeviations;
 
-    NativeArray<float> _invStd;         // NEW: 1/(std+eps) precomputed
+    NativeArray<float> _invStd;         // 1/(std+eps) precomputed
     NativeArray<float> _phonemes;       // raw packed
     NativeArray<float> _phonemesZ;      // standardized packed
-    NativeArray<float> _phonemeNorms;   // NEW: per-phoneme norm for cosine (optional)
+    NativeArray<float> _phonemeNorms;   // per-phoneme norm for cosine (optional)
 
-    NativeArray<float> _scores;
-    NativeArray<BasisLipSyncJob.Info> _info;
+    NativeArray<float> _scores;                  // phoneme scores output from BasisLipSyncJob
+    NativeArray<BasisLipSyncJob.Info> _info;     // volume etc output from BasisLipSyncJob
 
     public int phonemeCount;
     public int outputSampleRate;
     public int PhonemesCount;
     public int mfccsCount;
 
-    float[] _phonemeRatios;
-
-    public float NormalVolume;
-    public float rawVolume;
-
     public int CachedInputSampleCount;
 
+    // Debug
     public float globalMultiplier;
     public float MultipliedWeight;
     public float finalWeight;
 
     public SkinnedMeshRenderer skinnedMeshRenderer;
+    public int Count;
+    public Mesh sharedMesh;
+
     public List<BlendShapeInfo> CachedblendShapes = new List<BlendShapeInfo>();
     public BlendShapeInfo[] BlendShapeInfos;
 
@@ -60,10 +62,8 @@ public unsafe class BasisUlipSync
     public const float maxVolume = -1.5f;
     public const float VolumeDifference = maxVolume - minVolume;
 
-    float _volume;
-    float _openCloseVelocity;
-
     const float epsilon = 1e-6f;
+    const float Z_EPS = 1e-12f;
 
     public bool HasJob;
 
@@ -72,7 +72,7 @@ public unsafe class BasisUlipSync
     BasisMelFilterPlan _melPlan;
     BasisDctPlan _dctPlan;
 
-    // Blendshape write-throttle
+    // Main-thread write throttle (still needed because SetBlendShapeWeight is main thread)
     float[] _lastApplied; // [meshBlendShapeCount]
     const float BlendshapeWriteEps = 0.25f; // tweak
 
@@ -80,9 +80,109 @@ public unsafe class BasisUlipSync
     // set this to true. Otherwise it just copies scores as-is.
     public bool NormalizeRatiosInApply = false;
 
-    const float Z_EPS = 1e-12f;
+    // -------- NEW: native blendshape mapping + state + output --------
+    public struct BlendMap
+    {
+        public int blendShapeIndex; // index in mesh
+        public int phonemeIndex;    // index in scores
+    }
 
-    public void Simulate()
+    NativeArray<BlendMap> _blendMap;        // length = BlendShapeInfos.Length
+    NativeArray<float> _bsWeight;           // smoothed weight per entry
+    NativeArray<float> _bsVelocity;         // reserved (not used in exp smoothing, but kept for future)
+    NativeArray<float> _finalByBlendShape;  // length = meshBlendShapeCount
+    NativeArray<float> _volState;           // length 2: [0]=volume, [1]=velocity (vel reserved)
+
+    // NEW: only-driven blendshape indices (unique) so Apply() does NOT loop the whole mesh
+    NativeArray<int> _drivenBlendShapes;    // unique blendshape indices we actually set
+
+    // ---------------------------------------------------------------
+    // Jobs
+    // ---------------------------------------------------------------
+
+    // Job that converts scores + volume into final per-blendshape weights.
+    // This moves almost everything out of Apply().
+    [BurstCompile]
+    public struct BasisBlendshapeApplyJob : IJob
+    {
+        [ReadOnly] public NativeArray<float> scores;                 // phoneme scores
+        [ReadOnly] public NativeArray<BlendMap> map;                 // mapping entries
+        [ReadOnly] public NativeArray<BasisLipSyncJob.Info> info;    // for volume
+
+        public NativeArray<float> bsWeight;      // persistent smoothing state
+        public NativeArray<float> bsVelocity;    // reserved
+        public NativeArray<float> volState;      // [0]=volume, [1]=vel reserved
+
+        public NativeArray<float> finalByBlendShape; // output by blendshape index
+
+        public int phonemeCount;
+        public float dt;
+        public float smoothness;
+        public float minVolume;
+        public float maxVolume;
+
+        public void Execute()
+        {
+            // Clear full output. If you have huge blendshape counts and few driven shapes,
+            // the next step would be to clear only used indices, but full clear is simple + safe.
+            for (int i = 0; i < finalByBlendShape.Length; i++)
+                finalByBlendShape[i] = 0f;
+
+            float rawVolume = 0f;
+            if (info.IsCreated && info.Length > 0)
+                rawVolume = math.max(info[0].volume, 0f);
+
+            // ---- Normalize + smooth volume (exp smoothing) ----
+            float normVol = 0f;
+            if (rawVolume > 0f)
+            {
+                float logv = math.log10(rawVolume);
+                float denom = math.max((maxVolume - minVolume), 1e-4f);
+                normVol = math.saturate((logv - minVolume) / denom);
+            }
+
+            float volume = volState[0];
+
+            // Treat smoothness like a time constant (tau). Smaller = snappier.
+            float tau = math.max(smoothness, 1e-4f);
+            float a = 1f - math.exp(-dt / tau); // stable for varying dt
+            volume = math.lerp(volume, normVol, a);
+            volState[0] = volume;
+
+            float globalMultiplier = volume * 100f;
+
+            // ---- Smooth weights + sum ----
+            float total = 0f;
+
+            for (int i = 0; i < map.Length; i++)
+            {
+                int p = map[i].phonemeIndex;
+                float target = ((uint)p < (uint)phonemeCount) ? scores[p] : 0f;
+
+                float w = bsWeight[i];
+                w = math.lerp(w, target, a);
+                bsWeight[i] = w;
+
+                total += w;
+            }
+
+            float baseMultiply = (math.abs(total) > 1e-6f) ? (globalMultiplier / total) : globalMultiplier;
+
+            // ---- Write final weights by blendshape index ----
+            for (int i = 0; i < map.Length; i++)
+            {
+                int bsIndex = map[i].blendShapeIndex;
+                if ((uint)bsIndex >= (uint)finalByBlendShape.Length) continue;
+
+                float fw = bsWeight[i] * baseMultiply;
+                fw = math.clamp(fw, 0f, 100f);
+                if (!math.isfinite(fw)) fw = 0f;
+
+                finalByBlendShape[bsIndex] = fw;
+            }
+        }
+    }
+    public void Simulate(float DeltaTime)
     {
         if (Interlocked.Exchange(ref _isDataReceived, 0) != 1) return;
         if (!_allocated) return;
@@ -93,7 +193,7 @@ public unsafe class BasisUlipSync
         // Swap first so audio thread writes elsewhere
         Volatile.Write(ref _activeInputBuffer, newActive);
 
-        // Read frozen write index with memory fence
+        // Read frozen write index
         int frozenStartIndex = oldActive == 0
             ? Volatile.Read(ref _writeIndexA)
             : Volatile.Read(ref _writeIndexB);
@@ -103,7 +203,7 @@ public unsafe class BasisUlipSync
         // Normalize scores in job? (0 = skip, 1 = normalize)
         byte normalizeScores = NormalizeRatiosInApply ? (byte)0 : (byte)1; // if we normalize in Apply, skip in job
 
-        var job = new BasisLipSyncJob
+        var scoreJob = new BasisLipSyncJob
         {
             input = frozenInput,
             startIndex = frozenStartIndex,
@@ -113,9 +213,9 @@ public unsafe class BasisUlipSync
 
             means = _means,
             standardDeviations = _standardDeviations,
-            invStd = _invStd,                 // NEW
-            phonemesZ = _phonemesZ,           // standardized phonemes
-            phonemeNorms = _phonemeNorms,     // NEW (optional)
+            invStd = _invStd,
+            phonemesZ = _phonemesZ,
+            phonemeNorms = _phonemeNorms,
             compareMethod = profile.compareMethod,
 
             mfcc = _mfcc,
@@ -131,7 +231,41 @@ public unsafe class BasisUlipSync
             normalizeScores = normalizeScores,
         };
 
-        _jobHandle = job.Schedule();
+        JobHandle h0 = scoreJob.Schedule();
+
+        // Chain the blendshape apply job right after scoring job (all Burst)
+        // Capture dt on main thread; jobs cannot read Time.deltaTime.
+        if (_finalByBlendShape.IsCreated &&
+            _blendMap.IsCreated && _blendMap.Length > 0 &&
+            _bsWeight.IsCreated && _volState.IsCreated &&
+            _info.IsCreated)
+        {
+            var applyJob = new BasisBlendshapeApplyJob
+            {
+                scores = _scores,
+                map = _blendMap,
+                info = _info,
+
+                bsWeight = _bsWeight,
+                bsVelocity = _bsVelocity,
+                volState = _volState,
+
+                finalByBlendShape = _finalByBlendShape,
+
+                phonemeCount = phonemeCount,
+                dt = DeltaTime,
+                smoothness = smoothness,
+                minVolume = minVolume,
+                maxVolume = maxVolume,
+            };
+
+            _jobHandle = applyJob.Schedule(h0);
+        }
+        else
+        {
+            _jobHandle = h0;
+        }
+
         HasJob = true;
     }
 
@@ -146,101 +280,49 @@ public unsafe class BasisUlipSync
 
         _jobHandle.Complete();
 
+        // keep this if another system reads MFCCs
         if (_mfccForOther.IsCreated && _mfcc.IsCreated)
+        {
             _mfccForOther.CopyFrom(_mfcc);
-
-        if (_info.IsCreated && _info.Length > 0)
-        {
-            rawVolume = math.max(_info[0].volume, 0f);
-            float logv = rawVolume > 0f ? math.log10(rawVolume) : 0f;
-            NormalVolume = math.clamp(
-                (logv - Common.DefaultMinVolume) / math.max(Common.DifferenceVolume, 1e-6f),
-                0f, 1f
-            );
         }
-
-        // Copy scores -> ratios (optionally normalize)
-        if (_scores.IsCreated && phonemeCount > 0 && _phonemeRatios != null && _phonemeRatios.Length >= phonemeCount)
+        if (!_finalByBlendShape.IsCreated || _finalByBlendShape.Length != Count)
         {
-            if (!NormalizeRatiosInApply)
+            return;
+        }
+        if (_lastApplied == null || _lastApplied.Length != Count)
+        {
+            _lastApplied = new float[Count];
+        }
+        if (!_drivenBlendShapes.IsCreated || _drivenBlendShapes.Length == 0)
+        {
+            return;
+        }
+        int length = _drivenBlendShapes.Length;
+
+        for (int Index = 0; Index < length; Index++)
+        {
+            int bsIndex = _drivenBlendShapes[Index];
+            if ((uint)bsIndex >= (uint)Count)
             {
-                // If job normalized, this is just a copy (fast, predictable)
-                for (int i = 0; i < phonemeCount; i++) _phonemeRatios[i] = _scores[i];
+                continue;
             }
-            else
-            {
-                float sum = 0f;
-                for (int i = 0; i < phonemeCount; i++) sum += _scores[i];
-                float inv = sum > 0f ? 1f / sum : 0f;
-                for (int i = 0; i < phonemeCount; i++) _phonemeRatios[i] = _scores[i] * inv;
-            }
-        }
 
-        var smr = skinnedMeshRenderer;
-        if (smr == null || smr.sharedMesh == null) return;
-
-        int meshBlendShapeCount = smr.sharedMesh.blendShapeCount;
-        if (_lastApplied == null || _lastApplied.Length != meshBlendShapeCount)
-            _lastApplied = new float[meshBlendShapeCount];
-
-        float normVol = 0f;
-        if (rawVolume > 0f)
-        {
-            float logv = Mathf.Log10(rawVolume);
-            float denom = Mathf.Max(VolumeDifference, 1e-4f);
-            normVol = Mathf.Clamp01((logv - minVolume) / denom);
-        }
-
-        _volume = SmoothDamp(_volume, normVol, ref _openCloseVelocity);
-        globalMultiplier = _volume * 100f;
-
-        var infos = BlendShapeInfos;
-        if (infos == null || infos.Length == 0) return;
-
-        float totalWeight = 0f;
-        int phonemeRatioLength = _phonemeRatios != null ? _phonemeRatios.Length : 0;
-        int blendInfoCount = infos.Length;
-
-        for (int i = 0; i < blendInfoCount; i++)
-        {
-            var bs = infos[i];
-
-            float targetWeight = 0f;
-            int idx = bs.phonemeIndex;
-            if ((uint)idx < (uint)phonemeRatioLength)
-                targetWeight = _phonemeRatios[idx];
-
-            float vel = bs.weightVelocity;
-            bs.weight = SmoothDamp(bs.weight, targetWeight, ref vel);
-            bs.weightVelocity = vel;
-
-            totalWeight += bs.weight;
-            infos[i] = bs;
-        }
-
-        float baseMultiply = (Mathf.Abs(totalWeight) > epsilon)
-            ? (1f / totalWeight) * globalMultiplier
-            : globalMultiplier;
-
-        for (int i = 0; i < blendInfoCount; i++)
-        {
-            var bs = infos[i];
-            int bsIndex = bs.index;
-            if ((uint)bsIndex >= (uint)meshBlendShapeCount) continue;
-
-            MultipliedWeight = bs.weight * baseMultiply;
-            finalWeight = math.clamp(MultipliedWeight, 0f, 100f);
-            if (float.IsNaN(finalWeight)) finalWeight = 0f;
-
+            float fw = _finalByBlendShape[bsIndex];
             float prev = _lastApplied[bsIndex];
-            if (math.abs(finalWeight - prev) > BlendshapeWriteEps)
+            float d = fw - prev;
+
+            if (d == 0f)
             {
-                smr.SetBlendShapeWeight(bsIndex, finalWeight);
-                _lastApplied[bsIndex] = finalWeight;
+                continue;
+            }
+
+            if (d * d > BlendshapeWriteEps * BlendshapeWriteEps)
+            {
+                skinnedMeshRenderer.SetBlendShapeWeight(bsIndex, fw);
+                _lastApplied[bsIndex] = fw;
             }
         }
     }
-
     public void Initalize()
     {
         if (profile == null)
@@ -282,12 +364,12 @@ public unsafe class BasisUlipSync
 
         SafeCreate(ref _means, mfccLen);
         SafeCreate(ref _standardDeviations, mfccLen);
-        SafeCreate(ref _invStd, mfccLen); // NEW
+        SafeCreate(ref _invStd, mfccLen);
 
         SafeCreate(ref _scores, phonemeCount);
         SafeCreate(ref _phonemes, PhonemesCount);
         SafeCreate(ref _phonemesZ, PhonemesCount);
-        SafeCreate(ref _phonemeNorms, phonemeCount); // NEW
+        SafeCreate(ref _phonemeNorms, phonemeCount);
 
         SafeCreate(ref _info, 1);
 
@@ -323,16 +405,14 @@ public unsafe class BasisUlipSync
             for (int i = len; i < dstLen; i++) _standardDeviations[i] = 1f;
         }
 
-        // NEW: invStd once
+        // invStd once
         PrecomputeInvStd(_standardDeviations, _invStd);
 
-        // NEW: precompute standardized phonemesZ (pointer + float4)
+        // precompute standardized phonemesZ
         PrecomputePhonemesZ(_phonemes, _phonemesZ, _means, _invStd, mfccLen, phonemeCount);
 
-        // NEW: precompute phoneme norms for cosine
+        // precompute phoneme norms for cosine
         PrecomputePhonemeNorms(_phonemesZ, _phonemeNorms, mfccLen, phonemeCount);
-
-        _phonemeRatios = new float[phonemeCount];
 
         // Pre-map phoneme name -> index once
         if (BlendShapeInfos != null)
@@ -378,22 +458,76 @@ public unsafe class BasisUlipSync
             mfccLen: mfccLen,
             alloc: Allocator.Persistent
         );
+
+        // Build native blendshape mapping/state/output once
+        BuildNativeBlendMapping();
+    }
+
+    void BuildNativeBlendMapping()
+    {
+        // Dispose old mapping/state/output if any
+        SafeDispose(ref _blendMap);
+        SafeDispose(ref _bsWeight);
+        SafeDispose(ref _bsVelocity);
+        SafeDispose(ref _finalByBlendShape);
+        SafeDispose(ref _volState);
+
+        // NEW
+        SafeDispose(ref _drivenBlendShapes);
+
+        int blendInfoCount = (BlendShapeInfos != null) ? BlendShapeInfos.Length : 0;
+
+        if (Count <= 0 || blendInfoCount <= 0) return;
+
+        _blendMap = new NativeArray<BlendMap>(blendInfoCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        _bsWeight = new NativeArray<float>(blendInfoCount, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+        _bsVelocity = new NativeArray<float>(blendInfoCount, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+
+        _finalByBlendShape = new NativeArray<float>(Count, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+        _volState = new NativeArray<float>(2, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+
+        // Fill mapping entries
+        for (int i = 0; i < blendInfoCount; i++)
+        {
+            var bs = BlendShapeInfos[i];
+            _blendMap[i] = new BlendMap
+            {
+                blendShapeIndex = bs.index,
+                phonemeIndex = bs.phonemeIndex
+            };
+        }
+        HashSet<int> driven = new HashSet<int>();
+
+        for (int i = 0; i < blendInfoCount; i++)
+        {
+            int idx = BlendShapeInfos[i].index;
+            if ((uint)idx < (uint)Count)
+                driven.Add(idx);
+        }
+
+        int drivenCount = driven.Count;
+        if (drivenCount > 0)
+        {
+            _drivenBlendShapes = new NativeArray<int>(drivenCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+            int w = 0;
+            foreach (int idx in driven)
+                _drivenBlendShapes[w++] = idx;
+        }
+
+        // Reset main-thread cache & throttle counter
+        _lastApplied = null;
     }
 
     [BurstCompile]
     static void PrecomputeInvStd(NativeArray<float> std, NativeArray<float> invStd)
     {
         int n = math.min(std.Length, invStd.Length);
-        unsafe
-        {
-            float* s = (float*)std.GetUnsafeReadOnlyPtr();
-            float* inv = (float*)invStd.GetUnsafePtr();
-            for (int i = 0; i < n; i++)
-                inv[i] = math.rcp(s[i] + Z_EPS);
-        }
+        float* s = (float*)std.GetUnsafeReadOnlyPtr();
+        float* inv = (float*)invStd.GetUnsafePtr();
+        for (int i = 0; i < n; i++)
+            inv[i] = math.rcp(s[i] + Z_EPS);
     }
 
-    // Standardize phonemes once using float4 loads
     [BurstCompile]
     static void PrecomputePhonemesZ(
         NativeArray<float> phonemesRaw,
@@ -407,67 +541,60 @@ public unsafe class BasisUlipSync
         if (phonemesRaw.Length < total || phonemesZ.Length < total) return;
         if (means.Length < mfccLen || invStd.Length < mfccLen) return;
 
-        unsafe
+        float* raw = (float*)phonemesRaw.GetUnsafeReadOnlyPtr();
+        float* z = (float*)phonemesZ.GetUnsafePtr();
+        float* mu = (float*)means.GetUnsafeReadOnlyPtr();
+        float* inv = (float*)invStd.GetUnsafeReadOnlyPtr();
+
+        int vecLimit = mfccLen & ~3;
+
+        for (int p = 0; p < phonemeCount; p++)
         {
-            float* raw = (float*)phonemesRaw.GetUnsafeReadOnlyPtr();
-            float* z = (float*)phonemesZ.GetUnsafePtr();
-            float* mu = (float*)means.GetUnsafeReadOnlyPtr();
-            float* inv = (float*)invStd.GetUnsafeReadOnlyPtr();
+            int baseOff = p * mfccLen;
 
-            int vecLimit = mfccLen & ~3;
-
-            for (int p = 0; p < phonemeCount; p++)
+            int i = 0;
+            for (; i < vecLimit; i += 4)
             {
-                int baseOff = p * mfccLen;
-
-                int i = 0;
-                for (; i < vecLimit; i += 4)
-                {
-                    float4 r = *(float4*)(raw + baseOff + i);
-                    float4 m = *(float4*)(mu + i);
-                    float4 k = *(float4*)(inv + i);
-                    *(float4*)(z + baseOff + i) = (r - m) * k;
-                }
-
-                for (; i < mfccLen; i++)
-                    z[baseOff + i] = (raw[baseOff + i] - mu[i]) * inv[i];
+                float4 r = *(float4*)(raw + baseOff + i);
+                float4 m = *(float4*)(mu + i);
+                float4 k = *(float4*)(inv + i);
+                *(float4*)(z + baseOff + i) = (r - m) * k;
             }
+
+            for (; i < mfccLen; i++)
+                z[baseOff + i] = (raw[baseOff + i] - mu[i]) * inv[i];
         }
     }
 
-    // Precompute per-phoneme norm (sqrt(sum(z^2))) for cosine scoring
     [BurstCompile]
     static void PrecomputePhonemeNorms(NativeArray<float> phonemesZ, NativeArray<float> norms, int mfccLen, int phonemeCount)
     {
         int total = mfccLen * phonemeCount;
         if (phonemesZ.Length < total || norms.Length < phonemeCount) return;
 
-        unsafe
+        float* z = (float*)phonemesZ.GetUnsafeReadOnlyPtr();
+        float* outN = (float*)norms.GetUnsafePtr();
+
+        int vecLimit = mfccLen & ~3;
+
+        for (int p = 0; p < phonemeCount; p++)
         {
-            float* z = (float*)phonemesZ.GetUnsafeReadOnlyPtr();
-            float* outN = (float*)norms.GetUnsafePtr();
+            int baseOff = p * mfccLen;
+            float sum = 0f;
 
-            int vecLimit = mfccLen & ~3;
-
-            for (int p = 0; p < phonemeCount; p++)
+            int i = 0;
+            for (; i < vecLimit; i += 4)
             {
-                int baseOff = p * mfccLen;
-                float sum = 0f;
-
-                int i = 0;
-                for (; i < vecLimit; i += 4)
-                {
-                    float4 v = *(float4*)(z + baseOff + i);
-                    sum += math.dot(v, v);
-                }
-                for (; i < mfccLen; i++)
-                {
-                    float v = z[baseOff + i];
-                    sum += v * v;
-                }
-
-                outN[p] = math.sqrt(sum) + Z_EPS;
+                float4 v = *(float4*)(z + baseOff + i);
+                sum += math.dot(v, v);
             }
+            for (; i < mfccLen; i++)
+            {
+                float v = z[baseOff + i];
+                sum += v * v;
+            }
+
+            outN[p] = math.sqrt(sum) + Z_EPS;
         }
     }
 
@@ -500,14 +627,24 @@ public unsafe class BasisUlipSync
 
         SafeDispose(ref _info);
 
+        SafeDispose(ref _blendMap);
+        SafeDispose(ref _bsWeight);
+        SafeDispose(ref _bsVelocity);
+        SafeDispose(ref _finalByBlendShape);
+        SafeDispose(ref _volState);
+
+        // NEW
+        SafeDispose(ref _drivenBlendShapes);
+
         if (_melPlan.IsCreated) _melPlan.Dispose();
         if (_dctPlan.IsCreated) _dctPlan.Dispose();
         if (ws.IsCreated) ws.Dispose();
-
-        _phonemeRatios = null;
         _lastApplied = null;
     }
 
+    // ---------------------------------------------------------------
+    // Audio thread -> ring buffer
+    // ---------------------------------------------------------------
     public void OnDataReceived(float[] input, int channels, int length)
     {
         if (!_allocated || input == null || length <= 0) return;
@@ -557,9 +694,6 @@ public unsafe class BasisUlipSync
         if (array.IsCreated) array.Dispose();
         array = default;
     }
-
-    public float SmoothDamp(float value, float target, ref float velocity)
-        => Mathf.SmoothDamp(value, target, ref velocity, smoothness);
 
     public void AddBlendShape(string phoneme, int blendShape)
     {

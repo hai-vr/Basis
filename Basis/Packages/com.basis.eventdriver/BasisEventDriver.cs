@@ -121,7 +121,7 @@ public class BasisEventDriver : MonoBehaviour
 
         if (BasisLocalPlayer.PlayerReady)
         {
-            BasisLocalPlayer.Instance.LocalVisemeDriver.Simulate();
+            BasisLocalPlayer.Instance.LocalVisemeDriver.Simulate(DeltaTime);
         }
         // Drain everything that arrived from worker threads
         while (BasisDeviceManagement.mainThreadActions.TryDequeue(out System.Action action))
@@ -184,7 +184,7 @@ public class BasisEventDriver : MonoBehaviour
             BasisLocalPlayer.Instance.LocalEyeDriver.Simulate(DeltaTime);
         }
 
-        BasisRemoteAudioDriver.Simulate();
+        BasisRemoteAudioDriver.Simulate(DeltaTime);
 #if UNITY_SERVER
 #else
         BasisLocalMicrophoneDriver.MicrophoneUpdate();
