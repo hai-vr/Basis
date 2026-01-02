@@ -237,11 +237,9 @@ namespace Basis.Scripts.Networking.Receivers
                 //    Assert.IsTrue(rate >= MinPlaybackRate - 1e-3f && rate <= MaxPlaybackRate + 1e-3f, $"Playback rate out of clamp: {rate}");
 
                 interpolationTime += (float)((step / windowDuration) * rate);
-
-                float dtSeconds = Mathf.Max(unscaledDeltaTime, 1e-3f);
                 //  Assert.IsTrue(dtSeconds > 0f && float.IsFinite(dtSeconds), $"Bad dtSeconds: {dtSeconds}");
 
-                PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, dtSeconds);
+                PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, unscaledDeltaTime);
 
                 if (PassedSimulate && SentLatest)
                 {

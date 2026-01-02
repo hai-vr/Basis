@@ -123,7 +123,7 @@ public static class BasisRemoteNetworkDriver
         }
 
         _interpolationTimes[index] = interpolationTime;
-        _deltaTimes[index] = math.max(deltaTimeSeconds, 1e-3f);
+        _deltaTimes[index] = deltaTimeSeconds;
 
         if (index + 1 > _activeCount) _activeCount = index + 1;
         return true;
