@@ -58,6 +58,8 @@ namespace Basis.Scripts.Networking.Receivers
         // Main-thread-only jitter buffer. Bounded. Overwrites oldest when full.
         private BasisRingBuffer<BasisAvatarBuffer> _stagedRing;
 
+        public Transform LastAvatarsTransform;
+        public bool DidLastAvatarTransformChanged;
         /// <summary>
         /// Main-thread simulation step. Pulls packets, maintains interpolation window,
         /// computes interpolationTime, and feeds inputs to the network driver.
@@ -68,7 +70,11 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 return; // expected briefly on join
             }
-
+            if (LastAvatarsTransform != Player.AvatarTransform)
+            {
+                LastAvatarsTransform = Player.AvatarTransform;
+                DidLastAvatarTransformChanged = true;
+            }
             if (Player.BasisAvatar.Animator == null)
             {
                 BasisDebug.LogError($"Animator for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
@@ -175,22 +181,25 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (!PassedSimulate) return;
 
-            BasisRemoteNetworkDriver.GetOutputs_NoAlloc(
-                playerId,
-                out var outscale,
-                out ApplyingRotation,
-                out float3 scaledBody          // HumanPose.bodyPosition (units in avatar-space)
-            );
-
+            BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId,out bool outscale,out ApplyingRotation,out float3 scaledBody);
             BasisRemoteNetworkDriver.GetMuscleArray(playerId,ref HumanPose, EyesAndMouth, EyesAndMouthOffset, EyeAndMouthCountInBytes);
-            BasisRemoteNetworkDriver.GetScaleOutput(playerId, out ApplyingScale);
-
             HumanPose.bodyPosition = scaledBody;
             HumanPose.bodyRotation = ApplyingRotation;
 
-            Player.AvatarTransform.localScale = ApplyingScale;
-
             PoseHandler.SetHumanPose(ref HumanPose);
+
+            if (outscale)
+            {
+                ApplyScale();
+            }
+            else
+            {
+                if (DidLastAvatarTransformChanged)
+                {
+                    ApplyScale();
+                    DidLastAvatarTransformChanged = false;
+                }
+            }
 
             if (HasOverridenDestination)
             {
@@ -199,6 +208,11 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             PassedSimulate = false;
+        }
+        public void ApplyScale()
+        {
+            BasisRemoteNetworkDriver.GetScaleOutput(playerId, out ApplyingScale);
+            Player.AvatarTransform.localScale = ApplyingScale;
         }
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)
         {
