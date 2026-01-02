@@ -1,7 +1,3 @@
-// ================================
-// BasisNetworkReceiver.cs (patched)
-// ================================
-
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Profiler;

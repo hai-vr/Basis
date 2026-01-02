@@ -1,7 +1,3 @@
-// ======================================
-// BasisRemoteNetworkDriver.cs (patched)
-// ======================================
-
 using Basis.Scripts.Networking;
 using System;
 using System.Runtime.CompilerServices;

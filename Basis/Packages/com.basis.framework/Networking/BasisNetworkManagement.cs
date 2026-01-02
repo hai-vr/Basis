@@ -147,9 +147,9 @@ namespace Basis.Scripts.Networking
         [Header(" Lower values → smoother output, more latency, Higher values → snappier output, more noise passes through")]
         public float MinCutoff = 0.05f;
         [Header("This is the adaptivity knob. It controls how much the filter reacts to speed. Beta multiplies the filtered derivative magnitude:")]
-        public float Beta = 1f;
+        public float Beta = 2;
         [Header("DerivativeCutoff This controls how noisy the speed estimate itself is.Before the filter adapts, it estimates velocity:")]
-        public float DerivativeCutoff = 1.0f;
+        public float DerivativeCutoff = 2;
         /// <summary>
         /// Simulates network computation step (state updates, bone drivers, profiler update).
         /// </summary>
