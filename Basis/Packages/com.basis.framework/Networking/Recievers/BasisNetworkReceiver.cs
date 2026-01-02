@@ -182,21 +182,11 @@ namespace Basis.Scripts.Networking.Receivers
                 out float3 scaledBody          // HumanPose.bodyPosition (units in avatar-space)
             );
 
-            BasisRemoteNetworkDriver.GetMuscleArray(playerId,ref HumanPose);
+            BasisRemoteNetworkDriver.GetMuscleArray(playerId,ref HumanPose, EyesAndMouth, EyesAndMouthOffset, EyeAndMouthCountInBytes);
             BasisRemoteNetworkDriver.GetScaleOutput(playerId, out ApplyingScale);
 
             HumanPose.bodyPosition = scaledBody;
             HumanPose.bodyRotation = ApplyingRotation;
-
-            // Overlay eyes/mouth in one shot
-            unsafe
-            {
-                fixed (float* pDst = HumanPose.muscles)
-                fixed (float* pSrc = EyesAndMouth)
-                {
-                    UnsafeUtility.MemCpy(pDst + EyesAndMouthOffset, pSrc, EyeAndMouthCountInBytes);
-                }
-            }
 
             Player.AvatarTransform.localScale = ApplyingScale;
 
@@ -382,7 +372,10 @@ namespace Basis.Scripts.Networking.Receivers
 
         private void TrySetLastFromStaging()
         {
-            if (!BufferHolder.HasCurrentBuffer) return;
+            if (!BufferHolder.HasCurrentBuffer)
+            {
+                return;
+            }
 
             while (_stagedRing.TryDequeueOldest(out var last))
             {

@@ -264,18 +264,24 @@ public static class BasisRemoteNetworkDriver
     {
         outScale = _outScales[index];
     }
-    public static void GetMuscleArray(int index, ref HumanPose PoseData)
+    public static void GetMuscleArray(int index,ref HumanPose poseData, float[] eyesAndMouth, int eyesAndMouthOffsetFloats, int eyesAndMouthCountBytes)
     {
         int baseOffset = index * _muscleCount;
+
         unsafe
         {
-            // source: NativeArray<float> (contiguous)
             float* src = (float*)euroValuesOutput.GetUnsafeReadOnlyPtr() + baseOffset;
 
-            // dest: managed float[] pinned just for the copy
-            fixed (float* dst = PoseData.muscles)
+            fixed (float* dst = poseData.muscles)
             {
+                // Copy all muscles
                 UnsafeUtility.MemCpy(dst, src, _muscleCount * sizeof(float));
+
+                // Overwrite subrange
+                fixed (float* em = eyesAndMouth)
+                {
+                    UnsafeUtility.MemCpy(dst + eyesAndMouthOffsetFloats, em, eyesAndMouthCountBytes);
+                }
             }
         }
     }
