@@ -323,6 +323,10 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     PoseHandler.SetHumanPose(ref HumanPose);
                 }
+                else
+                {
+                    BasisDebug.LogError("This Shouldnt be Possible, Base Pose Handler!");
+                }
 
                 if (HasOverridenDestination)
                 {

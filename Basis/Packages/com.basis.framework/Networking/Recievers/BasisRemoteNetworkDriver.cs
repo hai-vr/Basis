@@ -99,10 +99,15 @@ public static class BasisRemoteNetworkDriver
 
     public static void Shutdown()
     {
-        if (!_initialized) return;
+        if (!_initialized)
+        {
+            return;
+        }
 
         if (!oneEuroJob.IsCompleted)
+        {
             oneEuroJob.Complete();
+        }
 
         DisposeAll();
         _activeCount = 0;
@@ -125,7 +130,11 @@ public static class BasisRemoteNetworkDriver
         _interpolationTimes[index] = interpolationTime;
         _deltaTimes[index] = deltaTimeSeconds;
 
-        if (index + 1 > _activeCount) _activeCount = index + 1;
+        if (index + 1 > _activeCount)
+        {
+            _activeCount = index + 1;
+        }
+
         return true;
     }
 
@@ -147,7 +156,10 @@ public static class BasisRemoteNetworkDriver
         _prevRotations[index] = prevRot;
         _targetRotations[index] = targetRot;
 
-        if (index + 1 > _activeCount) _activeCount = index + 1;
+        if (index + 1 > _activeCount)
+        {
+            _activeCount = index + 1;
+        }
     }
 
     public static void SetMuscleWindow(int index, NativeArray<float> prevMuscles, NativeArray<float> targetMuscles)
@@ -156,7 +168,10 @@ public static class BasisRemoteNetworkDriver
         FastCopyMuscles(prevMuscles, 0, _prevMuscles, baseOffset, _muscleCount);
         FastCopyMuscles(targetMuscles, 0, _targetMuscles, baseOffset, _muscleCount);
 
-        if (index + 1 > _activeCount) _activeCount = index + 1;
+        if (index + 1 > _activeCount)
+        {
+            _activeCount = index + 1;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -172,7 +187,10 @@ public static class BasisRemoteNetworkDriver
     public static void Compute()
     {
         int num = _activeCount;
-        if (num <= 0) return;
+        if (num <= 0)
+        {
+            return;
+        }
 
         var avatarJob = new UpdateAllAvatarsJob
         {
@@ -211,12 +229,11 @@ public static class BasisRemoteNetworkDriver
             MuscleCountPerAvatar = _muscleCount
         }.Schedule(num * _muscleCount, 128, avatarJob);
 
-        // NEW: use real deltaTime seconds for the filter, not interpolationTime.
         JobHandle euroJobHandle = new BasisOneEuroFilterParallelJob
         {
             InputValues = _outMuscles,
             OutputValues = euroValuesOutput,
-            DeltaTimeSeconds = _deltaTimes, // <-- FIXED
+            DeltaTimeSeconds = _deltaTimes,
             MinCutoff = BasisNetworkManagement.MinCutoff,
             Beta = BasisNetworkManagement.Beta,
             DerivativeCutoff = BasisNetworkManagement.DerivativeCutoff,
@@ -230,7 +247,11 @@ public static class BasisRemoteNetworkDriver
 
     public static void Apply()
     {
-        if (!_initialized) return;
+        if (!_initialized)
+        {
+            return;
+        }
+
         oneEuroJob.Complete();
     }
 
@@ -307,7 +328,7 @@ public static class BasisRemoteNetworkDriver
         if (_targetRotations.IsCreated) _targetRotations.Dispose();
 
         if (_interpolationTimes.IsCreated) _interpolationTimes.Dispose();
-        if (_deltaTimes.IsCreated) _deltaTimes.Dispose(); // NEW
+        if (_deltaTimes.IsCreated) _deltaTimes.Dispose();
 
         if (_outPositions.IsCreated) _outPositions.Dispose();
         if (_outScales.IsCreated) _outScales.Dispose();
