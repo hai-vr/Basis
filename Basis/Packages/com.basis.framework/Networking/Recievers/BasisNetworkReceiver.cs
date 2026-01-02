@@ -1,12 +1,13 @@
+// ================================
+// BasisNetworkReceiver.cs (patched)
+// ================================
+
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
@@ -21,9 +22,8 @@ namespace Basis.Scripts.Networking.Receivers
     [Serializable]
     public class BasisNetworkReceiver : BasisNetworkPlayer
     {
-        private const int EyesAndMouthOffset = 15;         // L/R up/down, L/R left/right, mouth open/smile
+        private const int EyesAndMouthOffset = 15; // L/R up/down, L/R left/right, mouth open/smile
         private const int EyesAndMouthCount = 6;
-
         public const int EyeAndMouthSize = EyesAndMouthOffset * sizeof(float);
         public const int EyeAndMouthCountInBytes = EyesAndMouthCount * sizeof(float);
 
@@ -34,24 +34,21 @@ namespace Basis.Scripts.Networking.Receivers
 
         [SerializeReference] public BasisAudioReceiver AudioReceiverModule = new BasisAudioReceiver();
         [SerializeField] public ConcurrentQueue<BasisAvatarBuffer> PayloadQueue = new ConcurrentQueue<BasisAvatarBuffer>();
-
         public BasisRemotePlayer RemotePlayer;
         [SerializeReference] public BasisRemoteAvatarBufferHolder BufferHolder = new BasisRemoteAvatarBufferHolder();
 
         public bool hasEvents = false;
-
         public float[] EyesAndMouth = new float[] { 0, 0, 0, 0, 1, 0 }; // default neutral eyes, mouth open=1 for breathing
 
         public quaternion ApplyingRotation;
         public float3 ApplyingScale;
 
-        private float interpolationTime = 0f; // 0..1 over current First→Last window
+        private float interpolationTime = 0f; // 0..1 over current->next window
 
         public bool HasBufferHolds;
         public bool PassedSimulate = false;
 
         // ---------------- staging (ring buffer) ----------------
-
         private const int MaxStage = 64;
         public int StagedCount;
 
@@ -60,26 +57,34 @@ namespace Basis.Scripts.Networking.Receivers
 
         public Transform LastAvatarsTransform;
         public bool DidLastAvatarTransformChanged;
+
+        // ---------- NEW: time-warp parameters ----------
+        // Playback rate control: catches up smoothly when backlog grows.
+        private const int TargetJitterDepth = 2;          // desired staged depth cushion
+        private const float CatchupGain = 0.15f;          // 0.05..0.25 tune
+        private const float MinPlaybackRate = 0.85f;
+        private const float MaxPlaybackRate = 1.35f;
+
         /// <summary>
         /// Main-thread simulation step. Pulls packets, maintains interpolation window,
         /// computes interpolationTime, and feeds inputs to the network driver.
         /// </summary>
         public void Compute(float unscaledDeltaTime)
         {
-            if (Player.BasisAvatar == null)
-            {
-                return; // expected briefly on join
-            }
+            if (Player.BasisAvatar == null) return; // expected briefly on join
+
             if (LastAvatarsTransform != Player.AvatarTransform)
             {
                 LastAvatarsTransform = Player.AvatarTransform;
                 DidLastAvatarTransformChanged = true;
             }
+
             if (Player.BasisAvatar.Animator == null)
             {
                 BasisDebug.LogError($"Animator for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
                 return;
             }
+
             if (Player.AvatarTransform == null)
             {
                 BasisDebug.LogError($"AvatarTransform for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
@@ -89,50 +94,33 @@ namespace Basis.Scripts.Networking.Receivers
             // 1) Pull network packets to main-thread staging ring (bounded)
             while (PayloadQueue.TryDequeue(out var buffer))
             {
-                _stagedRing.EnqueueOverwriteOldest(
-                    buffer,
-                    onOverwrite: BasisAvatarBufferPool.Release
-                );
+                _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: BasisAvatarBufferPool.Release);
             }
-
             StagedCount = _stagedRing.Count;
 
             // 2) Ensure we have a valid interpolation window (Current -> Next)
-            // Seed Current if missing
             if (!BufferHolder.HasCurrentBuffer)
-            {
-                TrySeedFirstFromStaging();
-            }
+                TrySeedFirstFromStaging();   // patched: only takes ONE oldest
 
-            // Fill Next if missing
             if (!BufferHolder.HasNextBuffer)
-            {
-                TrySetLastFromStaging();
-            }
+                TrySetLastFromStaging();     // patched: only takes ONE next-oldest
 
             HasBufferHolds = BufferHolder.HasCurrentBuffer && BufferHolder.HasNextBuffer;
-            if (!HasBufferHolds)
-            {
-                return;
-            }
+            if (!HasBufferHolds) return;
 
-            // Advance window while consumed and we have staged frames
-            while (interpolationTime >= 1f && StagedCount != 0)
+            // 2b) Advance window while consumed and we have staged frames
+            while (interpolationTime >= 1f && _stagedRing.Count != 0)
             {
                 BufferHolder.NextBecomesCurrent();
                 interpolationTime = 0f;
-
+                BufferHolder.HasNextBuffer = false;
                 TrySetLastFromStaging();
 
                 HasBufferHolds = BufferHolder.HasCurrentBuffer && BufferHolder.HasNextBuffer;
-                if (!HasBufferHolds)
-                {
-                    break;
-                }
+                if (!HasBufferHolds) break;
             }
 
-            // If staging backlog is large, drop old frames to reduce latency
-            // (Ring is already bounded by MaxStage; this is the "keep only last N" latency clamp.)
+            // 2c) Latency clamp: drop oldest if backlog too large (optional safety)
             StagedCount = _stagedRing.Count;
             if (StagedCount > BufferCapacityBeforeCleanup)
             {
@@ -142,31 +130,46 @@ namespace Basis.Scripts.Networking.Receivers
 
             HasBufferHolds = BufferHolder.HasCurrentBuffer && BufferHolder.HasNextBuffer;
 
-            // 3) If we have a window, compute interpolation fraction and feed the compute phase
+            // 3) If we have a window, compute interpolation fraction and feed the driver
             if (HasBufferHolds)
             {
                 var first = BufferHolder.Current;
                 var last = BufferHolder.Next;
 
-                double windowDuration = last.SecondsInterval > 0 ? last.SecondsInterval : first.SecondsInterval > 0 ? first.SecondsInterval : (1.0 / 60.0);
+                double windowDuration =
+                    last.SecondsInterval > 0 ? last.SecondsInterval :
+                    first.SecondsInterval > 0 ? first.SecondsInterval :
+                    (1.0 / 60.0);
 
                 if (!double.IsFinite(windowDuration) || windowDuration <= 1e-6)
-                {
                     windowDuration = 1e-3;
-                }
 
                 double step = Math.Max(unscaledDeltaTime, 0.0);
-                interpolationTime += (float)(step / windowDuration);
 
-                PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime);
+                // ---------- NEW: time-warp playback rate based on backlog ----------
+                int depth = _stagedRing.Count;
+                float rate = 1f + CatchupGain * (depth - TargetJitterDepth);
+                rate = Mathf.Clamp(rate, MinPlaybackRate, MaxPlaybackRate);
+
+                interpolationTime += (float)((step / windowDuration) * rate);
+
+                // ---------- NEW: send REAL deltaTime seconds to driver ----------
+                // Here we use unscaledDeltaTime as the filter dt.
+                // If you prefer, use (float)windowDuration for a more "network-sampling" dt.
+                float dtSeconds = Mathf.Max(unscaledDeltaTime, 1e-3f);
+
+                PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, dtSeconds);
+
                 if (PassedSimulate && BufferHolder.SentLatest)
                 {
                     BasisRemoteNetworkDriver.SetFrameInputs(
-                    playerId, Player.BasisAvatar.HumanScale,
-                    first.Position, last.Position,
-                    first.Scale, last.Scale,
-                    first.Rotation, last.Rotation
-                );
+                        playerId,
+                        Player.BasisAvatar.HumanScale,
+                        first.Position, last.Position,
+                        first.Scale, last.Scale,
+                        first.Rotation, last.Rotation
+                    );
+
                     BasisRemoteNetworkDriver.SetMuscleWindow(playerId, first.Muscles, last.Muscles);
                     BufferHolder.SentLatest = false;
                 }
@@ -181,8 +184,16 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (!PassedSimulate) return;
 
-            BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId,out bool outscale,out ApplyingRotation,out float3 scaledBody);
-            BasisRemoteNetworkDriver.GetMuscleArray(playerId,ref HumanPose, EyesAndMouth, EyesAndMouthOffset, EyeAndMouthCountInBytes);
+            BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out bool outscale, out ApplyingRotation, out float3 scaledBody);
+
+            BasisRemoteNetworkDriver.GetMuscleArray(
+                playerId,
+                ref HumanPose,
+                EyesAndMouth,
+                EyesAndMouthOffset,
+                EyeAndMouthCountInBytes
+            );
+
             HumanPose.bodyPosition = scaledBody;
             HumanPose.bodyRotation = ApplyingRotation;
 
@@ -209,11 +220,13 @@ namespace Basis.Scripts.Networking.Receivers
 
             PassedSimulate = false;
         }
+
         public void ApplyScale()
         {
             BasisRemoteNetworkDriver.GetScaleOutput(playerId, out ApplyingScale);
             Player.AvatarTransform.localScale = ApplyingScale;
         }
+
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)
         {
             PayloadQueue.Enqueue(avatarBuffer);
@@ -227,6 +240,7 @@ namespace Basis.Scripts.Networking.Receivers
                 BasisDebug.LogError("Remote Player was not found During Initialization!!");
                 return;
             }
+
             if (RemotePlayer.RemoteAvatarDriver == null)
             {
                 BasisDebug.LogError("Remote Player RemoteAvatarDriver was not found During Initialization!!");
@@ -238,7 +252,6 @@ namespace Basis.Scripts.Networking.Receivers
             // Reset staging
             _stagedRing = new BasisRingBuffer<BasisAvatarBuffer>(MaxStage);
             StagedCount = 0;
-
             BufferHolder.ClearAndRelease();
             interpolationTime = 0f;
             PassedSimulate = false;
@@ -261,7 +274,6 @@ namespace Basis.Scripts.Networking.Receivers
             AudioReceiverModule.AvatarChanged(this, true);
 
             List<byte> keysToRemove = new List<byte>();
-
             foreach (KeyValuePair<byte, ServerAvatarDataMessageQueue> message in NextMessages)
             {
                 ServerAvatarDataMessage avatarMessage = message.Value.ServerAvatarDataMessage;
@@ -269,7 +281,6 @@ namespace Basis.Scripts.Networking.Receivers
                 PlayerIdMessage playerIdMessage = avatarMessage.playerIdMessage;
 
                 bool isSameAvatar = Remote.AvatarLinkIndex == LastLinkedAvatarIndex;
-
                 if (isSameAvatar)
                 {
                     NetworkBehaviours[message.Key].OnNetworkMessageReceived(
@@ -291,9 +302,7 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             foreach (byte key in keysToRemove)
-            {
                 NextMessages.Remove(key);
-            }
         }
 
         private bool IsPastAvatar(byte messageIndex, byte currentIndex)
@@ -308,17 +317,14 @@ namespace Basis.Scripts.Networking.Receivers
             if (_stagedRing != null)
             {
                 while (_stagedRing.TryDequeueOldest(out var buf))
-                {
                     BasisAvatarBufferPool.Release(buf);
-                }
+
                 StagedCount = 0;
             }
 
             // Release anything still waiting in the concurrent ingress queue
             while (PayloadQueue.TryDequeue(out var buffer))
-            {
                 BasisAvatarBufferPool.Release(buffer);
-            }
 
             BufferHolder.ClearAndRelease();
 
@@ -335,7 +341,6 @@ namespace Basis.Scripts.Networking.Receivers
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage msg)
         {
             int serverSilentUnits = msg.audioSegmentData.TotalPlayedInSilence; // 20ms units
-
             if (AudioReceiverModule == null)
             {
                 BasisDebug.LogError("Missing Audio Receiver for remote player!", BasisDebug.LogTag.Remote);
@@ -349,9 +354,7 @@ namespace Basis.Scripts.Networking.Receivers
                 if (missing > 0)
                 {
                     for (int Index = 0; Index < missing; Index++)
-                    {
                         AudioReceiverModule.OnDecodeSilence();
-                    }
                 }
             }
 
@@ -372,30 +375,32 @@ namespace Basis.Scripts.Networking.Receivers
             playerId = PlayerID;
             hasID = true;
         }
+
+        // -------------------- PATCHED staging helpers --------------------
+
+        // Seed Current with ONE oldest staged frame (do NOT drain staging)
         private void TrySeedFirstFromStaging()
         {
-            while (_stagedRing.TryDequeueOldest(out var first))
+            if (BufferHolder.HasCurrentBuffer) return;
+
+            if (_stagedRing.TryDequeueOldest(out var first))
             {
                 BufferHolder.SetCurrent(ref first);
                 BufferHolder.HasCurrentBuffer = true;
-                StagedCount = _stagedRing.Count;
             }
 
             StagedCount = _stagedRing.Count;
         }
 
+        // Seed Next with ONE next-oldest staged frame (do NOT drain staging)
         private void TrySetLastFromStaging()
         {
-            if (!BufferHolder.HasCurrentBuffer)
-            {
-                return;
-            }
+            if (!BufferHolder.HasCurrentBuffer || BufferHolder.HasNextBuffer) return;
 
-            while (_stagedRing.TryDequeueOldest(out var last))
+            if (_stagedRing.TryDequeueOldest(out var next))
             {
-                BufferHolder.SetNext(ref last);
+                BufferHolder.SetNext(ref next);
                 BufferHolder.HasNextBuffer = true;
-                StagedCount = _stagedRing.Count;
             }
 
             StagedCount = _stagedRing.Count;
@@ -407,14 +412,11 @@ namespace Basis.Scripts.Networking.Receivers
             for (int i = 0; i < n; i++)
             {
                 if (_stagedRing.TryDequeueOldest(out var buf))
-                {
                     BasisAvatarBufferPool.Release(buf);
-                }
                 else
-                {
                     break;
-                }
             }
+
             StagedCount = _stagedRing.Count;
         }
     }
