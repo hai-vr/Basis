@@ -217,9 +217,9 @@ public static class BasisRemoteNetworkDriver
             InputValues = _outMuscles,
             OutputValues = euroValuesOutput,
             DeltaTimeSeconds = _deltaTimes, // <-- FIXED
-            MinCutoff = BasisNetworkManagement.Instance.MinCutoff,
-            Beta = BasisNetworkManagement.Instance.Beta,
-            DerivativeCutoff = BasisNetworkManagement.Instance.DerivativeCutoff,
+            MinCutoff = BasisNetworkManagement.MinCutoff,
+            Beta = BasisNetworkManagement.Beta,
+            DerivativeCutoff = BasisNetworkManagement.DerivativeCutoff,
             PositionFilters = positionFilters,
             DerivativeFilters = derivativeFilters,
             MuscleCountPerAvatar = _muscleCount

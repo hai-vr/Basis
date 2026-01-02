@@ -96,13 +96,20 @@ namespace Basis.Scripts.Networking.Receivers
 
             // 2) Ensure we have a valid interpolation window (Current -> Next)
             if (!BufferHolder.HasCurrentBuffer)
+            {
                 TrySeedFirstFromStaging();   // patched: only takes ONE oldest
+            }
 
             if (!BufferHolder.HasNextBuffer)
+            {
                 TrySetLastFromStaging();     // patched: only takes ONE next-oldest
+            }
 
             HasBufferHolds = BufferHolder.HasCurrentBuffer && BufferHolder.HasNextBuffer;
-            if (!HasBufferHolds) return;
+            if (!HasBufferHolds)
+            {
+                return;
+            }
 
             // 2b) Advance window while consumed and we have staged frames
             while (interpolationTime >= 1f && _stagedRing.Count != 0)
@@ -113,7 +120,10 @@ namespace Basis.Scripts.Networking.Receivers
                 TrySetLastFromStaging();
 
                 HasBufferHolds = BufferHolder.HasCurrentBuffer && BufferHolder.HasNextBuffer;
-                if (!HasBufferHolds) break;
+                if (!HasBufferHolds)
+                {
+                    break;
+                }
             }
 
             // 2c) Latency clamp: drop oldest if backlog too large (optional safety)
@@ -132,13 +142,12 @@ namespace Basis.Scripts.Networking.Receivers
                 var first = BufferHolder.Current;
                 var last = BufferHolder.Next;
 
-                double windowDuration =
-                    last.SecondsInterval > 0 ? last.SecondsInterval :
-                    first.SecondsInterval > 0 ? first.SecondsInterval :
-                    (1.0 / 60.0);
+                double windowDuration = last.SecondsInterval > 0 ? last.SecondsInterval : first.SecondsInterval > 0 ? first.SecondsInterval : (1.0 / 60.0);
 
                 if (!double.IsFinite(windowDuration) || windowDuration <= 1e-6)
+                {
                     windowDuration = 1e-3;
+                }
 
                 double step = Math.Max(unscaledDeltaTime, 0.0);
 
@@ -148,10 +157,6 @@ namespace Basis.Scripts.Networking.Receivers
                 rate = Mathf.Clamp(rate, MinPlaybackRate, MaxPlaybackRate);
 
                 interpolationTime += (float)((step / windowDuration) * rate);
-
-                // ---------- NEW: send REAL deltaTime seconds to driver ----------
-                // Here we use unscaledDeltaTime as the filter dt.
-                // If you prefer, use (float)windowDuration for a more "network-sampling" dt.
                 float dtSeconds = Mathf.Max(unscaledDeltaTime, 1e-3f);
 
                 PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, dtSeconds);
