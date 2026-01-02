@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Assertions;
 using static SerializableBasis;
 
 namespace Basis.Scripts.Networking.Receivers
@@ -63,13 +64,46 @@ namespace Basis.Scripts.Networking.Receivers
         public bool SentLatest = false;
         public BasisAvatarBuffer Current { get; private set; }
         public BasisAvatarBuffer Next { get; private set; }
+
+        private void AssertInitialized()
+        {
+            Assert.IsTrue(hasID, "BasisNetworkReceiver: hasID must be true (playerId not set?)");
+            Assert.IsTrue(playerId != 0 || hasID, "BasisNetworkReceiver: playerId looks invalid.");
+            Assert.IsNotNull(Player, "BasisNetworkReceiver: Player is null (Initialize not called / wiring broken).");
+            Assert.IsNotNull(_stagedRing, "BasisNetworkReceiver: _stagedRing is null (Initialize not called?).");
+            Assert.IsNotNull(AudioReceiverModule, "BasisNetworkReceiver: AudioReceiverModule is null.");
+        }
+
+        private void AssertAvatarReady()
+        {
+            Assert.IsNotNull(Player.BasisAvatar, "BasisNetworkReceiver: BasisAvatar is null unexpectedly.");
+            Assert.IsNotNull(Player.BasisAvatar.Animator, "BasisNetworkReceiver: Animator is null unexpectedly.");
+            Assert.IsNotNull(Player.AvatarTransform, "BasisNetworkReceiver: AvatarTransform is null unexpectedly.");
+        }
+
+        private void AssertBuffersConsistent()
+        {
+            if (HasCurrentBuffer) Assert.IsNotNull(Current, "HasCurrentBuffer true but Current is null.");
+            if (HasNextBuffer) Assert.IsNotNull(Next, "HasNextBuffer true but Next is null.");
+            if (!HasCurrentBuffer) Assert.IsNull(Current, "HasCurrentBuffer false but Current is non-null.");
+            if (!HasNextBuffer) Assert.IsNull(Next, "HasNextBuffer false but Next is non-null.");
+
+            Assert.IsTrue(interpolationTime >= 0f, $"interpolationTime went negative: {interpolationTime}");
+            // It can exceed 1 (you consume windows in a loop), but it should never blow up.
+            Assert.IsTrue(interpolationTime < 1000f, $"interpolationTime is absurd: {interpolationTime}");
+        }
+
         /// <summary>
         /// Main-thread simulation step. Pulls packets, maintains interpolation window,
         /// computes interpolationTime, and feeds inputs to the network driver.
         /// </summary>
         public void Compute(float unscaledDeltaTime)
         {
-            if (Player.BasisAvatar == null) return; // expected briefly on join
+            // Basic invariants
+            AssertInitialized();
+
+            // expected briefly on join
+            if (Player.BasisAvatar == null) return;
 
             if (LastAvatarsTransform != Player.AvatarTransform)
             {
@@ -89,27 +123,41 @@ namespace Basis.Scripts.Networking.Receivers
                 return;
             }
 
+            // After early outs, these should be true.
+            AssertAvatarReady();
+
+            // Timing sanity
+            Assert.IsTrue(float.IsFinite(unscaledDeltaTime), $"unscaledDeltaTime not finite: {unscaledDeltaTime}");
+            Assert.IsTrue(unscaledDeltaTime >= 0f, $"unscaledDeltaTime negative: {unscaledDeltaTime}");
+
             // 1) Pull network packets to main-thread staging ring (bounded)
             while (PayloadQueue.TryDequeue(out var buffer))
             {
+                Assert.IsNotNull(buffer, "PayloadQueue contained a null BasisAvatarBuffer.");
                 _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: BasisAvatarBufferPool.Release);
             }
             StagedCount = _stagedRing.Count;
 
+            Assert.IsTrue(StagedCount >= 0 && StagedCount <= MaxStage,
+                $"StagedCount out of range: {StagedCount} (MaxStage {MaxStage})");
+
             // 2) Ensure we have a valid interpolation window (Current -> Next)
             if (!HasCurrentBuffer)
             {
-                TrySeedFirstFromStaging();   // patched: only takes ONE oldest
+                TrySeedFirstFromStaging();   // only takes ONE oldest
             }
 
             if (!HasNextBuffer)
             {
-                TrySetLastFromStaging();     // patched: only takes ONE next-oldest
+                TrySetLastFromStaging();     // only takes ONE next-oldest
             }
+
+            AssertBuffersConsistent();
 
             HasBufferHolds = HasCurrentBuffer && HasNextBuffer;
             if (!HasBufferHolds)
             {
+                // It's valid to be here if we haven't received enough frames yet.
                 return;
             }
 
@@ -121,12 +169,17 @@ namespace Basis.Scripts.Networking.Receivers
                     ReleaseCurrent();
                 }
 
-                Current = Next;
+                // If we had holds, Next must be non-null here.
+                Assert.IsTrue(HasNextBuffer && Next != null, "Advancing window but Next missing.");
 
+                Current = Next;
                 HasCurrentBuffer = true;
+
                 HasNextBuffer = false;
+                Next = null;
+
                 interpolationTime = 0f;
-                HasNextBuffer = false;
+
                 TrySetLastFromStaging();
 
                 HasBufferHolds = HasCurrentBuffer && HasNextBuffer;
@@ -135,11 +188,14 @@ namespace Basis.Scripts.Networking.Receivers
                     break;
                 }
             }
+
             StagedCount = _stagedRing.Count;
+
             while (_stagedRing.Count > BufferCapacityBeforeCleanup)
             {
                 if (_stagedRing.TryDequeueOldest(out var buf))
                 {
+                    Assert.IsNotNull(buf, "Staging ring returned null buffer on dequeue.");
                     BasisAvatarBufferPool.Release(buf);
                 }
                 else
@@ -154,10 +210,16 @@ namespace Basis.Scripts.Networking.Receivers
             // 3) If we have a window, compute interpolation fraction and feed the driver
             if (HasBufferHolds)
             {
+                Assert.IsNotNull(Current, "HasBufferHolds but Current is null.");
+                Assert.IsNotNull(Next, "HasBufferHolds but Next is null.");
+
                 var first = Current;
                 var last = Next;
 
-                double windowDuration = last.SecondsInterval > 0 ? last.SecondsInterval : first.SecondsInterval > 0 ? first.SecondsInterval : (1.0 / 60.0);
+                double windowDuration =
+                    last.SecondsInterval > 0 ? last.SecondsInterval :
+                    first.SecondsInterval > 0 ? first.SecondsInterval :
+                    (1.0 / 60.0);
 
                 if (!double.IsFinite(windowDuration) || windowDuration <= 1e-6)
                 {
@@ -166,18 +228,27 @@ namespace Basis.Scripts.Networking.Receivers
 
                 double step = Math.Max(unscaledDeltaTime, 0.0);
 
-                // ---------- NEW: time-warp playback rate based on backlog ----------
                 int depth = _stagedRing.Count;
+                Assert.IsTrue(depth >= 0 && depth <= MaxStage, $"Ring depth out of range: {depth}");
+
                 float rate = 1f + CatchupGain * (depth - TargetJitterDepth);
                 rate = Mathf.Clamp(rate, MinPlaybackRate, MaxPlaybackRate);
+                Assert.IsTrue(rate >= MinPlaybackRate - 1e-3f && rate <= MaxPlaybackRate + 1e-3f, $"Playback rate out of clamp: {rate}");
 
                 interpolationTime += (float)((step / windowDuration) * rate);
+
                 float dtSeconds = Mathf.Max(unscaledDeltaTime, 1e-3f);
+                Assert.IsTrue(dtSeconds > 0f && float.IsFinite(dtSeconds), $"Bad dtSeconds: {dtSeconds}");
 
                 PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, dtSeconds);
 
                 if (PassedSimulate && SentLatest)
                 {
+                    // Driver inputs should be valid data
+                    Assert.IsTrue(float3IsFinite(first.Position) && float3IsFinite(last.Position), "Position contained NaN/Inf.");
+                    Assert.IsTrue(float3IsFinite(first.Scale) && float3IsFinite(last.Scale), "Scale contained NaN/Inf.");
+                    Assert.IsTrue(quatIsFinite(first.Rotation) && quatIsFinite(last.Rotation), "Rotation contained NaN/Inf.");
+
                     BasisRemoteNetworkDriver.SetFrameInputs(
                         playerId,
                         Player.BasisAvatar.HumanScale,
@@ -198,9 +269,19 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void Apply()
         {
+            AssertInitialized();
+
             if (PassedSimulate)
             {
+                // These outputs should be stable when simulate passed.
                 BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out bool outscale, out ApplyingRotation, out float3 scaledBody);
+
+                Assert.IsTrue(quatIsFinite(ApplyingRotation), "ApplyingRotation contained NaN/Inf.");
+                Assert.IsTrue(float3IsFinite(scaledBody), "scaledBody contained NaN/Inf.");
+
+                Assert.IsNotNull(EyesAndMouth, "EyesAndMouth array is null.");
+                Assert.IsTrue(EyesAndMouth.Length >= EyesAndMouthCount, $"EyesAndMouth length too small: {EyesAndMouth.Length}");
+                Assert.IsTrue(EyesAndMouthOffset >= 0, $"EyesAndMouthOffset negative: {EyesAndMouthOffset}");
 
                 BasisRemoteNetworkDriver.GetMuscleArray(
                     playerId,
@@ -213,6 +294,7 @@ namespace Basis.Scripts.Networking.Receivers
                 HumanPose.bodyPosition = scaledBody;
                 HumanPose.bodyRotation = ApplyingRotation;
 
+                Assert.IsNotNull(PoseHandler, "PoseHandler is null when applying pose.");
                 PoseHandler.SetHumanPose(ref HumanPose);
 
                 if (outscale)
@@ -230,7 +312,10 @@ namespace Basis.Scripts.Networking.Receivers
 
                 if (HasOverridenDestination)
                 {
+                    Assert.IsNotNull(RemotePlayer, "RemotePlayer is null while HasOverridenDestination.");
+                    Assert.IsNotNull(RemotePlayer.RemoteAvatarDriver, "RemoteAvatarDriver null while HasOverridenDestination.");
                     var References = RemotePlayer.RemoteAvatarDriver.References;
+                    Assert.IsNotNull(References.Hips, "References.Hips is null while HasOverridenDestination.");
                     References.Hips.transform.SetPositionAndRotation(OverridenPosition, OverridenRotation);
                 }
 
@@ -238,26 +323,21 @@ namespace Basis.Scripts.Networking.Receivers
             }
             else
             {
-                if (Player.BasisAvatar == null)
-                {
-                    return;
-                }
-                if (Player.BasisAvatar.Animator == null)
-                {
-                    return;
-                }
+                if (Player.BasisAvatar == null) return;
+                if (Player.BasisAvatar.Animator == null) return;
+                if (Player.AvatarTransform == null) return;
 
-                if (Player.AvatarTransform == null)
-                {
-                    return;
-                }
                 if (PoseHandler != null)
                 {
                     PoseHandler.SetHumanPose(ref HumanPose);
                 }
+
                 if (HasOverridenDestination)
                 {
+                    Assert.IsNotNull(RemotePlayer, "RemotePlayer is null while HasOverridenDestination.");
+                    Assert.IsNotNull(RemotePlayer.RemoteAvatarDriver, "RemoteAvatarDriver null while HasOverridenDestination.");
                     var References = RemotePlayer.RemoteAvatarDriver.References;
+                    Assert.IsNotNull(References.Hips, "References.Hips is null while HasOverridenDestination.");
                     References.Hips.transform.SetPositionAndRotation(OverridenPosition, OverridenRotation);
                 }
             }
@@ -265,34 +345,34 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void ApplyScale()
         {
+            AssertInitialized();
+            Assert.IsNotNull(Player.AvatarTransform, "AvatarTransform null in ApplyScale.");
             BasisRemoteNetworkDriver.GetScaleOutput(playerId, out ApplyingScale);
+            Assert.IsTrue(float3IsFinite(ApplyingScale), "ApplyingScale contained NaN/Inf.");
             Player.AvatarTransform.localScale = ApplyingScale;
         }
 
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)
         {
+            Assert.IsNotNull(avatarBuffer, "EnQueueAvatarBuffer called with null avatarBuffer.");
             PayloadQueue.Enqueue(avatarBuffer);
         }
 
         public override void Initialize()
         {
+            Assert.IsNotNull(Player, "Initialize called but Player is null.");
             RemotePlayer = (BasisRemotePlayer)Player;
-            if (RemotePlayer == null)
-            {
-                BasisDebug.LogError("Remote Player was not found During Initialization!!");
-                return;
-            }
+            Assert.IsNotNull(RemotePlayer, "RemotePlayer cast failed in Initialize.");
 
-            if (RemotePlayer.RemoteAvatarDriver == null)
-            {
-                BasisDebug.LogError("Remote Player RemoteAvatarDriver was not found During Initialization!!");
-                return;
-            }
+            Assert.IsNotNull(RemotePlayer.RemoteAvatarDriver, "RemotePlayer.RemoteAvatarDriver missing during Initialize.");
 
+            Assert.IsNotNull(AudioReceiverModule, "AudioReceiverModule missing during Initialize.");
             AudioReceiverModule.Initalize(this);
 
             // Reset staging
             _stagedRing = new BasisRingBuffer<BasisAvatarBuffer>(MaxStage);
+            Assert.IsNotNull(_stagedRing, "Failed to allocate _stagedRing.");
+
             StagedCount = 0;
             ClearAndRelease();
             interpolationTime = 0f;
@@ -301,6 +381,7 @@ namespace Basis.Scripts.Networking.Receivers
             // Clear any packets that arrived before init (rare, but safe)
             while (PayloadQueue.TryDequeue(out var buf))
             {
+                Assert.IsNotNull(buf, "PayloadQueue contained null buffer during Initialize flush.");
                 BasisAvatarBufferPool.Release(buf);
             }
 
@@ -313,12 +394,17 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void OnCalibration()
         {
+            AssertInitialized();
+            Assert.IsNotNull(RemotePlayer, "OnCalibration: RemotePlayer null.");
+            Assert.IsNotNull(RemotePlayer.RemoteAvatarDriver, "OnCalibration: RemoteAvatarDriver null.");
+
             AudioReceiverModule.AvatarChanged(this, true);
 
             List<byte> keysToRemove = new List<byte>();
             foreach (KeyValuePair<byte, ServerAvatarDataMessageQueue> message in NextMessages)
             {
                 ServerAvatarDataMessage avatarMessage = message.Value.ServerAvatarDataMessage;
+
                 RemoteAvatarDataMessage Remote = avatarMessage.avatarDataMessage;
                 PlayerIdMessage playerIdMessage = avatarMessage.playerIdMessage;
 
@@ -355,20 +441,20 @@ namespace Basis.Scripts.Networking.Receivers
 
         public override void DeInitialize()
         {
-            // Release anything staged in the ring
+            // _stagedRing can be null if Initialize never completed, so don't Assert here—guard.
             if (_stagedRing != null)
             {
                 while (_stagedRing.TryDequeueOldest(out var buf))
                 {
+                    Assert.IsNotNull(buf, "Staging ring returned null buffer during DeInitialize.");
                     BasisAvatarBufferPool.Release(buf);
                 }
-
                 StagedCount = 0;
             }
 
-            // Release anything still waiting in the concurrent ingress queue
             while (PayloadQueue.TryDequeue(out var buffer))
             {
+                Assert.IsNotNull(buffer, "PayloadQueue contained null buffer during DeInitialize.");
                 BasisAvatarBufferPool.Release(buffer);
             }
 
@@ -386,12 +472,10 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage msg)
         {
+            AssertInitialized();
+            Assert.IsNotNull(AudioReceiverModule, "Missing Audio Receiver for remote player!");
+
             int serverSilentUnits = msg.audioSegmentData.TotalPlayedInSilence; // 20ms units
-            if (AudioReceiverModule == null)
-            {
-                BasisDebug.LogError("Missing Audio Receiver for remote player!", BasisDebug.LogTag.Remote);
-                return;
-            }
 
             if (serverSilentUnits > 0)
             {
@@ -404,6 +488,9 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             }
 
+            Assert.IsTrue(msg.audioSegmentData.LengthUsed >= 0, $"Audio LengthUsed negative: {msg.audioSegmentData.LengthUsed}");
+            Assert.IsNotNull(msg.audioSegmentData.buffer, "Audio buffer is null.");
+
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, msg.audioSegmentData.LengthUsed);
             AudioReceiverModule.OnDecode(msg.audioSegmentData.buffer, msg.audioSegmentData.LengthUsed);
             Player.AudioReceived?.Invoke();
@@ -411,6 +498,9 @@ namespace Basis.Scripts.Networking.Receivers
 
         public async void ReceiveAvatarChangeRequest(ServerAvatarChangeMessage SACM)
         {
+            Assert.IsNotNull(RemotePlayer, "ReceiveAvatarChangeRequest: RemotePlayer is null.");
+            Assert.IsNotNull(SACM.clientAvatarChangeMessage.byteArray, "ReceiveAvatarChangeRequest: byteArray is null.");
+
             RemotePlayer.CACM = SACM.clientAvatarChangeMessage;
             BasisLoadableBundle bundle = BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(SACM.clientAvatarChangeMessage.byteArray);
             await RemotePlayer.CreateAvatar(SACM.clientAvatarChangeMessage.loadMode, bundle);
@@ -421,12 +511,15 @@ namespace Basis.Scripts.Networking.Receivers
             playerId = PlayerID;
             hasID = true;
         }
+
         private void TrySeedFirstFromStaging()
         {
             if (HasCurrentBuffer) return;
+            Assert.IsNotNull(_stagedRing, "TrySeedFirstFromStaging called before Initialize (no _stagedRing).");
 
             if (_stagedRing.TryDequeueOldest(out var first))
             {
+                Assert.IsNotNull(first, "TrySeedFirstFromStaging dequeued a null buffer.");
                 Current = first;
                 SentLatest = true;
                 HasCurrentBuffer = true;
@@ -439,12 +532,13 @@ namespace Basis.Scripts.Networking.Receivers
         private void TrySetLastFromStaging()
         {
             if (!HasCurrentBuffer || HasNextBuffer) return;
+            Assert.IsNotNull(_stagedRing, "TrySetLastFromStaging called before Initialize (no _stagedRing).");
 
             if (_stagedRing.TryDequeueOldest(out var next))
             {
+                Assert.IsNotNull(next, "TrySetLastFromStaging dequeued a null buffer.");
                 Next = next;
                 SentLatest = true;
-
                 HasNextBuffer = true;
             }
 
@@ -456,19 +550,33 @@ namespace Basis.Scripts.Networking.Receivers
             ReleaseCurrent();
             if (HasNextBuffer)
             {
+                Assert.IsNotNull(Next, "ClearAndRelease: HasNextBuffer true but Next is null.");
                 BasisAvatarBufferPool.Release(Next);
                 Next = null;
                 HasNextBuffer = false;
             }
         }
+
         public void ReleaseCurrent()
         {
             if (HasCurrentBuffer)
             {
+                Assert.IsNotNull(Current, "ReleaseCurrent: HasCurrentBuffer true but Current is null.");
                 BasisAvatarBufferPool.Release(Current);
                 Current = null;
                 HasCurrentBuffer = false;
             }
+        }
+
+        // -------- helpers: math sanity --------
+        private static bool float3IsFinite(float3 v)
+        {
+            return float.IsFinite(v.x) && float.IsFinite(v.y) && float.IsFinite(v.z);
+        }
+
+        private static bool quatIsFinite(quaternion q)
+        {
+            return float.IsFinite(q.value.x) && float.IsFinite(q.value.y) && float.IsFinite(q.value.z) && float.IsFinite(q.value.w);
         }
     }
 }
