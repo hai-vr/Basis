@@ -235,10 +235,7 @@ public unsafe class BasisUlipSync
 
         // Chain the blendshape apply job right after scoring job (all Burst)
         // Capture dt on main thread; jobs cannot read Time.deltaTime.
-        if (_finalByBlendShape.IsCreated &&
-            _blendMap.IsCreated && _blendMap.Length > 0 &&
-            _bsWeight.IsCreated && _volState.IsCreated &&
-            _info.IsCreated)
+        if (_finalByBlendShape.IsCreated &&_blendMap.IsCreated && _blendMap.Length > 0 && _bsWeight.IsCreated && _volState.IsCreated && _info.IsCreated)
         {
             var applyJob = new BasisBlendshapeApplyJob
             {
