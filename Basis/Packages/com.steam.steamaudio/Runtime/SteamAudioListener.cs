@@ -140,13 +140,9 @@ namespace SteamAudio
             return identifier;
         }
 
-        public void SetInputs(SimulationFlags flags, SteamAudioSettings settings,UnityEngine.Vector3 pos,Quaternion rot)
+        public void SetInputs(SimulationFlags flags, SteamAudioSettings settings, Vector3 origin, Vector3 ahead, Vector3 up, Vector3 right)
         {
 
-            // Derive axes in managed code (cheap math, no extra native calls)
-            var ahead = rot * UnityEngine.Vector3.forward;
-            var up = rot * UnityEngine.Vector3.up;
-            var right = rot * UnityEngine.Vector3.right;
 
             // Build inputs
             bool baked = reverbType != ReverbType.Realtime;
@@ -155,10 +151,10 @@ namespace SteamAudio
             {
                 source =
         {
-            origin = Common.ConvertVector(pos),
-            ahead  = Common.ConvertVector(ahead),
-            up     = Common.ConvertVector(up),
-            right  = Common.ConvertVector(right),
+            origin = origin,
+            ahead  = ahead,
+            up     = up,
+            right  = right,
         },
 
                 distanceAttenuationModel = { type = DistanceAttenuationModelType.Default },

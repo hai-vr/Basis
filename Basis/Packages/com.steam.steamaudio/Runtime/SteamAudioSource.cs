@@ -283,13 +283,8 @@ namespace SteamAudio
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetInputs(SimulationFlags flags, UnityEngine.Vector3 pos, Quaternion rot, SteamAudioListener listener)
+        public void SetInputs(SimulationFlags flags, Vector3 origin, Vector3 ahead, Vector3 up, Vector3 right, SteamAudioListener listener)
         {
-            // --- Fast transform read: one native hop ---
-            var ahead = rot * UnityEngine.Vector3.forward; // pure math (managed), no extra native calls
-            var up = rot * UnityEngine.Vector3.up;
-            var right = rot * UnityEngine.Vector3.right;
-
             // --- Cache frequently used refs/values ---
             var settings = mSettings; // SteamAudioSettings.Singleton if that's what mSettings is
 
@@ -309,10 +304,10 @@ namespace SteamAudio
             var inputs = new SimulationInputs { };
 
             // Source transform (4 converts; see prev message if you want the 1-quat-convert path)
-            inputs.source.origin = Common.ConvertVector(pos);
-            inputs.source.ahead = Common.ConvertVector(ahead);
-            inputs.source.up = Common.ConvertVector(up);
-            inputs.source.right = Common.ConvertVector(right);
+            inputs.source.origin = origin;
+            inputs.source.ahead = ahead;
+            inputs.source.up = up;
+            inputs.source.right = right;
 
             // Distance attenuation model
             inputs.distanceAttenuationModel = curveDrivenReflections

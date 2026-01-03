@@ -200,8 +200,7 @@ public class BasisEventDriver : MonoBehaviour
         BasisRemoteNamePlateDriver.CompleteNamePlates();
         //doing main thread work before this call is ideal for best performance.
         JigglePhysics.CompletePose();
-
-        SteamAudioManager.Simulate();
+        SteamAudioManager.Schedule();
 
         if (BasisLocalPlayer.PlayerReady)
         {
@@ -218,6 +217,7 @@ public class BasisEventDriver : MonoBehaviour
             BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
             BasisLocalPlayer.Instance.LocalVisemeDriver.Apply();
         }
+        SteamAudioManager.Apply();
 #if UNITY_SERVER
         OnBeforeRender();
 #endif

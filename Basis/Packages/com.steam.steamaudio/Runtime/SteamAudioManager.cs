@@ -25,7 +25,15 @@ using UnityEngine.SceneManagement;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using System.IO;
-using System.Linq;
+using Unity.Jobs;
+using UnityEngine.Jobs;
+
+using Unity.Collections;
+using Unity.Burst;
+
+
+
+
 
 #if UNITY_2019_2_OR_NEWER
 using UnityEditor.PackageManager;
@@ -76,6 +84,18 @@ namespace SteamAudio
 
         private SteamAudioSource[] mSources = new SteamAudioSource[8];
         private SteamAudioListener[] mListeners = new SteamAudioListener[4];
+
+        private TransformAccessArray mSourceTransforms;
+        private TransformAccessArray mListenerTransforms;
+
+        // Cached pose buffers (filled by jobs, consumed on main thread)
+        private NativeArray<GatheredData> mSourceGathers;
+
+        private NativeArray<GatheredData> mListenerGathers;
+
+        // Track current allocated capacities for buffers
+        private int mSourceCapacity;
+        private int mListenerCapacity;
 
         RaycastHit[] mRayHits = new RaycastHit[1];
         IntPtr mMaterialBuffer = IntPtr.Zero;
@@ -283,7 +303,11 @@ namespace SteamAudio
             }
 
             mNumCPUCores = SystemInfo.processorCount;
-
+#if STEAMAUDIO_ENABLED
+            EnsureTransformArraysCreated();
+            EnsureSourceCapacity(CurrentArraySource);
+            EnsureListenerCapacity(CurrentArrayListener);
+#endif
             mContext = new Context();
 
             if (reason == ManagerInitReason.Playing)
@@ -496,12 +520,21 @@ namespace SteamAudio
             Singleton.mSceneCommitRequired = true;
         }
 #if BASIS_FRAMEWORK_EXISTS
-        public static void Simulate()
+        public static void Schedule()
         {
 #if STEAMAUDIO_ENABLED
             if (SteamAudioManager.Singleton != null)
             {
-                SteamAudioManager.Singleton.Apply();
+                SteamAudioManager.Singleton.ScheduleInstance();
+            }
+#endif
+        }
+        public static void Apply()
+        {
+#if STEAMAUDIO_ENABLED
+            if (SteamAudioManager.Singleton != null)
+            {
+                SteamAudioManager.Singleton.ApplyInstance();
             }
 #endif
         }
@@ -509,28 +542,59 @@ namespace SteamAudio
         public void LateUpdate()
         {
 #if STEAMAUDIO_ENABLED
+             Schedule();
              Apply();
 #endif
         }
 #endif
 #if STEAMAUDIO_ENABLED
-        private void Apply()
+        private void ScheduleInstance()
+        {
+            // --- Gather transforms via jobs ---
+            EnsureTransformArraysCreated();
+            EnsureSourceCapacity(CurrentArraySource);
+            EnsureListenerCapacity(CurrentArrayListener);
+
+            JobHandle sourcesHandle = default;
+            JobHandle listenersHandle = default;
+
+            if (CurrentArraySource > 0 && mSourceTransforms.isCreated)
+            {
+                var job = new GatherPoseJob
+                {
+                    PoseData = mSourceGathers,
+                };
+                sourcesHandle = job.Schedule(mSourceTransforms);
+            }
+
+            if (CurrentArrayListener > 0 && mListenerTransforms.isCreated)
+            {
+                var job = new GatherPoseJob
+                {
+                    PoseData = mListenerGathers,
+                };
+                listenersHandle = job.Schedule(mListenerTransforms);
+            }
+            combined = JobHandle.CombineDependencies(sourcesHandle, listenersHandle);
+        }
+        public JobHandle combined;
+        private void ApplyInstance()
         {
             if (mAudioEngineState == null)
                 return;
 
             SteamAudioSettings settings = SteamAudioSettings.Singleton;
-            SteamAudioListener SteamAudioListener = SteamAudioManager.GetSteamAudioListener();
+            SteamAudioListener steamAudioListener = SteamAudioManager.GetSteamAudioListener();
 
             mAudioEngineState.SetHRTFDisabled(settings.hrtfDisabled);
             var perspectiveCorrection = GetPerspectiveCorrection();
             mAudioEngineState.SetPerspectiveCorrection(perspectiveCorrection);
-
             mAudioEngineState.SetHRTF(CurrentHRTF.Get());
 
             if (mCurrentScene == null || mSimulator == null)
                 return;
 
+            // Keep simulator scene commit logic
             if (mSimulationThread.ThreadState == ThreadState.WaitSleepJoin)
             {
                 if (mSceneCommitRequired)
@@ -552,6 +616,7 @@ namespace SteamAudio
                 sharedInputs.listener.up = Common.ConvertVector(mListener.up);
                 sharedInputs.listener.right = Common.ConvertVector(mListener.right);
             }
+
             sharedInputs.numRays = settings.realTimeRays;
             sharedInputs.numBounces = settings.realTimeBounces;
             sharedInputs.duration = settings.realTimeDuration;
@@ -562,33 +627,52 @@ namespace SteamAudio
 
             mSimulator.SetSharedInputs(SimulationFlags.Direct, sharedInputs);
 
-            for (int Index = 0; Index < CurrentArraySource; Index++)
+
+            // Complete before calling into Steam Audio (main-thread plugin calls)
+            combined.Complete();
+
+            // --- Direct inputs from cached pose arrays ---
+            for (int i = 0; i < CurrentArraySource; i++)
             {
-                SteamAudioSource source = mSources[Index];
-                source.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
-                source.SetInputs(SimulationFlags.Direct, Position, Rotation, SteamAudioListener);
+                SteamAudioSource src = mSources[i];
+                if (src == null)
+                {
+                    continue;
+                }
+
+                var pos = mSourceGathers[i];
+                src.SetInputs(SimulationFlags.Direct, pos.origin, pos.ahead, pos.up, pos.right, steamAudioListener);
             }
 
-            for (int Index = 0; Index < CurrentArrayListener; Index++)
+            for (int i = 0; i < CurrentArrayListener; i++)
             {
-                SteamAudioListener listener = mListeners[Index];
-                listener.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
-                listener.SetInputs(SimulationFlags.Direct, settings, Position, Rotation);
+                SteamAudioListener lis = mListeners[i];
+                if (lis == null)
+                {
+                    continue;
+                }
+
+                var pos = mListenerGathers[i];
+                lis.SetInputs(SimulationFlags.Direct, settings, pos.origin, pos.ahead, pos.up, pos.right);
             }
 
             mSimulator.RunDirect();
 
-            for (int Index = 0; Index < CurrentArraySource; Index++)
+            for (int i = 0; i < CurrentArraySource; i++)
             {
-                SteamAudioSource source = mSources[Index];
-                source.UpdateOutputs(SimulationFlags.Direct);
+                SteamAudioSource src = mSources[i];
+                if (src == null)
+                {
+                    continue;
+                }
+
+                src.UpdateOutputs(SimulationFlags.Direct);
             }
 
+            // --- Reflections/Pathing timing logic unchanged ---
             mSimulationUpdateTimeElapsed += Time.deltaTime;
             if (mSimulationUpdateTimeElapsed < settings.simulationUpdateInterval)
-            {
                 return;
-            }
 
             mSimulationUpdateTimeElapsed = 0.0f;
 
@@ -598,30 +682,40 @@ namespace SteamAudio
                 {
                     mSimulationCompleted = false;
 
-                    for (int Index = 0; Index < CurrentArraySource; Index++)
+                    for (int i = 0; i < CurrentArraySource; i++)
                     {
-                        SteamAudioSource source = mSources[Index];
-                        source.UpdateOutputs(SimulationFlags.Reflections | SimulationFlags.Pathing);
+                        SteamAudioSource src = mSources[i];
+                        if (src == null) continue;
+
+                        src.UpdateOutputs(SimulationFlags.Reflections | SimulationFlags.Pathing);
                     }
                 }
+
                 mSimulator.SetSharedInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, sharedInputs);
-                for (int Index = 0; Index < CurrentArraySource; Index++)
+
+                // Reuse the same cached poses we already gathered this frame.
+                // If you want “freshest possible” poses right before reflections, reschedule jobs here.
+
+                for (int i = 0; i < CurrentArraySource; i++)
                 {
-                    SteamAudioSource source = mSources[Index];
-                    source.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
-                    source.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, Position, Rotation, SteamAudioListener);
+                    SteamAudioSource src = mSources[i];
+                    if (src == null) continue;
+
+                    GatheredData pos = mSourceGathers[i];
+                    src.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, pos.origin, pos.ahead, pos.up, pos.right, steamAudioListener);
                 }
-                for (int Index = 0; Index < CurrentArrayListener; Index++)
+
+                for (int i = 0; i < CurrentArrayListener; i++)
                 {
-                    SteamAudioListener listener = mListeners[Index];
-                    listener.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
-                    listener.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, settings, Position, Rotation);
+                    SteamAudioListener lis = mListeners[i];
+                    if (lis == null) continue;
+
+                    GatheredData pos = mListenerGathers[i];
+                    lis.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, settings, pos.origin, pos.ahead, pos.up, pos.right);
                 }
+
                 if (SteamAudioSettings.Singleton.sceneType == SceneType.Custom)
                 {
-                    // The Unity ray tracer must be called from the main thread only, so run the simulation here.
-                    // It's not suitable for heavy workloads anyway, so we assume that the performance hit is
-                    // acceptable. If not, we recommend switching to one of the other ray tracers.
                     RunSimulationInternal();
                 }
                 else
@@ -631,7 +725,45 @@ namespace SteamAudio
             }
         }
 #endif
+        public struct GatheredData
+        {
+            public Vector3 ahead;
+            public Vector3 up;
+            public Vector3 right;
+            public Vector3 origin;
+        }
+        [BurstCompile]
+        private struct GatherPoseJob : IJobParallelForTransform
+        {
+            public NativeArray<GatheredData> PoseData;
+            public void Execute(int index, TransformAccess transform)
+            {
+                var rotation = transform.rotation;
+                UnityEngine.Vector3 ahead = rotation * UnityEngine.Vector3.forward; // pure math (managed), no extra native calls
+                UnityEngine.Vector3 up = rotation * UnityEngine.Vector3.up;
+                UnityEngine.Vector3 right = rotation * UnityEngine.Vector3.right;
+                Vector3 Convertahead = ConvertVector(ahead);
+                Vector3 Convertup = ConvertVector(up);
+                Vector3 Convertright = ConvertVector(right);
+                GatheredData Gather = new GatheredData
+                {
+                    origin = ConvertVector(transform.position),
+                    ahead = Convertahead,
+                    right = Convertright,
+                    up = Convertup
+                };
+                PoseData[index] = Gather;
+            }
+            public static Vector3 ConvertVector(UnityEngine.Vector3 point)
+            {
+                Vector3 convertedPoint;
+                convertedPoint.x = point.x;
+                convertedPoint.y = point.y;
+                convertedPoint.z = -point.z;
 
+                return convertedPoint;
+            }
+        }
         void RunSimulationInternal()
         {
             if (mSimulator == null)
@@ -679,6 +811,10 @@ namespace SteamAudio
                 Singleton.mSimulationThreadWaitHandle.Set();
                 Singleton.mSimulationThread.Join();
             }
+
+#if STEAMAUDIO_ENABLED
+            Singleton.DisposeTransformAndPoseBuffers();
+#endif
 
             RemoveAllDynamicObjects(force: true);
             RemoveAllAdditiveScenes();
@@ -873,13 +1009,69 @@ namespace SteamAudio
                 }
             }
         }
+        private void EnsureSourceCapacity(int required)
+        {
+            if (mSourceCapacity >= required)
+                return;
 
+            int newCap = (mSourceCapacity <= 0) ? 8 : mSourceCapacity * 2;
+            if (newCap < required) newCap = required;
+
+            // Dispose old arrays if created
+            if (mSourceGathers.IsCreated) mSourceGathers.Dispose();
+
+            mSourceGathers = new NativeArray<GatheredData>(newCap, Allocator.Persistent);
+
+            mSourceCapacity = newCap;
+        }
+
+        private void EnsureListenerCapacity(int required)
+        {
+            if (mListenerCapacity >= required)
+                return;
+
+            int newCap = (mListenerCapacity <= 0) ? 4 : mListenerCapacity * 2;
+            if (newCap < required) newCap = required;
+
+            if (mListenerGathers.IsCreated) mListenerGathers.Dispose();
+
+            mListenerGathers = new NativeArray<GatheredData>(newCap, Allocator.Persistent);
+
+            mListenerCapacity = newCap;
+        }
+
+        private void EnsureTransformArraysCreated()
+        {
+            // TransformAccessArray must be constructed before use.
+            if (!mSourceTransforms.isCreated)
+                mSourceTransforms = new TransformAccessArray(8);
+
+            if (!mListenerTransforms.isCreated)
+                mListenerTransforms = new TransformAccessArray(4);
+        }
+
+        private void DisposeTransformAndPoseBuffers()
+        {
+            if (mSourceTransforms.isCreated) mSourceTransforms.Dispose();
+            if (mListenerTransforms.isCreated) mListenerTransforms.Dispose();
+
+            if (mSourceGathers.IsCreated) mSourceGathers.Dispose();
+
+            if (mListenerGathers.IsCreated) mListenerGathers.Dispose();
+
+            mSourceCapacity = 0;
+            mListenerCapacity = 0;
+        }
         public static void AddSource(SteamAudioSource source)
         {
+            if (Singleton == null || source == null)
+                return;
+
+            Singleton.EnsureTransformArraysCreated();
+
             var arr = Singleton.mSources;
             int count = Singleton.CurrentArraySource;
 
-            // Duplicate check
             for (int i = 0; i < count; i++)
             {
                 if (arr[i] == source)
@@ -889,10 +1081,19 @@ namespace SteamAudio
             EnsureCapacity(ref Singleton.mSources, count + 1);
             Singleton.mSources[count] = source;
             Singleton.CurrentArraySource++;
+
+            // Keep transform array in sync with source array index
+            Singleton.mSourceTransforms.Add(source.transform);
+
+            // Ensure pose buffers can hold new count
+            Singleton.EnsureSourceCapacity(Singleton.CurrentArraySource);
         }
 
         public static void RemoveSource(SteamAudioSource source)
         {
+            if (Singleton == null || source == null)
+                return;
+
             var arr = Singleton.mSources;
             int count = Singleton.CurrentArraySource;
 
@@ -901,15 +1102,28 @@ namespace SteamAudio
                 if (arr[i] == source)
                 {
                     int last = count - 1;
-                    arr[i] = arr[last];          // swap-remove (order not preserved)
+
+                    // swap-remove in managed array
+                    arr[i] = arr[last];
                     arr[last] = null;
+
+                    // swap-remove in TransformAccessArray (keeps indices aligned)
+                    if (Singleton.mSourceTransforms.isCreated)
+                        Singleton.mSourceTransforms.RemoveAtSwapBack(i);
+
                     Singleton.CurrentArraySource--;
                     return;
                 }
             }
         }
+
         public static void AddListener(SteamAudioListener listener)
         {
+            if (Singleton == null || listener == null)
+                return;
+
+            Singleton.EnsureTransformArraysCreated();
+
             var arr = Singleton.mListeners;
             int count = Singleton.CurrentArrayListener;
 
@@ -922,10 +1136,16 @@ namespace SteamAudio
             EnsureCapacity(ref Singleton.mListeners, count + 1);
             Singleton.mListeners[count] = listener;
             Singleton.CurrentArrayListener++;
+
+            Singleton.mListenerTransforms.Add(listener.transform);
+            Singleton.EnsureListenerCapacity(Singleton.CurrentArrayListener);
         }
 
         public static void RemoveListener(SteamAudioListener listener)
         {
+            if (Singleton == null || listener == null)
+                return;
+
             var arr = Singleton.mListeners;
             int count = Singleton.CurrentArrayListener;
 
@@ -934,8 +1154,13 @@ namespace SteamAudio
                 if (arr[i] == listener)
                 {
                     int last = count - 1;
+
                     arr[i] = arr[last];
                     arr[last] = null;
+
+                    if (Singleton.mListenerTransforms.isCreated)
+                        Singleton.mListenerTransforms.RemoveAtSwapBack(i);
+
                     Singleton.CurrentArrayListener--;
                     return;
                 }
@@ -1263,7 +1488,7 @@ namespace SteamAudio
         private static bool AssetExists(string assetPath)
         {
             return !string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(assetPath)) &&
-                (File.Exists(Environment.CurrentDirectory + "/" + assetPath) || Directory.Exists(Environment.CurrentDirectory + "/" + assetPath));
+                (System.IO.File.Exists(Environment.CurrentDirectory + "/" + assetPath) || System.IO.Directory.Exists(Environment.CurrentDirectory + "/" + assetPath));
         }
 
         private static bool EnsureAssetDirectoryExists(string directory)
