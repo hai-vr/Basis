@@ -43,19 +43,142 @@ namespace Basis.Scripts.Drivers
 
         private BasisLocalPlayer localPlayer;
         private BasisTransformMapping basisTransformMapping;
-        private readonly OneEuroFilterVector3 oneEuroFilter = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
 
-        private float timeAccumulator;
+        private static readonly OneEuroFilterQuaternion fRotHips = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotHead = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotLeftFoot = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotRightFoot = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotChest = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotLeftLowerLeg = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotRightLowerLeg = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotLeftHand = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotRightHand = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotLeftLowerArm = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotRightLowerArm = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotLeftToe = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotRightToe = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotLeftShoulder = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterQuaternion fRotRightShoulder = new OneEuroFilterQuaternion(MinCutoff, Beta, DerivativeCutoff);
 
-        #region Initialization / Setup
+        private static readonly OneEuroFilterVector3 fPosHips = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosHead = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosLeftFoot = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosRightFoot = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosChest = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosLeftLowerLeg = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosRightLowerLeg = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosLeftHand = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosRightHand = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosLeftLowerArm = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosRightLowerArm = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosLeftToe = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
+        private static readonly OneEuroFilterVector3 fPosRightToe = new OneEuroFilterVector3(MinCutoff, Beta, DerivativeCutoff);
 
+        // Keep this order stable forever.
+        // These indices drive your toggle arrays AND which filter instance is used.
+        public const int S_Hips = 0;
+        public const int S_Head = 1;
+        public const int S_LeftFoot = 2;
+        public const int S_RightFoot = 3;
+        public const int S_Chest = 4;
+        public const int S_LeftLowerLeg = 5;
+        public const int S_RightLowerLeg = 6;
+        public const int S_LeftHand = 7;
+        public const int S_RightHand = 8;
+        public const int S_LeftLowerArm = 9;
+        public const int S_RightLowerArm = 10;
+        public const int S_LeftToe = 11;
+        public const int S_RightToe = 12;
+        public const int S_LeftShoulder = 13;
+        public const int S_RightShoulder = 14;
+
+        public const int SlotCount = 15;
+
+        // Smoothing enable toggles (position + rotation)
+        public static bool[] SmoothPos = new bool[SlotCount];
+        public static bool[] SmoothRot = new bool[SlotCount];
+
+        // One Euro enable toggles (position + rotation)
+        public static bool[] EuroPos = new bool[SlotCount];
+        public static bool[] EuroRot = new bool[SlotCount];
+
+        // Fallback smoothing when smoothing is ON but Euro is OFF
+        [Range(0.01f, 60f)] public static float PositionSmoothingHz = 20f;
+        [Range(0.01f, 60f)] public static float RotationSmoothingHz = 25f;
+        [Serializable]
+        public class OneEuroFilterQuaternion
+        {
+            public float minCutoff;
+            public float beta;
+            public float dCutoff;
+
+            private bool hasPrev;
+            private Quaternion prev;
+            private readonly OneEuroFilterVector3 vecFilter;
+
+            public OneEuroFilterQuaternion(float minCutoff, float beta, float dCutoff)
+            {
+                this.minCutoff = minCutoff;
+                this.beta = beta;
+                this.dCutoff = dCutoff;
+                vecFilter = new OneEuroFilterVector3(minCutoff, beta, dCutoff);
+            }
+
+            public void Reset() => hasPrev = false;
+
+            public Quaternion Filter(Quaternion q, float t)
+            {
+                if (!hasPrev)
+                {
+                    hasPrev = true;
+                    prev = q;
+                    return q;
+                }
+
+                vecFilter.minCutoff = minCutoff;
+                vecFilter.beta = beta;
+                vecFilter.dCutoff = dCutoff;
+
+                // shortest path
+                if (Quaternion.Dot(prev, q) < 0f)
+                    q = new Quaternion(-q.x, -q.y, -q.z, -q.w);
+
+                Quaternion delta = q * Quaternion.Inverse(prev);
+
+                delta.ToAngleAxis(out float angleDeg, out Vector3 axis);
+                if (angleDeg > 180f) angleDeg -= 360f;
+
+                float angleRad = angleDeg * Mathf.Deg2Rad;
+                Vector3 logVec = (axis.sqrMagnitude < 1e-12f) ? Vector3.zero : axis.normalized * angleRad;
+
+                Vector3 filteredLog = vecFilter.Filter(logVec, t);
+
+                float mag = filteredLog.magnitude;
+                Quaternion filteredDelta =
+                    (mag < 1e-12f) ? Quaternion.identity : Quaternion.AngleAxis(mag * Mathf.Rad2Deg, filteredLog / mag);
+
+                Quaternion outQ = filteredDelta * prev;
+                prev = outQ;
+                return outQ;
+            }
+        }
+
+        public float timeAccumulator;
+
+        public static Vector3 sPosHips, sPosHead, sPosLeftFoot, sPosRightFoot, sPosChest, sPosLeftLowerLeg, sPosRightLowerLeg;
+        public static Vector3 sPosLeftHand, sPosRightHand, sPosLeftLowerArm, sPosRightLowerArm, sPosLeftToe, sPosRightToe;
+
+        public static Quaternion sRotHips, sRotHead, sRotLeftFoot, sRotRightFoot, sRotChest, sRotLeftLowerLeg, sRotRightLowerLeg;
+        public static Quaternion sRotLeftHand, sRotRightHand, sRotLeftLowerArm, sRotRightLowerArm, sRotLeftToe, sRotRightToe;
+        public static Quaternion sRotLeftShoulder, sRotRightShoulder;
+
+        public static bool hasFallbackState;
         public void Initialize(BasisLocalPlayer localPlayer, BasisTransformMapping references)
         {
             this.localPlayer = localPlayer;
             basisTransformMapping = references;
             timeAccumulator = 0f;
         }
-
         public void BuildBuilder()
         {
             if (localPlayer?.BasisAvatar?.Animator == null || Builder == null)
@@ -86,11 +209,6 @@ namespace Basis.Scripts.Drivers
             MainRig = null;
             RigLayer = default;
         }
-
-        #endregion
-
-        #region T-Pose Handling
-
         public void OnTPose() => OnTPose(BasisLocalAvatarDriver.CurrentlyTposing);
 
         public void OnTPose(bool currentlyTposing)
@@ -127,11 +245,6 @@ namespace Basis.Scripts.Drivers
                 control?.OnHasRigChanged?.Invoke();
             }
         }
-
-        #endregion
-
-        #region IK Simulation
-
         public void SimulateIKDestinations(float deltaTime)
         {
             if (BasisFullIKConstraint == null || Builder == null)
@@ -144,103 +257,371 @@ namespace Basis.Scripts.Drivers
                 return;
             }
 
-            // Keep time going forward, avoid zero
             timeAccumulator += Mathf.Max(deltaTime, 1e-6f);
-
-            UpdateFilterSettings();
-
-            var hipsControl = BasisLocalBoneDriver.HipsControl;
-            var hipsCoords = hipsControl.OutgoingWorldData;
-            var hipsPositionFiltered = oneEuroFilter.Filter(hipsCoords.position, timeAccumulator);
 
             BasisFullBodyData data = BasisFullIKConstraint.data;
 
-            // Hips
-            data.PositionHips = hipsPositionFiltered;
-            data.RotationEulerHips = hipsCoords.rotation;
+            // Init fallback state once (so first frame doesn't lerp from zero)
+            if (!hasFallbackState)
+            {
+                hasFallbackState = true;
 
-            // Global hint direction (knee/neck)
-            data.m_HintDirection = hipsCoords.rotation * Vector3.right;
+                sPosHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
+                sRotHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation;
 
-            // Head
-            var temp = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
-            data.PositionHead = temp.position;
-            data.RotationHead = temp.rotation;
+                sPosHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
+                sRotHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;
 
-            // Feet
-            temp = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
-            data.LeftFootPosition = temp.position;
-            data.LeftFootRotation = temp.rotation;
+                sPosLeftFoot = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.position;
+                sRotLeftFoot = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation;
 
-            temp = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
-            data.RightFootPosition = temp.position;
-            data.RightFootRotation = temp.rotation;
+                sPosRightFoot = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.position;
+                sRotRightFoot = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation;
 
-            // Chest (head hint)
-            temp = BasisLocalBoneDriver.ChestControl.OutgoingWorldData;
-            data.HintPositionHead = temp.position;
-            data.HintRotationHead = temp.rotation;
+                sPosChest = BasisLocalBoneDriver.ChestControl.OutgoingWorldData.position;
+                sRotChest = BasisLocalBoneDriver.ChestControl.OutgoingWorldData.rotation;
 
-            // Leg hints
-            temp = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
-            data.HintPositionLeftLowerLeg = temp.position;
-            data.HintRotationLeftLowerLeg = temp.rotation;
+                sPosLeftLowerLeg = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData.position;
+                sRotLeftLowerLeg = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData.rotation;
 
-            temp = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
-            data.HintPositionRightFoot = temp.position;
-            data.HintRotationRightFoot = temp.rotation;
+                sPosRightLowerLeg = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.position;
+                sRotRightLowerLeg = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.rotation;
 
-            // Hands (targets)
-            var leftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData;
-            data.PositionLeftHand = leftHand.position;
-            data.RotationLeftHand = leftHand.rotation;
+                sPosLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.position;
+                sRotLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.rotation;
 
-            var rightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData;
-            data.PositionRightHand = rightHand.position;
-            data.RotationRightHand = rightHand.rotation;
+                sPosRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.position;
+                sRotRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.rotation;
 
-            // Hand hints (forearms)
-            var leftLowerArm = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData;
-            data.HintPositionLeftHand = leftLowerArm.position;
-            data.HintRotationLeftHand = leftLowerArm.rotation;
+                sPosLeftLowerArm = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.position;
+                sRotLeftLowerArm = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.rotation;
 
-            var rightLowerArm = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData;
-            data.HintPositionRightHand = rightLowerArm.position;
-            data.HintRotationRightHand = rightLowerArm.rotation;
+                sPosRightLowerArm = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.position;
+                sRotRightLowerArm = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.rotation;
 
-            // Toes
-            var rightToe = BasisLocalBoneDriver.RightToeControl.OutgoingWorldData;
-            data.OutGoingRightToePosition = rightToe.position;
-            data.OutGoingRightToeRotation = rightToe.rotation;
+                sPosLeftToe = BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData.position;
+                sRotLeftToe = BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData.rotation;
 
-            var leftToe = BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData;
-            data.OutGoingLeftToePosition = leftToe.position;
-            data.OutGoingLeftToeRotation = leftToe.rotation;
+                sPosRightToe = BasisLocalBoneDriver.RightToeControl.OutgoingWorldData.position;
+                sRotRightToe = BasisLocalBoneDriver.RightToeControl.OutgoingWorldData.rotation;
 
-            temp = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData;
-            //   data.LeftFootPosition = temp.position;
-            data.m_TargetRotationLeftShoulder = temp.rotation;
+                sRotLeftShoulder = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData.rotation;
+                sRotRightShoulder = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData.rotation;
+            }
 
-            temp = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData;
-            //  data.RightFootPosition = temp.position;
-            data.m_TargetRotationRightShoulder = temp.rotation;
+            // ---------------- HIPS ----------------
+            var hips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
+
+            Vector3 hipsPos = hips.position;
+            if (SmoothPos[S_Hips])
+            {
+                hipsPos = EuroPos[S_Hips] ? fPosHips.Filter(hipsPos, timeAccumulator) : FallbackPos(ref sPosHips, hipsPos, deltaTime);
+            }
+
+            Quaternion hipsRot = hips.rotation;
+            if (SmoothRot[S_Hips])
+            {
+                hipsRot = EuroRot[S_Hips] ? fRotHips.Filter(hipsRot, timeAccumulator) : FallbackRot(ref sRotHips, hipsRot, deltaTime);
+            }
+
+            data.PositionHips = hipsPos;
+            data.RotationEulerHips = hipsRot;
+
+            data.m_HintDirection = hipsRot * Vector3.right;
+
+            // ---------------- HEAD ----------------
+            var head = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
+
+            Vector3 headPos = head.position;
+            if (SmoothPos[S_Head])
+            {
+                headPos = EuroPos[S_Head] ? fPosHead.Filter(headPos, timeAccumulator) : FallbackPos(ref sPosHead, headPos, deltaTime);
+            }
+
+            Quaternion headRot = head.rotation;
+            if (SmoothRot[S_Head])
+            {
+                headRot = EuroRot[S_Head] ? fRotHead.Filter(headRot, timeAccumulator) : FallbackRot(ref sRotHead, headRot, deltaTime);
+            }
+
+            data.PositionHead = headPos;
+            data.RotationHead = headRot;
+
+            // ---------------- LEFT FOOT ----------------
+            var lf = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
+
+            Vector3 lfPos = lf.position;
+            if (SmoothPos[S_LeftFoot])
+            {
+                lfPos = EuroPos[S_LeftFoot] ? fPosLeftFoot.Filter(lfPos, timeAccumulator) : FallbackPos(ref sPosLeftFoot, lfPos, deltaTime);
+            }
+
+            Quaternion lfRot = lf.rotation;
+            if (SmoothRot[S_LeftFoot])
+            {
+                lfRot = EuroRot[S_LeftFoot] ? fRotLeftFoot.Filter(lfRot, timeAccumulator) : FallbackRot(ref sRotLeftFoot, lfRot, deltaTime);
+            }
+
+            data.LeftFootPosition = lfPos;
+            data.LeftFootRotation = lfRot;
+
+            // ---------------- RIGHT FOOT ----------------
+            var rf = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
+
+            Vector3 rfPos = rf.position;
+            if (SmoothPos[S_RightFoot])
+            {
+                rfPos = EuroPos[S_RightFoot] ? fPosRightFoot.Filter(rfPos, timeAccumulator) : FallbackPos(ref sPosRightFoot, rfPos, deltaTime);
+            }
+
+            Quaternion rfRot = rf.rotation;
+            if (SmoothRot[S_RightFoot])
+            {
+                rfRot = EuroRot[S_RightFoot] ? fRotRightFoot.Filter(rfRot, timeAccumulator) : FallbackRot(ref sRotRightFoot, rfRot, deltaTime);
+            }
+
+            data.RightFootPosition = rfPos;
+            data.RightFootRotation = rfRot;
+
+            // ---------------- CHEST (head hint) ----------------
+            var chest = BasisLocalBoneDriver.ChestControl.OutgoingWorldData;
+
+            Vector3 chestPos = chest.position;
+            if (SmoothPos[S_Chest])
+            {
+                chestPos = EuroPos[S_Chest] ? fPosChest.Filter(chestPos, timeAccumulator) : FallbackPos(ref sPosChest, chestPos, deltaTime);
+            }
+
+            Quaternion chestRot = chest.rotation;
+            if (SmoothRot[S_Chest])
+            {
+                chestRot = EuroRot[S_Chest] ? fRotChest.Filter(chestRot, timeAccumulator) : FallbackRot(ref sRotChest, chestRot, deltaTime);
+            }
+
+            data.HintPositionHead = chestPos;
+            data.HintRotationHead = chestRot;
+
+            // ---------------- LEFT LOWER LEG (hint) ----------------
+            var lll = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
+
+            Vector3 lllPos = lll.position;
+            if (SmoothPos[S_LeftLowerLeg])
+            {
+                lllPos = EuroPos[S_LeftLowerLeg] ? fPosLeftLowerLeg.Filter(lllPos, timeAccumulator) : FallbackPos(ref sPosLeftLowerLeg, lllPos, deltaTime);
+            }
+
+            Quaternion lllRot = lll.rotation;
+            if (SmoothRot[S_LeftLowerLeg])
+            {
+                lllRot = EuroRot[S_LeftLowerLeg] ? fRotLeftLowerLeg.Filter(lllRot, timeAccumulator) : FallbackRot(ref sRotLeftLowerLeg, lllRot, deltaTime);
+            }
+
+            data.HintPositionLeftLowerLeg = lllPos;
+            data.HintRotationLeftLowerLeg = lllRot;
+
+            // ---------------- RIGHT LOWER LEG (your code writes into RightFoot hint fields) ----------------
+            var rll = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
+
+            Vector3 rllPos = rll.position;
+            if (SmoothPos[S_RightLowerLeg])
+            {
+                rllPos = EuroPos[S_RightLowerLeg] ? fPosRightLowerLeg.Filter(rllPos, timeAccumulator) : FallbackPos(ref sPosRightLowerLeg, rllPos, deltaTime);
+            }
+
+            Quaternion rllRot = rll.rotation;
+            if (SmoothRot[S_RightLowerLeg])
+            {
+                rllRot = EuroRot[S_RightLowerLeg] ? fRotRightLowerLeg.Filter(rllRot, timeAccumulator) : FallbackRot(ref sRotRightLowerLeg, rllRot, deltaTime);
+            }
+
+            data.HintPositionRightFoot = rllPos;
+            data.HintRotationRightFoot = rllRot;
+
+            // ---------------- LEFT HAND ----------------
+            var lh = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData;
+
+            Vector3 lhPos = lh.position;
+            if (SmoothPos[S_LeftHand])
+            {
+                lhPos = EuroPos[S_LeftHand] ? fPosLeftHand.Filter(lhPos, timeAccumulator) : FallbackPos(ref sPosLeftHand, lhPos, deltaTime);
+            }
+
+            Quaternion lhRot = lh.rotation;
+            if (SmoothRot[S_LeftHand])
+            {
+                lhRot = EuroRot[S_LeftHand] ? fRotLeftHand.Filter(lhRot, timeAccumulator) : FallbackRot(ref sRotLeftHand, lhRot, deltaTime);
+            }
+
+            data.PositionLeftHand = lhPos;
+            data.RotationLeftHand = lhRot;
+
+            // ---------------- RIGHT HAND ----------------
+            var rh = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData;
+
+            Vector3 rhPos = rh.position;
+            if (SmoothPos[S_RightHand])
+            {
+                rhPos = EuroPos[S_RightHand] ? fPosRightHand.Filter(rhPos, timeAccumulator) : FallbackPos(ref sPosRightHand, rhPos, deltaTime);
+            }
+
+            Quaternion rhRot = rh.rotation;
+            if (SmoothRot[S_RightHand])
+            {
+                rhRot = EuroRot[S_RightHand] ? fRotRightHand.Filter(rhRot, timeAccumulator) : FallbackRot(ref sRotRightHand, rhRot, deltaTime);
+            }
+
+            data.PositionRightHand = rhPos;
+            data.RotationRightHand = rhRot;
+
+            // ---------------- LEFT LOWER ARM (hand hint) ----------------
+            var lla = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData;
+
+            Vector3 llaPos = lla.position;
+            if (SmoothPos[S_LeftLowerArm])
+            {
+                llaPos = EuroPos[S_LeftLowerArm] ? fPosLeftLowerArm.Filter(llaPos, timeAccumulator) : FallbackPos(ref sPosLeftLowerArm, llaPos, deltaTime);
+            }
+
+            Quaternion llaRot = lla.rotation;
+            if (SmoothRot[S_LeftLowerArm])
+            {
+                llaRot = EuroRot[S_LeftLowerArm] ? fRotLeftLowerArm.Filter(llaRot, timeAccumulator) : FallbackRot(ref sRotLeftLowerArm, llaRot, deltaTime);
+            }
+
+            data.HintPositionLeftHand = llaPos;
+            data.HintRotationLeftHand = llaRot;
+
+            // ---------------- RIGHT LOWER ARM (hand hint) ----------------
+            var rla = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData;
+
+            Vector3 rlaPos = rla.position;
+            if (SmoothPos[S_RightLowerArm])
+            {
+                rlaPos = EuroPos[S_RightLowerArm] ? fPosRightLowerArm.Filter(rlaPos, timeAccumulator) : FallbackPos(ref sPosRightLowerArm, rlaPos, deltaTime);
+            }
+
+            Quaternion rlaRot = rla.rotation;
+            if (SmoothRot[S_RightLowerArm])
+            {
+                rlaRot = EuroRot[S_RightLowerArm] ? fRotRightLowerArm.Filter(rlaRot, timeAccumulator) : FallbackRot(ref sRotRightLowerArm, rlaRot, deltaTime);
+            }
+
+            data.HintPositionRightHand = rlaPos;
+            data.HintRotationRightHand = rlaRot;
+
+            // ---------------- TOES ----------------
+            var lt = BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData;
+
+            Vector3 ltPos = lt.position;
+            if (SmoothPos[S_LeftToe])
+            {
+                ltPos = EuroPos[S_LeftToe] ? fPosLeftToe.Filter(ltPos, timeAccumulator) : FallbackPos(ref sPosLeftToe, ltPos, deltaTime);
+            }
+
+            Quaternion ltRot = lt.rotation;
+            if (SmoothRot[S_LeftToe])
+            {
+                ltRot = EuroRot[S_LeftToe] ? fRotLeftToe.Filter(ltRot, timeAccumulator) : FallbackRot(ref sRotLeftToe, ltRot, deltaTime);
+            }
+
+            data.OutGoingLeftToePosition = ltPos;
+            data.OutGoingLeftToeRotation = ltRot;
+
+            var rt = BasisLocalBoneDriver.RightToeControl.OutgoingWorldData;
+
+            Vector3 rtPos = rt.position;
+            if (SmoothPos[S_RightToe])
+            {
+                rtPos = EuroPos[S_RightToe] ? fPosRightToe.Filter(rtPos, timeAccumulator) : FallbackPos(ref sPosRightToe, rtPos, deltaTime);
+            }
+
+            Quaternion rtRot = rt.rotation;
+            if (SmoothRot[S_RightToe])
+            {
+                rtRot = EuroRot[S_RightToe] ? fRotRightToe.Filter(rtRot, timeAccumulator) : FallbackRot(ref sRotRightToe, rtRot, deltaTime);
+            }
+
+            data.OutGoingRightToePosition = rtPos;
+            data.OutGoingRightToeRotation = rtRot;
+
+            // ---------------- SHOULDERS (rotation only in your data) ----------------
+            var ls = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData.rotation;
+            if (SmoothRot[S_LeftShoulder])
+            {
+                ls = EuroRot[S_LeftShoulder] ? fRotLeftShoulder.Filter(ls, timeAccumulator) : FallbackRot(ref sRotLeftShoulder, ls, deltaTime);
+            }
+
+            data.m_TargetRotationLeftShoulder = ls;
+
+            var rs = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData.rotation;
+            if (SmoothRot[S_RightShoulder])
+            {
+                rs = EuroRot[S_RightShoulder] ? fRotRightShoulder.Filter(rs, timeAccumulator) : FallbackRot(ref sRotRightShoulder, rs, deltaTime);
+            }
+
+            data.m_TargetRotationRightShoulder = rs;
 
             BasisFullIKConstraint.data = data;
 
             Builder.SyncLayers();
             PlayableGraph.Evaluate(deltaTime);
         }
-
-        private void UpdateFilterSettings()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float ExpAlpha(float hz, float dt)
         {
-            oneEuroFilter.minCutoff = MinCutoff;
-            oneEuroFilter.beta = Beta;
-            oneEuroFilter.dCutoff = DerivativeCutoff;
+            return 1f - Mathf.Exp(-2f * Mathf.PI * Mathf.Max(0.0001f, hz) * Mathf.Max(0.000001f, dt));
         }
 
-        #endregion
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private Vector3 FallbackPos(ref Vector3 state, Vector3 raw, float dt)
+        {
+            float a = ExpAlpha(PositionSmoothingHz, dt);
+            state = Vector3.LerpUnclamped(state, raw, a);
+            return state;
+        }
 
-        #region Rig Creation / Spine Setup
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private Quaternion FallbackRot(ref Quaternion state, Quaternion raw, float dt)
+        {
+            float a = ExpAlpha(RotationSmoothingHz, dt);
+            state = Quaternion.Slerp(state, raw, a);
+            return state;
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void UpdateEuroSettings()
+        {
+            // Position filters
+            fPosHips.minCutoff = MinCutoff; fPosHips.beta = Beta; fPosHips.dCutoff = DerivativeCutoff;
+            fPosHead.minCutoff = MinCutoff; fPosHead.beta = Beta; fPosHead.dCutoff = DerivativeCutoff;
+            fPosLeftFoot.minCutoff = MinCutoff; fPosLeftFoot.beta = Beta; fPosLeftFoot.dCutoff = DerivativeCutoff;
+            fPosRightFoot.minCutoff = MinCutoff; fPosRightFoot.beta = Beta; fPosRightFoot.dCutoff = DerivativeCutoff;
+            fPosChest.minCutoff = MinCutoff; fPosChest.beta = Beta; fPosChest.dCutoff = DerivativeCutoff;
+            fPosLeftLowerLeg.minCutoff = MinCutoff; fPosLeftLowerLeg.beta = Beta; fPosLeftLowerLeg.dCutoff = DerivativeCutoff;
+            fPosRightLowerLeg.minCutoff = MinCutoff; fPosRightLowerLeg.beta = Beta; fPosRightLowerLeg.dCutoff = DerivativeCutoff;
+            fPosLeftHand.minCutoff = MinCutoff; fPosLeftHand.beta = Beta; fPosLeftHand.dCutoff = DerivativeCutoff;
+            fPosRightHand.minCutoff = MinCutoff; fPosRightHand.beta = Beta; fPosRightHand.dCutoff = DerivativeCutoff;
+            fPosLeftLowerArm.minCutoff = MinCutoff; fPosLeftLowerArm.beta = Beta; fPosLeftLowerArm.dCutoff = DerivativeCutoff;
+            fPosRightLowerArm.minCutoff = MinCutoff; fPosRightLowerArm.beta = Beta; fPosRightLowerArm.dCutoff = DerivativeCutoff;
+            fPosLeftToe.minCutoff = MinCutoff; fPosLeftToe.beta = Beta; fPosLeftToe.dCutoff = DerivativeCutoff;
+            fPosRightToe.minCutoff = MinCutoff; fPosRightToe.beta = Beta; fPosRightToe.dCutoff = DerivativeCutoff;
+
+            // Rotation filters
+            fRotHips.minCutoff = MinCutoff; fRotHips.beta = Beta; fRotHips.dCutoff = DerivativeCutoff;
+            fRotHead.minCutoff = MinCutoff; fRotHead.beta = Beta; fRotHead.dCutoff = DerivativeCutoff;
+            fRotLeftFoot.minCutoff = MinCutoff; fRotLeftFoot.beta = Beta; fRotLeftFoot.dCutoff = DerivativeCutoff;
+            fRotRightFoot.minCutoff = MinCutoff; fRotRightFoot.beta = Beta; fRotRightFoot.dCutoff = DerivativeCutoff;
+            fRotChest.minCutoff = MinCutoff; fRotChest.beta = Beta; fRotChest.dCutoff = DerivativeCutoff;
+            fRotLeftLowerLeg.minCutoff = MinCutoff; fRotLeftLowerLeg.beta = Beta; fRotLeftLowerLeg.dCutoff = DerivativeCutoff;
+            fRotRightLowerLeg.minCutoff = MinCutoff; fRotRightLowerLeg.beta = Beta; fRotRightLowerLeg.dCutoff = DerivativeCutoff;
+            fRotLeftHand.minCutoff = MinCutoff; fRotLeftHand.beta = Beta; fRotLeftHand.dCutoff = DerivativeCutoff;
+            fRotRightHand.minCutoff = MinCutoff; fRotRightHand.beta = Beta; fRotRightHand.dCutoff = DerivativeCutoff;
+            fRotLeftLowerArm.minCutoff = MinCutoff; fRotLeftLowerArm.beta = Beta; fRotLeftLowerArm.dCutoff = DerivativeCutoff;
+            fRotRightLowerArm.minCutoff = MinCutoff; fRotRightLowerArm.beta = Beta; fRotRightLowerArm.dCutoff = DerivativeCutoff;
+            fRotLeftToe.minCutoff = MinCutoff; fRotLeftToe.beta = Beta; fRotLeftToe.dCutoff = DerivativeCutoff;
+            fRotRightToe.minCutoff = MinCutoff; fRotRightToe.beta = Beta; fRotRightToe.dCutoff = DerivativeCutoff;
+            fRotLeftShoulder.minCutoff = MinCutoff; fRotLeftShoulder.beta = Beta; fRotLeftShoulder.dCutoff = DerivativeCutoff;
+            fRotRightShoulder.minCutoff = MinCutoff; fRotRightShoulder.beta = Beta; fRotRightShoulder.dCutoff = DerivativeCutoff;
+        }
         private void OnPlayersHeightChangedNextFrame()
         {
             var Data = BasisFullIKConstraint.data;
@@ -468,11 +849,6 @@ namespace Basis.Scripts.Drivers
 
             return rigGO;
         }
-
-        #endregion
-
-        #region Overrides API
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetOverrideUsage(HumanBodyBones bone, bool enabled)
         {
@@ -489,25 +865,16 @@ namespace Basis.Scripts.Drivers
             data.SetTargetRotation((int)bone, rotation);
             BasisFullIKConstraint.data = data;
         }
-
-        #endregion
-
-        #region Helpers
-
         private Transform ResolveHumanoidBoneTransform(HumanBodyBones bone)
         {
             // Prefer references map if available
-            if (BasisLocalAvatarDriver.References != null &&
-                BasisLocalAvatarDriver.References.GetTransform(bone, out Transform refT))
+            if (BasisLocalAvatarDriver.References != null && BasisLocalAvatarDriver.References.GetTransform(bone, out Transform refT))
             {
                 return refT;
             }
-
             // Fallback to Animator
             var animator = localPlayer?.BasisAvatar?.Animator;
             return animator != null ? animator.GetBoneTransform(bone) : null;
         }
-
-        #endregion
     }
 }

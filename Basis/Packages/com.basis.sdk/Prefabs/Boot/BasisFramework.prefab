@@ -177,6 +177,7 @@ MonoBehaviour:
   - menu volume
   - world volume
   - player volume
+  AlwaysRunEverySettingsName: 0
   Mixer: {fileID: 24100000, guid: 1ff7d045b2e32054aad6c5815495d8b8, type: 2}
   WorldDefaultMixer: {fileID: 6216228358845890117, guid: 1ff7d045b2e32054aad6c5815495d8b8, type: 2}
 --- !u!114 &9200716433913716904
@@ -193,6 +194,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SettingsNames:
   - Memory Allocation
+  AlwaysRunEverySettingsName: 0
   StreamingMipmapsMaxLevelReduction: 4
   treamingMipmapsMaxFileIORequests: 512
 --- !u!114 &5461552350079237887
@@ -209,6 +211,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SettingsNames:
   - Vertical Sync
+  AlwaysRunEverySettingsName: 0
 --- !u!114 &4701745481011786116
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -223,6 +226,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SettingsNames:
   - Quality Level
+  AlwaysRunEverySettingsName: 0
   Data: {fileID: 0}
   Camera: {fileID: 0}
 --- !u!114 &864512273485565456
@@ -252,6 +256,7 @@ MonoBehaviour:
   - limitknee
   - limitthreshold
   - microphonemode
+  AlwaysRunEverySettingsName: 0
 --- !u!114 &9218905915079737845
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -266,6 +271,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SettingsNames:
   - Antialiasing
+  AlwaysRunEverySettingsName: 0
   Camera: {fileID: 0}
   Data: {fileID: 0}
   LowmsaaSampleCount: 2
@@ -285,6 +291,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SettingsNames:
   - HDR Support
+  AlwaysRunEverySettingsName: 0
 --- !u!114 &9083967000269050117
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -299,6 +306,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SettingsNames:
   - Shadow Quality
+  AlwaysRunEverySettingsName: 0
 --- !u!114 &8872717251192576908
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -315,6 +323,7 @@ MonoBehaviour:
   - joystickdeadzone
   - snapturnangle
   - invertmouse
+  AlwaysRunEverySettingsName: 0
 --- !u!114 &8531479666972516414
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -329,6 +338,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SettingsNames:
   - Debug Visuals
+  AlwaysRunEverySettingsName: 0
 --- !u!114 &4926678751529155332
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -345,6 +355,7 @@ MonoBehaviour:
   - Render Resolution
   - Upscaling
   - Foveated Rendering
+  AlwaysRunEverySettingsName: 0
   RenderScale: 1
   foveatedRenderingLevel: 0
 --- !u!114 &1359221182720975491
@@ -365,6 +376,7 @@ MonoBehaviour:
   - AvatarRange
   - avatarmeshlod
   - global meshlod
+  AlwaysRunEverySettingsName: 0
 --- !u!114 &8285517692325404402
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -379,6 +391,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SettingsNames:
   - Field Of View
+  AlwaysRunEverySettingsName: 0
   SelectedFOV: 82
 --- !u!114 &251103215370718543
 MonoBehaviour:
@@ -394,6 +407,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::SMModuleIcons
   SettingsNames:
   - Microphone Icon
+  AlwaysRunEverySettingsName: 0
 --- !u!114 &2819247879703846172
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -408,6 +422,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::SMModuleSitStand
   SettingsNames:
   - Seated Mode
+  AlwaysRunEverySettingsName: 0
 --- !u!114 &4245328840218215415
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -422,6 +437,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::BasisVisualStateModule
   SettingsNames:
   - Visual State
+  AlwaysRunEverySettingsName: 0
 --- !u!114 &947700616637325904
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -436,6 +452,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::SMModuleStorage
   SettingsNames:
   - Avatar Download Size
+  AlwaysRunEverySettingsName: 0
 --- !u!114 &4222888336659293539
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -454,6 +471,7 @@ MonoBehaviour:
   - custom scale
   - selected scale
   - real world eye height
+  AlwaysRunEverySettingsName: 1
 --- !u!1 &6119941615115968628
 GameObject:
   m_ObjectHideFlags: 0
@@ -1039,5 +1057,6 @@ MonoBehaviour:
   fixedTimeAsDouble: 0
   fixedDeltaTime: 0
   unscaledDeltaTime: 0
+  realtimeSinceStartupAsDouble: 0
   proceduralMaterial: {fileID: 2100000, guid: 4fe20975baa16b1d4986440508067f23, type: 2}
   sphereMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
