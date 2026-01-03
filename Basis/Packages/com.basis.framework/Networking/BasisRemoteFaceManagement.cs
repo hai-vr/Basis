@@ -1,3 +1,4 @@
+using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.Receivers;
 using Unity.Burst;
 using Unity.Collections;
@@ -48,9 +49,12 @@ public static class BasisRemoteFaceManagement
     public const float LookSpeed = 15;
 
     public static JobHandle handle;
-
-    public static void Simulate(double t,float dt,int count,BasisNetworkReceiver[] snapshot)
+    public static BasisNetworkReceiver[] snapshot;
+    public static  int count;
+    public static void Simulate(double t,float dt)
     {
+        snapshot = BasisNetworkPlayers.ReceiversSnapshot;
+        count = BasisNetworkPlayers.ReceiverCount;
         if (count <= 0)
         {
             return;
@@ -89,7 +93,7 @@ public static class BasisRemoteFaceManagement
         handle = job.Schedule(count, BatchSize);
     }
 
-    public static void Apply(int count,BasisNetworkReceiver[] snapshot)
+    public static void Apply()
     {
         if (count <= 0) return;
 

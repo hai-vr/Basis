@@ -133,7 +133,6 @@ public class BasisEventDriver : MonoBehaviour
 
         BasisNetworkManagement.SimulateNetworkCompute(unscaledDeltaTime);
         BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
-        BasisRemoteNamePlateDriver.ScheduleSimulate(TimeAsDouble);//simulate colors onto nameplates
 #if UNITY_SERVER
 #else
         InputSystem.Update();
@@ -184,7 +183,7 @@ public class BasisEventDriver : MonoBehaviour
 #else
         BasisLocalMicrophoneDriver.MicrophoneUpdate();
 #endif
-
+        BasisRemoteNamePlateDriver.ScheduleSimulate(TimeAsDouble);//simulate colors onto nameplates
         BTweenManager.Simulate(realtimeSinceStartupAsDouble);
         // Local player late simulation
         if (BasisLocalPlayer.PlayerReady)
@@ -196,11 +195,11 @@ public class BasisEventDriver : MonoBehaviour
             JigglePhysics.ScheduleRender();
         }
         BasisRemoteAudioDriver.Apply();
-
-        BasisRemoteNamePlateDriver.CompleteNamePlates();
         //doing main thread work before this call is ideal for best performance.
         JigglePhysics.CompletePose();
         SteamAudioManager.Schedule();
+        BasisRemoteNamePlateDriver.CompleteNamePlates();
+        BasisRemoteFaceManagement.Simulate(TimeAsDouble, DeltaTime);
 
         if (BasisLocalPlayer.PlayerReady)
         {
@@ -232,14 +231,10 @@ public class BasisEventDriver : MonoBehaviour
         if (BasisLocalPlayer.PlayerReady)
         {
 
-            Basis.Scripts.Networking.Receivers.BasisNetworkReceiver[] snapshot = BasisNetworkPlayers.ReceiversSnapshot;
-            int count = BasisNetworkPlayers.ReceiverCount;
-            BasisRemoteFaceManagement.Simulate(TimeAsDouble, DeltaTime, count, snapshot);
-
             BasisLocalPlayer.Instance.SimulateOnRender(DeltaTime);
             // send out avatar
             BasisNetworkTransmitter.AfterAvatarChanges?.Invoke();
-            BasisRemoteFaceManagement.Apply(count, snapshot);
+            BasisRemoteFaceManagement.Apply();
         }
     }
 
