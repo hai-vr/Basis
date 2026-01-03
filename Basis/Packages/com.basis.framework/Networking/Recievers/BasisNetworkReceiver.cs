@@ -101,6 +101,9 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void Compute(float unscaledDeltaTime)
         {
+            // Basic invariants
+            // AssertInitialized();
+
             // expected briefly on join
             if (Player.BasisAvatar == null) return;
 
@@ -122,12 +125,22 @@ namespace Basis.Scripts.Networking.Receivers
                 return;
             }
 
+            // After early outs, these should be true.
+            //   AssertAvatarReady();
+
+            // Timing sanity
+            //  Assert.IsTrue(float.IsFinite(unscaledDeltaTime), $"unscaledDeltaTime not finite: {unscaledDeltaTime}");
+            //  Assert.IsTrue(unscaledDeltaTime >= 0f, $"unscaledDeltaTime negative: {unscaledDeltaTime}");
+
             // 1) Pull network packets to main-thread staging ring (bounded)
             while (PayloadQueue.TryDequeue(out var buffer))
             {
+                //  Assert.IsNotNull(buffer, "PayloadQueue contained a null BasisAvatarBuffer.");
                 _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: BasisAvatarBufferPool.Release);
             }
             StagedCount = _stagedRing.Count;
+
+            // Assert.IsTrue(StagedCount >= 0 && StagedCount <= MaxStage, $"StagedCount out of range: {StagedCount} (MaxStage {MaxStage})");
 
             // 2) Ensure we have a valid interpolation window (Current -> Next)
             if (!HasCurrentBuffer)
@@ -140,6 +153,8 @@ namespace Basis.Scripts.Networking.Receivers
                 TrySetLastFromStaging();     // only takes ONE next-oldest
             }
 
+            //  AssertBuffersConsistent();
+
             HasBufferHolds = HasCurrentBuffer && HasNextBuffer;
             if (!HasBufferHolds)
             {
@@ -148,21 +163,23 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             // 2b) Advance window while consumed and we have staged frames
-            // IMPORTANT: preserve remainder instead of resetting to 0
             while (interpolationTime >= 1f && _stagedRing.Count != 0)
             {
-                interpolationTime -= 1f; // keep leftover time
-
                 if (HasCurrentBuffer)
                 {
                     ReleaseCurrent();
                 }
+
+                // If we had holds, Next must be non-null here.
+                //  Assert.IsTrue(HasNextBuffer && Next != null, "Advancing window but Next missing.");
 
                 Current = Next;
                 HasCurrentBuffer = true;
 
                 HasNextBuffer = false;
                 Next = null;
+
+                interpolationTime = 0f;
 
                 TrySetLastFromStaging();
 
@@ -175,11 +192,11 @@ namespace Basis.Scripts.Networking.Receivers
 
             StagedCount = _stagedRing.Count;
 
-            // Drop old staged frames if backlog is too large (latency control)
             while (_stagedRing.Count > BufferCapacityBeforeCleanup)
             {
                 if (_stagedRing.TryDequeueOldest(out var buf))
                 {
+                    //   Assert.IsNotNull(buf, "Staging ring returned null buffer on dequeue.");
                     BasisAvatarBufferPool.Release(buf);
                 }
                 else
@@ -189,36 +206,14 @@ namespace Basis.Scripts.Networking.Receivers
             }
             StagedCount = _stagedRing.Count;
 
-            // --- Guard 2: hard catch-up if we are still massively behind ---
-            // If the client is running at very low FPS for a while, staged depth can remain huge.
-            // Snap to newest two frames so the avatar keeps updating instead of appearing "stuck".
-            const int HardCatchupThreshold = 24; // tune: 16..32; should be > BufferCapacityBeforeCleanup
-            if (_stagedRing.Count >= HardCatchupThreshold)
-            {
-                // Keep only the newest 2 frames in staging
-                while (_stagedRing.Count > 2)
-                {
-                    if (_stagedRing.TryDequeueOldest(out var old))
-                        BasisAvatarBufferPool.Release(old);
-                    else
-                        break;
-                }
-
-                // Reset window and reseed from those newest frames
-                ClearAndRelease();
-                interpolationTime = 0f;
-
-                TrySeedFirstFromStaging(); // oldest of remaining -> Current
-                TrySetLastFromStaging();   // next -> Next
-
-                StagedCount = _stagedRing.Count;
-            }
-
             HasBufferHolds = HasCurrentBuffer && HasNextBuffer;
 
             // 3) If we have a window, compute interpolation fraction and feed the driver
             if (HasBufferHolds)
             {
+                //  Assert.IsNotNull(Current, "HasBufferHolds but Current is null.");
+                //  Assert.IsNotNull(Next, "HasBufferHolds but Next is null.");
+
                 var first = Current;
                 var last = Next;
 
@@ -235,29 +230,20 @@ namespace Basis.Scripts.Networking.Receivers
                 double step = Math.Max(unscaledDeltaTime, 0.0);
 
                 int depth = _stagedRing.Count;
+                //   Assert.IsTrue(depth >= 0 && depth <= MaxStage, $"Ring depth out of range: {depth}");
 
                 float rate = 1f + CatchupGain * (depth - TargetJitterDepth);
                 rate = Mathf.Clamp(rate, MinPlaybackRate, MaxPlaybackRate);
+                //    Assert.IsTrue(rate >= MinPlaybackRate - 1e-3f && rate <= MaxPlaybackRate + 1e-3f, $"Playback rate out of clamp: {rate}");
 
-                // --- Guard 1: cap interpolation advance per render frame ---
-                float add = (float)((step / windowDuration) * rate);
-
-                // Prevent NaN/Inf or negative (shouldn't happen, but low-FPS + bad packets can get weird)
-                if (!float.IsFinite(add) || add < 0f)
-                {
-                    add = 0f;
-                }
-
-                // Prevent a single hitch from trying to advance dozens/hundreds of windows in one frame
-                const float MaxWindowsAdvancePerFrame = 4f; // tune: 2..8 typical
-                add = Mathf.Min(add, MaxWindowsAdvancePerFrame);
-
-                interpolationTime += add;
+                interpolationTime += (float)((step / windowDuration) * rate);
+                //  Assert.IsTrue(dtSeconds > 0f && float.IsFinite(dtSeconds), $"Bad dtSeconds: {dtSeconds}");
 
                 PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, unscaledDeltaTime);
 
                 if (PassedSimulate && SentLatest)
                 {
+
                     BasisRemoteNetworkDriver.SetFrameInputs(
                         playerId,
                         Player.BasisAvatar.HumanScale,
