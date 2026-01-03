@@ -25,6 +25,8 @@ using UnityEngine.SceneManagement;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using System.IO;
+using System.Linq;
+
 #if UNITY_2019_2_OR_NEWER
 using UnityEditor.PackageManager;
 #endif
@@ -68,8 +70,13 @@ namespace SteamAudio
         AudioEngineState mAudioEngineState = null;
         Transform mListener = null;
         SteamAudioListener mListenerComponent = null;
-        HashSet<SteamAudioSource> mSources = new HashSet<SteamAudioSource>();
-        HashSet<SteamAudioListener> mListeners = new HashSet<SteamAudioListener>();
+
+        public int CurrentArraySource;
+        public int CurrentArrayListener;
+
+        private SteamAudioSource[] mSources = new SteamAudioSource[8];
+        private SteamAudioListener[] mListeners = new SteamAudioListener[4];
+
         RaycastHit[] mRayHits = new RaycastHit[1];
         IntPtr mMaterialBuffer = IntPtr.Zero;
         Thread mSimulationThread = null;
@@ -555,22 +562,25 @@ namespace SteamAudio
 
             mSimulator.SetSharedInputs(SimulationFlags.Direct, sharedInputs);
 
-            foreach (var source in mSources)
+            for (int Index = 0; Index < CurrentArraySource; Index++)
             {
+                SteamAudioSource source = mSources[Index];
                 source.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
                 source.SetInputs(SimulationFlags.Direct, Position, Rotation, SteamAudioListener);
             }
 
-            foreach (var listener in mListeners)
+            for (int Index = 0; Index < CurrentArrayListener; Index++)
             {
+                SteamAudioListener listener = mListeners[Index];
                 listener.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
                 listener.SetInputs(SimulationFlags.Direct, settings, Position, Rotation);
             }
 
             mSimulator.RunDirect();
 
-            foreach (var source in mSources)
+            for (int Index = 0; Index < CurrentArraySource; Index++)
             {
+                SteamAudioSource source = mSources[Index];
                 source.UpdateOutputs(SimulationFlags.Direct);
             }
 
@@ -588,26 +598,25 @@ namespace SteamAudio
                 {
                     mSimulationCompleted = false;
 
-                    foreach (var source in mSources)
+                    for (int Index = 0; Index < CurrentArraySource; Index++)
                     {
+                        SteamAudioSource source = mSources[Index];
                         source.UpdateOutputs(SimulationFlags.Reflections | SimulationFlags.Pathing);
                     }
                 }
-
                 mSimulator.SetSharedInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, sharedInputs);
-
-                foreach (var source in mSources)
+                for (int Index = 0; Index < CurrentArraySource; Index++)
                 {
+                    SteamAudioSource source = mSources[Index];
                     source.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
                     source.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, Position, Rotation, SteamAudioListener);
                 }
-
-                foreach (var listener in mListeners)
+                for (int Index = 0; Index < CurrentArrayListener; Index++)
                 {
+                    SteamAudioListener listener = mListeners[Index];
                     listener.transform.GetPositionAndRotation(out UnityEngine.Vector3 Position, out Quaternion Rotation);
                     listener.SetInputs(SimulationFlags.Reflections | SimulationFlags.Pathing, settings, Position, Rotation);
                 }
-
                 if (SteamAudioSettings.Singleton.sceneType == SceneType.Custom)
                 {
                     // The Unity ray tracer must be called from the main thread only, so run the simulation here.
@@ -853,8 +862,9 @@ namespace SteamAudio
             {
                 Singleton.mAudioEngineState.Initialize(Singleton.mContext.Get(), Singleton.mHRTFs[0].Get(), simulationSettings, persPectiveCorrection);
 
-                var listeners = new SteamAudioListener[Singleton.mListeners.Count];
-                Singleton.mListeners.CopyTo(listeners);
+                SteamAudioListener[] listeners = new SteamAudioListener[Singleton.mListeners.Length];
+                int count = Singleton.CurrentArrayListener;
+                System.Array.Copy(Singleton.mListeners, 0, listeners, 0, count);
                 foreach (var listener in listeners)
                 {
                     listener.enabled = false;
@@ -866,24 +876,84 @@ namespace SteamAudio
 
         public static void AddSource(SteamAudioSource source)
         {
-            Singleton.mSources.Add(source);
+            var arr = Singleton.mSources;
+            int count = Singleton.CurrentArraySource;
+
+            // Duplicate check
+            for (int i = 0; i < count; i++)
+            {
+                if (arr[i] == source)
+                    return;
+            }
+
+            EnsureCapacity(ref Singleton.mSources, count + 1);
+            Singleton.mSources[count] = source;
+            Singleton.CurrentArraySource++;
         }
 
         public static void RemoveSource(SteamAudioSource source)
         {
-            Singleton.mSources.Remove(source);
-        }
+            var arr = Singleton.mSources;
+            int count = Singleton.CurrentArraySource;
 
+            for (int i = 0; i < count; i++)
+            {
+                if (arr[i] == source)
+                {
+                    int last = count - 1;
+                    arr[i] = arr[last];          // swap-remove (order not preserved)
+                    arr[last] = null;
+                    Singleton.CurrentArraySource--;
+                    return;
+                }
+            }
+        }
         public static void AddListener(SteamAudioListener listener)
         {
-            Singleton.mListeners.Add(listener);
+            var arr = Singleton.mListeners;
+            int count = Singleton.CurrentArrayListener;
+
+            for (int i = 0; i < count; i++)
+            {
+                if (arr[i] == listener)
+                    return;
+            }
+
+            EnsureCapacity(ref Singleton.mListeners, count + 1);
+            Singleton.mListeners[count] = listener;
+            Singleton.CurrentArrayListener++;
         }
 
         public static void RemoveListener(SteamAudioListener listener)
         {
-            Singleton.mListeners.Remove(listener);
-        }
+            var arr = Singleton.mListeners;
+            int count = Singleton.CurrentArrayListener;
 
+            for (int i = 0; i < count; i++)
+            {
+                if (arr[i] == listener)
+                {
+                    int last = count - 1;
+                    arr[i] = arr[last];
+                    arr[last] = null;
+                    Singleton.CurrentArrayListener--;
+                    return;
+                }
+            }
+        }
+        private static void EnsureCapacity<T>(ref T[] array, int requiredSize)
+        {
+            if (array.Length >= requiredSize)
+                return;
+
+            int newSize = array.Length == 0 ? 1 : array.Length * 2;
+            if (newSize < requiredSize)
+                newSize = requiredSize;
+
+            var newArray = new T[newSize];
+            System.Array.Copy(array, newArray, array.Length);
+            array = newArray;
+        }
 #if UNITY_EDITOR
         [MenuItem("Steam Audio/Settings", false, 1)]
         public static void EditSettings()
