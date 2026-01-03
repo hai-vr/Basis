@@ -27,15 +27,22 @@ public abstract class BasisSettingsBase : MonoBehaviour
         PushSettings(lowered, optionValue);
         ChangedSettings();
     }
-    public void PushSettings(string lowered,string optionValue)
+    public void PushSettings(string lowered, string optionValue)
     {
-        foreach (string setting in SettingsNames)
+        if (AlwaysRunEverySettingsName)
         {
-            if (AlwaysRunEverySettingsName || lowered == setting.ToLower())
+            ValidSettingsChange(lowered, optionValue);
+        }
+        else
+        {
+            foreach (string setting in SettingsNames)
             {
-                // Found which setting name matched
-                ValidSettingsChange(setting, optionValue);
-                return;
+                if (lowered == setting.ToLower())
+                {
+                    // Found which setting name matched
+                    ValidSettingsChange(setting, optionValue);
+                    return;
+                }
             }
         }
     }

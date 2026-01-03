@@ -99,57 +99,60 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
                 break;
             // ---------- GLOBAL ONE EURO PARAMS ----------
-            case "FBIKMinCutoff":
+            case "fbikmincutoff":
                 {
-                    if (float.TryParse(optionValue, out var f))
+                    if (SliderReadOption(optionValue, out var f))
+                    {
                         BasisLocalRigDriver.MinCutoff = f;
+                    }
+
                     break;
                 }
-            case "FBIKBeta":
+            case "fbikbeta":
                 {
-                    if (float.TryParse(optionValue, out var f))
+                    if (SliderReadOption(optionValue, out var f))
                         BasisLocalRigDriver.Beta = f;
                     break;
                 }
-            case "FBIKDerivativeCutoff":
+            case "fbikderivativecutoff":
                 {
-                    if (float.TryParse(optionValue, out var f))
+                    if (SliderReadOption(optionValue, out var f))
                         BasisLocalRigDriver.DerivativeCutoff = f;
                     break;
                 }
-            case "FBIKPositionSmoothingHz":
+            case "fbikpositionsmoothinghz":
                 {
-                    if (float.TryParse(optionValue, out var f))
+                    if (SliderReadOption(optionValue, out var f))
                         BasisLocalRigDriver.PositionSmoothingHz = f;
                     break;
                 }
-            case "FBIKRotationSmoothingHz":
+            case "fbikrotationsmoothinghz":
                 {
-                    if (float.TryParse(optionValue, out var f))
+                    if (SliderReadOption(optionValue, out var f))
                         BasisLocalRigDriver.RotationSmoothingHz = f;
                     break;
                 }
 
             // ---------- HIPS ----------
-            case "FBIKHipsSmoothPos":
+            case "fbikhipssmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_Hips] = parsed;
                     break;
                 }
-            case "FBIKHipsSmoothRot":
+            case "fbikhipssmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_Hips] = parsed;
                     break;
                 }
-            case "FBIKHipsEuroPos":
+            case "fbikhipseuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_Hips] = parsed;
                     break;
                 }
-            case "FBIKHipsEuroRot":
+            case "fbikhipseurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_Hips] = parsed;
@@ -157,25 +160,26 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- HEAD ----------
-            case "FBIKHeadSmoothPos":
+            case "fbikheadsmoothpos":
                 {
+                    BasisDebug.Log("fbikheadsmoothpos", BasisDebug.LogTag.Core);
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_Head] = parsed;
                     break;
                 }
-            case "FBIKHeadSmoothRot":
+            case "fbikheadsmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_Head] = parsed;
                     break;
                 }
-            case "FBIKHeadEuroPos":
+            case "fbikheadeuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_Head] = parsed;
                     break;
                 }
-            case "FBIKHeadEuroRot":
+            case "fbikheadeurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_Head] = parsed;
@@ -183,25 +187,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- LEFT FOOT ----------
-            case "FBIKLeftFootSmoothPos":
+            case "fbikleftfootsmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftFoot] = parsed;
                     break;
                 }
-            case "FBIKLeftFootSmoothRot":
+            case "fbikleftfootsmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftFoot] = parsed;
                     break;
                 }
-            case "FBIKLeftFootEuroPos":
+            case "fbikleftfooteuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftFoot] = parsed;
                     break;
                 }
-            case "FBIKLeftFootEuroRot":
+            case "fbikleftfooteurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftFoot] = parsed;
@@ -209,25 +213,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- RIGHT FOOT ----------
-            case "FBIKRightFootSmoothPos":
+            case "fbikrightfootsmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightFoot] = parsed;
                     break;
                 }
-            case "FBIKRightFootSmoothRot":
+            case "fbikrightfootsmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightFoot] = parsed;
                     break;
                 }
-            case "FBIKRightFootEuroPos":
+            case "fbikrightfooteuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightFoot] = parsed;
                     break;
                 }
-            case "FBIKRightFootEuroRot":
+            case "fbikrightfooteurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightFoot] = parsed;
@@ -235,25 +239,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- CHEST ----------
-            case "FBIKChestSmoothPos":
+            case "fbikchestsmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_Chest] = parsed;
                     break;
                 }
-            case "FBIKChestSmoothRot":
+            case "fbikchestsmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_Chest] = parsed;
                     break;
                 }
-            case "FBIKChestEuroPos":
+            case "fbikchesteuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_Chest] = parsed;
                     break;
                 }
-            case "FBIKChestEuroRot":
+            case "fbikchesteurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_Chest] = parsed;
@@ -261,25 +265,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- LEFT LOWER LEG ----------
-            case "FBIKLeftLowerLegSmoothPos":
+            case "fbikleftlowerlegsmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftLowerLeg] = parsed;
                     break;
                 }
-            case "FBIKLeftLowerLegSmoothRot":
+            case "fbikleftlowerlegsmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftLowerLeg] = parsed;
                     break;
                 }
-            case "FBIKLeftLowerLegEuroPos":
+            case "fbikleftlowerlegeuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftLowerLeg] = parsed;
                     break;
                 }
-            case "FBIKLeftLowerLegEuroRot":
+            case "fbikleftlowerlegeurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftLowerLeg] = parsed;
@@ -287,25 +291,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- RIGHT LOWER LEG ----------
-            case "FBIKRightLowerLegSmoothPos":
+            case "fbikrightlowerlegsmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightLowerLeg] = parsed;
                     break;
                 }
-            case "FBIKRightLowerLegSmoothRot":
+            case "fbikrightlowerlegsmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightLowerLeg] = parsed;
                     break;
                 }
-            case "FBIKRightLowerLegEuroPos":
+            case "fbikrightlowerlegeuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightLowerLeg] = parsed;
                     break;
                 }
-            case "FBIKRightLowerLegEuroRot":
+            case "fbikrightlowerlegeurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightLowerLeg] = parsed;
@@ -313,25 +317,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- LEFT HAND ----------
-            case "FBIKLeftHandSmoothPos":
+            case "fbiklefthandsmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftHand] = parsed;
                     break;
                 }
-            case "FBIKLeftHandSmoothRot":
+            case "fbiklefthandsmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftHand] = parsed;
                     break;
                 }
-            case "FBIKLeftHandEuroPos":
+            case "fbiklefthandeuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftHand] = parsed;
                     break;
                 }
-            case "FBIKLeftHandEuroRot":
+            case "fbiklefthandeurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftHand] = parsed;
@@ -339,25 +343,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- RIGHT HAND ----------
-            case "FBIKRightHandSmoothPos":
+            case "fbikrighthandsmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightHand] = parsed;
                     break;
                 }
-            case "FBIKRightHandSmoothRot":
+            case "fbikrighthandsmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightHand] = parsed;
                     break;
                 }
-            case "FBIKRightHandEuroPos":
+            case "fbikrighthandeuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightHand] = parsed;
                     break;
                 }
-            case "FBIKRightHandEuroRot":
+            case "fbikrighthandeurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightHand] = parsed;
@@ -365,25 +369,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- LEFT LOWER ARM ----------
-            case "FBIKLeftLowerArmSmoothPos":
+            case "fbikleftlowerarmsmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftLowerArm] = parsed;
                     break;
                 }
-            case "FBIKLeftLowerArmSmoothRot":
+            case "fbikleftlowerarmsmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftLowerArm] = parsed;
                     break;
                 }
-            case "FBIKLeftLowerArmEuroPos":
+            case "fbikleftlowerarmeuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftLowerArm] = parsed;
                     break;
                 }
-            case "FBIKLeftLowerArmEuroRot":
+            case "fbikleftlowerarmeurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftLowerArm] = parsed;
@@ -391,25 +395,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- RIGHT LOWER ARM ----------
-            case "FBIKRightLowerArmSmoothPos":
+            case "fbikrightlowerarmsmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightLowerArm] = parsed;
                     break;
                 }
-            case "FBIKRightLowerArmSmoothRot":
+            case "fbikrightlowerarmsmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightLowerArm] = parsed;
                     break;
                 }
-            case "FBIKRightLowerArmEuroPos":
+            case "fbikrightlowerarmeuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightLowerArm] = parsed;
                     break;
                 }
-            case "FBIKRightLowerArmEuroRot":
+            case "fbikrightlowerarmeurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightLowerArm] = parsed;
@@ -417,25 +421,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- LEFT TOE ----------
-            case "FBIKLeftToeSmoothPos":
+            case "fbiklefttoesmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftToe] = parsed;
                     break;
                 }
-            case "FBIKLeftToeSmoothRot":
+            case "fbiklefttoesmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftToe] = parsed;
                     break;
                 }
-            case "FBIKLeftToeEuroPos":
+            case "fbiklefttoeeuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftToe] = parsed;
                     break;
                 }
-            case "FBIKLeftToeEuroRot":
+            case "fbiklefttoeeurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftToe] = parsed;
@@ -443,25 +447,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- RIGHT TOE ----------
-            case "FBIKRightToeSmoothPos":
+            case "fbikrighttoesmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightToe] = parsed;
                     break;
                 }
-            case "FBIKRightToeSmoothRot":
+            case "fbikrighttoesmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightToe] = parsed;
                     break;
                 }
-            case "FBIKRightToeEuroPos":
+            case "fbikrighttoeeuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightToe] = parsed;
                     break;
                 }
-            case "FBIKRightToeEuroRot":
+            case "fbikrighttoeeurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightToe] = parsed;
@@ -469,25 +473,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- LEFT SHOULDER ----------
-            case "FBIKLeftShoulderSmoothPos":
+            case "fbikleftshouldersmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_LeftShoulder] = parsed;
                     break;
                 }
-            case "FBIKLeftShoulderSmoothRot":
+            case "fbikleftshouldersmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_LeftShoulder] = parsed;
                     break;
                 }
-            case "FBIKLeftShoulderEuroPos":
+            case "fbikleftshouldereuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_LeftShoulder] = parsed;
                     break;
                 }
-            case "FBIKLeftShoulderEuroRot":
+            case "fbikleftshouldereurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_LeftShoulder] = parsed;
@@ -495,25 +499,25 @@ public class SMModuleCalibration : BasisSettingsBase
                 }
 
             // ---------- RIGHT SHOULDER ----------
-            case "FBIKRightShoulderSmoothPos":
+            case "fbikrightshouldersmoothpos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothPos[BasisLocalRigDriver.S_RightShoulder] = parsed;
                     break;
                 }
-            case "FBIKRightShoulderSmoothRot":
+            case "fbikrightshouldersmoothrot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.SmoothRot[BasisLocalRigDriver.S_RightShoulder] = parsed;
                     break;
                 }
-            case "FBIKRightShoulderEuroPos":
+            case "fbikrightshouldereuropos":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroPos[BasisLocalRigDriver.S_RightShoulder] = parsed;
                     break;
                 }
-            case "FBIKRightShoulderEuroRot":
+            case "fbikrightshouldereurorot":
                 {
                     if (bool.TryParse(optionValue, out var parsed))
                         BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightShoulder] = parsed;
