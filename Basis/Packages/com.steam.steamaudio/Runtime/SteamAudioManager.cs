@@ -21,20 +21,14 @@ using System.Threading;
 using AOT;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Unity.Jobs;
+using UnityEngine.Jobs;
+using Unity.Collections;
+using Unity.Burst;
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using System.IO;
-using Unity.Jobs;
-using UnityEngine.Jobs;
-
-using Unity.Collections;
-using Unity.Burst;
-
-
-
-
-
 #if UNITY_2019_2_OR_NEWER
 using UnityEditor.PackageManager;
 #endif
