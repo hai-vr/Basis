@@ -379,7 +379,9 @@ public static class BasisRemoteNetworkDriver
         {
             int playerIndex = MuscleCountPerAvatar > 0 ? (index / MuscleCountPerAvatar) : 0;
 
-            float dt = math.max(DeltaTimeSeconds[playerIndex], 1e-3f);
+            var unscaledDeltaTime = DeltaTimeSeconds[playerIndex];
+            float filterDt = Mathf.Min(unscaledDeltaTime, 0.1f);
+            float dt = math.max(filterDt, 1e-3f);
             float frequency = math.rcp(dt);
 
             float inputValue = InputValues[index];
