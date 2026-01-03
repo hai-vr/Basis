@@ -71,7 +71,6 @@ namespace Basis.Scripts.Drivers
             SpriteRendererIconTransform = SpriteRendererIcon.transform;
 
             StartingScale = SpriteRendererIconTransform.localScale;
-            LastUsedColor = SpriteRendererIcon.color;
 
             largerScale = StartingScale * 1.2f;
             // Ensure initial visibility matches current mode/state
@@ -164,14 +163,9 @@ namespace Basis.Scripts.Drivers
             // Update visibility for ActivityDetection mode
             ApplyDisplayModeVisibility(false);
 
-            if (LastUsedColor != UnMutedMutedIconColorActive)
-            {
-                SpriteRendererIcon.color = UnMutedMutedIconColorActive;
-                SpriteRendererIconTransform.localScale = largerScale;
-                LastUsedColor = UnMutedMutedIconColorActive;
-            }
+            SpriteRendererIcon.color = UnMutedMutedIconColorActive;
+            SpriteRendererIconTransform.localScale = largerScale;
         }
-        public Color LastUsedColor;
         public void MicrophoneNotTransmitting()
         {
             LocalIsTransmitting = false;
@@ -179,12 +173,8 @@ namespace Basis.Scripts.Drivers
             // Update visibility for ActivityDetection mode
             ApplyDisplayModeVisibility(false);
 
-            if (LastUsedColor != UnMutedMutedIconColorActive)
-            {
-                SpriteRendererIcon.color = UnMutedMutedIconColorInactive;
-                SpriteRendererIconTransform.localScale = StartingScale;
-                LastUsedColor = UnMutedMutedIconColorActive;
-            }
+            SpriteRendererIcon.color = UnMutedMutedIconColorInactive;
+            SpriteRendererIconTransform.localScale = StartingScale;
         }
         public void OnPausedEvent(bool IsMuted)
         {
@@ -236,8 +226,8 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void OnDisplayModeChanged(MicrophoneDisplayMode newMode)
         {
-            if (DisplayMode == newMode) return;
-            DisplayMode = newMode;
+           // if (DisplayMode == newMode) return;
+          //  DisplayMode = newMode;
 
             // Stop any running animation if we might be hiding the icon
             if (scaleCoroutine != null)
@@ -248,7 +238,6 @@ namespace Basis.Scripts.Drivers
 
             ApplyDisplayModeVisibility(false);
         }
-        public static bool LastShownState = false;
         /// <summary>
         /// Centralized visibility logic for all enum modes.
         /// - Off:            icon hidden always.
@@ -277,11 +266,11 @@ namespace Basis.Scripts.Drivers
                     shouldShow = true;
                     break;
             }
-            if (LastShownState != shouldShow || ForcedUpdate)
-            {
-                LastShownState = shouldShow;
+          //  if (LastShownState != shouldShow || ForcedUpdate)
+           // {
+            //    LastShownState = shouldShow;
                 SetIconVisible(shouldShow);
-            }
+           // }
         }
 
         /// <summary>
