@@ -142,6 +142,14 @@ namespace Basis.Scripts.Networking
         public static JobHandle BoneJobSystem;
         private static float _timer;
         public static bool HasRequested;
+
+        // Parameters for Euro filter
+       // [Header(" Lower values → smoother output, more latency, Higher values → snappier output, more noise passes through")]
+        public static float MinCutoff = 0.05f;
+      //  [Header("This is the adaptivity knob. It controls how much the filter reacts to speed. Beta multiplies the filtered derivative magnitude:")]
+        public static float Beta = 2;
+     //   [Header("DerivativeCutoff This controls how noisy the speed estimate itself is.Before the filter adapts, it estimates velocity:")]
+        public static float DerivativeCutoff = 2;
         /// <summary>
         /// Simulates network computation step (state updates, bone drivers, profiler update).
         /// </summary>

@@ -127,7 +127,7 @@ public static class BasisNetworkLifeCycle
         BasisNetworkManagement.OnRequestServerSideDatabaseItem = null;
         Management.LocalAccessTransmitter = null;
         BasisNetworkConnection.LocalPlayerIsConnected = false;
-
+        BasisNetworkManagement.NetworkRunning = false;
         // let the MonoBehaviour reset its Instance in OnDestroy; no direct assignment here
         BasisDebug.Log("BasisNetworkManagement has been successfully shutdown.", BasisDebug.LogTag.Networking);
         BasisNetworkConnection.NetworkClient?.Disconnect();

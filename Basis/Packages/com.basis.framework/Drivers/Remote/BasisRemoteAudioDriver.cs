@@ -68,13 +68,13 @@ namespace Basis.Scripts.Drivers
             }
             Initalized = true;
         }
-        public static void Simulate()
+        public static void Simulate(float DeltaTime)
         {
             int count = Drivers.Count;
             for (int Index = 0; Index < count; Index++)
             {
                 BasisAudioAndVisemeDriver VisemeDriver = Drivers[Index];
-                VisemeDriver.Simulate();
+                VisemeDriver.Simulate(DeltaTime);
             }
         }
         public static void Apply()

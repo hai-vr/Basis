@@ -132,16 +132,16 @@ namespace SteamAudio
 
         public BakedDataIdentifier GetBakedDataIdentifier()
         {
-            var identifier = new BakedDataIdentifier { };
-            identifier.type = BakedDataType.Reflections;
-            identifier.variation = BakedDataVariation.Reverb;
+            var identifier = new BakedDataIdentifier
+            {
+                type = BakedDataType.Reflections,
+                variation = BakedDataVariation.Reverb
+            };
             return identifier;
         }
 
-        public void SetInputs(SimulationFlags flags)
+        public void SetInputs(SimulationFlags flags, SteamAudioSettings settings,UnityEngine.Vector3 pos,Quaternion rot)
         {
-            // One native hop instead of 5+
-            transform.GetPositionAndRotation(out var pos, out var rot);
 
             // Derive axes in managed code (cheap math, no extra native calls)
             var ahead = rot * UnityEngine.Vector3.forward;
@@ -149,7 +149,6 @@ namespace SteamAudio
             var right = rot * UnityEngine.Vector3.right;
 
             // Build inputs
-            var settings = SteamAudioSettings.Singleton;
             bool baked = reverbType != ReverbType.Realtime;
 
             var inputs = new SimulationInputs
@@ -179,16 +178,17 @@ namespace SteamAudio
             };
 
             if (baked && reverbType == ReverbType.Baked)
+            {
                 inputs.bakedDataIdentifier = GetBakedDataIdentifier();
+            }
 
             if (applyReverb)
+            {
                 inputs.flags |= SimulationFlags.Reflections;
+            }
 
             mSource.SetInputs(flags, inputs);
         }
-
-        public void UpdateOutputs(SimulationFlags flags)
-        {}
 
         private void OnDrawGizmosSelected()
         {
