@@ -40,11 +40,21 @@ namespace Basis.Scripts.Networking.Transmitters
 
         private void InitializeEncoder()
         {
+#if UNITY_IOS && !UNITY_EDITOR
             encoder = new OpusEncoder(
                 LocalOpusSettings.MicrophoneSampleRate,
                 LocalOpusSettings.Channels,
-                LocalOpusSettings.OpusApplication
+                LocalOpusSettings.OpusApplication,
+                use_static: true
             );
+#else
+            encoder = new OpusEncoder(
+                LocalOpusSettings.MicrophoneSampleRate,
+                LocalOpusSettings.Channels,
+                LocalOpusSettings.OpusApplication,
+                use_static: false
+            );
+#endif
 
             // Example: Configure Opus encoder here (optional)
             // int complexity = 5;
