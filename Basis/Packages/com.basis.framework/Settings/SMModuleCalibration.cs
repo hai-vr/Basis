@@ -524,7 +524,7 @@ public class SMModuleCalibration : BasisSettingsBase
                     break;
                 }
             default:
-                BasisDebug.LogError($"UnImplemented Settings Name! {matchedSettingName}", BasisDebug.LogTag.Device);
+           //     BasisDebug.LogError($"UnImplemented Settings Name! {matchedSettingName}", BasisDebug.LogTag.Device);
                 break;
         }
     }

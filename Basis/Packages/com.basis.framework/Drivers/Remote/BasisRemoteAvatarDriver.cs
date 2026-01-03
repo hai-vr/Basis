@@ -124,7 +124,7 @@ namespace Basis.Scripts.Drivers
                 RemotePlayer.RemoteFaceDriver.Initialize(Player, RemotePlayer.BasisAvatar);
             }
             // Renderer perf flags
-            RenderMeshSettings(false,BasisLayerMapper.RemoteAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer, false, false);
+            RenderMeshSettings(false,BasisLayerMapper.RemoteAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer, false, false,false);
 
             RemotePlayer.BasisAvatar.Animator.logWarnings = false;
 

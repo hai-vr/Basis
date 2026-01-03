@@ -5,6 +5,7 @@ using GatorDragonGames.JigglePhysics;
 using SteamAudio;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 using Material = UnityEngine.Material;
 
 namespace Basis.Scripts.Drivers
@@ -337,21 +338,24 @@ namespace Basis.Scripts.Drivers
         /// <summary>
         /// Fix renderers + repair broken shaders by swapping to a URP shader and copying over textures/colors.
         /// </summary>
-        public static void RenderMeshSettings(bool forceLodToZero, int layer, int skinnedMeshRendererLength, SkinnedMeshRenderer[] skinnedMeshRenderers, bool updateWhenOffscreen, bool forceMatrixRecalculationPerRender)
+        public static void RenderMeshSettings(bool forceLodToZero,int layer,int skinnedMeshRendererLength,SkinnedMeshRenderer[] skinnedMeshRenderers, bool updateWhenOffscreen, bool forceMatrixRecalculationPerRender, bool FindHeadAndCreateShadowHead)
         {
             if (skinnedMeshRenderers == null || skinnedMeshRendererLength <= 0)
             {
                 return;
             }
 
-            for (int Index = 0; Index < skinnedMeshRendererLength; Index++)
+            for (int index = 0; index < skinnedMeshRendererLength; index++)
             {
-                var r = skinnedMeshRenderers[Index];
+                var r = skinnedMeshRenderers[index];
                 if (r == null)
                 {
                     continue;
                 }
-
+                if(FindHeadAndCreateShadowHead)
+                {
+                    r.shadowCastingMode = ShadowCastingMode.Off;
+                }
                 r.updateWhenOffscreen = updateWhenOffscreen;
                 r.forceMatrixRecalculationPerRender = forceMatrixRecalculationPerRender;
                 r.gameObject.layer = layer;
@@ -360,9 +364,51 @@ namespace Basis.Scripts.Drivers
                 {
                     r.forceMeshLod = 0;
                 }
-                MaterialCorrection(skinnedMeshRenderers[Index], BundledContentHolder.Instance.UrpShader);
+
+                MaterialCorrection(r, BundledContentHolder.Instance.UrpShader);
+
+                if (FindHeadAndCreateShadowHead)
+                {
+                    EnsureShadowOnlyClone(r, layer);
+                }
             }
         }
+
+        private static void EnsureShadowOnlyClone(SkinnedMeshRenderer source, int layer)
+        {
+
+
+            // Create clone object as sibling (keeps hierarchy simple)
+            var cloneGO = new GameObject(source.gameObject.name + "_ShadowOnly");
+            cloneGO.transform.SetParent(source.transform.parent, worldPositionStays: false);
+            cloneGO.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
+            cloneGO.transform.localScale = source.transform.localScale;
+            cloneGO.layer = layer;
+
+            // Clone SMR setup
+            var shadowSMR = cloneGO.AddComponent<SkinnedMeshRenderer>();
+            shadowSMR.sharedMesh = source.sharedMesh;
+            shadowSMR.sharedMaterials = source.sharedMaterials;
+
+            shadowSMR.bones = source.bones;
+            shadowSMR.rootBone = source.rootBone;
+
+            // Keep it stable/offscreen-safe if needed (usually not required, but harmless)
+            shadowSMR.updateWhenOffscreen = true;
+
+            // The whole point:
+            shadowSMR.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+            shadowSMR.receiveShadows = false;
+
+            // Optional: copy key renderer flags that can affect bounds/skin updates
+            shadowSMR.quality = source.quality;
+            shadowSMR.skinnedMotionVectors = source.skinnedMotionVectors;
+            shadowSMR.allowOcclusionWhenDynamic = source.allowOcclusionWhenDynamic;
+
+            // Optional: bounds (helps if your bounds are tiny and shadows pop)
+            shadowSMR.localBounds = source.localBounds;
+        }
+
         private static bool TryGetFirstColor(Material mat, out Color value, out string foundProp)
         {
             for (int i = 0; i < ColorProps.Length; i++)

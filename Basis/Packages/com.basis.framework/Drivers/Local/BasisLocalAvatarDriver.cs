@@ -11,7 +11,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.Animations.Rigging;
-using UnityEngine.Experimental.GlobalIllumination;
+using UnityEngine.Rendering;
 
 namespace Basis.Scripts.Drivers
 {
@@ -138,7 +138,7 @@ namespace Basis.Scripts.Drivers
 
             player.LocalBoneDriver.RemoveAllListeners();
             BasisLocalEyeDriver.Initalize();
-            RenderMeshSettings(true, BasisLayerMapper.LocalAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer, true,true);
+            RenderMeshSettings(true, BasisLayerMapper.LocalAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer, true, true,true);
 
             if (References.Hashead)
             {
@@ -190,8 +190,8 @@ namespace Basis.Scripts.Drivers
                 AddJiggleRigColliders(References);
             }
             BasisHeightDriver.ApplyScaleAndHeight();
-        }
 
+        }
         /// <summary>
         /// Restores the head scale to its cached normal value if currently hidden/zeroed.
         /// </summary>
