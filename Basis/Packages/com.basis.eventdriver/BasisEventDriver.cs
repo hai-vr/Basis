@@ -7,6 +7,7 @@ using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.UI.NamePlate;
 using GatorDragonGames.JigglePhysics;
+using SteamAudio;
 using System;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -61,7 +62,7 @@ public class BasisEventDriver : MonoBehaviour
    /// material we use to display jiggle physics visually
    /// </summary>
    [SerializeField]
-    private Material proceduralMaterial;
+    private UnityEngine.Material proceduralMaterial;
     /// <summary>
     /// mesh we use to display around the jiggle physics
     /// </summary>
@@ -174,40 +175,44 @@ public class BasisEventDriver : MonoBehaviour
         JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime);
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
 
-        JigglePhysics.SchedulePose(TimeAsDouble);
+        JigglePhysics.SchedulePose(TimeAsDouble);//requires free access to all transform of a player.
 
         // Device management tick
-        BasisDeviceManagement.OnDeviceManagementLoop?.Invoke();
-        if (BasisLocalPlayer.PlayerReady)
-        {
-            // Eye driver (local)
-            BasisLocalPlayer.Instance.LocalEyeDriver.Simulate(DeltaTime);
-        }
-
-        BasisRemoteAudioDriver.Simulate(DeltaTime);
+        BasisDeviceManagement.OnDeviceManagementLoop?.Invoke(); //can do
+        BasisRemoteAudioDriver.Simulate(DeltaTime); //can do
 #if UNITY_SERVER
 #else
         BasisLocalMicrophoneDriver.MicrophoneUpdate();
 #endif
+
+        BTweenManager.Simulate(realtimeSinceStartupAsDouble);
         // Local player late simulation
         if (BasisLocalPlayer.PlayerReady)
         {
             BasisLocalPlayer.Instance.FacialBlinkDriver.Simulate(TimeAsDouble);
         }
-
         if (SMModuleDebugOptions.UseGizmos)
         {
             JigglePhysics.ScheduleRender();
         }
-        BTweenManager.Simulate(realtimeSinceStartupAsDouble);
         BasisRemoteAudioDriver.Apply();
+
+        BasisRemoteNamePlateDriver.CompleteNamePlates();
         //doing main thread work before this call is ideal for best performance.
         JigglePhysics.CompletePose();
+
+        SteamAudioManager.Simulate();
+
+        if (BasisLocalPlayer.PlayerReady)
+        {
+            // Eye driver (local)
+            BasisLocalPlayer.Instance.LocalEyeDriver.Simulate(DeltaTime); // cant do
+        }
+
         if (SMModuleDebugOptions.UseGizmos)
         {
             JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
         }
-        BasisRemoteNamePlateDriver.CompleteNamePlates();
         if (BasisLocalPlayer.PlayerReady)
         {
             BasisLocalPlayer.Instance.LocalEyeDriver.Apply();

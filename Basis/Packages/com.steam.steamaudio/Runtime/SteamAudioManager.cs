@@ -488,9 +488,26 @@ namespace SteamAudio
         {
             Singleton.mSceneCommitRequired = true;
         }
-
+#if BASIS_FRAMEWORK_EXISTS
+        public static void Simulate()
+        {
 #if STEAMAUDIO_ENABLED
-        private void LateUpdate()
+            if (SteamAudioManager.Singleton != null)
+            {
+                SteamAudioManager.Singleton.Apply();
+            }
+#endif
+        }
+#else
+        public void LateUpdate()
+        {
+#if STEAMAUDIO_ENABLED
+             Apply();
+#endif
+        }
+#endif
+#if STEAMAUDIO_ENABLED
+        private void Apply()
         {
             if (mAudioEngineState == null)
                 return;
