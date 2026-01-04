@@ -71,8 +71,6 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void Compute(float unscaledDeltaTime)
         {
-            // Basic invariants);
-
             // expected briefly on join
             if (Player.BasisAvatar == null)
             {
