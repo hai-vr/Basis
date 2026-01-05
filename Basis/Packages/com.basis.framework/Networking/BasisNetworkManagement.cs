@@ -168,7 +168,7 @@ namespace Basis.Scripts.Networking
             BoneJobSystem = RemoteBoneJobSystem.Schedule(); // will always be a frame behind
 
             UnscaledDeltaTime = Math.Max(UnscaledDeltaTime, 0f);
-            if (math.isnan(UnscaledDeltaTime) || math.isfinite(UnscaledDeltaTime))
+            if (!math.isfinite(UnscaledDeltaTime))
             {
                 UnscaledDeltaTime = 0;
             }

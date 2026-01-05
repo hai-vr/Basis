@@ -175,14 +175,14 @@ namespace Basis.Scripts.Networking.Receivers
                     first.SecondsInterval > 0 ? first.SecondsInterval :
                     (1.0 / 60.0);
 
-                if (!double.IsFinite(windowDuration) || windowDuration <= 1e-6)
+                if (!math.isfinite(windowDuration) || windowDuration <= 1e-6)
                 {
                     windowDuration = 1e-3;
                 }
                 float rate = 1f + CatchupGain * (StagedCount - TargetJitterDepth);
                 rate = Mathf.Clamp(rate, MinPlaybackRate, MaxPlaybackRate);
                 interpolationTime += ((double)unscaledDeltaTime / windowDuration * (double)rate);
-                if (math.isnan(interpolationTime) || math.isfinite(interpolationTime))
+                if (!math.isfinite(interpolationTime))
                 {
                     interpolationTime = 1;
                 }
