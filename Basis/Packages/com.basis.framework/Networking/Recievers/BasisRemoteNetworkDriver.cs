@@ -46,7 +46,6 @@ public static class BasisRemoteNetworkDriver
     // State
     static int _muscleCount;
     static bool _initialized;
-    static int _activeCount; // highest index written + 1
     static Allocator _allocator = Allocator.Persistent;
 
     public static JobHandle oneEuroJob;
@@ -59,7 +58,6 @@ public static class BasisRemoteNetworkDriver
 
         _allocator = allocator;
         _muscleCount = muscleCount;
-        _activeCount = 0;
 
         AllocateAll(FixedCapacity);
 
@@ -110,7 +108,6 @@ public static class BasisRemoteNetworkDriver
         }
 
         DisposeAll();
-        _activeCount = 0;
         _muscleCount = 0;
         _initialized = false;
     }
@@ -119,25 +116,13 @@ public static class BasisRemoteNetworkDriver
     /// Write timing inputs for a given index (0..FixedCapacity-1).
     /// interpolationTime is 0..1 blend factor, deltaTimeSeconds is REAL seconds-per-frame for filters.
     /// </summary>
-    public static bool SetFrameTiming(int index, float interpolationTime, float deltaTimeSeconds)
+    public static void SetFrameTiming(int index, float interpolationTime, float deltaTimeSeconds)
     {
         _interpolationTimes[index] = interpolationTime;
         _deltaTimes[index] = deltaTimeSeconds;
-
-        if (index + 1 > _activeCount)
-        {
-            _activeCount = index + 1;
-        }
-
-        return true;
     }
 
-    public static void SetFrameInputs(
-        int index,
-        float humanScale,
-        float3 prevPos, float3 targetPos,
-        float3 prevScale, float3 targetScale,
-        quaternion prevRot, quaternion targetRot)
+    public static void SetFrameInputs(int index,float humanScale,float3 prevPos, float3 targetPos,float3 prevScale, float3 targetScale,quaternion prevRot, quaternion targetRot,NativeArray<float> prevMuscles, NativeArray<float> targetMuscles)
     {
         _humanScales[index] = humanScale;
 
@@ -149,25 +134,10 @@ public static class BasisRemoteNetworkDriver
 
         _prevRotations[index] = prevRot;
         _targetRotations[index] = targetRot;
-
-        if (index + 1 > _activeCount)
-        {
-            _activeCount = index + 1;
-        }
-    }
-
-    public static void SetMuscleWindow(int index, NativeArray<float> prevMuscles, NativeArray<float> targetMuscles)
-    {
         int baseOffset = index * _muscleCount;
         FastCopyMuscles(prevMuscles, 0, _prevMuscles, baseOffset, _muscleCount);
         FastCopyMuscles(targetMuscles, 0, _targetMuscles, baseOffset, _muscleCount);
-
-        if (index + 1 > _activeCount)
-        {
-            _activeCount = index + 1;
-        }
     }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static unsafe void FastCopyMuscles(NativeArray<float> src, int srcStart, NativeArray<float> dst, int dstStart, int count)
     {
@@ -180,7 +150,7 @@ public static class BasisRemoteNetworkDriver
     /// <summary>Run the batched jobs once for the current frame.</summary>
     public static void Compute()
     {
-        int num = _activeCount;
+        int num = BasisNetworkPlayers.ReceiverCount +1;
         if (num <= 0)
         {
             return;

@@ -182,6 +182,10 @@ namespace Basis.Scripts.Networking.Receivers
                 float rate = 1f + CatchupGain * (StagedCount - TargetJitterDepth);
                 rate = Mathf.Clamp(rate, MinPlaybackRate, MaxPlaybackRate);
                 interpolationTime += (float)(((double)unscaledDeltaTime / windowDuration) * rate);
+                if(math.isnan(interpolationTime) || interpolationTime <= 0 || math.isfinite(interpolationTime))
+                {
+                    interpolationTime = 1; 
+                }
                 BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, unscaledDeltaTime);
 
                 if (SentLatest)
@@ -192,10 +196,9 @@ namespace Basis.Scripts.Networking.Receivers
                         Player.BasisAvatar.HumanScale,
                         first.Position, last.Position,
                         first.Scale, last.Scale,
-                        first.Rotation, last.Rotation
+                        first.Rotation, last.Rotation,
+                         first.Muscles, last.Muscles
                     );
-
-                    BasisRemoteNetworkDriver.SetMuscleWindow(playerId, first.Muscles, last.Muscles);
                     IsDataReady = true;
                     SentLatest = false;
                 }

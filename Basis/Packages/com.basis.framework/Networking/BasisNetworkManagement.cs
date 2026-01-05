@@ -7,6 +7,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using static SerializableBasis;
@@ -167,7 +168,10 @@ namespace Basis.Scripts.Networking
             BoneJobSystem = RemoteBoneJobSystem.Schedule(); // will always be a frame behind
 
             UnscaledDeltaTime = Math.Max(UnscaledDeltaTime, 0f);
-
+            if (math.isnan(UnscaledDeltaTime) || UnscaledDeltaTime <= 0 || math.isfinite(UnscaledDeltaTime))
+            {
+                UnscaledDeltaTime = 0;
+            }
             if (BasisNetworkPlayers.ReceiverCount > BasisRemoteNetworkDriver.FixedCapacity)
             {
                 BasisDebug.LogError($"Exceeded Fixed Capacity! {BasisNetworkPlayers.ReceiverCount} > {BasisRemoteNetworkDriver.FixedCapacity}", BasisDebug.LogTag.Networking);
