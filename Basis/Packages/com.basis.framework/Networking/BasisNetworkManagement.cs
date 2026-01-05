@@ -151,8 +151,6 @@ namespace Basis.Scripts.Networking
         public static float Beta = 2;
      //   [Header("DerivativeCutoff This controls how noisy the speed estimate itself is.Before the filter adapts, it estimates velocity:")]
         public static float DerivativeCutoff = 2;
-        public static BasisNetworkReceiver[] snapshot;
-        public static int Length;
         /// <summary>
         /// Simulates network computation step (state updates, bone drivers, profiler update).
         /// </summary>
@@ -164,12 +162,12 @@ namespace Basis.Scripts.Networking
                 return;
             }
 
-            snapshot = BasisNetworkPlayers.ReceiversSnapshot;
+            BasisNetworkPlayers.PublishReceiversSnapshot();
+
             BoneJobSystem = RemoteBoneJobSystem.Schedule(); // will always be a frame behind
-            Length = snapshot.Length;
-            for (int Index = 0; Index < Length; Index++)
+            for (int Index = 0; Index < BasisNetworkPlayers.ReceiverCount; Index++)
             {
-                snapshot[Index].Compute(UnscaledDeltaTime);
+                BasisNetworkPlayers.ReceiversSnapshot[Index].Compute(UnscaledDeltaTime);
             }
             BasisRemoteNetworkDriver.Compute();
             BasisNetworkProfiler.Update();
@@ -197,9 +195,9 @@ namespace Basis.Scripts.Networking
             }
 
             BasisRemoteNetworkDriver.Apply();
-            for (int Index = 0; Index < Length; Index++)
+            for (int Index = 0; Index < BasisNetworkPlayers.ReceiverCount; Index++)
             {
-                snapshot[Index].Apply();
+                BasisNetworkPlayers.ReceiversSnapshot[Index].Apply();
             }
         }
 
