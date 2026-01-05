@@ -41,7 +41,6 @@ namespace Basis.Scripts.Networking.Receivers
         private float interpolationTime = 0f; // 0..1 over current->next window
 
         public bool HasBufferHolds;
-        public bool PassedSimulate = false;
 
         // ---------------- staging (ring buffer) ----------------
         private const int MaxStage = 64;
@@ -180,16 +179,12 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     windowDuration = 1e-3;
                 }
-
-                double step = Math.Max(unscaledDeltaTime, 0.0);
-
-                int depth = _stagedRing.Count;
-                float rate = 1f + CatchupGain * (depth - TargetJitterDepth);
+                float rate = 1f + CatchupGain * (StagedCount - TargetJitterDepth);
                 rate = Mathf.Clamp(rate, MinPlaybackRate, MaxPlaybackRate);
-                interpolationTime += (float)((step / windowDuration) * rate);
-                PassedSimulate = BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, unscaledDeltaTime);
+                interpolationTime += (float)(((double)unscaledDeltaTime / windowDuration) * rate);
+                BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, unscaledDeltaTime);
 
-                if (PassedSimulate && SentLatest)
+                if (SentLatest)
                 {
 
                     BasisRemoteNetworkDriver.SetFrameInputs(
@@ -201,24 +196,26 @@ namespace Basis.Scripts.Networking.Receivers
                     );
 
                     BasisRemoteNetworkDriver.SetMuscleWindow(playerId, first.Muscles, last.Muscles);
+                    IsDataReady = true;
                     SentLatest = false;
                 }
             }
         }
-
+        public bool IsDataReady = false;
         /// <summary>
         /// Main-thread application step. Pulls posed outputs from the driver and applies
         /// body position/rotation/muscles to the avatar via PoseHandler.
         /// </summary>
         public void Apply()
         {
-            if (PassedSimulate)
+            if (IsDataReady)
             {
                 // These outputs should be stable when simulate passed.
                 BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out bool outscale, out var ApplyingRotation, out float3 scaledBody);
-                BasisRemoteNetworkDriver.GetMuscleArray(playerId,ref HumanPose,EyesAndMouth,EyesAndMouthOffset,EyeAndMouthCountInBytes);
+                BasisRemoteNetworkDriver.GetMuscleArray(playerId, ref HumanPose, EyesAndMouth, EyesAndMouthOffset, EyeAndMouthCountInBytes);
                 HumanPose.bodyPosition = scaledBody;
                 HumanPose.bodyRotation = ApplyingRotation;
+
                 if (outscale)
                 {
                     ApplyScale();
@@ -231,9 +228,8 @@ namespace Basis.Scripts.Networking.Receivers
                         DidLastAvatarTransformChanged = false;
                     }
                 }
-                PassedSimulate = false;
             }
-            if (hasRequiredData)
+            if (IsDataReady && hasRequiredData)
             {
                 PoseHandler.SetHumanPose(ref HumanPose);
                 if (HasOverridenDestination)
@@ -264,8 +260,6 @@ namespace Basis.Scripts.Networking.Receivers
             StagedCount = 0;
             ClearAndRelease();
             interpolationTime = 0f;
-            PassedSimulate = false;
-
             // Clear any packets that arrived before init (rare, but safe)
             while (PayloadQueue.TryDequeue(out var buf))
             {
@@ -349,7 +343,6 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             AudioReceiverModule?.OnDestroy();
-            PassedSimulate = false;
         }
 
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage msg)

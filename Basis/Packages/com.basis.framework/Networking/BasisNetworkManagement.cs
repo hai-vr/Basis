@@ -165,6 +165,15 @@ namespace Basis.Scripts.Networking
             BasisNetworkPlayers.PublishReceiversSnapshot();
 
             BoneJobSystem = RemoteBoneJobSystem.Schedule(); // will always be a frame behind
+
+            UnscaledDeltaTime = Math.Max(UnscaledDeltaTime, 0f);
+
+            if (BasisNetworkPlayers.ReceiverCount > BasisRemoteNetworkDriver.FixedCapacity)
+            {
+                BasisDebug.LogError($"Exceeded Fixed Capacity! {BasisNetworkPlayers.ReceiverCount} > {BasisRemoteNetworkDriver.FixedCapacity}", BasisDebug.LogTag.Networking);
+                return;
+            }
+
             for (int Index = 0; Index < BasisNetworkPlayers.ReceiverCount; Index++)
             {
                 BasisNetworkPlayers.ReceiversSnapshot[Index].Compute(UnscaledDeltaTime);

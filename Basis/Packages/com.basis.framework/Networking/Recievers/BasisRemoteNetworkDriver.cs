@@ -121,12 +121,6 @@ public static class BasisRemoteNetworkDriver
     /// </summary>
     public static bool SetFrameTiming(int index, float interpolationTime, float deltaTimeSeconds)
     {
-        if ((uint)index >= FixedCapacity)
-        {
-            BasisDebug.LogError("Exceeded Fixed Capacity!", BasisDebug.LogTag.Networking);
-            return false;
-        }
-
         _interpolationTimes[index] = interpolationTime;
         _deltaTimes[index] = deltaTimeSeconds;
 
