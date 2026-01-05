@@ -156,7 +156,7 @@ namespace Basis.Scripts.Networking
         /// Simulates network computation step (state updates, bone drivers, profiler update).
         /// </summary>
         /// <param name="UnscaledDeltaTime">Delta time since last tick (unscaled).</param>
-        public static void SimulateNetworkCompute(float UnscaledDeltaTime)
+        public static void SimulateNetworkCompute(double UnscaledDeltaTime)
         {
             if (!NetworkRunning)
             {
@@ -168,7 +168,7 @@ namespace Basis.Scripts.Networking
             BoneJobSystem = RemoteBoneJobSystem.Schedule(); // will always be a frame behind
 
             UnscaledDeltaTime = Math.Max(UnscaledDeltaTime, 0f);
-            if (math.isnan(UnscaledDeltaTime) || UnscaledDeltaTime <= 0 || math.isfinite(UnscaledDeltaTime))
+            if (math.isnan(UnscaledDeltaTime) || math.isfinite(UnscaledDeltaTime))
             {
                 UnscaledDeltaTime = 0;
             }

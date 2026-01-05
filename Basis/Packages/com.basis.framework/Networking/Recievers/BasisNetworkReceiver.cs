@@ -38,7 +38,7 @@ namespace Basis.Scripts.Networking.Receivers
         public float[] EyesAndMouth = new float[] { 0, 0, 0, 0, 1, 0 }; // default neutral eyes, mouth open=1 for breathing
         public float3 ApplyingScale;
 
-        private float interpolationTime = 0f; // 0..1 over current->next window
+        private double interpolationTime = 0f; // 0..1 over current->next window
 
         public bool HasBufferHolds;
 
@@ -68,7 +68,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// Main-thread simulation step. Pulls packets, maintains interpolation window,
         /// computes interpolationTime, and feeds inputs to the network driver.
         /// </summary>
-        public void Compute(float unscaledDeltaTime)
+        public void Compute(double unscaledDeltaTime)
         {
             // expected briefly on join
             if (Player.BasisAvatar == null)
@@ -181,12 +181,12 @@ namespace Basis.Scripts.Networking.Receivers
                 }
                 float rate = 1f + CatchupGain * (StagedCount - TargetJitterDepth);
                 rate = Mathf.Clamp(rate, MinPlaybackRate, MaxPlaybackRate);
-                interpolationTime += (float)(((double)unscaledDeltaTime / windowDuration) * rate);
-                if(math.isnan(interpolationTime) || interpolationTime <= 0 || math.isfinite(interpolationTime))
+                interpolationTime += ((double)unscaledDeltaTime / windowDuration * (double)rate);
+                if (math.isnan(interpolationTime) || math.isfinite(interpolationTime))
                 {
-                    interpolationTime = 1; 
+                    interpolationTime = 1;
                 }
-                BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, unscaledDeltaTime);
+                BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime,unscaledDeltaTime);
 
                 if (SentLatest)
                 {

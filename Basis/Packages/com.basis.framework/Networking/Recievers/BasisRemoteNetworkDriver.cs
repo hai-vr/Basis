@@ -21,8 +21,8 @@ public static class BasisRemoteNetworkDriver
     static NativeArray<quaternion> _prevRotations;
     static NativeArray<quaternion> _targetRotations;
 
-    static NativeArray<float> _interpolationTimes; // 0..1
-    static NativeArray<float> _deltaTimes;         // NEW: seconds (real dt for filters)
+    static NativeArray<double> _interpolationTimes; // 0..1
+    static NativeArray<double> _deltaTimes;         // NEW: seconds (real dt for filters)
 
     static NativeArray<float3> _outPositions;
     static NativeArray<float3> _outScales;
@@ -116,9 +116,9 @@ public static class BasisRemoteNetworkDriver
     /// Write timing inputs for a given index (0..FixedCapacity-1).
     /// interpolationTime is 0..1 blend factor, deltaTimeSeconds is REAL seconds-per-frame for filters.
     /// </summary>
-    public static void SetFrameTiming(int index, float interpolationTime, float deltaTimeSeconds)
+    public static void SetFrameTiming(int index, double interpolationTime, double deltaTimeSeconds)
     {
-        _interpolationTimes[index] = interpolationTime;
+        _interpolationTimes[index] = (float)interpolationTime;
         _deltaTimes[index] = deltaTimeSeconds;
     }
 
@@ -258,8 +258,8 @@ public static class BasisRemoteNetworkDriver
         _prevRotations = new NativeArray<quaternion>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
         _targetRotations = new NativeArray<quaternion>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
 
-        _interpolationTimes = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.ClearMemory);
-        _deltaTimes = new NativeArray<float>(capacity, _allocator, NativeArrayOptions.UninitializedMemory); // NEW
+        _interpolationTimes = new NativeArray<double>(capacity, _allocator, NativeArrayOptions.ClearMemory);
+        _deltaTimes = new NativeArray<double>(capacity, _allocator, NativeArrayOptions.UninitializedMemory); // NEW
 
         _outPositions = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
         _outScales = new NativeArray<float3>(capacity, _allocator, NativeArrayOptions.UninitializedMemory);
@@ -328,7 +328,7 @@ public static class BasisRemoteNetworkDriver
         [WriteOnly] public NativeArray<float> OutputValues;
 
         // NEW: per-player real dt seconds (length == numPlayers)
-        [ReadOnly] public NativeArray<float> DeltaTimeSeconds;
+        [ReadOnly] public NativeArray<double> DeltaTimeSeconds;
 
         public NativeArray<float2> PositionFilters;   // x = previous input, y = previous output
         public NativeArray<float2> DerivativeFilters; // x = previous derivative input, y = previous derivative output
@@ -343,35 +343,35 @@ public static class BasisRemoteNetworkDriver
         {
             int playerIndex = MuscleCountPerAvatar > 0 ? (index / MuscleCountPerAvatar) : 0;
 
-            float dt = math.max(DeltaTimeSeconds[playerIndex], 1e-3f);
-            float frequency = math.rcp(dt);
+            double dt = math.max(DeltaTimeSeconds[playerIndex], 1e-3f);
+            double frequency = math.rcp(dt);
 
             float inputValue = InputValues[index];
 
             float prevFiltered = PositionFilters[index].y;
             float prevRaw = PositionFilters[index].x;
 
-            float dValue = (inputValue - prevRaw) * frequency;
+            double dValue = ((inputValue - prevRaw) * frequency);
 
-            float alphaD = Alpha(DerivativeCutoff, frequency);
+            double alphaD = Alpha(DerivativeCutoff, frequency);
             float prevDerivFiltered = DerivativeFilters[index].y;
-            float edValue = alphaD * dValue + (1f - alphaD) * prevDerivFiltered;
+            double edValue = alphaD * dValue + (1f - alphaD) * prevDerivFiltered;
 
-            float cutoff = MinCutoff + Beta * math.abs(edValue);
-            float alphaX = Alpha(cutoff, frequency);
+            double cutoff = MinCutoff + Beta * math.abs(edValue);
+            double alphaX = Alpha(cutoff, frequency);
 
-            float filtered = alphaX * inputValue + (1f - alphaX) * prevFiltered;
+            double filtered = alphaX * inputValue + (1f - alphaX) * prevFiltered;
 
-            OutputValues[index] = filtered;
-            PositionFilters[index] = new float2(inputValue, filtered);
-            DerivativeFilters[index] = new float2(dValue, edValue);
+            OutputValues[index] = (float)filtered;
+            PositionFilters[index] = new float2(inputValue, (float)filtered);
+            DerivativeFilters[index] = new float2((float)dValue, (float)edValue);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float Alpha(float cutoff, float frequency)
+        private static double Alpha(double cutoff, double frequency)
         {
-            float te = math.rcp(frequency);
-            float tau = math.rcp(2f * math.PI * math.max(cutoff, 1e-4f));
+            double te = math.rcp(frequency);
+            double tau = math.rcp(2f * math.PI * math.max(cutoff, 1e-4f));
             return math.rcp(1f + tau / te);
         }
     }
@@ -388,7 +388,7 @@ public static class BasisRemoteNetworkDriver
         [ReadOnly] public NativeArray<quaternion> PreviousRotations;
         [ReadOnly] public NativeArray<quaternion> TargetRotations;
 
-        [ReadOnly] public NativeArray<float> InterpolationTimes;
+        [ReadOnly] public NativeArray<double> InterpolationTimes;
 
         [WriteOnly] public NativeArray<float3> OutputPositions;
         [WriteOnly] public NativeArray<float3> OutputScales;
@@ -398,7 +398,7 @@ public static class BasisRemoteNetworkDriver
 
         public void Execute(int index)
         {
-            float t = InterpolationTimes[index];
+            float t = (float)InterpolationTimes[index];
             if (!math.isfinite(t))
             {
                 t = 0f;
@@ -424,7 +424,7 @@ public static class BasisRemoteNetworkDriver
     {
         [ReadOnly] public NativeArray<float> PreviousMuscles;
         [ReadOnly] public NativeArray<float> TargetMuscles;
-        [ReadOnly] public NativeArray<float> InterpolationTimes;
+        [ReadOnly] public NativeArray<double> InterpolationTimes;
 
         [WriteOnly] public NativeArray<float> OutputMuscles;
 
@@ -433,9 +433,9 @@ public static class BasisRemoteNetworkDriver
         public void Execute(int index)
         {
             int playerIndex = index / MuscleCountPerAvatar;
-            float t = InterpolationTimes[playerIndex];
+            double t = InterpolationTimes[playerIndex];
             t = math.clamp(t, 0f, 1f);
-            OutputMuscles[index] = math.lerp(PreviousMuscles[index], TargetMuscles[index], t);
+            OutputMuscles[index] = (float)math.lerp(PreviousMuscles[index], TargetMuscles[index], t);
         }
     }
 
