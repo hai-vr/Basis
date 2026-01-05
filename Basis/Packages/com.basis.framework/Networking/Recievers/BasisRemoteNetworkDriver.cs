@@ -150,12 +150,11 @@ public static class BasisRemoteNetworkDriver
     /// <summary>Run the batched jobs once for the current frame.</summary>
     public static void Compute()
     {
-        int num = BasisNetworkPlayers.ReceiverCount +1;
-        if (num <= 0)
+        if (BasisNetworkPlayers.ReceiverCount == 0)
         {
             return;
         }
-
+        int num = BasisNetworkPlayers.LargestNetworkReceiverID + 1;
         var avatarJob = new UpdateAllAvatarsJob
         {
             PreviousPositions = _prevPositions,
@@ -218,20 +217,16 @@ public static class BasisRemoteNetworkDriver
 
         oneEuroJob.Complete();
     }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void GetOutputs_NoAlloc(int index, out bool outScale, out quaternion outRot, out float3 BodyPosition)
+    public static void GetPositionOutput(int index, out float3 outPos) => outPos = _outPositions[index];
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void GetScaleOutput(int index, out float3 outScale) => outScale = _outScales[index];
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void GetMuscleArray(int index, out bool outScale, out quaternion outRot, out float3 BodyPosition, ref HumanPose poseData, float[] eyesAndMouth, int eyesAndMouthOffsetFloats, int eyesAndMouthCountBytes)
     {
         outScale = _HasScaleChange[index];
         outRot = _outRotations[index];
         BodyPosition = _scaledBodyPositions[index];
-    }
-
-    public static void GetPositionOutput(int index, out float3 outPos) => outPos = _outPositions[index];
-    public static void GetScaleOutput(int index, out float3 outScale) => outScale = _outScales[index];
-
-    public static void GetMuscleArray(int index, ref HumanPose poseData, float[] eyesAndMouth, int eyesAndMouthOffsetFloats, int eyesAndMouthCountBytes)
-    {
         int baseOffset = index * _muscleCount;
         unsafe
         {

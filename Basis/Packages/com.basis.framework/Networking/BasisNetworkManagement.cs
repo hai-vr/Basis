@@ -180,7 +180,13 @@ namespace Basis.Scripts.Networking
 
             for (int Index = 0; Index < BasisNetworkPlayers.ReceiverCount; Index++)
             {
-                BasisNetworkPlayers.ReceiversSnapshot[Index].Compute(UnscaledDeltaTime);
+                var rec = BasisNetworkPlayers.ReceiversSnapshot[Index];
+                rec.Compute(UnscaledDeltaTime);
+                ushort id = rec.playerId;
+                if (id > BasisNetworkPlayers.LargestNetworkReceiverID)
+                {
+                    BasisNetworkPlayers.LargestNetworkReceiverID = id;
+                }
             }
             BasisRemoteNetworkDriver.Compute();
             BasisNetworkProfiler.Update();

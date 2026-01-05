@@ -214,8 +214,7 @@ namespace Basis.Scripts.Networking.Receivers
             if (IsDataReady)
             {
                 // These outputs should be stable when simulate passed.
-                BasisRemoteNetworkDriver.GetOutputs_NoAlloc(playerId, out bool outscale, out var ApplyingRotation, out float3 scaledBody);
-                BasisRemoteNetworkDriver.GetMuscleArray(playerId, ref HumanPose, EyesAndMouth, EyesAndMouthOffset, EyeAndMouthCountInBytes);
+                BasisRemoteNetworkDriver.GetMuscleArray(playerId, out bool outscale, out var ApplyingRotation, out float3 scaledBody, ref HumanPose, EyesAndMouth, EyesAndMouthOffset, EyeAndMouthCountInBytes);
                 HumanPose.bodyPosition = scaledBody;
                 HumanPose.bodyRotation = ApplyingRotation;
 
@@ -311,7 +310,9 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             foreach (byte key in keysToRemove)
+            {
                 NextMessages.Remove(key);
+            }
         }
 
         private bool IsPastAvatar(byte messageIndex, byte currentIndex)

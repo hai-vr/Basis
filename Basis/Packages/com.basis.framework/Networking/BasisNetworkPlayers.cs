@@ -23,7 +23,7 @@ namespace Basis.Scripts.Networking
         // Receiver snapshot for multi-threaded compute/apply phases.
         public static BasisNetworkReceiver[] ReceiversSnapshot = Array.Empty<BasisNetworkReceiver>();
         public static int ReceiverCount;
-
+        public static ushort LargestNetworkReceiverID;
         // --- Lifecycle helpers ---------------------------------------------
         public static void ClearAllRegistries()
         {
