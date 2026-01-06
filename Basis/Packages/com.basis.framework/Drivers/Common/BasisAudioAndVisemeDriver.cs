@@ -171,7 +171,7 @@ namespace Basis.Scripts.Drivers
         }
         public void OnDestroy()
         {
-            uLipSync.OnDestroy();
+            uLipSync.DisposeBuffers();
         }
         public void Simulate(float DeltaTime)
         {
