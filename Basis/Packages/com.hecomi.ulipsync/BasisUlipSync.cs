@@ -44,6 +44,9 @@ public unsafe class BasisUlipSync
     // Workspace scratch MUST remain per-instance (mutable buffers)
     public BasisLipSyncWorkspace ws;
 
+    [ReadOnly] public NativeArray<float> firTaps;
+    [ReadOnly] public NativeArray<float> hammingWindow;
+    [ReadOnly] public BasisFftPlan fftPlan;
     // These are shared plans now (do NOT Build/Dispose per instance)
     BasisMelFilterPlan _melPlan;
     BasisDctPlan _dctPlan;
@@ -184,6 +187,8 @@ public unsafe class BasisUlipSync
             ws = ws,
             melPlan = _melPlan,
             dctPlan = _dctPlan,
+             firTaps = firTaps,
+              hammingWindow = hammingWindow,
 
             normalizeScores = normalizeScores,
         };
@@ -224,34 +229,51 @@ public unsafe class BasisUlipSync
 
     public void Apply()
     {
-        if (!HasJob) return;
+        if (!HasJob)
+        {
+            return;
+        }
 
         HasJob = false;
         _jobHandle.Complete();
 
         if (_mfccForOther.IsCreated && _mfcc.IsCreated)
+        {
             _mfccForOther.CopyFrom(_mfcc);
+        }
 
         if (!_finalByBlendShape.IsCreated || _finalByBlendShape.Length != blendShapeCount)
+        {
             return;
+        }
 
         if (_lastApplied == null || _lastApplied.Length != blendShapeCount)
+        {
             _lastApplied = new float[blendShapeCount];
+        }
 
         if (!_drivenBlendShapes.IsCreated || _drivenBlendShapes.Length == 0)
+        {
             return;
+        }
 
         int length = _drivenBlendShapes.Length;
         for (int i = 0; i < length; i++)
         {
             int bsIndex = _drivenBlendShapes[i];
-            if ((uint)bsIndex >= (uint)blendShapeCount) continue;
+            if ((uint)bsIndex >= (uint)blendShapeCount)
+            {
+                continue;
+            }
 
             float fw = _finalByBlendShape[bsIndex];
             float prev = _lastApplied[bsIndex];
             float d = fw - prev;
 
-            if (d == 0f) continue;
+            if (d == 0f)
+            {
+                continue;
+            }
 
             if (d * d > BasisUlipSyncDriver.BlendshapeWriteEps * BasisUlipSyncDriver.BlendshapeWriteEps)
             {
@@ -297,6 +319,8 @@ public unsafe class BasisUlipSync
         _melPlan = BasisUlipSyncDriver.SharedMelPlan;
         _dctPlan = BasisUlipSyncDriver.SharedDctPlan;
 
+        firTaps = BasisUlipSyncDriver.SharedFirTaps;
+        hammingWindow = BasisUlipSyncDriver.SharedHammingWindow;
         // Per-instance workspace scratch (mutable)
         ws = BasisLipSyncWorkspace.Create(
             inputLen: BasisUlipSyncDriver.CachedInputSampleCount,
@@ -304,8 +328,7 @@ public unsafe class BasisUlipSync
             targetSampleRate: BasisUlipSyncDriver.targetRate,
             melDiv: BasisUlipSyncDriver.melDiv,
             mfccLen: BasisUlipSyncDriver.mfccLen,
-            fftN: BasisUlipSyncDriver.fftN,            // match shared plans sizing
-            firRangeHz: 500f,                          // keep as before; driver used same default
+            fftN: BasisUlipSyncDriver.fftN,
             allocator: Allocator.Persistent
         );
 
@@ -324,12 +347,6 @@ public unsafe class BasisUlipSync
                 BlendShapeInfos[i] = bs;
             }
         }
-
-        BuildNativeBlendMapping();
-    }
-
-    void BuildNativeBlendMapping()
-    {
         SafeDispose(ref _blendMap);
         SafeDispose(ref _bsWeight);
         SafeDispose(ref _bsVelocity);
