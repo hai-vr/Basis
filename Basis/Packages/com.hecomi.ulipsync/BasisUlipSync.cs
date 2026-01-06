@@ -12,108 +12,58 @@ using UnityEngine;
 [System.Serializable]
 public unsafe class BasisUlipSync
 {
-    public static Profile profile;
-
     JobHandle _jobHandle;
     bool _allocated;
-
-    // Double-buffered audio ring
     NativeArray<float> _inputA, _inputB;
     volatile int _activeInputBuffer;
     volatile int _writeIndexA, _writeIndexB;
     volatile int _isDataReceived;
-
-    // MFCC + scoring buffers
     NativeArray<float> _mfcc;
     NativeArray<float> _mfccForOther;
-
     NativeArray<float> _means;
     NativeArray<float> _standardDeviations;
-
     NativeArray<float> _invStd;         // 1/(std+eps) precomputed
     NativeArray<float> _phonemes;       // raw packed
     NativeArray<float> _phonemesZ;      // standardized packed
     NativeArray<float> _phonemeNorms;   // per-phoneme norm for cosine (optional)
-
     NativeArray<float> _scores;                  // phoneme scores output from BasisLipSyncJob
     NativeArray<BasisLipSyncJob.Info> _info;     // volume etc output from BasisLipSyncJob
-
-    public int phonemeCount;
-    public int outputSampleRate;
-    public int PhonemesCount;
-    public int mfccsCount;
-
-    public int CachedInputSampleCount;
-
-    // Debug
     public float globalMultiplier;
     public float MultipliedWeight;
     public float finalWeight;
-
     public SkinnedMeshRenderer skinnedMeshRenderer;
-    public int Count;
     public Mesh sharedMesh;
-
     public List<BlendShapeInfo> CachedblendShapes = new List<BlendShapeInfo>();
     public BlendShapeInfo[] BlendShapeInfos;
-
-    public const float smoothness = 0.05f;
-    public const float minVolume = -2.5f;
-    public const float maxVolume = -1.5f;
-    public const float VolumeDifference = maxVolume - minVolume;
-
-    const float epsilon = 1e-6f;
-    const float Z_EPS = 1e-12f;
-
     public bool HasJob;
-
-    // Workspace + plans
+    public int blendShapeCount;
     public BasisLipSyncWorkspace ws;
     BasisMelFilterPlan _melPlan;
     BasisDctPlan _dctPlan;
-
-    // Main-thread write throttle (still needed because SetBlendShapeWeight is main thread)
-    float[] _lastApplied; // [meshBlendShapeCount]
-    const float BlendshapeWriteEps = 0.25f; // tweak
-
-    // If you keep job normalization off (recommended for speed), but want _phonemeRatios normalized:
-    // set this to true. Otherwise it just copies scores as-is.
-    public bool NormalizeRatiosInApply = false;
-
-    // -------- NEW: native blendshape mapping + state + output --------
+    float[] _lastApplied;
     public struct BlendMap
     {
-        public int blendShapeIndex; // index in mesh
-        public int phonemeIndex;    // index in scores
+        public int blendShapeIndex;
+        public int phonemeIndex;
     }
-
-    NativeArray<BlendMap> _blendMap;        // length = BlendShapeInfos.Length
-    NativeArray<float> _bsWeight;           // smoothed weight per entry
-    NativeArray<float> _bsVelocity;         // reserved (not used in exp smoothing, but kept for future)
-    NativeArray<float> _finalByBlendShape;  // length = meshBlendShapeCount
-    NativeArray<float> _volState;           // length 2: [0]=volume, [1]=velocity (vel reserved)
-
-    // NEW: only-driven blendshape indices (unique) so Apply() does NOT loop the whole mesh
-    NativeArray<int> _drivenBlendShapes;    // unique blendshape indices we actually set
-
-    // ---------------------------------------------------------------
-    // Jobs
-    // ---------------------------------------------------------------
-
-    // Job that converts scores + volume into final per-blendshape weights.
-    // This moves almost everything out of Apply().
+    NativeArray<BlendMap> _blendMap;
+    NativeArray<float> _bsWeight;
+    NativeArray<float> _bsVelocity;
+    NativeArray<float> _finalByBlendShape;
+    NativeArray<float> _volState;
+    NativeArray<int> _drivenBlendShapes;
     [BurstCompile]
     public struct BasisBlendshapeApplyJob : IJob
     {
-        [ReadOnly] public NativeArray<float> scores;                 // phoneme scores
-        [ReadOnly] public NativeArray<BlendMap> map;                 // mapping entries
-        [ReadOnly] public NativeArray<BasisLipSyncJob.Info> info;    // for volume
+        [ReadOnly] public NativeArray<float> scores;
+        [ReadOnly] public NativeArray<BlendMap> map;
+        [ReadOnly] public NativeArray<BasisLipSyncJob.Info> info;
 
-        public NativeArray<float> bsWeight;      // persistent smoothing state
-        public NativeArray<float> bsVelocity;    // reserved
-        public NativeArray<float> volState;      // [0]=volume, [1]=vel reserved
+        public NativeArray<float> bsWeight;
+        public NativeArray<float> bsVelocity;
+        public NativeArray<float> volState;
 
-        public NativeArray<float> finalByBlendShape; // output by blendshape index
+        public NativeArray<float> finalByBlendShape;
 
         public int phonemeCount;
         public float dt;
@@ -126,11 +76,15 @@ public unsafe class BasisUlipSync
             // Clear full output. If you have huge blendshape counts and few driven shapes,
             // the next step would be to clear only used indices, but full clear is simple + safe.
             for (int i = 0; i < finalByBlendShape.Length; i++)
+            {
                 finalByBlendShape[i] = 0f;
+            }
 
             float rawVolume = 0f;
             if (info.IsCreated && info.Length > 0)
+            {
                 rawVolume = math.max(info[0].volume, 0f);
+            }
 
             // ---- Normalize + smooth volume (exp smoothing) ----
             float normVol = 0f;
@@ -201,22 +155,22 @@ public unsafe class BasisUlipSync
         NativeArray<float> frozenInput = oldActive == 0 ? _inputA : _inputB;
 
         // Normalize scores in job? (0 = skip, 1 = normalize)
-        byte normalizeScores = NormalizeRatiosInApply ? (byte)0 : (byte)1; // if we normalize in Apply, skip in job
+        byte normalizeScores = (byte)0; // if we normalize in Apply, skip in job
 
         var scoreJob = new BasisLipSyncJob
         {
             input = frozenInput,
             startIndex = frozenStartIndex,
 
-            outputSampleRate = outputSampleRate,
-            targetSampleRate = profile.targetSampleRate,
+            outputSampleRate = BasisUlipSyncDriver.outputSampleRate,
+            targetSampleRate = BasisUlipSyncDriver.targetSampleRate,
 
             means = _means,
             standardDeviations = _standardDeviations,
             invStd = _invStd,
             phonemesZ = _phonemesZ,
             phonemeNorms = _phonemeNorms,
-            compareMethod = profile.compareMethod,
+            compareMethod = BasisUlipSyncDriver.compareMethod,
 
             mfcc = _mfcc,
             scores = _scores,
@@ -235,7 +189,7 @@ public unsafe class BasisUlipSync
 
         // Chain the blendshape apply job right after scoring job (all Burst)
         // Capture dt on main thread; jobs cannot read Time.deltaTime.
-        if (_finalByBlendShape.IsCreated &&_blendMap.IsCreated && _blendMap.Length > 0 && _bsWeight.IsCreated && _volState.IsCreated && _info.IsCreated)
+        if (_finalByBlendShape.IsCreated && _blendMap.IsCreated && _blendMap.Length > 0 && _bsWeight.IsCreated && _volState.IsCreated && _info.IsCreated)
         {
             var applyJob = new BasisBlendshapeApplyJob
             {
@@ -249,11 +203,11 @@ public unsafe class BasisUlipSync
 
                 finalByBlendShape = _finalByBlendShape,
 
-                phonemeCount = phonemeCount,
+                phonemeCount = BasisUlipSyncDriver.phonemeCount,
                 dt = DeltaTime,
-                smoothness = smoothness,
-                minVolume = minVolume,
-                maxVolume = maxVolume,
+                smoothness = BasisUlipSyncDriver.smoothness,
+                minVolume = BasisUlipSyncDriver.minVolume,
+                maxVolume = BasisUlipSyncDriver.maxVolume,
             };
 
             _jobHandle = applyJob.Schedule(h0);
@@ -282,13 +236,13 @@ public unsafe class BasisUlipSync
         {
             _mfccForOther.CopyFrom(_mfcc);
         }
-        if (!_finalByBlendShape.IsCreated || _finalByBlendShape.Length != Count)
+        if (!_finalByBlendShape.IsCreated || _finalByBlendShape.Length != blendShapeCount)
         {
             return;
         }
-        if (_lastApplied == null || _lastApplied.Length != Count)
+        if (_lastApplied == null || _lastApplied.Length != blendShapeCount)
         {
-            _lastApplied = new float[Count];
+            _lastApplied = new float[blendShapeCount];
         }
         if (!_drivenBlendShapes.IsCreated || _drivenBlendShapes.Length == 0)
         {
@@ -299,7 +253,7 @@ public unsafe class BasisUlipSync
         for (int Index = 0; Index < length; Index++)
         {
             int bsIndex = _drivenBlendShapes[Index];
-            if ((uint)bsIndex >= (uint)Count)
+            if ((uint)bsIndex >= (uint)blendShapeCount)
             {
                 continue;
             }
@@ -313,7 +267,7 @@ public unsafe class BasisUlipSync
                 continue;
             }
 
-            if (d * d > BlendshapeWriteEps * BlendshapeWriteEps)
+            if (d * d > BasisUlipSyncDriver.BlendshapeWriteEps * BasisUlipSyncDriver.BlendshapeWriteEps)
             {
                 skinnedMeshRenderer.SetBlendShapeWeight(bsIndex, fw);
                 _lastApplied[bsIndex] = fw;
@@ -322,13 +276,6 @@ public unsafe class BasisUlipSync
     }
     public void Initalize()
     {
-        if (profile == null)
-        {
-            DisposeBuffers();
-            _allocated = false;
-            return;
-        }
-
         if (_allocated) DisposeBuffers();
 
         if (!_jobHandle.Equals(default(JobHandle)))
@@ -339,51 +286,40 @@ public unsafe class BasisUlipSync
 
         _allocated = true;
 
-        outputSampleRate = AudioSettings.outputSampleRate;
-        float r = (float)outputSampleRate / math.max(profile.targetSampleRate, 1);
-        CachedInputSampleCount = Mathf.CeilToInt(math.max(profile.sampleCount, 1) * r);
-
-        int Count = profile.mfccs.Count;
-        phonemeCount = math.max(Count, 1);
-        mfccsCount = Count;
-        int mfccLen = math.max(profile.mfccNum, 1);
-        PhonemesCount = mfccLen * phonemeCount;
-
-        SafeCreate(ref _inputA, CachedInputSampleCount, NativeArrayOptions.UninitializedMemory);
-        SafeCreate(ref _inputB, CachedInputSampleCount, NativeArrayOptions.UninitializedMemory);
+        SafeCreate(ref _inputA, BasisUlipSyncDriver.CachedInputSampleCount, NativeArrayOptions.UninitializedMemory);
+        SafeCreate(ref _inputB, BasisUlipSyncDriver.CachedInputSampleCount, NativeArrayOptions.UninitializedMemory);
         _activeInputBuffer = 0;
         _writeIndexA = 0;
         _writeIndexB = 0;
         _isDataReceived = 0;
 
-        SafeCreate(ref _mfcc, mfccLen);
-        SafeCreate(ref _mfccForOther, mfccLen);
+        SafeCreate(ref _mfcc, BasisUlipSyncDriver.mfccLen);
+        SafeCreate(ref _mfccForOther, BasisUlipSyncDriver.mfccLen);
 
-        SafeCreate(ref _means, mfccLen);
-        SafeCreate(ref _standardDeviations, mfccLen);
-        SafeCreate(ref _invStd, mfccLen);
+        SafeCreate(ref _means, BasisUlipSyncDriver.mfccLen);
+        SafeCreate(ref _standardDeviations, BasisUlipSyncDriver.mfccLen);
+        SafeCreate(ref _invStd, BasisUlipSyncDriver.mfccLen);
 
-        SafeCreate(ref _scores, phonemeCount);
-        SafeCreate(ref _phonemes, PhonemesCount);
-        SafeCreate(ref _phonemesZ, PhonemesCount);
-        SafeCreate(ref _phonemeNorms, phonemeCount);
+        SafeCreate(ref _scores, BasisUlipSyncDriver.phonemeCount);
+        SafeCreate(ref _phonemes, BasisUlipSyncDriver.PhonemesCount);
+        SafeCreate(ref _phonemesZ, BasisUlipSyncDriver.PhonemesCount);
+        SafeCreate(ref _phonemeNorms, BasisUlipSyncDriver.phonemeCount);
 
         SafeCreate(ref _info, 1);
 
         // Pack raw phonemes
         int write = 0;
-        int max = math.min(mfccsCount, phonemeCount);
-        for (int p = 0; p < max && write < PhonemesCount; p++)
+        for (int p = 0; p < BasisUlipSyncDriver.Max && write < BasisUlipSyncDriver.PhonemesCount; p++)
         {
-            var src = profile.mfccs[p].mfccNativeArray;
-            int remaining = PhonemesCount - write;
-            int len = math.min(mfccLen, remaining);
+            var src = BasisUlipSyncDriver.mfccs[p].mfccNativeArray;
+            int remaining = BasisUlipSyncDriver.PhonemesCount - write;
+            int len = math.min(BasisUlipSyncDriver.mfccLen, remaining);
             NativeArray<float>.Copy(src, 0, _phonemes, write, len);
             write += len;
         }
 
         // Means
-        var meansArr = profile.means;
+        var meansArr = BasisUlipSyncDriver.means;
         if (meansArr != null && _means.IsCreated)
         {
             int dstLen = _means.Length;
@@ -393,7 +329,7 @@ public unsafe class BasisUlipSync
         }
 
         // Std
-        var stdArr = profile.standardDeviation;
+        var stdArr = BasisUlipSyncDriver.standardDeviation;
         if (stdArr != null && _standardDeviations.IsCreated)
         {
             int dstLen = _standardDeviations.Length;
@@ -406,38 +342,37 @@ public unsafe class BasisUlipSync
         PrecomputeInvStd(_standardDeviations, _invStd);
 
         // precompute standardized phonemesZ
-        PrecomputePhonemesZ(_phonemes, _phonemesZ, _means, _invStd, mfccLen, phonemeCount);
+        PrecomputePhonemesZ(_phonemes, _phonemesZ, _means, _invStd, BasisUlipSyncDriver.mfccLen, BasisUlipSyncDriver.phonemeCount);
 
         // precompute phoneme norms for cosine
-        PrecomputePhonemeNorms(_phonemesZ, _phonemeNorms, mfccLen, phonemeCount);
+        PrecomputePhonemeNorms(_phonemesZ, _phonemeNorms, BasisUlipSyncDriver.mfccLen, BasisUlipSyncDriver.phonemeCount);
 
         // Pre-map phoneme name -> index once
         if (BlendShapeInfos != null)
         {
             Dictionary<string, int> map = new Dictionary<string, int>(32);
-            for (int i = 0; i < phonemeCount; i++)
+            for (int Index = 0; Index < BasisUlipSyncDriver.phonemeCount; Index++)
             {
-                var name = profile.GetPhoneme(i);
-                if (!string.IsNullOrEmpty(name)) map[name] = i;
+                var name = BasisUlipSyncDriver.GetPhoneme(Index);
+                if (!string.IsNullOrEmpty(name))
+                {
+                    map[name] = Index;
+                }
             }
 
-            for (int i = 0; i < BlendShapeInfos.Length; i++)
+            for (int Index = 0; Index < BlendShapeInfos.Length; Index++)
             {
-                var bs = BlendShapeInfos[i];
+                var bs = BlendShapeInfos[Index];
                 bs.phonemeIndex = (!string.IsNullOrEmpty(bs.phoneme) && map.TryGetValue(bs.phoneme, out int idx)) ? idx : -1;
-                BlendShapeInfos[i] = bs;
+                BlendShapeInfos[Index] = bs;
             }
         }
-
-        int targetRate = math.max(profile.targetSampleRate, 1);
-        int melDiv = math.max(profile.melFilterBankChannels, 1);
-
         ws = BasisLipSyncWorkspace.Create(
-            inputLen: CachedInputSampleCount,
-            outputSampleRate: outputSampleRate,
-            targetSampleRate: targetRate,
-            melDiv: melDiv,
-            mfccLen: mfccLen,
+            inputLen: BasisUlipSyncDriver.CachedInputSampleCount,
+            outputSampleRate: BasisUlipSyncDriver.outputSampleRate,
+            targetSampleRate: BasisUlipSyncDriver.targetRate,
+            melDiv: BasisUlipSyncDriver.melDiv,
+            mfccLen: BasisUlipSyncDriver.mfccLen,
             fftN: 0,
             firRangeHz: 500f,
             allocator: Allocator.Persistent
@@ -445,14 +380,14 @@ public unsafe class BasisUlipSync
 
         _melPlan = BasisMelFilterPlan.Build(
             fftN: ws.frame.Length,
-            sampleRate: targetRate,
-            melDiv: melDiv,
+            sampleRate: BasisUlipSyncDriver.targetRate,
+            melDiv: BasisUlipSyncDriver.melDiv,
             alloc: Allocator.Persistent
         );
 
         _dctPlan = BasisDctPlan.Build(
-            melDiv: melDiv,
-            mfccLen: mfccLen,
+            melDiv: BasisUlipSyncDriver.melDiv,
+            mfccLen: BasisUlipSyncDriver.mfccLen,
             alloc: Allocator.Persistent
         );
 
@@ -474,13 +409,13 @@ public unsafe class BasisUlipSync
 
         int blendInfoCount = (BlendShapeInfos != null) ? BlendShapeInfos.Length : 0;
 
-        if (Count <= 0 || blendInfoCount <= 0) return;
+        if (blendShapeCount <= 0 || blendInfoCount <= 0) return;
 
         _blendMap = new NativeArray<BlendMap>(blendInfoCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
         _bsWeight = new NativeArray<float>(blendInfoCount, Allocator.Persistent, NativeArrayOptions.ClearMemory);
         _bsVelocity = new NativeArray<float>(blendInfoCount, Allocator.Persistent, NativeArrayOptions.ClearMemory);
 
-        _finalByBlendShape = new NativeArray<float>(Count, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+        _finalByBlendShape = new NativeArray<float>(blendShapeCount, Allocator.Persistent, NativeArrayOptions.ClearMemory);
         _volState = new NativeArray<float>(2, Allocator.Persistent, NativeArrayOptions.ClearMemory);
 
         // Fill mapping entries
@@ -498,8 +433,10 @@ public unsafe class BasisUlipSync
         for (int i = 0; i < blendInfoCount; i++)
         {
             int idx = BlendShapeInfos[i].index;
-            if ((uint)idx < (uint)Count)
+            if ((uint)idx < (uint)blendShapeCount)
+            {
                 driven.Add(idx);
+            }
         }
 
         int drivenCount = driven.Count;
@@ -507,8 +444,10 @@ public unsafe class BasisUlipSync
         {
             _drivenBlendShapes = new NativeArray<int>(drivenCount, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
             int w = 0;
-            foreach (int idx in driven)
+            foreach (var idx in driven)
+            {
                 _drivenBlendShapes[w++] = idx;
+            }
         }
 
         // Reset main-thread cache & throttle counter
@@ -522,7 +461,9 @@ public unsafe class BasisUlipSync
         float* s = (float*)std.GetUnsafeReadOnlyPtr();
         float* inv = (float*)invStd.GetUnsafePtr();
         for (int i = 0; i < n; i++)
-            inv[i] = math.rcp(s[i] + Z_EPS);
+        {
+            inv[i] = math.rcp(s[i] + BasisUlipSyncDriver.Z_EPS);
+        }
     }
 
     [BurstCompile]
@@ -591,7 +532,7 @@ public unsafe class BasisUlipSync
                 sum += v * v;
             }
 
-            outN[p] = math.sqrt(sum) + Z_EPS;
+            outN[p] = math.sqrt(sum) + BasisUlipSyncDriver.Z_EPS;
         }
     }
 
@@ -646,7 +587,7 @@ public unsafe class BasisUlipSync
     {
         if (!_allocated || input == null || length <= 0) return;
 
-        int cap = CachedInputSampleCount;
+        int cap = BasisUlipSyncDriver.CachedInputSampleCount;
         if (cap <= 0) return;
 
         int ch = math.max(channels, 1);
