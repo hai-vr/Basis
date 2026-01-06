@@ -1,15 +1,9 @@
 using System;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 
 namespace uLipSync
 {
-    // ============================
-    // Mel + DCT plans unchanged
-    // (your existing MelFilterPlan/DctPlan are good)
-    // ============================
-
     public struct BasisLipSyncWorkspace : IDisposable
     {
         public NativeArray<float> buffer;
