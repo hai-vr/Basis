@@ -235,6 +235,7 @@ public class BasisEventDriver : MonoBehaviour
             // send out avatar
             BasisNetworkTransmitter.AfterAvatarChanges?.Invoke();
             BasisRemoteFaceManagement.Apply();
+            BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime);
         }
     }
 
