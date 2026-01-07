@@ -245,6 +245,7 @@ public class BasisEventDriver : MonoBehaviour
     {
         JigglePhysics.Dispose();
         BasisLocalMicrophoneDriver.StopProcessingThread();
+        BasisRemoteNamePlateDriver.Dispose();
         await BasisPlayerSettingsManager.FlushAllNow();
     }
 
