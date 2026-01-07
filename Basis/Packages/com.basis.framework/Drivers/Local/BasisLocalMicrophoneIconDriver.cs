@@ -59,6 +59,11 @@ namespace Basis.Scripts.Drivers
         private bool scalingUp = true;
         private bool isScaling = false;
 
+        // --- Render "intent" (ONLY applied in Simulate) ---
+        private bool requestedVisible = true;
+        private Color targetColor = Color.white;
+        private bool bounceRequested = false;
+
         // ---------------- Initialization ----------------
         public void Initalize(BasisLocalCameraDriver CameraDriver)
         {
@@ -73,8 +78,9 @@ namespace Basis.Scripts.Drivers
                 largerScale = StartingScale * 1.2f;
             }
 
-            // Ensure initial visibility matches current mode/state
-            ApplyDisplayModeVisibility(true);
+            // Seed intents (no renderer writes here)
+            RecomputeVisibilityIntent();
+            RecomputeColorIntent();
         }
 
         // ---------------- Layout Helpers ----------------
@@ -139,19 +145,17 @@ namespace Basis.Scripts.Drivers
         public void MicrophoneTransmitting()
         {
             LocalIsTransmitting = true;
-            ApplyDisplayModeVisibility(false);
-
-            SpriteRendererIcon.color = UnMutedMutedIconColorActive;
-            SpriteRendererIconTransform.localScale = largerScale;
+            RecomputeVisibilityIntent();
+            RecomputeColorIntent();
+            // no renderer writes
         }
 
         public void MicrophoneNotTransmitting()
         {
             LocalIsTransmitting = false;
-            ApplyDisplayModeVisibility(false);
-
-            SpriteRendererIcon.color = UnMutedMutedIconColorInactive;
-            SpriteRendererIconTransform.localScale = StartingScale;
+            RecomputeVisibilityIntent();
+            RecomputeColorIntent();
+            // no renderer writes
         }
 
         public void OnPausedEvent(bool IsMuted)
@@ -164,30 +168,24 @@ namespace Basis.Scripts.Drivers
         {
             IsCurrentlyMuted = IsMuted;
 
-            // Start a new bounce (replaces coroutine)
-            StartScaleBounce();
-
-            ApplyDisplayModeVisibility(false);
-
-            if (IsMuted)
+            // sprite change can stay here (you only asked to centralize color/scale/active)
+            if (SpriteRendererIcon != null)
             {
-                SpriteRendererIcon.sprite = SpriteMicrophoneOff;
-                SpriteRendererIcon.color = MutedColor;
-
-                if (PlaySound && AudioSource != null && MuteSound != null)
-                {
-                    AudioSource.PlayOneShot(MuteSound);
-                }
+                SpriteRendererIcon.sprite = IsMuted ? SpriteMicrophoneOff : SpriteMicrophoneOn;
             }
-            else
-            {
-                SpriteRendererIcon.sprite = SpriteMicrophoneOn;
-                SpriteRendererIcon.color = LocalIsTransmitting ? UnMutedMutedIconColorActive : UnMutedMutedIconColorInactive;
 
-                if (PlaySound && AudioSource != null && UnMuteSound != null)
-                {
+            // request bounce + recompute intents (no renderer writes)
+            bounceRequested = true;
+            RecomputeVisibilityIntent();
+            RecomputeColorIntent();
+
+            if (PlaySound && AudioSource != null)
+            {
+                if (IsMuted && MuteSound != null)
+                    AudioSource.PlayOneShot(MuteSound);
+
+                if (!IsMuted && UnMuteSound != null)
                     AudioSource.PlayOneShot(UnMuteSound);
-                }
             }
         }
 
@@ -195,47 +193,49 @@ namespace Basis.Scripts.Drivers
         {
             DisplayMode = newMode;
 
-            // If we're going to hide the icon, kill the bounce cleanly.
+            // If we're going to hide the icon, kill bounce cleanly (no scale write)
             if (DisplayMode == MicrophoneDisplayMode.Off)
             {
-                StopScaleBounce(resetToStartScale: true);
+                StopScaleBounce();
             }
 
-            ApplyDisplayModeVisibility(false);
+            RecomputeVisibilityIntent();
         }
 
-        private void ApplyDisplayModeVisibility(bool ForcedUpdate)
+        private void RecomputeVisibilityIntent()
         {
-            bool shouldShow;
-
             switch (DisplayMode)
             {
                 case MicrophoneDisplayMode.Off:
-                    shouldShow = false;
+                    requestedVisible = false;
                     break;
 
                 case MicrophoneDisplayMode.AlwaysVisible:
-                    shouldShow = true;
+                    requestedVisible = true;
                     break;
 
                 case MicrophoneDisplayMode.ActivityDetection:
-                    // Comment said: show when muted OR transmitting.
-                    shouldShow = IsCurrentlyMuted || LocalIsTransmitting;
+                    // Show when muted OR transmitting.
+                    requestedVisible = IsCurrentlyMuted || LocalIsTransmitting;
                     break;
 
                 default:
-                    shouldShow = true;
+                    requestedVisible = true;
                     break;
             }
-
-            SetIconVisible(shouldShow);
         }
 
-        private void SetIconVisible(bool visible)
+        private void RecomputeColorIntent()
         {
-            if (SpriteRendererIcon != null)
+            if (IsCurrentlyMuted)
             {
-                SpriteRendererIcon.enabled = visible;
+                targetColor = MutedColor;
+            }
+            else
+            {
+                targetColor = LocalIsTransmitting
+                    ? UnMutedMutedIconColorActive
+                    : UnMutedMutedIconColorInactive;
             }
         }
 
@@ -243,34 +243,53 @@ namespace Basis.Scripts.Drivers
         private void StartScaleBounce()
         {
             if (SpriteRendererIconTransform == null)
-            {
                 return;
-            }
 
             scaleTime = 0f;
             scalingUp = true;
             isScaling = true;
         }
 
-        private void StopScaleBounce(bool resetToStartScale)
+        private void StopScaleBounce()
         {
             isScaling = false;
             scalingUp = true;
             scaleTime = 0f;
-
-            if (resetToStartScale && SpriteRendererIconTransform != null)
-            {
-                SpriteRendererIconTransform.localScale = StartingScale;
-            }
         }
 
         /// <summary>
         /// Call this once per LateUpdate from your driver, passing Time.deltaTime.
+        /// This is the ONLY place that sets enabled/color/scale.
         /// </summary>
         public void Simulate(float DeltaTime)
         {
+            // --- Apply active state ---
+            SpriteRendererIcon.enabled = requestedVisible;
+
+            // --- Apply color ---
+            SpriteRendererIcon.color = targetColor;
+
+            // --- Start bounce if requested ---
+            if (bounceRequested)
+            {
+                bounceRequested = false;
+                StartScaleBounce();
+            }
+
+            // --- Apply scale (bounce or settle) ---
+            if (!requestedVisible)
+            {
+                // If hidden, you can choose what scale to keep.
+                // Usually safest to reset to starting so next show is clean.
+                SpriteRendererIconTransform.localScale = StartingScale;
+                StopScaleBounce();
+                return;
+            }
+
             if (!isScaling)
             {
+                // Ensure idle scale is consistent (especially after hide/show)
+                SpriteRendererIconTransform.localScale = StartingScale;
                 return;
             }
 
