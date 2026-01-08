@@ -516,7 +516,7 @@ public class BasisAvatarValidator
             var hd = modelImporter.humanDescription;
             if (!hd.hasTranslationDoF)
             {
-                hd.hasTranslationDoF = true;
+                hd.hasTranslationDoF = false;
                 modelImporter.humanDescription = hd;
                 changed = true;
             }
@@ -547,17 +547,17 @@ public class BasisAvatarValidator
 
         if (!foundAny) return;
 
-        if (anyDisabled)
+        if (!anyDisabled)
         {
             warnings.Add(new BasisValidationIssue(
-                "Translation DoF is disabled on one or more source models (Humanoid). This can cause retargeting issues.",
+                "Translation DoF is Eabled on one or more source models (Humanoid). This can cause retargeting issues.",
                 FixTryCreateHumanoidAvatarOnSourceModels,
-                "Enable Translation DoF + Humanoid Avatar on source models"
+                "Disable Translation DoF + Humanoid Avatar on source models"
             ));
         }
         else
         {
-            passes.Add("Translation DoF enabled on source models.");
+            passes.Add("Translation DoF Disabled on source models.");
         }
     }
 
