@@ -45,16 +45,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 356a8bb117010ea4084b0dd6463d28b0
-    m_Address: BasisConsoleLogger
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 36f8763dade09e141b33131d1ba97214
-    m_Address: MainMenu
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 3a3df1983396db742b32634900a6e4ad
     m_Address: BasisFramework
     m_ReadOnly: 0
@@ -85,11 +75,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 42ead3513149d52499d31b37cb1530ec
-    m_Address: BasisUIAddAvatar
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 44e34e57747369b4791afeff1fe21695
     m_Address: Assets/Animator/Animated TPose.controller
     m_ReadOnly: 0
@@ -117,11 +102,6 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 5dac596566264434bb51fc9fb566b888
     m_Address: Assets/UI/Prefabs/NamePlate.prefab
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 6339a6e83fe84c14d975b2a5a205b51a
-    m_Address: Packages/com.basis.sdk/Prefabs/UI/Accept Deny Panel.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -197,11 +177,6 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: bb4eb766250cf0b4d9e2dc0a7d939808
     m_Address: GizmoMaterial
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: c1e44be3809ebf446b1c38479ca9d1ed
-    m_Address: Packages/com.basis.sdk/Prefabs/UI/ControllerConfig.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
