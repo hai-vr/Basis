@@ -117,6 +117,9 @@ new("custom scale", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<string> IKMode =>
     new("Ik Mode", new BasisPlatformDefault<string>("Eye Height"));
 
+        public static BasisSettingsBinding<string> SelectedBone =>
+new("SelectedBone", new BasisPlatformDefault<string>("SelectedBone"));
+
         public static BasisSettingsBinding<float> FoveatedRendering =>
             new("Foveated Rendering", new BasisPlatformDefault<float>
             {
@@ -183,7 +186,10 @@ new("Avatar Download Size", new BasisPlatformDefault<float>(256));
                 linux = false,
                 other = false
             });
-
+        public static BasisSettingsBinding<bool> FalseBinding =>
+new("FalseBinding", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> TrueBinding =>
+new("TrueBinding", new BasisPlatformDefault<bool>(false));
         // ---------------- GLOBAL ONE EURO PARAMS ----------------
         public static BasisSettingsBinding<float> FBIKMinCutoff =>
             new("FBIKMinCutoff", new BasisPlatformDefault<float>(5.5f));

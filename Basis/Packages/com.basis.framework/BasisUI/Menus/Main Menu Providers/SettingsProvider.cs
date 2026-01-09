@@ -1,14 +1,9 @@
 using Basis.Scripts.Device_Management;
-using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.UI.UI_Panels;
-using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
-using static BasisActionDriver;
 
 namespace Basis.BasisUI
 {
