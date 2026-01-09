@@ -1,9 +1,11 @@
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.UI.UI_Panels;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Basis.BasisUI
 {
@@ -142,12 +144,6 @@ namespace Basis.BasisUI
             toggleInvertMouse.Descriptor.SetTitle("Invert Mouse");
             toggleInvertMouse.AssignBinding(BasisSettingsDefaults.InvertMouse);
 
-            // Controller Dead Zone
-            PanelSlider sliderControllerDeadZone = PanelSlider.CreateEntryAndBind(
-                generalGroup,
-                PanelSlider.SliderSettings.Advanced("Controller Dead Zone", 0, 1, false, 3, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.ControllerDeadZone);
-
             // Snap Turn Angle
             PanelSlider sliderSnapTurnAngle = PanelSlider.CreateEntryAndBind(
                 generalGroup,
@@ -178,10 +174,83 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Distance("Microphone Range", 25),
                 BasisSettingsDefaults.MicrophoneRange);
 
+            // =======================
+            // GENERAL
+            // =======================
+            PanelElementDescriptor generalGroupDeadZone =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+
+            generalGroupDeadZone.SetTitle("General");
+            generalGroupDeadZone.SetDescription("Basic filtering applied to the whole stick. (excluding look)");
+
+            PanelSlider controllerDeadZoneSlider = PanelSlider.CreateEntryAndBind(
+                generalGroupDeadZone,
+                PanelSlider.SliderSettings.Advanced(
+                    "Radial Dead Zone",
+                    0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.ControllerDeadZone);
+
+
+            // =======================
+            // HORIZONTAL (YAW) COMFORT
+            // =======================
+            PanelElementDescriptor horizontalGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+
+            horizontalGroup.SetTitle("Horizontal (Yaw) Comfort");
+            horizontalGroup.SetDescription("Prevents forward/back stick pressure from causing accidental left/right drift (\"butterfly wings\").");
+
+            PanelSlider minHorizontalDeadZoneSlider = PanelSlider.CreateEntryAndBind(
+                horizontalGroup,
+                PanelSlider.SliderSettings.Advanced(
+                    "X Dead Zone (Min)",
+                    0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.Basexdeadzone);
+
+            PanelSlider horizontalGateStrengthSlider = PanelSlider.CreateEntryAndBind(
+                horizontalGroup,
+                PanelSlider.SliderSettings.Advanced(
+                    "X Gate (At Full Y)",
+                    0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.Extraxdeadzoneatfully);
+
+            PanelSlider wingCurveSlider = PanelSlider.CreateEntryAndBind(
+                horizontalGroup,
+                PanelSlider.SliderSettings.Advanced(
+                    "Gate Curve",
+                    0f, 3f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.Wingexponent);
+
+
+            // =======================
+            // VERTICAL (PITCH / OTHER)
+            // =======================
+            PanelElementDescriptor verticalGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+
+            verticalGroup.SetTitle("Vertical (Pitch / Other)");
+            verticalGroup.SetDescription("look joystick Y Dead Zone");
+
+            PanelSlider verticalDeadZoneSlider = PanelSlider.CreateEntryAndBind(
+                verticalGroup,
+                PanelSlider.SliderSettings.Advanced(
+                    "Look Y Dead Zone",
+                    0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.Ydeadzone);
+
+            controllerDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
+            minHorizontalDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
+            horizontalGateStrengthSlider.OnValueChanged += _ => UpdatePreview();
+            verticalDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
+            wingCurveSlider.OnValueChanged += _ => UpdatePreview();
+
             descriptor.ForceRebuild();
             return tab;
         }
-
+        private static void UpdatePreview()
+        {
+            //wire up to butterflygatepreview one day
+        }
         // ------------------
         // AUDIO TAB
         // ------------------

@@ -20,6 +20,17 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<float> ControllerDeadZone =>
             new("joystickdeadzone", new BasisPlatformDefault<float>(0.01f));
+        public static BasisSettingsBinding<float> Basexdeadzone =>
+    new("basexdeadzone", new BasisPlatformDefault<float>(0.08f));
+
+        public static BasisSettingsBinding<float> Extraxdeadzoneatfully =>
+    new("extraxdeadzoneatfully", new BasisPlatformDefault<float>(0.35f));
+
+        public static BasisSettingsBinding<float> Ydeadzone =>
+    new("ydeadzone", new BasisPlatformDefault<float>(0.10f));
+
+        public static BasisSettingsBinding<float> Wingexponent =>
+new("wingexponent", new BasisPlatformDefault<float>(1.6f));
 
         public static BasisSettingsBinding<float> MicrophoneRange =>
             new("MicrophoneRange", new BasisPlatformDefault<float>(25));

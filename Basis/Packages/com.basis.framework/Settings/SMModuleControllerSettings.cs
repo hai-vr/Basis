@@ -24,25 +24,25 @@ public class SMModuleControllerSettings : BasisSettingsBase
                     BasisDebug.Log($"Snap Turn Angle is set to {SnapTurnAngle}");
                 }
                 break;
-            case "baseXDeadzone":
+            case "basexdeadzone":
                 if (SliderReadOption(optionValue, out baseXDeadzone))
                 {
                     BasisDebug.Log($"baseXDeadzone deadspace is set to {baseXDeadzone}");
                 }
                 break;
-            case "extraXDeadzoneAtFullY":
+            case "extraxdeadzoneatfully":
                 if (SliderReadOption(optionValue, out extraXDeadzoneAtFullY))
                 {
                     BasisDebug.Log($"extraXDeadzoneAtFullY deadspace is set to {extraXDeadzoneAtFullY}");
                 }
                 break;
-            case "yDeadzone":
+            case "ydeadzone":
                 if (SliderReadOption(optionValue, out yDeadzone))
                 {
                     BasisDebug.Log($"yDeadzone deadspace is set to {yDeadzone}");
                 }
                 break;
-            case "wingExponent":
+            case "wingexponent":
                 if (SliderReadOption(optionValue, out wingExponent))
                 {
                     BasisDebug.Log($"wingExponent deadspace is set to {wingExponent}");
