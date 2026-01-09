@@ -39,7 +39,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                         ControlOnlyAsDevice();
                         if (HasInputSource)
                         {
-                            CurrentInputState.Primary2DAxis = SteamVR_Actions._default.Joystick.GetAxis(inputSource);
+                            CurrentInputState.Primary2DAxisDeadZoned = SteamVR_Actions._default.Joystick.GetAxis(inputSource);
                             CurrentInputState.PrimaryButtonGetState = SteamVR_Actions._default.A_Button.GetState(inputSource);
                             CurrentInputState.SecondaryButtonGetState = SteamVR_Actions._default.B_Button.GetState(inputSource);
                             CurrentInputState.Trigger = SteamVR_Actions._default.Trigger.GetAxis(inputSource);

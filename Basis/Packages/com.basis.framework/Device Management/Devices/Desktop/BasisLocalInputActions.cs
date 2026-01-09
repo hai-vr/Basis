@@ -430,7 +430,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
         public void OnLeftMouse(InputAction.CallbackContext ctx) => InputState.Trigger = ctx.ReadValue<float>();
         public void OnRightMouse(InputAction.CallbackContext ctx) => InputState.SecondaryTrigger = ctx.ReadValue<float>();
-        public void OnMouseScroll(InputAction.CallbackContext ctx) => InputState.Secondary2DAxis = ctx.ReadValue<Vector2>();
+        public void OnMouseScroll(InputAction.CallbackContext ctx) => InputState.Secondary2DAxisDeadZoned = ctx.ReadValue<Vector2>();
         public void OnMouseScrollClick(InputAction.CallbackContext ctx) => InputState.Secondary2DAxisClick = ctx.ReadValue<float>() == 1;
 
         #endregion

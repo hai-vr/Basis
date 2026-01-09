@@ -75,10 +75,10 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             CurrentInputState.PrimaryButtonGetState = SteamVR_Actions._default.A_Button.GetState(inputSource);
             CurrentInputState.SecondaryButtonGetState = SteamVR_Actions._default.B_Button.GetState(inputSource);
             CurrentInputState.Primary2DAxisClick = SteamVR_Actions._default.JoyStickClick.GetState(inputSource);
-            CurrentInputState.Primary2DAxis = SteamVR_Actions._default.Joystick.GetAxis(inputSource);
+            CurrentInputState.Primary2DAxisDeadZoned = SteamVR_Actions._default.Joystick.GetAxis(inputSource);
             CurrentInputState.Trigger = SteamVR_Actions._default.Trigger.GetAxis(inputSource);
             CurrentInputState.SecondaryTrigger = SteamVR_Actions._default.HandTrigger.GetAxis(inputSource);
-            CurrentInputState.Secondary2DAxis = SteamVR_Actions._default.TrackPad.GetAxis(inputSource);
+            CurrentInputState.Secondary2DAxisDeadZoned = SteamVR_Actions._default.TrackPad.GetAxis(inputSource);
             CurrentInputState.Secondary2DAxisClick = SteamVR_Actions._default.TrackPadTouched.GetState(inputSource);
 
             // Update hand (left/right)

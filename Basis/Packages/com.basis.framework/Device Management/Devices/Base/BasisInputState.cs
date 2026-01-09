@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 
 namespace Basis.Scripts.Device_Management.Devices
@@ -34,10 +35,10 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <summary>Raised when <see cref="SecondaryTrigger"/> changes.</summary>
         public event Action OnSecondaryTriggerChanged;
 
-        /// <summary>Raised when <see cref="Primary2DAxis"/> changes (after deadzone).</summary>
+        /// <summary>Raised when <see cref="Primary2DAxisDeadZoned"/> changes (after deadzone).</summary>
         public event Action OnPrimary2DAxisChanged;
 
-        /// <summary>Raised when <see cref="Secondary2DAxis"/> changes (after deadzone).</summary>
+        /// <summary>Raised when <see cref="Secondary2DAxisDeadZoned"/> changes (after deadzone).</summary>
         public event Action OnSecondary2DAxisChanged;
 
         [SerializeField] private bool gripButton;
@@ -182,12 +183,12 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <summary>
         /// Primary 2D axis (post-deadzone). Typical gamepad/joystick stick.
         /// </summary>
-        public Vector2 Primary2DAxis
+        public Vector2 Primary2DAxisDeadZoned
         {
             get => primary2DAxis;
             set
             {
-                Vector2 converted = ApplyDeadzone(value, SMModuleControllerSettings.JoyStickDeadZone);
+                Vector2 converted = ApplyNormalDeadzone(value, SMModuleControllerSettings.JoyStickDeadZone);
                 if (primary2DAxis != converted)
                 {
                     primary2DAxis = converted;
@@ -199,12 +200,12 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <summary>
         /// Secondary 2D axis (post-deadzone). E.g., scroll wheel delta for desktop.
         /// </summary>
-        public Vector2 Secondary2DAxis
+        public Vector2 Secondary2DAxisDeadZoned
         {
             get => secondary2DAxis;
             set
             {
-                Vector2 converted = ApplyDeadzone(value, SMModuleControllerSettings.JoyStickDeadZone);
+                Vector2 converted = ApplyNormalDeadzone(value, SMModuleControllerSettings.JoyStickDeadZone);
                 if (secondary2DAxis != converted)
                 {
                     secondary2DAxis = converted;
@@ -212,14 +213,78 @@ namespace Basis.Scripts.Device_Management.Devices
                 }
             }
         }
+        /// <summary>
+        /// Primary 2D axis (post-deadzone). Typical gamepad/joystick stick.
+        /// </summary>
+        public Vector2 Primary2DAxisButterfly
+        {
+            get => primary2DAxis;
+            set
+            {
+                Vector2 converted = ButterflyGate(value, SMModuleControllerSettings.baseXDeadzone, SMModuleControllerSettings.extraXDeadzoneAtFullY, SMModuleControllerSettings.yDeadzone, SMModuleControllerSettings.wingExponent);
+                if (primary2DAxis != converted)
+                {
+                    primary2DAxis = converted;
+                    OnPrimary2DAxisChanged?.Invoke();
+                }
+            }
+        }
 
+        /// <summary>
+        /// Secondary 2D axis (post-deadzone). E.g., scroll wheel delta for desktop.
+        /// </summary>
+        public Vector2 Secondary2DAxisButterfly
+        {
+            get => secondary2DAxis;
+            set
+            {
+                Vector2 converted = ButterflyGate(value, SMModuleControllerSettings.baseXDeadzone, SMModuleControllerSettings.extraXDeadzoneAtFullY, SMModuleControllerSettings.yDeadzone, SMModuleControllerSettings.wingExponent);
+                if (secondary2DAxis != converted)
+                {
+                    secondary2DAxis = converted;
+                    OnSecondary2DAxisChanged?.Invoke();
+                }
+            }
+        }
+        // Apply a deadzone to a single axis and remap to [0..1] outside the deadzone.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float ApplyDeadzone(float v, float dz)
+        {
+            float av = Mathf.Abs(v);
+            if (av <= dz) return 0f;
+            float sign = Mathf.Sign(v);
+            // Remap so output hits 1 at the edge
+            return sign * ((av - dz) / (1f - dz));
+        }
+
+        /// <summary>
+        /// "Butterfly wings" gating: as |Y| increases, X deadzone increases.
+        /// Keeps horizontal look precise even when stick is pushed forward.
+        /// </summary>
+        public static Vector2 ButterflyGate(Vector2 stick,
+                                            float baseXDeadzone = 0.08f,
+                                            float extraXDeadzoneAtFullY = 0.35f,
+                                            float yDeadzone = 0.10f,
+                                            float wingExponent = 1.6f)
+        {
+            // Optional: deadzone Y normally (useful if you also use Y for something)
+            float y = ApplyDeadzone(stick.y, yDeadzone);
+
+            // Grow X deadzone as you push on Y (|y| in [0..1])
+            float yInfluence = Mathf.Pow(Mathf.Clamp01(Mathf.Abs(y)), wingExponent);
+            float xDeadzone = Mathf.Clamp01(baseXDeadzone + extraXDeadzoneAtFullY * yInfluence);
+
+            float x = ApplyDeadzone(stick.x, xDeadzone);
+
+            return new Vector2(x, y);
+        }
         /// <summary>
         /// Applies a circular deadzone to a 2D input vector.
         /// </summary>
         /// <param name="input">Raw input vector.</param>
         /// <param name="deadzoneThreshold">Magnitude below which input is treated as zero.</param>
         /// <returns>Zeroed vector if under threshold; original vector otherwise.</returns>
-        public Vector2 ApplyDeadzone(Vector2 input, float deadzoneThreshold)
+        public Vector2 ApplyNormalDeadzone(Vector2 input, float deadzoneThreshold)
         {
             if (input.magnitude < deadzoneThreshold)
             {
@@ -242,8 +307,8 @@ namespace Basis.Scripts.Device_Management.Devices
             target.Primary2DAxisClick = this.Primary2DAxisClick;
             target.Trigger = this.Trigger;
             target.SecondaryTrigger = this.SecondaryTrigger;
-            target.Primary2DAxis = this.Primary2DAxis;
-            target.Secondary2DAxis = this.Secondary2DAxis;
+            target.Primary2DAxisDeadZoned = this.Primary2DAxisDeadZoned;
+            target.Secondary2DAxisDeadZoned = this.Secondary2DAxisDeadZoned;
         }
     }
 }

@@ -115,8 +115,8 @@ public class BasisOpenXRHandInput : BasisInputController
     }
     public override void DoPollData()
     {
-        CurrentInputState.Primary2DAxis = Primary2DAxis.action?.ReadValue<Vector2>() ?? Vector2.zero;
-        CurrentInputState.Secondary2DAxis = Secondary2DAxis.action?.ReadValue<Vector2>() ?? Vector2.zero;
+        CurrentInputState.Primary2DAxisDeadZoned = Primary2DAxis.action?.ReadValue<Vector2>() ?? Vector2.zero;
+        CurrentInputState.Secondary2DAxisDeadZoned = Secondary2DAxis.action?.ReadValue<Vector2>() ?? Vector2.zero;
         CurrentInputState.GripButton = Grip.action?.ReadValue<float>() > TriggerDownAmount;
         CurrentInputState.SecondaryTrigger = Grip.action?.ReadValue<float>() ?? 0f;
         CurrentInputState.SystemOrMenuButton = MenuButton.action?.ReadValue<float>() > TriggerDownAmount;

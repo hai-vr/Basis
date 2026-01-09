@@ -82,10 +82,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
                 case BasisInputKey.Primary2DAxis:
                     // Axis has state if it's non-zero (already deadzoned in BasisInputState)
-                    return state.Primary2DAxis.sqrMagnitude > 0f;
+                    return state.Primary2DAxisDeadZoned.sqrMagnitude > 0f;
 
                 case BasisInputKey.Secondary2DAxis:
-                    return state.Secondary2DAxis.sqrMagnitude > 0f;
+                    return state.Secondary2DAxisDeadZoned.sqrMagnitude > 0f;
 
                 case BasisInputKey.Primary2DAxisClick:
                     return state.Primary2DAxisClick;

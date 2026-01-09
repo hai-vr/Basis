@@ -763,7 +763,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         private void PollDesktopControl(BasisInput DesktopEye)
         {
             // scroll zoop
-            float mouseScroll = DesktopEye.CurrentInputState.Secondary2DAxis.y; // only ever 1, 0, -1
+            float mouseScroll = DesktopEye.CurrentInputState.Secondary2DAxisDeadZoned.y; // only ever 1, 0, -1
 
             Vector3 currentOffset = InputConstraint.sources[0].positionOffset;
             if (targetOffset == Vector3.zero)
