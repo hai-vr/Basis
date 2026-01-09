@@ -150,7 +150,6 @@
   <Project Path="Basis.ZeroMessenger.Tests.csproj" />
   <Project Path="Unity.Services.Core.Registration.csproj" />
   <Project Path="Unity.Animation.Rigging.DocCodeExamples.csproj" />
-  <Project Path="BasisConsoleDisplay.csproj" />
   <Project Path="UnityEngine.XR.LegacyInputHelpers.csproj" />
   <Project Path="Unity.XR.OpenXR.Features.RuntimeDebugger.Editor.csproj" />
   <Project Path="Unity.InputSystem.DocCodeSamples.csproj" />

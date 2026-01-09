@@ -20,11 +20,6 @@ using UnityEngine.InputSystem;
 public class BasisEventDriver : MonoBehaviour
 {
     /// <summary>
-    /// Interval (seconds) for periodic tasks such as log display refreshes.
-    /// </summary>
-    public float updateInterval = 0.1f; // 100 milliseconds
-
-    /// <summary>
     /// Accumulator used to track elapsed time since the last interval tick.
     /// </summary>
     public float timeSinceLastUpdate = 0f;
@@ -138,13 +133,6 @@ public class BasisEventDriver : MonoBehaviour
         InputSystem.Update();
 #endif
         timeSinceLastUpdate += DeltaTime;
-
-        // Periodic updates at a stable cadence
-        if (timeSinceLastUpdate >= updateInterval) // Use '>=' to avoid small errors
-        {
-            timeSinceLastUpdate -= updateInterval; // Subtract interval instead of resetting to zero
-            BasisConsoleLogger.QueryLogDisplay();
-        }
     }
 
     /// <summary>

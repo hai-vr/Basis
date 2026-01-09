@@ -39,14 +39,14 @@ namespace Basis.BasisUI
             tabGroup.AddTab("General", null, GeneralTab(tabGroup));
             tabGroup.AddTab("Audio", null, AudioTab(tabGroup));
             tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
-            tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
             tabGroup.AddTab("Avatar", null, AvatarTab(tabGroup));
             tabGroup.AddTab("Calibration", null, SettingsProviderIK.IKTab(tabGroup));
             tabGroup.AddTab("Bindings", null, SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
-
+            tabGroup.AddTab("Console", null, SettingsProviderConsoleTab.ConsoleTab(tabGroup));
+            tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
 
             tabGroup.AddExtraAction("Admin", OpenAdminPanel);
-            tabGroup.AddExtraAction("Console", OpenConsoleLogger);
+          //tabGroup.AddExtraAction("Console", OpenConsoleLogger);
 
             tabGroup.AddExtraAction("Switch To OpenVR", SwitchToOpenVR);
             tabGroup.AddExtraAction("Switch To OpenXR", SwitchToOpenXR);
@@ -104,12 +104,6 @@ namespace Basis.BasisUI
         {
             BasisMainMenu.Close();
             BasisUIAdminPanel.OpenThisMenu(BasisUIAdminPanel.Path);
-        }
-
-        public static void OpenConsoleLogger()
-        {
-            BasisMainMenu.Close();
-            BasisUIBase.OpenMenuNow("BasisConsoleLogger");
         }
 
         // ------------------
@@ -611,9 +605,19 @@ namespace Basis.BasisUI
             });
             Visual.AssignBinding(BasisSettingsDefaults.VisualState);
 
+            // ---- Header / info group ----
+            PanelElementDescriptor infoGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            infoGroup.SetTitle("Build & Environment");
+            infoGroup.SetDescription("Useful identifiers for debugging builds.");
+
+            CreateBuildInfoSection(infoGroup.ContentParent);
+
+
             descriptor.ForceRebuild();
             return tab;
         }
+
         public static PanelTabPage AvatarTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
@@ -635,6 +639,66 @@ namespace Basis.BasisUI
 
             descriptor.ForceRebuild();
             return tab;
+        }
+        private static void CreateBuildInfoSection(RectTransform parent)
+        {
+            // Add a "Copy All" action button at the top (optional but handy)
+            PanelButton copyAll = PanelButton.CreateNew(parent);
+            copyAll.Descriptor.SetTitle("Copy Build Info");
+            copyAll.Descriptor.SetDescription("Copies all fields to clipboard.");
+            copyAll.OnClicked += () =>
+            {
+                GUIUtility.systemCopyBuffer = BuildInfoString();
+                BasisDebug.Log("Copied build info to clipboard.");
+            };
+
+            // Individual rows (selectable + copyable)
+            AddInfoRow(parent, "Version", Application.version);
+            AddInfoRow(parent, "Unity", Application.unityVersion);
+            AddInfoRow(parent, "Platform", Application.platform.ToString());
+
+            // Your own runtime value (keep as-is)
+            AddInfoRow(parent, "Mode", Basis.Scripts.Device_Management.BasisDeviceManagement.StaticCurrentMode.ToString());
+
+            AddInfoRow(parent, "Build GUID", Application.buildGUID);
+            AddInfoRow(parent, "Log Path", Application.consoleLogPath);
+            AddInfoRow(parent, "Data Path", Application.dataPath);
+        }
+
+        private static PanelTextField AddInfoRow(RectTransform parent, string title, string value)
+        {
+            // Uses your existing prefab + styling
+            PanelTextField field = PanelTextField.CreateNewEntry(parent);
+            field.Descriptor.SetTitle(title);
+            field.Descriptor.SetDescription(string.Empty);
+
+            field.SetValueWithoutNotify(value ?? string.Empty);
+
+            // Make it behave like a read-only “info label” but still selectable for copy
+            TMP_InputField input = field.GetComponentInChildren<TMP_InputField>(true);
+            if (input)
+            {
+                input.readOnly = true;
+                input.interactable = true; // keep selectable
+                input.contentType = TMP_InputField.ContentType.Standard;
+
+                // For long paths/GUIDs, multiline reads nicer
+                input.lineType = TMP_InputField.LineType.MultiLineNewline;
+                input.scrollSensitivity = 2f;
+            }
+            return field;
+        }
+
+        private static string BuildInfoString()
+        {
+            return
+                $"Version: {Application.version}\n" +
+                $"Unity: {Application.unityVersion}\n" +
+                $"Platform: {Application.platform}\n" +
+                $"Mode: {Basis.Scripts.Device_Management.BasisDeviceManagement.StaticCurrentMode}\n" +
+                $"Build GUID: {Application.buildGUID}\n" +
+                $"Log Path: {Application.consoleLogPath}\n" +
+                $"Data Path: {Application.dataPath}";
         }
     }
 }

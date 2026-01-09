@@ -18,12 +18,6 @@
       "source": "embedded",
       "dependencies": {}
     },
-    "com.basis.console": {
-      "version": "file:com.basis.console",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {}
-    },
     "com.basis.corenetworking": {
       "version": "file:com.basis.server",
       "depth": 0,

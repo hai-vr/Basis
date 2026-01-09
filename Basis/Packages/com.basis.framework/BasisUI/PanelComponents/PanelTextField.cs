@@ -16,10 +16,13 @@ namespace Basis.BasisUI
         {
             public static string Default => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Text Field.prefab";
             public static string Entry => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Text Field - Entry Variant.prefab";
+            public static string LargeDefault => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Large Text Field.prefab";
         }
 
         public static PanelTextField CreateNew(Component parent)
             => CreateNew<PanelTextField>(TextFieldStyles.Default, parent);
+        public static PanelTextField CreateNewLarge(Component parent)
+    => CreateNew<PanelTextField>(TextFieldStyles.LargeDefault, parent);
 
         public static PanelTextField CreateNewEntry(Component parent)
             => CreateNew<PanelTextField>(TextFieldStyles.Entry, parent);

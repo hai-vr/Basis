@@ -175,6 +175,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a2f345806aa03f144bfb15aaa186ecf9
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Large Text Field.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: a67751b7d392b924e89b90084f01a19b
     m_Address: Packages/com.basis.gizmos/GizmoLine.prefab
     m_ReadOnly: 0

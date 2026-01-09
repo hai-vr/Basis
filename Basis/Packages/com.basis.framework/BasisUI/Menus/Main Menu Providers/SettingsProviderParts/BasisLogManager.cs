@@ -34,35 +34,23 @@ public static class BasisLogManager
                 _ => new List<string>(normalEntries)
             };
 
-            // Extract and preserve the color codes
-            var colorMap = new Dictionary<string, string>
-            {
-                { "#FF0000", "<color=#FF0000>" },
-                { "#FFA500", "<color=#FFA500>" },
-                { "#FFFFFF", "<color=#FFFFFF>" }
-            };
-
-            // Helper to extract color from a log entry
-            string ExtractColor(string log)
-            {
-                foreach (var entry in colorMap)
+            var grouped = logs
+                .GroupBy(CollapseKey)
+                .Select(g =>
                 {
-                    if (log.Contains(entry.Value))
-                        return entry.Key;
-                }
-                return "#FFFFFF"; // Default color
-            }
+                    // pick one original colored line to preserve the original color + formatting
+                    // but DO NOT wrap it in another color tag
+                    string sampleColored = logs.First(l => CollapseKey(l) == g.Key);
 
-            var groupedLogs = logs
-                .GroupBy(log => log)
-                .Select(group =>
-                {
-                    string color = ExtractColor(group.Key);
-                    return $"{group.Count()}x {colorMap[color]}{group.Key}</color>";
+                    // optional: show the clean text instead of the timestamped sample
+                    // string display = $"{g.Count()}x {g.Key}";
+                    // return display;
+
+                    return $"{g.Count()}x {sampleColored}";
                 })
                 .ToList();
 
-            return groupedLogs;
+            return grouped;
         }
     }
     public static List<string> GetCombinedCollapsedLogs()
@@ -103,7 +91,31 @@ public static class BasisLogManager
             return groupedLogs;
         }
     }
+    private static string StripColorTags(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return s;
+        // remove <color=...> and </color>
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"</?color.*?>", "");
+        return s;
+    }
 
+    private static string StripTimestampPrefix(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return s;
+        // removes "[12:34:56] " at start
+        return System.Text.RegularExpressions.Regex.Replace(s, @"^\[\d{2}:\d{2}:\d{2}\]\s*", "");
+    }
+
+    private static string CollapseKey(string coloredLog)
+    {
+        // coloredLog is currently "<color=...>[time] message</color>"
+        var plain = StripColorTags(coloredLog);
+        plain = StripTimestampPrefix(plain);
+
+        // Optional: normalize whitespace so tiny differences don't break collapsing
+        plain = plain.Replace("\r\n", "\n").Trim();
+        return plain;
+    }
     public static void HandleLog(string logString, string stackTrace, LogType type)
     {
         logQueue.Enqueue((logString, stackTrace, type));
@@ -168,7 +180,7 @@ public static class BasisLogManager
         if (logList.Count > MaximumLogs) // Hardcoded max log entries
             logList.RemoveAt(0);
     }
-    public const int MaximumLogs = 500;
+    public const int MaximumLogs = 300;
     public static List<string> GetLogs(LogType type)
     {
         lock (logLock)
