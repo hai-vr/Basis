@@ -382,15 +382,6 @@ public static class BasisActionDriver
         {
 
             Basis.BasisUI.BasisMainMenu.Toggle();
-
-            /*if (BasisHamburgerMenu.Instance == null)
-            {
-                BasisHamburgerMenu.OpenHamburgerMenuNow();
-            }
-            else
-            {
-                BasisHamburgerMenu.Instance.CloseThisMenu();
-            }*/
         }
     }
 

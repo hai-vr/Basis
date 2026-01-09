@@ -124,7 +124,7 @@ new("custom scale", new BasisPlatformDefault<bool>(false));
                 android = 1,
                 linux = 0,
                 other = 0,
-               ios = 0,  
+                ios = 0,
             });
 
         public static BasisSettingsBinding<float> FieldOfView =>
@@ -413,5 +413,9 @@ new("Avatar Download Size", new BasisPlatformDefault<float>(256));
 
         public static BasisSettingsBinding<bool> FBIKRightShoulderEuroRot =>
             new("FBIKRightShoulderEuroRot", new BasisPlatformDefault<bool>(false));
+
+        // Optional: a real persistent setting for the master toggle.
+        public static readonly BasisSettingsBinding<bool> FBIKEuroAll =
+            new BasisSettingsBinding<bool>("EuroAll");
     }
 }

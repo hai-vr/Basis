@@ -2,38 +2,38 @@ namespace Basis.Scripts.TransformBinders.BoneControl
 {
     public enum BasisBoneTrackedRole
     {
-        CenterEye,
-        Head,
-        Neck,
-        Chest,
-        Hips,
-        Spine,
+        CenterEye = 0,
+        Head = 1,
+        Neck = 2,
+        Chest = 3,
+        Hips = 4,
+        Spine = 5,
 
-        LeftUpperLeg,
-        RightUpperLeg,
+        LeftUpperLeg = 6,
+        RightUpperLeg = 7,
 
-        LeftLowerLeg,
-        RightLowerLeg,
+        LeftLowerLeg = 8,
+        RightLowerLeg = 9,
 
-        LeftFoot,
-        RightFoot,
+        LeftFoot = 10,
+        RightFoot = 11,
 
-        LeftShoulder,
-        RightShoulder,
+        LeftShoulder = 12,
+        RightShoulder = 13,
 
-        LeftUpperArm,
-        RightUpperArm,
+        LeftUpperArm = 14,
+        RightUpperArm = 15,
 
-        LeftLowerArm,
-        RightLowerArm,
+        LeftLowerArm = 16,
+        RightLowerArm = 17,
 
-        LeftHand,
-        RightHand,
+        LeftHand = 18,
+        RightHand = 19,
 
-        LeftToes,
-        RightToes,
+        LeftToes = 20,
+        RightToes = 21,
 
-        Mouth,
+        Mouth = 22,
     }
 
     public static class BasisBoneTrackedRoleCommonCheck
