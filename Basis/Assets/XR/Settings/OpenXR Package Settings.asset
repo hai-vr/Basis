@@ -1214,7 +1214,7 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
-  enableSubsampledLayout: 0
+  enableSubsampledLayout: 1
 --- !u!114 &1063500065831918426
 MonoBehaviour:
   m_ObjectHideFlags: 0
