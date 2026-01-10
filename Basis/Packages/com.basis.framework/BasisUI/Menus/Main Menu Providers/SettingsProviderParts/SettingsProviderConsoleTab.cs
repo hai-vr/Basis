@@ -6,19 +6,20 @@ using System.Linq;
 using System.Text;
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace Basis.BasisUI
 {
     public static class SettingsProviderConsoleTab
     {
+        private static bool _showCollapsedLogs = true;
         private static bool _showAllLogsInOrder = true;
+
+        public static bool RequestUpdate = false;
         private static LogType _currentLogTypeFilter = LogType.Log;
         private static bool _isUpdating = true;
 
         // Output UI
         private static TMP_Text _outputText;
-        private static bool _showCollapsedLogs = true;
         private static readonly StringBuilder _sb = new StringBuilder(32_768); // reused buffer
 
         private class ConsoleTabUpdater : MonoBehaviour
@@ -42,9 +43,10 @@ namespace Basis.BasisUI
 
                 _timer -= UpdateInterval;
 
-                if (BasisLogManager.LogChanged)
+                if (BasisLogManager.LogChanged || RequestUpdate)
                 {
                     RebuildOutput();
+                    RequestUpdate = false;
                 }
             }
 
@@ -79,6 +81,7 @@ namespace Basis.BasisUI
             collapseToggle.OnValueChanged += v =>
             {
                 _showCollapsedLogs = v;
+                RequestUpdate = true;
             };
 
             PanelToggle updatingToggle = PanelToggle.CreateNewEntry(controlsGroup.ContentParent);
@@ -87,6 +90,7 @@ namespace Basis.BasisUI
             updatingToggle.OnValueChanged += v =>
             {
                 _isUpdating = v;
+                RequestUpdate = true;
             };
 
             PanelDropdown filterDropdown = PanelDropdown.CreateNewEntry(controlsGroup.ContentParent);
@@ -101,6 +105,7 @@ namespace Basis.BasisUI
             {
                 BasisLogManager.ClearLogs();
                 RebuildOutput();
+                RequestUpdate = true;
             };
 
             PanelButton crashBtn = PanelButton.CreateNew(controlsGroup.ContentParent);
@@ -151,9 +156,9 @@ namespace Basis.BasisUI
         private static void RebuildOutput()
         {
             _sb.Clear();
-            var lines = GetCurrentLogLines();
-
-            if (lines.Count == 0)
+            List<string> lines = GetCurrentLogLines();
+            int count = lines.Count;
+            if (count == 0)
             {
                 _outputText.SetText(string.Empty);
                 BasisLogManager.LogChanged = false;
@@ -161,9 +166,9 @@ namespace Basis.BasisUI
             }
 
             _sb.AppendLine(lines[0]);
-            for (int i = 1; i < lines.Count; i++)
+            for (int Index = 1; Index < count; Index++)
             {
-                _sb.AppendLine(lines[i]);
+                _sb.AppendLine(lines[Index]);
             }
 
             _outputText.SetText(_sb);
@@ -195,6 +200,7 @@ namespace Basis.BasisUI
                     _ => LogType.Log
                 };
             }
+            RequestUpdate = true;
         }
 
         private static List<string> GetCurrentLogLines()
