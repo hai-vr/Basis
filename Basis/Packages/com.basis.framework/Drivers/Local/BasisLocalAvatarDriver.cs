@@ -136,7 +136,7 @@ namespace Basis.Scripts.Drivers
 
             player.LocalBoneDriver.RemoveAllListeners();
             BasisLocalEyeDriver.Initalize();
-            RenderMeshSettings(true, BasisLayerMapper.LocalAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer, true, true,true);
+            LocalRenderMeshSettings(BasisLayerMapper.LocalAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer, player.BasisAvatar.FaceVisemeMesh);
 
             if (References.Hashead)
             {
