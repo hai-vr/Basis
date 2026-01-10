@@ -109,7 +109,7 @@ namespace Basis.Scripts.Device_Management
         private DeviceSupportInformation CreateAndRegisterFallback(string nameToMatch, BasisBoneTrackedRole fallbackRole, bool useFallbackRole)
         {
             bool HasRayCastVisual = true;
-            bool HasRayCastRadical = true;
+            bool HasRayCastRadical = false;
             bool HasRayCastSupport = true;
             if (fallbackRole == BasisBoneTrackedRole.CenterEye && useFallbackRole)
             {

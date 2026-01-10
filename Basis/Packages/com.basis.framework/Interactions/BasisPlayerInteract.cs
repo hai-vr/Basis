@@ -38,7 +38,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public static Material LineMaterial;
         private static AsyncOperationHandle<Material> asyncOperationLineMaterial;
 
-        public static float interactLineWidth = 0.015f;
+        public static float interactLineWidth = 1f;
         public static bool renderInteractLines = true;
         private static bool interactLinesActive = false;
 

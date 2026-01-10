@@ -22,17 +22,19 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         public TrackedDevicePose_t devicePose = new TrackedDevicePose_t();
         public TrackedDevicePose_t deviceGamePose = new TrackedDevicePose_t();
         public EVRCompositorError result;
-        public Vector3 RaycastOffset = new Vector3(0, 0.05f, 0.05f);
+        public Vector3 LeftRaycastOffset = new Vector3(0.03f, -0.03f, 0.06f);
+        public Vector3 RightRaycastOffset = new Vector3(-0.03f, -0.03f, 0.06f);
         public void Initialize(OpenVRDevice device, string UniqueID, string UnUniqueID, string subSystems, bool AssignTrackedRole, BasisBoneTrackedRole basisBoneTrackedRole, SteamVR_Input_Sources SteamVR_Input_Sources)
         {
             HandBiasSplay = -0.8f;
 
             // existing hand rotation offsets
-            leftHandToIKRotationOffset = new Vector3(105, 185, 265);
-            rightHandToIKRotationOffset = new Vector3(105, 185,265);
+            leftHandToIKRotationOffset = new Vector3(105, 185, 260);
+            rightHandToIKRotationOffset = new Vector3(105, 185,290);
 
             leftHandToIKPositionOffset = new Vector3(-0.02f, 0.07f, 0.02f);
             rightHandToIKPositionOffset = new Vector3(-0.02f, 0.07f, 0.02f);
+
 
             if (HasOnUpdate && DeviceposeAction != null)
             {
@@ -205,7 +207,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             UpdateRaycastOffset();
             ComputeRaycastDirection(
-                wristWorldPos + (UnscaledDeviceCoord.rotation * (RaycastOffset * avatarScale)),
+                wristWorldPos + (UnscaledDeviceCoord.rotation * (isLeft ? LeftRaycastOffset : RightRaycastOffset * avatarScale)),
                 HandFinal.rotation,
                 ActiveRaycastOffset
             );

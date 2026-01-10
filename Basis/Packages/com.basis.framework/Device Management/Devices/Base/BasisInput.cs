@@ -580,13 +580,17 @@ namespace Basis.Scripts.Device_Management.Devices
                 LineRenderer.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
                 InteractionLineRenderer.enabled = false;
                 InteractionLineRenderer.material = BasisPlayerInteract.LineMaterial;
-                InteractionLineRenderer.startWidth = BasisPlayerInteract.interactLineWidth;
-                InteractionLineRenderer.endWidth = BasisPlayerInteract.interactLineWidth;
                 InteractionLineRenderer.useWorldSpace = true;
                 InteractionLineRenderer.textureMode = LineTextureMode.Tile;
                 InteractionLineRenderer.positionCount = 2;
                 InteractionLineRenderer.numCapVertices = 0;
                 InteractionLineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                InteractionLineRenderer.startWidth = 0.1f;
+                InteractionLineRenderer.endWidth = 0.1f;
+                InteractionLineRenderer.widthMultiplier = BasisPlayerInteract.interactLineWidth;
+                InteractionLineRenderer.useWorldSpace = true;
+                InteractionLineRenderer.textureMode = LineTextureMode.Tile;
+                InteractionLineRenderer.applyActiveColorSpace = false;
             }
             HasRaycaster = true;
         }
