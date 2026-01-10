@@ -25,11 +25,6 @@ namespace Basis.BasisUI
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
 
             PanelAvatarList avatarList = PanelAvatarList.CreateNew(panel.Descriptor.ContentParent);
-
-            /*
-            BasisMainMenu.Close();
-            BasisUIAvatarSelection.OpenMenuNow(BasisUIAvatarSelection.AvatarPanel);
-            */
         }
     }
 }

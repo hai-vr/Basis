@@ -43,10 +43,8 @@ namespace Basis.BasisUI
             tabGroup.AddTab("Calibration", null, SettingsProviderIK.IKTab(tabGroup));
             tabGroup.AddTab("Bindings", null, SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
             tabGroup.AddTab("Console", null, SettingsProviderConsoleTab.ConsoleTab(tabGroup));
+            tabGroup.AddTab("Admin", null, SettingsProviderAdminTab.AdminTab(tabGroup));
             tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
-
-            tabGroup.AddExtraAction("Admin", OpenAdminPanel);
-          //tabGroup.AddExtraAction("Console", OpenConsoleLogger);
 
             tabGroup.AddExtraAction("Switch To OpenVR", SwitchToOpenVR);
             tabGroup.AddExtraAction("Switch To OpenXR", SwitchToOpenXR);
@@ -98,12 +96,6 @@ namespace Basis.BasisUI
 
                     await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.Desktop);
                 });
-        }
-
-        public static void OpenAdminPanel()
-        {
-            BasisMainMenu.Close();
-            BasisUIAdminPanel.OpenThisMenu(BasisUIAdminPanel.Path);
         }
 
         // ------------------
