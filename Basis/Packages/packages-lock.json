@@ -155,12 +155,6 @@
       "source": "embedded",
       "dependencies": {}
     },
-    "com.meta.xr.sdk.core": {
-      "version": "file:com.meta.xr.sdk.core",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {}
-    },
     "com.steam.steamaudio": {
       "version": "file:com.steam.steamaudio",
       "depth": 0,
