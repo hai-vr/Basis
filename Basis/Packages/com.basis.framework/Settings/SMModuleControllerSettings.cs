@@ -8,6 +8,9 @@ public class SMModuleControllerSettings : BasisSettingsBase
     public static float extraXDeadzoneAtFullY = 0.35f;
     public static float yDeadzone = 0.10f;
     public static float wingExponent = 1.6f;
+
+    public static float MouseSensitivty = 1;
+    public static bool Hassmoothlocomotion = true;
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
         switch (matchedSettingName)
@@ -49,7 +52,7 @@ public class SMModuleControllerSettings : BasisSettingsBase
                 }
                 break;
             case "invertmouse":
-                if(optionValue == "true")
+                if (optionValue == "true")
                 {
                     HasInvertedMouse = true;
                 }
@@ -59,6 +62,24 @@ public class SMModuleControllerSettings : BasisSettingsBase
                     {
                         HasInvertedMouse = false;
                     }
+                }
+                break;
+            case "smoothlocomotion":
+                if (optionValue == "true")
+                {
+                    Hassmoothlocomotion = true;
+                }
+                else
+                {
+                    if (optionValue == "false")
+                    {
+                        Hassmoothlocomotion = false;
+                    }
+                }
+                break;
+            case "mousesensitivty":
+                if (SliderReadOption(optionValue, out MouseSensitivty))
+                {
                 }
                 break;
         }

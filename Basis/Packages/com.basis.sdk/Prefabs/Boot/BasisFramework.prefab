@@ -178,6 +178,7 @@ MonoBehaviour:
   - world volume
   - player volume
   AlwaysRunEverySettingsName: 0
+  Length: 0
   Mixer: {fileID: 24100000, guid: 1ff7d045b2e32054aad6c5815495d8b8, type: 2}
   WorldDefaultMixer: {fileID: 6216228358845890117, guid: 1ff7d045b2e32054aad6c5815495d8b8, type: 2}
 --- !u!114 &9200716433913716904
@@ -195,6 +196,7 @@ MonoBehaviour:
   SettingsNames:
   - Memory Allocation
   AlwaysRunEverySettingsName: 0
+  Length: 0
   StreamingMipmapsMaxLevelReduction: 4
   treamingMipmapsMaxFileIORequests: 512
 --- !u!114 &5461552350079237887
@@ -212,6 +214,7 @@ MonoBehaviour:
   SettingsNames:
   - Vertical Sync
   AlwaysRunEverySettingsName: 0
+  Length: 0
 --- !u!114 &4701745481011786116
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -227,6 +230,7 @@ MonoBehaviour:
   SettingsNames:
   - Quality Level
   AlwaysRunEverySettingsName: 0
+  Length: 0
   Data: {fileID: 0}
   Camera: {fileID: 0}
 --- !u!114 &864512273485565456
@@ -257,6 +261,7 @@ MonoBehaviour:
   - limitthreshold
   - microphonemode
   AlwaysRunEverySettingsName: 0
+  Length: 0
 --- !u!114 &9218905915079737845
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -272,6 +277,7 @@ MonoBehaviour:
   SettingsNames:
   - Antialiasing
   AlwaysRunEverySettingsName: 0
+  Length: 0
   Camera: {fileID: 0}
   Data: {fileID: 0}
   LowmsaaSampleCount: 2
@@ -292,6 +298,7 @@ MonoBehaviour:
   SettingsNames:
   - HDR Support
   AlwaysRunEverySettingsName: 0
+  Length: 0
 --- !u!114 &9083967000269050117
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -307,6 +314,7 @@ MonoBehaviour:
   SettingsNames:
   - Shadow Quality
   AlwaysRunEverySettingsName: 0
+  Length: 0
 --- !u!114 &8872717251192576908
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -327,7 +335,10 @@ MonoBehaviour:
   - extraxdeadzoneatfully
   - ydeadzone
   - wingexponent
+  - smoothlocomotion
+  - mousesensitivty
   AlwaysRunEverySettingsName: 0
+  Length: 0
 --- !u!114 &8531479666972516414
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -343,6 +354,7 @@ MonoBehaviour:
   SettingsNames:
   - Debug Visuals
   AlwaysRunEverySettingsName: 0
+  Length: 0
 --- !u!114 &4926678751529155332
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -360,6 +372,7 @@ MonoBehaviour:
   - Upscaling
   - Foveated Rendering
   AlwaysRunEverySettingsName: 0
+  Length: 0
   RenderScale: 1
   foveatedRenderingLevel: 0
 --- !u!114 &1359221182720975491
@@ -381,6 +394,7 @@ MonoBehaviour:
   - avatarmeshlod
   - global meshlod
   AlwaysRunEverySettingsName: 0
+  Length: 0
 --- !u!114 &8285517692325404402
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -396,6 +410,7 @@ MonoBehaviour:
   SettingsNames:
   - Field Of View
   AlwaysRunEverySettingsName: 0
+  Length: 0
   SelectedFOV: 82
 --- !u!114 &251103215370718543
 MonoBehaviour:
@@ -412,6 +427,7 @@ MonoBehaviour:
   SettingsNames:
   - Microphone Icon
   AlwaysRunEverySettingsName: 0
+  Length: 0
 --- !u!114 &2819247879703846172
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -427,6 +443,7 @@ MonoBehaviour:
   SettingsNames:
   - Seated Mode
   AlwaysRunEverySettingsName: 0
+  Length: 0
 --- !u!114 &4245328840218215415
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -442,6 +459,7 @@ MonoBehaviour:
   SettingsNames:
   - Visual State
   AlwaysRunEverySettingsName: 0
+  Length: 0
 --- !u!114 &947700616637325904
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -457,6 +475,7 @@ MonoBehaviour:
   SettingsNames:
   - Avatar Download Size
   AlwaysRunEverySettingsName: 0
+  Length: 0
 --- !u!114 &4222888336659293539
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -476,6 +495,7 @@ MonoBehaviour:
   - selected scale
   - real world eye height
   AlwaysRunEverySettingsName: 1
+  Length: 0
 --- !u!1 &6119941615115968628
 GameObject:
   m_ObjectHideFlags: 0

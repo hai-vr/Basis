@@ -52,10 +52,16 @@ new("custom scale", new BasisPlatformDefault<bool>(false));
             new("AvatarRange", new BasisPlatformDefault<float>(25));
 
         public static BasisSettingsBinding<float> SnapTurnAngle =>
-            new("snapturnangle", new BasisPlatformDefault<float>(-1));
+            new("snapturnangle", new BasisPlatformDefault<float>(25f));
+
+        public static BasisSettingsBinding<float> mousesensitivty =>
+    new("mousesensitivty", new BasisPlatformDefault<float>(1));
 
         public static BasisSettingsBinding<bool> InvertMouse =>
             new("invertmouse", new BasisPlatformDefault<bool>(false));
+
+        public static BasisSettingsBinding<bool> smoothlocomotion =>
+    new("smoothlocomotion", new BasisPlatformDefault<bool>(true));
 
         public static BasisSettingsBinding<string> QualityLevel =>
             new("Quality Level", new BasisPlatformDefault<string>

@@ -23,10 +23,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         public static BasisDesktopEye Instance;
 
         [Header("Rotation")]
-        /// <summary>
-        /// Sensitivity multiplier for look rotation speed.
-        /// </summary>
-        public float rotationSpeed = 1f;
 
         /// <summary>
         /// Current pitch rotation (X axis).
@@ -202,8 +198,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
                 return;
             }
 
-            rotationYaw += lookVector.x * rotationSpeed; // yaw
-            rotationPitch -= lookVector.y * rotationSpeed; // pitch (invert Y)
+            rotationYaw += lookVector.x * SMModuleControllerSettings.MouseSensitivty; // yaw
+            rotationPitch -= lookVector.y * SMModuleControllerSettings.MouseSensitivty; // pitch (invert Y)
         }
 
         /// <summary>

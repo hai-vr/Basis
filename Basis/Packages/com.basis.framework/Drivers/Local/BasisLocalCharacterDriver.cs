@@ -5,7 +5,6 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices.Desktop;
 using Basis.Scripts.Drivers;
 using System;
-using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using UnityEngine;
 using static Basis.Scripts.BasisSdk.Players.BasisPlayer;
@@ -43,8 +42,6 @@ namespace Basis.Scripts.BasisCharacterController
         public float pushPower = 1f;
         private const float CrouchDeltaCoefficient = 0.01f;
         private const float SnapTurnAbsoluteThreshold = 0.8f;
-        private bool UseSnapTurn => SMModuleControllerSettings.SnapTurnAngle != -1 && BasisDeviceManagement.IsCurrentModeVR();
-        private float SnapTurnAngle => SMModuleControllerSettings.SnapTurnAngle;
         private bool isSnapTurning;
         public Vector3 CurrentPosition;
         public Quaternion CurrentRotation;
@@ -143,7 +140,7 @@ namespace Basis.Scripts.BasisCharacterController
 
             // Calculate the rotation amount for this frame
             float rotationAmount;
-            if (UseSnapTurn)
+            if (SMModuleControllerSettings.Hassmoothlocomotion == false && BasisDeviceManagement.IsCurrentModeVR())
             {
                 var isAboveThreshold = math.abs(Rotation.x) > SnapTurnAbsoluteThreshold;
                 if (isAboveThreshold != isSnapTurning)
@@ -151,7 +148,7 @@ namespace Basis.Scripts.BasisCharacterController
                     isSnapTurning = isAboveThreshold;
                     if (isSnapTurning)
                     {
-                        rotationAmount = math.sign(Rotation.x) * SnapTurnAngle;
+                        rotationAmount = math.sign(Rotation.x) * SMModuleControllerSettings.SnapTurnAngle;
                     }
                     else
                     {

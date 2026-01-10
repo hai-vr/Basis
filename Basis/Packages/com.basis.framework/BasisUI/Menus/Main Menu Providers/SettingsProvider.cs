@@ -122,10 +122,22 @@ namespace Basis.BasisUI
             toggleInvertMouse.Descriptor.SetTitle("Invert Mouse");
             toggleInvertMouse.AssignBinding(BasisSettingsDefaults.InvertMouse);
 
+            PanelSlider mousesensitivty = PanelSlider.CreateEntryAndBind(
+generalGroup,
+PanelSlider.SliderSettings.Advanced("Mouse Sensitivty", 0, 2f, false, 2, ValueDisplayMode.Percentage),
+BasisSettingsDefaults.mousesensitivty);
+
+
+            PanelToggle smoothlocomotion = PanelToggle.CreateNewEntry(generalGroup);
+            smoothlocomotion.Descriptor.SetTitle("Use SnapTurn locomotion");
+            smoothlocomotion.AssignBinding(BasisSettingsDefaults.smoothlocomotion);
+
+
+
             // Snap Turn Angle
             PanelSlider sliderSnapTurnAngle = PanelSlider.CreateEntryAndBind(
                 generalGroup,
-                PanelSlider.SliderSettings.Advanced("Snap Turn Angle", -1, 120, true, 0, ValueDisplayMode.Degrees),
+                PanelSlider.SliderSettings.Advanced("Snap Turn Angle", 0, 120, true, 0, ValueDisplayMode.Degrees),
                 BasisSettingsDefaults.SnapTurnAngle);
 
             // RANGE SETTINGS GROUP
