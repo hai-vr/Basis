@@ -130,7 +130,7 @@ BasisSettingsDefaults.mousesensitivty);
 
             PanelToggle smoothlocomotion = PanelToggle.CreateNewEntry(generalGroup);
             smoothlocomotion.Descriptor.SetTitle("Use SnapTurn locomotion");
-            smoothlocomotion.AssignBinding(BasisSettingsDefaults.smoothlocomotion);
+            smoothlocomotion.AssignBinding(BasisSettingsDefaults.usesnapturn);
 
 
 

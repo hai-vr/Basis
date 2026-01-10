@@ -60,8 +60,8 @@ new("custom scale", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> InvertMouse =>
             new("invertmouse", new BasisPlatformDefault<bool>(false));
 
-        public static BasisSettingsBinding<bool> smoothlocomotion =>
-    new("smoothlocomotion", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> usesnapturn =>
+    new("usesnapturn", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> QualityLevel =>
             new("Quality Level", new BasisPlatformDefault<string>

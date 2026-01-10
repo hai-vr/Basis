@@ -140,7 +140,7 @@ namespace Basis.Scripts.BasisCharacterController
 
             // Calculate the rotation amount for this frame
             float rotationAmount;
-            if (SMModuleControllerSettings.Hassmoothlocomotion == false && BasisDeviceManagement.IsCurrentModeVR())
+            if (SMModuleControllerSettings.UsingSnapTurnAngle && BasisDeviceManagement.IsCurrentModeVR())
             {
                 var isAboveThreshold = math.abs(Rotation.x) > SnapTurnAbsoluteThreshold;
                 if (isAboveThreshold != isSnapTurning)

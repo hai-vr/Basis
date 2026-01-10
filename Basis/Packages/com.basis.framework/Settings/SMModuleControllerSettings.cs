@@ -10,7 +10,7 @@ public class SMModuleControllerSettings : BasisSettingsBase
     public static float wingExponent = 1.6f;
 
     public static float MouseSensitivty = 1;
-    public static bool Hassmoothlocomotion = true;
+    public static bool UsingSnapTurnAngle = false;
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
         switch (matchedSettingName)
@@ -64,16 +64,16 @@ public class SMModuleControllerSettings : BasisSettingsBase
                     }
                 }
                 break;
-            case "smoothlocomotion":
+            case "usesnapturn":
                 if (optionValue == "true")
                 {
-                    Hassmoothlocomotion = true;
+                    UsingSnapTurnAngle = true;
                 }
                 else
                 {
                     if (optionValue == "false")
                     {
-                        Hassmoothlocomotion = false;
+                        UsingSnapTurnAngle = false;
                     }
                 }
                 break;
