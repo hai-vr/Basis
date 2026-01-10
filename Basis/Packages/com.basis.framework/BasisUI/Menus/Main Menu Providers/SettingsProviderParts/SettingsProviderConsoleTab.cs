@@ -125,12 +125,10 @@ namespace Basis.BasisUI
             descriptor.ForceRebuild();
             return tab;
         }
-
         private static void EnsureSingleText(RectTransform parent)
         {
             if (_outputText != null) return;
 
-            // Create a GameObject with TMP_Text (TextMeshProUGUI)
             var go = new GameObject("ConsoleOutputText", typeof(RectTransform));
             go.transform.SetParent(parent, false);
 
@@ -139,7 +137,6 @@ namespace Basis.BasisUI
             rt.anchorMax = new Vector2(1, 1);
             rt.pivot = new Vector2(0.5f, 1);
             rt.anchoredPosition = Vector2.zero;
-            rt.sizeDelta = new Vector2(0, 0);
 
             var text = go.AddComponent<TextMeshProUGUI>();
             text.text = string.Empty;
@@ -147,13 +144,30 @@ namespace Basis.BasisUI
             text.raycastTarget = true;
             text.textWrappingMode = TextWrappingModes.Normal;
             text.richText = true;
-
-            // Make it expand vertically within VerticalLayoutGroup/ContentSizeFitter setups
-            var le = go.AddComponent<LayoutElement>();
-            le.minHeight = 0;
-            le.flexibleHeight = 1;
-
+            text.rectTransform.sizeDelta = new Vector2(960, 6500);
             _outputText = text;
+        }
+
+        private static void RebuildOutput()
+        {
+            _sb.Clear();
+            var lines = GetCurrentLogLines();
+
+            if (lines.Count == 0)
+            {
+                _outputText.SetText(string.Empty);
+                BasisLogManager.LogChanged = false;
+                return;
+            }
+
+            _sb.AppendLine(lines[0]);
+            for (int i = 1; i < lines.Count; i++)
+            {
+                _sb.AppendLine(lines[i]);
+            }
+
+            _outputText.SetText(_sb);
+            BasisLogManager.LogChanged = false;
         }
 
         private static int GetFilterIndex()
@@ -202,34 +216,6 @@ namespace Basis.BasisUI
                 }
 
                 return BasisLogManager.GetLogs(_currentLogTypeFilter);
-            }
-        }
-        private static void RebuildOutput()
-        {
-            _sb.Clear();
-            List<string> lines = GetCurrentLogLines();
-            int count = lines.Count;
-
-            if (count == 0)
-            {
-                return;
-            }
-
-            _sb.Append(lines[0]);
-
-            for (int Index = 1; Index < count; Index++)
-            {
-                _sb.Append($"{lines[Index]}\n");
-            }
-
-            _outputText.SetText(_sb);
-            BasisLogManager.LogChanged = false;
-
-            float h = _outputText.preferredHeight;
-            if (h != LastSize)
-            {
-                LastSize = h;
-                _outputText.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, h);
             }
         }
 
