@@ -342,25 +342,37 @@ public partial class BasisAvatarSDKInspector : Editor
             {
                 ImageBytes = BasisTextureCompression.ToPngBytes(Image);
             }
-
-            Debug.Log($"Building Gameobject Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
-            // Build from a stripped clone so the authored avatar stays untouched.
-            GameObject buildRoot = GameObject.Instantiate(Avatar.gameObject);
-            buildRoot.TryGetComponent<BasisAvatar>(out Avatar);
-            // If your pipeline needs editor-only stripping, do it here.
-            BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
-            BasisBuildBlendshapeStripper.StripForBuild(settings: assetBundleObject, buildRoot, Avatar);
+            (bool success, string message) BundleCreatedState = new(false, "");
+            GameObject buildRoot = null;
+            try
+            {
+                Debug.Log($"Building Gameobject Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
+                // Build from a stripped clone so the authored avatar stays untouched.
+                buildRoot = GameObject.Instantiate(Avatar.gameObject);
+                buildRoot.TryGetComponent<BasisAvatar>(out Avatar);
+                // If your pipeline needs editor-only stripping, do it here.
+                BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
+                BasisBuildBlendshapeStripper.StripForBuild(settings: assetBundleObject, buildRoot, Avatar);
 
 #if UNITY_6000_2_OR_NEWER
-            GenerateMeshLODs(3);
+                GenerateMeshLODs(3);
 #endif
 
-            Debug.Log($"Building Gameobject Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
-            (bool success, string message) = await BasisBundleBuild.GameObjectBundleBuild(ImageBytes, Avatar, targets);
+                Debug.Log($"Building Gameobject Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
+                BundleCreatedState = await BasisBundleBuild.GameObjectBundleBuild(ImageBytes, Avatar, targets);
 
-            EditorUtility.ClearProgressBar();
-            // Clear any previous result label
-            ClearResultLabel();
+                EditorUtility.ClearProgressBar();
+                // Clear any previous result label
+                ClearResultLabel();
+            }
+            finally
+            {
+                if (buildRoot != null)
+                {
+                    BasisDebug.Log("Cleaning Up Duplicated Avatar", BasisDebug.LogTag.Core);
+                    GameObject.DestroyImmediate(buildRoot);
+                }
+            }
 
             // Display new result in the UI
             resultLabel = new Label
@@ -368,22 +380,20 @@ public partial class BasisAvatarSDKInspector : Editor
                 style = { fontSize = 14 }
             };
             resultLabel.style.color = Color.black; // Error message color
-            if (success)
+            if (BundleCreatedState.success)
             {
                 resultLabel.text = "Build successful";
                 resultLabel.style.backgroundColor = Color.green;
             }
             else
             {
-                resultLabel.text = $"Build failed: {message}";
+                resultLabel.text = $"Build failed: {BundleCreatedState.message}";
                 resultLabel.style.backgroundColor = Color.red;
             }
 
             // Add the result label to the UI
             uiElementsRoot.Add(resultLabel);
             //  BuildReportViewerWindow.ShowWindow();
-
-            GameObject.Destroy(buildRoot);
         }
         else
         {
