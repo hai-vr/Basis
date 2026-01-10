@@ -427,6 +427,16 @@ new("TrueBinding", new BasisPlatformDefault<bool>(false));
             new("FBIKRightShoulderEuroRot", new BasisPlatformDefault<bool>(false));
 
         // Optional: a real persistent setting for the master toggle.
+        public static BasisSettingsBinding<string> VSyncCapFps =>
+            new("vsynccappedset", new BasisPlatformDefault<string>
+            {
+                windows = "120",
+                android = "60",
+                linux = "120",
+                other = "120"
+            });
+
+        // Optional: a real persistent setting for the master toggle.
         public static readonly BasisSettingsBinding<bool> FBIKEuroAll =
             new BasisSettingsBinding<bool>("EuroAll");
     }

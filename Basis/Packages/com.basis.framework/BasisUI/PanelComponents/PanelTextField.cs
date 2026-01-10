@@ -6,8 +6,8 @@ namespace Basis.BasisUI
     public class PanelTextField : PanelDataComponent<string>
     {
 
-        [SerializeField] protected TMP_InputField _inputField;
-        [SerializeField] protected TextMeshProUGUI _placeholderLabel;
+        [SerializeField] public TMP_InputField _inputField;
+        [SerializeField] public TextMeshProUGUI _placeholderLabel;
         [SerializeField] protected string _placeholderText;
         [SerializeField] protected string _defaultValue;
         [SerializeField] protected TMP_InputField.ContentType _contentType = TMP_InputField.ContentType.Alphanumeric;

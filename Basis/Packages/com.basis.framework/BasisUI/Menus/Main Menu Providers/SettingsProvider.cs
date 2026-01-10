@@ -413,14 +413,21 @@ BasisSettingsDefaults.mousesensitivty);
             // VSync
             PanelDropdown dropdownVSync = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownVSync.Descriptor.SetTitle("Vertical Sync");
-            dropdownVSync.AssignEntries(new List<string>
-            {
-                "On",
-                "Capped",
-                "Off",
-                "Half",
-            });
+            dropdownVSync.Descriptor.SetDescription("VR uses headset refreshrate");
+            dropdownVSync.AssignEntries(new List<string> { "On", "Capped", "Off", "Half" });
             dropdownVSync.AssignBinding(BasisSettingsDefaults.VSync);
+
+            PanelTextField fpsCapField = PanelTextField.CreateNewEntry(qualityGroup.ContentParent);
+            fpsCapField.Descriptor.SetTitle("Frame Rate Cap (FPS)");
+            fpsCapField.Descriptor.SetDescription("Used only when Vertical Sync is set to Capped.");
+            fpsCapField.AssignBinding(BasisSettingsDefaults.VSyncCapFps);
+            // Force numeric entry
+            TMP_InputField fpsInput = fpsCapField._inputField;
+            if (fpsInput != null)
+            {
+                fpsInput.contentType = TMP_InputField.ContentType.IntegerNumber;
+                fpsInput.lineType = TMP_InputField.LineType.SingleLine;
+            }
 
             // RENDERING GROUP
             PanelElementDescriptor renderingGroup =

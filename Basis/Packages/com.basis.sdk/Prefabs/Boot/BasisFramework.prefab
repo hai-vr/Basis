@@ -213,6 +213,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SettingsNames:
   - Vertical Sync
+  - vsynccappedset
   AlwaysRunEverySettingsName: 0
   Length: 0
 --- !u!114 &4701745481011786116
