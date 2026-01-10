@@ -15,37 +15,37 @@ public class SMModuleControllerSettings : BasisSettingsBase
             case "joystickdeadzone":
                 if (SliderReadOption(optionValue, out JoyStickDeadZone))
                 {
-                    BasisDebug.Log($"JoyStick deadspace is set to {JoyStickDeadZone}");
+                   // BasisDebug.Log($"JoyStick deadspace is set to {JoyStickDeadZone}");
                 }
                 break;
             case "snapturnangle":
                 if (SliderReadOption(optionValue, out SnapTurnAngle))
                 {
-                    BasisDebug.Log($"Snap Turn Angle is set to {SnapTurnAngle}");
+                   // BasisDebug.Log($"Snap Turn Angle is set to {SnapTurnAngle}");
                 }
                 break;
             case "basexdeadzone":
                 if (SliderReadOption(optionValue, out baseXDeadzone))
                 {
-                    BasisDebug.Log($"baseXDeadzone deadspace is set to {baseXDeadzone}");
+                   // BasisDebug.Log($"baseXDeadzone deadspace is set to {baseXDeadzone}");
                 }
                 break;
             case "extraxdeadzoneatfully":
                 if (SliderReadOption(optionValue, out extraXDeadzoneAtFullY))
                 {
-                    BasisDebug.Log($"extraXDeadzoneAtFullY deadspace is set to {extraXDeadzoneAtFullY}");
+                 //   BasisDebug.Log($"extraXDeadzoneAtFullY deadspace is set to {extraXDeadzoneAtFullY}");
                 }
                 break;
             case "ydeadzone":
                 if (SliderReadOption(optionValue, out yDeadzone))
                 {
-                    BasisDebug.Log($"yDeadzone deadspace is set to {yDeadzone}");
+                  //  BasisDebug.Log($"yDeadzone deadspace is set to {yDeadzone}");
                 }
                 break;
             case "wingexponent":
                 if (SliderReadOption(optionValue, out wingExponent))
                 {
-                    BasisDebug.Log($"wingExponent deadspace is set to {wingExponent}");
+                  //  BasisDebug.Log($"wingExponent deadspace is set to {wingExponent}");
                 }
                 break;
             case "invertmouse":

@@ -323,6 +323,10 @@ MonoBehaviour:
   - joystickdeadzone
   - snapturnangle
   - invertmouse
+  - basexdeadzone
+  - extraxdeadzoneatfully
+  - ydeadzone
+  - wingexponent
   AlwaysRunEverySettingsName: 0
 --- !u!114 &8531479666972516414
 MonoBehaviour:
@@ -1050,7 +1054,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5d8279b0f691ed944a4b263282ed0bb7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  updateInterval: 0.1
   timeSinceLastUpdate: 0
   DeltaTime: 0
   TimeAsDouble: 0
