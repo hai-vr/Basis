@@ -124,7 +124,7 @@ namespace Basis.BasisUI
 
             PanelSlider mousesensitivty = PanelSlider.CreateEntryAndBind(
 generalGroup,
-PanelSlider.SliderSettings.Advanced("Mouse Sensitivty", 0, 2f, false, 2, ValueDisplayMode.Percentage),
+PanelSlider.SliderSettings.Advanced("Mouse Sensitivity", 0, 2f, false, 2, ValueDisplayMode.Percentage),
 BasisSettingsDefaults.mousesensitivty);
 
 
