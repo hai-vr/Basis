@@ -352,6 +352,7 @@ namespace Basis.Scripts.Drivers
             }
             if (FaceMesh != null)
             {
+                FaceMesh.shadowCastingMode = ShadowCastingMode.Off;
                 EnsureShadowOnlyClone(FaceMesh, layer);
             }
         }
@@ -402,7 +403,7 @@ namespace Basis.Scripts.Drivers
                 // The whole point:
                 LocalShadowClone.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
                 LocalShadowClone.receiveShadows = false;
-
+                LocalShadowClone.lightProbeUsage = LightProbeUsage.Off;
                 if (source.sharedMesh != null)
                 {
                     LocalShadowClone.sharedMesh = source.sharedMesh;
@@ -420,14 +421,12 @@ namespace Basis.Scripts.Drivers
                     LocalShadowClone.rootBone = source.rootBone;
                 }
                 LocalShadowClone.updateWhenOffscreen = false;
-                LocalShadowClone.forceMatrixRecalculationPerRender  = false;
-                // Optional: copy key renderer flags that can affect bounds/skin updates
-                LocalShadowClone.quality = source.quality;
-                LocalShadowClone.skinnedMotionVectors = source.skinnedMotionVectors;
-                LocalShadowClone.allowOcclusionWhenDynamic = source.allowOcclusionWhenDynamic;
-
-                // Optional: bounds (helps if your bounds are tiny and shadows pop)
+                LocalShadowClone.forceMatrixRecalculationPerRender = false;
+                LocalShadowClone.quality = SkinQuality.Bone1;
+                LocalShadowClone.allowOcclusionWhenDynamic = true;
+                LocalShadowClone.skinnedMotionVectors = false;
                 LocalShadowClone.localBounds = source.localBounds;
+                LocalShadowClone.forceMeshLod = -1;
             }
         }
 
