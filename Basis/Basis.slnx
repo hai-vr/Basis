@@ -109,6 +109,7 @@
   <Project Path="Unity.Profiling.Core.csproj" />
   <Project Path="Unity.Services.Core.Device.csproj" />
   <Project Path="BasisSettings.csproj" />
+  <Project Path="BasisExampleEditor.csproj" />
   <Project Path="Unity.Services.Core.Analytics.csproj" />
   <Project Path="Unity.EditorCoroutines.Editor.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.Runtime.Tests.csproj" />

@@ -1,3 +1,4 @@
+using LinkerGenerator;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.Build;
@@ -33,11 +34,14 @@ public class BasisBuildDialogil2CPP : IPreprocessBuildWithReport
 
     public void OnPreprocessBuild(BuildReport report)
     {
+        BasisLinkGenerator.GenerateLinkXml();
+
         var namedBuildTarget =
             UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(report.summary.platformGroup);
 
         var currentBackend = PlayerSettings.GetScriptingBackend(namedBuildTarget);
         var target = report.summary.platform;
+
 
         // 1) Force IL2CPP-only targets
         if (Il2CppOnlyTargets.Contains(target))
@@ -60,7 +64,6 @@ public class BasisBuildDialogil2CPP : IPreprocessBuildWithReport
             "Yes (IL2CPP)",
             "No (Mono)"
         );
-
         SetBackendIfNeeded(
             namedBuildTarget,
             currentBackend,
