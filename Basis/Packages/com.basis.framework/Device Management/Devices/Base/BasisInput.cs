@@ -583,7 +583,8 @@ namespace Basis.Scripts.Device_Management.Devices
                 InteractionLineRenderer.useWorldSpace = true;
                 InteractionLineRenderer.textureMode = LineTextureMode.Tile;
                 InteractionLineRenderer.positionCount = 2;
-                InteractionLineRenderer.numCapVertices = 0;
+                InteractionLineRenderer.numCapVertices = 20;
+                InteractionLineRenderer.numCornerVertices = 20;
                 InteractionLineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 InteractionLineRenderer.widthMultiplier = 1;
                 InteractionLineRenderer.startWidth = 0.02f;
