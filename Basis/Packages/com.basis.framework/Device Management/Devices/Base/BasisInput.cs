@@ -502,7 +502,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// <param name="Volume">Playback volume.</param>
         public void PlaySoundEffectDefaultImplementation(string SoundEffectName, float Volume)
         {
-            BasisDebug.Log("Volume was " + Volume);
+         //   BasisDebug.Log("Volume was " + Volume);
             switch (SoundEffectName)
             {
                 case "hover":
