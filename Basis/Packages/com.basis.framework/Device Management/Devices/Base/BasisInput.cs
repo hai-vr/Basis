@@ -585,9 +585,9 @@ namespace Basis.Scripts.Device_Management.Devices
                 InteractionLineRenderer.positionCount = 2;
                 InteractionLineRenderer.numCapVertices = 0;
                 InteractionLineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                InteractionLineRenderer.startWidth = 0.1f;
-                InteractionLineRenderer.endWidth = 0.1f;
-                InteractionLineRenderer.widthMultiplier = BasisPlayerInteract.interactLineWidth;
+                InteractionLineRenderer.widthMultiplier = 1;
+                InteractionLineRenderer.startWidth = 0.02f;
+                InteractionLineRenderer.endWidth = 0.02f;
                 InteractionLineRenderer.useWorldSpace = true;
                 InteractionLineRenderer.textureMode = LineTextureMode.Tile;
                 InteractionLineRenderer.applyActiveColorSpace = false;
