@@ -19,11 +19,15 @@ public class BasisAssetBundleObject : ScriptableObject
     public bool useCompression = true;
     public bool GenerateImage = true;
     public bool OpenFolderOnDisc = true;
+    public bool RebakeOcclusionCulling = true;
     public BuildTarget BuildTarget = BuildTarget.StandaloneWindows;
     public BuildAssetBundleOptions BuildAssetBundleOptions;
     public string AssetBundleDirectory = "./AssetBundles";
     [SerializeField]
     public List<BuildTarget> selectedTargets = new List<BuildTarget>();
+
+    [SerializeField]
+    public List<BuildTarget> RebakeOcclusionCullingInThese = new List<BuildTarget>();
 }
 [CustomEditor(typeof(BasisAssetBundleObject))]
 public class BasisAssetBundleObjectEditor : Editor
@@ -61,7 +65,8 @@ public class BasisAssetBundleObjectEditor : Editor
         assetBundleObject.ProtectedPasswordFileName = "dontuploadmepassword";
         assetBundleObject.BasisEncryptedExtension = ".BEE";
         assetBundleObject.selectedTargets = new List<BuildTarget>(BasisSDKConstants.allowedTargets);
-
+        assetBundleObject.RebakeOcclusionCullingInThese = new List<BuildTarget>(BasisSDKConstants.OcclusionCullingTargets);
+        assetBundleObject.RebakeOcclusionCulling = true;
         // Mark the object as dirty to save changes
         EditorUtility.SetDirty(assetBundleObject);
         AssetDatabase.SaveAssets();

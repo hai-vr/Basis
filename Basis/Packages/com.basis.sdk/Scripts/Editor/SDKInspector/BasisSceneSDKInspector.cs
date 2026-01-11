@@ -39,7 +39,7 @@ public class BasisSceneSDKInspector : Editor
             Button buildButton = BasisHelpersGizmo.Button(uiElementsRoot, BasisSDKConstants.BuildButton);
 
             BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
-            buildButton.clicked += () => Build(buildButton, assetBundleObject.selectedTargets);
+            buildButton.clicked += () => Build(assetBundleObject.selectedTargets);
         }
         else
         {
@@ -49,7 +49,7 @@ public class BasisSceneSDKInspector : Editor
         return rootElement;
     }
 
-    private async void Build(Button buildButton, List<BuildTarget> targets)
+    private async void Build( List<BuildTarget> targets)
     {
         if (targets == null || targets.Count == 0)
         {

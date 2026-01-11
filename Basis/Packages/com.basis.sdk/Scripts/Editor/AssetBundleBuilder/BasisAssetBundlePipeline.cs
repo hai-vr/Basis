@@ -50,7 +50,19 @@ public static class BasisAssetBundlePipeline
         {
             if (isScene)
             {
+                if (settings.RebakeOcclusionCulling)
+                {
+                    if (settings.RebakeOcclusionCullingInThese.Contains(Target))
+                    {
+                        StaticOcclusionCulling.Compute();
+                    }
+                    else
+                    {
+                        StaticOcclusionCulling.Clear();
+                    }
+                }
                 OnBeforeBuildScene?.Invoke(scene, settings);
+
                 assetPath = TemporaryStorageHandler.SaveScene(scene, settings, out uniqueID);
             }
             else

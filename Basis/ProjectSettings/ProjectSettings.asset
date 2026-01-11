@@ -147,8 +147,6 @@ PlayerSettings:
   preloadedAssets:
   - {fileID: 11400000, guid: cf469a9a31a25dc449c2537cb0b17ad6, type: 2}
   - {fileID: -944628639613478452, guid: 5e4c3601c6a155f43af19da3bdd35a64, type: 3}
-  - {fileID: 8430700007858905976, guid: 1d5aae00e097ba9419be9ec26ccae856, type: 2}
-  - {fileID: -75955278653016334, guid: ad3dbbd57db07a1488d166f19ed6e7dc, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   m_HolographicPauseOnTrackingLoss: 1
@@ -271,7 +269,7 @@ PlayerSettings:
   useCustomGradlePropertiesTemplate: 0
   useCustomGradleSettingsTemplate: 0
   useCustomProguardFile: 0
-  AndroidTargetArchitectures: 2
+  AndroidTargetArchitectures: 0
   AndroidAllowedArchitectures: -1
   AndroidSplashScreenScale: 0
   androidSplashScreen: {fileID: 0}
@@ -854,7 +852,7 @@ PlayerSettings:
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:
-    Android: 1
+    Android: 0
     Server: 1
     Standalone: 1
   il2cppCompilerConfiguration: {}
