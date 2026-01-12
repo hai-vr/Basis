@@ -20,8 +20,7 @@ namespace HVR.Basis.Comms
 #endif
     {
 #if HVR_HAS_BASIS_SDK
-        // [HideInInspector] [SerializeField] private BasisAvatar avatar;
-        [HideInInspector] [SerializeField] private Component avatar;
+        [HideInInspector] [SerializeField] private BasisAvatar avatar;
 #else
         [HideInInspector] [SerializeField] private Component avatar;
 #endif
@@ -54,7 +53,7 @@ namespace HVR.Basis.Comms
             }
             if (avatar == null)
             {
-                avatar = HVRCommsUtil.GetAvatar(this);
+                avatar = HVRCommsUtil.GetAvatar(this) as BasisAvatar;
             }
             if (avatar == null)
             {
