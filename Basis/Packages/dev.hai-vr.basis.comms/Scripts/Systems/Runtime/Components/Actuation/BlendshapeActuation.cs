@@ -85,6 +85,9 @@ namespace HVR.Basis.Comms
 
         private static void Actuate(ComputedActuator actuator, float inRange)
         {
+            if (actuator.LastAppliedInRangeValue == inRange) return; // Nothing to change
+            actuator.LastAppliedInRangeValue = inRange;
+
             var intermediate01 = Mathf.InverseLerp(actuator.InStart, actuator.InEnd, inRange);
             if (actuator.UseCurve)
             {
@@ -124,7 +127,7 @@ namespace HVR.Basis.Comms
                 .Where(it => it.overrideDefaultValue)
                 .GroupBy(over => over.address)
                 .ToDictionary(grouping => HVRAddress.AddressToId(grouping.Key), grouping => grouping.First().defaultValue);
-            
+
             // All streamed avatar feature values are between 0 and 1.
             // If we want to stream values outside of this range (i.e. [-1; 1]), we need to collect all
             // possible InStart and InEnd values in order to lerp in that range.
@@ -232,27 +235,9 @@ namespace HVR.Basis.Comms
             // the list of blendshapes is the same local and remote (no local-only or remote-only blendshapes).
             featureInterpolator = CommsNetworking.UsingMutualizedInterpolator(HVRCommsUtil.GetAvatar(this), MakeMutualized(), OnInterpolatedDataChanged);
 
-            var overrides = definitionFiles
-                .SelectMany(file => file.addressOverrides)
-                .Concat(addressOverrides)
-                .Where(it => it.overrideDefaultValue)
-                .ToArray();
-            var skipThose = new HashSet<int>();
-            foreach (var addressOverride in overrides)
+            foreach (var computedActuator in _computedActuators)
             {
-                var addressId = HVRAddress.AddressToId(addressOverride.address);
-                if (_addessIdToBaseIndex.TryGetValue(addressId, out var key))
-                {
-                    featureInterpolator.SubmitAbsolute(key, addressOverride.defaultValue);
-                    skipThose.Add(addressId);
-                }
-            }
-            foreach (var addressIdToKey in _addessIdToBaseIndex)
-            {
-                if (!skipThose.Contains(addressIdToKey.Key))
-                {
-                    featureInterpolator.SubmitAbsolute(addressIdToKey.Value, 0f);
-                }
+                featureInterpolator.SubmitAbsolute(computedActuator.RequestedFeature.address, computedActuator.DefaultInValue);
             }
         }
 
@@ -368,6 +353,7 @@ namespace HVR.Basis.Comms
             public ComputedActuatorTarget[] Targets;
             public RequestedFeature RequestedFeature;
             public float DefaultInValue;
+            public float LastAppliedInRangeValue = float.NaN;
         }
 
         public class ComputedActuatorTarget

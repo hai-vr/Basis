@@ -63,7 +63,7 @@ namespace HVR.Osushi
             // We need this so that VRCFaceTracking can detect us if our code runs AFTER VRCFaceTracking has already started.
             _serviceDiscovery.QueryServiceInstances("_oscjson._tcp");
 #else
-            Debug.LogError("MeaMod.DNS is not imported, so the face OSCQuery service will not be functional.");
+            Debug.LogError("MeaMod.DNS is not imported, so the fake OSCQuery service will not be functional.");
 #endif
         }
 

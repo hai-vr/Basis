@@ -12,7 +12,7 @@ namespace HVR.Basis.Comms
 {
     [AddComponentMenu("HVR.Basis/Comms/Internal/HVR Avatar Comms")]
     [HelpURL("https://docs.hai-vr.dev/docs/basis/avatar-customization")]
-    public class HVRAvatarComms : 
+    public class HVRAvatarComms :
 #if HVR_HAS_BASIS_SDK
         BasisAvatarMonoBehaviour
 #else
@@ -37,7 +37,7 @@ namespace HVR.Basis.Comms
         private readonly List<HVRToSubmitLater> _toStoreLater = new();
         private AvatarMessageProcessing avatarMessageProcessing;
         private StreamedAvatarFeature _streamedLateInit;
-        
+
         private object _unhook;
 
         public HVRAvatarComms()
@@ -63,7 +63,7 @@ namespace HVR.Basis.Comms
 
             _unhook = HVRCommsUtil.HookAvatarReady(this, OnAvatarReady);
         }
-        
+
         private void OnDestroy()
         {
             if (_unhook != null) HVRCommsUtil.UnhookAvatarReady(this, _unhook);
@@ -129,7 +129,6 @@ namespace HVR.Basis.Comms
             _streamedLateInit.transmitter = carrier;
             _streamedLateInit.isWearer = isWearer;
             _streamedLateInit.localIdentifier = 0;
-            _toStoreLater.Clear();
             holder.SetActive(true);
             // StreamedAvatarFeature only gets the ability to store data AFTER Awake() runs, so order matters here.
             foreach (var toStoreLater in _toStoreLater)
@@ -137,6 +136,7 @@ namespace HVR.Basis.Comms
                 var mutualizedIndex = toStoreLater.mutualizedIndex;
                 _streamedLateInit.Store(mutualizedIndex, _ranges[mutualizedIndex].AbsoluteToRange(toStoreLater.absolute));
             }
+            _toStoreLater.Clear();
 
             _streamedLateInit.OnInterpolatedDataChanged += mutualizedData =>
             {
