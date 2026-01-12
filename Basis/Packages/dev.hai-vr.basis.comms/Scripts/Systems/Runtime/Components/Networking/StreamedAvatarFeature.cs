@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Basis.Network.Core;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -18,7 +17,7 @@ namespace HVR.Basis.Comms
         // This makes the value of 0 in range [-1:1] encodable as 127.
         private const float EncodingRange = 254f;
 
-        public DeliveryMethod DeliveryMethod = DeliveryMethod.Unreliable;
+        public HVRTransmitterMethod DeliveryMethod = HVRTransmitterMethod.Unreliable;
         private const float TransmissionDeltaSeconds = 0.1f;
 
         [NonSerialized] public byte valueArraySize = 8; // Must not change after first enabled.

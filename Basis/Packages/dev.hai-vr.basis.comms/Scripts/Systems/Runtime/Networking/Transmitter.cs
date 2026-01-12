@@ -1,6 +1,5 @@
-﻿using Basis.Scripts.Behaviour;
-using Basis.Network.Core;
-using UnityEngine;
+﻿#if HVR_HAS_BASIS_SDK
+using Basis.Scripts.Behaviour;
 
 namespace HVR.Basis.Comms
 {
@@ -13,9 +12,9 @@ namespace HVR.Basis.Comms
             _behaviour = behaviour;
         }
 
-        public void NetworkMessageSend(byte[] buffer = null, DeliveryMethod deliveryMethod = DeliveryMethod.Unreliable, ushort[] recipients = null)
+        public void NetworkMessageSend(byte[] buffer = null, HVRTransmitterMethod deliveryMethod = HVRTransmitterMethod.Unreliable, ushort[] recipients = null)
         {
-            _behaviour.NetworkMessageSend(buffer, deliveryMethod, recipients);
+            _behaviour.NetworkMessageSend(buffer, IHVRTransmitter.FromHVRTransmitterMethod(deliveryMethod), recipients);
         }
 
         public void ServerReductionSystemMessageSend(byte[] buffer = null)
@@ -24,3 +23,4 @@ namespace HVR.Basis.Comms
         }
     }
 }
+#endif

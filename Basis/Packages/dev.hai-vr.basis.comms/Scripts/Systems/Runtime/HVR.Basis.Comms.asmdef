@@ -17,7 +17,19 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [],
-    "versionDefines": [],
+    "defineConstraints": [
+    ],
+    "versionDefines": [
+        {
+            "define": "HVR_HAS_BASIS_SDK",
+            "name": "com.basis.sdk",
+            "expression": "0.0.1"
+        },
+        {
+            "define": "HVR_HAS_NUGET_MEAMOD_DNS",
+            "name": "nuget.meamod.dns",
+            "expression": "1.0.71"
+        }
+    ],
     "noEngineReferences": false
 }

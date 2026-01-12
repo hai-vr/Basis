@@ -6,7 +6,8 @@
         "Unity.Mathematics",
         "Basis.Network.Core",
         "Basis Framework",
-        "BasisDebug"
+        "BasisDebug",
+        "HVR.Shared"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -15,6 +16,17 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "define": "HVR_HAS_BASIS_SDK",
+            "name": "com.basis.sdk",
+            "expression": "0.0.1"
+        },
+        {
+            "define": "HVR_HAS_HVR_CORE",
+            "name": "dev.hai-vr.cross.shared",
+            "expression": "0.0.1"
+        }
+    ],
     "noEngineReferences": false
 }

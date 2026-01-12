@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using Basis.Scripts.BasisSdk;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
@@ -26,7 +25,7 @@ namespace HVR.Basis.Comms
         private static BlendshapeActuationDefinitionFile _ueHandle = null;
         private static BlendshapeActuationDefinitionFile _arKitHandle = null;
 
-        private BasisAvatar _avatar;
+        private Component _avatar;
 
         // Exposed to the Unity editor for this component
         [NonSerialized] internal bool successful;
@@ -34,7 +33,9 @@ namespace HVR.Basis.Comms
         [NonSerialized] internal List<SkinnedMeshRenderer> renderers;
         [NonSerialized] internal OSCAcquisition oscAcquisition;
         [NonSerialized] internal BlendshapeActuation blendshapeActuation;
+#if HVR_HAS_BASIS_SDK
         [NonSerialized] internal EyeTrackingBoneActuation eyeTrackingBoneActuation;
+#endif
 
         private bool _isWearer;
 
@@ -129,6 +130,7 @@ namespace HVR.Basis.Comms
             blendshapeActuation.AutoDefine(definitionFiles, smrs);
             blendshapeActuation.gameObject.SetActive(true);
 
+#if HVR_HAS_BASIS_SDK
             eyeTrackingBoneActuation = CreateGameObject(nameof(EyeTrackingBoneActuation), false)
                 .AddComponent<EyeTrackingBoneActuation>();
             if (useCustomMultiplier)
@@ -137,9 +139,12 @@ namespace HVR.Basis.Comms
                 eyeTrackingBoneActuation.multiplyY = eyeTrackingMultiplyY;
             }
             eyeTrackingBoneActuation.gameObject.SetActive(true);
+#endif
 
             blendshapeActuation.OnHVRAvatarReady(_isWearer);
+#if HVR_HAS_BASIS_SDK
             eyeTrackingBoneActuation.OnHVRAvatarReady(_isWearer);
+#endif
 
             successful = true;
         }

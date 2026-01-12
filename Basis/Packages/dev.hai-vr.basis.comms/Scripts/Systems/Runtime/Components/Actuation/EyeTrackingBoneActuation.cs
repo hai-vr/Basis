@@ -1,3 +1,4 @@
+#if HVR_HAS_BASIS_SDK
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Behaviour;
@@ -54,7 +55,7 @@ namespace HVR.Basis.Comms
 
         private void Awake()
         {
-            if (avatar == null) avatar = HVRCommsUtil.GetAvatar(this);
+            if (avatar == null) avatar = HVRCommsUtil.GetAvatar(this) as BasisAvatar;
             if (acquisition == null) acquisition = AcquisitionService.SceneInstance;
         }
 
@@ -213,3 +214,4 @@ namespace HVR.Basis.Comms
 #endregion
     }
 }
+#endif

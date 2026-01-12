@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using Basis.Scripts.BasisSdk;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
     public class CommsNetworking
     {
-        public static MutualizedFeatureInterpolator UsingMutualizedInterpolator(BasisAvatar avatar, List<MutualizedInterpolationRange> mutualized, InterpolatedDataChanged interpolatedDataChanged)
+        public static MutualizedFeatureInterpolator UsingMutualizedInterpolator(Component avatar, List<MutualizedInterpolationRange> mutualized, InterpolatedDataChanged interpolatedDataChanged)
         {
             var comms = avatar.GetComponentInChildren<HVRAvatarComms>(true);
             return comms.NeedsMutualizedInterpolator(mutualized, interpolatedDataChanged);

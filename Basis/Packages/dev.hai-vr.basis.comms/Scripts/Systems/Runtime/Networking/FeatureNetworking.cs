@@ -1,13 +1,12 @@
 using System;
 using System.Collections.Generic;
-using Basis.Network.Core;
 using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
     public class FeatureEvent : IFeatureReceiver
     {
-        private DeliveryMethod DeliveryMethod = DeliveryMethod.Sequenced;
+        private HVRTransmitterMethod DeliveryMethod = HVRTransmitterMethod.Sequenced;
 
         private readonly CommsNetworking.EventReceived _eventReceived;
         private readonly CommsNetworking.ResyncRequested _resyncRequested;

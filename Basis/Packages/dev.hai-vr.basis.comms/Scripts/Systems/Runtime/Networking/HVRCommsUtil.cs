@@ -1,8 +1,10 @@
 using System;
 using System.Linq;
-using Basis.Scripts.BasisSdk;
 using UnityEngine;
 using Object = UnityEngine.Object;
+#if HVR_HAS_BASIS_SDK
+using Basis.Scripts.BasisSdk;
+#endif
 
 namespace HVR.Basis.Comms
 {
@@ -19,9 +21,13 @@ namespace HVR.Basis.Comms
             return instance;
         }
 
-        public static BasisAvatar GetAvatar(Component component)
+        public static Component GetAvatar(Component component)
         {
+#if HVR_HAS_BASIS_SDK
             return component.GetComponentInParent<BasisAvatar>(true);
+#else
+            throw new NotImplementedException("TODO: GetAvatar from HVR");
+#endif
         }
 
         /// Semantically used to sanitize a serializable field of objects provided by an End User.<br/>
@@ -41,6 +47,39 @@ namespace HVR.Basis.Comms
             if (structuresNullable == null) return Array.Empty<T>();
 
             return structuresNullable;
+        }
+
+        public static object HookAvatarReady(Component component, Action<bool> onAvatarReady)
+        {
+            var avatar = HVRCommsUtil.GetAvatar(component);
+#if HVR_HAS_BASIS_SDK
+            BasisAvatar.OnReady avatarReady = b => onAvatarReady(b);
+            (avatar as BasisAvatar).OnAvatarReady += avatarReady;
+            return avatarReady;
+#else
+            return null; // TODO
+#endif
+        }
+
+        public static void UnhookAvatarReady(Component component, object objNullable)
+        {
+            if (objNullable == null) return;
+            
+            var avatar = HVRCommsUtil.GetAvatar(component);
+#if HVR_HAS_BASIS_SDK
+            (avatar as BasisAvatar).OnAvatarReady -= objNullable as BasisAvatar.OnReady;
+#else
+            // TODO
+#endif
+        }
+
+        public static ushort LinkedAvatarIdOf(Component avatar)
+        {
+#if HVR_HAS_BASIS_SDK
+            return (avatar as BasisAvatar).LinkedPlayerID;
+#else
+            throw new NotImplementedException("TODO: LinkedAvatarIdOf");
+#endif
         }
     }
 }

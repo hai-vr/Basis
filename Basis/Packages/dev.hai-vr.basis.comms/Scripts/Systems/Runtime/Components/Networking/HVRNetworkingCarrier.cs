@@ -1,3 +1,4 @@
+#if HVR_HAS_BASIS_SDK
 using System;
 using Basis.Scripts.Behaviour;
 using Basis.Network.Core;
@@ -29,7 +30,7 @@ namespace HVR.Basis.Comms
         {
             if (!_networkReady) return;
 
-            _comms.WhenNetworkMessageReceived(index, remoteUser, buffer, deliveryMethod);
+            _comms.WhenNetworkMessageReceived(index, remoteUser, buffer);
         }
 
         public override void OnNetworkMessageServerReductionSystem(byte[] buffer)
@@ -47,5 +48,11 @@ namespace HVR.Basis.Comms
         {
             _networkReady = true;
         }
+
+        public void NetworkMessageSend(byte[] buffer = null, HVRTransmitterMethod deliveryMethod = HVRTransmitterMethod.Unreliable, ushort[] recipients = null)
+        {
+            NetworkMessageSend(buffer, IHVRTransmitter.FromHVRTransmitterMethod(deliveryMethod), recipients);
+        }
     }
 }
+#endif

@@ -3,7 +3,10 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using UnityEngine;
+#if HVR_HAS_NUGET_MEAMOD_DNS
 using MeaMod.DNS.Multicast;
+#endif
 
 namespace HVR.Osushi
 {
@@ -12,7 +15,9 @@ namespace HVR.Osushi
         private readonly string _root;
         private readonly string _avtr;
         private bool _isStarted;
+#if HVR_HAS_NUGET_MEAMOD_DNS
         private ServiceDiscovery _serviceDiscovery;
+#endif
         private Thread _httpThread;
 
         public OsushiQuery(string root, string avtr)
@@ -23,6 +28,7 @@ namespace HVR.Osushi
 
         public void Start()
         {
+#if HVR_HAS_NUGET_MEAMOD_DNS
             if (_isStarted) return;
 
             _isStarted = true;
@@ -56,10 +62,14 @@ namespace HVR.Osushi
             // The code above is enough so that VRCFaceTracking can detect us if we started before VRCFaceTracking.
             // We need this so that VRCFaceTracking can detect us if our code runs AFTER VRCFaceTracking has already started.
             _serviceDiscovery.QueryServiceInstances("_oscjson._tcp");
+#else
+            Debug.LogError("MeaMod.DNS is not imported, so the face OSCQuery service will not be functional.");
+#endif
         }
 
         public void Stop()
         {
+#if HVR_HAS_NUGET_MEAMOD_DNS
             if (!_isStarted) return;
             _isStarted = false;
 
@@ -76,6 +86,7 @@ namespace HVR.Osushi
 
             _serviceDiscovery.Dispose();
             _serviceDiscovery = null;
+#endif
         }
 
         static int GetRandomFreePort()

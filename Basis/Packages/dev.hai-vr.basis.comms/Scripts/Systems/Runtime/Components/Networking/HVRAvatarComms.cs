@@ -1,18 +1,30 @@
-using Basis.Scripts.BasisSdk;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
+#if HVR_HAS_BASIS_SDK
+using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Behaviour;
 using Basis.Network.Core;
-using UnityEngine;
+#endif
 
 namespace HVR.Basis.Comms
 {
     [AddComponentMenu("HVR.Basis/Comms/Internal/HVR Avatar Comms")]
     [HelpURL("https://docs.hai-vr.dev/docs/basis/avatar-customization")]
-    public class HVRAvatarComms : BasisAvatarMonoBehaviour
+    public class HVRAvatarComms : 
+#if HVR_HAS_BASIS_SDK
+        BasisAvatarMonoBehaviour
+#else
+        MonoBehaviour
+#endif
     {
-        [HideInInspector] [SerializeField] private BasisAvatar avatar;
+#if HVR_HAS_BASIS_SDK
+        // [HideInInspector] [SerializeField] private BasisAvatar avatar;
+        [HideInInspector] [SerializeField] private Component avatar;
+#else
+        [HideInInspector] [SerializeField] private Component avatar;
+#endif
         [SerializeField] private bool isFromPrefab = false;
 
         private readonly Nethack _nethack;
@@ -25,6 +37,8 @@ namespace HVR.Basis.Comms
         private readonly List<HVRToSubmitLater> _toStoreLater = new();
         private AvatarMessageProcessing avatarMessageProcessing;
         private StreamedAvatarFeature _streamedLateInit;
+        
+        private object _unhook;
 
         public HVRAvatarComms()
         {
@@ -47,7 +61,12 @@ namespace HVR.Basis.Comms
                 throw new InvalidOperationException("Broke assumption: Avatar cannot be found.");
             }
 
-            avatar.OnAvatarReady += OnAvatarReady;
+            _unhook = HVRCommsUtil.HookAvatarReady(this, OnAvatarReady);
+        }
+        
+        private void OnDestroy()
+        {
+            if (_unhook != null) HVRCommsUtil.UnhookAvatarReady(this, _unhook);
         }
 
         private void OnAvatarReady(bool isWearer)
@@ -63,13 +82,16 @@ namespace HVR.Basis.Comms
             _nethack.AfterAvatarReady();
         }
 
+#if HVR_HAS_BASIS_SDK
         public override void OnNetworkReady(bool isLocallyOwned)
         {
             _nethack.AfterNetworkReady(isLocallyOwned);
         }
+#endif
 
         private void OnReadyBothAvatarAndNetwork(bool isWearer)
         {
+#if HVR_HAS_BASIS_SDK
             var carriers = avatar.GetComponentsInChildren<HVRNetworkingCarrier>(true);
             if (carriers.Length < 5)
             {
@@ -89,8 +111,12 @@ namespace HVR.Basis.Comms
             }
 
             DeclareMutualizedInterpolator(isWearer, carriers[0]);
+#else
+            throw new NotImplementedException("TODO HVRAvatarComms");
+#endif
         }
 
+#if HVR_HAS_BASIS_SDK
         private void DeclareMutualizedInterpolator(bool isWearer, HVRNetworkingCarrier carrier)
         {
             var holder = new GameObject("Streamed-Mutualized")
@@ -128,10 +154,11 @@ namespace HVR.Basis.Comms
                 }
             };
 
-            avatarMessageProcessing = AvatarMessageProcessing.ForFeature(carrier, isWearer, avatar.LinkedPlayerID, new HVRRedirectToStreamed(_streamedLateInit));
+            avatarMessageProcessing = AvatarMessageProcessing.ForFeature(carrier, isWearer, HVRCommsUtil.LinkedAvatarIdOf(avatar), new HVRRedirectToStreamed(_streamedLateInit));
 
             StartCoroutine(SendInitialPacketNextFrame());
         }
+#endif
 
         IEnumerator SendInitialPacketNextFrame()
         {
@@ -197,11 +224,11 @@ namespace HVR.Basis.Comms
             }
         }
 
-        public void WhenNetworkMessageReceived(int carrierIndex, ushort remoteUser, byte[] buffer, DeliveryMethod deliveryMethod)
+        public void WhenNetworkMessageReceived(int carrierIndex, ushort remoteUser, byte[] buffer)
         {
             if (carrierIndex == 0)
             {
-                avatarMessageProcessing.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod);
+                avatarMessageProcessing.OnNetworkMessageReceived(remoteUser, buffer);
             }
         }
 

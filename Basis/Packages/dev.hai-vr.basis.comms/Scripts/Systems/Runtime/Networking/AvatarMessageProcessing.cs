@@ -1,8 +1,5 @@
 ﻿using System;
-using Basis.Scripts.Behaviour;
 using HVR.Basis.Comms.HVRUtility;
-using Basis.Network.Core;
-using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
@@ -43,7 +40,7 @@ namespace HVR.Basis.Comms
             _onPacketReceived = onPacketReceived;
         }
 
-        public void OnNetworkMessageReceived(ushort remoteUser, byte[] buffer, DeliveryMethod _)
+        public void OnNetworkMessageReceived(ushort remoteUser, byte[] buffer)
         {
             if (buffer.Length == 0) { HVRLogging.ProtocolError("Buffer was 0 bytes."); return; }
             if (!_isWearer && remoteUser != _wearerNetId) { HVRLogging.ProtocolError("Illegal sender."); return; }
@@ -89,12 +86,12 @@ namespace HVR.Basis.Comms
         {
             if (_isWearer)
             {
-                _transmitter.NetworkMessageSend(new[] { NewNet_WearerReady }, DeliveryMethod.ReliableSequenced);
+                _transmitter.NetworkMessageSend(new[] { NewNet_WearerReady }, HVRTransmitterMethod.ReliableSequenced);
                 _onResyncEveryoneRequested.Invoke();
             }
             else
             {
-                _transmitter.NetworkMessageSend(new[] { NewNet_RemoteRequestsInitialization }, DeliveryMethod.ReliableSequenced, new[] { _wearerNetId });
+                _transmitter.NetworkMessageSend(new[] { NewNet_RemoteRequestsInitialization }, HVRTransmitterMethod.ReliableSequenced, new[] { _wearerNetId });
             }
         }
 

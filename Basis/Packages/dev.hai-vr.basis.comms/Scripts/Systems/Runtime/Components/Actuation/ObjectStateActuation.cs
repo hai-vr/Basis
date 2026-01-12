@@ -1,3 +1,4 @@
+#if HVR_HAS_BASIS_SDK
 using System;
 using System.Collections;
 using Basis.Scripts.BasisSdk;
@@ -49,7 +50,7 @@ namespace HVR.Basis.Comms
 
         private void Awake()
         {
-            if (avatar == null) avatar = HVRCommsUtil.GetAvatar(this);
+            if (avatar == null) avatar = HVRCommsUtil.GetAvatar(this) as BasisAvatar;
             if (acquisition == null) acquisition = AcquisitionService.SceneInstance;
 
             whenActive = HVRCommsUtil.SlowSanitizeEndUserProvidedObjectArray(whenActive);
@@ -132,7 +133,7 @@ namespace HVR.Basis.Comms
         {
             if (!_networkReady) return;
 
-            _network.OnNetworkMessageReceived(remoteUser, buffer, deliveryMethod);
+            _network.OnNetworkMessageReceived(remoteUser, buffer);
         }
 
         private void OnResyncRequested(ushort[] whoAsked)
@@ -249,3 +250,4 @@ namespace HVR.Basis.Comms
         Inactive, Active, Interpolating
     }
 }
+#endif

@@ -1,5 +1,4 @@
-﻿using Basis.Scripts.BasisSdk;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace HVR.Basis.Comms
 {
@@ -8,19 +7,18 @@ namespace HVR.Basis.Comms
     {
         private const string FakeWakeUpMessage = "avtr_00000000-89b1-4313-aa2d-000000000000";
 
-        [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private AcquisitionService acquisitionService;
 
         private OSCAcquisitionServer _acquisitionServer;
         private bool _alreadyInitialized;
+        
+        private object _unhook;
 
         private void Awake()
         {
-            if (avatar == null) avatar = HVRCommsUtil.GetAvatar(this);
             if (acquisitionService == null) acquisitionService = AcquisitionService.SceneInstance;
 
-            avatar.OnAvatarReady -= OnAvatarReady;
-            avatar.OnAvatarReady += OnAvatarReady;
+            _unhook = HVRCommsUtil.HookAvatarReady(this, OnAvatarReady);
         }
 
         internal void OnAvatarReady(bool isWearer)
@@ -39,16 +37,12 @@ namespace HVR.Basis.Comms
 
         private void OnDestroy()
         {
-            avatar.OnAvatarReady -= OnAvatarReady;
-
             if (_acquisitionServer != null)
             {
                 _acquisitionServer.OnAddressUpdated -= OnAddressUpdated;
             }
-            if (avatar != null)
-            {
-                avatar.OnAvatarReady -= OnAvatarReady;
-            }
+            
+            if (_unhook != null) HVRCommsUtil.UnhookAvatarReady(this, _unhook);
         }
 
         private void OnAddressUpdated(string address, float value)

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Basis.Scripts.BasisSdk;
 using HVR.Basis.Comms.HVRUtility;
 using UnityEngine;
 
@@ -18,7 +17,6 @@ namespace HVR.Basis.Comms
         [SerializeField] private BlendshapeActuationDefinition[] definitions = Array.Empty<BlendshapeActuationDefinition>();
         [SerializeField] private AddressOverride[] addressOverrides = Array.Empty<AddressOverride>();
 
-        [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private AcquisitionService acquisition;
 
         private Dictionary<int, int> _addessIdToBaseIndex = new();
@@ -46,11 +44,6 @@ namespace HVR.Basis.Comms
 
         private void Awake()
         {
-            if (avatar == null)
-            {
-                avatar = HVRCommsUtil.GetAvatar(this);
-            }
-
             if (acquisition == null)
             {
                 acquisition = AcquisitionService.SceneInstance;
@@ -217,7 +210,7 @@ namespace HVR.Basis.Comms
             HVRLogging.ProtocolDebug("OnReadyBothAvatarAndNetwork called on BlendshapeActuation.");
             // FIXME: We should be using the computed actuators instead of the address base, assuming that
             // the list of blendshapes is the same local and remote (no local-only or remote-only blendshapes).
-            featureInterpolator = CommsNetworking.UsingMutualizedInterpolator(avatar, MakeMutualized(), OnInterpolatedDataChanged);
+            featureInterpolator = CommsNetworking.UsingMutualizedInterpolator(HVRCommsUtil.GetAvatar(this), MakeMutualized(), OnInterpolatedDataChanged);
 
             var overrides = definitionFiles
                 .SelectMany(file => file.addressOverrides)
@@ -282,8 +275,6 @@ namespace HVR.Basis.Comms
 
         private void OnDestroy()
         {
-            avatar.OnAvatarReady -= OnHVRAvatarReady;
-
             acquisition.UnregisterAddresses(_addessIdToBaseIndex.Keys.ToArray(), OnAddressUpdated);
         }
 
