@@ -32,6 +32,7 @@ namespace HVR.Basis.Comms
         public int address;
         public float lower;
         public float upper;
+        public float defaultValue;
 
         public float AbsoluteToRange(float absolute)
         {

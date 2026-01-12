@@ -22,7 +22,7 @@ namespace HVR.Basis.Comms
         private Dictionary<int, int> _addessIdToBaseIndex = new();
         private ComputedActuator[] _computedActuators;
         private ComputedActuator[][] _addressBaseIndexToActuators;
-        private Dictionary<int, (float, float)> _addressToStreamedLowerUpper;
+        private Dictionary<int, StreamedGrouping> _addressToStreamedLowerUpper;
 
         #region NetworkingFields
         // Can be null due to:
@@ -103,6 +103,13 @@ namespace HVR.Basis.Comms
             }
         }
 
+        private struct StreamedGrouping
+        {
+            public float lower;
+            public float upper;
+            public float defaultValue;
+        }
+
         public void OnHVRAvatarReady(bool isWearer)
         {
             var allDefinitions = definitions
@@ -111,6 +118,13 @@ namespace HVR.Basis.Comms
 
             var smrToBlendshapeNames = ResolveSmrToBlendshapeNames(renderers);
 
+            var overrides = definitionFiles
+                .SelectMany(file => file.addressOverrides)
+                .Concat(addressOverrides)
+                .Where(it => it.overrideDefaultValue)
+                .GroupBy(over => over.address)
+                .ToDictionary(grouping => HVRAddress.AddressToId(grouping.Key), grouping => grouping.First().defaultValue);
+            
             // All streamed avatar feature values are between 0 and 1.
             // If we want to stream values outside of this range (i.e. [-1; 1]), we need to collect all
             // possible InStart and InEnd values in order to lerp in that range.
@@ -123,7 +137,12 @@ namespace HVR.Basis.Comms
                         // We want the lower bound, not the minimum of InStart.
                         .SelectMany(definition => new [] { definition.inStart, definition.inEnd })
                         .ToArray();
-                    return (inValuesForThisAddress.Min(), inValuesForThisAddress.Max());
+                    return new StreamedGrouping
+                    {
+                        lower = inValuesForThisAddress.Min(),
+                        upper = inValuesForThisAddress.Max(),
+                        defaultValue = overrides.GetValueOrDefault(grouping.Key, 0f)
+                    };
                 });
 
             _computedActuators = allDefinitions.Select(definition =>
@@ -131,7 +150,7 @@ namespace HVR.Basis.Comms
                     var actuatorTargets = ComputeTargets(smrToBlendshapeNames, definition.blendshapes, definition.onlyFirstMatch);
                     if (actuatorTargets.Length == 0) return null;
 
-                    var (lower, upper) = _addressToStreamedLowerUpper[HVRAddress.AddressToId(definition.address)];
+                    var streamedGrouping = _addressToStreamedLowerUpper[HVRAddress.AddressToId(definition.address)];
                     return new ComputedActuator
                     {
                         // The AddressIndex field is filled later.
@@ -139,8 +158,8 @@ namespace HVR.Basis.Comms
                         InEnd = definition.inEnd,
                         OutStart = definition.outStart,
                         OutEnd = definition.outEnd,
-                        StreamedLower = lower,
-                        StreamedUpper = upper,
+                        StreamedLower = streamedGrouping.lower,
+                        StreamedUpper = streamedGrouping.upper,
                         UseCurve = definition.useCurve,
                         Curve = definition.curve,
                         Targets = actuatorTargets,
@@ -148,9 +167,10 @@ namespace HVR.Basis.Comms
                         {
                             identifier = definition.address,
                             address = HVRAddress.AddressToId(definition.address),
-                            lower = lower,
-                            upper = upper
-                        }
+                            lower = streamedGrouping.lower,
+                            upper = streamedGrouping.upper
+                        },
+                        DefaultInValue = streamedGrouping.defaultValue
                     };
                 })
                 .Where(actuator => actuator != null)
@@ -242,12 +262,13 @@ namespace HVR.Basis.Comms
                 .Select(address =>
                 {
                     // The key order are different between addressBase and addressToStreamedLowerUpper
-                    var (lower, upper) = _addressToStreamedLowerUpper[address];
+                    var streamedGrouping = _addressToStreamedLowerUpper[address];
                     return new MutualizedInterpolationRange
                     {
                         address = address,
-                        lower = lower,
-                        upper = upper,
+                        lower = streamedGrouping.lower,
+                        upper = streamedGrouping.upper,
+                        defaultValue = streamedGrouping.defaultValue
                     };
                 })
                 .ToList();
@@ -346,6 +367,7 @@ namespace HVR.Basis.Comms
             public AnimationCurve Curve;
             public ComputedActuatorTarget[] Targets;
             public RequestedFeature RequestedFeature;
+            public float DefaultInValue;
         }
 
         public class ComputedActuatorTarget
