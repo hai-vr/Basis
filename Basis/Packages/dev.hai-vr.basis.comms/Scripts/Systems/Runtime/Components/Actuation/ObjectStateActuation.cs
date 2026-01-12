@@ -1,10 +1,12 @@
 #if HVR_HAS_BASIS_SDK
-using System;
-using System.Collections;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.Behaviour;
+#if false
+using System;
+using System.Collections;
 using HVR.Basis.Comms.HVRUtility;
 using Basis.Network.Core;
+#endif
 using UnityEngine;
 
 namespace HVR.Basis.Comms
@@ -23,15 +25,18 @@ namespace HVR.Basis.Comms
         [SerializeField] private Component[] whenActive;
         [SerializeField] private Component[] whenInactive;
 
+#if false
         private bool _currentTargetState;
         private InterpolatingState _currentInterpolation;
 
         private float _lastStateChangeTime = 0f;
         private float _endStateChangeTime = 0f;
         private Coroutine _lastCoroutineNullable;
+#endif
 
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [HideInInspector] [SerializeField] private AcquisitionService acquisition;
+#if false
 
 #region NetworkingFields
         private int _guidIndex;
@@ -238,6 +243,7 @@ namespace HVR.Basis.Comms
             _currentInterpolation = _currentTargetState ? InterpolatingState.Active : InterpolatingState.Inactive;
             ForceUpdateState();
         }
+#endif
     }
 
     public enum ActivationSource
