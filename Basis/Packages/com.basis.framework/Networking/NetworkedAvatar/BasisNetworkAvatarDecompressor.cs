@@ -29,7 +29,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             {
                 int offset = 0;
                 double interval = (double)BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
-                if (CreateAvatarBuffer(data, ref offset, (interval + (double)syncMessage.interval) / 1000.0, out BasisAvatarBuffer avatarBuffer))
+                if (TryCreateAvatarBuffer(data, ref offset, (interval + (double)syncMessage.interval) / 1000.0, out BasisAvatarBuffer avatarBuffer))
                 {
                     EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, syncMessage.avatarSerialization);
                 }
@@ -53,7 +53,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (length >= BasisBitPackingConstants.AvatarSyncSize)
             {
                 int offset = 0;
-                if (CreateAvatarBuffer(data, ref offset, 0.01f, out BasisAvatarBuffer avatarBuffer))
+                if (TryCreateAvatarBuffer(data, ref offset, 0.01f, out BasisAvatarBuffer avatarBuffer))
                 {
                     EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, avatarSerialization);
                 }
@@ -63,53 +63,65 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 BasisDebug.LogError("Data did not have enough for AvatarsyncMessage", BasisDebug.LogTag.Networking);
             }
         }
-
-        private static bool CreateAvatarBuffer(byte[] data, ref int offset, double secondsInterval, out BasisAvatarBuffer BasisAvatarBuffer)
+        /// <summary>
+        /// Creates A Avatar Buffer, removes NaN and infinite data
+        /// </summary>
+        /// <param name="data"></param>
+        /// <param name="offset"></param>
+        /// <param name="secondsInterval"></param>
+        /// <param name="basisAvatarBuffer"></param>
+        /// <returns></returns>
+        private static bool TryCreateAvatarBuffer(byte[] data,ref int offset,double secondsInterval,out BasisAvatarBuffer basisAvatarBuffer)
         {
-            BasisAvatarBuffer = BasisAvatarBufferPool.Get();
-            BasisAvatarBuffer.Position = BasisUnityBitPackerExtensionsUnsafe.ReadPosition(ref data, ref offset);
-            BasisAvatarBuffer.Rotation = SanitizeRotation(BasisUnityBitPackerExtensionsUnsafe.ReadQuaternionFromBytes(ref data, ref offset));
-            BasisOrderedDataSet.DecompressAvatarMuscles_BitPacked(data, ref BasisAvatarBuffer.Muscles, ref offset);
-            BasisAvatarBuffer.Scale = MuscleDecompress(BasisUnityBitPackerExtensionsUnsafe.ReadUShort(ref data, ref offset), MinimumValueSupported, MaximumValueSupported);
-            // Reject NaN, Infinity, zero, negative, or insane values
+            basisAvatarBuffer = null;
+            int startOffset = offset;
             if (!math.isfinite(secondsInterval) || secondsInterval <= 0.0 || secondsInterval > 1.0)
             {
-                BasisDebug.LogError($"SecondsInterval was {secondsInterval}, rejecting", BasisDebug.LogTag.Remote);
-                BasisAvatarBufferPool.Release(BasisAvatarBuffer);
-                return false;
+                goto Fail;
             }
-            BasisAvatarBuffer.SecondsInterval = secondsInterval;
+            basisAvatarBuffer = BasisAvatarBufferPool.Get();
 
-            if (!math.all(math.isfinite(BasisAvatarBuffer.Position)))
+            // Position
+            if (!BasisUnityBitPackerExtensionsUnsafe.TryReadPosition(ref data, ref offset, out basisAvatarBuffer.Position))
             {
-                BasisDebug.LogError("Non-finite Position detected, rejecting", BasisDebug.LogTag.Remote);
-                BasisAvatarBufferPool.Release(BasisAvatarBuffer);
-                return false;
+                goto Fail;
             }
 
-            if (!math.all(math.isfinite(BasisAvatarBuffer.Scale)))
+            // Rotation
+            if (!BasisUnityBitPackerExtensionsUnsafe.TryReadQuaternionFromBytes( ref data, ref offset, out basisAvatarBuffer.Rotation))
             {
-                BasisDebug.LogError("Non-finite Scale detected, rejecting", BasisDebug.LogTag.Remote);
-                BasisAvatarBufferPool.Release(BasisAvatarBuffer);
-                return false;
+                goto Fail;
             }
+            BasisOrderedDataSet.DecompressAvatarMuscles_BitPacked( data, ref basisAvatarBuffer.Muscles, ref offset);
+
+            // Scale
+            if (!BasisUnityBitPackerExtensionsUnsafe.TryReadUShort( ref data, ref offset, out ushort uScale))
+            {
+                goto Fail;
+            }
+
+            basisAvatarBuffer.Scale = MuscleDecompress(uScale, MinimumValueSupported, MaximumValueSupported);
+            basisAvatarBuffer.SecondsInterval = secondsInterval;
             return true;
-        }
-        private static quaternion SanitizeRotation(quaternion q)
-        {
-            if (!math.isfinite(q.value.x) || !math.isfinite(q.value.y) || !math.isfinite(q.value.z) || !math.isfinite(q.value.w))
-            {
-                return quaternion.identity;
-            }
 
-            float magSq = q.value.x * q.value.x + q.value.y * q.value.y + q.value.z * q.value.z + q.value.w * q.value.w;
-            if (magSq < 1e-8f)
+        Fail:
+            offset = startOffset;                 // optional but strongly recommended
+            if (basisAvatarBuffer != null)
             {
-                return quaternion.identity;
+                BasisAvatarBufferPool.Release(basisAvatarBuffer);
+                basisAvatarBuffer = null;
             }
-
-            return math.normalize(q);
+            BasisDebug.LogError($"non finite data found in Decompression Stage, bailing.", BasisDebug.LogTag.Remote);
+            return false;
         }
+
+        /// <summary>
+        /// cant generate a nan unless min,max or floatrangedifference go bad (const cant)
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="minValue"></param>
+        /// <param name="maxValue"></param>
+        /// <returns></returns>
         public static float MuscleDecompress(ushort value, float minValue, float maxValue)
         {
             float normalized = value / FloatRangeDifference;

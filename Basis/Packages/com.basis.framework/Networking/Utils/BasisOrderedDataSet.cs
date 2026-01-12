@@ -66,6 +66,11 @@ public class BasisOrderedDataSet : MonoBehaviour
             float range = RangeMuscle[muscleIndex];
 
             float value = min + norm * range;
+            if (!math.isfinite(value))
+            {
+                value = min;
+            }
+
             outputArray[muscleIndex] = math.clamp(value, min, max);
         }
 
