@@ -53,7 +53,11 @@ namespace HVR.Basis.Comms
             }
             if (avatar == null)
             {
+#if HVR_HAS_BASIS_SDK
                 avatar = HVRCommsUtil.GetAvatar(this) as BasisAvatar;
+#else
+                avatar = HVRCommsUtil.GetAvatar(this);
+#endif
             }
             if (avatar == null)
             {
