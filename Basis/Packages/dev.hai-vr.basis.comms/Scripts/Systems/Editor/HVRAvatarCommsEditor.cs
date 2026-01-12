@@ -1,3 +1,4 @@
+#if HVR_HAS_BASIS_SDK
 using Basis.Scripts.BasisSdk;
 using UnityEditor;
 using UnityEngine;
@@ -32,3 +33,4 @@ namespace HVR.Basis.Comms.Editor
         }
     }
 }
+#endif

@@ -9,7 +9,8 @@
         "BasisDebug",
         "HVR.Basis.Comms.HVRUtility",
         "Unity.Addressables",
-        "Unity.ResourceManager"
+        "Unity.ResourceManager",
+        "HVR.Integration"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -23,6 +24,11 @@
         {
             "define": "HVR_HAS_BASIS_SDK",
             "name": "com.basis.sdk",
+            "expression": "0.0.1"
+        },
+        {
+            "define": "HVR_HAS_HVR_INTEGRATION",
+            "name": "dev.hai-vr.cross.integration",
             "expression": "0.0.1"
         },
         {

@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿#if HVR_HAS_BASIS_SDK
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -46,3 +47,4 @@ namespace HVR.Basis.Comms
         }
     }
 }
+#endif

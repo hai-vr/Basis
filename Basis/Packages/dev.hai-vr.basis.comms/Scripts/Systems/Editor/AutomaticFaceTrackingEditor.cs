@@ -11,7 +11,9 @@ namespace HVR.Basis.Comms.Editor
         public override void OnInspectorGUI()
         {
             var my = (AutomaticFaceTracking)target;
+#if HVR_HAS_BASIS_SDK
             HVRAvatarCommsEditor.EnsureAvatarHasPrefab(my.transform);
+#endif
 
             EditorGUILayout.HelpBox("This component will automatically discover all SkinnedMeshRenderers on the avatar that can support face tracking, " +
                                     "expose an OSC service, " +
@@ -57,9 +59,11 @@ namespace HVR.Basis.Comms.Editor
                     {
                         EditorGUILayout.ObjectField(new GUIContent(""), renderer, typeof(SkinnedMeshRenderer), true);
                     }
+#if HVR_HAS_BASIS_SDK
                     EditorGUILayout.ObjectField(new GUIContent("OSCAcquisition"), my.oscAcquisition, typeof(OSCAcquisition), true);
                     EditorGUILayout.ObjectField(new GUIContent("BlendshapeActuation"), my.blendshapeActuation, typeof(BlendshapeActuation), true);
                     EditorGUILayout.ObjectField(new GUIContent("EyeTrackingBoneActuation"), my.eyeTrackingBoneActuation, typeof(EyeTrackingBoneActuation), true);
+#endif
                 }
 
                 EditorGUILayout.EndVertical();

@@ -5,6 +5,9 @@ using Object = UnityEngine.Object;
 #if HVR_HAS_BASIS_SDK
 using Basis.Scripts.BasisSdk;
 #endif
+#if HVR_HAS_HVR_INTEGRATION
+using HVR.Integration.UGC;
+#endif
 
 namespace HVR.Basis.Comms
 {
@@ -25,6 +28,8 @@ namespace HVR.Basis.Comms
         {
 #if HVR_HAS_BASIS_SDK
             return component.GetComponentInParent<BasisAvatar>(true);
+#elif HVR_HAS_HVR_INTEGRATION
+            return component.GetComponentInParent<HVRUGCAvatar>(true);
 #else
             throw new NotImplementedException("TODO: GetAvatar from HVR");
 #endif

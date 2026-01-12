@@ -15,7 +15,7 @@ namespace HVR.Basis.Comms.HVRUtility
         public static void ProtocolAccident(string message) => BasisDebug.LogError(message, BasisDebug.LogTag.Avatar);
         public static void StateError(string message) => BasisDebug.LogError(message, BasisDebug.LogTag.Avatar);
         
-#elif HVR_HAS_HVR_CORE
+#elif HVR_HAS_HVR_INTEGRATION
         public static void ProtocolError(string message) => HVR.Shared.HVRLogging.LogError(typeof(HVRLogging), message);
         public static void ProtocolWarning(string message) => HVR.Shared.HVRLogging.Log(typeof(HVRLogging), "[WARNING] " + message);
         public static void ProtocolAssetMismatch(string message) => HVR.Shared.HVRLogging.LogError(typeof(HVRLogging), message);

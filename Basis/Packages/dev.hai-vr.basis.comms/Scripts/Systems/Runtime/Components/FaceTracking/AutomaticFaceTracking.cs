@@ -48,6 +48,12 @@ namespace HVR.Basis.Comms
             {
                 _avatar = HVRCommsUtil.GetAvatar(this);
             }
+#if HVR_HAS_HVR_INTEGRATION
+            if (_avatar != null)
+            {
+                (_avatar as HVR.Integration.UGC.HVRUGCAvatar).OnFullyInitialized += HVRAvatarComms.FlagHVRFullyInitialized;
+            }
+#endif
         }
 
         public void OnHVRAvatarReady(bool isWearer)

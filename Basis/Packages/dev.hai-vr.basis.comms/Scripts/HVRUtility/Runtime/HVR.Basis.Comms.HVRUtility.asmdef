@@ -23,7 +23,7 @@
             "expression": "0.0.1"
         },
         {
-            "define": "HVR_HAS_HVR_CORE",
+            "define": "HVR_HAS_HVR_INTEGRATION",
             "name": "dev.hai-vr.cross.shared",
             "expression": "0.0.1"
         }

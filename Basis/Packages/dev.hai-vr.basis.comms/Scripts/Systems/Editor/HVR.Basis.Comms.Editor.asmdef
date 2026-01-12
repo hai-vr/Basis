@@ -15,9 +15,7 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [
-        "HVR_HAS_BASIS_SDK"
-    ],
+    "defineConstraints": [],
     "versionDefines": [
         {
             "define": "HVR_HAS_BASIS_SDK",

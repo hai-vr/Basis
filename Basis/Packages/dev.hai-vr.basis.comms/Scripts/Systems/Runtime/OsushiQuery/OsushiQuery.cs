@@ -50,7 +50,7 @@ namespace HVR.Osushi
             _httpThread.Start();
 
             var oscQueryService = new ServiceProfile(
-                instanceName: $"VRChat-Client-{new Random().Next(100_000, 999_999)}",
+                instanceName: $"VRChat-Client-{new System.Random().Next(100_000, 1_000_000)}",
                 serviceName: "_oscjson._tcp",
                 port: (ushort)httpPort,
                 addresses: new[] { IPAddress.Loopback }

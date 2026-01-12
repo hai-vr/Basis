@@ -277,5 +277,16 @@ namespace HVR.Basis.Comms
             public int mutualizedIndex;
             public float absolute;
         }
+
+#if HVR_HAS_HVR_INTEGRATION
+        private static HashSet<Component> alreadyProcessed = new();
+        public static void FlagHVRFullyInitialized(HVR.Integration.UGC.HVRUGCAvatar avatar)
+        {
+            if (!alreadyProcessed.Add(avatar)) return;
+
+            var initializables = avatar.GetComponentInChildren<IHVRInitializable>();
+            initializables.OnHVRAvatarReady(true);
+        }
+#endif
     }
 }
