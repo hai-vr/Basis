@@ -3,10 +3,10 @@ using UnityEngine;
 
 public class SMModuleDistanceBasedReductions : BasisSettingsBase
 {
-    private static float _microphoneRange;
-    private static float _hearingRange;
-    private static float _AvatarRange;
-    private static float _meshLod;
+    private static float _microphoneRange = 25;
+    private static float _hearingRange = 25;
+    private static float _AvatarRange = 25;
+    private static float _meshLod = 25;
 
     public static event Action<float> OnMicrophoneRangeChanged;
     public static event Action<float> OnHearingRangeChanged;
@@ -45,7 +45,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
         set
         {
             _AvatarRange = value;
-          //  BasisDebug.Log($"Avatar Range {_AvatarRange}");
+            //  BasisDebug.Log($"Avatar Range {_AvatarRange}");
             OnAvatarRangeChanged?.Invoke(value);
         }
     }
@@ -59,27 +59,19 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
             OnMeshLodChanged?.Invoke(value);
         }
     }
-
-    /// <summary>
-    /// microphone range
-    /// hearing range
-    /// maximum avatars
-    /// mesh LOD
-    /// </summary>
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        string key = matchedSettingName.ToLower();
-
-        switch (key)
+        switch (matchedSettingName.ToLower())
         {
             case "microphonerange":
                 if (SliderReadOption(optionValue, out float newMicrophoneRange))
                 {
 #if UNITY_SERVER
-                    MicrophoneRange = 0;
+                MicrophoneRange = 0;
 #else
                     MicrophoneRange = newMicrophoneRange * newMicrophoneRange;
 #endif
+                    BasisDebug.Log($"Mesh LOD {MicrophoneRange}");
                 }
                 break;
 
@@ -87,9 +79,10 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 if (SliderReadOption(optionValue, out float newHearingRange))
                 {
 #if UNITY_SERVER
-                    HearingRange = 0;
+                HearingRange = 0;
 #else
                     HearingRange = newHearingRange * newHearingRange;
+                    BasisDebug.Log($"Mesh LOD {HearingRange}");
 #endif
                 }
                 break;
@@ -98,9 +91,10 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 if (SliderReadOption(optionValue, out float loadRange))
                 {
 #if UNITY_SERVER
-                    AvatarRange = 0;
+                AvatarRange = 0;
 #else
                     AvatarRange = loadRange * loadRange;
+                    BasisDebug.Log($"Mesh LOD {AvatarRange}");
 #endif
                 }
                 break;
@@ -109,26 +103,26 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 if (SliderReadOption(optionValue, out float lod))
                 {
 #if UNITY_SERVER
-                    MeshLod = 0;
+                MeshLod = 0;
 #else
                     MeshLod = lod * lod;
+                    BasisDebug.Log($"Mesh LOD {MeshLod}");
 #endif
                 }
                 break;
-            case "global meshlod":
-                if (SliderReadOption(optionValue, out float GlobalLOD))
-                {
-                    BasisDebug.Log($"Global MESHLOD set to {GlobalLOD}");
-                    QualitySettings.meshLodThreshold = GlobalLOD;
-                }
-                break;
 
-            default:
-                // Optionally handle unknown settings
+            case "globalmeshlod": // now robust
+                if (SliderReadOption(optionValue, out float globalLOD))
+                {
+                    QualitySettings.meshLodThreshold = globalLOD;
+                    BasisDebug.Log($"Mesh LOD {globalLOD}");
+                }
                 break;
         }
     }
+
     public override void ChangedSettings()
     {
+
     }
 }

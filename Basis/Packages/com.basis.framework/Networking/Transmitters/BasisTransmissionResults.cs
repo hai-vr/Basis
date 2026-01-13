@@ -1,6 +1,7 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
@@ -30,9 +31,6 @@ public partial class BasisTransmissionResults
     public bool AnyMicrophoneRangeChanged;
     public bool AnyHearingRangeChanged;
     public bool AnyAvatarRangeChanged;
-
-    [SerializeReference]
-    public BasisLocalBoneControl MouthBone;
     [SerializeReference]
     public BasisNetworkTransmitter BasisNetworkTransmitter;
     public NetDataWriter VRMWriter = new NetDataWriter(true, 0);
@@ -68,7 +66,7 @@ public partial class BasisTransmissionResults
         distanceJob.SquaredAvatarDistance = SMModuleDistanceBasedReductions.AvatarRange;
         distanceJob.SquaredHearingDistance = SMModuleDistanceBasedReductions.HearingRange;
         distanceJob.SquaredVoiceDistance = SMModuleDistanceBasedReductions.MicrophoneRange;
-        distanceJob.referencePosition = MouthBone.OutgoingWorldData.position;
+        distanceJob.referencePosition = BasisLocalCameraDriver.Position;
 
         int receiverCount = BasisNetworkPlayers.ReceiverCount;
         var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
