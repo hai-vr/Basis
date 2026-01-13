@@ -22,18 +22,18 @@ namespace Basis.BasisUI
 
             public PanelToggle Toggle(string title, BasisSettingsBinding<bool> binding)
             {
-                var t = PanelToggle.CreateNewEntry(Parent);
+                var t = PanelToggle.CreateNew(Parent);
                 t.Descriptor.SetTitle(title);
                 t.AssignBinding(binding);
                 return t;
             }
 
             public PanelSlider Slider(PanelSlider.SliderSettings settings, BasisSettingsBinding<float> binding)
-                => PanelSlider.CreateEntryAndBind(Parent, settings, binding);
+                => PanelSlider.CreateAndBind(Parent, settings, binding);
 
             public PanelDropdown Dropdown(string title, IList<string> entries, BasisSettingsBinding<string> binding = null)
             {
-                var d = PanelDropdown.CreateNewEntry(Parent);
+                var d = PanelDropdown.CreateNew(Parent);
                 d.Descriptor.SetTitle(title);
                 d.AssignEntries(entries.ToList());
                 if (binding != null) d.AssignBinding(binding);
@@ -42,7 +42,7 @@ namespace Basis.BasisUI
 
             public PanelDropdown DropdownInt(string title, IList<string> entries, BasisSettingsBinding<string> binding)
             {
-                var d = PanelDropdown.CreateNewEntry(Parent);
+                var d = PanelDropdown.CreateNew(Parent);
                 d.Descriptor.SetTitle(title);
                 d.AssignEntries(entries.ToList());
                 d.AssignBinding(binding);

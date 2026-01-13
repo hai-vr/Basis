@@ -17,16 +17,6 @@ public static class SettingsProviderIK
 
     private static PanelDropdown _boneDropdown;
 
-    private struct BoneUIGroup
-    {
-        public string Name;
-        public RectTransform RootToHide; // what we toggle active
-        public PanelToggle SmoothPos;
-        public PanelToggle SmoothRot;
-        public PanelToggle EuroPos;
-        public PanelToggle EuroRot;
-    }
-
     // ------------------
     // IK & Input
     // ------------------
@@ -36,7 +26,7 @@ public static class SettingsProviderIK
 
         var ik = tab.Group(
             "Calibration & IK",
-            "Fine tuning for calibration, scaling, and IK filtering.",
+            "Fine-tuning for avatar scaling, calibration, and IK smoothing",
             AddressableAssets.Sprites.Settings);
 
         dropdownSeatedMode = ik.DropdownInt(
@@ -44,9 +34,10 @@ public static class SettingsProviderIK
             new List<string> { "Standing Mode", SeatedMode_Seated },
             BasisSettingsDefaults.SeatedMode);
 
-        // Tooltip / help text
         dropdownSeatedMode.Descriptor.SetDescription(
-            "Select Mode to Reference for Human Scaling"
+            "Select the reference pose used for body scaling and calibration.\n\n" +
+            "Standing Mode uses headset height and enables full-body scaling.\n" +
+            "Seated Mode assumes you are sitting and disables standing-based IK assumptions."
         );
 
         dropdownIKMode = ik.DropdownInt(
@@ -55,58 +46,87 @@ public static class SettingsProviderIK
             BasisSettingsDefaults.IKMode);
 
         dropdownIKMode.Descriptor.SetDescription(
-            "headset height or arm reach."
+            "Determines how body scale is estimated from tracking data.\n\n" +
+            "Eye Height scales the avatar from headset height.\n" +
+            "Arm Distance scales the avatar from controller reach."
         );
 
         var customScaleToggle = ik.Toggle("Custom Scale", BasisSettingsDefaults.CustomScale);
+        customScaleToggle.Descriptor.SetDescription(
+            "Enables manual override of automatic body scaling."
+        );
 
-        // If your Slider builder returns a PanelSlider, you can set descriptions too.
-        // If it does NOT return anything in your API, leave as-is or add a returning overload later.
         var avatarScaleSlider = ik.Slider(
             PanelSlider.SliderSettings.Advanced("Avatar Height Scale", 0.1f, 5f, false, 2, ValueDisplayMode.Meters),
             BasisSettingsDefaults.SelectedScale);
+
+        if (avatarScaleSlider != null)
+            avatarScaleSlider.Descriptor.SetDescription(
+                "Manually adjusts avatar height when Custom Scale is enabled. " +
+                "This affects perceived size only and does not change tracking accuracy."
+            );
 
         dropdownIKMode.OnValueChanged += _ => EvaluateInteractables();
         dropdownSeatedMode.OnValueChanged += _ => EvaluateInteractables();
         EvaluateInteractables();
 
-        // One-Euro params (global)
+        // ------------------
+        // One Euro (Global)
+        // ------------------
         var minCutoff = ik.Slider(
             PanelSlider.SliderSettings.Advanced("Min Cutoff", 0.1f, 10f, false, 2, ValueDisplayMode.Raw),
             BasisSettingsDefaults.FBIKMinCutoff);
+
         if (minCutoff != null)
-            minCutoff.Descriptor.SetDescription("smoothing when barely moving.");
+            minCutoff.Descriptor.SetDescription(
+                "Controls smoothing strength when movement is very small.\n\n" +
+                "Higher values make the avatar steadier when still, but slower to start moving."
+            );
 
         var beta = ik.Slider(
             PanelSlider.SliderSettings.Advanced("Beta", 0f, 10f, false, 2, ValueDisplayMode.Raw),
             BasisSettingsDefaults.FBIKBeta);
+
         if (beta != null)
-            beta.Descriptor.SetDescription("How Quickly We Catchup");
+            beta.Descriptor.SetDescription(
+                "Controls how aggressively smoothing is reduced during fast motion.\n\n" +
+                "Higher values reduce lag during quick movement, but may reintroduce jitter."
+            );
 
         var derivativeCutoff = ik.Slider(
             PanelSlider.SliderSettings.Advanced("Derivative Cutoff", 0.1f, 10f, false, 2, ValueDisplayMode.Raw),
             BasisSettingsDefaults.FBIKDerivativeCutoff);
+
         if (derivativeCutoff != null)
-            derivativeCutoff.Descriptor.SetDescription("Lower = steadier");
+            derivativeCutoff.Descriptor.SetDescription(
+                "Controls how much motion speed affects smoothing behavior.\n\n" +
+                "Lower values are steadier; higher values feel more responsive but noisier."
+            );
 
         var posHz = ik.Slider(
             PanelSlider.SliderSettings.Advanced("Position Smoothing (Hz)", 0.01f, 60f, false, 2, ValueDisplayMode.Raw),
             BasisSettingsDefaults.FBIKPositionSmoothingHz);
+
         if (posHz != null)
-            posHz.Descriptor.SetDescription("Lower Hz = more smoothing/lag,");
+            posHz.Descriptor.SetDescription(
+                "Global position smoothing frequency.\n\n" +
+                "Lower Hz increases smoothing and latency. Higher Hz feels more immediate but may jitter."
+            );
 
         var rotHz = ik.Slider(
             PanelSlider.SliderSettings.Advanced("Rotation Smoothing (Hz)", 0.01f, 60f, false, 2, ValueDisplayMode.Raw),
             BasisSettingsDefaults.FBIKRotationSmoothingHz);
-        if (rotHz != null)
-            rotHz.Descriptor.SetDescription("Lower Hz reduces wobble");
 
-        // Clear lists each time tab is built (prevents duplicates on rebuild)
+        if (rotHz != null)
+            rotHz.Descriptor.SetDescription(
+                "Global rotation smoothing frequency.\n\n" +
+                "Lower Hz reduces micro-wobble but adds delay. Higher Hz feels snappier but may shimmer."
+            );
+
         _trackerLerpToggleUIs.Clear();
         _euroToggleUIs.Clear();
 
         AddFBIKTogglesCompact(ik);
-
         SyncMasterEuroFromChildren();
 
         tab.Descriptor.ForceRebuild();
@@ -171,56 +191,65 @@ public static class SettingsProviderIK
 
         var boneNames = _bones.Select(b => b.Name).ToList();
 
-        _boneDropdown = g.DropdownInt(
-            "Bone",
-            boneNames,
-            BasisSettingsDefaults.SelectedBone
+        _boneDropdown = g.DropdownInt("Bone", boneNames, BasisSettingsDefaults.SelectedBone);
+        _boneDropdown.Descriptor.SetDescription(
+            "Select which bone’s smoothing and filtering settings are shown below."
         );
 
         _boneDropdown.OnValueChanged += _ => RebindBoneEditor();
 
-        // LERP smoothing group
         _boneEditorGroup = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group,
             g.Group.ContentParent);
 
         _boneEditorGroup.SetTitle("Bone Smoothing");
-        _boneEditorGroup.SetDescription("Simple smoothing (LERP). Reduces jitter but adds a small delay.");
+        _boneEditorGroup.SetDescription(
+            "Reduces jitter but always adds a small amount of delay."
+        );
 
-        // One Euro group
         _boneEuroEditorGroup = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group,
             g.Group.ContentParent);
 
         _boneEuroEditorGroup.SetTitle("Bone Filtering (One Euro)");
-        _boneEuroEditorGroup.SetDescription("Adaptive smoothing: smooth when still, responsive when moving fast.");
+        _boneEuroEditorGroup.SetDescription(
+            "Adaptive smoothing that changes based on motion speed. " +
+            "Stable when still, responsive during fast movement."
+        );
 
         _uiSmoothPos = PanelToggle.CreateNewEntry(_boneEditorGroup.ContentParent);
         _uiSmoothPos.Descriptor.SetTitle("Smooth Position");
-        _uiSmoothPos.Descriptor.SetDescription("Blends bone position over time to reduce jitter (adds mild latency).");
+        _uiSmoothPos.Descriptor.SetDescription(
+            "Blends this bone’s position over time to reduce jitter."
+        );
 
         _uiSmoothRot = PanelToggle.CreateNewEntry(_boneEditorGroup.ContentParent);
         _uiSmoothRot.Descriptor.SetTitle("Smooth Rotation");
-        _uiSmoothRot.Descriptor.SetDescription("Blends bone rotation over time to reduce wobble (adds mild latency).");
+        _uiSmoothRot.Descriptor.SetDescription(
+            "Blends this bone’s rotation over time to reduce wobble."
+        );
 
         _uiEuroPos = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
         _uiEuroPos.Descriptor.SetTitle("Euro Filtering (Position)");
-        _uiEuroPos.Descriptor.SetDescription("less jitter at rest, less lag in motion.");
+        _uiEuroPos.Descriptor.SetDescription("Steady at rest with minimal lag during motion. ");
 
         _uiEuroRot = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
         _uiEuroRot.Descriptor.SetTitle("Euro Filtering (Rotation)");
-        _uiEuroRot.Descriptor.SetDescription("reduces micro-wobble while staying responsive.");
+        _uiEuroRot.Descriptor.SetDescription("Reduces micro-wobble while remaining responsive.");
 
         RebindBoneEditor();
     }
+
     private static void RebindBoneEditor()
     {
         if (_boneDropdown == null || _bones.Count == 0)
+        {
             return;
+        }
 
-        int index = _boneDropdown.DropdownComponent.value;
-        index = Mathf.Clamp(index, 0, _bones.Count - 1);
+        int index = Mathf.Clamp(_boneDropdown.DropdownComponent.value, 0, _bones.Count - 1);
         var bone = _bones[index];
+
         _uiSmoothPos.AssignBinding(bone.SmoothPos);
         _uiSmoothRot.AssignBinding(bone.SmoothRot);
         _uiEuroPos.AssignBinding(bone.EuroPos);
@@ -231,29 +260,27 @@ public static class SettingsProviderIK
 
     private static void SyncMasterEuroFromChildren()
     {
-        if (_bones.Count == 0) return;
+        if (_bones.Count == 0)
+        {
+            return;
+        }
 
-        bool allOn = _bones.All(b =>
-            b.EuroPos.RawValue &&
-            b.EuroRot.RawValue);
-
+        bool allOn = _bones.All(b => b.EuroPos.RawValue && b.EuroRot.RawValue);
         BasisSettingsDefaults.FBIKEuroAll.SetValue(allOn);
     }
 
     private static void EvaluateInteractables()
     {
         if (dropdownSeatedMode == null || dropdownIKMode == null)
+        {
             return;
+        }
 
-        string seatedValue = GetCurrentText(dropdownSeatedMode);
-        bool isSeated = seatedValue == SeatedMode_Seated;
-
+        bool isSeated = GetCurrentText(dropdownSeatedMode) == SeatedMode_Seated;
         SetDropdownInteractable(dropdownIKMode, !isSeated);
     }
 
-    private static string GetCurrentText(PanelDropdown dd) =>
-        dd.DropdownComponent.options[dd.DropdownComponent.value].text;
+    private static string GetCurrentText(PanelDropdown dd) => dd.DropdownComponent.options[dd.DropdownComponent.value].text;
 
-    private static void SetDropdownInteractable(PanelDropdown dd, bool interactable) =>
-        dd.DropdownComponent.interactable = interactable;
+    private static void SetDropdownInteractable(PanelDropdown dd, bool interactable) => dd.DropdownComponent.interactable = interactable;
 }

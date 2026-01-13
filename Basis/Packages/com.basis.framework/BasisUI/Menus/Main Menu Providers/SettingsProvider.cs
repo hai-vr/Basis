@@ -1,5 +1,4 @@
 using Basis.Scripts.Device_Management;
-using Basis.Scripts.UI.UI_Panels;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -679,7 +678,7 @@ BasisSettingsDefaults.mousesensitivty);
         private static PanelTextField AddInfoRow(RectTransform parent, string title, string value)
         {
             // Uses your existing prefab + styling
-            PanelTextField field = PanelTextField.CreateNewEntry(parent);
+            PanelTextField field = PanelTextField.CreateNew(parent);
             field.Descriptor.SetTitle(title);
             field.Descriptor.SetDescription(string.Empty);
 
