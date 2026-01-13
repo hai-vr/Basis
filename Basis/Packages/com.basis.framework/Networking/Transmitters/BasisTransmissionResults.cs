@@ -260,7 +260,7 @@ public partial class BasisTransmissionResults
     }
     public void DeInitalize()
     {
-        BasisNetworkPlayer.OnRemotePlayerLeft += OnPlayerIndexChanged;
+        BasisNetworkPlayer.OnRemotePlayerLeft -= OnPlayerIndexChanged;
         ReleaseResults();
 
         if (distanceJob.AnyChangedArray.IsCreated)
