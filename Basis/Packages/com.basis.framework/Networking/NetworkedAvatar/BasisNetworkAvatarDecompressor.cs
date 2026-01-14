@@ -87,18 +87,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 goto Fail;
             }
 
+            // Scale
+            if (!BasisUnityBitPackerExtensionsUnsafe.TryReadUShort(ref data, ref offset, out ushort uScale))
+            {
+                goto Fail;
+            }
+
             // Rotation
             if (!BasisUnityBitPackerExtensionsUnsafe.TryReadQuaternionFromBytes( ref data, ref offset, out basisAvatarBuffer.Rotation))
             {
                 goto Fail;
             }
             BasisOrderedDataSet.DecompressAvatarMuscles_BitPacked( data, ref basisAvatarBuffer.Muscles, ref offset);
-
-            // Scale
-            if (!BasisUnityBitPackerExtensionsUnsafe.TryReadUShort( ref data, ref offset, out ushort uScale))
-            {
-                goto Fail;
-            }
 
             basisAvatarBuffer.Scale = MuscleDecompress(uScale, MinimumValueSupported, MaximumValueSupported);
             basisAvatarBuffer.SecondsInterval = secondsInterval;

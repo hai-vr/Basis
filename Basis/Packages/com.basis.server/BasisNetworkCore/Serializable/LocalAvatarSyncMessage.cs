@@ -1,10 +1,12 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
+using static Basis.Network.Core.Compression.BasisBitPackingConstants;
 
 public static partial class SerializableBasis
 {
     public struct LocalAvatarSyncMessage
     {
+        public byte DataQualityLevel;
         public byte[] array;//position -> rotation -> muscle rotation -> scale
 
         public AdditionalAvatarData[] AdditionalAvatarDatas;
@@ -19,40 +21,43 @@ public static partial class SerializableBasis
         public void Deserialize(NetDataReader Writer)
         {
             int Bytes = Writer.AvailableBytes;
-         int AvatarSyncSize = BasisBitPackingConstants.AvatarSyncSize;
-            if (Bytes >= AvatarSyncSize)
+            if (Writer.TryGetByte(out DataQualityLevel))
             {
-                array ??= new byte[AvatarSyncSize];
-                Writer.GetBytes(array, AvatarSyncSize);
-                if (Writer.TryGetByte(out AdditionalAvatarDataSize))
+                int AvatarSyncSize = BasisBitPackingConstants.ConvertToSize((BitQuality)DataQualityLevel);
+                if (Bytes >= AvatarSyncSize)
                 {
-                    if (AdditionalAvatarDataSize != 0)
+                    array ??= new byte[AvatarSyncSize];
+                    Writer.GetBytes(array, AvatarSyncSize);
+                    if (Writer.TryGetByte(out AdditionalAvatarDataSize))
                     {
-                        if (Writer.TryGetByte(out LinkedAvatarIndex))
+                        if (AdditionalAvatarDataSize != 0)
                         {
+                            if (Writer.TryGetByte(out LinkedAvatarIndex))
+                            {
 
+                            }
+                            else
+                            {
+                                BNL.LogError("Missing LinkedAvatarIndex!");
+                            }
+                            AdditionalAvatarDatas = new AdditionalAvatarData[AdditionalAvatarDataSize];
+                            for (int Index = 0; Index < AdditionalAvatarDataSize; Index++)
+                            {
+                                AdditionalAvatarDatas[Index] = new AdditionalAvatarData();
+                                AdditionalAvatarDatas[Index].Deserialize(Writer);
+                            }
+                            //  BNL.Log("found additional message " + AdditionalAvatarDatas.Length);
                         }
-                        else
-                        {
-                            BNL.LogError("Missing LinkedAvatarIndex!");
-                        }
-                        AdditionalAvatarDatas = new AdditionalAvatarData[AdditionalAvatarDataSize];
-                        for (int Index = 0; Index < AdditionalAvatarDataSize; Index++)
-                        {
-                            AdditionalAvatarDatas[Index] = new AdditionalAvatarData();
-                            AdditionalAvatarDatas[Index].Deserialize(Writer);
-                        }
-                        //  BNL.Log("found additional message " + AdditionalAvatarDatas.Length);
+                    }
+                    else
+                    {
+                        BNL.LogError("fundamental error missing Additional Avatar Data Byte");
                     }
                 }
                 else
                 {
-                    BNL.LogError("fundamental error missing Additional Avatar Data Byte");
+                    BNL.LogError($"Unable to read Remaining bytes where {Bytes} in LocalAvatarSyncMessage");
                 }
-            }
-            else
-            {
-                BNL.LogError($"Unable to read Remaining bytes where {Bytes} in LocalAvatarSyncMessage");
             }
         }
         public void Serialize(NetDataWriter Writer)

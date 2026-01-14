@@ -2,6 +2,7 @@ using Basis.Network.Core;
 using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.Compression;
 using BasisNetworkClientConsole;
+using static Basis.Network.Core.Compression.BasisBitPackingConstants;
 using static BasisNetworkPrimitiveCompression;
 using static SerializableBasis;
 
@@ -48,7 +49,7 @@ namespace Basis.Network
                     AdditionalAvatarDatas = null,
                     AdditionalAvatarDataSize = 0,
                     LinkedAvatarIndex = 0,
-                    array = new byte[BasisBitPackingConstants.AvatarSyncSize],
+                    array = new byte[BasisBitPackingConstants.ConvertToSize(BitQuality.High)],
                 }
             };
 
@@ -61,7 +62,7 @@ namespace Basis.Network
             WriteQuaternionToBytes(Rotation, ref message.array, ref offset);//16
 
             // Scale (2 bytes) at the end
-            int scaleOffset = BasisBitPackingConstants.AvatarSyncSize - 2;
+            int scaleOffset = BasisBitPackingConstants.ConvertToSize(BitQuality.High) - 2;
             WriteUShort(CompressedScale, ref message.array, ref scaleOffset);//2
             pd.Message = message;
             return pd;

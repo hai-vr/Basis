@@ -83,14 +83,15 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Position
             BasisUnityBitPackerExtensionsUnsafe.WritePosition(animator.bodyPosition, ref AvatarData.LASM.array, ref offset);
 
+
+            // Scale
+            CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
+
             // Rotation
             BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset);
 
             // Muscles (bitpacked)
             JobHandle Handle = CompressAvatarMuscles_BitPacked(ref pose, ref AvatarData.LASM, ref offset, out int offsetForComplete);
-
-            // Scale
-            CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
 
             Complete(Handle, ref AvatarData.LASM, offsetForComplete);
         }
