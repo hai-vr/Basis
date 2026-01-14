@@ -55,7 +55,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             var data = transmitter.SendingOutAvatarData.Count == 0 ? null : transmitter.SendingOutAvatarData.Values.ToArray();
             transmitter.storedAvatarData.LASM.AdditionalAvatarDatas = data;
 
-            transmitter.storedAvatarData.LASM.Serialize(transmitter.AvatarSendWriter);
+            transmitter.storedAvatarData.LASM.Serialize(transmitter.AvatarSendWriter, WireQuality);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
 
