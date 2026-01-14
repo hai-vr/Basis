@@ -40,6 +40,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public LocalAvatarSyncMessage AvatarHigh;
         public LocalAvatarSyncMessage AvatarMedium;
         public LocalAvatarSyncMessage AvatarLow;
+        public LocalAvatarSyncMessage AvatarVeryLow;
     }
     public partial class BasisServerReductionSystemEvents
     {
@@ -65,8 +66,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         // Distance → Quality thresholds (squared meters)
         // Tune these however you like.
-        public static float HighDistanceSq = 9f;      // 3m
-        public static float MediumDistanceSq = 100f;  // 10m
+        public static float HighDistanceSq = 9f;        // 3m
+        public static float MediumDistanceSq = 100f;    // 10m
+        public static float LowDistanceSq = 400f;       // 20m
         // else => Low
 
         static BasisServerReductionSystemEvents()
@@ -228,11 +230,21 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         // Pick quality by distance
                         LocalAvatarSyncMessage chosen;
                         if (distSq <= HighDistanceSq)
+                        {
                             chosen = stateJ.AvatarHigh;
+                        }
                         else if (distSq <= MediumDistanceSq)
+                        {
                             chosen = stateJ.AvatarMedium;
-                        else
+                        }
+                        else if (distSq <= LowDistanceSq)
+                        {
                             chosen = stateJ.AvatarLow;
+                        }
+                        else
+                        {
+                            chosen = stateJ.AvatarVeryLow;
+                        }
 
                         // Build outgoing message (swap just the avatar payload)
                         ServerSideSyncPlayerMessage tempMsg = stateJ.SyncMessage;
@@ -303,6 +315,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             // Incoming payloads are expected to be High; enforce if you want:
             var high = message.AvatarMessage;
+            high.DataQualityLevel = (byte)BitQuality.High;
+
             // Position is the first 12 bytes (your simplified layout)
             var pos = BasisNetworkCompressionExtensions.ReadPosition(ref high.array);
 
