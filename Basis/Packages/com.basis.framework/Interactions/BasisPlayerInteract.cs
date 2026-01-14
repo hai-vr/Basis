@@ -591,8 +591,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         public bool ForceSetInteracting(BasisInteractableObject interactableObject, BasisInput input)
         {
-            if (input.TryGetRole(out BasisBoneTrackedRole role) &&
-                interactableObject.Inputs.ChangeStateByRole(role, BasisInteractInputState.Hovering))
+            if (input.TryGetRole(out BasisBoneTrackedRole role) && interactableObject.Inputs.ChangeStateByRole(role, BasisInteractInputState.Hovering))
             {
                 for (int i = 0; i < InteractInputs.Length; i++)
                 {
