@@ -7,7 +7,6 @@ using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
-using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Jobs;
@@ -31,9 +30,12 @@ public partial class BasisTransmissionResults
     public bool AnyMicrophoneRangeChanged;
     public bool AnyHearingRangeChanged;
     public bool AnyAvatarRangeChanged;
+    public bool AnyLodRangeChanged;
+
     [SerializeReference]
     public BasisNetworkTransmitter BasisNetworkTransmitter;
     public NetDataWriter VRMWriter = new NetDataWriter(true, 0);
+
     private NativeArray<float> distanceSq;
     private NativeArray<bool> hearingRange;
     private NativeArray<float3> targetPositions;
@@ -42,6 +44,9 @@ public partial class BasisTransmissionResults
     public NativeArray<bool> PrevInMicrophoneRange;
     public NativeArray<bool> PrevInHearingRange;
     public NativeArray<bool> PrevInAvatarRange;
+    public NativeArray<short> MeshLodLevel;
+    public NativeArray<short> prevMeshLodLevel;
+    public NativeArray<bool> MeshLodRange;
     public VoiceReceiversMessage VRM = new VoiceReceiversMessage();
     /// <summary>
     /// Called each frame; drives scheduling of distance job and network sync.
@@ -67,7 +72,8 @@ public partial class BasisTransmissionResults
         distanceJob.SquaredHearingDistance = SMModuleDistanceBasedReductions.HearingRange;
         distanceJob.SquaredVoiceDistance = SMModuleDistanceBasedReductions.MicrophoneRange;
         distanceJob.referencePosition = BasisLocalCameraDriver.Position;
-
+        distanceJob.ReductionMultiplier = SMModuleDistanceBasedReductions.MeshLod;
+        distanceJob.HysteresisPercent = 1.10f;
         int receiverCount = BasisNetworkPlayers.ReceiverCount;
         var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
         if (LengthOfArrays != receiverCount)
@@ -99,12 +105,13 @@ public partial class BasisTransmissionResults
         AnyMicrophoneRangeChanged = distanceJob.AnyChangedArray[0];
         AnyHearingRangeChanged = distanceJob.AnyChangedArray[1];
         AnyAvatarRangeChanged = distanceJob.AnyChangedArray[2];
-
+        AnyLodRangeChanged = distanceJob.AnyChangedArray[3];
         SquaredSmallestDistance = distanceJob.SMD[0];
 
         bool MicrophoneChange = IndexChanged || AnyMicrophoneRangeChanged;
         bool HearingChange = IndexChanged || AnyHearingRangeChanged;
         bool AvatarChange = IndexChanged || AnyAvatarRangeChanged;
+        bool LodChange = IndexChanged || AnyLodRangeChanged;
 
         if (HearingChange)
         {
@@ -140,19 +147,21 @@ public partial class BasisTransmissionResults
                 }
             }
         }
-        float MeshLodMulitplier = SMModuleDistanceBasedReductions.MeshLod;
-        for (int index = 0; index < receiverCount; index++)
+        if (LodChange)
         {
-            var receiver = snapshot[index];
-            var remote = receiver.RemotePlayer;
-            // Distance-based mesh LOD
-            remote.ChangeMeshLOD(distanceSq[index], MeshLodMulitplier);
+            for (int index = 0; index < receiverCount; index++)
+            {
+                var receiver = snapshot[index];
+                var remote = receiver.RemotePlayer;
+                // Distance-based mesh LOD
+                remote.ChangeMeshLOD(MeshLodLevel[index]);
+            }
         }
         // Cache current as previous for next hysteresis step
         MicrophoneRange.CopyTo(PrevInMicrophoneRange);
         hearingRange.CopyTo(PrevInHearingRange);
         AvatarRange.CopyTo(PrevInAvatarRange);
-
+        MeshLodLevel.CopyTo(prevMeshLodLevel);
         //update the server with who we are talking to
         if (MicrophoneChange)
         {
@@ -221,6 +230,9 @@ public partial class BasisTransmissionResults
         PrevInHearingRange = new NativeArray<bool>(receiverCount, Allocator.Persistent);
         PrevInAvatarRange = new NativeArray<bool>(receiverCount, Allocator.Persistent);
         targetPositions = new NativeArray<float3>(receiverCount, Allocator.Persistent);
+        MeshLodLevel = new NativeArray<short>(receiverCount, Allocator.Persistent);
+        prevMeshLodLevel = new NativeArray<short>(receiverCount, Allocator.Persistent);
+        MeshLodRange = new NativeArray<bool>(receiverCount, Allocator.Persistent);
 
         distanceJob.distanceSq = distanceSq;
         distanceJob.MicrophoneRange = MicrophoneRange;
@@ -230,6 +242,9 @@ public partial class BasisTransmissionResults
         distanceJob.PrevInHearingRange = PrevInHearingRange;
         distanceJob.PrevInAvatarRange = PrevInAvatarRange;
         distanceJob.targetPositions = targetPositions;
+        distanceJob.MeshLodLevel = MeshLodLevel;
+        distanceJob.PrevMeshLodLevel = prevMeshLodLevel;
+        distanceJob.MeshLodRange = MeshLodRange;
     }
     public bool CanDoSimulate(float previousInterval, out BasisAvatar BasisAvatar)
     {
@@ -252,7 +267,7 @@ public partial class BasisTransmissionResults
     }
     public void Initalize()
     {
-        distanceJob.AnyChangedArray = new NativeArray<bool>(3, Allocator.Persistent);
+        distanceJob.AnyChangedArray = new NativeArray<bool>(4, Allocator.Persistent);
         distanceJob.SMD = new NativeArray<float>(1, Allocator.Persistent);
         BasisNetworkPlayer.OnRemotePlayerJoined += OnPlayerIndexChanged;
     }
@@ -295,5 +310,8 @@ public partial class BasisTransmissionResults
         if (PrevInMicrophoneRange.IsCreated) PrevInMicrophoneRange.Dispose();
         if (PrevInHearingRange.IsCreated) PrevInHearingRange.Dispose();
         if (PrevInAvatarRange.IsCreated) PrevInAvatarRange.Dispose();
+        if (MeshLodLevel.IsCreated) MeshLodLevel.Dispose();
+        if (prevMeshLodLevel.IsCreated) prevMeshLodLevel.Dispose();
+        if (MeshLodRange.IsCreated) MeshLodRange.Dispose();
     }
 }
