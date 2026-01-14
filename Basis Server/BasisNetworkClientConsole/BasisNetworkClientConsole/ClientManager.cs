@@ -49,6 +49,9 @@ namespace Basis.Network
                         array = MovementSender.Generate().Message.array,
                         AdditionalAvatarDataSize = 0,
                         LinkedAvatarIndex = 0,
+                        DataQualityLevel = 2,
+                        AdditionalAvatarDatas = null,
+
                     }
                 };
                 var netClient = new NetworkClient();

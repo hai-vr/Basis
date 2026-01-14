@@ -93,6 +93,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 goto Fail;
             }
 
+            BasisOrderedDataSet.DecompressAvatarMuscles_BitPacked(data, quality, ref basisAvatarBuffer.Muscles, ref offset);
+
             // Scale
             if (!BasisUnityBitPackerExtensionsUnsafe.TryReadUShort(ref data, ref offset, out ushort uScale))
             {
@@ -104,8 +106,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             {
                 goto Fail;
             }
-            BasisOrderedDataSet.DecompressAvatarMuscles_BitPacked(data, quality, ref basisAvatarBuffer.Muscles, ref offset);
-
             basisAvatarBuffer.Scale = MuscleDecompress(uScale, MinimumValueSupported, MaximumValueSupported);
             basisAvatarBuffer.SecondsInterval = secondsInterval;
             return true;

@@ -39,17 +39,23 @@ namespace Basis.Network.Core.Compression
 
         public static int ConvertToSize(BitQuality q)
         {
-            // header bytes: position + scale + rotation
-            int header = WritePosition + WriteScale + WriteRotation;
-            byte[] bits = GetBitsPerSlot(q);
+            int posBytes = WritePosition;        // 12
+            int tailBytes = WriteScale + WriteRotation; // 2 + 16 = 18
 
+            byte[] bits = GetBitsPerSlot(q);
             int totalBits = 0;
             for (int i = 0; i < bits.Length; i++) totalBits += bits[i];
             int muscleBytes = (totalBits + 7) >> 3;
 
-            return header + muscleBytes;
+            return posBytes + muscleBytes + tailBytes;
         }
-
+        public static int MuscleBytes(BitQuality q)
+        {
+            byte[] bits = GetBitsPerSlot(q);
+            int totalBits = 0;
+            for (int i = 0; i < bits.Length; i++) totalBits += bits[i];
+            return (totalBits + 7) >> 3;
+        }
         // slot -> muscle index (exactly your existing order, skipping 15..20)
         public static readonly int[] WRITE_ORDER = new int[]
         {

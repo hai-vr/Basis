@@ -3,7 +3,6 @@ using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.Compression;
 using BasisNetworkClientConsole;
 using static Basis.Network.Core.Compression.BasisBitPackingConstants;
-using static BasisNetworkPrimitiveCompression;
 using static SerializableBasis;
 
 namespace Basis.Network
