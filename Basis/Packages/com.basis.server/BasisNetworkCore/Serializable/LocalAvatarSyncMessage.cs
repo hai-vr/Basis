@@ -1,16 +1,20 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
+using System;
 using static Basis.Network.Core.Compression.BasisBitPackingConstants;
 
 public static partial class SerializableBasis
 {
     public struct LocalAvatarSyncMessage
     {
-        public byte DataQualityLevel;     // 0=Low, 1=Medium, 2=High
-        public byte[] array;              // payload: position->scale->rotation->muscles
+        // On-wire contract (v2, no length):
+        // [DataQualityLevel:1][PayloadBytes:FixedByQuality][AdditionalSize:1][LinkedAvatarIndex?][Additional...]
+        //
+        // Payload layout (current order):
+        // Position (12) -> Muscles(bitstream, varies by quality) -> Scale (2) -> Rotation (16)
 
-        // Only this struct can set it.
-        public ushort PayloadLength { get; private set; }
+        public byte DataQualityLevel; // 0=Low, 1=Medium, 2=High
+        public byte[] array;          // payload bytes (length must match ConvertToSize(quality))
 
         public AdditionalAvatarData[] AdditionalAvatarDatas;
         public byte AdditionalAvatarDataSize;
@@ -21,17 +25,16 @@ public static partial class SerializableBasis
             this.array = array;
         }
 
-        // Single source of truth for payload length.
-        void RefreshPayloadLength()
+        private static bool TryGetExpectedPayloadLength(byte dataQualityLevel, out ushort expected)
         {
-            var q = (BitQuality)DataQualityLevel;
-            if (!BasisBitPackingConstants.IsValidQuality(q))
-            {
-                PayloadLength = 0;
-                return;
-            }
+            expected = 0;
 
-            PayloadLength = (ushort)BasisBitPackingConstants.ConvertToSize(q);
+            var q = (BitQuality)dataQualityLevel;
+            if (!BasisBitPackingConstants.IsValidQuality(q))
+                return false;
+
+            expected = (ushort)BasisBitPackingConstants.ConvertToSize(q);
+            return expected != 0;
         }
 
         public void Deserialize(NetDataReader reader)
@@ -42,39 +45,24 @@ public static partial class SerializableBasis
                 return;
             }
 
-            BitQuality q = (BitQuality)DataQualityLevel;
-            if (!BasisBitPackingConstants.IsValidQuality(q))
+            if (!TryGetExpectedPayloadLength(DataQualityLevel, out ushort expected))
             {
                 BNL.LogError($"Invalid DataQualityLevel={DataQualityLevel}");
                 return;
             }
 
-            // Read length from stream, but store it only after validation.
-            if (!reader.TryGetUShort(out ushort payloadLengthFromWire))
+            if (reader.AvailableBytes < expected)
             {
-                BNL.LogError("Missing PayloadLength!");
+                BNL.LogError($"Unable to read avatar payload. Need {expected}, have {reader.AvailableBytes}.");
                 return;
             }
 
-            ushort expected = (ushort)BasisBitPackingConstants.ConvertToSize(q);
-            if (payloadLengthFromWire != expected)
+            if (array == null || array.Length != expected)
             {
-                BNL.LogError($"PayloadLength mismatch. Got {payloadLengthFromWire}, expected {expected} for quality {q}.");
-                return;
+                array = new byte[expected];
             }
 
-            PayloadLength = expected;
-
-            if (reader.AvailableBytes < PayloadLength)
-            {
-                BNL.LogError($"Unable to read avatar payload. Need {PayloadLength}, have {reader.AvailableBytes}.");
-                return;
-            }
-
-            array ??= new byte[PayloadLength];
-            if (array.Length != PayloadLength) array = new byte[PayloadLength];
-
-            reader.GetBytes(array, PayloadLength);
+            reader.GetBytes(array, expected);
 
             if (!reader.TryGetByte(out AdditionalAvatarDataSize))
             {
@@ -83,7 +71,10 @@ public static partial class SerializableBasis
             }
 
             if (AdditionalAvatarDataSize == 0)
+            {
+                AdditionalAvatarDatas = null;
                 return;
+            }
 
             if (!reader.TryGetByte(out LinkedAvatarIndex))
             {
@@ -99,34 +90,39 @@ public static partial class SerializableBasis
             }
         }
 
-        public void Serialize(NetDataWriter writer)
+        public void Serialize(NetDataWriter writer, BitQuality Quality)
         {
-            // Compute length here (no external code sets it)
-            RefreshPayloadLength();
-
-            writer.Put(DataQualityLevel);
-
-            if (array == null || PayloadLength == 0)
+            DataQualityLevel = (byte)Quality;
+            if (!TryGetExpectedPayloadLength(DataQualityLevel, out ushort expected))
             {
-                BNL.LogError("array was null or PayloadLength was 0!!");
-                writer.Put((ushort)0);
+                BNL.LogError($"Serialize invalid quality={Quality} (DataQualityLevel={DataQualityLevel})");
+                // Still write something minimally parseable:
+                writer.Put(DataQualityLevel);
                 writer.Put((byte)0); // AdditionalAvatarDataSize
                 return;
             }
 
-            if (PayloadLength > array.Length)
+            // Header
+            writer.Put(DataQualityLevel);
+
+            if (array == null)
             {
-                BNL.LogError($"PayloadLength ({PayloadLength}) > array.Length ({array.Length})");
-                writer.Put((ushort)0);
-                writer.Put((byte)0);
+                BNL.LogError("array was null!!");
+                // Can't write payload; make message parseable:
+                writer.Put((byte)0); // AdditionalAvatarDataSize
                 return;
             }
 
-            writer.Put(PayloadLength);
+            // Strong validation: payload must match exactly
+            if (array.Length != expected)
+            {
+                array = new byte[expected];
+            }
 
-            // Write only the bytes we claim to have
-            writer.Put(array, 0, PayloadLength);
+            // Payload (no length on wire)
+            writer.Put(array, 0, expected);
 
+            // Additional data
             if (AdditionalAvatarDatas == null || AdditionalAvatarDatas.Length == 0 || AdditionalAvatarDatas.Length > 256)
             {
                 writer.Put((byte)0);
@@ -135,10 +131,14 @@ public static partial class SerializableBasis
 
             AdditionalAvatarDataSize = (byte)AdditionalAvatarDatas.Length;
             writer.Put(AdditionalAvatarDataSize);
+
+            // Only include linked avatar if there is additional data
             writer.Put(LinkedAvatarIndex);
 
             for (int i = 0; i < AdditionalAvatarDataSize; i++)
+            {
                 AdditionalAvatarDatas[i].Serialize(writer);
+            }
         }
     }
 }

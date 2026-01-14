@@ -6,9 +6,13 @@ namespace Basis.Network.Core.Compression
         public const int UShortSize = sizeof(ushort);
         public const int Vector3Size = 3 * FloatSize;
 
+        // Layout (your simplified / current on-wire order):
+        // Position (12) -> Muscles (bitstream) -> Scale (2) -> Rotation (16)
         public const int WritePosition = 12;
-        public const int WriteRotation = 16;
         public const int WriteScale = 2;
+        public const int WriteRotation = 16;
+
+        private const int TailBytes = WriteScale + WriteRotation; // 18
 
         public enum BitQuality : byte
         {
@@ -16,6 +20,38 @@ namespace Basis.Network.Core.Compression
             Medium = 1,
             High = 2,
         }
+
+        public static bool IsValidQuality(BitQuality q)  => q == BitQuality.Low || q == BitQuality.Medium || q == BitQuality.High;
+
+        // --------------------------
+        // Public size helpers
+        // --------------------------
+        public static byte[] GetBitsPerSlot(BitQuality q) => q switch
+        {
+            BitQuality.High => BITS_PER_SLOT_HIGH,
+            BitQuality.Medium => BITS_PER_SLOT_MEDIUM,
+            BitQuality.Low => BITS_PER_SLOT_LOW,
+            _ => BITS_PER_SLOT_MEDIUM
+        };
+
+        public static int MuscleBytes(BitQuality q)
+        {
+            return SumBitsPerSlotBytes(GetBitsPerSlot(q));
+        }
+
+        public static int ConvertToSize(BitQuality q)
+        {
+            // Position (12) + Muscles (variable) + Scale (2) + Rotation (16)
+            return WritePosition + MuscleBytes(q) + TailBytes;
+        }
+
+        // For convenience when you need offsets into the payload
+        public static int MusclesOffsetBytes => WritePosition;
+        public static int TailOffsetBytes(BitQuality q) => WritePosition + MuscleBytes(q);
+
+        // --------------------------
+        // Internal helpers
+        // --------------------------
         private static int SumBitsPerSlotBytes(byte[] bitsPerSlot)
         {
             int totalBits = 0;
@@ -24,38 +60,10 @@ namespace Basis.Network.Core.Compression
                 totalBits += bitsPerSlot[i];
             }
 
-            // Convert bits → bytes, rounding up
+            // Convert bits -> bytes, rounding up
             return (totalBits + 7) >> 3;
         }
 
-        public static byte[] GetBitsPerSlot(BitQuality q) => q switch
-        {
-            BitQuality.High => BITS_PER_SLOT_HIGH,
-            BitQuality.Medium => BITS_PER_SLOT_MEDIUM,
-            BitQuality.Low => BITS_PER_SLOT_LOW,
-            _ => BITS_PER_SLOT_MEDIUM
-        };
-        public static bool IsValidQuality(BitQuality q) => q == BitQuality.Low || q == BitQuality.Medium || q == BitQuality.High;
-
-        public static int ConvertToSize(BitQuality q)
-        {
-            int posBytes = WritePosition;        // 12
-            int tailBytes = WriteScale + WriteRotation; // 2 + 16 = 18
-
-            byte[] bits = GetBitsPerSlot(q);
-            int totalBits = 0;
-            for (int i = 0; i < bits.Length; i++) totalBits += bits[i];
-            int muscleBytes = (totalBits + 7) >> 3;
-
-            return posBytes + muscleBytes + tailBytes;
-        }
-        public static int MuscleBytes(BitQuality q)
-        {
-            byte[] bits = GetBitsPerSlot(q);
-            int totalBits = 0;
-            for (int i = 0; i < bits.Length; i++) totalBits += bits[i];
-            return (totalBits + 7) >> 3;
-        }
         // slot -> muscle index (exactly your existing order, skipping 15..20)
         public static readonly int[] WRITE_ORDER = new int[]
         {
@@ -83,8 +91,8 @@ namespace Basis.Network.Core.Compression
 
         // -----------------------------------------
         // MEDIUM = your current table (UNCHANGED)
-        // SumBitsPerSlotBytes = 134 bytes
-        // AvatarSyncSize = 12 + 16 + 2 + 134 = 164
+        // MuscleBytes(MEDIUM) = 134
+        // PayloadSize = 12 + 134 + 18 = 164
         // -----------------------------------------
         public static readonly byte[] BITS_PER_SLOT_MEDIUM = new byte[]
         {
@@ -134,8 +142,8 @@ namespace Basis.Network.Core.Compression
 
         // -----------------------------------------
         // LOW = 8..12 bits max (requested)
-        // SumBitsPerSlotBytes = 116 bytes
-        // AvatarSyncSize = 12 + 16 + 2 + 116 = 146
+        // MuscleBytes(LOW) = 116
+        // PayloadSize = 12 + 116 + 18 = 146
         // -----------------------------------------
         public static readonly byte[] BITS_PER_SLOT_LOW = new byte[]
         {
@@ -185,8 +193,8 @@ namespace Basis.Network.Core.Compression
 
         // -----------------------------------------
         // HIGH = higher precision than your current table
-        // SumBitsPerSlotBytes = 164 bytes
-        // AvatarSyncSize = 12 + 16 + 2 + 164 = 194
+        // MuscleBytes(HIGH) = 164
+        // PayloadSize = 12 + 164 + 18 = 194
         // -----------------------------------------
         public static readonly byte[] BITS_PER_SLOT_HIGH = new byte[]
         {
