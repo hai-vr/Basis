@@ -184,10 +184,20 @@ namespace Basis.Network.Core
 
     public class LNLNetManager : NetManager
     {
-        protected LiteNetLib.NetManager manager;
+        public LiteNetLib.NetManager manager;
 
         public LNLNetManager(EventBasedNetListener listener, Configuration configuration)
         {
+            if(configuration.UseNetworkFinalCompression)
+            {
+                Compressor = new CompressionPacketLayer();//we dont want to use this normally
+                //when there is a few people this might make sense to help reduced network data.
+                //client has to also have this on.
+            }
+            else
+            {
+                Compressor = null;
+            }
             manager = new LiteNetLib.NetManager(listener, Compressor)
             {
                 AutoRecycle = false,
@@ -214,7 +224,7 @@ namespace Basis.Network.Core
                 MtuOverride = configuration.MtuOverride
             };
         }
-        public static CompressionPacketLayer Compressor = new CompressionPacketLayer();
+        public static CompressionPacketLayer Compressor = null;
 public class CompressionPacketLayer : PacketLayerBase
     {
         // 1 byte flag + 4 bytes original length
@@ -223,7 +233,7 @@ public class CompressionPacketLayer : PacketLayerBase
         private const byte FlagDeflate = 1;
 
         // Tune these:
-        private const int MinCompressBytes = 100;
+        private const int MinCompressBytes = 300;
         private const CompressionLevel Level = CompressionLevel.Fastest; // often better for real-time networking
 
         public CompressionPacketLayer() : base(64) { } // margin; header + a bit of slop

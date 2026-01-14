@@ -71,7 +71,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
         private static async Task StartBackgroundProcessingAsync()
         {
-            long intervalMs = 10;
+            long intervalMs = 5;
 
             while (!cts.Token.IsCancellationRequested)
             {
@@ -113,7 +113,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // Profiling.EndTimer("SimulateCommunicationFromCache_Full", t2);
 
                 // Profiling.TryPrint();
-
+                if (NetworkServer.Server != null && NetworkServer.Server.manager != null)
+                {
+                    NetworkServer.Server.manager.TriggerUpdate();
+                }
                 // Throttle loop if under time budget
                 long elapsedTicks = Stopwatch.GetTimestamp() - startTick;
                 long elapsedMs = (long)(elapsedTicks / MsToTick);

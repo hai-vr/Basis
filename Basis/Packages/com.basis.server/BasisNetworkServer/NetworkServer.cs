@@ -14,7 +14,7 @@ using System.Net;
 public static class NetworkServer
 {
     public static EventBasedNetListener Listener;
-    public static NetManager Server;
+    public static LNLNetManager Server;
     public static ConcurrentDictionary<int, NetPeer> AuthenticatedPeers = new();
     public static Configuration Configuration;
     public static IAuth Auth;
@@ -76,12 +76,14 @@ public static class NetworkServer
         if (configuration.OverrideAutoDiscoveryOfIpv)
         {
             IPAddress? IPv4Address, IPv6Address;
-            if (!IPAddress.TryParse(Configuration.IPv4Address, out IPv4Address)) {
+            if (!IPAddress.TryParse(Configuration.IPv4Address, out IPv4Address))
+            {
                 BNL.LogWarning("Failed to parse IPv4 bind address, falling back to 0.0.0.0");
                 IPv4Address = IPAddress.Parse("0.0.0.0");
             }
 
-            if (!IPAddress.TryParse(Configuration.IPv6Address, out IPv6Address)) {
+            if (!IPAddress.TryParse(Configuration.IPv6Address, out IPv6Address))
+            {
                 BNL.LogWarning("Failed to parse IPv6 bind address, falling back to ::1");
                 IPv6Address = IPAddress.Parse("::1");
             }
@@ -92,10 +94,9 @@ public static class NetworkServer
         else
         {
             BNL.Log($"Server Wiring up SetPort {Configuration.SetPort}");
-            Server.Start(Configuration.SetPort);
+            Server.Start(IPAddress.Any, IPAddress.IPv6Any, Configuration.SetPort);
         }
     }
-
     #endregion
     public static void BroadcastMessageToClients(NetDataWriter writer, byte channel, NetPeer sender, ReadOnlySpan<NetPeer> clients, DeliveryMethod deliveryMethod = DeliveryMethod.Sequenced, int maxMessages = 70)
     {
