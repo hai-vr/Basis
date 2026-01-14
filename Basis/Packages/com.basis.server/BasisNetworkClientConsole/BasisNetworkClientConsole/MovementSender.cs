@@ -15,8 +15,6 @@ namespace Basis.Network
         private const ushort UShortMax = ushort.MaxValue;   // 65535
         private const ushort UShortRangeDifference = UShortMax - UShortMin;
 
-        public static BasisRangedUshortFloatData RotationCompression = new BasisRangedUshortFloatData(-1f, 1f, 0.001f);
-
         public static Vector3[] PlayersCurrentPosition;
         public static PlayerData[] ActivePlayerData;
 
@@ -60,7 +58,7 @@ namespace Basis.Network
             WritePosition(Randomizer.GetRandomOffset(), ref message.array, ref offset);//12
 
             // Rotation xyz (12 bytes) + compressed w (2 bytes)
-            WriteQuaternionToBytes(Rotation, ref message.array, ref offset, RotationCompression);//14
+            WriteQuaternionToBytes(Rotation, ref message.array, ref offset);//16
 
             // Scale (2 bytes) at the end
             int scaleOffset = BasisBitPackingConstants.AvatarSyncSize - 2;
@@ -106,19 +104,17 @@ namespace Basis.Network
             offset += 12;
         }
 
-        public unsafe static void WriteQuaternionToBytes(Quaternion q, ref byte[] bytes, ref int offset, BasisRangedUshortFloatData compressor)
+        public unsafe static void WriteQuaternionToBytes(Quaternion q, ref byte[] bytes, ref int offset)
         {
             fixed (byte* ptr = &bytes[offset])
             {
                 *((float*)ptr) = float.IsNaN(q.value.x) ? 0f : q.value.x;
                 *((float*)(ptr + 4)) = float.IsNaN(q.value.y) ? 0f : q.value.y;
                 *((float*)(ptr + 8)) = float.IsNaN(q.value.z) ? 0f : q.value.z;
+                *((float*)(ptr + 12)) = float.IsNaN(q.value.w) ? 1f : q.value.w;
             }
-            offset += 12;
 
-            float w = float.IsNaN(q.value.w) ? 1f : q.value.w;
-            ushort compressedW = compressor.Compress(w);
-            WriteUShort(compressedW, ref bytes, ref offset);
+            offset += 16; // 4 floats = 16 bytes
         }
 
         private static ushort CompressScaleOnce(float scale)
