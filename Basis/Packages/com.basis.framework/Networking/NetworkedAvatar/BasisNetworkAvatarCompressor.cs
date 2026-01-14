@@ -84,7 +84,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             // Ensure payload buffer exists and is correct size for HIGH
             int needed = BasisBitPackingConstants.ConvertToSize(WireQuality);
-
             AvatarData.LASM.DataQualityLevel = (byte)WireQuality;
             AvatarData.LASM.array ??= new byte[needed];
             if (AvatarData.LASM.array.Length != needed)

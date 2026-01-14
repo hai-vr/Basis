@@ -228,9 +228,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         // Pick quality by distance
                         LocalAvatarSyncMessage chosen;
                         if (distSq <= HighDistanceSq)
+                        {
                             chosen = stateJ.AvatarHigh;
+                        }
                         else if (distSq <= MediumDistanceSq)
+                        {
                             chosen = stateJ.AvatarMedium;
+                        }
                         else
                             chosen = stateJ.AvatarLow;
 
