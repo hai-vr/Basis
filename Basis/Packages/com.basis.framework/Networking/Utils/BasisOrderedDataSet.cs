@@ -37,22 +37,23 @@ public class BasisOrderedDataSet : MonoBehaviour
             }
         }
     }
-    public static void DecompressAvatarMuscles_BitPacked(byte[] data, ref NativeArray<float> outputArray, ref int offsetBytes)
+    public static void DecompressAvatarMuscles_BitPacked(
+     byte[] data,
+     BasisBitPackingConstants.BitQuality quality,
+     ref NativeArray<float> outputArray,
+     ref int offsetBytes)
     {
-        int bitPos = offsetBytes << 3; // bits
+        int bitPos = offsetBytes << 3;
         int slots = BasisBitPackingConstants.WRITE_ORDER.Length;
+        byte[] bitsPerSlot = BasisBitPackingConstants.GetBitsPerSlot(quality);
 
-        // You can avoid a managed array by writing directly into outputArray,
-        // but outputArray is a NativeArray<float> and you might want it Burst-safe elsewhere.
-        // We'll write directly to outputArray here.
         for (int slot = 0; slot < slots; slot++)
         {
             int muscleIndex = BasisBitPackingConstants.WRITE_ORDER[slot];
-            int bits = BasisBitPackingConstants.BITS_PER_SLOT[slot];
+            int bits = bitsPerSlot[slot];
 
             uint q = BitReader.ReadBits(data, ref bitPos, bits);
 
-            // dequantize to 0..1
             uint maxQ = (bits >= 32) ? 0xFFFFFFFFu : ((1u << bits) - 1u);
             float norm = (maxQ == 0u) ? 0f : (q / (float)maxQ);
 
@@ -61,15 +62,12 @@ public class BasisOrderedDataSet : MonoBehaviour
             float range = RangeMuscle[muscleIndex];
 
             float value = min + norm * range;
-            if (!math.isfinite(value))
-            {
-                value = min;
-            }
+            if (!math.isfinite(value)) value = min;
 
             outputArray[muscleIndex] = math.clamp(value, min, max);
         }
 
-        offsetBytes = (bitPos + 7) >> 3; // advance to next whole byte
+        offsetBytes = (bitPos + 7) >> 3;
     }
     // -------------------------------------------------------
     // Small bit reader helper (LSB-first within the stream).

@@ -16,10 +16,6 @@ namespace Basis.Network.Core.Compression
             Medium = 1,
             High = 2,
         }
-        public static int ConvertToSize(BitQuality Quality)
-        {
-            return WritePosition + WriteScale + WriteRotation + SumBitsPerSlotBytes(GetBitsPerSlot(Quality));
-        }
         private static int SumBitsPerSlotBytes(byte[] bitsPerSlot)
         {
             int totalBits = 0;
@@ -39,6 +35,20 @@ namespace Basis.Network.Core.Compression
             BitQuality.Low => BITS_PER_SLOT_LOW,
             _ => BITS_PER_SLOT_MEDIUM
         };
+        public static bool IsValidQuality(BitQuality q) => q == BitQuality.Low || q == BitQuality.Medium || q == BitQuality.High;
+
+        public static int ConvertToSize(BitQuality q)
+        {
+            // header bytes: position + scale + rotation
+            int header = WritePosition + WriteScale + WriteRotation;
+            byte[] bits = GetBitsPerSlot(q);
+
+            int totalBits = 0;
+            for (int i = 0; i < bits.Length; i++) totalBits += bits[i];
+            int muscleBytes = (totalBits + 7) >> 3;
+
+            return header + muscleBytes;
+        }
 
         // slot -> muscle index (exactly your existing order, skipping 15..20)
         public static readonly int[] WRITE_ORDER = new int[]

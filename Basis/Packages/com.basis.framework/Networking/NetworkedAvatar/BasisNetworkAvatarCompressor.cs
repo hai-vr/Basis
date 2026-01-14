@@ -12,20 +12,19 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
+using static Basis.Network.Core.Compression.BasisBitPackingConstants;
 
 namespace Basis.Scripts.Networking.NetworkedAvatar
 {
     public static class BasisNetworkAvatarCompressor
     {
         const int UnityMuscleCount = 95;
-        const int Skipped = 6; // eyes/jaw 15..20
-        const int muscleCount = UnityMuscleCount - Skipped; // 89 slots, but Unity muscles still 95 indices
 
         static bool sInitialized;
 
         // persistent native LUTs / buffers
         static NativeArray<int> sOrder;         // slot -> muscle index
-        static NativeArray<byte> sBitsPerSlot;  // slot -> bit width (8..16...)
+        static NativeArray<byte> sBitsPerSlot;  // slot -> bit width
         static NativeArray<int> sBitOffsets;    // slot -> bit offset in packed stream
 
         static NativeArray<float> sMin;         // index by muscle idx
@@ -38,6 +37,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
         static int sPackedBits;
         static int sPackedBytes;
+
+        // We lock the wire format to HIGH
+        static readonly BitQuality WireQuality = BitQuality.High;
+
         public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
         {
             Transform t = animator.transform;
@@ -74,15 +77,25 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             StoredAvatarData = new BasisStoredAvatarData();
             CompressAvatarData(StoredAvatarData, humanPose, animator, t);
         }
+
         public static void CompressAvatarData(BasisStoredAvatarData AvatarData, HumanPose pose, Animator animator, Transform ScaleTransform)
         {
             EnsureInitialized();
+
+            // Ensure payload buffer exists and is correct size for HIGH
+            int needed = BasisBitPackingConstants.ConvertToSize(WireQuality);
+
+            AvatarData.LASM.DataQualityLevel = (byte)WireQuality;
+            AvatarData.LASM.array ??= new byte[needed];
+            if (AvatarData.LASM.array.Length != needed)
+            {
+                AvatarData.LASM.array = new byte[needed];
+            }
 
             int offset = 0;
 
             // Position
             BasisUnityBitPackerExtensionsUnsafe.WritePosition(animator.bodyPosition, ref AvatarData.LASM.array, ref offset);
-
 
             // Scale
             CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
@@ -91,12 +104,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset);
 
             // Muscles (bitpacked)
-            JobHandle Handle = CompressAvatarMuscles_BitPacked(ref pose, ref AvatarData.LASM, ref offset, out int offsetForComplete);
+            JobHandle handle = CompressAvatarMuscles_BitPacked(ref pose, ref AvatarData.LASM, ref offset, out int offsetForComplete);
 
-            Complete(Handle, ref AvatarData.LASM, offsetForComplete);
+            Complete(handle, ref AvatarData.LASM, offsetForComplete);
         }
 
-        public static JobHandle CompressAvatarMuscles_BitPacked(ref HumanPose pose, ref LocalAvatarSyncMessage message, ref int offset,out int SuppliedIndex)
+        public static JobHandle CompressAvatarMuscles_BitPacked(ref HumanPose pose, ref LocalAvatarSyncMessage message, ref int offset, out int SuppliedIndex)
         {
             EnsureMusclesBuffer(UnityMuscleCount);
 
@@ -108,6 +121,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                     UnsafeUtility.MemCpy(sMusclesNative.GetUnsafePtr(), src, sizeof(float) * UnityMuscleCount);
                 }
             }
+
             unsafe
             {
                 // Clear packed buffer before writing bits (important because we OR into bytes)
@@ -137,11 +151,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             JobHandle h1 = qJob.Schedule(sOrder.Length, 32);
             JobHandle h2 = pJob.Schedule(h1);
+
             SuppliedIndex = offset;
             offset += sPackedBytes;
+
             return h2;
         }
-        public static void Complete(JobHandle h2, ref LocalAvatarSyncMessage message,int SuppliedIndex)
+
+        public static void Complete(JobHandle h2, ref LocalAvatarSyncMessage message, int SuppliedIndex)
         {
             h2.Complete();
 
@@ -168,6 +185,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             ushort compressed = (ushort)(normalized * BasisOrderedDataSet.UShortRangeDifference);
             BasisUnityBitPackerExtensionsUnsafe.WriteUShort(compressed, ref message.array, ref offset);
         }
+
         static void EnsureInitialized()
         {
             if (sInitialized) return;
@@ -184,13 +202,16 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             int slots = BasisBitPackingConstants.WRITE_ORDER.Length;
 
+            // ALWAYS use HIGH bits table
+            byte[] bitsManaged = BasisBitPackingConstants.GetBitsPerSlot(WireQuality);
+
             // Compute bit offsets + packed sizes
             sPackedBits = 0;
             var bitOffsManaged = new int[slots];
-            for (int SlotIndex = 0; SlotIndex < slots; SlotIndex++)
+            for (int i = 0; i < slots; i++)
             {
-                bitOffsManaged[SlotIndex] = sPackedBits;
-                sPackedBits += BasisBitPackingConstants.BITS_PER_SLOT[SlotIndex];
+                bitOffsManaged[i] = sPackedBits;
+                sPackedBits += bitsManaged[i];
             }
             sPackedBytes = (sPackedBits + 7) >> 3;
 
@@ -207,11 +228,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             sQuantized = new NativeArray<uint>(slots, Allocator.Persistent);
 
             // Fill per-slot arrays
-            for (int Index = 0; Index < slots; Index++)
+            for (int i = 0; i < slots; i++)
             {
-                sOrder[Index] = BasisBitPackingConstants.WRITE_ORDER[Index];
-                sBitsPerSlot[Index] = BasisBitPackingConstants.BITS_PER_SLOT[Index];
-                sBitOffsets[Index] = bitOffsManaged[Index];
+                sOrder[i] = BasisBitPackingConstants.WRITE_ORDER[i];
+                sBitsPerSlot[i] = bitsManaged[i];       // <-- HIGH bits
+                sBitOffsets[i] = bitOffsManaged[i];
             }
 
             // Fill per-muscle LUTs
@@ -260,6 +281,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             sInitialized = false;
         }
+
         [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
         struct QuantizeJob : IJobParallelFor
         {
@@ -276,7 +298,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             static uint QuantN(float x01, int bits)
             {
-                // bits expected 1..31 here (we use <=16 in practice)
                 uint maxQ = (uint)((1 << bits) - 1);
                 return (uint)math.round(x01 * maxQ);
             }
@@ -319,6 +340,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 }
             }
         }
+
         static class BitWriter
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]

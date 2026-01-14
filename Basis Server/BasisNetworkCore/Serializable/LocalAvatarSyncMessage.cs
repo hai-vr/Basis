@@ -6,94 +6,139 @@ public static partial class SerializableBasis
 {
     public struct LocalAvatarSyncMessage
     {
-        public byte DataQualityLevel;
-        public byte[] array;//position -> rotation -> muscle rotation -> scale
+        public byte DataQualityLevel;     // 0=Low, 1=Medium, 2=High
+        public byte[] array;              // payload: position->scale->rotation->muscles
+
+        // Only this struct can set it.
+        public ushort PayloadLength { get; private set; }
 
         public AdditionalAvatarData[] AdditionalAvatarDatas;
         public byte AdditionalAvatarDataSize;
-        //when we swap avatars additional avatar data could be wrong for a few frames when that occurs linked avatar index will update to match.
         public byte LinkedAvatarIndex;
+
         public LocalAvatarSyncMessage(byte[] array) : this()
         {
             this.array = array;
         }
 
-        public void Deserialize(NetDataReader Writer)
+        // Single source of truth for payload length.
+        void RefreshPayloadLength()
         {
-            int Bytes = Writer.AvailableBytes;
-            if (Writer.TryGetByte(out DataQualityLevel))
+            var q = (BitQuality)DataQualityLevel;
+            if (!BasisBitPackingConstants.IsValidQuality(q))
             {
-                int AvatarSyncSize = BasisBitPackingConstants.ConvertToSize((BitQuality)DataQualityLevel);
-                if (Bytes >= AvatarSyncSize)
-                {
-                    array ??= new byte[AvatarSyncSize];
-                    Writer.GetBytes(array, AvatarSyncSize);
-                    if (Writer.TryGetByte(out AdditionalAvatarDataSize))
-                    {
-                        if (AdditionalAvatarDataSize != 0)
-                        {
-                            if (Writer.TryGetByte(out LinkedAvatarIndex))
-                            {
+                PayloadLength = 0;
+                return;
+            }
 
-                            }
-                            else
-                            {
-                                BNL.LogError("Missing LinkedAvatarIndex!");
-                            }
-                            AdditionalAvatarDatas = new AdditionalAvatarData[AdditionalAvatarDataSize];
-                            for (int Index = 0; Index < AdditionalAvatarDataSize; Index++)
-                            {
-                                AdditionalAvatarDatas[Index] = new AdditionalAvatarData();
-                                AdditionalAvatarDatas[Index].Deserialize(Writer);
-                            }
-                            //  BNL.Log("found additional message " + AdditionalAvatarDatas.Length);
-                        }
-                    }
-                    else
-                    {
-                        BNL.LogError("fundamental error missing Additional Avatar Data Byte");
-                    }
-                }
-                else
-                {
-                    BNL.LogError($"Unable to read Remaining bytes where {Bytes} in LocalAvatarSyncMessage");
-                }
+            PayloadLength = (ushort)BasisBitPackingConstants.ConvertToSize(q);
+        }
+
+        public void Deserialize(NetDataReader reader)
+        {
+            if (!reader.TryGetByte(out DataQualityLevel))
+            {
+                BNL.LogError("Missing DataQualityLevel!");
+                return;
+            }
+
+            BitQuality q = (BitQuality)DataQualityLevel;
+            if (!BasisBitPackingConstants.IsValidQuality(q))
+            {
+                BNL.LogError($"Invalid DataQualityLevel={DataQualityLevel}");
+                return;
+            }
+
+            // Read length from stream, but store it only after validation.
+            if (!reader.TryGetUShort(out ushort payloadLengthFromWire))
+            {
+                BNL.LogError("Missing PayloadLength!");
+                return;
+            }
+
+            ushort expected = (ushort)BasisBitPackingConstants.ConvertToSize(q);
+            if (payloadLengthFromWire != expected)
+            {
+                BNL.LogError($"PayloadLength mismatch. Got {payloadLengthFromWire}, expected {expected} for quality {q}.");
+                return;
+            }
+
+            PayloadLength = expected;
+
+            if (reader.AvailableBytes < PayloadLength)
+            {
+                BNL.LogError($"Unable to read avatar payload. Need {PayloadLength}, have {reader.AvailableBytes}.");
+                return;
+            }
+
+            array ??= new byte[PayloadLength];
+            if (array.Length != PayloadLength) array = new byte[PayloadLength];
+
+            reader.GetBytes(array, PayloadLength);
+
+            if (!reader.TryGetByte(out AdditionalAvatarDataSize))
+            {
+                BNL.LogError("Missing AdditionalAvatarDataSize!");
+                return;
+            }
+
+            if (AdditionalAvatarDataSize == 0)
+                return;
+
+            if (!reader.TryGetByte(out LinkedAvatarIndex))
+            {
+                BNL.LogError("Missing LinkedAvatarIndex!");
+                return;
+            }
+
+            AdditionalAvatarDatas = new AdditionalAvatarData[AdditionalAvatarDataSize];
+            for (int i = 0; i < AdditionalAvatarDataSize; i++)
+            {
+                AdditionalAvatarDatas[i] = new AdditionalAvatarData();
+                AdditionalAvatarDatas[i].Deserialize(reader);
             }
         }
-        public void Serialize(NetDataWriter Writer)
+
+        public void Serialize(NetDataWriter writer)
         {
-            Writer.Put(DataQualityLevel);
-            if (array == null)
+            // Compute length here (no external code sets it)
+            RefreshPayloadLength();
+
+            writer.Put(DataQualityLevel);
+
+            if (array == null || PayloadLength == 0)
             {
-                BNL.LogError("array was null!!");
+                BNL.LogError("array was null or PayloadLength was 0!!");
+                writer.Put((ushort)0);
+                writer.Put((byte)0); // AdditionalAvatarDataSize
+                return;
             }
-            else
+
+            if (PayloadLength > array.Length)
             {
-                Writer.Put(array);
+                BNL.LogError($"PayloadLength ({PayloadLength}) > array.Length ({array.Length})");
+                writer.Put((ushort)0);
+                writer.Put((byte)0);
+                return;
             }
+
+            writer.Put(PayloadLength);
+
+            // Write only the bytes we claim to have
+            writer.Put(array, 0, PayloadLength);
+
             if (AdditionalAvatarDatas == null || AdditionalAvatarDatas.Length == 0 || AdditionalAvatarDatas.Length > 256)
             {
-                Writer.Put((byte)0);
+                writer.Put((byte)0);
+                return;
             }
-            else
-            {
-                AdditionalAvatarDataSize = (byte)AdditionalAvatarDatas.Length;
-                Writer.Put(AdditionalAvatarDataSize);
-                if (AdditionalAvatarDataSize != 0)
-                {
-                    Writer.Put(LinkedAvatarIndex);//we only include the linked avatar if there is additional avatar size.
-                }
-                else
-                {
-                    return;
-                }
-                for (int Index = 0; Index < AdditionalAvatarDataSize; Index++)
-                {
-                    AdditionalAvatarData AAD = AdditionalAvatarDatas[Index];
-                    AAD.Serialize(Writer);
-                }
-                //   BNL.Log("sending additional message " + AdditionalAvatarDatas.Length);
-            }
+
+            AdditionalAvatarDataSize = (byte)AdditionalAvatarDatas.Length;
+            writer.Put(AdditionalAvatarDataSize);
+            writer.Put(LinkedAvatarIndex);
+
+            for (int i = 0; i < AdditionalAvatarDataSize; i++)
+                AdditionalAvatarDatas[i].Serialize(writer);
         }
     }
 }
