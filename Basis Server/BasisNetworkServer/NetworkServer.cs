@@ -1,4 +1,5 @@
 using Basis.Network.Core;
+using Basis.Network.Core.Compression;
 using Basis.Network.Server;
 using Basis.Network.Server.Auth;
 using BasisDidLink;
@@ -10,6 +11,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
+using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 
 public static class NetworkServer
 {
@@ -19,12 +21,14 @@ public static class NetworkServer
     public static Configuration Configuration;
     public static IAuth Auth;
     public static IAuthIdentity AuthIdentity;
+    public static int HighQualityLength;
     #region Server Entry Point
 
     public static void StartServer(Configuration configuration)
     {
         Configuration = configuration;
 
+        HighQualityLength = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
         InitializePulseSettings();
         InitializeAuth();
         SetupServer(configuration);

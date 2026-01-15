@@ -2,7 +2,7 @@ using Basis.Network.Core;
 using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.Compression;
 using BasisNetworkClientConsole;
-using static Basis.Network.Core.Compression.BasisBitPackingConstants;
+using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 using static SerializableBasis;
 
 namespace Basis.Network
@@ -74,7 +74,7 @@ namespace Basis.Network
             WritePosition(Randomizer.GetRandomOffset(), ref message.array, ref offset); // +12
 
             // Muscles bitstream (for console test: write zeros = neutral-ish)
-            int muscleBytes = BasisBitPackingConstants.MuscleBytes(BitQuality.High);
+            int muscleBytes = BasisAvatarBitPacking.MuscleBytes(BitQuality.High);
             Array.Clear(message.array, offset, muscleBytes);
             offset += muscleBytes;
 
@@ -85,7 +85,7 @@ namespace Basis.Network
             WriteQuaternionToBytes(Rotation, ref message.array, ref offset); // +16
 
             // Safety check: we should land exactly at payload size
-            int expected = BasisBitPackingConstants.ConvertToSize(BitQuality.High);
+            int expected = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
             if (offset != expected)
             {
                 BNL.LogError($"[MovementSender] Payload build mismatch. Wrote {offset}, expected {expected}");

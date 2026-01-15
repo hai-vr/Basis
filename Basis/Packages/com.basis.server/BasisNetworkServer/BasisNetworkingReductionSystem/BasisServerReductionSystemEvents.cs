@@ -9,7 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using static BasisNetworkServer.BasisNetworkingReductionSystem.BasisServerReductionSystemEvents;
 using static SerializableBasis;
-using static Basis.Network.Core.Compression.BasisBitPackingConstants;
+using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 
 namespace BasisNetworkServer.BasisNetworkingReductionSystem
 {
@@ -371,7 +371,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 foreach (var kvp in playerStates)
                 {
                     if (kvp.Key == id || !kvp.Value.IsActive)
+                    {
                         continue;
+                    }
 
                     kvp.Value.HasNewDataFrom.Set(id, true);
                 }
@@ -396,11 +398,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 foreach (var kvp in playerStates)
                 {
                     if (kvp.Key == id)
+                    {
                         continue;
+                    }
 
                     var other = kvp.Value;
                     if (!other.IsActive)
+                    {
                         continue;
+                    }
 
                     other.HasNewDataFrom?.Set(id, true);
                 }

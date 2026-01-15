@@ -1,5 +1,5 @@
 using System;
-using static Basis.Network.Core.Compression.BasisBitPackingConstants;
+using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 
 namespace BasisNetworkServer.BasisNetworkingReductionSystem
 {

@@ -5,7 +5,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Utilities;
 using System.Drawing;
 using System.Text;
-using static Basis.Network.Core.Compression.BasisBitPackingConstants;
+using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 using static SerializableBasis;
 
 namespace Basis.Network
@@ -20,7 +20,7 @@ namespace Basis.Network
         public static int Size;
         public async Task StartClientsAsync()
         {
-            Size = BasisBitPackingConstants.ConvertToSize(BitQuality.High);
+            Size = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
             List<NetPeer> peers = new();
             var passwordBytes = Encoding.UTF8.GetBytes(ConfigManager.Password);
             var avatarInfo = new BasisAvatarNetworkLoad

@@ -1,7 +1,7 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
 using System;
-using static Basis.Network.Core.Compression.BasisBitPackingConstants;
+using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 
 public static partial class SerializableBasis
 {
@@ -30,10 +30,10 @@ public static partial class SerializableBasis
             expected = 0;
 
             var q = (BitQuality)dataQualityLevel;
-            if (!BasisBitPackingConstants.IsValidQuality(q))
+            if (!BasisAvatarBitPacking.IsValidQuality(q))
                 return false;
 
-            expected = (ushort)BasisBitPackingConstants.ConvertToSize(q);
+            expected = (ushort)BasisAvatarBitPacking.ConvertToSize(q);
             return expected != 0;
         }
 

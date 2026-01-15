@@ -1,6 +1,6 @@
 namespace Basis.Network.Core.Compression
 {
-    public static class BasisBitPackingConstants
+    public static class BasisAvatarBitPacking
     {
         public const int FloatSize = sizeof(float);
         public const int UShortSize = sizeof(ushort);
@@ -22,8 +22,7 @@ namespace Basis.Network.Core.Compression
             Medium = 2,
             High = 3,
         }
-        public static bool IsValidQuality(BitQuality q) =>
-            q == BitQuality.VeryLow || q == BitQuality.Low || q == BitQuality.Medium || q == BitQuality.High;
+        public static bool IsValidQuality(BitQuality q) => q == BitQuality.VeryLow || q == BitQuality.Low || q == BitQuality.Medium || q == BitQuality.High;
 
         public static byte[] GetBitsPerSlot(BitQuality q) => q switch
         {
@@ -40,10 +39,6 @@ namespace Basis.Network.Core.Compression
             // Position (12) + Muscles (variable) + Scale (2) + Rotation (16)
             return WritePosition + MuscleBytes(q) + TailBytes;
         }
-
-        public static int MusclesOffsetBytes => WritePosition;
-        public static int TailOffsetBytes(BitQuality q) => WritePosition + MuscleBytes(q);
-
         // --------------------------
         // Internal helpers
         // --------------------------
@@ -54,19 +49,6 @@ namespace Basis.Network.Core.Compression
                 totalBits += bitsPerSlot[i];
 
             return (totalBits + 7) >> 3;
-        }
-
-        // Blend two tables: t=0 => a, t=1 => b
-        private static byte[] Blend(byte[] a, byte[] b, float t)
-        {
-            var r = new byte[a.Length];
-            for (int i = 0; i < r.Length; i++)
-            {
-                float v = a[i] + (b[i] - a[i]) * t;
-                int iv = (int)System.MathF.Round(v);
-                r[i] = (byte)iv;
-            }
-            return r;
         }
         // --------------------------
         // slot -> muscle index (unchanged)
@@ -81,7 +63,51 @@ namespace Basis.Network.Core.Compression
             55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,
             75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,
         };
+        public static readonly byte[] BITS_PER_SLOT_HIGH = new byte[]
+{
+            // Spine/Chest/Head
+            17,17,17,
+            17,17,17,
+            16,16,16,
+            17,17,17,
+            17,17,17,
 
+            // Left Leg
+            17,17,17,
+            17,18,17,
+            15,15,
+
+            // Right Leg
+            17,17,17,
+            17,18,17,
+            15,15,
+
+            // Left Arm
+            14,14,
+            18,18,18,
+            17,18,
+            17,16,
+
+            // Right Arm
+            14,14,
+            18,18,18,
+            17,18,
+            17,16,
+
+            // Left Fingers
+            12,14,12,12,
+            12,13,12,12,
+            12,12,12,12,
+            12,12,12,12,
+            12,13,12,12,
+
+            // Right Fingers
+            12,14,12,12,
+            12,13,12,12,
+            12,12,12,12,
+            12,12,12,12,
+            12,13,12,12,
+};
         // ---------------------------------------------------------------------
         // Anchors (YOUR EXISTING TABLES): keep exactly as authored.
         // ---------------------------------------------------------------------
@@ -175,52 +201,6 @@ namespace Basis.Network.Core.Compression
             9,9,9,9,
             9,9,9,9,
             9,10,9,9,
-        };
-
-        public static readonly byte[] BITS_PER_SLOT_HIGH = new byte[]
-        {
-            // Spine/Chest/Head
-            17,17,17,
-            17,17,17,
-            16,16,16,
-            17,17,17,
-            17,17,17,
-
-            // Left Leg
-            17,17,17,
-            17,18,17,
-            15,15,
-
-            // Right Leg
-            17,17,17,
-            17,18,17,
-            15,15,
-
-            // Left Arm
-            14,14,
-            18,18,18,
-            17,18,
-            17,16,
-
-            // Right Arm
-            14,14,
-            18,18,18,
-            17,18,
-            17,16,
-
-            // Left Fingers
-            12,14,12,12,
-            12,13,12,12,
-            12,12,12,12,
-            12,12,12,12,
-            12,13,12,12,
-
-            // Right Fingers
-            12,14,12,12,
-            12,13,12,12,
-            12,12,12,12,
-            12,12,12,12,
-            12,13,12,12,
         };
         public static readonly byte[] BITS_PER_SLOT_VERY_LOW = new byte[]
         {
