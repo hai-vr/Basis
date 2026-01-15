@@ -13,6 +13,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public static SerializableBasis.LocalAvatarSyncMessage BuildMediumFromHigh(in SerializableBasis.LocalAvatarSyncMessage srcHigh)
             => BuildFromHigh(srcHigh, BitQuality.Medium);
 
+        public static SerializableBasis.LocalAvatarSyncMessage BuildVeryLowFromHigh(in SerializableBasis.LocalAvatarSyncMessage srcHigh)
+    => BuildFromHigh(srcHigh, BitQuality.VeryLow);
+
         public static SerializableBasis.LocalAvatarSyncMessage BuildLowFromHigh(in SerializableBasis.LocalAvatarSyncMessage srcHigh)
             => BuildFromHigh(srcHigh, BitQuality.Low);
 

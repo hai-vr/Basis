@@ -270,7 +270,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             msg.Serialize(writer);
 
-            peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.ReliableSequenced);
+            peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
             BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.PlayerAvatarChannel, writer.Length);
 
             ReturnWriter(writer);
@@ -329,10 +329,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // Build derived qualities from packed high (no floats)
             LocalAvatarSyncMessage medium;
             LocalAvatarSyncMessage low;
+            LocalAvatarSyncMessage Verylow;
             try
             {
                 medium = AvatarQualityRepacker.BuildMediumFromHigh(high);
                 low = AvatarQualityRepacker.BuildLowFromHigh(high);
+                Verylow = AvatarQualityRepacker.BuildVeryLowFromHigh(high);
             }
             catch (Exception ex)
             {
@@ -340,6 +342,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 BNL.LogError($"[ProcessMessage] Repack failed: {ex}");
                 medium = high;
                 low = high;
+                Verylow = high;
             }
 
             if (!playerStates.TryGetValue(id, out var state))
@@ -358,6 +361,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     AvatarHigh = high,
                     AvatarMedium = medium,
                     AvatarLow = low,
+                    AvatarVeryLow = Verylow,
                 };
 
                 state.HasNewDataFrom.SetAll(true);
@@ -383,6 +387,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 state.AvatarHigh = high;
                 state.AvatarMedium = medium;
                 state.AvatarLow = low;
+                state.AvatarVeryLow = Verylow;
 
                 // Keep SyncMessage in sync (shell)
                 state.SyncMessage.avatarSerialization = high;
