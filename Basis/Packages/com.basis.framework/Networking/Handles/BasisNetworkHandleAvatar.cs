@@ -6,9 +6,8 @@ using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Concurrent;
+using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 using static SerializableBasis;
-using static Basis.Network.Core.Compression.BasisBitPackingConstants;
-
 public static class BasisNetworkHandleAvatar
 {
     public static ConcurrentQueue<ServerSideSyncPlayerMessage> Message = new ConcurrentQueue<ServerSideSyncPlayerMessage>();
@@ -43,9 +42,9 @@ public static class BasisNetworkHandleAvatar
         {
             var q = (BitQuality)lav.DataQualityLevel;
 
-            if (BasisBitPackingConstants.IsValidQuality(q))
+            if (BasisAvatarBitPacking.IsValidQuality(q))
             {
-                int expectedSize = BasisBitPackingConstants.ConvertToSize(q);
+                int expectedSize = BasisAvatarBitPacking.ConvertToSize(q);
 
                 if (lav.array.Length >= expectedSize)
                 {

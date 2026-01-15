@@ -39,17 +39,17 @@ public class BasisOrderedDataSet : MonoBehaviour
     }
     public static void DecompressAvatarMuscles_BitPacked(
      byte[] data,
-     BasisBitPackingConstants.BitQuality quality,
+     BasisAvatarBitPacking.BitQuality quality,
      ref NativeArray<float> outputArray,
      ref int offsetBytes)
     {
         int bitPos = offsetBytes << 3;
-        int slots = BasisBitPackingConstants.WRITE_ORDER.Length;
-        byte[] bitsPerSlot = BasisBitPackingConstants.GetBitsPerSlot(quality);
+        int slots = BasisAvatarBitPacking.WRITE_ORDER.Length;
+        byte[] bitsPerSlot = BasisAvatarBitPacking.GetBitsPerSlot(quality);
 
         for (int slot = 0; slot < slots; slot++)
         {
-            int muscleIndex = BasisBitPackingConstants.WRITE_ORDER[slot];
+            int muscleIndex = BasisAvatarBitPacking.WRITE_ORDER[slot];
             int bits = bitsPerSlot[slot];
 
             uint q = BitReader.ReadBits(data, ref bitPos, bits);

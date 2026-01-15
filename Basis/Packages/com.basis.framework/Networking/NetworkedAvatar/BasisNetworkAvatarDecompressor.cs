@@ -25,8 +25,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             byte[] data = syncMessage.avatarSerialization.array;
             int length = data.Length;
 
-            BasisBitPackingConstants.BitQuality q = (BasisBitPackingConstants.BitQuality)syncMessage.avatarSerialization.DataQualityLevel;
-            int expected = BasisBitPackingConstants.ConvertToSize(q);
+            BasisAvatarBitPacking.BitQuality q = (BasisAvatarBitPacking.BitQuality)syncMessage.avatarSerialization.DataQualityLevel;
+            int expected = BasisAvatarBitPacking.ConvertToSize(q);
 
             if (length >= expected)
             {
@@ -53,8 +53,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             byte[] data = avatarSerialization.array;
             int length = data.Length;
 
-            BasisBitPackingConstants.BitQuality q = (BasisBitPackingConstants.BitQuality)avatarSerialization.DataQualityLevel;
-            int expected = BasisBitPackingConstants.ConvertToSize(q);
+            BasisAvatarBitPacking.BitQuality q = (BasisAvatarBitPacking.BitQuality)avatarSerialization.DataQualityLevel;
+            int expected = BasisAvatarBitPacking.ConvertToSize(q);
 
             if (length >= expected)
             {
@@ -77,7 +77,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// <param name="secondsInterval"></param>
         /// <param name="basisAvatarBuffer"></param>
         /// <returns></returns>
-        private static bool TryCreateAvatarBuffer(byte[] data,ref int offset,double secondsInterval, BasisBitPackingConstants.BitQuality quality, out BasisAvatarBuffer basisAvatarBuffer)
+        private static bool TryCreateAvatarBuffer(byte[] data,ref int offset,double secondsInterval, BasisAvatarBitPacking.BitQuality quality, out BasisAvatarBuffer basisAvatarBuffer)
         {
             basisAvatarBuffer = null;
             int startOffset = offset;

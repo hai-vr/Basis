@@ -12,7 +12,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
-using static Basis.Network.Core.Compression.BasisBitPackingConstants;
+using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 
 namespace Basis.Scripts.Networking.NetworkedAvatar
 {
@@ -83,7 +83,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             EnsureInitialized();
 
             // Ensure payload buffer exists and is correct size for HIGH
-            int needed = BasisBitPackingConstants.ConvertToSize(WireQuality);
+            int needed = BasisAvatarBitPacking.ConvertToSize(WireQuality);
             AvatarData.LASM.DataQualityLevel = (byte)WireQuality;
             AvatarData.LASM.array ??= new byte[needed];
             if (AvatarData.LASM.array.Length != needed)
@@ -199,10 +199,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 return;
             }
 
-            int slots = BasisBitPackingConstants.WRITE_ORDER.Length;
+            int slots = BasisAvatarBitPacking.WRITE_ORDER.Length;
 
             // ALWAYS use HIGH bits table
-            byte[] bitsManaged = BasisBitPackingConstants.GetBitsPerSlot(WireQuality);
+            byte[] bitsManaged = BasisAvatarBitPacking.GetBitsPerSlot(WireQuality);
 
             // Compute bit offsets + packed sizes
             sPackedBits = 0;
@@ -229,7 +229,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // Fill per-slot arrays
             for (int i = 0; i < slots; i++)
             {
-                sOrder[i] = BasisBitPackingConstants.WRITE_ORDER[i];
+                sOrder[i] = BasisAvatarBitPacking.WRITE_ORDER[i];
                 sBitsPerSlot[i] = bitsManaged[i];       // <-- HIGH bits
                 sBitOffsets[i] = bitOffsManaged[i];
             }
