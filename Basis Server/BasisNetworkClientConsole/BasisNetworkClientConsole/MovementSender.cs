@@ -87,7 +87,7 @@ namespace Basis.Network
             // Safety check: we should land exactly at payload size
             if (offset != ClientManager.Size)
             {
-                BNL.LogError($"[MovementSender] Payload build mismatch. Wrote {offset}, expected {expected}");
+                BNL.LogError($"[MovementSender] Payload build mismatch. Wrote {offset}");
             }
         }
 

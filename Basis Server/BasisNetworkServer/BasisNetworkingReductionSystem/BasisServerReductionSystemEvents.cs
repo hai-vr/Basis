@@ -321,7 +321,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             // Incoming payloads are expected to be High; enforce if you want:
             var high = message.AvatarMessage;
-            high.DataQualityLevel = (byte)BitQuality.High;
+
+            if (high.DataQualityLevel != (byte)BitQuality.High)
+            {
+                BNL.LogError($"Quality Level was {high.DataQualityLevel}");
+                high.DataQualityLevel = (byte)BitQuality.High;
+            }
 
             // Position is the first 12 bytes (your simplified layout)
             var pos = BasisNetworkCompressionExtensions.ReadPosition(ref high.array);

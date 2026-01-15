@@ -1,114 +1,139 @@
 using System;
+using System.Buffers;
 using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 
 namespace BasisNetworkServer.BasisNetworkingReductionSystem
 {
     public static class AvatarQualityRepacker
     {
-        // Layout:
-        // [Pos 12][Muscles N][Scale 2][Rotation 16]
         const int PosBytes = 12;
         const int TailBytes = 2 + 16;
 
-        public static (SerializableBasis.LocalAvatarSyncMessage medium,
-                      SerializableBasis.LocalAvatarSyncMessage low,
-                      SerializableBasis.LocalAvatarSyncMessage veryLow)
-            BuildAllLowerFromHigh(in SerializableBasis.LocalAvatarSyncMessage srcHigh)
+        // Cache bits per slot for all qualities we care about
+        static readonly byte[] HighBits = GetBitsPerSlot(BitQuality.High);
+        static readonly byte[] MedBits = GetBitsPerSlot(BitQuality.Medium);
+        static readonly byte[] LowBits = GetBitsPerSlot(BitQuality.Low);
+        static readonly byte[] VLowBits = GetBitsPerSlot(BitQuality.VeryLow);
+
+        static readonly int Slots = WRITE_ORDER.Length;
+
+        // Cache muscle byte counts
+        static readonly int HighMuscleBytes = MuscleBytes(BitQuality.High);
+        static readonly int MedMuscleBytes = MuscleBytes(BitQuality.Medium);
+        static readonly int LowMuscleBytes = MuscleBytes(BitQuality.Low);
+        static readonly int VLowMuscleBytes = MuscleBytes(BitQuality.VeryLow);
+
+        // Cache payload sizes
+        static readonly int HighPayloadSize = PosBytes + HighMuscleBytes + TailBytes;
+        static readonly int MedPayloadSize = PosBytes + MedMuscleBytes + TailBytes;
+        static readonly int LowPayloadSize = PosBytes + LowMuscleBytes + TailBytes;
+        static readonly int VLowPayloadSize = PosBytes + VLowMuscleBytes + TailBytes;
+
+        // Cache bit offsets for each quality (no per-call allocations)
+        static readonly int[] HighOffs = BuildBitOffsets(HighBits);
+        static readonly int[] MedOffs = BuildBitOffsets(MedBits);
+        static readonly int[] LowOffs = BuildBitOffsets(LowBits);
+        static readonly int[] VLowOffs = BuildBitOffsets(VLowBits);
+
+        static int[] BuildBitOffsets(byte[] bits)
+        {
+            var offs = new int[Slots];
+            int bit = 0;
+            for (int i = 0; i < Slots; i++)
+            {
+                offs[i] = bit;
+                bit += bits[i];
+            }
+            return offs;
+        }
+        public static void BuildAllLowerFromHighInto(
+            in SerializableBasis.LocalAvatarSyncMessage srcHigh,
+            ref SerializableBasis.LocalAvatarSyncMessage medium,
+            ref SerializableBasis.LocalAvatarSyncMessage low,
+            ref SerializableBasis.LocalAvatarSyncMessage veryLow)
         {
             if (srcHigh.array == null)
                 throw new ArgumentNullException(nameof(srcHigh.array));
 
-            byte[] srcBits = GetBitsPerSlot(BitQuality.High);
-            byte[] medBits = GetBitsPerSlot(BitQuality.Medium);
-            byte[] lowBits = GetBitsPerSlot(BitQuality.Low);
-            byte[] vlowBits = GetBitsPerSlot(BitQuality.VeryLow);
+            if (srcHigh.array.Length < HighPayloadSize)
+                throw new ArgumentException($"High payload too small. Need >= {HighPayloadSize}, got {srcHigh.array.Length}");
 
-            int slots = WRITE_ORDER.Length;
+            EnsureBuffer(ref medium, BitQuality.Medium, MedPayloadSize);
+            EnsureBuffer(ref low, BitQuality.Low, LowPayloadSize);
+            EnsureBuffer(ref veryLow, BitQuality.VeryLow, VLowPayloadSize);
 
-            int srcMuscleBytes = MuscleBytes(BitQuality.High);
-            int medMuscleBytes = MuscleBytes(BitQuality.Medium);
-            int lowMuscleBytes = MuscleBytes(BitQuality.Low);
-            int vlowMuscleBytes = MuscleBytes(BitQuality.VeryLow);
-
-            int srcExpected = PosBytes + srcMuscleBytes + TailBytes;
-            if (srcHigh.array.Length < srcExpected)
-                throw new ArgumentException($"High payload too small. Need >= {srcExpected}, got {srcHigh.array.Length}");
-
-            // Allocate outputs
-            var med = new SerializableBasis.LocalAvatarSyncMessage
-            {
-                DataQualityLevel = (byte)BitQuality.Medium,
-                array = new byte[PosBytes + medMuscleBytes + TailBytes],
-            };
-            var low = new SerializableBasis.LocalAvatarSyncMessage
-            {
-                DataQualityLevel = (byte)BitQuality.Low,
-                array = new byte[PosBytes + lowMuscleBytes + TailBytes],
-            };
-            var vlow = new SerializableBasis.LocalAvatarSyncMessage
-            {
-                DataQualityLevel = (byte)BitQuality.VeryLow,
-                array = new byte[PosBytes + vlowMuscleBytes + TailBytes],
-            };
-
-            // 1) Copy position
-            Buffer.BlockCopy(srcHigh.array, 0, med.array, 0, PosBytes);
+            // Copy position
+            Buffer.BlockCopy(srcHigh.array, 0, medium.array, 0, PosBytes);
             Buffer.BlockCopy(srcHigh.array, 0, low.array, 0, PosBytes);
-            Buffer.BlockCopy(srcHigh.array, 0, vlow.array, 0, PosBytes);
+            Buffer.BlockCopy(srcHigh.array, 0, veryLow.array, 0, PosBytes);
 
             int srcMuscleBase = PosBytes;
+
             int medMuscleBase = PosBytes;
             int lowMuscleBase = PosBytes;
             int vlowMuscleBase = PosBytes;
 
-            Array.Clear(med.array, medMuscleBase, medMuscleBytes);
-            Array.Clear(low.array, lowMuscleBase, lowMuscleBytes);
-            Array.Clear(vlow.array, vlowMuscleBase, vlowMuscleBytes);
+            // Clear only muscle regions because BitWriter ORs into bytes
+            Array.Clear(medium.array, medMuscleBase, MedMuscleBytes);
+            Array.Clear(low.array, lowMuscleBase, LowMuscleBytes);
+            Array.Clear(veryLow.array, vlowMuscleBase, VLowMuscleBytes);
 
-            // Precompute bit offsets
-            int[] srcOffs = new int[slots];
-            int[] medOffs = new int[slots];
-            int[] lowOffs = new int[slots];
-            int[] vlowOffs = new int[slots];
-
-            int sb = 0, mb = 0, lb = 0, vb = 0;
-            for (int i = 0; i < slots; i++)
+            // Repack in one pass
+            for (int slot = 0; slot < Slots; slot++)
             {
-                srcOffs[i] = sb; sb += srcBits[i];
-                medOffs[i] = mb; mb += medBits[i];
-                lowOffs[i] = lb; lb += lowBits[i];
-                vlowOffs[i] = vb; vb += vlowBits[i];
-            }
+                int bSrc = HighBits[slot];
+                uint qSrc = BitReader.ReadBits(srcHigh.array, srcMuscleBase, HighOffs[slot], bSrc);
 
-            // 2) One pass over slots: read once, write three times
-            for (int slot = 0; slot < slots; slot++)
-            {
-                int bSrc = srcBits[slot];
-
-                uint qSrc = BitReader.ReadBits(srcHigh.array, srcMuscleBase, srcOffs[slot], bSrc);
-
-                int bMed = medBits[slot];
+                int bMed = MedBits[slot];
                 if (bMed > 0)
-                    BitWriter.WriteBits(med.array, medMuscleBase, medOffs[slot], RescaleQuant(qSrc, bSrc, bMed), bMed);
+                    BitWriter.WriteBits(medium.array, medMuscleBase, MedOffs[slot], RescaleQuant(qSrc, bSrc, bMed), bMed);
 
-                int bLow = lowBits[slot];
+                int bLow = LowBits[slot];
                 if (bLow > 0)
-                    BitWriter.WriteBits(low.array, lowMuscleBase, lowOffs[slot], RescaleQuant(qSrc, bSrc, bLow), bLow);
+                    BitWriter.WriteBits(low.array, lowMuscleBase, LowOffs[slot], RescaleQuant(qSrc, bSrc, bLow), bLow);
 
-                int bVLow = vlowBits[slot];
+                int bVLow = VLowBits[slot];
                 if (bVLow > 0)
-                    BitWriter.WriteBits(vlow.array, vlowMuscleBase, vlowOffs[slot], RescaleQuant(qSrc, bSrc, bVLow), bVLow);
+                    BitWriter.WriteBits(veryLow.array, vlowMuscleBase, VLowOffs[slot], RescaleQuant(qSrc, bSrc, bVLow), bVLow);
             }
 
-            // 3) Copy Scale+Rotation tail
-            int srcTailOffset = PosBytes + srcMuscleBytes;
+            // Copy tail
+            int srcTailOffset = PosBytes + HighMuscleBytes;
 
-            Buffer.BlockCopy(srcHigh.array, srcTailOffset, med.array, PosBytes + medMuscleBytes, TailBytes);
-            Buffer.BlockCopy(srcHigh.array, srcTailOffset, low.array, PosBytes + lowMuscleBytes, TailBytes);
-            Buffer.BlockCopy(srcHigh.array, srcTailOffset, vlow.array, PosBytes + vlowMuscleBytes, TailBytes);
+            Buffer.BlockCopy(srcHigh.array, srcTailOffset, medium.array, PosBytes + MedMuscleBytes, TailBytes);
+            Buffer.BlockCopy(srcHigh.array, srcTailOffset, low.array, PosBytes + LowMuscleBytes, TailBytes);
+            Buffer.BlockCopy(srcHigh.array, srcTailOffset, veryLow.array, PosBytes + VLowMuscleBytes, TailBytes);
+        }
 
+        static void EnsureBuffer(ref SerializableBasis.LocalAvatarSyncMessage msg, BitQuality q, int size)
+        {
+            msg.DataQualityLevel = (byte)q;
+
+            // Fast path: already allocated and correct size
+            if (msg.array != null && msg.array.Length == size)
+                return;
+
+            // If you can tolerate ">= size" (e.g. pooled arrays), use >=
+            // but if you serialize based on Length, you want exact size.
+            msg.array = new byte[size];
+        }
+
+        // --------- Convenience wrapper: returns tuple (allocates arrays) ---------
+        // This will still allocate 3 arrays per call, but no int[] anymore.
+        public static (SerializableBasis.LocalAvatarSyncMessage medium,
+                       SerializableBasis.LocalAvatarSyncMessage low,
+                       SerializableBasis.LocalAvatarSyncMessage veryLow)
+            BuildAllLowerFromHigh(in SerializableBasis.LocalAvatarSyncMessage srcHigh)
+        {
+            var med = new SerializableBasis.LocalAvatarSyncMessage();
+            var low = new SerializableBasis.LocalAvatarSyncMessage();
+            var vlow = new SerializableBasis.LocalAvatarSyncMessage();
+
+            BuildAllLowerFromHighInto(srcHigh, ref med, ref low, ref vlow);
             return (med, low, vlow);
         }
+
+        // Same Rescale/BitReader/BitWriter as you already have...
         static uint RescaleQuant(uint qSrc, int bSrc, int bDst)
         {
             if (bSrc == bDst) return qSrc;
@@ -117,7 +142,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             ulong maxSrc = ((ulong)1 << bSrc) - 1UL;
             ulong maxDst = ((ulong)1 << bDst) - 1UL;
 
-            // round(qSrc * maxDst / maxSrc)
             ulong num = (ulong)qSrc * maxDst + (maxSrc >> 1);
             return (uint)(num / maxSrc);
         }
@@ -152,7 +176,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     bytePos++;
                     bitInByte = 0;
                 }
-
                 return result;
             }
         }
