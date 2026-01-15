@@ -329,20 +329,20 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // Build derived qualities from packed high (no floats)
             LocalAvatarSyncMessage medium;
             LocalAvatarSyncMessage low;
-            LocalAvatarSyncMessage Verylow;
+            LocalAvatarSyncMessage veryLow;
+
             try
             {
-                medium = AvatarQualityRepacker.BuildMediumFromHigh(high);
-                low = AvatarQualityRepacker.BuildLowFromHigh(high);
-                Verylow = AvatarQualityRepacker.BuildVeryLowFromHigh(high);
+                (medium, low, veryLow) = AvatarQualityRepacker.BuildAllLowerFromHigh(high);
             }
             catch (Exception ex)
             {
                 // If something goes wrong, fall back to sending high only
                 BNL.LogError($"[ProcessMessage] Repack failed: {ex}");
+
                 medium = high;
                 low = high;
-                Verylow = high;
+                veryLow = high;
             }
 
             if (!playerStates.TryGetValue(id, out var state))
@@ -361,7 +361,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     AvatarHigh = high,
                     AvatarMedium = medium,
                     AvatarLow = low,
-                    AvatarVeryLow = Verylow,
+                    AvatarVeryLow = veryLow,
                 };
 
                 state.HasNewDataFrom.SetAll(true);
@@ -389,7 +389,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 state.AvatarHigh = high;
                 state.AvatarMedium = medium;
                 state.AvatarLow = low;
-                state.AvatarVeryLow = Verylow;
+                state.AvatarVeryLow = veryLow;
 
                 // Keep SyncMessage in sync (shell)
                 state.SyncMessage.avatarSerialization = high;

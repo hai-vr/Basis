@@ -3,7 +3,6 @@ using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Receivers;
 using System;
 using Unity.Mathematics;
-using UnityEngine.UIElements;
 using static SerializableBasis;
 namespace Basis.Scripts.Networking.NetworkedAvatar
 {
