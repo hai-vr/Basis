@@ -1,9 +1,12 @@
-using Basis.Network.Core;
 using Basis.Config;
+using Basis.Network.Core;
+using Basis.Network.Core.Compression;
 using Basis.Scripts.BasisSdk.Players;
-using System.Text;
-using static SerializableBasis;
 using Basis.Utilities;
+using System.Drawing;
+using System.Text;
+using static Basis.Network.Core.Compression.BasisBitPackingConstants;
+using static SerializableBasis;
 
 namespace Basis.Network
 {
@@ -14,9 +17,10 @@ namespace Basis.Network
         private readonly List<NetworkClient> clients = new();
         private readonly CancellationTokenSource cts = new();
         public NetPeer[] FinalPeers;
-
+        public static int Size;
         public async Task StartClientsAsync()
         {
+            Size = BasisBitPackingConstants.ConvertToSize(BitQuality.High);
             List<NetPeer> peers = new();
             var passwordBytes = Encoding.UTF8.GetBytes(ConfigManager.Password);
             var avatarInfo = new BasisAvatarNetworkLoad

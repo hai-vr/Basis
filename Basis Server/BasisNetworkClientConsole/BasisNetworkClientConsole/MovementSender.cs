@@ -4,7 +4,6 @@ using Basis.Scripts.Networking.Compression;
 using BasisNetworkClientConsole;
 using static Basis.Network.Core.Compression.BasisBitPackingConstants;
 using static SerializableBasis;
-using System;
 
 namespace Basis.Network
 {
@@ -39,7 +38,6 @@ namespace Basis.Network
                 ActivePlayerData[i] = Generate();
             }
         }
-
         public static PlayerData Generate()
         {
             var message = new LocalAvatarSyncMessage
@@ -48,7 +46,7 @@ namespace Basis.Network
                 AdditionalAvatarDatas = null,
                 AdditionalAvatarDataSize = 0,
                 LinkedAvatarIndex = 0,
-                array = new byte[BasisBitPackingConstants.ConvertToSize(BitQuality.High)],
+                array = new byte[ClientManager.Size],
             };
 
             // Build the static parts once (muscles default, scale default, rotation default)
@@ -63,6 +61,10 @@ namespace Basis.Network
 
         private static void WriteInitialPayload(ref LocalAvatarSyncMessage message)
         {
+            if (message.array.Length != ClientManager.Size)
+            {
+                message.array = new byte[ClientManager.Size];
+            }
             // Layout:
             // [Position 12][Muscles muscleBytes][Scale 2][Rotation 16]
 
@@ -106,9 +108,6 @@ namespace Basis.Network
             // Serialize and send
             var writer = ActivePlayerData[index].Writer;
             writer.Reset();
-
-            int expectedHigh = BasisBitPackingConstants.ConvertToSize(BitQuality.High);
-
             msg.Serialize(writer, BitQuality.High);
 
             peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);

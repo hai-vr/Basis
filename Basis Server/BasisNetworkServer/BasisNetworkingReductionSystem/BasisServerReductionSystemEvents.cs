@@ -201,7 +201,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 {
                     (int id, PlayerState state) playerJ = _threadLocalActivePlayers[index];
                     if (playerI.id == playerJ.id)
+                    {
                         continue;
+                    }
 
                     var stateJ = playerJ.state;
 
@@ -210,10 +212,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     CalculateIntervalFromDistanceSq(distSq, out byte startAtZeroInterval, out int actualInterval);
 
                     if (!sentTimes.ContainsKey(playerJ.id))
+                    {
                         sentTimes[playerJ.id] = 0;
+                    }
 
                     if (stateI.HasNewDataFrom == null)
+                    {
                         continue;
+                    }
 
                     long lastSent = sentTimes[playerJ.id];
                     long elapsed = nowTicks - lastSent;

@@ -1,5 +1,4 @@
 using System;
-using Basis.Network.Core.Compression;
 using static Basis.Network.Core.Compression.BasisBitPackingConstants;
 
 namespace BasisNetworkServer.BasisNetworkingReductionSystem
@@ -19,7 +18,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         static SerializableBasis.LocalAvatarSyncMessage BuildFromHigh(in SerializableBasis.LocalAvatarSyncMessage srcHigh, BitQuality target)
         {
-            if (srcHigh.array == null) throw new ArgumentNullException(nameof(srcHigh.array));
+            if (srcHigh.array == null)
+            {
+                throw new ArgumentNullException(nameof(srcHigh.array));
+            }
 
             // Source bit profile (High)
             byte[] srcBits = GetBitsPerSlot(BitQuality.High);
@@ -33,7 +35,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             int srcExpected = PosBytes + srcMuscleBytes + TailBytes;
             if (srcHigh.array.Length < srcExpected)
+            {
                 throw new ArgumentException($"High payload too small. Need >= {srcExpected}, got {srcHigh.array.Length}");
+            }
 
             int dstPayloadSize = PosBytes + dstMuscleBytes + TailBytes;
 
