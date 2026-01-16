@@ -76,35 +76,34 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// <param name="secondsInterval"></param>
         /// <param name="basisAvatarBuffer"></param>
         /// <returns></returns>
-        private static bool TryCreateAvatarBuffer(byte[] data,ref int offset,double secondsInterval, BasisAvatarBitPacking.BitQuality quality, out BasisAvatarBuffer basisAvatarBuffer)
+        private static bool TryCreateAvatarBuffer(byte[] data, ref int offset, double secondsInterval, BasisAvatarBitPacking.BitQuality quality, out BasisAvatarBuffer basisAvatarBuffer)
         {
             basisAvatarBuffer = null;
             int startOffset = offset;
-            if (!math.isfinite(secondsInterval) || secondsInterval <= 0.0 || secondsInterval > 1.0)
-            {
+
+            // Be tolerant: clamp instead of failing hard (unless you *know* it's corrupt).
+            if (!math.isfinite(secondsInterval) || secondsInterval <= 0.0)
                 goto Fail;
-            }
+
+            // If your server truly never exceeds 1s, keep the cap but clamp instead of failing.
+            secondsInterval = math.clamp(secondsInterval, 1e-3, 1.0);
+
             basisAvatarBuffer = BasisAvatarBufferPool.Get();
 
             // Position
             if (!BasisUnityBitPackerExtensionsUnsafe.TryReadPosition(ref data, ref offset, out basisAvatarBuffer.Position))
-            {
                 goto Fail;
-            }
 
             BasisOrderedDataSet.DecompressAvatarMuscles_BitPacked(data, quality, ref basisAvatarBuffer.Muscles, ref offset);
 
             // Scale
             if (!BasisUnityBitPackerExtensionsUnsafe.TryReadUShort(ref data, ref offset, out ushort uScale))
-            {
                 goto Fail;
-            }
 
             // Rotation
-            if (!BasisUnityBitPackerExtensionsUnsafe.TryReadQuaternionFromBytes( ref data, ref offset, out basisAvatarBuffer.Rotation))
-            {
+            if (!BasisUnityBitPackerExtensionsUnsafe.TryReadQuaternionFromBytes(ref data, ref offset, out basisAvatarBuffer.Rotation))
                 goto Fail;
-            }
+
             basisAvatarBuffer.Scale = MuscleDecompress(uScale, MinimumValueSupported, MaximumValueSupported);
             basisAvatarBuffer.SecondsInterval = secondsInterval;
             return true;
@@ -137,23 +136,20 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             baseReceiver.EnQueueAvatarBuffer(avatarBuffer);
 
+            // (rest unchanged)
             if (message.AdditionalAvatarDataSize > 0 && message.AdditionalAvatarDatas != null)
             {
                 bool isDifferentAvatar = message.LinkedAvatarIndex != baseReceiver.LastLinkedAvatarIndex;
-                if (isDifferentAvatar)
-                {
-                    return;
-                }
+                if (isDifferentAvatar) return;
 
                 for (int Index = 0; Index < message.AdditionalAvatarDataSize; Index++)
                 {
                     AdditionalAvatarData data = message.AdditionalAvatarDatas[Index];
                     if (data.messageIndex < baseReceiver.NetworkBehaviourCount)
-                    {
                         baseReceiver.NetworkBehaviours[data.messageIndex].OnNetworkMessageServerReductionSystem(data.array);
-                    }
                 }
             }
         }
+
     }
 }
