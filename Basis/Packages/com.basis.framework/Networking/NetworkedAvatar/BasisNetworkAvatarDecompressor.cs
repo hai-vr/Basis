@@ -82,8 +82,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             int startOffset = offset;
 
             // Be tolerant: clamp instead of failing hard (unless you *know* it's corrupt).
-            if (!math.isfinite(secondsInterval) || secondsInterval <= 0.0)
+            if (!math.isfinite(secondsInterval))
+            {
                 goto Fail;
+            }
 
             // If your server truly never exceeds 1s, keep the cap but clamp instead of failing.
             secondsInterval = math.clamp(secondsInterval, 1e-3, 1.0);
