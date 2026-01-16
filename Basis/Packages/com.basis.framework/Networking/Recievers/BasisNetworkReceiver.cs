@@ -186,7 +186,8 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     interpolationTime = 1;
                 }
-                BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime,unscaledDeltaTime);
+                double effectiveDt = unscaledDeltaTime * (double)rate;
+                BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, effectiveDt);
 
                 if (SentLatest)
                 {

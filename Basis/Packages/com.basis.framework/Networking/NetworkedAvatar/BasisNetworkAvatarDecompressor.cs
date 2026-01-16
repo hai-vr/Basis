@@ -110,7 +110,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             return true;
 
         Fail:
-            offset = startOffset;                 // optional but strongly recommended
+            offset = startOffset;
             if (basisAvatarBuffer != null)
             {
                 BasisAvatarBufferPool.Release(basisAvatarBuffer);
