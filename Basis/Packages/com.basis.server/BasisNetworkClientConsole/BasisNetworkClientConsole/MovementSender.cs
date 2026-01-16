@@ -85,10 +85,9 @@ namespace Basis.Network
             WriteQuaternionToBytes(Rotation, ref message.array, ref offset); // +16
 
             // Safety check: we should land exactly at payload size
-            int expected = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
-            if (offset != expected)
+            if (offset != ClientManager.Size)
             {
-                BNL.LogError($"[MovementSender] Payload build mismatch. Wrote {offset}, expected {expected}");
+                BNL.LogError($"[MovementSender] Payload build mismatch. Wrote {offset}");
             }
         }
 

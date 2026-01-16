@@ -35,7 +35,9 @@ public static class NetworkServer
         SubscribeEvents();
 
         if (configuration.EnableStatistics)
+        {
             BasisStatistics.StartWorkerThread(Server);
+        }
 
         BNL.Log("Server Worker Threads Booted");
     }
@@ -104,7 +106,10 @@ public static class NetworkServer
     #endregion
     public static void BroadcastMessageToClients(NetDataWriter writer, byte channel, NetPeer sender, ReadOnlySpan<NetPeer> clients, DeliveryMethod deliveryMethod = DeliveryMethod.Sequenced, int maxMessages = 70)
     {
-        if (!CheckValidated(writer)) return;
+        if (!CheckValidated(writer))
+        {
+            return;
+        }
 
         foreach (var client in clients)
         {
@@ -116,7 +121,10 @@ public static class NetworkServer
     }
     public static void BroadcastMessageToClients(NetDataWriter writer, byte channel, ReadOnlySpan<NetPeer> clients, DeliveryMethod deliveryMethod = DeliveryMethod.Sequenced, int maxMessages = 70)
     {
-        if (!CheckValidated(writer)) return;
+        if (!CheckValidated(writer))
+        {
+            return;
+        }
 
         foreach (var client in clients)
         {
@@ -126,7 +134,10 @@ public static class NetworkServer
 
     public static void BroadcastMessageToClients(NetDataWriter writer, byte channel, ref List<NetPeer> clients, DeliveryMethod deliveryMethod = DeliveryMethod.Sequenced, int maxMessages = 70)
     {
-        if (!CheckValidated(writer)) return;
+        if (!CheckValidated(writer))
+        {
+            return;
+        }
 
         int count = clients.Count;
         for (int Index = 0; Index < count; Index++)
@@ -148,7 +159,7 @@ public static class NetworkServer
             }
             else
             {
-               // BNL.LogError("Skipping send out of Channel " + channel);
+                // BNL.LogError("Skipping send out of Channel " + channel);
             }
         }
         else

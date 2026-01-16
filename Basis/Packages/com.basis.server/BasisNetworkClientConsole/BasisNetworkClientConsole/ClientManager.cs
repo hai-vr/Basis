@@ -21,6 +21,7 @@ namespace Basis.Network
         public async Task StartClientsAsync()
         {
             Size = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
+            BNL.Log($"Payload Size for muscles is now {Size}");
             List<NetPeer> peers = new();
             var passwordBytes = Encoding.UTF8.GetBytes(ConfigManager.Password);
             var avatarInfo = new BasisAvatarNetworkLoad
@@ -53,7 +54,7 @@ namespace Basis.Network
                         array = MovementSender.Generate().Message.array,
                         AdditionalAvatarDataSize = 0,
                         LinkedAvatarIndex = 0,
-                        DataQualityLevel = 2,
+                        DataQualityLevel = (byte)BitQuality.High,
                         AdditionalAvatarDatas = null,
 
                     }

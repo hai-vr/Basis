@@ -94,7 +94,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static async Task StartBackgroundProcessingAsync()
         {
-            long intervalMs = 5;
+            long intervalMs = 2;
 
             while (!cts.Token.IsCancellationRequested)
             {
