@@ -35,6 +35,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         static NativeArray<uint> sQuantized;        // per-slot quantized ints
         static NativeArray<byte> sPacked;           // packed bitstream output
 
+        // Clamp debug flags (written in Burst job, logged on main thread)
+        // 0 = ok, 1 = hit min, 2 = hit max
+        static NativeArray<byte> sClampFlags;
+
         static int sPackedBits;
         static int sPackedBytes;
 
@@ -137,6 +141,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 Order = sOrder,
                 BitsPerSlot = sBitsPerSlot,
                 OutQuant = sQuantized,
+                ClampFlags = sClampFlags,
             };
 
             // Job B: pack quantized ints into bitstream (single thread)
@@ -160,6 +165,27 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public static void Complete(JobHandle h2, ref LocalAvatarSyncMessage message, int SuppliedIndex)
         {
             h2.Complete();
+
+            // Log clamp hits (must be main thread; Burst jobs cannot call Debug.Log)
+            // If you want to reduce spam, wrap this in DEVELOPMENT_BUILD / UNITY_EDITOR or add throttling.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            for (int slot = 0; slot < sClampFlags.Length; slot++)
+            {
+                byte flag = sClampFlags[slot];
+                if (flag == 0) continue;
+
+                int muscle = sOrder[slot];
+
+                if (flag == 1)
+                {
+                    BasisDebug.LogError($"[BasisNetworkAvatarCompressor] Clamp MIN hit. slot={slot} muscleIndex={muscle}");
+                }
+                else // flag == 2
+                {
+                    BasisDebug.LogError($"[BasisNetworkAvatarCompressor] Clamp MAX hit. slot={slot} muscleIndex={muscle}");
+                }
+            }
+#endif
 
             // Copy packed bytes into final message buffer at offset
             unsafe
@@ -226,12 +252,16 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             sPacked = new NativeArray<byte>(sPackedBytes, Allocator.Persistent);
             sQuantized = new NativeArray<uint>(slots, Allocator.Persistent);
 
+            // Clamp debug flags
+            sClampFlags = new NativeArray<byte>(slots, Allocator.Persistent);
+
             // Fill per-slot arrays
             for (int i = 0; i < slots; i++)
             {
                 sOrder[i] = BasisAvatarBitPacking.WRITE_ORDER[i];
                 sBitsPerSlot[i] = bitsManaged[i];       // <-- HIGH bits
                 sBitOffsets[i] = bitOffsManaged[i];
+                sClampFlags[i] = 0;
             }
 
             // Fill per-muscle LUTs
@@ -278,10 +308,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (sMusclesNative.IsCreated) sMusclesNative.Dispose();
             if (sQuantized.IsCreated) sQuantized.Dispose();
 
+            if (sClampFlags.IsCreated) sClampFlags.Dispose();
+
             sInitialized = false;
         }
 
-        [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
+        [BurstCompile(FloatMode = FloatMode.Default, FloatPrecision = FloatPrecision.Medium)]
         struct QuantizeJob : IJobParallelFor
         {
             [ReadOnly] public NativeArray<float> Muscles;   // index by Unity muscle index
@@ -289,10 +321,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             [ReadOnly] public NativeArray<float> Inv;
             [ReadOnly] public NativeArray<float> Max;
 
-            [ReadOnly] public NativeArray<int> Order;       // slot -> muscle idx
-            [ReadOnly] public NativeArray<byte> BitsPerSlot;// slot -> bits
+            [ReadOnly] public NativeArray<int> Order;        // slot -> muscle idx
+            [ReadOnly] public NativeArray<byte> BitsPerSlot; // slot -> bits
 
-            public NativeArray<uint> OutQuant;              // slot -> q
+            public NativeArray<uint> OutQuant;               // slot -> q
+            public NativeArray<byte> ClampFlags;             // slot -> 0/1/2
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             static uint QuantN(float x01, int bits)
@@ -310,6 +343,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 float inv = Inv[idx];
                 float max = Max[idx];
 
+                // Detect saturation BEFORE clamping so we only log real min/max hits.
+                byte flag = 0;
+                if (v <= min) flag = 1;
+                else if (v >= max) flag = 2;
+                ClampFlags[slot] = flag;
+
                 float clamped = math.clamp(v, min, max);
                 float norm = (inv == 0f) ? 0f : (clamped - min) * inv;
 
@@ -318,7 +357,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
         }
 
-        [BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
+        [BurstCompile(FloatMode = FloatMode.Default, FloatPrecision = FloatPrecision.Medium)]
         struct PackJob : IJob
         {
             [ReadOnly] public NativeArray<byte> BitsPerSlot; // slot -> bits
