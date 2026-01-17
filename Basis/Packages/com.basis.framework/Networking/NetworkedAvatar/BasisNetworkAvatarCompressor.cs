@@ -13,6 +13,9 @@ using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
 using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
+using System;
 
 namespace Basis.Scripts.Networking.NetworkedAvatar
 {
@@ -81,7 +84,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             StoredAvatarData = new BasisStoredAvatarData();
             CompressAvatarData(StoredAvatarData, humanPose, animator, t);
         }
-
         public static void CompressAvatarData(BasisStoredAvatarData AvatarData, HumanPose pose, Animator animator, Transform ScaleTransform)
         {
             EnsureInitialized();
@@ -96,14 +98,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
 
             int offset = 0;
-            var transform = animator.transform;
-           var hips = animator.GetBoneTransform(HumanBodyBones.Hips);
+            Transform hips = BasisLocalAvatarDriver.References.Hips;
             // Position
             BasisUnityBitPackerExtensionsUnsafe.WritePosition(hips.position, ref AvatarData.LASM.array, ref offset);
-
-         //   pose.muscles = new float[95];
-            // Muscles (bitpacked)
-            JobHandle handle = CompressAvatarMuscles_BitPacked(ref pose, ref AvatarData.LASM, ref offset, out int offsetForComplete);
+            JobHandle handle = CompressAvatarMuscles_BitPacked(MiddleMan, ref AvatarData.LASM, ref offset, out int offsetForComplete);
 
             // Scale
             BasisUnityBitPackerExtensionsUnsafe.CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
@@ -114,14 +112,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             Complete(handle, ref AvatarData.LASM, offsetForComplete);
         }
 
-        public static JobHandle CompressAvatarMuscles_BitPacked(ref HumanPose pose, ref LocalAvatarSyncMessage message, ref int offset, out int SuppliedIndex)
+        public static JobHandle CompressAvatarMuscles_BitPacked(float[] pose, ref LocalAvatarSyncMessage message, ref int offset, out int SuppliedIndex)
         {
             EnsureMusclesBuffer(UnityMuscleCount);
 
             // Copy pose.muscles into persistent native buffer (95 floats)
             unsafe
             {
-                fixed (float* src = pose.muscles)
+                fixed (float* src = pose)
                 {
                     UnsafeUtility.MemCpy(sMusclesNative.GetUnsafePtr(), src, sizeof(float) * UnityMuscleCount);
                 }
