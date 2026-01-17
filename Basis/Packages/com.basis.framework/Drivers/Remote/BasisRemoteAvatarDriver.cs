@@ -81,7 +81,9 @@ namespace Basis.Scripts.Drivers
             PutAvatarIntoTPose();
 
             RemotePlayer.BasisAvatar.HumanScale = RemotePlayer.BasisAvatar.Animator.humanScale;
-
+            RemotePlayer.BasisAvatar.Animator.applyRootMotion = false;
+            RemotePlayer.BasisAvatar.Animator.updateMode = AnimatorUpdateMode.Normal;
+            RemotePlayer.BasisAvatar.Animator.speed = 0;
             AvatarInitalScale = Player.BasisAvatar.transform.localScale;
 
             // Auto-detect bone refs and record TPose

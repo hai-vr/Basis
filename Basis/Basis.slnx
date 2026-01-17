@@ -93,6 +93,7 @@
   <Project Path="Unity.XR.Management.csproj" />
   <Project Path="OpusSharp.Core.csproj" />
   <Project Path="Unity.Mathematics.Editor.csproj" />
+  <Project Path="UnityEditor.UI.Analytics.csproj" />
   <Project Path="Unity.XR.Hands.Editor.csproj" />
   <Project Path="HVR.Basis.Comms.HVRUtility.csproj" />
   <Project Path="Unity.Services.Core.Threading.csproj" />

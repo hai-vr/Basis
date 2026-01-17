@@ -39,7 +39,6 @@
     <assembly fullname="LiteNetLib" preserve="all" />
     <assembly fullname="MeaMod.DNS" preserve="all" />
     <assembly fullname="Newtonsoft.Json" preserve="all" />
-    <assembly fullname="Oculus.VR" preserve="all" />
     <assembly fullname="OpusSharp.Core" preserve="all" />
     <assembly fullname="RNNoiseIntergration" preserve="all" />
     <assembly fullname="RenderAs2DModule" preserve="all" />
