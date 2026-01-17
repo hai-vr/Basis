@@ -565,6 +565,7 @@ namespace Basis.Scripts.Drivers
 
             Builder.SyncLayers();
             PlayableGraph.Evaluate(deltaTime);
+            BasisLocalPlayer.Instance.BasisAvatar.Animator.Update(0);
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float ExpAlpha(float hz, float dt)

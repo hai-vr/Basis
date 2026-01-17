@@ -101,7 +101,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             Transform hips = BasisLocalAvatarDriver.References.Hips;
             // Position
             BasisUnityBitPackerExtensionsUnsafe.WritePosition(hips.position, ref AvatarData.LASM.array, ref offset);
-            JobHandle handle = CompressAvatarMuscles_BitPacked(MiddleMan, ref AvatarData.LASM, ref offset, out int offsetForComplete);
+            JobHandle handle = CompressAvatarMuscles_BitPacked(pose.muscles, ref AvatarData.LASM, ref offset, out int offsetForComplete);
 
             // Scale
             BasisUnityBitPackerExtensionsUnsafe.CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
