@@ -2,6 +2,7 @@ using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Receivers;
 using System;
+using Unity.Collections;
 using Unity.Mathematics;
 using static SerializableBasis;
 namespace Basis.Scripts.Networking.NetworkedAvatar
@@ -94,17 +95,23 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             // Position
             if (!BasisUnityBitPackerExtensionsUnsafe.TryReadPosition(ref data, ref offset, out basisAvatarBuffer.Position))
+            {
                 goto Fail;
+            }
 
-            BasisOrderedDataSet.DecompressAvatarMuscles_BitPacked(data, quality, ref basisAvatarBuffer.Muscles, ref offset);
+            DecompressAvatarMuscles_BitPacked(data, quality, ref basisAvatarBuffer.Muscles, ref offset);
 
             // Scale
             if (!BasisUnityBitPackerExtensionsUnsafe.TryReadUShort(ref data, ref offset, out ushort uScale))
+            {
                 goto Fail;
+            }
 
             // Rotation
             if (!BasisUnityBitPackerExtensionsUnsafe.TryReadQuaternionFromBytes(ref data, ref offset, out basisAvatarBuffer.Rotation))
+            {
                 goto Fail;
+            }
 
             basisAvatarBuffer.Scale = MuscleDecompress(uScale, MinimumValueSupported, MaximumValueSupported);
             basisAvatarBuffer.SecondsInterval = secondsInterval;
@@ -120,7 +127,37 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             BasisDebug.LogError($"non finite data found in Decompression Stage, bailing.", BasisDebug.LogTag.Remote);
             return false;
         }
+        public static void DecompressAvatarMuscles_BitPacked(byte[] data,BasisAvatarBitPacking.BitQuality quality,ref NativeArray<float> outputArray,ref int offsetBytes)
+        {
+            int bitPos = offsetBytes << 3;
+            int slots = BasisAvatarBitPacking.WRITE_ORDER.Length;
+            byte[] bitsPerSlot = BasisAvatarBitPacking.GetBitsPerSlot(quality);
 
+            for (int slot = 0; slot < slots; slot++)
+            {
+                int muscleIndex = BasisAvatarBitPacking.WRITE_ORDER[slot];
+                int bits = bitsPerSlot[slot];
+
+                uint q = BasisOrderedDataSet.ReadBits(data, ref bitPos, bits);
+
+                uint maxQ = (bits >= 32) ? 0xFFFFFFFFu : ((1u << bits) - 1u);
+                float norm = (maxQ == 0u) ? 0f : (q / (float)maxQ);
+
+                float min = BasisOrderedDataSet.MinMuscle[muscleIndex];
+                float max = BasisOrderedDataSet.MaxMuscle[muscleIndex];
+                float range = BasisOrderedDataSet.RangeMuscle[muscleIndex];
+
+                float value = min + norm * range;
+                if (!math.isfinite(value))
+                {
+                    value = min;
+                }
+
+                outputArray[muscleIndex] = math.clamp(value, min, max);
+            }
+
+            offsetBytes = (bitPos + 7) >> 3;
+        }
         /// <summary>
         /// cant generate a nan unless min,max or floatrangedifference go bad (const cant)
         /// </summary>

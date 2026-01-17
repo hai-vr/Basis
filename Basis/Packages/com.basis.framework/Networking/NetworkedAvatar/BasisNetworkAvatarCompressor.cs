@@ -161,7 +161,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             return h2;
         }
-
         public static void Complete(JobHandle h2, ref LocalAvatarSyncMessage message, int SuppliedIndex)
         {
             h2.Complete();
