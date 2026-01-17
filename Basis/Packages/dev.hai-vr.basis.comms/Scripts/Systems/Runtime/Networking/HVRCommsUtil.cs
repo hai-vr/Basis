@@ -13,13 +13,13 @@ namespace HVR.Basis.Comms
 {
     public class HVRCommsUtil
     {
-        public static T GetOrCreateSceneInstance<T>(ref T instance) where T : Component
+        public static TComp GetOrCreateSceneInstance<TComp>(ref TComp instance) where TComp : Component
         {
             if (instance != null) return instance;
 
-            var go = new GameObject($"HVR.{typeof(T).Name}");
+            var go = new GameObject($"HVR.{typeof(TComp).Name}");
             Object.DontDestroyOnLoad(go);
-            instance = go.AddComponent<T>();
+            instance = go.AddComponent<TComp>();
 
             return instance;
         }
