@@ -1,6 +1,7 @@
-using System;
+using Basis.Network.Core.Compression;
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
+using static SerializableBasis;
 
 namespace Basis.Scripts.Networking.Compression
 {
@@ -157,5 +158,27 @@ namespace Basis.Scripts.Networking.Compression
             }
             offset += 12;
         }
+        public static void CompressScale(float scale, ref LocalAvatarSyncMessage message, ref int offset)
+        {
+
+            float clamped = math.clamp(scale, BasisAvatarBitPacking.MinScale, BasisAvatarBitPacking.MaxScale);
+            float normalized = (clamped - BasisAvatarBitPacking.MinScale) / BasisAvatarBitPacking.ComputedRange;
+
+            ushort compressed = (ushort)(normalized * BasisAvatarBitPacking.UShortRangeDifference);
+            WriteUShort(compressed, ref message.array, ref offset);
+        }
+        /// <summary>
+        /// cant generate a nan unless min,max or floatrangedifference go bad (const cant)
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="minValue"></param>
+        /// <param name="maxValue"></param>
+        /// <returns></returns>
+        public static float DecompressScale(ushort value)
+        {
+            float normalized = (float)value / BasisAvatarBitPacking.UShortRangeDifference;
+            return normalized * (BasisAvatarBitPacking.MaxScale - BasisAvatarBitPacking.MinScale) + BasisAvatarBitPacking.MinScale;
+        }
+
     }
 }

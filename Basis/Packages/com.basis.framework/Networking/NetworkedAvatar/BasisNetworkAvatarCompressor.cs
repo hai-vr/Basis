@@ -104,7 +104,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             JobHandle handle = CompressAvatarMuscles_BitPacked(ref pose, ref AvatarData.LASM, ref offset, out int offsetForComplete);
 
             // Scale
-            CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
+            BasisUnityBitPackerExtensionsUnsafe.CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
 
             // Rotation
             BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset);
@@ -196,20 +196,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 }
             }
         }
-
-        public static void CompressScale(float scale, ref LocalAvatarSyncMessage message, ref int offset)
-        {
-            const float Min = 0.005f;
-            const float Max = 150f;
-            const float range = Max - Min;
-
-            float clamped = math.clamp(scale, Min, Max);
-            float normalized = (clamped - Min) / range;
-
-            ushort compressed = (ushort)(normalized * BasisAvatarBitPacking.UShortRangeDifference);
-            BasisUnityBitPackerExtensionsUnsafe.WriteUShort(compressed, ref message.array, ref offset);
-        }
-
         static void EnsureInitialized()
         {
             if (sInitialized) return;

@@ -9,12 +9,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 {
     public static class BasisNetworkAvatarDecompressor
     {
-        private const float MinimumValueSupported = 0.005f;
-        private const float MaximumValueSupported = 150f;
-        private const ushort UShortMin = ushort.MinValue;
-        private const ushort UShortMax = ushort.MaxValue;
-        private const float FloatRangeDifference = UShortMax - UShortMin;
-
         public static void DecompressAndProcessAvatar(BasisNetworkReceiver baseReceiver, ServerSideSyncPlayerMessage syncMessage)
         {
             if (syncMessage.avatarSerialization.array == null)
@@ -113,7 +107,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 goto Fail;
             }
 
-            basisAvatarBuffer.Scale = MuscleDecompress(uScale, MinimumValueSupported, MaximumValueSupported);
+            basisAvatarBuffer.Scale = BasisUnityBitPackerExtensionsUnsafe.DecompressScale(uScale);
             basisAvatarBuffer.SecondsInterval = secondsInterval;
             return true;
 
@@ -157,18 +151,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
 
             offsetBytes = (bitPos + 7) >> 3;
-        }
-        /// <summary>
-        /// cant generate a nan unless min,max or floatrangedifference go bad (const cant)
-        /// </summary>
-        /// <param name="value"></param>
-        /// <param name="minValue"></param>
-        /// <param name="maxValue"></param>
-        /// <returns></returns>
-        public static float MuscleDecompress(ushort value, float minValue, float maxValue)
-        {
-            float normalized = value / FloatRangeDifference;
-            return normalized * (maxValue - minValue) + minValue;
         }
 
         private static void EnqueueAndProcessAdditionalData(BasisNetworkReceiver baseReceiver, BasisAvatarBuffer avatarBuffer, LocalAvatarSyncMessage message)
