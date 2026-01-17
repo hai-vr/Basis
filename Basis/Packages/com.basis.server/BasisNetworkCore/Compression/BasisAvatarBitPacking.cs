@@ -13,7 +13,7 @@ namespace Basis.Network.Core.Compression
         public const int WriteScale = 2;
         public const int WriteRotation = 7;
 
-        private const int TailBytes = WriteScale + WriteRotation; // 9
+        public const int TailBytes = WriteScale + WriteRotation; // 9
 
         // Expanded ladder (anchors preserved: Low/Medium/High)
         public enum BitQuality : byte
@@ -95,19 +95,19 @@ namespace Basis.Network.Core.Compression
             17,18,
             17,16,
 
-            // Left Fingers
-            12,14,12,12,
-            12,13,12,12,
-            12,12,12,12,
-            12,12,12,12,
-            12,13,12,12,
+            // Left Hand Fingers (49..68 -> muscles 55..74)
+            8,13,8,8,
+            8,13,8,8,
+            8,13,8,8,
+            8,13,8,8,
+            8,13,8,8,
 
-            // Right Fingers
-            12,14,12,12,
-            12,13,12,12,
-            12,12,12,12,
-            12,12,12,12,
-            12,13,12,12,
+            // Right Hand Fingers (69..88 -> muscles 75..94)
+            8,13,8,8,
+            8,13,8,8,
+            8,13,8,8,
+            8,13,8,8,
+            8,13,8,8,
 };
         // ---------------------------------------------------------------------
         // Anchors (YOUR EXISTING TABLES): keep exactly as authored.
@@ -144,18 +144,18 @@ namespace Basis.Network.Core.Compression
             15,14,
 
             // Left Hand Fingers (49..68 -> muscles 55..74)
-            8,13,8,8,
             8,12,8,8,
             8,11,8,8,
+            8,10,8,8,
+            8,10,8,8,
             8,11,8,8,
-            8,12,8,8,
 
             // Right Hand Fingers (69..88 -> muscles 75..94)
-            8,13,8,8,
             8,12,8,8,
             8,11,8,8,
+            8,10,8,8,
+            8,10,8,8,
             8,11,8,8,
-            8,12,8,8,
         };
 
         public static readonly byte[] BITS_PER_SLOT_LOW = new byte[]
@@ -189,38 +189,38 @@ namespace Basis.Network.Core.Compression
             11,12,
             11,10,
 
-            // Left Fingers
-            9,10,9,9,
-            9,10,9,9,
-            9,9,9,9,
-            9,9,9,9,
-            9,10,9,9,
+            // Left Hand Fingers (49..68 -> muscles 55..74)
+            8,9,8,8,
+            8,9,8,8,
+            8,9,8,8,
+            8,9,8,8,
+            8,9,8,8,
 
-            // Right Fingers
-            9,10,9,9,
-            9,10,9,9,
-            9,9,9,9,
-            9,9,9,9,
-            9,10,9,9,
+            // Right Hand Fingers (69..88 -> muscles 75..94)
+            8,9,8,8,
+            8,9,8,8,
+            8,9,8,8,
+            8,9,8,8,
+            8,9,8,8,
         };
         public static readonly byte[] BITS_PER_SLOT_VERY_LOW = new byte[]
         {
     // Spine / Chest / Head (0..14)
-    9,9,9,
-    9,9,9,
-    9,9,9,
-    9,9,9,
-    9,9,9,
+    9,10,9,
+    9,10,9,
+    9,10,9,
+    9,10,9,
+    9,10,9,
 
     // Left Leg (15..22)
     9,9,9,
-    9,9,9,
-    9,9,
+    9,10,9,
+    9,10,
 
     // Right Leg (23..30)
     9,9,9,
-    9,9,9,
-    9,9,
+    9,10,9,
+    9,10,
 
     // Left Arm (31..39)
     9,9,
@@ -234,19 +234,19 @@ namespace Basis.Network.Core.Compression
     9,9,
     9,9,
 
-    // Left Hand Fingers (49..68)
-    9,9,9,9,
-    9,9,9,9,
-    9,9,9,9,
-    9,9,9,9,
-    9,9,9,9,
+// Left Hand Fingers (49..68)
+8,8,8,8,
+8,8,8,8,
+8,8,8,8,
+8,8,8,8,
+8,8,8,8,
 
-    // Right Hand Fingers (69..88)
-    9,9,9,9,
-    9,9,9,9,
-    9,9,9,9,
-    9,9,9,9,
-    9,9,9,9,
+// Right Hand Fingers (69..88)
+8,8,8,8,
+8,8,8,8,
+8,8,8,8,
+8,8,8,8,
+8,8,8,8,
         };
         public static int TotalMuscles = 95;
         public const ushort UShortMin = ushort.MinValue;
