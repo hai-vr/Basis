@@ -1,3 +1,4 @@
+using Basis.Network.Core.Compression;
 using System;
 using System.Buffers;
 using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
@@ -6,9 +7,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 {
     public static class AvatarQualityRepacker
     {
-        const int PosBytes = 12;
-        const int TailBytes = 2 + 16;
-
         // Cache bits per slot for all qualities we care about
         static readonly byte[] HighBits = GetBitsPerSlot(BitQuality.High);
         static readonly byte[] MedBits = GetBitsPerSlot(BitQuality.Medium);
@@ -24,10 +22,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         static readonly int VLowMuscleBytes = MuscleBytes(BitQuality.VeryLow);
 
         // Cache payload sizes
-        static readonly int HighPayloadSize = PosBytes + HighMuscleBytes + TailBytes;
-        static readonly int MedPayloadSize = PosBytes + MedMuscleBytes + TailBytes;
-        static readonly int LowPayloadSize = PosBytes + LowMuscleBytes + TailBytes;
-        static readonly int VLowPayloadSize = PosBytes + VLowMuscleBytes + TailBytes;
+        static readonly int HighPayloadSize = BasisAvatarBitPacking.WritePosition + HighMuscleBytes + TailBytes;
+        static readonly int MedPayloadSize = BasisAvatarBitPacking.WritePosition + MedMuscleBytes + TailBytes;
+        static readonly int LowPayloadSize = BasisAvatarBitPacking.WritePosition + LowMuscleBytes + TailBytes;
+        static readonly int VLowPayloadSize = BasisAvatarBitPacking.WritePosition + VLowMuscleBytes + TailBytes;
 
         // Cache bit offsets for each quality (no per-call allocations)
         static readonly int[] HighOffs = BuildBitOffsets(HighBits);
@@ -63,15 +61,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             EnsureBuffer(ref veryLow, BitQuality.VeryLow, VLowPayloadSize);
 
             // Copy position
-            Buffer.BlockCopy(srcHigh.array, 0, medium.array, 0, PosBytes);
-            Buffer.BlockCopy(srcHigh.array, 0, low.array, 0, PosBytes);
-            Buffer.BlockCopy(srcHigh.array, 0, veryLow.array, 0, PosBytes);
+            Buffer.BlockCopy(srcHigh.array, 0, medium.array, 0, BasisAvatarBitPacking.WritePosition);
+            Buffer.BlockCopy(srcHigh.array, 0, low.array, 0, BasisAvatarBitPacking.WritePosition);
+            Buffer.BlockCopy(srcHigh.array, 0, veryLow.array, 0, BasisAvatarBitPacking.WritePosition);
 
-            int srcMuscleBase = PosBytes;
+            int srcMuscleBase = BasisAvatarBitPacking.WritePosition;
 
-            int medMuscleBase = PosBytes;
-            int lowMuscleBase = PosBytes;
-            int vlowMuscleBase = PosBytes;
+            int medMuscleBase = BasisAvatarBitPacking.WritePosition;
+            int lowMuscleBase = BasisAvatarBitPacking.WritePosition;
+            int vlowMuscleBase = BasisAvatarBitPacking.WritePosition;
 
             // Clear only muscle regions because BitWriter ORs into bytes
             Array.Clear(medium.array, medMuscleBase, MedMuscleBytes);
@@ -98,11 +96,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             // Copy tail
-            int srcTailOffset = PosBytes + HighMuscleBytes;
+            int srcTailOffset = BasisAvatarBitPacking.WritePosition + HighMuscleBytes;
 
-            Buffer.BlockCopy(srcHigh.array, srcTailOffset, medium.array, PosBytes + MedMuscleBytes, TailBytes);
-            Buffer.BlockCopy(srcHigh.array, srcTailOffset, low.array, PosBytes + LowMuscleBytes, TailBytes);
-            Buffer.BlockCopy(srcHigh.array, srcTailOffset, veryLow.array, PosBytes + VLowMuscleBytes, TailBytes);
+            Buffer.BlockCopy(srcHigh.array, srcTailOffset, medium.array, BasisAvatarBitPacking.WritePosition + MedMuscleBytes, TailBytes);
+            Buffer.BlockCopy(srcHigh.array, srcTailOffset, low.array, BasisAvatarBitPacking.WritePosition + LowMuscleBytes, TailBytes);
+            Buffer.BlockCopy(srcHigh.array, srcTailOffset, veryLow.array, BasisAvatarBitPacking.WritePosition + VLowMuscleBytes, TailBytes);
         }
 
         static void EnsureBuffer(ref SerializableBasis.LocalAvatarSyncMessage msg, BitQuality q, int size)

@@ -13,7 +13,7 @@ namespace Basis.Network.Core.Compression
         public const int WriteScale = 2;
         public const int WriteRotation = 7;
 
-        private const int TailBytes = WriteScale + WriteRotation; // 9
+        public const int TailBytes = WriteScale + WriteRotation; // 9
 
         // Expanded ladder (anchors preserved: Low/Medium/High)
         public enum BitQuality : byte
