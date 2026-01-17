@@ -206,7 +206,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             float clamped = math.clamp(scale, Min, Max);
             float normalized = (clamped - Min) / range;
 
-            ushort compressed = (ushort)(normalized * BasisOrderedDataSet.UShortRangeDifference);
+            ushort compressed = (ushort)(normalized * BasisAvatarBitPacking.UShortRangeDifference);
             BasisUnityBitPackerExtensionsUnsafe.WriteUShort(compressed, ref message.array, ref offset);
         }
 
@@ -215,8 +215,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (sInitialized) return;
 
             // These must already be initialized by BasisOrderedDataSet.Initalize()
-            var minT = BasisOrderedDataSet.MinMuscle;
-            var rangeT = BasisOrderedDataSet.RangeMuscle;
+            var minT = BasisAvatarBitPacking.MinMuscle;
+            var rangeT = BasisAvatarBitPacking.RangeMuscle;
 
             if (minT == null || rangeT == null || minT.Length != UnityMuscleCount || rangeT.Length != UnityMuscleCount)
             {

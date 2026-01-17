@@ -138,14 +138,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 int muscleIndex = BasisAvatarBitPacking.WRITE_ORDER[slot];
                 int bits = bitsPerSlot[slot];
 
-                uint q = BasisOrderedDataSet.ReadBits(data, ref bitPos, bits);
+                uint q = BasisAvatarBitPacking.ReadBits(data, ref bitPos, bits);
 
                 uint maxQ = (bits >= 32) ? 0xFFFFFFFFu : ((1u << bits) - 1u);
                 float norm = (maxQ == 0u) ? 0f : (q / (float)maxQ);
 
-                float min = BasisOrderedDataSet.MinMuscle[muscleIndex];
-                float max = BasisOrderedDataSet.MaxMuscle[muscleIndex];
-                float range = BasisOrderedDataSet.RangeMuscle[muscleIndex];
+                float min = BasisAvatarBitPacking.MinMuscle[muscleIndex];
+                float max = BasisAvatarBitPacking.MaxMuscle[muscleIndex];
+                float range = BasisAvatarBitPacking.RangeMuscle[muscleIndex];
 
                 float value = min + norm * range;
                 if (!math.isfinite(value))
