@@ -179,6 +179,171 @@ namespace Basis.Scripts.Networking.Compression
             float normalized = (float)value / BasisAvatarBitPacking.UShortRangeDifference;
             return normalized * (BasisAvatarBitPacking.MaxScale - BasisAvatarBitPacking.MinScale) + BasisAvatarBitPacking.MinScale;
         }
+        private const float InvSqrt2 = 0.7071067811865475f; // 1/sqrt(2)
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static quaternion NormalizeSafe(quaternion q)
+        {
+            float x = q.value.x, y = q.value.y, z = q.value.z, w = q.value.w;
+            float lenSq = x * x + y * y + z * z + w * w;
+            if (!(lenSq > 1e-12f) || !math.isfinite(lenSq))
+                return new quaternion(0f, 0f, 0f, 1f);
+
+            float inv = math.rsqrt(lenSq);
+            return new quaternion(x * inv, y * inv, z * inv, w * inv);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float GetComp(in quaternion q, int i)
+        {
+            switch (i)
+            {
+                case 0: return q.value.x;
+                case 1: return q.value.y;
+                case 2: return q.value.z;
+                default: return q.value.w;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void SetComp(ref quaternion q, int i, float v)
+        {
+            float4 f = q.value;
+            switch (i)
+            {
+                case 0: f.x = v; break;
+                case 1: f.y = v; break;
+                case 2: f.z = v; break;
+                default: f.w = v; break;
+            }
+            q.value = f;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ushort QuantizeSmall(float v)
+        {
+            v = math.clamp(v, -InvSqrt2, InvSqrt2);
+            // map [-InvSqrt2, +InvSqrt2] -> [0, 65535]
+            float t = (v + InvSqrt2) / (2f * InvSqrt2); // [0..1]
+            int qi = (int)math.round(t * 65535f);
+            qi = math.clamp(qi, 0, 65535);
+            return (ushort)qi;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float DequantizeSmall(ushort q)
+        {
+            float t = q / 65535f;                 // [0..1]
+            return t * (2f * InvSqrt2) - InvSqrt2; // [-InvSqrt2..InvSqrt2]
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void GetSmallestThree(in quaternion q, int largest, out float a, out float b, out float c)
+        {
+            a = b = c = 0f;
+            int k = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                if (i == largest) continue;
+                float v = GetComp(q, i);
+                if (k == 0) a = v;
+                else if (k == 1) b = v;
+                else c = v;
+                k++;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static quaternion BuildFromSmallestThree(int largest, float a, float b, float c, float missing)
+        {
+            quaternion q = new quaternion(0f, 0f, 0f, 0f);
+            int k = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                float v;
+                if (i == largest) v = missing;
+                else
+                {
+                    v = (k == 0) ? a : (k == 1) ? b : c;
+                    k++;
+                }
+                SetComp(ref q, i, v);
+            }
+            return q;
+        }
+        public static void WriteCompressedQuaternionToBytes(quaternion q, ref byte[] bytes, ref int offset)
+        {
+            EnsureSpace(bytes, offset, 7);
+
+            q = NormalizeSafe(q);
+
+            float ax = math.abs(q.value.x);
+            float ay = math.abs(q.value.y);
+            float az = math.abs(q.value.z);
+            float aw = math.abs(q.value.w);
+
+            int largest = 0;
+            float max = ax;
+            if (ay > max) { largest = 1; max = ay; }
+            if (az > max) { largest = 2; max = az; }
+            if (aw > max) { largest = 3; max = aw; }
+
+            if (GetComp(q, largest) < 0f)
+                q = new quaternion(-q.value.x, -q.value.y, -q.value.z, -q.value.w);
+
+            GetSmallestThree(q, largest, out float a, out float b, out float c);
+
+            ushort qa = QuantizeSmall(a);
+            ushort qb = QuantizeSmall(b);
+            ushort qc = QuantizeSmall(c);
+
+            bytes[offset++] = (byte)largest;
+            WriteUShort(qa, ref bytes, ref offset);
+            WriteUShort(qb, ref bytes, ref offset);
+            WriteUShort(qc, ref bytes, ref offset);
+        }
+        /// <summary>
+        /// Safe-ish read: returns false if out of bounds or components invalid.
+        /// </summary>
+        public static bool TryReadCompressedQuaternionFromBytes(
+            ref byte[] bytes,
+            ref int offset,
+            out quaternion q,
+            float unitLengthTolerance = 0.02f,
+            bool requireUnitLength = true)
+        {
+            q = default;
+            if (!EnsureSpace(bytes, offset, 7)) return false;
+
+            int largest = bytes[offset++];
+            if ((uint)largest > 3u) return false;
+
+            ushort qa = ReadUShort(ref bytes, ref offset);
+            ushort qb = ReadUShort(ref bytes, ref offset);
+            ushort qc = ReadUShort(ref bytes, ref offset);
+
+            float a = DequantizeSmall(qa);
+            float b = DequantizeSmall(qb);
+            float c = DequantizeSmall(qc);
+
+            if (!math.isfinite(a) | !math.isfinite(b) | !math.isfinite(c))
+                return false;
+
+            float sum = a * a + b * b + c * c;
+            float missing = math.sqrt(math.max(0f, 1f - sum)); // >= 0, because largest forced positive
+
+            q = BuildFromSmallestThree(largest, a, b, c, missing);
+            q = NormalizeSafe(q);
+
+            if (requireUnitLength)
+            {
+                float4 v = q.value;
+                float lenSq = v.x * v.x + v.y * v.y + v.z * v.z + v.w * v.w;
+                if (!(lenSq > 0f) || !math.isfinite(lenSq)) return false;
+                if (math.abs(lenSq - 1f) > unitLengthTolerance) return false;
+            }
+
+            return true;
+        }
     }
 }

@@ -5,14 +5,15 @@ namespace Basis.Network.Core.Compression
         public const int FloatSize = sizeof(float);
         public const int UShortSize = sizeof(ushort);
         public const int Vector3Size = 3 * FloatSize;
+        public const float MinScale = 0.005f;
+        public const float MaxScale = 150f;
+        public const float ComputedRange = MaxScale - MinScale;
 
-        // Layout:
-        // Position (12) -> Muscles (bitstream) -> Scale (2) -> Rotation (16)
         public const int WritePosition = 12;
         public const int WriteScale = 2;
-        public const int WriteRotation = 16;
+        public const int WriteRotation = 7;
 
-        private const int TailBytes = WriteScale + WriteRotation; // 18
+        private const int TailBytes = WriteScale + WriteRotation; // 9
 
         // Expanded ladder (anchors preserved: Low/Medium/High)
         public enum BitQuality : byte

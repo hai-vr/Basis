@@ -107,7 +107,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             BasisUnityBitPackerExtensionsUnsafe.CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
 
             // Rotation
-            BasisUnityBitPackerExtensionsUnsafe.WriteQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset);
+            BasisUnityBitPackerExtensionsUnsafe.WriteCompressedQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset);
 
             Complete(handle, ref AvatarData.LASM, offsetForComplete);
         }

@@ -102,7 +102,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
 
             // Rotation
-            if (!BasisUnityBitPackerExtensionsUnsafe.TryReadQuaternionFromBytes(ref data, ref offset, out basisAvatarBuffer.Rotation))
+            if (!BasisUnityBitPackerExtensionsUnsafe.TryReadCompressedQuaternionFromBytes(ref data, ref offset, out basisAvatarBuffer.Rotation))
             {
                 goto Fail;
             }
