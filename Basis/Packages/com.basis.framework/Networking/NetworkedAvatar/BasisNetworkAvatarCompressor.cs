@@ -35,9 +35,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         static NativeArray<uint> sQuantized;        // per-slot quantized ints
         static NativeArray<byte> sPacked;           // packed bitstream output
 
-        // NEW: per-slot previous quantized for hysteresis (deadband)
-        static NativeArray<uint> sPrevQuant;
-
         // Clamp debug flags (written in Burst job, logged on main thread)
         // 0 = ok, 1 = hit min, 2 = hit max
         static NativeArray<byte> sClampFlags;
@@ -47,10 +44,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
         // We lock the wire format to HIGH
         static readonly BitQuality WireQuality = BitQuality.High;
-
-        // NEW: jitter control in quantized space (0 = off, 1..3 typical)
-        // 1 means "must move at least 2 quant steps total to change"
-        const uint QuantHysteresisSteps = 1;
 
         public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
         {
@@ -70,10 +63,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
 
-            BasisNetworkConnection.LocalPlayerPeer.Send(
-                transmitter.AvatarSendWriter,
-                BasisNetworkCommons.PlayerAvatarChannel,
-                DeliveryMethod.Sequenced);
+            BasisNetworkConnection.LocalPlayerPeer.Send(transmitter.AvatarSendWriter, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
 
             transmitter.AvatarSendWriter.Reset();
             transmitter.ClearAdditional();
@@ -101,7 +91,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             AvatarData.LASM.DataQualityLevel = (byte)WireQuality;
             AvatarData.LASM.array ??= new byte[needed];
             if (AvatarData.LASM.array.Length != needed)
+            {
                 AvatarData.LASM.array = new byte[needed];
+            }
 
             int offset = 0;
 
@@ -150,9 +142,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 BitsPerSlot = sBitsPerSlot,
                 OutQuant = sQuantized,
                 ClampFlags = sClampFlags,
-
-                PrevQuant = sPrevQuant,
-                HysteresisSteps = QuantHysteresisSteps,
             };
 
             // Job B: pack quantized ints into bitstream (single thread)
@@ -177,6 +166,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             h2.Complete();
 
+            // Log clamp hits (must be main thread; Burst jobs cannot call Debug.Log)
+            // If you want to reduce spam, wrap this in DEVELOPMENT_BUILD / UNITY_EDITOR or add throttling.
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             for (int slot = 0; slot < sClampFlags.Length; slot++)
             {
@@ -186,9 +177,13 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 int muscle = sOrder[slot];
 
                 if (flag == 1)
+                {
                     BasisDebug.LogError($"[BasisNetworkAvatarCompressor] Clamp MIN hit. slot={slot} muscleIndex={muscle}");
-                else
+                }
+                else // flag == 2
+                {
                     BasisDebug.LogError($"[BasisNetworkAvatarCompressor] Clamp MAX hit. slot={slot} muscleIndex={muscle}");
+                }
             }
 #endif
 
@@ -257,9 +252,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             sPacked = new NativeArray<byte>(sPackedBytes, Allocator.Persistent);
             sQuantized = new NativeArray<uint>(slots, Allocator.Persistent);
 
-            // NEW: previous quant values for hysteresis
-            sPrevQuant = new NativeArray<uint>(slots, Allocator.Persistent);
-
             // Clamp debug flags
             sClampFlags = new NativeArray<byte>(slots, Allocator.Persistent);
 
@@ -270,7 +262,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 sBitsPerSlot[i] = bitsManaged[i];       // <-- HIGH bits
                 sBitOffsets[i] = bitOffsManaged[i];
                 sClampFlags[i] = 0;
-                sPrevQuant[i] = 0;
             }
 
             // Fill per-muscle LUTs
@@ -317,8 +308,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             if (sMusclesNative.IsCreated) sMusclesNative.Dispose();
             if (sQuantized.IsCreated) sQuantized.Dispose();
 
-            if (sPrevQuant.IsCreated) sPrevQuant.Dispose();
-
             if (sClampFlags.IsCreated) sClampFlags.Dispose();
 
             sInitialized = false;
@@ -338,43 +327,11 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             public NativeArray<uint> OutQuant;               // slot -> q
             public NativeArray<byte> ClampFlags;             // slot -> 0/1/2
 
-            // NEW: hysteresis support
-            public NativeArray<uint> PrevQuant;
-            public uint HysteresisSteps;
-
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            static uint QuantN_RoundHalfUp(float x01, int bits)
+            static uint QuantN(float x01, int bits)
             {
-                // NOTE: your bit tables are well under 32, so (1u << bits) is safe.
-                uint maxQ = (uint)((1u << bits) - 1u);
-
-                x01 = math.clamp(x01, 0f, 1f);
-
-                float scaled = x01 * maxQ;
-                int qi = (int)math.floor(scaled + 0.5f);
-
-                if (qi < 0) qi = 0;
-                int maxQi = (int)maxQ;
-                if (qi > maxQi) qi = maxQi;
-
-                return (uint)qi;
-            }
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            static uint ApplyHysteresis(uint prev, uint cur, uint steps)
-            {
-                if (steps == 0) return cur;
-
-                if (cur > prev)
-                {
-                    if (cur - prev <= steps) return prev;
-                    return cur;
-                }
-                else
-                {
-                    if (prev - cur <= steps) return prev;
-                    return cur;
-                }
+                uint maxQ = (uint)((1 << bits) - 1);
+                return (uint)math.round(x01 * maxQ);
             }
 
             public void Execute(int slot)
@@ -396,14 +353,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 float norm = (inv == 0f) ? 0f : (clamped - min) * inv;
 
                 int bits = BitsPerSlot[slot];
-                uint q = QuantN_RoundHalfUp(norm, bits);
-
-                // Hysteresis in quantized space (kills bin flip-flop jitter)
-                uint prev = PrevQuant[slot];
-                q = ApplyHysteresis(prev, q, HysteresisSteps);
-
-                OutQuant[slot] = q;
-                PrevQuant[slot] = q;
+                OutQuant[slot] = QuantN(norm, bits);
             }
         }
 
@@ -445,7 +395,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                     int room = 8 - bitInByte;
                     int take = bitsLeft < room ? bitsLeft : room;
 
-                    uint mask = (uint)((1u << take) - 1u);
+                    uint mask = (uint)((1 << take) - 1);
                     byte chunk = (byte)(v & mask);
 
                     byte cur = dst[bytePos];
