@@ -96,10 +96,12 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
 
             int offset = 0;
-
+            var transform = animator.transform;
+           var hips = animator.GetBoneTransform(HumanBodyBones.Hips);
             // Position
-            BasisUnityBitPackerExtensionsUnsafe.WritePosition(animator.bodyPosition, ref AvatarData.LASM.array, ref offset);
+            BasisUnityBitPackerExtensionsUnsafe.WritePosition(hips.position, ref AvatarData.LASM.array, ref offset);
 
+         //   pose.muscles = new float[95];
             // Muscles (bitpacked)
             JobHandle handle = CompressAvatarMuscles_BitPacked(ref pose, ref AvatarData.LASM, ref offset, out int offsetForComplete);
 
@@ -107,7 +109,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             BasisUnityBitPackerExtensionsUnsafe.CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
 
             // Rotation
-            BasisUnityBitPackerExtensionsUnsafe.WriteCompressedQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset);
+            BasisUnityBitPackerExtensionsUnsafe.WriteCompressedQuaternionToBytes(hips.rotation, ref AvatarData.LASM.array, ref offset);
 
             Complete(handle, ref AvatarData.LASM, offsetForComplete);
         }
