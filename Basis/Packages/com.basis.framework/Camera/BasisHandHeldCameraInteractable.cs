@@ -168,7 +168,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
                                BasisHeightDriver.AvatarToPlayerScale;
 
         // run after player movement
-        BasisLocalPlayer.AfterFinalMove.AddAction(202, UpdateCamera);
+        BasisLocalPlayer.AfterSimulateOnRender.AddAction(202, UpdateCamera);
 
         cameraPinConstraint = new BasisParentConstraint
         {
@@ -642,7 +642,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         OnInteractStartEvent -= OnInteractDesktopTweak;
         BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnHeightChanged;
 
-        BasisLocalPlayer.AfterFinalMove.RemoveAction(202, UpdateCamera);
+        BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(202, UpdateCamera);
 
         if (pauseMove)
         {

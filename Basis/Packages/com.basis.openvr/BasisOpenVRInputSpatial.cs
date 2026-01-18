@@ -29,7 +29,10 @@ namespace Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking
             BasisOpenVRInputEye.Shutdown();
             base.OnDestroy();
         }
-        public override void DoPollData()
+        public override void LateDoPollData()
+        {
+        }
+        public override void RenderPollData()
         {
             if (PoseDataSource.TryGetDataFromSource(TrackedPose, out Pose resultPose))
             {

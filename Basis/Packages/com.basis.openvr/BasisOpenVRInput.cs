@@ -21,7 +21,11 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             Device = device;
             InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole);
         }
-        public override void DoPollData()
+        public override void LateDoPollData()
+        {
+            
+        }
+        public override void RenderPollData()
         {
             if (SteamVR.active)
             {

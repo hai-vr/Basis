@@ -16,17 +16,17 @@ public static class BasisLocalHeightCalculator
         if (BasisDeviceManagement.Instance.FindDevice(out BasisInput leftHand, BasisBoneTrackedRole.LeftHand))
         {
             hasLeftHand = true;
-            leftHand.PollData();
+            leftHand.LatePollData();
         }
         if (BasisDeviceManagement.Instance.FindDevice(out BasisInput rightHand, BasisBoneTrackedRole.RightHand))
         {
             hasRightHand = true;
-            rightHand.PollData();
+            rightHand.LatePollData();
         }
         var lockToInput = BasisLocalCameraDriver.Instance?.BasisLockToInput;
         if (lockToInput != null && lockToInput.BasisInput != null)
         {
-            lockToInput.BasisInput.PollData();
+            lockToInput.BasisInput.LatePollData();
             HeadPosition = lockToInput.BasisInput.UnscaledDeviceCoord.position;
         }
         else
@@ -72,7 +72,7 @@ public static class BasisLocalHeightCalculator
             var lockToInput = BasisLocalCameraDriver.Instance?.BasisLockToInput;
             if (lockToInput != null && lockToInput.BasisInput != null)
             {
-                lockToInput.BasisInput.PollData();
+                lockToInput.BasisInput.LatePollData();
                 BasisHeightDriver.PlayerEyeHeight = lockToInput.BasisInput.UnscaledDeviceCoord.position.y;
                 BasisDebug.Log($"Player raw eye height from device: {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
             }

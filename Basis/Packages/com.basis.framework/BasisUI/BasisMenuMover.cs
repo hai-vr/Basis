@@ -91,7 +91,7 @@ namespace Basis.BasisUI
 
             if (_hasLocalMoveEvent)
             {
-                BasisLocalPlayer.AfterFinalMove.RemoveAction(120, UpdateUILocation);
+                BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(120, UpdateUILocation);
             }
 
             BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
@@ -178,11 +178,11 @@ namespace Basis.BasisUI
             {
                 if (value)
                 {
-                    BasisLocalPlayer.AfterFinalMove.AddAction(120, UpdateUILocation);
+                    BasisLocalPlayer.AfterSimulateOnRender.AddAction(120, UpdateUILocation);
                 }
                 else
                 {
-                    BasisLocalPlayer.AfterFinalMove.RemoveAction(120, UpdateUILocation);
+                    BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(120, UpdateUILocation);
                 }
 
                 _hasLocalMoveEvent = value;

@@ -113,7 +113,10 @@ public class BasisOpenXRHandInput : BasisInputController
         DisableInputActions();
         base.OnDestroy();
     }
-    public override void DoPollData()
+    public override void LateDoPollData()
+    {
+    }
+    public override void RenderPollData()
     {
         CurrentInputState.Primary2DAxisDeadZoned = Primary2DAxis.action?.ReadValue<Vector2>() ?? Vector2.zero;
         CurrentInputState.Secondary2DAxisDeadZoned = Secondary2DAxis.action?.ReadValue<Vector2>() ?? Vector2.zero;

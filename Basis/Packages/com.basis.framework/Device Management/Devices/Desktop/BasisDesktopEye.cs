@@ -206,7 +206,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         /// Main polling loop for updating eye input state.
         /// Calculates eye position/rotation based on avatar head, crouching, and inputs deltas.
         /// </summary>
-        public override void DoPollData()
+        public override void LateDoPollData()
         {
             if (!hasRoleAssigned)
             {

@@ -44,7 +44,7 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
         /// Polls the simulated device pose (and optional jitter), updates scaled coordinates,
         /// and forwards values to the bound bone control when a role is assigned.
         /// </summary>
-        public override void DoPollData()
+        public override void LateDoPollData()
         {
             if (AddSomeRandomizedInput)
             {

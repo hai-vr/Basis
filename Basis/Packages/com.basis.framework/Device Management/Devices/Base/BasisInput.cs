@@ -191,8 +191,9 @@ namespace Basis.Scripts.Device_Management.Devices
             // Register simulation/apply loop hooks
             if (HasEvents == false)
             {
-                BasisLocalPlayer.Instance.OnPollData += PollData;
-                BasisLocalPlayer.AfterFinalMove.AddAction(98, ApplyFinalMovement);
+                BasisLocalPlayer.Instance.OnLatePollData += LatePollData;
+                BasisLocalPlayer.Instance.OnRenderPollData += RenderPollData;
+                BasisLocalPlayer.AfterSimulateOnRender.AddAction(98, ApplyFinalMovement);
                 HasEvents = true;
             }
             else
@@ -412,8 +413,9 @@ namespace Basis.Scripts.Device_Management.Devices
             if (HasEvents)
             {
                 //deassign
-                BasisLocalPlayer.Instance.OnPollData -= PollData;
-                BasisLocalPlayer.AfterFinalMove.RemoveAction(98, ApplyFinalMovement);
+                BasisLocalPlayer.Instance.OnLatePollData -= LatePollData;
+                BasisLocalPlayer.Instance.OnRenderPollData -= RenderPollData;
+                BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(98, ApplyFinalMovement);
                 HasEvents = false;
             }
         }
@@ -461,14 +463,20 @@ namespace Basis.Scripts.Device_Management.Devices
         }
 
         /// <summary>
-        /// Per-frame poll entry point: copies current state to last, then calls device-specific poll.
+        /// Per-frame poll entry point: copies current state to last, then calls device-specific poll. Late Update
         /// </summary>
-        public void PollData()
+        public void LatePollData()
         {
-            LastUpdatePlayerControl();
-            DoPollData();
+            LastUpdatePlayerControl();//stays here as late update is good for controller inputs not controller movement.
+            LateDoPollData();
         }
+        /// <summary>
+        /// Per-frame poll entry point: copies current state to last, then calls device-specific poll. On Render Pass
+        /// </summary>
+        public virtual void RenderPollData()
+        {
 
+        }
         /// <summary>
         /// Pushes current input state to the action driver and updates raycasting/UI systems.
         /// Invokes <see cref="AfterControlApply"/> afterwards.
@@ -685,7 +693,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// Device-specific poll implementation. Populate <see cref="UnscaledDeviceCoord"/> and/or
         /// <see cref="ScaledDeviceCoord"/> and call <see cref="UpdateInputEvents"/> at the end.
         /// </summary>
-        public abstract void DoPollData();
+        public abstract void LateDoPollData();
 
         /// <summary>
         /// Implementor should show a tracked visual (controller model) if appropriate.

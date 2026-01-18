@@ -226,7 +226,7 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
             BasisLocalPlayer.OnLocalAvatarChanged -= PlayerInitialized;
         }
         public bool ForceJump = false;
-        public override void DoPollData()
+        public override void LateDoPollData()
         {
             if (!hasRoleAssigned) return;
 

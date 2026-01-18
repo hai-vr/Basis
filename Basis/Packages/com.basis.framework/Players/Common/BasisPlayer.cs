@@ -122,7 +122,12 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// Called before bone simulation updates for this player, if subscribed.
         /// </summary>
-        public SimulationHandler OnPollData;
+        public SimulationHandler OnLatePollData;
+
+        /// <summary>
+        /// Called before bone simulation updates for this player, if subscribed.
+        /// </summary>
+        public SimulationHandler OnRenderPollData;
 
         /// <summary>
         /// Called before bone simulation updates for this player, if subscribed.

@@ -67,7 +67,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             Instance = this;
 
-            BasisLocalPlayer.AfterFinalMove.AddAction(k_UpdatePriority, PollSystem);
+            BasisLocalPlayer.AfterSimulateOnRender.AddAction(k_UpdatePriority, PollSystem);
 
             var devices = BasisDeviceManagement.Instance.AllInputDevices;
             devices.OnListAdded += OnInputChanged;
@@ -92,7 +92,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 asyncOperationLineMaterial.Release();
             }
 
-            BasisLocalPlayer.AfterFinalMove.RemoveAction(k_UpdatePriority, PollSystem);
+            BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(k_UpdatePriority, PollSystem);
 
             var devices = BasisDeviceManagement.Instance.AllInputDevices;
             devices.OnListAdded -= OnInputChanged;

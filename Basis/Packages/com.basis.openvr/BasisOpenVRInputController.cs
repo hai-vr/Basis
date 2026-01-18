@@ -62,8 +62,11 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             }
             base.OnDestroy();
         }
-
-        public override void DoPollData()
+        public override void LateDoPollData()
+        {
+            
+        }
+        public override void RenderPollData()
         {
             if (!SteamVR.active)
             {
@@ -102,7 +105,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             UpdateInputEvents();
         }
-
         private void UpdateHandPose(BasisFingerPose hand, SteamVR_Action_Skeleton skeletonAction, bool isLeft)
         {
             // Latest compositor-space device pose

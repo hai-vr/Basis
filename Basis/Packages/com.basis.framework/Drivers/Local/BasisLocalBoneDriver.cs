@@ -196,26 +196,15 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        public void OnSimulateBones(BasisPlayer Player)
-        {
-            Player.OnPollData?.Invoke();
-        }
-        public void ApplyVirtualData(BasisPlayer Player)
-        {
-
-            Player.OnVirtualData?.Invoke();
-        }
-
         /// <summary>
         /// Invokes pre-sim callbacks on the player and simulates without interpolation.
         /// </summary>
         /// <param name="Player">The owning player.</param>
         public void SimulateAndApplyWithoutLerp(BasisLocalPlayer Player)
         {
-            Player.OnPollData?.Invoke();
-
-            Player.OnVirtualData?.Invoke();
-
+            Player.OnLateSimulateBones(Player);
+            Player.OnRenderSimulateBones(Player);
+            Player.ApplyVirtualData(Player);
             SimulateWithoutLerp(BasisLocalPlayer.localToWorldMatrix);
         }
 

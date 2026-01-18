@@ -78,7 +78,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// Ordered delegate queue invoked after all movement and simulation have completed for the frame.
         /// </summary>
-        public static BasisOrderedDelegate AfterFinalMove = new BasisOrderedDelegate();
+        public static BasisOrderedDelegate AfterSimulateOnRender = new BasisOrderedDelegate();
 
         public static Matrix4x4 localToWorldMatrix;
         #region Drivers
@@ -390,24 +390,23 @@ namespace Basis.Scripts.BasisSdk.Players
         }
         public void Simulate(float DeltaTime)
         {
-
             // now lets move the local player position.
             LocalCharacterDriver.SimulateMovement(DeltaTime);
 
+            OnLateSimulateBones(this);
         }
+
         /// <summary>
         /// Main per-frame simulation entry point, executed on render/update.
         /// Performs movement, bone simulation, T-pose driving, IK targets, animator evaluation, hands,
-        /// and then invokes <see cref="AfterFinalMove"/>.
+        /// and then invokes <see cref="AfterSimulateOnRender"/>.
         /// </summary>
         /// <param name="DeltaTime">Frame delta time.</param>
         public void SimulateOnRender(float DeltaTime)
         {
+            OnRenderSimulateBones(this);
 
-            LocalBoneDriver.OnSimulateBones(this);
-
-
-            LocalBoneDriver.ApplyVirtualData(this);
+            ApplyVirtualData(this);
             // moves all bones to where they belong
             // This also drives head and camera movement.
             LocalBoneDriver.Simulate(DeltaTime, localToWorldMatrix);
@@ -429,11 +428,22 @@ namespace Basis.Scripts.BasisSdk.Players
 
             // handles fingers
             LocalHandDriver.UpdateFingers(DeltaTime);
-
             // now other things can move like UI and NON-CHILDREN OF BASISLOCALPLAYER.
-            AfterFinalMove?.Invoke();
+            AfterSimulateOnRender?.Invoke();
         }
+        public void OnLateSimulateBones(BasisPlayer Player)
+        {
+            Player.OnLatePollData?.Invoke();
+        }
+        public void ApplyVirtualData(BasisPlayer Player)
+        {
 
+            Player.OnVirtualData?.Invoke();
+        }
+        public void OnRenderSimulateBones(BasisPlayer Player)
+        {
+            Player.OnRenderPollData?.Invoke();
+        }
         /// <summary>
         /// Positions the avatar in a T-pose such that the head aligns to tracked head position/orientation (yaw only).
         /// </summary>
