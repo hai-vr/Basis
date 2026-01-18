@@ -213,6 +213,11 @@ public class BasisEventDriver : MonoBehaviour
 #if UNITY_SERVER
         OnBeforeRender();
 #endif
+        BasisDeviceManagement.Instance.Simulate();
+        if (BasisLocalPlayer.PlayerReady)
+        {
+            BasisLocalPlayer.Instance.Simulate(DeltaTime);
+        }
     }
 
     /// <summary>
@@ -221,7 +226,6 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
     private void OnBeforeRender()
     {
-        BasisDeviceManagement.Instance.Simulate();
 
         if (BasisLocalPlayer.PlayerReady)
         {

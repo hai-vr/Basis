@@ -217,8 +217,7 @@ namespace Basis.Scripts.Device_Management.Devices
         /// </summary>
         public void ComputeRaycastDirection(Vector3 Position, Quaternion rotation, Quaternion ActiveRaycastOffset)
         {
-            var parent = BasisLocalPlayer.Instance.transform;
-            Matrix4x4 parentMatrix = parent.localToWorldMatrix;
+            Matrix4x4 parentMatrix = BasisLocalPlayer.localToWorldMatrix;
             Quaternion OutGoingRotation = rotation * ActiveRaycastOffset;//HandFinal.rotation
 
             RaycastCoord.position = parentMatrix.MultiplyPoint3x4(Position);

@@ -135,8 +135,7 @@ public class BasisLocalVirtualSpineDriver
         _lenTotal = Mathf.Max(1e-4f, _lenNeckToChest + _lenChestToSpine + _lenSpineToHips);
 
         float dt = Time.deltaTime;
-        var parent = BasisLocalPlayer.Instance.transform;
-        Matrix4x4 parentMatrix = parent.localToWorldMatrix;
+        Matrix4x4 parentMatrix = BasisLocalPlayer.localToWorldMatrix;
 
         // =========================
         // 1) HEAD & NECK (top cues)

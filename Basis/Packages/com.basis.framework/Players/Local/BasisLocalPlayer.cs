@@ -80,6 +80,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </summary>
         public static BasisOrderedDelegate AfterFinalMove = new BasisOrderedDelegate();
 
+        public static Matrix4x4 localToWorldMatrix;
         #region Drivers
 
         /// <summary>
@@ -387,6 +388,11 @@ namespace Basis.Scripts.BasisSdk.Players
                 1,
                 BasisLocalMicrophoneDriver.processBufferArray.Length);
         }
+        public void Simulate(float DeltaTime)
+        {
+            // now lets move the local player position.
+            LocalCharacterDriver.SimulateMovement(DeltaTime);
+        }
         /// <summary>
         /// Main per-frame simulation entry point, executed on render/update.
         /// Performs movement, bone simulation, T-pose driving, IK targets, animator evaluation, hands,
@@ -395,12 +401,10 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <param name="DeltaTime">Frame delta time.</param>
         public void SimulateOnRender(float DeltaTime)
         {
-            // now lets move the local player position.
-            LocalCharacterDriver.SimulateMovement(DeltaTime);
-
+            localToWorldMatrix = PlayerSelf.localToWorldMatrix;
             // moves all bones to where they belong
             // This also drives head and camera movement.
-            LocalBoneDriver.SimulateAndApply(this, DeltaTime);
+            LocalBoneDriver.SimulateAndApply(this, DeltaTime, localToWorldMatrix);
 
             // moves Avatar Hip Transform to where it belongs in tpose.
             if (BasisLocalAvatarDriver.CurrentlyTposing)
@@ -412,7 +416,7 @@ namespace Basis.Scripts.BasisSdk.Players
             LocalRigDriver.SimulateIKDestinations(DeltaTime);
 
             // update WorldPosition in BoneDriver so AfterFinalMove can use world coords
-            LocalBoneDriver.SimulateWorldDestinations(transform.localToWorldMatrix);
+            LocalBoneDriver.SimulateWorldDestinations(localToWorldMatrix);
 
             // Apply Animator Weights using most current data and outside movement effectors.
             LocalAnimatorDriver.SimulateAnimator(DeltaTime);
