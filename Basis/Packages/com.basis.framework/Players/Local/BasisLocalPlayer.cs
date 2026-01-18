@@ -80,6 +80,11 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </summary>
         public static BasisOrderedDelegate AfterSimulateOnRender = new BasisOrderedDelegate();
 
+        /// <summary>
+        /// Ordered delegate queue invoked after all movement and simulation have completed for the frame.
+        /// </summary>
+        public static BasisOrderedDelegate AfterSimulateOnLate = new BasisOrderedDelegate();
+
         public static Matrix4x4 localToWorldMatrix;
         #region Drivers
 
@@ -418,6 +423,8 @@ namespace Basis.Scripts.BasisSdk.Players
 
             // handles fingers
             LocalHandDriver.UpdateFingers(DeltaTime);
+
+            AfterSimulateOnLate?.Invoke();
         }
 
         /// <summary>
