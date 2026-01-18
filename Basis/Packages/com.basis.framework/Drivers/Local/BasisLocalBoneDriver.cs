@@ -196,15 +196,9 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        /// <summary>
-        /// Invokes pre-sim callbacks on the player and simulates this driver for the frame.
-        /// </summary>
-        /// <param name="Player">The owning player.</param>
-        /// <param name="deltaTime">Elapsed time since last update (seconds).</param>
-        public void SimulateAndApply(BasisPlayer Player, float deltaTime,Matrix4x4 self)
+        public void OnPreSimulateBones(BasisPlayer Player)
         {
             Player.OnPreSimulateBones?.Invoke();
-            Simulate(deltaTime, self);
         }
 
         /// <summary>

@@ -403,10 +403,10 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <param name="DeltaTime">Frame delta time.</param>
         public void SimulateOnRender(float DeltaTime)
         {
-            //localToWorldMatrix = PlayerSelf.localToWorldMatrix;
+            LocalBoneDriver.OnPreSimulateBones(this);
             // moves all bones to where they belong
             // This also drives head and camera movement.
-            LocalBoneDriver.SimulateAndApply(this, DeltaTime, localToWorldMatrix);
+            LocalBoneDriver.Simulate(DeltaTime, localToWorldMatrix);
 
             // moves Avatar Hip Transform to where it belongs in tpose.
             if (BasisLocalAvatarDriver.CurrentlyTposing)
