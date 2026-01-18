@@ -394,17 +394,7 @@ namespace Basis.Scripts.BasisSdk.Players
             LocalCharacterDriver.SimulateMovement(DeltaTime);
 
             OnLateSimulateBones(this);
-        }
 
-        /// <summary>
-        /// Main per-frame simulation entry point, executed on render/update.
-        /// Performs movement, bone simulation, T-pose driving, IK targets, animator evaluation, hands,
-        /// and then invokes <see cref="AfterSimulateOnRender"/>.
-        /// </summary>
-        /// <param name="DeltaTime">Frame delta time.</param>
-        public void SimulateOnRender(float DeltaTime)
-        {
-            OnRenderSimulateBones(this);
 
             ApplyVirtualData(this);
             // moves all bones to where they belong
@@ -428,6 +418,21 @@ namespace Basis.Scripts.BasisSdk.Players
 
             // handles fingers
             LocalHandDriver.UpdateFingers(DeltaTime);
+        }
+
+        /// <summary>
+        /// Main per-frame simulation entry point, executed on render/update.
+        /// Performs movement, bone simulation, T-pose driving, IK targets, animator evaluation, hands,
+        /// and then invokes <see cref="AfterSimulateOnRender"/>.
+        /// </summary>
+        /// <param name="DeltaTime">Frame delta time.</param>
+        public void SimulateOnRender(float DeltaTime)
+        {
+            OnRenderSimulateBones(this);
+
+
+            // update WorldPosition in BoneDriver so AfterFinalMove can use world coords
+            LocalBoneDriver.SimulateWorldDestinations(localToWorldMatrix);
             // now other things can move like UI and NON-CHILDREN OF BASISLOCALPLAYER.
             AfterSimulateOnRender?.Invoke();
         }
