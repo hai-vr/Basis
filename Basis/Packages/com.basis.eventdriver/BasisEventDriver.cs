@@ -210,14 +210,17 @@ public class BasisEventDriver : MonoBehaviour
 
         }
         SteamAudioManager.Apply();
-#if UNITY_SERVER
-        OnBeforeRender();
-#endif
-        BasisDeviceManagement.Instance.Simulate();
+        if (BasisDeviceManagement.HasEvents)
+        {
+            BasisDeviceManagement.Instance.Simulate();
+        }
         if (BasisLocalPlayer.PlayerReady)
         {
             BasisLocalPlayer.Instance.Simulate(DeltaTime);
         }
+#if UNITY_SERVER
+        OnBeforeRender();
+#endif
     }
 
     /// <summary>
