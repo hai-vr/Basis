@@ -196,9 +196,14 @@ namespace Basis.Scripts.Drivers
             }
         }
 
-        public void OnPreSimulateBones(BasisPlayer Player)
+        public void OnSimulateBones(BasisPlayer Player)
         {
-            Player.OnPreSimulateBones?.Invoke();
+            Player.OnPollData?.Invoke();
+        }
+        public void ApplyVirtualData(BasisPlayer Player)
+        {
+
+            Player.OnVirtualData?.Invoke();
         }
 
         /// <summary>
@@ -207,7 +212,10 @@ namespace Basis.Scripts.Drivers
         /// <param name="Player">The owning player.</param>
         public void SimulateAndApplyWithoutLerp(BasisLocalPlayer Player)
         {
-            Player.OnPreSimulateBones?.Invoke();
+            Player.OnPollData?.Invoke();
+
+            Player.OnVirtualData?.Invoke();
+
             SimulateWithoutLerp(BasisLocalPlayer.localToWorldMatrix);
         }
 

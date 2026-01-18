@@ -390,9 +390,9 @@ namespace Basis.Scripts.BasisSdk.Players
         }
         public void Simulate(float DeltaTime)
         {
+
             // now lets move the local player position.
             LocalCharacterDriver.SimulateMovement(DeltaTime);
-
 
         }
         /// <summary>
@@ -403,7 +403,11 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <param name="DeltaTime">Frame delta time.</param>
         public void SimulateOnRender(float DeltaTime)
         {
-            LocalBoneDriver.OnPreSimulateBones(this);
+
+            LocalBoneDriver.OnSimulateBones(this);
+
+
+            LocalBoneDriver.ApplyVirtualData(this);
             // moves all bones to where they belong
             // This also drives head and camera movement.
             LocalBoneDriver.Simulate(DeltaTime, localToWorldMatrix);

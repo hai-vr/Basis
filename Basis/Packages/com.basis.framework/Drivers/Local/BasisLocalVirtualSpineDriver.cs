@@ -82,7 +82,7 @@ public class BasisLocalVirtualSpineDriver
         BasisLocalBoneDriver.SpineControl.HasVirtualOverride = true;
         BasisLocalBoneDriver.HipsControl.HasVirtualOverride = true;
 
-        BasisLocalPlayer.Instance.OnPreSimulateBones += OnSimulate;
+        BasisLocalPlayer.Instance.OnVirtualData += OnSimulate;
         _initialized = true;
     }
 
@@ -102,7 +102,7 @@ public class BasisLocalVirtualSpineDriver
             BasisLocalBoneDriver.HipsControl.HasVirtualOverride = false;
             Instance = null;
         }
-        BasisLocalPlayer.Instance.OnPreSimulateBones -= OnSimulate;
+        BasisLocalPlayer.Instance.OnVirtualData -= OnSimulate;
         _initialized = false;
     }
 

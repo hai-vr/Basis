@@ -191,7 +191,7 @@ namespace Basis.Scripts.Device_Management.Devices
             // Register simulation/apply loop hooks
             if (HasEvents == false)
             {
-                BasisLocalPlayer.Instance.OnPreSimulateBones += PollData;
+                BasisLocalPlayer.Instance.OnPollData += PollData;
                 BasisLocalPlayer.AfterFinalMove.AddAction(98, ApplyFinalMovement);
                 HasEvents = true;
             }
@@ -412,7 +412,7 @@ namespace Basis.Scripts.Device_Management.Devices
             if (HasEvents)
             {
                 //deassign
-                BasisLocalPlayer.Instance.OnPreSimulateBones -= PollData;
+                BasisLocalPlayer.Instance.OnPollData -= PollData;
                 BasisLocalPlayer.AfterFinalMove.RemoveAction(98, ApplyFinalMovement);
                 HasEvents = false;
             }

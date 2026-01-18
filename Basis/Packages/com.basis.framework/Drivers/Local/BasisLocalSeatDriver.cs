@@ -127,7 +127,7 @@ namespace Basis.Scripts.Drivers
                 }
             }
             _setAllOverrideUsages(true);
-            LocalPlayer.OnPreSimulateBones += OnSimulate;
+            LocalPlayer.OnVirtualData += OnSimulate;
             GrabLatestTposeLocalScaleData();
             if (hasEvent == false)
             {
@@ -150,7 +150,7 @@ namespace Basis.Scripts.Drivers
             LocalPlayer.LocalAnimatorDriver.PauseAnimator = false;
             _seat.OnExitSeat(LocalPlayer);
             BasisLocalVirtualSpineDriver.HipsFreezeToTpose = false;
-            LocalPlayer.OnPreSimulateBones -= OnSimulate;
+            LocalPlayer.OnVirtualData -= OnSimulate;
             LocalPlayer.LocalCharacterDriver.MovementLock.Remove(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.CrouchingLock.Remove(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.IsEnabled = true;
