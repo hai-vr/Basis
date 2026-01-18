@@ -392,6 +392,8 @@ namespace Basis.Scripts.BasisSdk.Players
         {
             // now lets move the local player position.
             LocalCharacterDriver.SimulateMovement(DeltaTime);
+
+
         }
         /// <summary>
         /// Main per-frame simulation entry point, executed on render/update.
@@ -401,7 +403,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <param name="DeltaTime">Frame delta time.</param>
         public void SimulateOnRender(float DeltaTime)
         {
-            localToWorldMatrix = PlayerSelf.localToWorldMatrix;
+            //localToWorldMatrix = PlayerSelf.localToWorldMatrix;
             // moves all bones to where they belong
             // This also drives head and camera movement.
             LocalBoneDriver.SimulateAndApply(this, DeltaTime, localToWorldMatrix);

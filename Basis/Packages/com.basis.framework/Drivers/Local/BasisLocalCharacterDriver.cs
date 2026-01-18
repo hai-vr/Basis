@@ -185,6 +185,12 @@ namespace Basis.Scripts.BasisCharacterController
 
             float HeightOffset = (characterController.height / 2) - characterController.radius;
             bottomPointLocalSpace = FinalRotation + (characterController.center - new Vector3(0, HeightOffset, 0));
+
+            Quaternion newRot = rotation * CurrentRotation;
+            Vector3 newPos = FinalRotation;
+
+            // If you want basis localToWorld using the *new* pose:
+            BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(newPos, newRot, BasisLocalPlayerTransform.lossyScale);
         }
 
         public float GetVerticalMovement()
