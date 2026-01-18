@@ -19,7 +19,6 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
     public class BasisOpenVRManagement : BasisBaseTypeManagement
     {
         public GameObject SteamVR_BehaviourGameobject;
-        public SteamVR_Behaviour SteamVR_Behaviour;
         public SteamVR_Render SteamVR_Render;
         public SteamVR SteamVR;
         public Dictionary<string, OpenVRDevice> TypicalDevices = new Dictionary<string, OpenVRDevice>();
@@ -297,7 +296,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 DestroyPhysicalTrackedDevice(device);
             }
 
-            SteamVR_Behaviour = null;
+            SteamVR_Render.steamvr_render = null;
             SteamVR_Render = null;
             IsInUse = false;
             SteamVR_Events.DeviceConnected.RemoveListener(OnDeviceConnected);
@@ -321,14 +320,13 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             }
             SteamVR_BehaviourGameobject.transform.parent = this.transform;
             // Initialize SteamVR components
-            SteamVR_Behaviour = BasisHelpers.GetOrAddComponent<SteamVR_Behaviour>(SteamVR_BehaviourGameobject);
             SteamVR_Render = BasisHelpers.GetOrAddComponent<SteamVR_Render>(SteamVR_BehaviourGameobject);
 
             // Register SteamVR events
             SteamVR_Events.DeviceConnected.Listen(OnDeviceConnected);
             SteamVR_Events.System(EVREventType.VREvent_TrackedDeviceRoleChanged).Listen(OnTrackedDeviceRoleChanged);
 
-            SteamVR_Behaviour.Initialize(SteamVR_Render, SteamVR_Behaviour);
+            SteamVR_Render.Initialize(SteamVR_Render);
 
             bool State = await WaitingUntilReady();
 
@@ -388,6 +386,13 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 return true;
             }
             return false;
+        }
+        public override void Simulate()
+        {
+            if (SteamVR_Render != null)
+            {
+                SteamVR_Render.Simulate();
+            }
         }
     }
 }

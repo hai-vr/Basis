@@ -195,6 +195,18 @@ namespace Basis.Scripts.Device_Management
             UnsubscribeEvents();
             BasisUlipSyncDriver.DisposeShared();
         }
+        public void Simulate()
+        {
+            int Count = BaseTypes.Count;
+            for (int Index = 0; Index < Count; Index++)
+            {
+                BasisBaseTypeManagement Sim = BaseTypes[Index];
+                if (Sim != null)
+                {
+                    Sim.Simulate();
+                }
+            }
+        }
 
         #endregion
 

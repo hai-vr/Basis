@@ -221,6 +221,8 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
     private void OnBeforeRender()
     {
+        BasisDeviceManagement.Instance.Simulate();
+
         if (BasisLocalPlayer.PlayerReady)
         {
 
