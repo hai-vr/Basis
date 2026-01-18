@@ -5748,9 +5748,9 @@ MonoBehaviour:
       BasisBundleGenerated: []
       ImageBase64: 
       DateOfCreation: 
-  - UnlockPassword: 4d06e6f36b24bc173d29206c39a21f043ed7ca29be43bcb30202de4073ae7a41
+  - UnlockPassword: 481fe0d49a244c729343588c79cae8dba5579d91fd92a60b21624b90d7a116de
     BasisRemoteBundleEncrypted:
-      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/bee2/thirdpartyavatars/leona_ft/b6ee1a2bd1b44ce1825ae5097c2f956620251230.BEE
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/leona/leona_ft/4c388f86bc8848919b4714a370c7b07c20260118.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
@@ -5761,9 +5761,9 @@ MonoBehaviour:
       BasisBundleGenerated: []
       ImageBase64: 
       DateOfCreation: 
-  - UnlockPassword: 42d94510b226c4d72a7ce811eca5eff87c2426f3668b53aa559403913eed8aaa
+  - UnlockPassword: 6f734d3eeffc2b22173c6242910b1f8d4421058c10c6dacb4d25f38b8490b140
     BasisRemoteBundleEncrypted:
-      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/bee2/thirdpartyavatars/leona_noft/7c12b73f0c4c40d1a859521a595c999220251230.BEE
+      RemoteBeeFileLocation: https://BasisFramework.b-cdn.net/Version2/Avatars/Public/leona/leona_noft/686cd2445d8443e7bdc9b55242fc91fc20260118.BEE
     BasisLocalEncryptedBundle:
       DownloadedBeeFileLocation: 
     BasisBundleConnector:
