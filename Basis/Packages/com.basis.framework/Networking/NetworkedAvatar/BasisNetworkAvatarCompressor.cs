@@ -100,14 +100,14 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             int offset = 0;
             Transform hips = BasisLocalAvatarDriver.References.Hips;
             // Position
-            BasisUnityBitPackerExtensionsUnsafe.WritePosition(hips.position, ref AvatarData.LASM.array, ref offset);
+            BasisUnityBitPackerExtensionsUnsafe.WritePosition(animator.bodyPosition, ref AvatarData.LASM.array, ref offset);
             JobHandle handle = CompressAvatarMuscles_BitPacked(pose.muscles, ref AvatarData.LASM, ref offset, out int offsetForComplete);
 
             // Scale
             BasisUnityBitPackerExtensionsUnsafe.CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
 
             // Rotation
-            BasisUnityBitPackerExtensionsUnsafe.WriteCompressedQuaternionToBytes(hips.rotation, ref AvatarData.LASM.array, ref offset);
+            BasisUnityBitPackerExtensionsUnsafe.WriteCompressedQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset);
 
             Complete(handle, ref AvatarData.LASM, offsetForComplete);
         }
