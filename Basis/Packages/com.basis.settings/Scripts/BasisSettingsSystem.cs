@@ -18,11 +18,9 @@ public class SettingsData
     public string version;
     public List<KeyValue> settingsList = new List<KeyValue>();
 
-    // Runtime helper dictionary (not serialized directly)
     [NonSerialized]
     public Dictionary<string, string> settings = new Dictionary<string, string>();
 
-    // Convert List -> Dictionary after loading
     public void RebuildDictionary()
     {
         settings.Clear();
@@ -35,7 +33,6 @@ public class SettingsData
         }
     }
 
-    // Convert Dictionary -> List before saving
     public void RebuildList()
     {
         settingsList.Clear();
@@ -54,10 +51,11 @@ public static class BasisSettingsSystem
     private static SettingsData settingsData = new SettingsData();
 
     /// <summary>
-    /// UniqueName,Optionvalue
+    /// UniqueName, OptionValue
     /// </summary>
     public static event Action<string, string> OnSettingChanged;
     public static event Action OnSettingsFinishedChanges;
+
     static BasisSettingsSystem()
     {
         LoadAllSettings();
@@ -70,6 +68,7 @@ public static class BasisSettingsSystem
         {
             BasisDebug.LogError("Loading Scene Before Settings Exist!");
         }
+
         foreach (var kv in settingsData.settings)
         {
             OnSettingChanged?.Invoke(kv.Key, kv.Value);
@@ -82,9 +81,9 @@ public static class BasisSettingsSystem
     {
         bool changed = false;
 
-        if (settingsData.settings.ContainsKey(uniqueSettingsName))
+        if (settingsData.settings.TryGetValue(uniqueSettingsName, out var existing))
         {
-            if (settingsData.settings[uniqueSettingsName] != value)
+            if (existing != value)
             {
                 settingsData.settings[uniqueSettingsName] = value;
                 changed = true;
@@ -96,7 +95,6 @@ public static class BasisSettingsSystem
             changed = true;
         }
 
-        // If we're in the middle of a load, defer the actual save.
         if (changed)
         {
             SaveAllSettings();
@@ -112,57 +110,91 @@ public static class BasisSettingsSystem
             return value;
         }
 
-        // record default but don't force a save if we're currently loading
+        // Store default so future loads see the key.
         settingsData.settings[uniqueSettingsName] = defaultValue;
         SaveAllSettings();
-
         return defaultValue;
     }
 
     public static void LoadAllSettings()
     {
+        // Default blank (will fill from file or remain empty)
+        settingsData = new SettingsData { version = currentVersion };
+        settingsData.RebuildDictionary();
+
         if (!File.Exists(filePath))
         {
-            BasisDebug.LogError("Settings file not found, creating defaults.");
-            ResetToDefault_Internal(); // internal to avoid double locking
+            // First run: no file yet. Just create an empty file at current version.
+            BasisDebug.LogError("Settings file not found, creating new settings file.");
+            SaveAllSettings();
+
+            // Fire notifications (none yet unless defaults were created through LoadString later)
+            OnSettingsFinishedChanges?.Invoke();
+            return;
         }
-        else
+
+        string json = null;
+        SettingsData loaded = null;
+
+        try
         {
-            string json = File.ReadAllText(filePath);
-            var loaded = JsonUtility.FromJson<SettingsData>(json);
-
-            bool IsNull = loaded == null;
-            if(IsNull)
-            {
-                BasisDebug.LogError("Settings version mismatch or corrupt file. Resetting.");
-                ResetToDefault_Internal();
-                return;
-            }
-            bool VersionDifference = loaded.version != currentVersion;
-            if (VersionDifference)
-            {
-                BasisDebug.LogError("Loaded Version != Current Version Resetting");
-                ResetToDefault_Internal();
-                return;
-            }
-            settingsData = loaded;
-            settingsData.RebuildDictionary();
+            json = File.ReadAllText(filePath);
+            loaded = JsonUtility.FromJson<SettingsData>(json);
+        }
+        catch (Exception e)
+        {
+            BasisDebug.LogError($"Failed to read/parse settings file. Creating a fresh one. Exception: {e}");
+            // If parsing failed, we fall through to writing a fresh file.
         }
 
-        // Fire notifications outside the lock (safe: read-only iteration on our dictionary snapshot)
+        if (loaded == null)
+        {
+            // Corrupt or unreadable file. OPTIONAL: backup the bad file for debugging.
+            try
+            {
+                string backupPath = filePath + ".corrupt_backup";
+                File.Copy(filePath, backupPath, true);
+            }
+            catch { /* ignore backup failures */ }
+
+            BasisDebug.LogError("Settings file corrupt/unreadable. Rebuilding empty settings.");
+            settingsData = new SettingsData { version = currentVersion };
+            settingsData.RebuildDictionary();
+
+            SaveAllSettings();
+            OnSettingsFinishedChanges?.Invoke();
+            return;
+        }
+
+        // IMPORTANT CHANGE:
+        // Do NOT nuke user data just because version differs.
+        // Assume existing values are valid, keep them, just rewrite the version.
+        loaded.RebuildDictionary();
+
+        settingsData = loaded;
+        settingsData.version = currentVersion; // bump to current
+        // (Dictionary already rebuilt; keep as-is.)
+
+        // Notify listeners of everything we have
         foreach (var kv in settingsData.settings)
         {
             OnSettingChanged?.Invoke(kv.Key, kv.Value);
         }
 
         OnSettingsFinishedChanges?.Invoke();
+
+        // Persist rewritten version + normalized list/dict
         SaveAllSettings();
     }
 
     public static void SaveAllSettings()
     {
+        if (settingsData == null)
+            settingsData = new SettingsData();
+
         settingsData.version = currentVersion;
         settingsData.RebuildList();
+
         string json = JsonUtility.ToJson(settingsData, true);
 
         string dir = Path.GetDirectoryName(filePath);
@@ -173,21 +205,21 @@ public static class BasisSettingsSystem
 
         File.WriteAllText(filePath, json);
     }
-    private static void ResetToDefault_Internal()
-    {
-        settingsData = new SettingsData { version = currentVersion };
-        settingsData.RebuildDictionary();
-    }
+
     public static int LoadInt(string key, int defaultValue = 0)
     {
         string val = LoadString(key, defaultValue.ToString(CultureInfo.InvariantCulture));
-        return int.TryParse(val, NumberStyles.Integer, CultureInfo.InvariantCulture, out int result) ? result : defaultValue;
+        return int.TryParse(val, NumberStyles.Integer, CultureInfo.InvariantCulture, out int result)
+            ? result
+            : defaultValue;
     }
 
     public static float LoadFloat(string key, float defaultValue = 0f)
     {
         string val = LoadString(key, defaultValue.ToString(CultureInfo.InvariantCulture));
-        return float.TryParse(val, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out float result)  ? result : defaultValue;
+        return float.TryParse(val, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out float result)
+            ? result
+            : defaultValue;
     }
 
     public static bool LoadBool(string key, bool defaultValue = false)
