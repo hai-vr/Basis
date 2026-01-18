@@ -218,6 +218,8 @@ public class BasisEventDriver : MonoBehaviour
         {
             BasisLocalPlayer.Instance.Simulate(DeltaTime);
         }
+        // send out avatar
+        BasisNetworkTransmitter.AfterAvatarChanges?.Invoke();
 #if UNITY_SERVER
         OnBeforeRender();
 #endif
@@ -234,8 +236,6 @@ public class BasisEventDriver : MonoBehaviour
         {
 
             BasisLocalPlayer.Instance.SimulateOnRender(DeltaTime);
-            // send out avatar
-            BasisNetworkTransmitter.AfterAvatarChanges?.Invoke();
             BasisRemoteFaceManagement.Apply();
             BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime);
         }
