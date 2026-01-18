@@ -38,14 +38,14 @@ public class BasisOpenXRHandInput : BasisInputController
     {
         HandBiasSplay = 0;
         leftHandToIKRotationOffset = new Vector3(0, 0, -180);
-        rightHandToIKRotationOffset = new Vector3(0, 0, 0);
+        rightHandToIKRotationOffset = new Vector3(0, 0, 0);//mistake
 
-        LeftHandPalmCorrection = new Vector3(0, 0, 0);
+        LeftHandPalmCorrection = new Vector3(0, 0, -90);
 
-        RightHandPalmCorrection = new Vector3(0, 0, 0);
+        RightHandPalmCorrection = new Vector3(0, 0, -90);
 
-        leftHandToIKPositionOffset = new Vector3(0,0, 0);
-        rightHandToIKPositionOffset = new Vector3(0,0, 0);
+        leftHandToIKPositionOffset = new Vector3(0,0, -0.05f);
+        rightHandToIKPositionOffset = new Vector3(0,0, -0.05f);
 
         InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole,true);
         string devicePath = basisBoneTrackedRole == BasisBoneTrackedRole.LeftHand ? "<XRController>{LeftHand}" : "<XRController>{RightHand}";
