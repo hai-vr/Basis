@@ -122,7 +122,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 var spatial = Output.AddComponent<BasisOpenVRInputSpatial>();
                 spatial.ClassName = nameof(BasisOpenVRInputSpatial);
                 bool foundRole = TryAssignRole(device.deviceClass, device.deviceIndex, notUniqueID, out BasisBoneTrackedRole role, out SteamVR_Input_Sources source);
-                spatial.Initialize(UnityEngine.SpatialTracking.TrackedPoseDriver.TrackedPose.Center, uniqueID, notUniqueID, nameof(BasisOpenVRManagement), foundRole, role, source);
+                spatial.Initialize(device, uniqueID, notUniqueID, nameof(BasisOpenVRManagement), foundRole, role);
 
                 BasisDeviceManagement.Instance.TryAdd(spatial);
                 TypicalDevices.TryAdd(uniqueID, device);
@@ -239,37 +239,63 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         }
         private void HandleExistingDevice(string uniqueID, string notUniqueID, string className, OpenVRDevice device)
         {
+            string subsystem = nameof(BasisOpenVRManagement);
+
             foreach (BasisInput input in BasisDeviceManagement.Instance.AllInputDevices)
             {
-                if (input.UniqueDeviceIdentifier == uniqueID && input.SubSystemIdentifier == uniqueID)
+                // NOTE: Fixed SubSystemIdentifier check (was comparing to uniqueID)
+                if (input.UniqueDeviceIdentifier == uniqueID && input.SubSystemIdentifier == subsystem)
                 {
                     if (input.ClassName == className)
                     {
+                        // Compute role once for all relevant branches
+                        bool foundRole = TryAssignRole(
+                            device.deviceClass,
+                            device.deviceIndex,
+                            notUniqueID,
+                            out BasisBoneTrackedRole role,
+                            out SteamVR_Input_Sources source
+                        );
+
                         if (input is BasisOpenVRInputSpatial spatial)
                         {
-                            bool foundRole = TryAssignRole(device.deviceClass, device.deviceIndex, notUniqueID, out BasisBoneTrackedRole role, out SteamVR_Input_Sources source);
-                            if (role == BasisBoneTrackedRole.Head || role == BasisBoneTrackedRole.CenterEye)
-                            {
-                                spatial.Initialize(UnityEngine.SpatialTracking.TrackedPoseDriver.TrackedPose.Head, uniqueID, notUniqueID, nameof(BasisOpenVRManagement), foundRole, role, source);
-                            }
-                            else
-                            {
-                                spatial.Initialize(UnityEngine.SpatialTracking.TrackedPoseDriver.TrackedPose.Center, uniqueID, notUniqueID, nameof(BasisOpenVRManagement), foundRole, role, source);
-                            }
+                            spatial.Initialize(
+                                device,
+                                uniqueID,
+                                notUniqueID,
+                                subsystem,
+                                foundRole,
+                                role
+                            );
                         }
                         else if (input is BasisOpenVRInputController controller)
                         {
-                            bool foundRole = TryAssignRole(device.deviceClass, device.deviceIndex, notUniqueID, out BasisBoneTrackedRole role, out SteamVR_Input_Sources source);
-                            controller.Initialize(device, uniqueID, notUniqueID, nameof(BasisOpenVRManagement), foundRole, role, source);
+                            controller.Initialize(
+                                device,
+                                uniqueID,
+                                notUniqueID,
+                                subsystem,
+                                foundRole,
+                                role,
+                                source
+                            );
                         }
                         else if (input is BasisOpenVRInput basisInput)
                         {
-                            basisInput.Initialize(device, uniqueID, notUniqueID, nameof(BasisOpenVRManagement), false, BasisBoneTrackedRole.CenterEye);
+                            basisInput.Initialize(
+                                device,
+                                uniqueID,
+                                notUniqueID,
+                                subsystem,
+                                false,
+                                BasisBoneTrackedRole.CenterEye
+                            );
                         }
                         else
                         {
                             BasisDebug.LogError("Some other Class Name " + input.ClassName + " look over this!");
                         }
+
                         return;
                     }
                     else
