@@ -30,7 +30,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             // existing hand rotation offsets
             leftHandToIKRotationOffset = new Vector3(105, 185, 265);
-            rightHandToIKRotationOffset = new Vector3(105, 185,265);
+            rightHandToIKRotationOffset = new Vector3(105, 185,280);
 
             leftHandToIKPositionOffset = new Vector3(-0.02f, 0.07f, 0.02f);
             rightHandToIKPositionOffset = new Vector3(-0.02f, 0.07f, 0.02f);
