@@ -113,7 +113,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             {
                 return;
             }
-            if (deviceGamePose.bPoseIsValid == false)
+            if (devicePose.bPoseIsValid == false)
             {
                 return;
             }
@@ -156,8 +156,8 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             BoneRotations = skeletonAction.boneRotations;
 
             // Raw device pose in *unscaled* world space
-            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, deviceGamePose.mDeviceToAbsoluteTracking.GetPosition());
-            UnscaledDeviceCoord.rotation = deviceGamePose.mDeviceToAbsoluteTracking.GetRotation();
+            ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, devicePose.mDeviceToAbsoluteTracking.GetPosition());
+            UnscaledDeviceCoord.rotation = devicePose.mDeviceToAbsoluteTracking.GetRotation();
 
             // scale from the avatar currently selected to the avatar's "default" rig size
             float avatarScale = BasisHeightDriver.AvatarToPlayerScale;

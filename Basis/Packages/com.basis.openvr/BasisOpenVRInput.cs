@@ -32,9 +32,9 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 result = SteamVR.instance.compositor.GetLastPoseForTrackedDeviceIndex(Device.deviceIndex, ref devicePose, ref deviceGamePose);
                 if (result == EVRCompositorError.None)
                 {
-                    if (deviceGamePose.bPoseIsValid)
+                    if (devicePose.bPoseIsValid)
                     {
-                        deviceTransform = new SteamVR_Utils.RigidTransform(deviceGamePose.mDeviceToAbsoluteTracking);
+                        deviceTransform = new SteamVR_Utils.RigidTransform(devicePose.mDeviceToAbsoluteTracking);
 
                         ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, deviceTransform.pos);
                         UnscaledDeviceCoord.rotation = deviceTransform.rot;
