@@ -273,7 +273,7 @@ public class SMDMicrophone : BasisSettingsBase
         SelectedAgcAttack = savedAgcAttack;
         SelectedAgcRelease = savedAgcRelease;
 
-        selectedTalkmode = (BasisMicrophoneMode)index;
+        SelectedTalkmode = (BasisMicrophoneMode)index;
 
     }
     public static void SaveMicrophoneModeSettings(string mode, BasisMicrophoneMode MicrophoneMode)

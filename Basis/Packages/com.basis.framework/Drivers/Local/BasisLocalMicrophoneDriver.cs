@@ -173,6 +173,12 @@ public static class BasisLocalMicrophoneDriver
         SMDMicrophone.OnMicrophoneVolumeChanged += ChangeMicrophoneVolume;
         SMDMicrophone.OnMicrophoneUseDenoiserChanged += ConfigureDenoiser;
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
+
+        SMDMicrophone.OnLimiterChanged += OnLimiterSettingsChanged;
+        SMDMicrophone.OnDenoiseParamsChanged += OnDenoiseParamsChanged;
+        SMDMicrophone.OnAgcEnabledChanged += OnAgcEnabledChanged;
+        SMDMicrophone.OnAgcParamsChanged += OnAgcParamsChanged;
+        SMDMicrophone.MicrophoneTalkmodeChanged += OnTalkModeChanged; // optional but usually needed
         HasEvents = true;
     }
 
@@ -183,10 +189,74 @@ public static class BasisLocalMicrophoneDriver
         SMDMicrophone.OnMicrophoneChanged -= ResetMicrophones;
         SMDMicrophone.OnMicrophoneVolumeChanged -= ChangeMicrophoneVolume;
         SMDMicrophone.OnMicrophoneUseDenoiserChanged -= ConfigureDenoiser;
+
+        SMDMicrophone.OnLimiterChanged -= OnLimiterSettingsChanged;
+        SMDMicrophone.OnDenoiseParamsChanged -= OnDenoiseParamsChanged;
+        SMDMicrophone.OnAgcEnabledChanged -= OnAgcEnabledChanged;
+        SMDMicrophone.OnAgcParamsChanged -= OnAgcParamsChanged;
+        SMDMicrophone.MicrophoneTalkmodeChanged -= OnTalkModeChanged;
+
         BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
         HasEvents = false;
     }
+    private static void OnLimiterSettingsChanged(float threshold, float knee)
+    {
+        threshold = Mathf.Clamp(threshold, 0f, 1f);
+        knee = Mathf.Clamp(knee, 0f, 1f);
 
+        lock (processingLock)
+        {
+            LimitThreshold = threshold;
+            LimitKnee = knee;
+
+            // Keep job fields in sync (safe even if mic isn't started yet)
+            VAJ.LimitThreshold = LimitThreshold;
+            VAJ.LimitKnee = LimitKnee;
+        }
+    }
+
+    private static void OnDenoiseParamsChanged(float makeupDb, float wet)
+    {
+        wet = Mathf.Clamp01(wet);
+
+        lock (processingLock)
+        {
+            DenoiseMakeupDb = makeupDb;
+            DenoiseWet = wet;
+        }
+    }
+
+    private static void OnAgcEnabledChanged(bool enabled)
+    {
+        lock (processingLock)
+        {
+            UseAGC = enabled;
+            if (!enabled) agcGainDb = 0f; // reset so you don't "stick" boosted gain
+        }
+    }
+
+    private static void OnAgcParamsChanged(float targetRms, float maxGainDb, float attack, float release)
+    {
+        targetRms = Mathf.Max(1e-6f, targetRms);
+        attack = Mathf.Clamp01(attack);
+        release = Mathf.Clamp01(release);
+
+        lock (processingLock)
+        {
+            AgcTargetRms = targetRms;
+            AgcMaxGainDb = maxGainDb;
+            AgcAttack = attack;
+            AgcRelease = release;
+        }
+    }
+
+    // Optional: only if you actually use talkmode in your transmit gating / input system
+    private static void OnTalkModeChanged(SMDMicrophone.BasisMicrophoneMode mode)
+    {
+        // Store it here if needed; or forward to some input system.
+        // Example stub:
+        // BasisDebug.Log($"Mic talk mode changed: {mode}", BasisDebug.LogTag.Voice);
+    }
     private static void ConfigureDenoiser(bool useDenoiser)
     {
         UseDenoiser = useDenoiser;
