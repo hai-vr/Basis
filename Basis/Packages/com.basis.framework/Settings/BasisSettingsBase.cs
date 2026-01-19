@@ -2,20 +2,10 @@ using System.Globalization;
 using UnityEngine;
 public abstract class BasisSettingsBase : MonoBehaviour
 {
-    [Tooltip("List of setting names this component will react to.")]
-    public string[] SettingsNames;
-    public bool AlwaysRunEverySettingsName = false;
-    public int Length;
     public virtual void Awake()
     {
-        Length = SettingsNames.Length;
         BasisSettingsSystem.OnSettingChanged += OnSettingChanged;
         BasisSettingsSystem.OnSettingsFinishedChanges += ApplyFinal;
-        for (int Index = 0; Index < Length; Index++)
-        {
-            string name = SettingsNames[Index];
-            SettingsNames[Index] = name.ToLower();
-        }
     }
 
     public void OnDestroy()
@@ -30,29 +20,8 @@ public abstract class BasisSettingsBase : MonoBehaviour
     public void OnSettingChanged(string uniqueName, string optionValue)
     {
         // Normalize casing for comparison
-        string lowered = uniqueName.ToLower();
-        PushSettings(lowered, optionValue);
+        ValidSettingsChange(uniqueName, optionValue);
         ChangedSettings();
-    }
-    public void PushSettings(string lowered, string optionValue)
-    {
-        if (AlwaysRunEverySettingsName)
-        {
-            ValidSettingsChange(lowered, optionValue);
-        }
-        else
-        {
-            for (int Index = 0; Index < Length; Index++)
-            {
-                string setting = SettingsNames[Index];
-                if (lowered == setting)
-                {
-                    // Found which setting name matched
-                    ValidSettingsChange(setting, optionValue);
-                    return;
-                }
-            }
-        }
     }
     public bool SliderReadOption(string String, out float Value)
     {

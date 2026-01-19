@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using Basis.BasisUI;
 
 public class SMModuleDistanceBasedReductions : BasisSettingsBase
 {
@@ -45,7 +46,6 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
         set
         {
             _AvatarRange = value;
-            //  BasisDebug.Log($"Avatar Range {_AvatarRange}");
             OnAvatarRangeChanged?.Invoke(value);
         }
     }
@@ -59,15 +59,26 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
             OnMeshLodChanged?.Invoke(value);
         }
     }
+
+    // --- Canonical setting keys (from defaults) ---
+    private static string K_MIC_RANGE => BasisSettingsDefaults.MicrophoneRange.BindingKey;       // "microphonerange"
+    private static string K_HEARING_RANGE => BasisSettingsDefaults.HearingRange.BindingKey;     // "hearingrange"
+    private static string K_AVATAR_RANGE => BasisSettingsDefaults.AvatarRange.BindingKey;       // "avatarrange"
+    private static string K_AVATAR_MESH_LOD => BasisSettingsDefaults.AvatarMeshLOD.BindingKey;  // "avatarmeshlod"
+    private static string K_GLOBAL_MESH_LOD => BasisSettingsDefaults.GlobalMeshLOD.BindingKey;  // "global meshlod" (note space!)
+
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        switch (matchedSettingName.ToLower())
+        // Preserve your original behavior (case-insensitive matching)
+        string key = matchedSettingName.ToLowerInvariant();
+
+        switch (key)
         {
-            case "microphonerange":
+            case var s when s == K_MIC_RANGE.ToLowerInvariant():
                 if (SliderReadOption(optionValue, out float newMicrophoneRange))
                 {
 #if UNITY_SERVER
-                MicrophoneRange = 0;
+                    MicrophoneRange = 0;
 #else
                     MicrophoneRange = newMicrophoneRange * newMicrophoneRange;
 #endif
@@ -75,11 +86,11 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 }
                 break;
 
-            case "hearingrange":
+            case var s when s == K_HEARING_RANGE.ToLowerInvariant():
                 if (SliderReadOption(optionValue, out float newHearingRange))
                 {
 #if UNITY_SERVER
-                HearingRange = 0;
+                    HearingRange = 0;
 #else
                     HearingRange = newHearingRange * newHearingRange;
                     BasisDebug.Log($"Mesh LOD {HearingRange}");
@@ -87,11 +98,11 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 }
                 break;
 
-            case "avatarrange":
+            case var s when s == K_AVATAR_RANGE.ToLowerInvariant():
                 if (SliderReadOption(optionValue, out float loadRange))
                 {
 #if UNITY_SERVER
-                AvatarRange = 0;
+                    AvatarRange = 0;
 #else
                     AvatarRange = loadRange * loadRange;
                     BasisDebug.Log($"Mesh LOD {AvatarRange}");
@@ -99,11 +110,11 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 }
                 break;
 
-            case "avatarmeshlod":
+            case var s when s == K_AVATAR_MESH_LOD.ToLowerInvariant():
                 if (SliderReadOption(optionValue, out float lod))
                 {
 #if UNITY_SERVER
-                MeshLod = 0;
+                    MeshLod = 0;
 #else
                     MeshLod = lod * lod;
                     BasisDebug.Log($"Mesh LOD {MeshLod}");
@@ -111,7 +122,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 }
                 break;
 
-            case "globalmeshlod": // now robust
+            case var s when s == K_GLOBAL_MESH_LOD.ToLowerInvariant():
                 if (SliderReadOption(optionValue, out float globalLOD))
                 {
                     QualitySettings.meshLodThreshold = globalLOD;
@@ -123,6 +134,5 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
 
     public override void ChangedSettings()
     {
-
     }
 }

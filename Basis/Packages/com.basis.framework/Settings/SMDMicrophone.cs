@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.Device_Management;
 using System;
 using System.Collections.Generic;
@@ -395,6 +396,19 @@ public class SMDMicrophone : BasisSettingsBase
         SelectedAgcAttack = attack;
         SelectedAgcRelease = release;
     }
+    private static string K_LIMIT_THRESHOLD => BasisSettingsDefaults.LimitThreshold.BindingKey;
+    private static string K_LIMIT_KNEE => BasisSettingsDefaults.LimitKnee.BindingKey;
+    private static string K_DENOISE_MAKEUP => BasisSettingsDefaults.DenoiseMakeupDb.BindingKey;
+    private static string K_DENOISE_WET => BasisSettingsDefaults.DenoiseWet.BindingKey;
+
+    private static string K_AGC => BasisSettingsDefaults.UseAutomaticGain.BindingKey;
+    private static string K_AGC_TARGET => BasisSettingsDefaults.AgcTargetRms.BindingKey;
+    private static string K_AGC_MAXGAIN => BasisSettingsDefaults.AgcMaxGainDb.BindingKey;
+    private static string K_AGC_ATTACK => BasisSettingsDefaults.AgcAttack.BindingKey;
+    private static string K_AGC_RELEASE => BasisSettingsDefaults.AgcRelease.BindingKey;
+
+    private static string K_DENOISER => BasisSettingsDefaults.MicrophoneDenoiser.BindingKey;
+    private static string K_MIC_MODE => BasisSettingsDefaults.MicrophoneMode.BindingKey;
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
         string mode = BasisDeviceManagement.StaticCurrentMode;
@@ -404,7 +418,6 @@ public class SMDMicrophone : BasisSettingsBase
             return;
         }
 
-        // Use invariant culture to accept dot decimals irrespective of locale
         var st = NumberStyles.Float | NumberStyles.AllowThousands;
         var ci = CultureInfo.InvariantCulture;
 
@@ -412,93 +425,81 @@ public class SMDMicrophone : BasisSettingsBase
         {
             switch (matchedSettingName)
             {
-                case "voicedenoiser":
+                case var s when s == K_DENOISER:
                     if (bool.TryParse(optionValue, out bool den))
-                    {
                         SaveDenoiserSetting(mode, den);
-                        BasisDebug.Log($"setting Denoiser to {SelectedDenoiserMicrophone}");
-                    }
-                    else BasisDebug.LogError($"Unable to parse Denoiser Setting! {optionValue}");
+                    else
+                        BasisDebug.LogError($"Unable to parse Denoiser Setting! {optionValue}");
                     break;
 
-                case "limitthreshold":
+                case var s when s == K_LIMIT_THRESHOLD:
                     if (float.TryParse(optionValue, st, ci, out float th))
                         SaveLimiterSettings(mode, th, SelectedLimitKnee);
-                    else BasisDebug.LogError($"Bad LimitThreshold: {optionValue}");
+                    else
+                        BasisDebug.LogError($"Bad LimitThreshold: {optionValue}");
                     break;
 
-                case "microphonemode":
-                    if (Enum.TryParse<BasisMicrophoneMode>(optionValue.Replace(" ",""), out BasisMicrophoneMode value))
-                    {
-                        SaveMicrophoneModeSettings(mode, (BasisMicrophoneMode)value);
-                    }
-                    else
-                    {
-                        switch (optionValue)
-                        {
-                            case "On Activation":
-                                SaveMicrophoneModeSettings(mode, BasisMicrophoneMode.OnActivation);
-                                break;
-                            case "Push To Talk":
-                                SaveMicrophoneModeSettings(mode, BasisMicrophoneMode.PushToTalk);
-                                break;
-                            default:
-                                BasisDebug.LogError($"Bad Microphone Mode settings: {optionValue}");
-                                break;
-                        }
-                    }
-
-                        break;
-
-                case "limitknee":
+                case var s when s == K_LIMIT_KNEE:
                     if (float.TryParse(optionValue, st, ci, out float kn))
                         SaveLimiterSettings(mode, SelectedLimitThreshold, kn);
-                    else BasisDebug.LogError($"Bad LimitKnee: {optionValue}");
+                    else
+                        BasisDebug.LogError($"Bad LimitKnee: {optionValue}");
                     break;
 
-                case "denoisemakeupdb":
+                case var s when s == K_DENOISE_MAKEUP:
                     if (float.TryParse(optionValue, st, ci, out float mk))
                         SaveDenoiseParams(mode, mk, SelectedDenoiseWet);
-                    else BasisDebug.LogError($"Bad DenoiseMakeupDb: {optionValue}");
+                    else
+                        BasisDebug.LogError($"Bad DenoiseMakeupDb: {optionValue}");
                     break;
 
-                case "denoisewet":
+                case var s when s == K_DENOISE_WET:
                     if (float.TryParse(optionValue, st, ci, out float wet))
                         SaveDenoiseParams(mode, SelectedDenoiseMakeupDb, wet);
-                    else BasisDebug.LogError($"Bad DenoiseWet: {optionValue}");
+                    else
+                        BasisDebug.LogError($"Bad DenoiseWet: {optionValue}");
                     break;
 
-                case "agc":
+                case var s when s == K_AGC:
                     if (bool.TryParse(optionValue, out bool agcOn))
                         SaveAgcEnabled(mode, agcOn);
-                    else BasisDebug.LogError($"Bad AGCEnabled: {optionValue}");
+                    else
+                        BasisDebug.LogError($"Bad AGCEnabled: {optionValue}");
                     break;
 
-                case "agctargetrms":
+                case var s when s == K_AGC_TARGET:
                     if (float.TryParse(optionValue, st, ci, out float tr))
                         SaveAgcParams(mode, tr, SelectedAgcMaxGainDb, SelectedAgcAttack, SelectedAgcRelease);
-                    else BasisDebug.LogError($"Bad AGCTargetRms: {optionValue}");
+                    else
+                        BasisDebug.LogError($"Bad AGCTargetRms: {optionValue}");
                     break;
 
-                case "agcmaxgaindb":
+                case var s when s == K_AGC_MAXGAIN:
                     if (float.TryParse(optionValue, st, ci, out float mg))
                         SaveAgcParams(mode, SelectedAgcTargetRms, mg, SelectedAgcAttack, SelectedAgcRelease);
-                    else BasisDebug.LogError($"Bad AGCMaxGainDb: {optionValue}");
+                    else
+                        BasisDebug.LogError($"Bad AGCMaxGainDb: {optionValue}");
                     break;
 
-                case "agcattack":
+                case var s when s == K_AGC_ATTACK:
                     if (float.TryParse(optionValue, st, ci, out float att))
                         SaveAgcParams(mode, SelectedAgcTargetRms, SelectedAgcMaxGainDb, att, SelectedAgcRelease);
-                    else BasisDebug.LogError($"Bad AGCAttack: {optionValue}");
+                    else
+                        BasisDebug.LogError($"Bad AGCAttack: {optionValue}");
                     break;
 
-                case "agcrelease":
+                case var s when s == K_AGC_RELEASE:
                     if (float.TryParse(optionValue, st, ci, out float rel))
                         SaveAgcParams(mode, SelectedAgcTargetRms, SelectedAgcMaxGainDb, SelectedAgcAttack, rel);
-                    else BasisDebug.LogError($"Bad AGCRelease: {optionValue}");
+                    else
+                        BasisDebug.LogError($"Bad AGCRelease: {optionValue}");
                     break;
-                default:
-                    BasisDebug.LogError($"Unknown setting '{matchedSettingName}' with value '{optionValue}'.");
+
+                case var s when s == K_MIC_MODE:
+                    if (Enum.TryParse<BasisMicrophoneMode>(optionValue.Replace(" ", ""), true, out var m))
+                        SaveMicrophoneModeSettings(mode, m);
+                    else
+                        BasisDebug.LogError($"Bad Microphone Mode: {optionValue}");
                     break;
             }
         }

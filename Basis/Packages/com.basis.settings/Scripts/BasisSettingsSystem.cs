@@ -21,24 +21,54 @@ public class SettingsData
     [NonSerialized]
     public Dictionary<string, string> settings = new Dictionary<string, string>();
 
+    private static string NormalizeKey(string k)
+    {
+        return string.IsNullOrEmpty(k) ? "" : k.Trim().ToLowerInvariant();
+    }
+
+    private static string NormalizeValue(string v)
+    {
+        return v == null ? "" : v.Trim().ToLowerInvariant();
+    }
+
     public void RebuildDictionary()
     {
         settings.Clear();
+
+        if (settingsList == null)
+            settingsList = new List<KeyValue>();
+
         foreach (var kv in settingsList)
         {
-            if (!string.IsNullOrEmpty(kv?.key) && !settings.ContainsKey(kv.key))
-            {
-                settings[kv.key] = kv.value;
-            }
+            if (kv == null) continue;
+
+            string k = NormalizeKey(kv.key);
+            if (string.IsNullOrEmpty(k)) continue;
+
+            string v = NormalizeValue(kv.value);
+
+            // "latest wins" for duplicates after normalization
+            settings[k] = v;
         }
     }
 
     public void RebuildList()
     {
+        if (settingsList == null)
+            settingsList = new List<KeyValue>();
+
         settingsList.Clear();
+
+        if (settings == null)
+            settings = new Dictionary<string, string>();
+
         foreach (var pair in settings)
         {
-            settingsList.Add(new KeyValue { key = pair.Key, value = pair.Value });
+            settingsList.Add(new KeyValue
+            {
+                key = NormalizeKey(pair.Key),
+                value = NormalizeValue(pair.Value)
+            });
         }
     }
 }
@@ -56,6 +86,17 @@ public static class BasisSettingsSystem
     public static event Action<string, string> OnSettingChanged;
     public static event Action OnSettingsFinishedChanges;
 
+    // --- normalization helpers (ALWAYS lower for both key and value) ---
+    private static string NormalizeKey(string key)
+    {
+        return string.IsNullOrEmpty(key) ? "" : key.Trim().ToLowerInvariant();
+    }
+
+    private static string NormalizeValue(string value)
+    {
+        return value == null ? "" : value.Trim().ToLowerInvariant();
+    }
+
     static BasisSettingsSystem()
     {
         LoadAllSettings();
@@ -64,14 +105,18 @@ public static class BasisSettingsSystem
 
     private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        if (settingsData.settings.Count == 0)
+        if (settingsData.settings == null || settingsData.settings.Count == 0)
         {
             BasisDebug.LogError("Loading Scene Before Settings Exist!");
         }
 
-        foreach (var kv in settingsData.settings)
+        if (settingsData.settings != null)
         {
-            OnSettingChanged?.Invoke(kv.Key, kv.Value);
+            foreach (var kv in settingsData.settings)
+            {
+                // already normalized
+                OnSettingChanged?.Invoke(kv.Key, kv.Value);
+            }
         }
 
         OnSettingsFinishedChanges?.Invoke();
@@ -79,41 +124,67 @@ public static class BasisSettingsSystem
 
     public static void SaveString(string uniqueSettingsName, string value)
     {
+        string key = NormalizeKey(uniqueSettingsName);
+        string val = NormalizeValue(value);
+
+        if (string.IsNullOrEmpty(key))
+            return;
+
+        if (settingsData == null)
+            settingsData = new SettingsData { version = currentVersion };
+
+        if (settingsData.settings == null)
+            settingsData.settings = new Dictionary<string, string>();
+
         bool changed = false;
 
-        if (settingsData.settings.TryGetValue(uniqueSettingsName, out var existing))
+        if (settingsData.settings.TryGetValue(key, out var existing))
         {
-            if (existing != value)
+            // existing is already normalized
+            if (existing != val)
             {
-                settingsData.settings[uniqueSettingsName] = value;
+                settingsData.settings[key] = val;
                 changed = true;
             }
         }
         else
         {
-            settingsData.settings[uniqueSettingsName] = value;
+            settingsData.settings[key] = val;
             changed = true;
         }
 
         if (changed)
         {
             SaveAllSettings();
-            OnSettingChanged?.Invoke(uniqueSettingsName, value);
+            OnSettingChanged?.Invoke(key, val);
             OnSettingsFinishedChanges?.Invoke();
         }
     }
 
     public static string LoadString(string uniqueSettingsName, string defaultValue = "")
     {
-        if (settingsData.settings.TryGetValue(uniqueSettingsName, out string value))
+        string key = NormalizeKey(uniqueSettingsName);
+        string def = NormalizeValue(defaultValue);
+
+        if (string.IsNullOrEmpty(key))
+            return def;
+
+        if (settingsData == null)
+            settingsData = new SettingsData { version = currentVersion };
+
+        if (settingsData.settings == null)
+            settingsData.settings = new Dictionary<string, string>();
+
+        if (settingsData.settings.TryGetValue(key, out string value))
         {
-            return value;
+            // value should already be normalized, but normalize anyway for safety
+            return NormalizeValue(value);
         }
 
-        // Store default so future loads see the key.
-        settingsData.settings[uniqueSettingsName] = defaultValue;
+        // Store default so future loads see the key (normalized)
+        settingsData.settings[key] = def;
         SaveAllSettings();
-        return defaultValue;
+        return def;
     }
 
     public static void LoadAllSettings()
@@ -166,16 +237,18 @@ public static class BasisSettingsSystem
             return;
         }
 
-        // IMPORTANT CHANGE:
-        // Do NOT nuke user data just because version differs.
-        // Assume existing values are valid, keep them, just rewrite the version.
+        // Rebuild dictionary WITH normalization
         loaded.RebuildDictionary();
 
-        settingsData = loaded;
-        settingsData.version = currentVersion; // bump to current
-        // (Dictionary already rebuilt; keep as-is.)
+        // Ensure we never carry non-normalized data
+        if (loaded.settings == null)
+            loaded.settings = new Dictionary<string, string>();
 
-        // Notify listeners of everything we have
+        // Assign and bump version
+        settingsData = loaded;
+        settingsData.version = currentVersion;
+
+        // Notify listeners of everything we have (already normalized)
         foreach (var kv in settingsData.settings)
         {
             OnSettingChanged?.Invoke(kv.Key, kv.Value);
@@ -191,6 +264,21 @@ public static class BasisSettingsSystem
     {
         if (settingsData == null)
             settingsData = new SettingsData();
+
+        if (settingsData.settings == null)
+            settingsData.settings = new Dictionary<string, string>();
+
+        // Hard-normalize entire dictionary before writing (belt + suspenders)
+        var normalized = new Dictionary<string, string>();
+        foreach (var pair in settingsData.settings)
+        {
+            string k = NormalizeKey(pair.Key);
+            if (string.IsNullOrEmpty(k)) continue;
+
+            string v = NormalizeValue(pair.Value);
+            normalized[k] = v; // latest wins
+        }
+        settingsData.settings = normalized;
 
         settingsData.version = currentVersion;
         settingsData.RebuildList();
@@ -208,6 +296,7 @@ public static class BasisSettingsSystem
 
     public static int LoadInt(string key, int defaultValue = 0)
     {
+        // default is numeric, ToLowerInvariant doesn't change it
         string val = LoadString(key, defaultValue.ToString(CultureInfo.InvariantCulture));
         return int.TryParse(val, NumberStyles.Integer, CultureInfo.InvariantCulture, out int result)
             ? result
@@ -224,11 +313,17 @@ public static class BasisSettingsSystem
 
     public static bool LoadBool(string key, bool defaultValue = false)
     {
+        // stored as "true"/"false" (lowercase) always
         string val = LoadString(key, defaultValue ? "true" : "false");
-        return val == "true" || string.Equals(val, "true", StringComparison.OrdinalIgnoreCase);
+        return val == "true";
     }
 
-    public static void SaveInt(string key, int value) => SaveString(key, value.ToString(CultureInfo.InvariantCulture));
-    public static void SaveFloat(string key, float value) => SaveString(key, value.ToString(CultureInfo.InvariantCulture));
-    public static void SaveBool(string key, bool value) => SaveString(key, value ? "true" : "false");
+    public static void SaveInt(string key, int value)
+        => SaveString(key, value.ToString(CultureInfo.InvariantCulture));
+
+    public static void SaveFloat(string key, float value)
+        => SaveString(key, value.ToString(CultureInfo.InvariantCulture));
+
+    public static void SaveBool(string key, bool value)
+        => SaveString(key, value ? "true" : "false");
 }

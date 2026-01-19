@@ -287,6 +287,7 @@ BasisSettingsDefaults.mousesensitivty);
             microphoneGroup.SetTitle("Microphone");
             microphoneGroup.SetDescription("Microphone Related Settings");
 
+            // Microphone Volume (0..1)
             PanelSlider sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
                 microphoneGroup,
                 PanelSlider.SliderSettings.Advanced("Microphone Volume", 0, 1, false, 4, ValueDisplayMode.Percentage),
@@ -297,29 +298,24 @@ BasisSettingsDefaults.mousesensitivty);
             {
                 SMDMicrophone.SaveVolumeSettings(BasisDeviceManagement.StaticCurrentMode, value);
             }
-
             sliderMicrophoneVolume.SliderComponent.onValueChanged.AddListener(MicrophoneVolumeChanged);
 
+            BasisLocalVolumeMeterUIDescriptor rangeGroup =
+                BasisLocalVolumeMeterUIDescriptor.CreateNew(
+                    BasisLocalVolumeMeterUIDescriptor.ElementStyles.Horizontal,
+                    microphoneGroup.ContentParent);
 
-            BasisLocalVolumeMeterUIDescriptor rangeGroup = BasisLocalVolumeMeterUIDescriptor.CreateNew(BasisLocalVolumeMeterUIDescriptor.ElementStyles.Horizontal, microphoneGroup.ContentParent);
-
-
-            // Microphone Mode
+            // Microphone Selection (device list)
             PanelDropdown dropdownMicrophoneSelection = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneSelection.Descriptor.SetTitle("Microphone Selection");
-            // Options inferred from default naming – adjust to your actual system values if needed
             dropdownMicrophoneSelection.AssignEntries(SMDMicrophone.MicrophoneDevices.ToList());
-            // dropdownMicrophoneSelection.DropdownComponent.value = dropdownMicrophoneSelection.StringValueToIndex(SMDMicrophone.SelectedMicrophone);
             dropdownMicrophoneSelection.SetValueWithoutNotify(SMDMicrophone.SelectedMicrophone);
 
-            void MicrophoneSelectionChanged(string Name)
+            void MicrophoneSelectionChanged(string name)
             {
-                SMDMicrophone.SaveMicrophoneData(BasisDeviceManagement.StaticCurrentMode, Name);
+                SMDMicrophone.SaveMicrophoneData(BasisDeviceManagement.StaticCurrentMode, name);
             }
-
             dropdownMicrophoneSelection.OnValueChanged += MicrophoneSelectionChanged;
-
-
 
             // Microphone Denoiser
             PanelToggle toggleMicrophoneDenoiser = PanelToggle.CreateNewEntry(microphoneGroup);
@@ -334,29 +330,165 @@ BasisSettingsDefaults.mousesensitivty);
             // Microphone Mode
             PanelDropdown dropdownMicrophoneMode = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneMode.Descriptor.SetTitle("Microphone Mode");
-
-            // Options inferred from default naming – adjust to your actual system values if needed
             dropdownMicrophoneMode.AssignEntries(new List<string>
-            {
-                "On Activation",
-                "Push To Talk"
-            });
+    {
+        "On Activation",
+        "Push To Talk"
+    });
             dropdownMicrophoneMode.AssignBinding(BasisSettingsDefaults.MicrophoneMode);
 
             // Microphone Icon
             PanelDropdown dropdownMicrophoneIcon = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneIcon.Descriptor.SetTitle("Microphone Icon");
             dropdownMicrophoneIcon.AssignEntries(new List<string>
-            {
-                "AlwaysVisible",
-                "ActivityDetection",
-                "Hidden"
-            });
+    {
+        "AlwaysVisible",
+        "ActivityDetection",
+        "Hidden"
+    });
             dropdownMicrophoneIcon.AssignBinding(BasisSettingsDefaults.MicrophoneIcon);
+
+            // -------------------- MISSING MIC DSP SETTINGS --------------------
+            // Limiter
+            PanelElementDescriptor limiterGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            limiterGroup.SetTitle("Limiter");
+            limiterGroup.SetDescription("Prevents clipping by soft-limiting peaks.");
+
+            PanelSlider sliderLimitThreshold = PanelSlider.CreateEntryAndBind(
+                limiterGroup,
+                PanelSlider.SliderSettings.Advanced("Limit Threshold", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.LimitThreshold);
+            sliderLimitThreshold.SetValueWithoutNotify(SMDMicrophone.SelectedLimitThreshold);
+
+            PanelSlider sliderLimitKnee = PanelSlider.CreateEntryAndBind(
+                limiterGroup,
+                PanelSlider.SliderSettings.Advanced("Limit Knee", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.LimitKnee);
+            sliderLimitKnee.SetValueWithoutNotify(SMDMicrophone.SelectedLimitKnee);
+
+            void LimitThresholdChanged(float v)
+            {
+                SMDMicrophone.SaveLimiterSettings(BasisDeviceManagement.StaticCurrentMode, v, SMDMicrophone.SelectedLimitKnee);
+            }
+            void LimitKneeChanged(float v)
+            {
+                SMDMicrophone.SaveLimiterSettings(BasisDeviceManagement.StaticCurrentMode, SMDMicrophone.SelectedLimitThreshold, v);
+            }
+            sliderLimitThreshold.SliderComponent.onValueChanged.AddListener(LimitThresholdChanged);
+            sliderLimitKnee.SliderComponent.onValueChanged.AddListener(LimitKneeChanged);
+
+            // Denoiser tuning
+            PanelElementDescriptor denoiseGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            denoiseGroup.SetTitle("Denoiser Tuning");
+            denoiseGroup.SetDescription("Adjust denoiser blend and makeup gain.");
+
+            PanelSlider sliderDenoiseWet = PanelSlider.CreateEntryAndBind(
+                denoiseGroup,
+                PanelSlider.SliderSettings.Advanced("Denoise Wet", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.DenoiseWet);
+            sliderDenoiseWet.SetValueWithoutNotify(SMDMicrophone.SelectedDenoiseWet);
+
+            // Makeup gain in dB: typical range -12..+24 (tweak to taste)
+            PanelSlider sliderDenoiseMakeup = PanelSlider.CreateEntryAndBind(
+                denoiseGroup,
+                PanelSlider.SliderSettings.Advanced("Denoise Makeup (dB)", -12f, 24f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.DenoiseMakeupDb);
+            sliderDenoiseMakeup.SetValueWithoutNotify(SMDMicrophone.SelectedDenoiseMakeupDb);
+
+            void DenoiseWetChanged(float v)
+            {
+                SMDMicrophone.SaveDenoiseParams(BasisDeviceManagement.StaticCurrentMode, SMDMicrophone.SelectedDenoiseMakeupDb, v);
+            }
+            void DenoiseMakeupChanged(float v)
+            {
+                SMDMicrophone.SaveDenoiseParams(BasisDeviceManagement.StaticCurrentMode, v, SMDMicrophone.SelectedDenoiseWet);
+            }
+            sliderDenoiseWet.SliderComponent.onValueChanged.AddListener(DenoiseWetChanged);
+            sliderDenoiseMakeup.SliderComponent.onValueChanged.AddListener(DenoiseMakeupChanged);
+
+            // AGC tuning
+            PanelElementDescriptor agcGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            agcGroup.SetTitle("AGC Tuning");
+            agcGroup.SetDescription("Target loudness and responsiveness (only applies when AGC is enabled).");
+
+            // Target RMS: 0..0.25 is a sane UI range; default ~0.06
+            PanelSlider sliderAgcTarget = PanelSlider.CreateEntryAndBind(
+                agcGroup,
+                PanelSlider.SliderSettings.Advanced("AGC Target RMS", 0.001f, 0.25f, false, 4, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.AgcTargetRms);
+            sliderAgcTarget.SetValueWithoutNotify(SMDMicrophone.SelectedAgcTargetRms);
+
+            // Max gain dB: 0..36 typical
+            PanelSlider sliderAgcMaxGain = PanelSlider.CreateEntryAndBind(
+                agcGroup,
+                PanelSlider.SliderSettings.Advanced("AGC Max Gain (dB)", 0f, 36f, false, 1, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.AgcMaxGainDb);
+            sliderAgcMaxGain.SetValueWithoutNotify(SMDMicrophone.SelectedAgcMaxGainDb);
+
+            // Attack/Release: 0..1 as your code expects
+            PanelSlider sliderAgcAttack = PanelSlider.CreateEntryAndBind(
+                agcGroup,
+                PanelSlider.SliderSettings.Advanced("AGC Attack", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.AgcAttack);
+            sliderAgcAttack.SetValueWithoutNotify(SMDMicrophone.SelectedAgcAttack);
+
+            PanelSlider sliderAgcRelease = PanelSlider.CreateEntryAndBind(
+                agcGroup,
+                PanelSlider.SliderSettings.Advanced("AGC Release", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.AgcRelease);
+            sliderAgcRelease.SetValueWithoutNotify(SMDMicrophone.SelectedAgcRelease);
+
+            void AgcTargetChanged(float v)
+            {
+                SMDMicrophone.SaveAgcParams(
+                    BasisDeviceManagement.StaticCurrentMode,
+                    v,
+                    SMDMicrophone.SelectedAgcMaxGainDb,
+                    SMDMicrophone.SelectedAgcAttack,
+                    SMDMicrophone.SelectedAgcRelease);
+            }
+            void AgcMaxGainChanged(float v)
+            {
+                SMDMicrophone.SaveAgcParams(
+                    BasisDeviceManagement.StaticCurrentMode,
+                    SMDMicrophone.SelectedAgcTargetRms,
+                    v,
+                    SMDMicrophone.SelectedAgcAttack,
+                    SMDMicrophone.SelectedAgcRelease);
+            }
+            void AgcAttackChanged(float v)
+            {
+                SMDMicrophone.SaveAgcParams(
+                    BasisDeviceManagement.StaticCurrentMode,
+                    SMDMicrophone.SelectedAgcTargetRms,
+                    SMDMicrophone.SelectedAgcMaxGainDb,
+                    v,
+                    SMDMicrophone.SelectedAgcRelease);
+            }
+            void AgcReleaseChanged(float v)
+            {
+                SMDMicrophone.SaveAgcParams(
+                    BasisDeviceManagement.StaticCurrentMode,
+                    SMDMicrophone.SelectedAgcTargetRms,
+                    SMDMicrophone.SelectedAgcMaxGainDb,
+                    SMDMicrophone.SelectedAgcAttack,
+                    v);
+            }
+
+            sliderAgcTarget.SliderComponent.onValueChanged.AddListener(AgcTargetChanged);
+            sliderAgcMaxGain.SliderComponent.onValueChanged.AddListener(AgcMaxGainChanged);
+            sliderAgcAttack.SliderComponent.onValueChanged.AddListener(AgcAttackChanged);
+            sliderAgcRelease.SliderComponent.onValueChanged.AddListener(AgcReleaseChanged);
+
+            // -----------------------------------------------------------------
 
             descriptor.ForceRebuild();
             return tab;
         }
+
 
         // ------------------
         // GRAPHICS TAB

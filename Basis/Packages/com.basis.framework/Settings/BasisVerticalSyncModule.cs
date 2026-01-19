@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.Device_Management;
 using UnityEngine;
 
@@ -15,15 +16,9 @@ public class BasisVerticalSyncModule : BasisSettingsBase
         return;
 #endif
 
-        // Non-desktop devices force vsync off
-        if (BasisDeviceManagement.StaticCurrentMode != BasisConstants.Desktop)
-        {
-            _requestedMode = VSyncMode.Off;
-            return;
-        }
 
         // Cap value setting
-        if (matchedSettingName == "vsynccappedset")
+        if (matchedSettingName == BasisSettingsDefaults.VSyncCapFps.BindingKey)
         {
             if (int.TryParse(
                     optionValue,
@@ -37,21 +32,30 @@ public class BasisVerticalSyncModule : BasisSettingsBase
             }
             return;
         }
-
-        switch (optionValue.ToLower())
+        if (matchedSettingName == BasisSettingsDefaults.VSync.BindingKey)
         {
-            case "on":
-                _requestedMode = VSyncMode.On;
-                break;
-            case "capped":
-                _requestedMode = VSyncMode.Capped;
-                break;
-            case "half":
-                _requestedMode = VSyncMode.Half;
-                break;
-            case "off":
+            // Non-desktop devices force vsync off
+            if (BasisDeviceManagement.StaticCurrentMode != BasisConstants.Desktop)
+            {
                 _requestedMode = VSyncMode.Off;
-                break;
+                return;
+            }
+
+            switch (optionValue.ToLower())
+            {
+                case "on":
+                    _requestedMode = VSyncMode.On;
+                    break;
+                case "capped":
+                    _requestedMode = VSyncMode.Capped;
+                    break;
+                case "half":
+                    _requestedMode = VSyncMode.Half;
+                    break;
+                case "off":
+                    _requestedMode = VSyncMode.Off;
+                    break;
+            }
         }
     }
 

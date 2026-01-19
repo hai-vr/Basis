@@ -2,7 +2,6 @@ namespace Basis.BasisUI
 {
     public static class BasisSettingsDefaults
     {
-
         public static BasisSettingsBinding<float> MainVolume =>
             new("main volume", new BasisPlatformDefault<float>(75));
 
@@ -16,73 +15,76 @@ namespace Basis.BasisUI
             new("player volume", new BasisPlatformDefault<float>(75));
 
         public static BasisSettingsBinding<float> MicrophoneVolume =>
-            new("Microphone Volume", new BasisPlatformDefault<float>(1));
+            new("microphone volume", new BasisPlatformDefault<float>(1));
 
         public static BasisSettingsBinding<float> ControllerDeadZone =>
             new("joystickdeadzone", new BasisPlatformDefault<float>(0.01f));
+
         public static BasisSettingsBinding<float> Basexdeadzone =>
-    new("basexdeadzone", new BasisPlatformDefault<float>(0.08f));
+            new("basexdeadzone", new BasisPlatformDefault<float>(0.08f));
 
         public static BasisSettingsBinding<float> Extraxdeadzoneatfully =>
-    new("extraxdeadzoneatfully", new BasisPlatformDefault<float>(0.35f));
+            new("extraxdeadzoneatfully", new BasisPlatformDefault<float>(0.35f));
 
         public static BasisSettingsBinding<float> Ydeadzone =>
-    new("ydeadzone", new BasisPlatformDefault<float>(0.10f));
+            new("ydeadzone", new BasisPlatformDefault<float>(0.10f));
 
         public static BasisSettingsBinding<float> Wingexponent =>
-new("wingexponent", new BasisPlatformDefault<float>(1.6f));
+            new("wingexponent", new BasisPlatformDefault<float>(1.6f));
 
         public static BasisSettingsBinding<float> MicrophoneRange =>
-            new("MicrophoneRange", new BasisPlatformDefault<float>(25));
+            new("microphonerange", new BasisPlatformDefault<float>(25));
 
         public static BasisSettingsBinding<float> HearingRange =>
-            new("HearingRange", new BasisPlatformDefault<float>(25));
+            new("hearingrange", new BasisPlatformDefault<float>(25));
 
         public static BasisSettingsBinding<float> SelectedHeight =>
-    new("SelectedHeight", new BasisPlatformDefault<float>(1.6f));
+            new("selectedheight", new BasisPlatformDefault<float>(1.6f));
 
         public static BasisSettingsBinding<float> SelectedScale =>
-new("selected scale", new BasisPlatformDefault<float>(1.6f));
+            new("selected scale", new BasisPlatformDefault<float>(1.6f));
 
         public static BasisSettingsBinding<float> realworldeyeheight =>
-new("real world eye height", new BasisPlatformDefault<float>(1.61f));
+            new("real world eye height", new BasisPlatformDefault<float>(1.61f));
+
         public static BasisSettingsBinding<bool> CustomScale =>
-new("custom scale", new BasisPlatformDefault<bool>(false));
+            new("custom scale", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<float> AvatarRange =>
-            new("AvatarRange", new BasisPlatformDefault<float>(25));
+            new("avatarrange", new BasisPlatformDefault<float>(25));
 
         public static BasisSettingsBinding<float> SnapTurnAngle =>
             new("snapturnangle", new BasisPlatformDefault<float>(25f));
 
         public static BasisSettingsBinding<float> mousesensitivty =>
-    new("mousesensitivty", new BasisPlatformDefault<float>(1));
+            new("mousesensitivty", new BasisPlatformDefault<float>(1));
 
         public static BasisSettingsBinding<bool> InvertMouse =>
             new("invertmouse", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> usesnapturn =>
-    new("usesnapturn", new BasisPlatformDefault<bool>(false));
+            new("usesnapturn", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> QualityLevel =>
-            new("Quality Level", new BasisPlatformDefault<string>
+            new("quality level", new BasisPlatformDefault<string>
             {
-                windows = "Ultra",
-                android = "Very Low",
-                linux = "Ultra",
-                other = "Ultra"
+                windows = "ultra",
+                android = "very low",
+                linux = "ultra",
+                other = "ultra"
             });
 
         public static BasisSettingsBinding<string> ShadowQuality =>
-            new("Shadow Quality", new BasisPlatformDefault<string>
+            new("shadow quality", new BasisPlatformDefault<string>
             {
-                windows = "Ultra",
-                android = "Very Low",
-                linux = "Ultra",
-                other = "Ultra"
+                windows = "ultra",
+                android = "very low",
+                linux = "ultra",
+                other = "ultra"
             });
 
         public static BasisSettingsBinding<string> HDRSupport =>
-            new("HDR Support", new BasisPlatformDefault<string>
+            new("hdr support", new BasisPlatformDefault<string>
             {
                 windows = "64bit",
                 android = "off",
@@ -100,53 +102,53 @@ new("custom scale", new BasisPlatformDefault<bool>(false));
             });
 
         public static BasisSettingsBinding<string> Antialiasing =>
-            new("Antialiasing", new BasisPlatformDefault<string>("MSAA 2X"));
+            new("antialiasing", new BasisPlatformDefault<string>("msaa 2x"));
 
         public static BasisSettingsBinding<bool> DebugVisuals =>
-            new("Debug Visuals", new BasisPlatformDefault<bool>(false));
+            new("debug visuals", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> MemoryAllocation =>
-            new("Memory Allocation", new BasisPlatformDefault<string>
+            new("memory allocation", new BasisPlatformDefault<string>
             {
-                windows = "Dynamic",
-                android = "Dynamic",
-                linux = "Dynamic",
-                other = "Dynamic"
+                windows = "dynamic",
+                android = "dynamic",
+                linux = "dynamic",
+                other = "dynamic"
             });
 
         public static BasisSettingsBinding<string> MicrophoneIcon =>
-            new("Microphone Icon", new BasisPlatformDefault<string>("AlwaysVisible"));
+            new("microphone icon", new BasisPlatformDefault<string>("alwaysvisible"));
 
         public static BasisSettingsBinding<string> VisualState =>
-            new("Visual State", new BasisPlatformDefault<string>("Off"));
+            new("visual state", new BasisPlatformDefault<string>("off"));
 
         public static BasisSettingsBinding<string> IKMode =>
-    new("Ik Mode", new BasisPlatformDefault<string>("Eye Height"));
+            new("ik mode", new BasisPlatformDefault<string>("eye height"));
 
         public static BasisSettingsBinding<string> SelectedBone =>
-new("SelectedBone", new BasisPlatformDefault<string>("SelectedBone"));
+            new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
 
         public static BasisSettingsBinding<float> FoveatedRendering =>
-            new("Foveated Rendering", new BasisPlatformDefault<float>
+            new("foveated rendering", new BasisPlatformDefault<float>
             {
                 windows = 0,
                 android = 1,
                 linux = 0,
                 other = 0,
-                ios = 0,
+                ios = 0
             });
 
         public static BasisSettingsBinding<float> FieldOfView =>
-            new("Field Of View", new BasisPlatformDefault<float>(65));
+            new("field of view", new BasisPlatformDefault<float>(65));
 
         public const float FOV_MIN = 50;
         public const float FOV_MAX = 120;
 
         public static BasisSettingsBinding<float> AvatarScale =>
-    new("Scale Of Avatar", new BasisPlatformDefault<float>(1.6f));
+            new("scale of avatar", new BasisPlatformDefault<float>(1.6f));
 
         public static BasisSettingsBinding<float> AvatarDownloadSize =>
-new("Avatar Download Size", new BasisPlatformDefault<float>(256));
+            new("avatar download size", new BasisPlatformDefault<float>(256));
 
         public static BasisSettingsBinding<float> AvatarMeshLOD =>
             new("avatarmeshlod", new BasisPlatformDefault<float>
@@ -167,266 +169,249 @@ new("Avatar Download Size", new BasisPlatformDefault<float>(256));
             });
 
         public static BasisSettingsBinding<string> SeatedMode =>
-            new("Seated Mode", new BasisPlatformDefault<string>("Standing Mode"));
+            new("seated mode", new BasisPlatformDefault<string>("standing mode"));
 
         public static BasisSettingsBinding<string> VSync =>
-            new("Vertical Sync", new BasisPlatformDefault<string>
+            new("vertical sync", new BasisPlatformDefault<string>
             {
-                windows = "On",
-                android = "On",
-                linux = "Capped",
-                other = "On"
+                windows = "on",
+                android = "on",
+                linux = "capped",
+                other = "on"
             });
 
-
-        public static BasisSettingsBinding<float> RenderResolution => new("Render Resolution", new BasisPlatformDefault<float>(1));
+        public static BasisSettingsBinding<float> RenderResolution =>
+            new("render resolution", new BasisPlatformDefault<float>(1));
 
         public static BasisSettingsBinding<string> MicrophoneMode =>
-            new("microphonemode", new BasisPlatformDefault<string>("OnActivation"));
+            new("microphonemode", new BasisPlatformDefault<string>("onactivation"));
 
         public static BasisSettingsBinding<bool> UseAutomaticGain =>
-            new("AGC", new BasisPlatformDefault<bool>
+            new("agc", new BasisPlatformDefault<bool>
             {
                 windows = true,
                 android = false,
                 linux = false,
                 other = false
             });
+
         public static BasisSettingsBinding<bool> FalseBinding =>
-new("FalseBinding", new BasisPlatformDefault<bool>(false));
+            new("falsebinding", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> TrueBinding =>
-new("TrueBinding", new BasisPlatformDefault<bool>(false));
+            new("truebinding", new BasisPlatformDefault<bool>(false));
+
         // ---------------- GLOBAL ONE EURO PARAMS ----------------
         public static BasisSettingsBinding<float> FBIKMinCutoff =>
-            new("FBIKMinCutoff", new BasisPlatformDefault<float>(5.5f));
+            new("fbikmincutoff", new BasisPlatformDefault<float>(5.5f));
 
         public static BasisSettingsBinding<float> FBIKBeta =>
-            new("FBIKBeta", new BasisPlatformDefault<float>(3.25f));
+            new("fbikbeta", new BasisPlatformDefault<float>(3.25f));
 
         public static BasisSettingsBinding<float> FBIKDerivativeCutoff =>
-            new("FBIKDerivativeCutoff", new BasisPlatformDefault<float>(3f));
+            new("fbikderivativecutoff", new BasisPlatformDefault<float>(3f));
 
-        // Fallback smoothing (when Smooth* is true but Euro* is false)
         public static BasisSettingsBinding<float> FBIKPositionSmoothingHz =>
-            new("FBIKPositionSmoothingHz", new BasisPlatformDefault<float>(20f));
+            new("fbikpositionsmoothinghz", new BasisPlatformDefault<float>(20f));
 
         public static BasisSettingsBinding<float> FBIKRotationSmoothingHz =>
-            new("FBIKRotationSmoothingHz", new BasisPlatformDefault<float>(25f));
-
+            new("fbikrotationsmoothinghz", new BasisPlatformDefault<float>(25f));
 
         // ---------------- HIPS ----------------
         public static BasisSettingsBinding<bool> FBIKHipsSmoothPos =>
-            new("FBIKHipsSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikhipssmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKHipsSmoothRot =>
-            new("FBIKHipsSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikhipssmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKHipsEuroPos =>
-            new("FBIKHipsEuroPos", new BasisPlatformDefault<bool>(true));
+            new("fbikhipseuropos", new BasisPlatformDefault<bool>(true));
 
         public static BasisSettingsBinding<bool> FBIKHipsEuroRot =>
-            new("FBIKHipsEuroRot", new BasisPlatformDefault<bool>(true));
-
+            new("fbikhipseurorot", new BasisPlatformDefault<bool>(true));
 
         // ---------------- HEAD ----------------
         public static BasisSettingsBinding<bool> FBIKHeadSmoothPos =>
-            new("FBIKHeadSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikheadsmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKHeadSmoothRot =>
-            new("FBIKHeadSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikheadsmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKHeadEuroPos =>
-            new("FBIKHeadEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikheadeuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKHeadEuroRot =>
-            new("FBIKHeadEuroRot", new BasisPlatformDefault<bool>(false));
-
+            new("fbikheadeurorot", new BasisPlatformDefault<bool>(false));
 
         // ---------------- LEFT FOOT ----------------
         public static BasisSettingsBinding<bool> FBIKLeftFootSmoothPos =>
-            new("FBIKLeftFootSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikleftfootsmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftFootSmoothRot =>
-            new("FBIKLeftFootSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikleftfootsmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftFootEuroPos =>
-            new("FBIKLeftFootEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikleftfooteuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftFootEuroRot =>
-            new("FBIKLeftFootEuroRot", new BasisPlatformDefault<bool>(false));
-
+            new("fbikleftfooteurorot", new BasisPlatformDefault<bool>(false));
 
         // ---------------- RIGHT FOOT ----------------
         public static BasisSettingsBinding<bool> FBIKRightFootSmoothPos =>
-            new("FBIKRightFootSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrightfootsmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightFootSmoothRot =>
-            new("FBIKRightFootSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikrightfootsmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightFootEuroPos =>
-            new("FBIKRightFootEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrightfooteuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightFootEuroRot =>
-            new("FBIKRightFootEuroRot", new BasisPlatformDefault<bool>(false));
-
+            new("fbikrightfooteurorot", new BasisPlatformDefault<bool>(false));
 
         // ---------------- CHEST ----------------
         public static BasisSettingsBinding<bool> FBIKChestSmoothPos =>
-            new("FBIKChestSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikchestsmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKChestSmoothRot =>
-            new("FBIKChestSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikchestsmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKChestEuroPos =>
-            new("FBIKChestEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikchesteuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKChestEuroRot =>
-            new("FBIKChestEuroRot", new BasisPlatformDefault<bool>(false));
+            new("fbikchesteurorot", new BasisPlatformDefault<bool>(false));
 
-
-        // ---------------- LEFT LOWER LEG (hint) ----------------
+        // ---------------- LEFT LOWER LEG ----------------
         public static BasisSettingsBinding<bool> FBIKLeftLowerLegSmoothPos =>
-            new("FBIKLeftLowerLegSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikleftlowerlegsmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftLowerLegSmoothRot =>
-            new("FBIKLeftLowerLegSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikleftlowerlegsmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftLowerLegEuroPos =>
-            new("FBIKLeftLowerLegEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikleftlowerlegeuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftLowerLegEuroRot =>
-            new("FBIKLeftLowerLegEuroRot", new BasisPlatformDefault<bool>(false));
+            new("fbikleftlowerlegeurorot", new BasisPlatformDefault<bool>(false));
 
-
-        // ---------------- RIGHT LOWER LEG (hint) ----------------
+        // ---------------- RIGHT LOWER LEG ----------------
         public static BasisSettingsBinding<bool> FBIKRightLowerLegSmoothPos =>
-            new("FBIKRightLowerLegSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrightlowerlegsmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightLowerLegSmoothRot =>
-            new("FBIKRightLowerLegSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikrightlowerlegsmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightLowerLegEuroPos =>
-            new("FBIKRightLowerLegEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrightlowerlegeuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightLowerLegEuroRot =>
-            new("FBIKRightLowerLegEuroRot", new BasisPlatformDefault<bool>(false));
-
+            new("fbikrightlowerlegeurorot", new BasisPlatformDefault<bool>(false));
 
         // ---------------- LEFT HAND ----------------
-        // Default choice: smooth rotation, but leave position raw by default (hands often feel "laggy" when position-smoothed).
         public static BasisSettingsBinding<bool> FBIKLeftHandSmoothPos =>
-            new("FBIKLeftHandSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbiklefthandsmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftHandSmoothRot =>
-            new("FBIKLeftHandSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbiklefthandsmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftHandEuroPos =>
-            new("FBIKLeftHandEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikleftehandeuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftHandEuroRot =>
-            new("FBIKLeftHandEuroRot", new BasisPlatformDefault<bool>(false));
-
+            new("fbikleftehandeurorot", new BasisPlatformDefault<bool>(false));
 
         // ---------------- RIGHT HAND ----------------
         public static BasisSettingsBinding<bool> FBIKRightHandSmoothPos =>
-            new("FBIKRightHandSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrighthandsmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightHandSmoothRot =>
-            new("FBIKRightHandSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikrighthandsmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightHandEuroPos =>
-            new("FBIKRightHandEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrighthandeuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightHandEuroRot =>
-            new("FBIKRightHandEuroRot", new BasisPlatformDefault<bool>(false));
+            new("fbikrighthandeurorot", new BasisPlatformDefault<bool>(false));
 
-
-        // ---------------- LEFT LOWER ARM (hand hint) ----------------
+        // ---------------- LEFT LOWER ARM ----------------
         public static BasisSettingsBinding<bool> FBIKLeftLowerArmSmoothPos =>
-            new("FBIKLeftLowerArmSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikleftlowerarmsmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftLowerArmSmoothRot =>
-            new("FBIKLeftLowerArmSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikleftlowerarmsmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftLowerArmEuroPos =>
-            new("FBIKLeftLowerArmEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikleftlowerarmeuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftLowerArmEuroRot =>
-            new("FBIKLeftLowerArmEuroRot", new BasisPlatformDefault<bool>(false));
+            new("fbikleftlowerarmeurorot", new BasisPlatformDefault<bool>(false));
 
-
-        // ---------------- RIGHT LOWER ARM (hand hint) ----------------
+        // ---------------- RIGHT LOWER ARM ----------------
         public static BasisSettingsBinding<bool> FBIKRightLowerArmSmoothPos =>
-            new("FBIKRightLowerArmSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrightlowerarmsmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightLowerArmSmoothRot =>
-            new("FBIKRightLowerArmSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikrightlowerarmsmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightLowerArmEuroPos =>
-            new("FBIKRightLowerArmEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrightlowerarmeuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightLowerArmEuroRot =>
-            new("FBIKRightLowerArmEuroRot", new BasisPlatformDefault<bool>(false));
-
+            new("fbikrightlowerarmeurorot", new BasisPlatformDefault<bool>(false));
 
         // ---------------- LEFT TOE ----------------
-        // Toes: usually noisy / low value; keep off by default unless you have solid toe trackers.
         public static BasisSettingsBinding<bool> FBIKLeftToeSmoothPos =>
-            new("FBIKLeftToeSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbiklefttoesmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftToeSmoothRot =>
-            new("FBIKLeftToeSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbiklefttoesmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftToeEuroPos =>
-            new("FBIKLeftToeEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbiklefttoeeuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftToeEuroRot =>
-            new("FBIKLeftToeEuroRot", new BasisPlatformDefault<bool>(false));
-
+            new("fbiklefttoeeurorot", new BasisPlatformDefault<bool>(false));
 
         // ---------------- RIGHT TOE ----------------
         public static BasisSettingsBinding<bool> FBIKRightToeSmoothPos =>
-            new("FBIKRightToeSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrighttoesmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightToeSmoothRot =>
-            new("FBIKRightToeSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikrighttoesmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightToeEuroPos =>
-            new("FBIKRightToeEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrighttoeeuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightToeEuroRot =>
-            new("FBIKRightToeEuroRot", new BasisPlatformDefault<bool>(false));
-
+            new("fbikrighttoeeurorot", new BasisPlatformDefault<bool>(false));
 
         // ---------------- LEFT SHOULDER ----------------
-        // Your current solve uses shoulders as rotation-only targets; defaults reflect that.
         public static BasisSettingsBinding<bool> FBIKLeftShoulderSmoothPos =>
-            new("FBIKLeftShoulderSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikleftshouldersmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftShoulderSmoothRot =>
-            new("FBIKLeftShoulderSmoothRot", new BasisPlatformDefault<bool>(true));
+            new("fbikleftshouldersmoothrot", new BasisPlatformDefault<bool>(true));
 
         public static BasisSettingsBinding<bool> FBIKLeftShoulderEuroPos =>
-            new("FBIKLeftShoulderEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikleftshouldereuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKLeftShoulderEuroRot =>
-            new("FBIKLeftShoulderEuroRot", new BasisPlatformDefault<bool>(false));
-
+            new("fbikleftshouldereurorot", new BasisPlatformDefault<bool>(false));
 
         // ---------------- RIGHT SHOULDER ----------------
         public static BasisSettingsBinding<bool> FBIKRightShoulderSmoothPos =>
-            new("FBIKRightShoulderSmoothPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrightshouldersmoothpos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightShoulderSmoothRot =>
-            new("FBIKRightShoulderSmoothRot", new BasisPlatformDefault<bool>(false));
+            new("fbikrightshouldersmoothrot", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightShoulderEuroPos =>
-            new("FBIKRightShoulderEuroPos", new BasisPlatformDefault<bool>(false));
+            new("fbikrightshouldereuropos", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FBIKRightShoulderEuroRot =>
-            new("FBIKRightShoulderEuroRot", new BasisPlatformDefault<bool>(false));
+            new("fbikrightshouldereurorot", new BasisPlatformDefault<bool>(false));
 
-        // Optional: a real persistent setting for the master toggle.
         public static BasisSettingsBinding<string> VSyncCapFps =>
             new("vsynccappedset", new BasisPlatformDefault<string>
             {
@@ -436,8 +421,34 @@ new("TrueBinding", new BasisPlatformDefault<bool>(false));
                 other = "120"
             });
 
-        // Optional: a real persistent setting for the master toggle.
         public static readonly BasisSettingsBinding<bool> FBIKEuroAll =
-            new BasisSettingsBinding<bool>("EuroAll");
+            new("euroall");
+
+        // Limiter
+        public static BasisSettingsBinding<float> LimitThreshold =>
+            new("limitthreshold", new BasisPlatformDefault<float>(0.95f)); // pre-clip
+
+        public static BasisSettingsBinding<float> LimitKnee =>
+            new("limitknee", new BasisPlatformDefault<float>(0.05f)); // soft knee width
+
+        // Denoise extra params (post gain + wet/dry)
+        public static BasisSettingsBinding<float> DenoiseMakeupDb =>
+            new("denoisemakeupdb", new BasisPlatformDefault<float>(3f));
+
+        public static BasisSettingsBinding<float> DenoiseWet =>
+            new("denoisewet", new BasisPlatformDefault<float>(1f)); // 0..1
+
+
+        public static BasisSettingsBinding<float> AgcTargetRms =>
+            new("agctargetrms", new BasisPlatformDefault<float>(0.06f)); // ~ -24 dBFS
+
+        public static BasisSettingsBinding<float> AgcMaxGainDb =>
+            new("agcmaxgaindb", new BasisPlatformDefault<float>(18f));
+
+        public static BasisSettingsBinding<float> AgcAttack =>
+            new("agcattack", new BasisPlatformDefault<float>(0.10f)); // 0..1
+
+        public static BasisSettingsBinding<float> AgcRelease =>
+            new("agcrelease", new BasisPlatformDefault<float>(0.01f)); // 0..1
     }
 }
