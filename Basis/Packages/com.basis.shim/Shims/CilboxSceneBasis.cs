@@ -98,7 +98,8 @@ namespace Cilbox
 			"UnityEngine.Transform",
 			"UnityEngine.Vector4",
 			"UnityEngine.Vector3",
-		};
+            "UnityEngine.shader",
+        };
 
 		static public HashSet<String> GetWhiteListTypes() { return whiteListType; }
 
