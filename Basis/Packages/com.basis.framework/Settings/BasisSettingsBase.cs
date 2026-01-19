@@ -4,24 +4,14 @@ public abstract class BasisSettingsBase : MonoBehaviour
 {
     public virtual void Awake()
     {
-        BasisSettingsSystem.OnSettingChanged += OnSettingChanged;
-        BasisSettingsSystem.OnSettingsFinishedChanges += ApplyFinal;
+        BasisSettingsSystem.OnSettingChanged += ValidSettingsChange;
+        BasisSettingsSystem.OnSettingsFinishedChanges += ChangedSettings;
     }
 
     public void OnDestroy()
     {
-        BasisSettingsSystem.OnSettingChanged -= OnSettingChanged;
-        BasisSettingsSystem.OnSettingsFinishedChanges -= ApplyFinal;
-    }
-    public void ApplyFinal()
-    {
-        QualitySettings.SetQualityLevel(QualitySettings.GetQualityLevel(), true);
-    }
-    public void OnSettingChanged(string uniqueName, string optionValue)
-    {
-        // Normalize casing for comparison
-        ValidSettingsChange(uniqueName, optionValue);
-        ChangedSettings();
+        BasisSettingsSystem.OnSettingChanged -= ValidSettingsChange;
+        BasisSettingsSystem.OnSettingsFinishedChanges -= ChangedSettings;
     }
     public bool SliderReadOption(string String, out float Value)
     {

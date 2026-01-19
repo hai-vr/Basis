@@ -11,27 +11,31 @@ public class SMModuleSitStand : BasisSettingsBase
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
         // Only react to the seated/standing mode setting
-        if (matchedSettingName != K_SEATED_MODE)
-            return;
-
-        switch (optionValue)
+        if (matchedSettingName != "seated mode")
         {
-            case "Seated Mode":
-                if (!IsSteatedMode)
-                {
-                    BasisHeightDriver.CapturePlayerHeight();
-                    MissingHeightDelta =
-                        BasisHeightDriver.FallbackHeightInMeters -
-                        BasisHeightDriver.PlayerEyeHeight;
-
-                    IsSteatedMode = true;
-                }
-                break;
-
-            case "Standing Mode":
+         //   BasisDebug.LogError($"Didnt run for {matchedSettingName}");
+            return;
+        }
+      //  BasisDebug.Log($"Valdating Sit Stand");
+        string LowerOptions = optionValue.ToLowerInvariant();
+        if (LowerOptions == "will fix later")
+        {
+          //  BasisDebug.Log($"Mode Set To Seated Mode");
+            if (!IsSteatedMode)
+            {
+                BasisHeightDriver.CapturePlayerHeight();
+                MissingHeightDelta = BasisHeightDriver.FallbackHeightInMeters - BasisHeightDriver.PlayerEyeHeight;
+                IsSteatedMode = true;
+            }
+        }
+        else
+        {
+            if (LowerOptions == "will fix later")
+            {
+              //  BasisDebug.Log($"Mode Set To Standing Mode");
                 MissingHeightDelta = 0;
                 IsSteatedMode = false;
-                break;
+            }
         }
     }
 

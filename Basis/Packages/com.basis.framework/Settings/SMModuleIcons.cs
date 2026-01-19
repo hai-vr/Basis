@@ -20,21 +20,21 @@ public class SMModuleIcons : BasisSettingsBase
         if (BasisLocalCameraDriver.Instance.microphoneIconDriver == null)
             return;
 
-        switch (optionValue)
+        switch (optionValue.ToLowerInvariant())
         {
-            case "ActivityDetection":
+            case "activitydetection":
                 BasisLocalCameraDriver.Instance.microphoneIconDriver
                     .OnDisplayModeChanged(
                         BasisLocalMicrophoneIconDriver.MicrophoneDisplayMode.ActivityDetection);
                 break;
 
-            case "AlwaysVisible":
+            case "alwaysvisible":
                 BasisLocalCameraDriver.Instance.microphoneIconDriver
                     .OnDisplayModeChanged(
                         BasisLocalMicrophoneIconDriver.MicrophoneDisplayMode.AlwaysVisible);
                 break;
 
-            case "Hidden":
+            case "hidden":
                 BasisLocalCameraDriver.Instance.microphoneIconDriver
                     .OnDisplayModeChanged(
                         BasisLocalMicrophoneIconDriver.MicrophoneDisplayMode.Off);

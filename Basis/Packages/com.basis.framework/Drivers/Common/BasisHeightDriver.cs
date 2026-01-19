@@ -72,6 +72,7 @@ public static class BasisHeightDriver
     /// </summary>
     public static void CapturePlayerHeight()
     {
+        BasisDebug.Log("Capturing Player Height", BasisDebug.LogTag.IK);
         BasisLocalHeightCalculator.CalculatePlayerEyeHeight();
         BasisLocalHeightCalculator.CalculatePlayerArmSpan();
     }

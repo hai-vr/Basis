@@ -4,6 +4,7 @@ using System.IO;
 using System.Collections.Generic;
 using System;
 using System.Globalization;
+using System.Linq;
 
 [Serializable]
 public class KeyValue
@@ -120,8 +121,12 @@ public static class BasisSettingsSystem
         }
 
         OnSettingsFinishedChanges?.Invoke();
+        ForceQualityRefresh();
     }
-
+    public static void ForceQualityRefresh()
+    {
+        QualitySettings.SetQualityLevel(QualitySettings.GetQualityLevel(), true);
+    }
     public static void SaveString(string uniqueSettingsName, string value)
     {
         string key = NormalizeKey(uniqueSettingsName);
@@ -158,6 +163,7 @@ public static class BasisSettingsSystem
             SaveAllSettings();
             OnSettingChanged?.Invoke(key, val);
             OnSettingsFinishedChanges?.Invoke();
+            ForceQualityRefresh();
         }
     }
 
@@ -201,6 +207,7 @@ public static class BasisSettingsSystem
 
             // Fire notifications (none yet unless defaults were created through LoadString later)
             OnSettingsFinishedChanges?.Invoke();
+            ForceQualityRefresh();
             return;
         }
 
@@ -234,6 +241,7 @@ public static class BasisSettingsSystem
 
             SaveAllSettings();
             OnSettingsFinishedChanges?.Invoke();
+            ForceQualityRefresh();
             return;
         }
 
@@ -249,15 +257,17 @@ public static class BasisSettingsSystem
         settingsData.version = currentVersion;
 
         // Notify listeners of everything we have (already normalized)
-        foreach (var kv in settingsData.settings)
+        var settings = settingsData.settings;
+        KeyValuePair<string, string>[] array = settings.ToArray();
+        foreach (KeyValuePair<string, string> kv in array)
         {
             OnSettingChanged?.Invoke(kv.Key, kv.Value);
         }
 
         OnSettingsFinishedChanges?.Invoke();
-
         // Persist rewritten version + normalized list/dict
         SaveAllSettings();
+        ForceQualityRefresh();
     }
 
     public static void SaveAllSettings()

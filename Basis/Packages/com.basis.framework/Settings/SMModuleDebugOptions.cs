@@ -14,7 +14,7 @@ public class SMModuleDebugOptions : BasisSettingsBase
         if (matchedSettingName != K_DEBUG_VISUALS)
             return;
 
-        if (bool.TryParse(optionValue.ToLower(), out bool selected))
+        if (bool.TryParse(optionValue.ToLowerInvariant(), out bool selected))
         {
 #if UNITY_SERVER
             selected = false;

@@ -109,7 +109,6 @@
   <Project Path="AudioLink.Editor.csproj" />
   <Project Path="Unity.Profiling.Core.csproj" />
   <Project Path="Unity.Services.Core.Device.csproj" />
-  <Project Path="BasisSettings.csproj" />
   <Project Path="BasisExampleEditor.csproj" />
   <Project Path="Unity.Services.Core.Analytics.csproj" />
   <Project Path="Unity.EditorCoroutines.Editor.csproj" />
@@ -120,6 +119,7 @@
   <Project Path="Did.csproj" />
   <Project Path="Unity.XR.OpenXR.Features.MetaQuestSupport.csproj" />
   <Project Path="Crypto.csproj" />
+  <Project Path="BasisSettings.csproj" />
   <Project Path="BasisPoolTableEditor.csproj" />
   <Project Path="Unity.RenderPipeline.Universal.ShaderLibrary.csproj" />
   <Project Path="Unity.Services.CloudDiagnostics.Editor.csproj" />

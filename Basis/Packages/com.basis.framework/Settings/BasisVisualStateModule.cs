@@ -36,7 +36,7 @@ public class BasisVisualStateModule : BasisSettingsBase
     {
         if (matchedSettingName == BasisSettingsDefaults.VisualState.BindingKey)
         {
-            switch (optionValue.ToLower())
+            switch (optionValue.ToLowerInvariant())
             {
                 case "all visuals":
                     ShowAvatarDistance();

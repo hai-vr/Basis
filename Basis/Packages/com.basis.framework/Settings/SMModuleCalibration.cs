@@ -136,11 +136,11 @@ public class SMModuleCalibration : BasisSettingsBase
 
                     switch (optionValue)
                     {
-                        case "Eye Height":
+                        case "eye height":
                             HeightMode = BasisSelectedHeightMode.EyeHeight;
                             break;
 
-                        case "Arm Distance":
+                        case "arm distance":
                             if (BasisDeviceManagement.IsUserInDesktop())
                                 HeightMode = BasisSelectedHeightMode.EyeHeight;
                             else
@@ -479,9 +479,6 @@ public class SMModuleCalibration : BasisSettingsBase
                 if (bool.TryParse(optionValue, out var brs3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightShoulder] = brs3;
                 break;
 
-            default:
-                // your original code intentionally did not log for unimplemented keys
-                break;
         }
     }
 

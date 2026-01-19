@@ -168,8 +168,7 @@ namespace Basis.BasisUI
                 other = 0
             });
 
-        public static BasisSettingsBinding<string> SeatedMode =>
-            new("seated mode", new BasisPlatformDefault<string>("standing mode"));
+        public static BasisSettingsBinding<string> SeatedMode => new("Seated Mode", new BasisPlatformDefault<string>("standing mode"));
 
         public static BasisSettingsBinding<string> VSync =>
             new("vertical sync", new BasisPlatformDefault<string>
