@@ -13,9 +13,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using static SerializableBasis;
 using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
-using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
-using System;
 
 namespace Basis.Scripts.Networking.NetworkedAvatar
 {

@@ -671,34 +671,19 @@ BasisSettingsDefaults.mousesensitivty);
             AddInfoRow(parent, "Mode", Basis.Scripts.Device_Management.BasisDeviceManagement.StaticCurrentMode.ToString());
 
             AddInfoRow(parent, "Build GUID", Application.buildGUID);
-            AddInfoRow(parent, "Log Path", Application.consoleLogPath);
-            AddInfoRow(parent, "Data Path", Application.dataPath);
+            AddInfoRow(parent, "Log Path", Application.consoleLogPath, false);
+            AddInfoRow(parent, "Data Path", Application.dataPath,false);
         }
 
-        private static PanelTextField AddInfoRow(RectTransform parent, string title, string value)
+        private static PanelPasswordField AddInfoRow(RectTransform parent, string title, string value,bool ShownByDefault = true)
         {
-            // Uses your existing prefab + styling
-            PanelTextField field = PanelTextField.CreateNew(parent);
-            field.Descriptor.SetTitle(title);
-            field.Descriptor.SetDescription(string.Empty);
-
-            field.SetValueWithoutNotify(value ?? string.Empty);
-
-            // Make it behave like a read-only “info label” but still selectable for copy
-            TMP_InputField input = field.GetComponentInChildren<TMP_InputField>(true);
-            if (input)
-            {
-                input.readOnly = true;
-                input.interactable = true; // keep selectable
-                input.contentType = TMP_InputField.ContentType.Standard;
-
-                // For long paths/GUIDs, multiline reads nicer
-                input.lineType = TMP_InputField.LineType.MultiLineNewline;
-                input.scrollSensitivity = 2f;
-            }
-            return field;
+            PanelPasswordField Password = PanelPasswordField.CreateNew(parent);
+            Password.SetPassword(value);
+            Password.SetValueWithoutNotify(ShownByDefault);
+            Password.Descriptor.SetTitle(title);
+            Password.Descriptor.SetDescription(string.Empty);
+            return Password;
         }
-
         private static string BuildInfoString()
         {
             return
@@ -706,9 +691,9 @@ BasisSettingsDefaults.mousesensitivty);
                 $"Unity: {Application.unityVersion}\n" +
                 $"Platform: {Application.platform}\n" +
                 $"Mode: {Basis.Scripts.Device_Management.BasisDeviceManagement.StaticCurrentMode}\n" +
-                $"Build GUID: {Application.buildGUID}\n" +
-                $"Log Path: {Application.consoleLogPath}\n" +
-                $"Data Path: {Application.dataPath}";
+                $"Build GUID: {Application.buildGUID}\n";// +
+             //   $"Log Path: {Application.consoleLogPath}\n" +
+             //   $"Data Path: {Application.dataPath}";
         }
     }
 }
