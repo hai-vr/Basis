@@ -98,11 +98,15 @@ namespace Cilbox
 			"UnityEngine.Transform",
 			"UnityEngine.Vector4",
 			"UnityEngine.Vector3",
-            "UnityEngine.Vector2",
-            "UnityEngine.shader",
-            "UnityEngine.Light",
-            "UnityEngine.Quaternion",
-            "UnityEngine.Behaviour",// this ones scary?
+			"UnityEngine.Vector2",
+			"UnityEngine.shader",
+			"UnityEngine.Light",
+			"UnityEngine.Quaternion",
+			"UnityEngine.Behaviour",
+            "UnityEngine.Gradient",
+            "UnityEngine.RenderSettings",
+            "UnityEngine.Rendering.AmbientMode",
+            "UnityEngine.DynamicGI",
         };
 
 		static public HashSet<String> GetWhiteListTypes() { return whiteListType; }
