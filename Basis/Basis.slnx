@@ -3,7 +3,6 @@
   <Project Path="Unity.VisualEffectGraph.Editor.csproj" />
   <Project Path="Unity.RenderPipelines.GPUDriven.Runtime.csproj" />
   <Project Path="Unity.InputSystem.csproj" />
-  <Project Path="Basis Framework.csproj" />
   <Project Path="Unity.Services.Core.Internal.csproj" />
   <Project Path="Unity.XR.OpenVR.Editor.csproj" />
   <Project Path="Unity.ShaderGraph.Editor.csproj" />
@@ -30,6 +29,7 @@
   <Project Path="BasisNetworkCore.csproj" />
   <Project Path="Unity.VisualStudio.Editor.csproj" />
   <Project Path="Unity.Animation.Rigging.Editor.csproj" />
+  <Project Path="Basis Framework.csproj" />
   <Project Path="Unity.MemoryProfiler.Editor.csproj" />
   <Project Path="PPv2URPConverters.csproj" />
   <Project Path="SteamVR.csproj" />
