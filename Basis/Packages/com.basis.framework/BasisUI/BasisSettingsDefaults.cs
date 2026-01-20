@@ -3,19 +3,19 @@ namespace Basis.BasisUI
     public static class BasisSettingsDefaults
     {
         public static BasisSettingsBinding<float> MainVolume =>
-            new("main volume", new BasisPlatformDefault<float>(75));
+            new("mainvolume", new BasisPlatformDefault<float>(75));
 
         public static BasisSettingsBinding<float> MenuVolume =>
-            new("menu volume", new BasisPlatformDefault<float>(75));
+            new("menuvolume", new BasisPlatformDefault<float>(75));
 
         public static BasisSettingsBinding<float> WorldVolume =>
-            new("world volume", new BasisPlatformDefault<float>(75));
+            new("worldvolume", new BasisPlatformDefault<float>(75));
 
         public static BasisSettingsBinding<float> PlayerVolume =>
-            new("player volume", new BasisPlatformDefault<float>(75));
+            new("playervolume", new BasisPlatformDefault<float>(75));
 
         public static BasisSettingsBinding<float> MicrophoneVolume =>
-            new("microphone volume", new BasisPlatformDefault<float>(1));
+            new("microphonevolume", new BasisPlatformDefault<float>(1));
 
         public static BasisSettingsBinding<float> ControllerDeadZone =>
             new("joystickdeadzone", new BasisPlatformDefault<float>(0.01f));
@@ -35,20 +35,15 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> MicrophoneRange =>
             new("microphonerange", new BasisPlatformDefault<float>(25));
 
-        public static BasisSettingsBinding<float> HearingRange =>
-            new("hearingrange", new BasisPlatformDefault<float>(25));
+        public static BasisSettingsBinding<float> HearingRange =>  new("hearingrange", new BasisPlatformDefault<float>(25));
 
-        public static BasisSettingsBinding<float> SelectedHeight =>
-            new("selectedheight", new BasisPlatformDefault<float>(1.6f));
+        public static BasisSettingsBinding<float> SelectedHeight => new("selectedheight", new BasisPlatformDefault<float>(1.6f));
 
-        public static BasisSettingsBinding<float> SelectedScale =>
-            new("selected scale", new BasisPlatformDefault<float>(1.6f));
+        public static BasisSettingsBinding<float> SelectedScale => new("selectedscale", new BasisPlatformDefault<float>(1.6f));
 
-        public static BasisSettingsBinding<float> realworldeyeheight =>
-            new("real world eye height", new BasisPlatformDefault<float>(1.61f));
+        public static BasisSettingsBinding<float> realworldeyeheight => new("realworldeyeheight", new BasisPlatformDefault<float>(1.61f));
 
-        public static BasisSettingsBinding<bool> CustomScale =>
-            new("custom scale", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> CustomScale =>  new("customscale", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<float> AvatarRange =>
             new("avatarrange", new BasisPlatformDefault<float>(25));
@@ -65,8 +60,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> usesnapturn =>
             new("usesnapturn", new BasisPlatformDefault<bool>(false));
 
-        public static BasisSettingsBinding<string> QualityLevel =>
-            new("quality level", new BasisPlatformDefault<string>
+        public static BasisSettingsBinding<string> QualityLevel => new("qualitylevel", new BasisPlatformDefault<string>
             {
                 windows = "ultra",
                 android = "very low",
@@ -74,8 +68,7 @@ namespace Basis.BasisUI
                 other = "ultra"
             });
 
-        public static BasisSettingsBinding<string> ShadowQuality =>
-            new("shadow quality", new BasisPlatformDefault<string>
+        public static BasisSettingsBinding<string> ShadowQuality => new("shadowquality", new BasisPlatformDefault<string>
             {
                 windows = "ultra",
                 android = "very low",
@@ -83,8 +76,7 @@ namespace Basis.BasisUI
                 other = "ultra"
             });
 
-        public static BasisSettingsBinding<string> HDRSupport =>
-            new("hdr support", new BasisPlatformDefault<string>
+        public static BasisSettingsBinding<string> HDRSupport => new("hdrsupport", new BasisPlatformDefault<string>
             {
                 windows = "64bit",
                 android = "off",
@@ -92,8 +84,7 @@ namespace Basis.BasisUI
                 other = "64bit"
             });
 
-        public static BasisSettingsBinding<bool> MicrophoneDenoiser =>
-            new("voicedenoiser", new BasisPlatformDefault<bool>
+        public static BasisSettingsBinding<bool> MicrophoneDenoiser => new("voicedenoiser", new BasisPlatformDefault<bool>
             {
                 windows = true,
                 android = false,
@@ -101,14 +92,11 @@ namespace Basis.BasisUI
                 other = false
             });
 
-        public static BasisSettingsBinding<string> Antialiasing =>
-            new("antialiasing", new BasisPlatformDefault<string>("msaa 2x"));
+        public static BasisSettingsBinding<string> Antialiasing => new("antialiasing", new BasisPlatformDefault<string>("msaa 2x"));
 
-        public static BasisSettingsBinding<bool> DebugVisuals =>
-            new("debug visuals", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DebugVisuals => new("debugvisuals", new BasisPlatformDefault<bool>(false));
 
-        public static BasisSettingsBinding<string> MemoryAllocation =>
-            new("memory allocation", new BasisPlatformDefault<string>
+        public static BasisSettingsBinding<string> MemoryAllocation => new("memoryallocation", new BasisPlatformDefault<string>
             {
                 windows = "dynamic",
                 android = "dynamic",
@@ -116,20 +104,15 @@ namespace Basis.BasisUI
                 other = "dynamic"
             });
 
-        public static BasisSettingsBinding<string> MicrophoneIcon =>
-            new("microphone icon", new BasisPlatformDefault<string>("alwaysvisible"));
+        public static BasisSettingsBinding<string> MicrophoneIcon => new("microphoneicon", new BasisPlatformDefault<string>("alwaysvisible"));
 
-        public static BasisSettingsBinding<string> VisualState =>
-            new("visual state", new BasisPlatformDefault<string>("off"));
+        public static BasisSettingsBinding<string> VisualState => new("visualstate", new BasisPlatformDefault<string>("off"));
 
-        public static BasisSettingsBinding<string> IKMode =>
-            new("ik mode", new BasisPlatformDefault<string>("eye height"));
+        public static BasisSettingsBinding<string> IKMode =>  new("ikmode", new BasisPlatformDefault<string>("eye height"));
 
-        public static BasisSettingsBinding<string> SelectedBone =>
-            new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
+        public static BasisSettingsBinding<string> SelectedBone => new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
 
-        public static BasisSettingsBinding<float> FoveatedRendering =>
-            new("foveated rendering", new BasisPlatformDefault<float>
+        public static BasisSettingsBinding<float> FoveatedRendering => new("foveatedrendering", new BasisPlatformDefault<float>
             {
                 windows = 0,
                 android = 1,
@@ -138,17 +121,13 @@ namespace Basis.BasisUI
                 ios = 0
             });
 
-        public static BasisSettingsBinding<float> FieldOfView =>
-            new("field of view", new BasisPlatformDefault<float>(65));
+        public static BasisSettingsBinding<float> FieldOfView => new("fieldofview", new BasisPlatformDefault<float>(65));
 
         public const float FOV_MIN = 50;
         public const float FOV_MAX = 120;
 
-        public static BasisSettingsBinding<float> AvatarScale =>
-            new("scale of avatar", new BasisPlatformDefault<float>(1.6f));
-
         public static BasisSettingsBinding<float> AvatarDownloadSize =>
-            new("avatar download size", new BasisPlatformDefault<float>(256));
+            new("avatardownloadsize", new BasisPlatformDefault<float>(256));
 
         public static BasisSettingsBinding<float> AvatarMeshLOD =>
             new("avatarmeshlod", new BasisPlatformDefault<float>
@@ -160,7 +139,7 @@ namespace Basis.BasisUI
             });
 
         public static BasisSettingsBinding<float> GlobalMeshLOD =>
-            new("global meshlod", new BasisPlatformDefault<float>
+            new("globalmeshlod", new BasisPlatformDefault<float>
             {
                 windows = 0,
                 android = 30,
@@ -168,10 +147,10 @@ namespace Basis.BasisUI
                 other = 0
             });
 
-        public static BasisSettingsBinding<string> SeatedMode => new("Seated Mode", new BasisPlatformDefault<string>("standing mode"));
+        public static BasisSettingsBinding<string> SitStand => new("seatedmode", new BasisPlatformDefault<string>(SettingsProviderIK.SeatedMode_Standing));
 
         public static BasisSettingsBinding<string> VSync =>
-            new("vertical sync", new BasisPlatformDefault<string>
+            new("verticalsync", new BasisPlatformDefault<string>
             {
                 windows = "on",
                 android = "on",
