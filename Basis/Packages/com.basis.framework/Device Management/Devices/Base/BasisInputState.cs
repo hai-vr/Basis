@@ -49,9 +49,8 @@ namespace Basis.Scripts.Device_Management.Devices
         [SerializeField] private bool primary2DAxisClick;
         [SerializeField] private float trigger;
         [SerializeField] private float secondaryTrigger;
-        [SerializeField] private Vector2 primary2DAxis;
-        [SerializeField] private Vector2 secondary2DAxis;   // e.g., desktop scroll wheel delta
-
+        [SerializeField] private Vector2 primary2DAxisRaw;
+        [SerializeField] private Vector2 secondary2DAxisRaw;
         /// <summary>
         /// Grip (often controller side-button). True while held.
         /// </summary>
@@ -179,72 +178,70 @@ namespace Basis.Scripts.Device_Management.Devices
                 }
             }
         }
+        public Vector2 Primary2DAxisRaw
+        {
+            get => primary2DAxisRaw;
+            set
+            {
+                if (primary2DAxisRaw != value)
+                {
+                    primary2DAxisRaw = value;
+                    OnPrimary2DAxisChanged?.Invoke();
+                }
+            }
+        }
 
-        /// <summary>
-        /// Primary 2D axis (post-deadzone). Typical gamepad/joystick stick.
-        /// </summary>
+        public Vector2 Secondary2DAxisRaw
+        {
+            get => secondary2DAxisRaw;
+            set
+            {
+                if (secondary2DAxisRaw != value)
+                {
+                    secondary2DAxisRaw = value;
+                    OnSecondary2DAxisChanged?.Invoke();
+                }
+            }
+        }
         public Vector2 Primary2DAxisDeadZoned
         {
-            get => primary2DAxis;
-            set
-            {
-                Vector2 converted = ApplyNormalDeadzone(value, SMModuleControllerSettings.JoyStickDeadZone);
-                if (primary2DAxis != converted)
-                {
-                    primary2DAxis = converted;
-                    OnPrimary2DAxisChanged?.Invoke();
-                }
-            }
+            get =>
+                ApplyNormalDeadzone(
+                    primary2DAxisRaw,
+                    SMModuleControllerSettings.JoyStickDeadZone
+                );
         }
 
-        /// <summary>
-        /// Secondary 2D axis (post-deadzone). E.g., scroll wheel delta for desktop.
-        /// </summary>
         public Vector2 Secondary2DAxisDeadZoned
         {
-            get => secondary2DAxis;
-            set
-            {
-                Vector2 converted = ApplyNormalDeadzone(value, SMModuleControllerSettings.JoyStickDeadZone);
-                if (secondary2DAxis != converted)
-                {
-                    secondary2DAxis = converted;
-                    OnSecondary2DAxisChanged?.Invoke();
-                }
-            }
+            get =>
+                ApplyNormalDeadzone(
+                    secondary2DAxisRaw,
+                    SMModuleControllerSettings.JoyStickDeadZone
+                );
         }
-        /// <summary>
-        /// Primary 2D axis (post-deadzone). Typical gamepad/joystick stick.
-        /// </summary>
         public Vector2 Primary2DAxisButterfly
         {
-            get => primary2DAxis;
-            set
-            {
-                Vector2 converted = ButterflyGate(value, SMModuleControllerSettings.baseXDeadzone, SMModuleControllerSettings.extraXDeadzoneAtFullY, SMModuleControllerSettings.yDeadzone, SMModuleControllerSettings.wingExponent);
-                if (primary2DAxis != converted)
-                {
-                    primary2DAxis = converted;
-                    OnPrimary2DAxisChanged?.Invoke();
-                }
-            }
+            get =>
+                ButterflyGate(
+                    primary2DAxisRaw,
+                    SMModuleControllerSettings.baseXDeadzone,
+                    SMModuleControllerSettings.extraXDeadzoneAtFullY,
+                    SMModuleControllerSettings.yDeadzone,
+                    SMModuleControllerSettings.wingExponent
+                );
         }
 
-        /// <summary>
-        /// Secondary 2D axis (post-deadzone). E.g., scroll wheel delta for desktop.
-        /// </summary>
         public Vector2 Secondary2DAxisButterfly
         {
-            get => secondary2DAxis;
-            set
-            {
-                Vector2 converted = ButterflyGate(value, SMModuleControllerSettings.baseXDeadzone, SMModuleControllerSettings.extraXDeadzoneAtFullY, SMModuleControllerSettings.yDeadzone, SMModuleControllerSettings.wingExponent);
-                if (secondary2DAxis != converted)
-                {
-                    secondary2DAxis = converted;
-                    OnSecondary2DAxisChanged?.Invoke();
-                }
-            }
+            get =>
+                ButterflyGate(
+                    secondary2DAxisRaw,
+                    SMModuleControllerSettings.baseXDeadzone,
+                    SMModuleControllerSettings.extraXDeadzoneAtFullY,
+                    SMModuleControllerSettings.yDeadzone,
+                    SMModuleControllerSettings.wingExponent
+                );
         }
         // Apply a deadzone to a single axis and remap to [0..1] outside the deadzone.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -307,8 +304,8 @@ namespace Basis.Scripts.Device_Management.Devices
             target.Primary2DAxisClick = this.Primary2DAxisClick;
             target.Trigger = this.Trigger;
             target.SecondaryTrigger = this.SecondaryTrigger;
-            target.Primary2DAxisDeadZoned = this.Primary2DAxisDeadZoned;
-            target.Secondary2DAxisDeadZoned = this.Secondary2DAxisDeadZoned;
+            target.primary2DAxisRaw = this.primary2DAxisRaw;
+            target.Secondary2DAxisRaw = this.Secondary2DAxisRaw;
         }
     }
 }

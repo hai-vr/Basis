@@ -255,8 +255,8 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
 
                 CurrentInputState.Trigger = 0f;
                 CurrentInputState.SecondaryTrigger = 0f;
-                CurrentInputState.Primary2DAxisDeadZoned = Vector2.zero;
-                CurrentInputState.Secondary2DAxisDeadZoned = Vector2.zero;
+                CurrentInputState.Primary2DAxisRaw = Vector2.zero;
+                CurrentInputState.Secondary2DAxisRaw = Vector2.zero;
 
                 // maintain current head rotation (no extra spin)
                 UnscaledDeviceCoord.rotation = currentRotation;
@@ -358,8 +358,8 @@ namespace Basis.Scripts.Device_Management.Devices.Headless
             // --- Input state: subtle/noisy but calmer ---
             CurrentInputState.Trigger = 0f;          // disable spammy triggers in headless
             CurrentInputState.SecondaryTrigger = 0f; // keep quiet unless you need them
-            CurrentInputState.Primary2DAxisDeadZoned = currentPrimary2DAxis;
-            CurrentInputState.Secondary2DAxisDeadZoned = currentSecondary2DAxis;
+            CurrentInputState.Primary2DAxisRaw = currentPrimary2DAxis;
+            CurrentInputState.Secondary2DAxisRaw = currentSecondary2DAxis;
 
             // --- Head pose at eye height with crouch compensation ---
             UnscaledDeviceCoord.rotation = currentRotation;
