@@ -309,7 +309,7 @@ public class BasisAvatarValidator
             warnings.Add(new BasisValidationIssue(
                 "Recommend turning on RemoveUnusedBlendshapes in Processing Options! Leave off for face/eye tracking.",
                 FixRemoveUnusedBlendShape,
-                "Turn on RemoveUnusedBlendshapes"
+                "Turn on RemoveUnusedBlendshapes (dont if your using Face/Eye Tracking!!!"
             ));
         }
 
