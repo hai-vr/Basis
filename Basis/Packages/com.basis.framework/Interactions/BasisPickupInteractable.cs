@@ -774,7 +774,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             if (mouseScroll != 0)
             {
-                Transform sourceTransform = BasisLocalCameraDriver.Instance.Camera.transform;
+                Transform sourceTransform = BasisLocalCameraDriver.Instance.transform;
 
                 Vector3 movement = DesktopZoopSpeed * mouseScroll * BasisLocalCameraDriver.Forward();
                 Vector3 newTargetOffset = targetOffset + sourceTransform.InverseTransformVector(movement);

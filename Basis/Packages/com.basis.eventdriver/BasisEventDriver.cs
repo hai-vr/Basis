@@ -141,7 +141,8 @@ public class BasisEventDriver : MonoBehaviour
     public void FixedUpdate()
     {
         TimeAsDouble = Time.timeAsDouble;
-        BasisSceneFactory.Simulate();
+        DeltaTime = Time.deltaTime;
+        BasisSceneFactory.Simulate(DeltaTime);
     }
 
     /// <summary>
