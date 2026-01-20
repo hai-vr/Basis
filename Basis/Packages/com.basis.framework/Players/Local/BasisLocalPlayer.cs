@@ -85,7 +85,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </summary>
         public static BasisOrderedDelegate AfterSimulateOnLate = new BasisOrderedDelegate();
 
-        public static Matrix4x4 localToWorldMatrix;
+        public static Matrix4x4 localToWorldMatrix = Matrix4x4.identity;
         #region Drivers
 
         /// <summary>
