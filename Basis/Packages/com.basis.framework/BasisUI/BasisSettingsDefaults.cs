@@ -3,7 +3,7 @@ namespace Basis.BasisUI
     public static class BasisSettingsDefaults
     {
         public static BasisSettingsBinding<float> MainVolume =>
-            new("mainvolume", new BasisPlatformDefault<float>(75));
+            new("main volume", new BasisPlatformDefault<float>(75));
 
         public static BasisSettingsBinding<float> MenuVolume =>
             new("menuvolume", new BasisPlatformDefault<float>(75));

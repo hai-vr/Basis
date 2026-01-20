@@ -508,7 +508,7 @@ BasisSettingsDefaults.mousesensitivty);
             dropdownQualityLevel.Descriptor.SetTitle("Quality Level");
             dropdownQualityLevel.AssignEntries(new List<string>
             {
-                "Very Low", "Low", "Medium", "High", "Ultra"
+                "verylow", "low", "medium", "high", "ultra"
             });
             dropdownQualityLevel.AssignBinding(BasisSettingsDefaults.QualityLevel);
 
@@ -517,7 +517,7 @@ BasisSettingsDefaults.mousesensitivty);
             dropdownShadowQuality.Descriptor.SetTitle("Shadow Quality");
             dropdownShadowQuality.AssignEntries(new List<string>
             {
-                "Very Low", "Low", "Medium", "High", "Ultra"
+                 "verylow", "low", "medium", "high", "ultra"
             });
             dropdownShadowQuality.AssignBinding(BasisSettingsDefaults.ShadowQuality);
 
@@ -526,8 +526,8 @@ BasisSettingsDefaults.mousesensitivty);
             dropdownAntialiasing.Descriptor.SetTitle("Antialiasing");
             dropdownAntialiasing.AssignEntries(new List<string>
             {
-                "Off",
-                "MSAA 2X",
+                "off",
+                "mSAA 2X",
                 "MSAA 4X",
                 "MSAA 8X",
                 "Linear",

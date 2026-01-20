@@ -30,9 +30,9 @@ namespace BattlePhaze.SettingsManager.Intergrations
             if (Data == null)
                 return;
 
-            switch (optionValue.ToLower())
+            switch (optionValue.ToLowerInvariant())
             {
-                case "very low":
+                case "verylow":
                     ApplyQualitySettings(AnisotropicFiltering.Enable, 256, false, false);
                     Data.renderPostProcessing = false;
                     break;
