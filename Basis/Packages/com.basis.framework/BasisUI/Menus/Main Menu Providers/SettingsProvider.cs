@@ -527,7 +527,7 @@ BasisSettingsDefaults.mousesensitivty);
             dropdownAntialiasing.AssignEntries(new List<string>
             {
                 "off",
-                "mSAA 2X",
+                "MSAA 2X",
                 "MSAA 4X",
                 "MSAA 8X",
                 "Linear",
