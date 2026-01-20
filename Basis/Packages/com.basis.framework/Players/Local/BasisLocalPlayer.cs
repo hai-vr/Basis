@@ -437,9 +437,6 @@ namespace Basis.Scripts.BasisSdk.Players
         {
             OnRenderSimulateBones(this);
 
-
-            // update WorldPosition in BoneDriver so AfterSimulateOnRender can use world coords
-            LocalBoneDriver.SimulateWorldDestinations(localToWorldMatrix);
             // now other things can move like UI and NON-CHILDREN OF BASISLOCALPLAYER.
             AfterSimulateOnRender?.Invoke();
         }

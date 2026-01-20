@@ -38,7 +38,7 @@ namespace Basis.Scripts.UI.UI_Panels
                     hasGeneratedAction = true;
                 }
             }
-            BasisLocalPlayer.AfterSimulateOnRender.AddAction(105, UpdateUI);
+            BasisLocalPlayer.AfterSimulateOnLate.AddAction(105, UpdateUI);
         }
         private void OnDisable()
         {
@@ -51,7 +51,7 @@ namespace Basis.Scripts.UI.UI_Panels
             BasisLocalPlayer.OnLocalAvatarChanged -= UpdateDelayedSetUI;
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= UpdateDelayedSetUI;
 
-            BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(101, UpdateUI);
+            BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(101, UpdateUI);
         }
         #endregion
         #region Player Change Callbacks
