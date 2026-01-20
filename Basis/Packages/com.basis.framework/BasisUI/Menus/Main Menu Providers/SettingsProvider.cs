@@ -508,7 +508,7 @@ BasisSettingsDefaults.mousesensitivty);
             dropdownQualityLevel.Descriptor.SetTitle("Quality Level");
             dropdownQualityLevel.AssignEntries(new List<string>
             {
-                "verylow", "low", "medium", "high", "ultra"
+                "Very Low", "Low", "Medium", "High", "Ultra"
             });
             dropdownQualityLevel.AssignBinding(BasisSettingsDefaults.QualityLevel);
 
@@ -517,7 +517,7 @@ BasisSettingsDefaults.mousesensitivty);
             dropdownShadowQuality.Descriptor.SetTitle("Shadow Quality");
             dropdownShadowQuality.AssignEntries(new List<string>
             {
-                 "verylow", "low", "medium", "high", "ultra"
+                 "Very Low", "Low", "Medium", "High", "Ultra"
             });
             dropdownShadowQuality.AssignBinding(BasisSettingsDefaults.ShadowQuality);
 
@@ -526,7 +526,7 @@ BasisSettingsDefaults.mousesensitivty);
             dropdownAntialiasing.Descriptor.SetTitle("Antialiasing");
             dropdownAntialiasing.AssignEntries(new List<string>
             {
-                "off",
+                "Off",
                 "MSAA 2X",
                 "MSAA 4X",
                 "MSAA 8X",
@@ -567,7 +567,7 @@ BasisSettingsDefaults.mousesensitivty);
             dropdownHDR.Descriptor.SetTitle("HDR Support");
             dropdownHDR.AssignEntries(new List<string>
             {
-                "off",
+                "Off",
                 "32bit",
                 "64bit"
             });
@@ -738,8 +738,8 @@ BasisSettingsDefaults.mousesensitivty);
             Visual.AssignEntries(new List<string>
             {
                 "Off",
-                "all visuals",
-                "only avatar distance" 
+                "All Visuals",
+                "Only Avatar Distance" 
             });
             Visual.AssignBinding(BasisSettingsDefaults.VisualState);
 

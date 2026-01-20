@@ -21,11 +21,11 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
         // Preserve your original behavior (case-insensitive matching)
-        string key = matchedSettingName.ToLowerInvariant();
+        string key = matchedSettingName;
 
         switch (key)
         {
-            case var s when s == K_RENDER_RESOLUTION.ToLowerInvariant():
+            case var s when s == K_RENDER_RESOLUTION:
                 if (SliderReadOption(optionValue, out float renderResolution))
                 {
                     HandleRenderResolution(renderResolution);
@@ -36,7 +36,7 @@ public class SMModuleRenderResolutionURP : BasisSettingsBase
                 }
                 break;
 
-            case var s when s == K_FOVEATED_RENDERING.ToLowerInvariant():
+            case var s when s == K_FOVEATED_RENDERING:
                 if (SliderReadOption(optionValue, out float foveationLevel))
                 {
                     HandleFoveatedRendering(foveationLevel);

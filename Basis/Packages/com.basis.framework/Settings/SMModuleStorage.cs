@@ -4,8 +4,7 @@ using Basis.Scripts.Avatar;
 public class SMModuleStorage : BasisSettingsBase
 {
     // --- Canonical setting key (from defaults) ---
-    private static string K_AVATAR_DOWNLOAD_SIZE =>
-        BasisSettingsDefaults.AvatarDownloadSize.BindingKey; // "avatar download size"
+    private static string K_AVATAR_DOWNLOAD_SIZE => BasisSettingsDefaults.AvatarDownloadSize.BindingKey; // "avatar download size"
 
     // Avatar Download Size
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
@@ -17,9 +16,7 @@ public class SMModuleStorage : BasisSettingsBase
         if (SliderReadOption(optionValue, out float inMB))
         {
             long maxDownloadInBytes = MiBToBytes((int)inMB);
-            BasisDebug.Log(
-                $"Avatar Download Size Was in MB {inMB} in Bytes was {maxDownloadInBytes}",
-                BasisDebug.LogTag.Networking);
+            BasisDebug.Log($"Avatar Download Size Was in MB {inMB} in Bytes was {maxDownloadInBytes}", BasisDebug.LogTag.Networking);
 
             BasisAvatarFactory.MaxDownloadSizeInMBRemote = maxDownloadInBytes;
         }

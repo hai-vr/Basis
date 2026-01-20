@@ -35,7 +35,7 @@ public class SMModuleAntialiasingURP : BasisSettingsBase
             return;
         }
         BasisDebug.Log($"Antialiasing Changed to {optionValue}", BasisDebug.LogTag.Local);
-        switch (optionValue.ToLowerInvariant())
+        switch (optionValue)
         {
             case "msaa off":
                 Asset.msaaSampleCount = 1;

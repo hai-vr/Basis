@@ -70,11 +70,11 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
         // Preserve your original behavior (case-insensitive matching)
-        string key = matchedSettingName.ToLowerInvariant();
+        string key = matchedSettingName;
 
         switch (key)
         {
-            case var s when s == K_MIC_RANGE.ToLowerInvariant():
+            case var s when s == K_MIC_RANGE:
                 if (SliderReadOption(optionValue, out float newMicrophoneRange))
                 {
 #if UNITY_SERVER
@@ -86,7 +86,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 }
                 break;
 
-            case var s when s == K_HEARING_RANGE.ToLowerInvariant():
+            case var s when s == K_HEARING_RANGE:
                 if (SliderReadOption(optionValue, out float newHearingRange))
                 {
 #if UNITY_SERVER
@@ -98,7 +98,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 }
                 break;
 
-            case var s when s == K_AVATAR_RANGE.ToLowerInvariant():
+            case var s when s == K_AVATAR_RANGE:
                 if (SliderReadOption(optionValue, out float loadRange))
                 {
 #if UNITY_SERVER
@@ -110,7 +110,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 }
                 break;
 
-            case var s when s == K_AVATAR_MESH_LOD.ToLowerInvariant():
+            case var s when s == K_AVATAR_MESH_LOD:
                 if (SliderReadOption(optionValue, out float lod))
                 {
 #if UNITY_SERVER
@@ -122,7 +122,7 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 }
                 break;
 
-            case var s when s == K_GLOBAL_MESH_LOD.ToLowerInvariant():
+            case var s when s == K_GLOBAL_MESH_LOD:
                 if (SliderReadOption(optionValue, out float globalLOD))
                 {
                     QualitySettings.meshLodThreshold = globalLOD;

@@ -10,8 +10,7 @@ public class SMModuleSitStand : BasisSettingsBase
         {
             return;
         }
-        string LowerOptions = optionValue.ToLowerInvariant();
-        if (LowerOptions == SettingsProviderIK.SeatedMode_Standing.ToLowerInvariant())
+        if (optionValue == SettingsProviderIK.SeatedMode_Standing)
         {
             BasisDebug.Log($"Mode Set To Standing Mode");
             MissingHeightDelta = 0;

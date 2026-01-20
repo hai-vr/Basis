@@ -20,7 +20,7 @@ public class SMModuleIcons : BasisSettingsBase
         if (BasisLocalCameraDriver.Instance.microphoneIconDriver == null)
             return;
 
-        switch (optionValue.ToLowerInvariant())
+        switch (optionValue)
         {
             case "activitydetection":
                 BasisLocalCameraDriver.Instance.microphoneIconDriver

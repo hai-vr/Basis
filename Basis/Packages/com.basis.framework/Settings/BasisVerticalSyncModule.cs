@@ -41,7 +41,7 @@ public class BasisVerticalSyncModule : BasisSettingsBase
                 return;
             }
 
-            switch (optionValue.ToLowerInvariant())
+            switch (optionValue)
             {
                 case "on":
                     _requestedMode = VSyncMode.On;
