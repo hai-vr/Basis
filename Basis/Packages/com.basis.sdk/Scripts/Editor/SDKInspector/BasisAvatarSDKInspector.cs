@@ -350,10 +350,13 @@ public partial class BasisAvatarSDKInspector : Editor
                 // Build from a stripped clone so the authored avatar stays untouched.
                 buildRoot = GameObject.Instantiate(Avatar.gameObject);
                 buildRoot.TryGetComponent<BasisAvatar>(out Avatar);
-                // If your pipeline needs editor-only stripping, do it here.
-                BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
-                BasisBuildBlendshapeStripper.StripForBuild(settings: assetBundleObject, buildRoot, Avatar);
+                if (Avatar.ProcessingAvatarOptions != null && Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes)
+                {
+                    // If your pipeline needs editor-only stripping, do it here.
+                    BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
+                    BasisBuildBlendshapeStripper.StripForBuild(settings: assetBundleObject, buildRoot, Avatar);
 
+                }
 #if UNITY_6000_2_OR_NEWER
                 GenerateMeshLODs(3);
 #endif
