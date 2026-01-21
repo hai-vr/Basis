@@ -174,3 +174,8 @@ MonoBehaviour:
   - HVR.Basis.Comms.AutomaticFaceTracking
   - HVR.Basis.Comms.HVRNetworkingCarrier
   - Basis.Scripts.BasisSdk.Interactions.BasisSeat
+  - Basis.Scripts.Vehicles.Main.BasisVehiclePilotSeat
+  - Basis.Scripts.Vehicles.Main.BasisVehicleBody
+  - Basis.Scripts.Vehicles.Parts.BasisVehicleWheel
+  - Basis.Scripts.Vehicles.Parts.BasisVehicleThruster
+  - Basis.Scripts.Vehicles.Parts.BasisVehicleHoverThruster

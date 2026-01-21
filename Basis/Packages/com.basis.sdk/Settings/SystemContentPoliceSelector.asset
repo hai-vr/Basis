@@ -166,3 +166,9 @@ MonoBehaviour:
   - BasisProp
   - BasisSeatSync
   - Basis.Scripts.BasisSdk.Interactions.BasisSeat
+  - Basis.Scripts.Vehicles.Parts.BasisVehicleHoverThruster
+  - Basis.Scripts.Vehicles.Parts.BasisVehicleThruster
+  - Basis.Scripts.Vehicles.Parts.BasisVehicleWheel
+  - Basis.Scripts.Vehicles.Main.BasisVehicleBody
+  - Basis.Scripts.Vehicles.Main.BasisVehiclePilotSeat
+  - BasisNetworkedVehicles
