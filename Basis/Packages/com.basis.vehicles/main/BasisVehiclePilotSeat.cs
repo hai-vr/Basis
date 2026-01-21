@@ -146,13 +146,17 @@ namespace Basis.Scripts.Vehicles.Main
             UseLocalControls = player.IsLocal;
             if (UseLocalControls)
             {
-                BasisVehiclePilotSeatInputActions vehicleInput = BasisVehiclePilotSeatInputActions.Instance;
+                var vehicleInput = BasisVehiclePilotSeatInputActions.Instance;
                 vehicleInput.EnableAll(DoesPilotSeatNeedMouseInput());
-                vehicleInput.ThrottleZero.performed += ctx => SetThrottleToZero();
-                vehicleInput.ToggleAngularDampeners.performed += ctx => ToggleAngularDampeners();
-                vehicleInput.ToggleLinearDampeners.performed += ctx => TogggleLinearDampeners();
+
+                vehicleInput.ThrottleZero.performed += OnThrottleZero;
+                vehicleInput.ToggleAngularDampeners.performed += OnToggleAngular;
+                vehicleInput.ToggleLinearDampeners.performed += OnToggleLinear;
             }
         }
+        private void OnThrottleZero(UnityEngine.InputSystem.InputAction.CallbackContext ctx) => SetThrottleToZero();
+        private void OnToggleAngular(UnityEngine.InputSystem.InputAction.CallbackContext ctx) => ToggleAngularDampeners();
+        private void OnToggleLinear(UnityEngine.InputSystem.InputAction.CallbackContext ctx) => TogggleLinearDampeners();
 
         public void ExitPilotSeat(BasisPlayer player)
         {
@@ -163,10 +167,12 @@ namespace Basis.Scripts.Vehicles.Main
             PilotingPlayer = null;
             if (UseLocalControls)
             {
-                BasisVehiclePilotSeatInputActions vehicleInput = BasisVehiclePilotSeatInputActions.Instance;
-                vehicleInput.ThrottleZero.performed -= ctx => SetThrottleToZero();
-                vehicleInput.ToggleAngularDampeners.performed -= ctx => ToggleAngularDampeners();
-                vehicleInput.ToggleLinearDampeners.performed -= ctx => TogggleLinearDampeners();
+                var vehicleInput = BasisVehiclePilotSeatInputActions.Instance;
+
+                vehicleInput.ThrottleZero.performed -= OnThrottleZero;
+                vehicleInput.ToggleAngularDampeners.performed -= OnToggleAngular;
+                vehicleInput.ToggleLinearDampeners.performed -= OnToggleLinear;
+
                 vehicleInput.DisableAll();
             }
             UseLocalControls = false;
