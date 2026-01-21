@@ -69,7 +69,7 @@ namespace Basis.Scripts.BasisCharacterController
         public bool IsCrouching => CrouchBlend <= LocalAnimatorDriver.CrouchThreshold;
         public bool IsRunning => CurrentSpeed > DefaultMovementSpeed;
         public bool UseMaxSpeed => BasisLocalInputActions.Instance.IsRunHeld;
-
+        public bool CanPushRigidbodys = false;
         public bool IsEnabled
         {
             get
@@ -113,19 +113,22 @@ namespace Basis.Scripts.BasisCharacterController
 
         public void OnControllerColliderHit(ControllerColliderHit hit)
         {
-            // Check if the hit object has a Rigidbody and if it is not kinematic
-            Rigidbody body = hit.collider.attachedRigidbody;
-
-            if (body == null || body.isKinematic)
+            if (CanPushRigidbodys)
             {
-                return;
+                // Check if the hit object has a Rigidbody and if it is not kinematic
+                Rigidbody body = hit.collider.attachedRigidbody;
+
+                if (body == null || body.isKinematic)
+                {
+                    return;
+                }
+
+                // Ensure we're only pushing objects in the horizontal plane
+                Vector3 pushDir = new Vector3(hit.moveDirection.x, 0, hit.moveDirection.z);
+
+                // Apply the force to the object
+                body.AddForce(pushDir * pushPower, ForceMode.Impulse);
             }
-
-            // Ensure we're only pushing objects in the horizontal plane
-            Vector3 pushDir = new Vector3(hit.moveDirection.x, 0, hit.moveDirection.z);
-
-            // Apply the force to the object
-            body.AddForce(pushDir * pushPower, ForceMode.Impulse);
         }
         public void SimulateMovement(float DeltaTime)
         {
