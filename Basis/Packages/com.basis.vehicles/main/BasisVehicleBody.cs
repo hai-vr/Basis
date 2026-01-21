@@ -61,18 +61,18 @@ namespace Basis.Scripts.Vehicles.Main
         private List<Parts.BasisVehicleHoverThruster> _hoverThrusters = new List<Parts.BasisVehicleHoverThruster>();
         private List<Parts.BasisVehicleWheel> _wheels = new List<Parts.BasisVehicleWheel>();
         private List<Parts.BasisVehiclePart> _otherParts = new List<Parts.BasisVehiclePart>();
-
+        public Rigidbody rb;
         private void Awake()
         {
             if (PilotSeat != null)
             {
                 PilotSeat.PilotedVehicleBody = this;
             }
+            rb = GetComponent<Rigidbody>();
         }
 
         private void FixedUpdate()
         {
-            Rigidbody rb = GetComponent<Rigidbody>();
             if (rb == null)
             {
                 BasisDebug.LogError("BasisVehicleBody: No Rigidbody found on the vehicle body.");
