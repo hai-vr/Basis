@@ -58,7 +58,6 @@ namespace Basis.Scripts.UI.UI_Panels
         /// Singleton instance of this UI controller.
         /// </summary>
         public static BasisSetUserName Instance;
-
         /// <summary>
         /// Unity Start hook. Initializes UI, registers callbacks, and loads cached settings.
         /// </summary>
@@ -81,8 +80,8 @@ namespace Basis.Scripts.UI.UI_Panels
                 this.transform.SetParent(BasisDeviceManagement.Instance.transform, true);
             }
 
-            ApplySize();
-            BasisLocalPlayer.OnPlayersHeightChangedNextFrame += ApplySize;
+            ApplySizeAndPosition();
+            BasisLocalPlayer.OnPlayersHeightChangedNextFrame += ApplySizeAndPosition;
             if (BasisNetworkManagement.Instance != null)
             {
                 LoadCurrentSettings();
@@ -92,11 +91,12 @@ namespace Basis.Scripts.UI.UI_Panels
         /// <summary>
         /// Rescales the UI panel based on the local player's avatar height.
         /// </summary>
-        public void ApplySize()
+        public void ApplySizeAndPosition()
         {
             if (BasisLocalPlayer.Instance != null)
             {
-                this.transform.localScale = InitalScale * BasisHeightDriver.AvatarToPlayerScale;
+                this.transform.localScale = InitalScale * BasisHeightDriver.heightScaleFactor;
+                this.transform.position  = new Vector3(this.transform.position.x,BasisLocalCameraDriver.Position.y, this.transform.position.z);
             }
         }
 
@@ -110,7 +110,7 @@ namespace Basis.Scripts.UI.UI_Panels
                 AdvancedSettings.onClick.RemoveListener(ToggleAdvancedSettings);
                 UseLocalhost.onClick.RemoveListener(UseLocalHost);
             }
-            BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= ApplySize;
+            BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= ApplySizeAndPosition;
         }
 
         /// <summary>
@@ -150,6 +150,7 @@ namespace Basis.Scripts.UI.UI_Panels
             {
                 this.transform.SetParent(BasisDeviceManagement.Instance.transform);
             }
+            ApplySizeAndPosition();
         }
 
         /// <summary>

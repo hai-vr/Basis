@@ -625,7 +625,7 @@ namespace Basis.Scripts.Drivers
         private void OnPlayersHeightChangedNextFrame()
         {
             var Data = BasisFullIKConstraint.data;
-            SetHandCollisionScale(ref Data, BasisHeightDriver.AvatarToPlayerScale);
+            SetHandCollisionScale(ref Data, BasisHeightDriver.heightScaleFactor);
             BasisFullIKConstraint.data = Data;
         }
         public static void SetHandCollisionScale(ref BasisFullBodyData BodyData, float Scale)
