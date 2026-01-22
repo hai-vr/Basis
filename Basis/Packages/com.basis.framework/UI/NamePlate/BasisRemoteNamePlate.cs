@@ -294,7 +294,7 @@ namespace Basis.Scripts.UI.NamePlate
         public override bool IsInteractTriggered(BasisInput input)
         {
             // click or mostly triggered
-            return HasState(input.CurrentInputState);
+            return HasState(input.CurrentInputState, InputKey);
         }
     }
 }

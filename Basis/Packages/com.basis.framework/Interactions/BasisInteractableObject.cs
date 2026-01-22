@@ -68,9 +68,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
             SystemOrMenuButton = 8,
             GripButton = 9,
         }
-        public bool HasState(BasisInputState state)
+        public bool HasState(BasisInputState state, BasisInputKey Key)
         {
-            switch (InputKey)
+            switch (Key)
             {
                 case BasisInputKey.Trigger:
                     // Fire when main trigger is fully pressed

@@ -125,7 +125,6 @@ public class BasisEventDriver : MonoBehaviour
             try { action.Invoke(); }
             catch (Exception ex) { Debug.LogError($"MainThread action failed: {ex}"); }
         }
-
         BasisNetworkManagement.SimulateNetworkCompute(unscaledDeltaTime);
         BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
 #if UNITY_SERVER
@@ -154,11 +153,10 @@ public class BasisEventDriver : MonoBehaviour
         fixedTimeAsDouble = Time.fixedTimeAsDouble;
         fixedDeltaTime = Time.fixedDeltaTime;
         realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
-
         // Network apply step + gameplay sync
         BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
+        BasisLocalPlayer.FireJustBeforeNetworkApply();
         BasisNetworkManagement.SimulateNetworkApply();
-
         // JigglePhysics: schedule/complete passes
         JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime);
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();

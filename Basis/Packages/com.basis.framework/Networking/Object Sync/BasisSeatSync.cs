@@ -27,6 +27,7 @@ public class BasisSeatSync : BasisNetworkBehaviour
         LinkedPlayer = new PlayerID(); 
         LinkedPlayer.hasPlayerId = false;
         LinkedPlayer.ThePlayerID = 0;
+        BasisLocalPlayer.JustBeforeNetworkApply.AddAction(20, ProvideRemotePlayerTarget);
     }
     /// <summary>Returns true if the local player is currently the recorded occupant.</summary>
     public bool IsLocallyEntered()
@@ -97,10 +98,6 @@ public class BasisSeatSync : BasisNetworkBehaviour
             SetSeatStateLocal(false, player.playerId);
         }
     }
-    public void Update()
-    {
-        ProvideRemotePlayerTarget();
-    }
 
     public void ProvideRemotePlayerTarget()
     {
@@ -168,6 +165,7 @@ public class BasisSeatSync : BasisNetworkBehaviour
 
     public override void OnDestroy()
     {
+        BasisLocalPlayer.JustBeforeNetworkApply.RemoveAction(20, ProvideRemotePlayerTarget);
         if (Seat != null)
         {
             Seat.OnInteractStartEvent -= OnInteractStartEvent;

@@ -1,6 +1,7 @@
 ﻿<Solution>
   <Project Path="Unity.Timeline.csproj" />
   <Project Path="Unity.VisualEffectGraph.Editor.csproj" />
+  <Project Path="SteamVR.csproj" />
   <Project Path="Unity.RenderPipelines.GPUDriven.Runtime.csproj" />
   <Project Path="Unity.InputSystem.csproj" />
   <Project Path="Unity.Services.Core.Internal.csproj" />
@@ -14,6 +15,7 @@
   <Project Path="Unity.RenderPipelines.Core.Editor.csproj" />
   <Project Path="Unity.Collections.csproj" />
   <Project Path="UnityEngine.UI.csproj" />
+  <Project Path="Unity.TerrainTools.Editor.csproj" />
   <Project Path="Unity.Addressables.Editor.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.2D.Runtime.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.Editor.csproj" />
@@ -32,7 +34,6 @@
   <Project Path="Basis Framework.csproj" />
   <Project Path="Unity.MemoryProfiler.Editor.csproj" />
   <Project Path="PPv2URPConverters.csproj" />
-  <Project Path="SteamVR.csproj" />
   <Project Path="com.gator-dragon-games.jigglephysics.editor.csproj" />
   <Project Path="Unity.XR.CoreUtils.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.Editor.Tests.csproj" />
@@ -83,6 +84,7 @@
   <Project Path="Unity.Services.Core.Environments.Internal.csproj" />
   <Project Path="HVR.Basis.Comms.Editor.csproj" />
   <Project Path="Unity.InputSystem.ForUI.csproj" />
+  <Project Path="NVWindBasis.csproj" />
   <Project Path="Unity.Toolchain.Win-x86_64-Linux.csproj" />
   <Project Path="Basis.ZeroMessenger.Editor.Tests.csproj" />
   <Project Path="Unity.Services.Core.Scheduler.csproj" />
@@ -93,6 +95,7 @@
   <Project Path="Unity.XR.Management.csproj" />
   <Project Path="OpusSharp.Core.csproj" />
   <Project Path="Unity.Mathematics.Editor.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="UnityEditor.UI.Analytics.csproj" />
   <Project Path="Unity.XR.Hands.Editor.csproj" />
   <Project Path="HVR.Basis.Comms.HVRUtility.csproj" />
@@ -121,7 +124,9 @@
   <Project Path="Crypto.csproj" />
   <Project Path="BasisSettings.csproj" />
   <Project Path="BasisPoolTableEditor.csproj" />
+  <Project Path="Unity.TerrainTools.csproj" />
   <Project Path="Unity.RenderPipeline.Universal.ShaderLibrary.csproj" />
+  <Project Path="BasisVehiclesNetwork.csproj" />
   <Project Path="Unity.Services.CloudDiagnostics.Editor.csproj" />
   <Project Path="BasisGizmos.csproj" />
   <Project Path="SteamVR_Actions.csproj" />

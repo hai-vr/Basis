@@ -247,8 +247,11 @@ namespace Basis.Scripts.Networking.Receivers
                 PoseHandler.SetHumanPose(ref HumanPose);
                 if (HasOverridenDestination)
                 {
-                    var References = RemotePlayer.RemoteAvatarDriver.References;
-                    References.Hips.transform.SetPositionAndRotation(OverridenPosition, OverridenRotation);
+                    var References = RemotePlayer?.RemoteAvatarDriver?.References;
+                    if (References.Hips != null)
+                    {
+                        References.Hips.SetPositionAndRotation(OverridenPosition, OverridenRotation);
+                    }
                 }
             }
         }

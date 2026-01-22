@@ -611,7 +611,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 // If trigger pulled on opposing input, scale object based on hand distance
                 if (enableScaleWithGesture && GetOppositeInteracting(out BasisInputWrapper opposingInput))
                 {
-                    if (HasState(opposingInput.Source.CurrentInputState))
+                    if (HasState(opposingInput.Source.CurrentInputState, InputKey))
                     {
                         float distanceBetweenHands = BasisPickupHelpers.GetNormalizedDistanceBetweenHands(Inputs);
                         if (_previousDistance == -1)
@@ -646,8 +646,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
 
             // Trigger state machine for OnPickupUse
-            bool State = HasState(interactingInput.Source.CurrentInputState);
-            bool LastState = HasState(interactingInput.Source.LastInputState);
+            bool State = HasState(interactingInput.Source.CurrentInputState, InputKey);
+            bool LastState = HasState(interactingInput.Source.LastInputState, InputKey);
             if (State && LastState == false)
             {
                 OnPickupUse?.Invoke(BasisPickUpUseMode.OnPickUpUseDown);

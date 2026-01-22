@@ -338,3 +338,6 @@ MonoBehaviour:
   - ExampleRotatingChair
   - Cilbox.CilboxScene
   - BasisNetworkedVehicles
+  - Basis.Scripts.Vehicles.Parts.BasisVehicleSteeringWheel
+  - Basis.Scripts.Vehicles.Parts.BasisVehicleEngineAudio
+  - Basis.Network.Vehicles.BasisNetworkedVehicle

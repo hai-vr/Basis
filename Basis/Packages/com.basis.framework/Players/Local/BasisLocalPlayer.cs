@@ -76,6 +76,11 @@ namespace Basis.Scripts.BasisSdk.Players
         public static Action OnPlayersHeightChangedNextFrame;
 
         /// <summary>
+        /// Fires Just Before the Apply of the remote player, good for chair movement
+        /// </summary>
+        public static BasisOrderedDelegate JustBeforeNetworkApply = new BasisOrderedDelegate();
+
+        /// <summary>
         /// Ordered delegate queue invoked after all movement and simulation have completed for the frame.
         /// </summary>
         public static BasisOrderedDelegate AfterSimulateOnRender = new BasisOrderedDelegate();
@@ -280,13 +285,17 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </summary>
         /// <param name="position">Target world position.</param>
         /// <param name="rotation">Target world rotation.</param>
-        public void Teleport(Vector3 position, Quaternion rotation)
+        public void Teleport(Vector3 position, Quaternion rotation,bool BypassStand = false)
         {
             BasisDebug.Log("Teleporting", BasisDebug.LogTag.Local);
-            LocalSeatDriver.Stand();
+            if (BypassStand == false)
+            {
+                LocalSeatDriver.Stand();
+            }
             bool wasCharacterEnabled = LocalCharacterDriver.IsEnabled;
             LocalCharacterDriver.IsEnabled = false;
             this.transform.SetPositionAndRotation(position, rotation);
+            AvatarTransform.rotation = Quaternion.identity;
             LocalCharacterDriver.IsEnabled = wasCharacterEnabled;
             LocalAnimatorDriver.HandleTeleport();
             OnTeleportEvent?.Invoke();
@@ -426,7 +435,10 @@ namespace Basis.Scripts.BasisSdk.Players
 
             AfterSimulateOnLate?.Invoke();
         }
-
+        public static void FireJustBeforeNetworkApply()
+        {
+            JustBeforeNetworkApply?.Invoke();
+        }
         /// <summary>
         /// Main per-frame simulation entry point, executed on render/update.
         /// Performs movement, bone simulation, T-pose driving, IK targets, animator evaluation, hands,

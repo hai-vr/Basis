@@ -2,6 +2,8 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
+using System.Collections.Generic;
+using System.Data;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
@@ -245,7 +247,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// <param name="LeftUpperLegControl"></param>
         /// <param name="LeftToeControl"></param>
         /// <returns></returns>
-        public Vector3 ApplyRemoteLeg( Quaternion LeftLowerLegControlRotation, Quaternion LeftUpperLegControlRotation, Vector3 LeftFootControl, Vector3 LeftLowerLegControl, Vector3 LeftUpperLegControl, Vector3 LeftToeControl)
+        public Vector3 ApplyRemoteLeg(Quaternion LeftLowerLegControlRotation, Quaternion LeftUpperLegControlRotation, Vector3 LeftFootControl, Vector3 LeftLowerLegControl, Vector3 LeftUpperLegControl, Vector3 LeftToeControl)
         {
 
             Vector3 leftLowerLegOffset = LeftFootControl - LeftLowerLegControl;
@@ -457,7 +459,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             var found = Inputs.FindExcludeExtras(input);
             if (found != null && found.Value.GetState() != BasisInteractInputState.Ignored)
             {
-               // BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " input state is not ignored OnHoverStart, this shouldn't happen");
+                // BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " input state is not ignored OnHoverStart, this shouldn't happen");
             }
 
             var added = Inputs.ChangeStateByRole(found.Value.Role, BasisInteractInputState.Hovering);
@@ -492,7 +494,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         public override void OnInteractStart(BasisInput input)
         {
-            if(InteractionTimerValidation() == false)
+            if (InteractionTimerValidation() == false)
             {
                 return;
             }
@@ -512,7 +514,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             _interactingInput = input;
             if (LocallyInSeat)
             {
-                BasisLocalPlayer.Instance.LocalSeatDriver.Stand();
+                BasisLocalPlayer.Instance.LocalSeatDriver.Stand();//we got to make it to here to exit a seat.
                 SetSeatOccupied(false);
                 LocallyInSeat = false;
             }
@@ -552,6 +554,73 @@ namespace Basis.Scripts.BasisSdk.Interactions
             SetSeatOccupied(false);
             LocallyInSeat = false;
             OnPlayerExitSeat?.Invoke(player);
+        }
+        public bool ExitRequiresAllDevicesPressed;
+        public BasisInputKey ExitKey = BasisInputKey.Trigger;
+        public BasisBoneTrackedRole[] ExitRoles = null;
+
+        // Internal latch to prevent repeat firing while held (used when ExitOnPressDown == true).
+        private bool _exitLatch;
+        public void LateUpdate()
+        {
+            if (LocallyInSeat)
+            {
+                if (ExitRoles == null || ExitRoles.Length == 0)
+                {
+                    return;
+                }
+
+                bool anyPressed = false;
+                bool allPressed = true;
+
+                for (int i = 0; i < ExitRoles.Length; i++)
+                {
+                    var role = ExitRoles[i];
+
+                    // If a role isn't available, treat it as NOT pressed (safer).
+                    if (!Inputs.TryGetByRole(role, out BasisInputWrapper wrapper) || wrapper.Source == null)
+                    {
+                        allPressed = false;
+                        continue;
+                    }
+
+                    bool pressed = HasState(wrapper.Source.CurrentInputState, ExitKey);
+
+                    anyPressed |= pressed;
+                    allPressed &= pressed;
+
+                    // Micro-early-outs
+                    if (!ExitRequiresAllDevicesPressed && anyPressed)
+                    {
+                        break;
+                    }
+
+                    if (ExitRequiresAllDevicesPressed && !allPressed)
+                    {
+                        // can't break here if you want to keep checking for side effects; we don't, so break.
+                        break;
+                    }
+                }
+
+                bool exitConditionMet = ExitRequiresAllDevicesPressed ? allPressed : anyPressed;
+
+                if (exitConditionMet && !_exitLatch)
+                {
+                    BasisDebug.Log($"Exit Condition Met!");
+                    _exitLatch = true;
+                    RequestExit();
+                }
+                else if (!exitConditionMet)
+                {
+                    _exitLatch = false;
+                }
+            }
+        }
+        private void RequestExit()
+        {
+            BasisLocalPlayer.Instance.LocalSeatDriver.Stand();//we got to make it to here to exit a seat.
+            SetSeatOccupied(false);
+            LocallyInSeat = false;
         }
         #endregion Basis Integration
     }

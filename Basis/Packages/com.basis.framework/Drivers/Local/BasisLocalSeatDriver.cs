@@ -27,6 +27,9 @@ namespace Basis.Scripts.Drivers
             // This could also be accomplished via BasisLocalPlayer.Instance,
             // but passing it in directly makes this class more self-contained.
             LocalPlayer = localPlayer;
+
+           // GroundMask = LayerMask.GetMask("Default");
+           // BlockingMask = LayerMask.GetMask("Player", "Interactable", "LocalAvatar","RemoteAvatar");
         }
 
         // Player-specific pose values calculated when the player sits in a seat.
@@ -136,7 +139,11 @@ namespace Basis.Scripts.Drivers
             }
             OnSimulate();
         }
-
+        public bool UseDefaultMasking = true;
+        public LayerMask GroundMask;
+        public LayerMask BlockingMask;
+        public float maxDownProbe = 3.0f;
+        public float maxUpProbe = 1.0f;
         /// <summary>
         /// Releases the player from the seat, re-enabling movement and disabling leg overrides.
         /// </summary>
@@ -161,9 +168,25 @@ namespace Basis.Scripts.Drivers
                 BasisDesktopEye.Instance.rotationPitch = previousHeadPitchGlobal;
                 BasisDesktopEye.Instance.rotationYaw = previousHeadYawVsSeat + (_seat.transform.rotation * _seat.SpineRotation).eulerAngles.y;
             }
-            LocalPlayer.transform.SetPositionAndRotation(_seat.transform.TransformPoint(previousRelativePosition), Quaternion.identity);
-            LocalPlayer.AvatarTransform.rotation = Quaternion.identity;
-            LocalPlayer.LocalAnimatorDriver.HandleTeleport();
+            Vector3 desiredPos = _seat.transform.TransformPoint(previousRelativePosition);
+
+            // You should pull these from your actual character controller if possible:
+           var CC = BasisLocalPlayer.Instance.LocalCharacterDriver.characterController;
+            // Decide masks:
+            // - groundMask: what counts as "floor" (static world, terrain, platforms)
+            // - blockingMask: what you can't spawn inside (usually same + dynamic props)
+
+            if (BasisSafeTeleportUtil.TryFindSafeStandingPosition(desiredPos, CC.radius, CC.height, CC.skinWidth, GroundMask,BlockingMask, maxDownProbe, maxUpProbe, out Vector3 safePos))
+            {
+                LocalPlayer.Teleport(safePos, Quaternion.identity, true);
+            }
+            else
+            {
+                // Fallback: don't teleport to a potentially bad location.
+                // Options: keep player where they are, or teleport to last known safe / spawn.
+                BasisDebug.LogWarning("No safe exit position found for seat.");
+                LocalPlayer.Teleport(LocalPlayer.transform.position, Quaternion.identity, true);
+            }
             GrabLatestTposeLocalScaleData();
             if (hasEvent)
             {
