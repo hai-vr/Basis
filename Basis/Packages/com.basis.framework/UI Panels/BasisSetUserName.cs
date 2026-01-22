@@ -58,6 +58,7 @@ namespace Basis.Scripts.UI.UI_Panels
         /// Singleton instance of this UI controller.
         /// </summary>
         public static BasisSetUserName Instance;
+        public float InitalYOffset = -1.35f;
         /// <summary>
         /// Unity Start hook. Initializes UI, registers callbacks, and loads cached settings.
         /// </summary>
@@ -86,6 +87,9 @@ namespace Basis.Scripts.UI.UI_Panels
             {
                 LoadCurrentSettings();
             }
+            BasisLocalPlayer.OnLocalPlayerInitalized += ApplySizeAndPosition;
+            BasisLocalPlayer.OnLocalAvatarChanged += ApplySizeAndPosition;
+            BasisLocalCameraDriver.InstanceExists += ApplySizeAndPosition;
         }
 
         /// <summary>
@@ -96,7 +100,7 @@ namespace Basis.Scripts.UI.UI_Panels
             if (BasisLocalPlayer.Instance != null)
             {
                 this.transform.localScale = InitalScale * BasisHeightDriver.heightScaleFactor;
-                this.transform.position  = new Vector3(this.transform.position.x,BasisLocalCameraDriver.Position.y, this.transform.position.z);
+                this.transform.position  = new Vector3(this.transform.position.x, BasisHeightDriver.SelectedPlayerHeight + InitalYOffset, this.transform.position.z);
             }
         }
 
@@ -111,6 +115,9 @@ namespace Basis.Scripts.UI.UI_Panels
                 UseLocalhost.onClick.RemoveListener(UseLocalHost);
             }
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= ApplySizeAndPosition;
+            BasisLocalPlayer.OnLocalPlayerInitalized -= ApplySizeAndPosition;
+            BasisLocalPlayer.OnLocalAvatarChanged -= ApplySizeAndPosition;
+            BasisLocalCameraDriver.InstanceExists -= ApplySizeAndPosition;
         }
 
         /// <summary>
