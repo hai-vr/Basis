@@ -195,8 +195,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     /// <summary>Rescales the camera when the local player’s avatar height changes.</summary>
     private void OnHeightChanged()
     {
-        transform.localScale = new Vector3(cameraDefaultScale, cameraDefaultScale, cameraDefaultScale) *
-                               BasisHeightDriver.AvatarToPlayerScale;
+        transform.localScale = new Vector3(cameraDefaultScale, cameraDefaultScale, cameraDefaultScale) *  BasisHeightDriver.heightScaleFactor;
     }
 
     /// <summary>
@@ -415,8 +414,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
             PinSpace = CameraPinSpace.WorldSpace;
             flyCamera.Enable();
 
-            smoothedRotation = HHC.captureCamera.transform.rotation;
-            smoothedPosition = HHC.captureCamera.transform.position;
+            HHC.captureCamera.transform.GetPositionAndRotation(out smoothedPosition, out smoothedRotation);
         }
         else if (!isMiddleClick && pauseMove)
         {
