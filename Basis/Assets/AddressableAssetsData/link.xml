@@ -120,6 +120,7 @@
     <type fullname="BasisPoseData" preserve="nothing" serialized="true" />
     <type fullname="BasisPoseDataAdditional" preserve="nothing" serialized="true" />
     <type fullname="BasisTransmissionResults" preserve="nothing" serialized="true" />
+    <type fullname="BattlePhaze.SettingsManager.Intergrations.SMModuleQualityAndQualitySetURP/TerrainQualityProfile" preserve="nothing" serialized="true" />
     <type fullname="Basis.BasisUI.BasisMenuMover/RootModeOffset" preserve="nothing" serialized="true" />
     <type fullname="Basis.BasisUI.BasisMenuPanel/PanelData" preserve="nothing" serialized="true" />
     <type fullname="Basis.BasisUI.PanelSlider/SliderSettings" preserve="nothing" serialized="true" />

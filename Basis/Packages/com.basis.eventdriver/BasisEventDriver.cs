@@ -157,12 +157,7 @@ public class BasisEventDriver : MonoBehaviour
         BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
         BasisLocalPlayer.FireJustBeforeNetworkApply();
         BasisNetworkManagement.SimulateNetworkApply();
-        // JigglePhysics: schedule/complete passes
-        JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime);
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
-
-        JigglePhysics.SchedulePose(TimeAsDouble);//requires free access to all transform of a player.
-
         // Device management tick
         BasisDeviceManagement.OnDeviceManagementLoop?.Invoke();
         BasisRemoteAudioDriver.Simulate(DeltaTime);
@@ -177,10 +172,6 @@ public class BasisEventDriver : MonoBehaviour
         {
             BasisLocalPlayer.Instance.FacialBlinkDriver.Simulate(TimeAsDouble);
         }
-        if (SMModuleDebugOptions.UseGizmos)
-        {
-            JigglePhysics.ScheduleRender();
-        }
         BasisRemoteAudioDriver.Apply();
         BasisRemoteNamePlateDriver.CompleteNamePlates();
         if (BasisLocalPlayer.PlayerReady)
@@ -188,8 +179,6 @@ public class BasisEventDriver : MonoBehaviour
             BasisLocalPlayer.Instance.LocalVisemeDriver.Apply();
 
         }
-        //doing main thread work before this call is ideal for best performance.
-        JigglePhysics.CompletePose();
         SteamAudioManager.Schedule();
         BasisRemoteFaceManagement.Simulate(TimeAsDouble, DeltaTime);
 
@@ -219,6 +208,17 @@ public class BasisEventDriver : MonoBehaviour
         }
         // send out avatar
         BasisNetworkTransmitter.AfterAvatarChanges?.Invoke();
+
+
+        // JigglePhysics: schedule/complete passes
+        JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime);
+
+        JigglePhysics.SchedulePose(TimeAsDouble);//requires free access to all transform of a player.
+        if (SMModuleDebugOptions.UseGizmos)
+        {
+            JigglePhysics.ScheduleRender();
+        }
+
 #if UNITY_SERVER
         OnBeforeRender();
 #endif
@@ -237,6 +237,8 @@ public class BasisEventDriver : MonoBehaviour
             BasisLocalPlayer.Instance.SimulateOnRender(DeltaTime);
             BasisRemoteFaceManagement.Apply();
             BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime);
+            //doing main thread work before this call is ideal for best performance.
+            JigglePhysics.CompletePose();
         }
     }
 
