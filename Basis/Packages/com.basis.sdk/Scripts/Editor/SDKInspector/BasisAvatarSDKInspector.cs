@@ -344,6 +344,7 @@ public partial class BasisAvatarSDKInspector : Editor
             }
             (bool success, string message) BundleCreatedState = new(false, "");
             GameObject buildRoot = null;
+            BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
             try
             {
                 Debug.Log($"Building Gameobject Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
@@ -353,7 +354,6 @@ public partial class BasisAvatarSDKInspector : Editor
                 if (Avatar.ProcessingAvatarOptions != null && Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes)
                 {
                     // If your pipeline needs editor-only stripping, do it here.
-                    BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
                     BasisBuildBlendshapeStripper.StripForBuild(settings: assetBundleObject, buildRoot, Avatar);
 
                 }
@@ -362,7 +362,7 @@ public partial class BasisAvatarSDKInspector : Editor
 #endif
 
                 Debug.Log($"Building Gameobject Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
-                BundleCreatedState = await BasisBundleBuild.GameObjectBundleBuild(ImageBytes, Avatar, targets);
+                BundleCreatedState = await BasisBundleBuild.GameObjectBundleBuild(ImageBytes, Avatar, targets, assetBundleObject.UseCustomPassword, assetBundleObject.UserSelectedPassword);
 
                 EditorUtility.ClearProgressBar();
                 // Clear any previous result label

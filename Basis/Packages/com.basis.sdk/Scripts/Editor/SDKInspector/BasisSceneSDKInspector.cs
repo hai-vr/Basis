@@ -69,8 +69,9 @@ public class BasisSceneSDKInspector : Editor
         {
             ImageBytes = BasisTextureCompression.ToPngBytes(Image);
         }
+        BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
         // Call the build function and capture result
-        (bool success, string message) = await BasisBundleBuild.SceneBundleBuild(ImageBytes, BasisScene, targets);
+        (bool success, string message) = await BasisBundleBuild.SceneBundleBuild(ImageBytes, BasisScene, targets, assetBundleObject.UseCustomPassword, assetBundleObject.UserSelectedPassword);
         EditorUtility.ClearProgressBar();
         // Clear any previous result label
         ClearResultLabel();

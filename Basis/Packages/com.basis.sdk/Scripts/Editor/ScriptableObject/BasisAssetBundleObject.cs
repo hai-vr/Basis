@@ -16,6 +16,8 @@ public class BasisAssetBundleObject : ScriptableObject
     public string BasisMetaEncryptedExtension = ".BEM";
     public string BasisEncryptedExtension = ".BEE";
     public string ProtectedPasswordFileName = "dontuploadmepassword";
+    public string UserSelectedPassword = "";
+    public bool UseCustomPassword = false;
     public bool useCompression = true;
     public bool GenerateImage = true;
     public bool OpenFolderOnDisc = true;
