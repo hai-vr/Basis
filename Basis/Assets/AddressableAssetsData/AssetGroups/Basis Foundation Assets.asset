@@ -200,11 +200,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: ea11d439c72d6a145a84a0b10f691e3c
-    m_Address: Packages/com.basis.sdk/Prefabs/UI/BasisUINotification.prefab
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ebe88bc64d28a8e4586b89098577937f
     m_Address: Interactable/InteractLineMat.mat
     m_ReadOnly: 0

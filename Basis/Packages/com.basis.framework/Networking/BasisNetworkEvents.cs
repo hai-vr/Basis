@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
@@ -333,13 +334,24 @@ public static class BasisNetworkEvents
         {
             if (disconnectInfo.AdditionalData.TryGetString(out string Reason))
             {
-                BasisUINotification.OpenNotification(Reason, false, Vector3.zero);
+                BasisMainMenu.Open();
+                var Dialogue = BasisMenuDialoguePanel.CreateNew("Server Connection", Reason, "ok", value =>
+                {
+                });
                 BasisDebug.LogError(Reason);
+            }
+            else
+            {
+                BasisDebug.Log($"Unexpected Failure Of Reason {disconnectInfo.Reason}");
             }
         }
         else
         {
-            BasisUINotification.OpenNotification(disconnectInfo.Reason.ToString(), false, Vector3.zero);
+            BasisMainMenu.Open();
+            var Dialogue = BasisMenuDialoguePanel.CreateNew("Server Disconnected", disconnectInfo.Reason.ToString(), "ok", value =>
+              {
+              });
+
             BasisDebug.LogError(disconnectInfo.Reason.ToString());
         }
         if (BasisSetUserName.Instance != null && BasisSetUserName.Instance.Ready != null)
