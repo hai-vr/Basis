@@ -440,7 +440,7 @@ namespace Basis.Scripts.BasisSdk.Players
             JustBeforeNetworkApply?.Invoke();
         }
         /// <summary>
-        /// Main per-frame simulation entry point, executed on render/update.
+        /// Main per-frame simulation entry point, executed on render/update.ddd
         /// Performs movement, bone simulation, T-pose driving, IK targets, animator evaluation, hands,
         /// and then invokes <see cref="AfterSimulateOnRender"/>.
         /// </summary>

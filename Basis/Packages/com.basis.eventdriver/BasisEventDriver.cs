@@ -114,6 +114,9 @@ public class BasisEventDriver : MonoBehaviour
         DeltaTime = Time.deltaTime;
         TimeAsDouble = Time.timeAsDouble;
         unscaledDeltaTime = Time.unscaledDeltaTime;
+        fixedTimeAsDouble = Time.fixedTimeAsDouble;
+        fixedDeltaTime = Time.fixedDeltaTime;
+        realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
 
         if (BasisLocalPlayer.PlayerReady)
         {
@@ -139,8 +142,12 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
     public void FixedUpdate()
     {
-        TimeAsDouble = Time.timeAsDouble;
         DeltaTime = Time.deltaTime;
+        TimeAsDouble = Time.timeAsDouble;
+        unscaledDeltaTime = Time.unscaledDeltaTime;
+        fixedTimeAsDouble = Time.fixedTimeAsDouble;
+        fixedDeltaTime = Time.fixedDeltaTime;
+        realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
         BasisSceneFactory.Simulate(DeltaTime);
     }
 
@@ -150,75 +157,75 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
     public void LateUpdate()
     {
+        DeltaTime = Time.deltaTime;
+        TimeAsDouble = Time.timeAsDouble;
+        unscaledDeltaTime = Time.unscaledDeltaTime;
         fixedTimeAsDouble = Time.fixedTimeAsDouble;
         fixedDeltaTime = Time.fixedDeltaTime;
         realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
         // Network apply step + gameplay sync
-        BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);
-        BasisLocalPlayer.FireJustBeforeNetworkApply();
-        BasisNetworkManagement.SimulateNetworkApply();
-        BasisObjectSyncDriver.CompleteScheduledRemoteLerp();
+        BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);//apply latest pickup data
+        BasisLocalPlayer.FireJustBeforeNetworkApply(); //hook for network events good for vehicles 
+        BasisNetworkManagement.SimulateNetworkApply(); // begin computing player data.
+        BasisObjectSyncDriver.CompleteScheduledRemoteLerp(); // apply movement of all pickups
         // Device management tick
-        BasisDeviceManagement.OnDeviceManagementLoop?.Invoke();
-        BasisRemoteAudioDriver.Simulate(DeltaTime);
-#if UNITY_SERVER
-#else
-        BasisLocalMicrophoneDriver.MicrophoneUpdate();
-#endif
+        BasisDeviceManagement.OnDeviceManagementLoop?.Invoke(); // useful for manual tracker polling
+        BasisRemoteAudioDriver.Simulate(DeltaTime); // computes audio data. (viseme data)
         BasisRemoteNamePlateDriver.ScheduleSimulate(TimeAsDouble);//simulate colors onto nameplates
-        BTweenManager.Simulate(realtimeSinceStartupAsDouble);
+        BTweenManager.Simulate(realtimeSinceStartupAsDouble); // update menu data.
         // Local player late simulation
         if (BasisLocalPlayer.PlayerReady)
         {
-            BasisLocalPlayer.Instance.FacialBlinkDriver.Simulate(TimeAsDouble);
+            BasisLocalPlayer.Instance.FacialBlinkDriver.Simulate(TimeAsDouble); //local blink driver updates
+            BasisLocalPlayer.Instance.LocalVisemeDriver.Apply(); //local viseme driver
         }
-        BasisRemoteAudioDriver.Apply();
-        BasisRemoteNamePlateDriver.CompleteNamePlates();
-        if (BasisLocalPlayer.PlayerReady)
+        if (BasisDeviceManagement.HasEvents)
         {
-            BasisLocalPlayer.Instance.LocalVisemeDriver.Apply();
-
+            BasisDeviceManagement.Instance.Simulate(); // poll things like steam audio
         }
-        SteamAudioManager.Schedule();
-        BasisRemoteFaceManagement.Simulate(TimeAsDouble, DeltaTime);
+        SteamAudioManager.Schedule();//schedule steam audio
+        BasisRemoteFaceManagement.Simulate(TimeAsDouble, DeltaTime); // eye blinking
 
         if (BasisLocalPlayer.PlayerReady)
         {
             // Eye driver (local)
-            BasisLocalPlayer.Instance.LocalEyeDriver.Simulate(DeltaTime);
-        }
-
-        if (SMModuleDebugOptions.UseGizmos)
-        {
-            JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
+            BasisLocalPlayer.Instance.LocalEyeDriver.Simulate(DeltaTime);//simulate local eye driver
         }
         if (BasisLocalPlayer.PlayerReady)
         {
-            BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
+            BasisLocalPlayer.Instance.LocalEyeDriver.Apply();//local eye driver 
 
         }
-        SteamAudioManager.Apply();
-        if (BasisDeviceManagement.HasEvents)
-        {
-            BasisDeviceManagement.Instance.Simulate();
-        }
+        BasisRemoteAudioDriver.Apply(); //apply visemes
+        SteamAudioManager.Apply(); //apply steam audio transforms
+
         if (BasisLocalPlayer.PlayerReady)
         {
-            BasisLocalPlayer.Instance.Simulate(DeltaTime);
+            BasisLocalPlayer.Instance.Simulate(DeltaTime);//update local player
         }
-        // send out avatar
-        BasisNetworkTransmitter.AfterAvatarChanges?.Invoke();
-
-
         // JigglePhysics: schedule/complete passes
-        JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime);
-
+        JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime); //schedule jiggles
+        // send out avatar
+        BasisNetworkTransmitter.AfterAvatarChanges?.Invoke(); //send out local, player network data
         JigglePhysics.SchedulePose(TimeAsDouble);//requires free access to all transform of a player.
+#if UNITY_SERVER
+#else
+        BasisLocalMicrophoneDriver.MicrophoneUpdate(); //microphone Update
+#endif
+
+        BasisRemoteNamePlateDriver.CompleteNamePlates();//just colors
         if (SMModuleDebugOptions.UseGizmos)
         {
             JigglePhysics.ScheduleRender();
         }
 
+        if (SMModuleDebugOptions.UseGizmos)
+        {
+            JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);//complete rendering of jiggles
+
+        }
+        //doing main thread work before this call is ideal for best performance.
+        JigglePhysics.CompletePose();
 #if UNITY_SERVER
         OnBeforeRender();
 #endif
@@ -230,15 +237,17 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
     private void OnBeforeRender()
     {
-
+        DeltaTime = Time.deltaTime;
+        TimeAsDouble = Time.timeAsDouble;
+        unscaledDeltaTime = Time.unscaledDeltaTime;
+        fixedTimeAsDouble = Time.fixedTimeAsDouble;
+        fixedDeltaTime = Time.fixedDeltaTime;
+        realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
         if (BasisLocalPlayer.PlayerReady)
         {
-
             BasisLocalPlayer.Instance.SimulateOnRender(DeltaTime);
-            BasisRemoteFaceManagement.Apply();
-            BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime);
-            //doing main thread work before this call is ideal for best performance.
-            JigglePhysics.CompletePose();
+            BasisRemoteFaceManagement.Apply(); //apply blendshapes
+            BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime); //update microphone icon
         }
     }
 
