@@ -296,10 +296,16 @@ namespace Basis.Network.Vehicles
             if (_snapshots.Count == 0) return;
 
             // --- NEW: adaptive delay based on buffer health ---
-            float targetDelay = 1.1f * SendInterval;
+            float targetDelay = 1.3f * SendInterval;
             int buffered = _snapshots.Count;
-            if (buffered < 2) targetDelay = 3.0f * SendInterval;
-            else if (buffered > 6) targetDelay = 1.8f * SendInterval;
+            if (buffered < 2)
+            {
+                targetDelay = 3.0f * SendInterval;
+            }
+            else if (buffered > 6)
+            {
+                targetDelay = 1.8f * SendInterval;
+            }
 
             _adaptiveDelay = Mathf.MoveTowards(
                 _adaptiveDelay,
