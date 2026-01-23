@@ -190,6 +190,7 @@ public class BasisEventDriver : MonoBehaviour
         if (BasisLocalPlayer.PlayerReady)
         {
             BasisLocalPlayer.Instance.Simulate(DeltaTime);//update local player
+            BasisLocalCameraDriver.Instance.Simulate();
         }
         // JigglePhysics: schedule/complete passes
         JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime); //schedule jiggles

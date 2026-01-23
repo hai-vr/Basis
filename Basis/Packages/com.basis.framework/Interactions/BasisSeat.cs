@@ -2,8 +2,6 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
-using System.Collections.Generic;
-using System.Data;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
@@ -209,6 +207,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             hipsWorldRot = seatQuat * SpineRotation;
 
             var refs = Player.RemoteAvatarDriver.References;
+            Vector3 scale = Player.AvatarTransform.localScale;
             // grab T-pose dictionary once
             var tpose = refs.Tpose;
             // pull out the leg joints you need
@@ -216,10 +215,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             var leftLower = tpose[HumanBodyBones.LeftLowerLeg];
             var leftFoot = tpose[HumanBodyBones.LeftFoot];
             var leftToe = tpose[HumanBodyBones.LeftToes];
-
-            Matrix4x4 dat = Player.AvatarTransform.localToWorldMatrix;
-
-            Vector3 scale = Convert(dat);
 
             Vector3 LUL_World = Vector3.Scale(scale, leftUpper.position);
             Vector3 LLL_World = Vector3.Scale(scale, leftLower.position);
@@ -229,17 +224,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // finally call your leg placement helper
             hipsWorldPos = ApplyRemoteLeg(leftLower.rotation, leftUpper.rotation, LF_World, LLL_World, LUL_World, LT_World);
         }
-        public Vector3 Convert(Matrix4x4 m)
-        {
-            Vector3 sx = new Vector3(m.m00, m.m10, m.m20);
-            Vector3 sy = new Vector3(m.m01, m.m11, m.m21);
-            Vector3 sz = new Vector3(m.m02, m.m12, m.m22);
-            return new Vector3(sx.magnitude, sy.magnitude, sz.magnitude);
-        }
         /// <summary>
         ///
         /// </summary>
-        /// <param name="scale"></param>
         /// <param name="LeftLowerLegControlRotation"></param>
         /// <param name="LeftUpperLegControlRotation"></param>
         /// <param name="LeftFootControl"></param>
