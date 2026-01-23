@@ -131,13 +131,13 @@ namespace Basis.Network.Vehicles
                 ApplyRemoteExtrasToParts(0f, 0f);
             }
 
-            BasisLocalPlayer.AfterSimulateOnRender.AddAction(203, SimulateLocal);
+            BasisLocalPlayer.JustBeforeNetworkApply.AddAction(9, SimulateLocal);
             BasisLocalPlayer.JustBeforeNetworkApply.AddAction(10, SimulateRemote);
         }
 
         public override void OnDestroy()
         {
-            BasisLocalPlayer.AfterSimulateOnRender.RemoveAction(203, SimulateLocal);
+            BasisLocalPlayer.JustBeforeNetworkApply.RemoveAction(9, SimulateLocal);
             BasisLocalPlayer.JustBeforeNetworkApply.RemoveAction(10, SimulateRemote);
             if (Seat != null)
             {
