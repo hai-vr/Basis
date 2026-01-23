@@ -361,11 +361,7 @@ public static class BasisNetworkEvents
     }
     public static void PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
     {
-        BasisDebug.Log($"Client disconnected from server [{peer.Id}]");
-        if (peer == BasisNetworkConnection.LocalPlayerPeer)
-        {
-            BasisNetworkConnection.HandleDisconnection(peer, disconnectInfo);
-        }
+        BasisNetworkConnection.HandleDisconnection(peer, disconnectInfo);
         if (BasisSetUserName.Instance != null && BasisSetUserName.Instance.Ready != null)
         {
             BasisDeviceManagement.EnqueueOnMainThread(() =>
