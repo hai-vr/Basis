@@ -141,9 +141,9 @@ public static class BasisSceneFactory
         }
         OnSpawnedEvent?.Invoke();
     }
-    public static void Simulate(float DeltaTime)
+    public static void Simulate(float FixedDeltaTime)
     {
-        timeSinceLastCheck += DeltaTime;
+        timeSinceLastCheck += FixedDeltaTime;
         // Check only if enough time has passed
         if (timeSinceLastCheck > RespawnCheckTimer)
         {

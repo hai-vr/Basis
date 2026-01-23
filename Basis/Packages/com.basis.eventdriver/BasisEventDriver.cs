@@ -112,11 +112,9 @@ public class BasisEventDriver : MonoBehaviour
     public void Update()
     {
         DeltaTime = Time.deltaTime;
-        TimeAsDouble = Time.timeAsDouble;
         unscaledDeltaTime = Time.unscaledDeltaTime;
-        fixedTimeAsDouble = Time.fixedTimeAsDouble;
-        fixedDeltaTime = Time.fixedDeltaTime;
         realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
+        TimeAsDouble = Time.timeAsDouble;
 
         if (BasisLocalPlayer.PlayerReady)
         {
@@ -142,13 +140,9 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
     public void FixedUpdate()
     {
-        DeltaTime = Time.deltaTime;
-        TimeAsDouble = Time.timeAsDouble;
-        unscaledDeltaTime = Time.unscaledDeltaTime;
-        fixedTimeAsDouble = Time.fixedTimeAsDouble;
         fixedDeltaTime = Time.fixedDeltaTime;
-        realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
-        BasisSceneFactory.Simulate(DeltaTime);
+        fixedTimeAsDouble = Time.fixedTimeAsDouble;
+        BasisSceneFactory.Simulate(fixedDeltaTime);
     }
 
     /// <summary>
@@ -157,12 +151,6 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
     public void LateUpdate()
     {
-        DeltaTime = Time.deltaTime;
-        TimeAsDouble = Time.timeAsDouble;
-        unscaledDeltaTime = Time.unscaledDeltaTime;
-        fixedTimeAsDouble = Time.fixedTimeAsDouble;
-        fixedDeltaTime = Time.fixedDeltaTime;
-        realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
         // Network apply step + gameplay sync
         BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);//apply latest pickup data
         BasisLocalPlayer.FireJustBeforeNetworkApply(); //hook for network events good for vehicles 
@@ -237,12 +225,6 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
     private void OnBeforeRender()
     {
-        DeltaTime = Time.deltaTime;
-        TimeAsDouble = Time.timeAsDouble;
-        unscaledDeltaTime = Time.unscaledDeltaTime;
-        fixedTimeAsDouble = Time.fixedTimeAsDouble;
-        fixedDeltaTime = Time.fixedDeltaTime;
-        realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
         if (BasisLocalPlayer.PlayerReady)
         {
             BasisLocalPlayer.Instance.SimulateOnRender(DeltaTime);
