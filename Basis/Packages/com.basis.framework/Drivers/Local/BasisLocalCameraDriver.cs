@@ -183,6 +183,7 @@ namespace Basis.Scripts.Drivers
                 BasisLocalMicrophoneDriver.MainThreadOnHasAudio += microphoneIconDriver.MicrophoneTransmitting;
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence += microphoneIconDriver.MicrophoneNotTransmitting;
 
+                RenderPipelineManager.beginCameraRendering += BeginCameraRendering;
                 RenderPipelineManager.endCameraRendering += EndCameraRendering;
 
                 BasisDeviceManagement.OnBootModeChanged += OnModeSwitch;
@@ -212,6 +213,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void OnDestroy()
         {
+            RenderPipelineManager.beginCameraRendering -= BeginCameraRendering;
             RenderPipelineManager.endCameraRendering -= EndCameraRendering;
             BasisDeviceManagement.OnBootModeChanged -= OnModeSwitch;
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= UpdateCameraScale;
@@ -231,6 +233,7 @@ namespace Basis.Scripts.Drivers
             }
             if (HasEvents)
             {
+                RenderPipelineManager.beginCameraRendering -= BeginCameraRendering;
                 RenderPipelineManager.endCameraRendering -= EndCameraRendering;
                 BasisDeviceManagement.OnBootModeChanged -= OnModeSwitch;
                 BasisLocalMicrophoneDriver.MainThreadOnHasAudio -= microphoneIconDriver.MicrophoneTransmitting;
@@ -313,13 +316,26 @@ namespace Basis.Scripts.Drivers
                 }
             }
         }
+        /// <summary>
+        /// URP callback before camera render: caches camera transform, hides head for view,
+        /// and positions the microphone UI either in XR or desktop mode.
+        /// </summary>
+        public void BeginCameraRendering(ScriptableRenderContext context, Camera Camera)
+        {
+            if (BasisLocalAvatarDriver.References.Hashead)
+            {
+                if (Camera.GetInstanceID() == CameraInstanceID)
+                {
+                    BasisLocalAvatarDriver.ScaleheadToZero();
+                }
+            }
+        }
+
         public void Simulate()
         {
             if (BasisLocalAvatarDriver.References.Hashead)
             {
                 this.transform.GetPositionAndRotation(out Position, out Rotation);
-                BasisLocalAvatarDriver.ScaleheadToZero();
-
                 if (CameraData.allowXRRendering)
                 {
                     ParentOfUI.localPosition = microphoneIconDriver.CalculateClampedLocal(Camera, Position);
