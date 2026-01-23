@@ -165,8 +165,6 @@ namespace Basis.Scripts.Networking
 
             BasisNetworkPlayers.PublishReceiversSnapshot();
 
-            BoneJobSystem = RemoteBoneJobSystem.Schedule(); // will always be a frame behind
-
             UnscaledDeltaTime = Math.Max(UnscaledDeltaTime, 0f);
             if (!math.isfinite(UnscaledDeltaTime))
             {
@@ -190,7 +188,6 @@ namespace Basis.Scripts.Networking
             }
             BasisRemoteNetworkDriver.Compute();
             BasisNetworkProfiler.Update();
-            RemoteBoneJobSystem.Complete(BoneJobSystem);
 
             if (HasRequested)
             {
@@ -218,6 +215,10 @@ namespace Basis.Scripts.Networking
             {
                 BasisNetworkPlayers.ReceiversSnapshot[Index].Apply();
             }
+
+            BoneJobSystem = RemoteBoneJobSystem.Schedule();
+
+            RemoteBoneJobSystem.Complete(BoneJobSystem);
         }
 
         #endregion
