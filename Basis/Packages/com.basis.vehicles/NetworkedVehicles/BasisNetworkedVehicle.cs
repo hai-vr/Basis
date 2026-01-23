@@ -1,3 +1,4 @@
+// BasisNetworkedVehicle.cs
 using System;
 using System.Collections.Generic;
 using Basis;
@@ -5,6 +6,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Vehicles.Main;
 using Basis.Scripts.Vehicles.Parts;
 using UnityEngine;
+
 namespace Basis.Network.Vehicles
 {
     public class BasisNetworkedVehicle : BasisNetworkBehaviour
@@ -19,51 +21,39 @@ namespace Basis.Network.Vehicles
         public BasisVehicleSteeringWheel SteeringWheel;
 
         [Header("Wheel Visual Transforms (REQUIRED for remote visuals)")]
-        [Tooltip("One per wheel. This transform will be rotated by spin angle (degrees) around SpinAxisLocal.")]
         public Transform[] SpinVisuals;
-
-        [Tooltip("Steer visuals (usually 2: front-left, front-right). These are rotated by steer angle (degrees) around SteerAxisLocal.")]
         public Transform[] SteerVisuals;
 
-        [Tooltip("Local axis for wheel spin (in the SpinVisual's local space). Commonly Vector3.right or Vector3.forward depending on your rig.")]
         public Vector3 SpinAxisLocal = Vector3.right;
-
-        [Tooltip("Local axis for steering (in the SteerVisual's local space). Commonly Vector3.up.")]
         public Vector3 SteerAxisLocal = Vector3.up;
 
         [Header("Owner Send")]
-        [Tooltip("How often the owner sends updates (seconds).")]
-        public float SendInterval = 0.05f; // 50ms
+        public float SendInterval = 0.05f;
 
         [Header("Remote Playback (Jitter Buffer)")]
-        [Tooltip("How far in the past we render remote vehicles. Usually 2-3x SendInterval.")]
-        public float InterpDelay = 0.10f; // 100ms default (2 ticks)
-
-        [Tooltip("Max snapshots kept in buffer.")]
+        public float InterpDelay = 0.10f;
         public int MaxBufferSize = 32;
-
-        [Tooltip("Allow small extrapolation when we run out of snapshots (seconds).")]
         public float MaxExtrapolation = 0.10f;
-
-        [Tooltip("Clamp crazy velocity spikes when extrapolating (m/s).")]
         public float MaxExtrapolationSpeed = 200f;
 
+        [Header("Adaptive Interp Delay")]
+        public float MinInterpDelay = 0.03f;
+        public float MaxInterpDelay = 0.12f;
+        public float DelayAdjustSpeed = 6.0f;
+
         [Header("Wheel Quantization")]
-        [Tooltip("Bits used per wheel spin angle (absolute 0..360). 12 bits = 0.088° steps.")]
         [Range(8, 12)] public int SpinBits = 12;
-
-        [Tooltip("Bits used per steer angle (absolute -SteerRange..+SteerRange). 10 bits = 0.117° steps over 120° range.")]
         [Range(7, 11)] public int SteerBits = 10;
-
-        [Tooltip("Steer angle range in degrees. Angles outside clamp.")]
         public float SteerRangeDeg = 60f;
 
         [Header("Engine / SteeringWheel Sync")]
-        [Tooltip("Bits used for engine revs value (0..1).")]
         [Range(6, 10)] public int EngineBits = 8;
-
-        [Tooltip("Bits used for steering wheel ratio (-1..1).")]
         [Range(7, 11)] public int SteerRatioBits = 9;
+
+        // --- NEW: tick settings ---
+        [Header("Tick Timing")]
+        [Tooltip("Seconds per tick. Usually same as SendInterval. Keep constant for stable playback.")]
+        public float TickInterval = 0.05f;
 
         private float _sendTimer;
         private Transform _tr;
@@ -72,36 +62,44 @@ namespace Basis.Network.Vehicles
 
         private struct Snapshot
         {
-            public double t;      // local receive timestamp (Time.timeAsDouble)
+            public double t;      // reconstructed sender time mapped into local time domain
             public Vector3 pos;
             public Quaternion rot;
             public Vector3 scale;
 
-            // Wheel angles (ABSOLUTE):
-            public float[] spinDeg;   // length = wheelCount
-            public float[] steerDeg;  // length = steerCount
+            // Wheel angles:
+            public float[] spinDeg;   // UNWRAPPED (can exceed 360)
+            public float[] steerDeg;  // -range..+range
 
-            // Extras:
-            public float engineRevs01; // 0..1
-            public float steerRatio;   // -1..1
+            public float engineRevs01;
+            public float steerRatio;
+
+            public ushort tick;
         }
 
-        // Snapshot buffer (ordered oldest -> newest)
         private readonly List<Snapshot> _snapshots = new List<Snapshot>(64);
 
-        // For extrapolation
-        private Vector3 _vel;          // m/s
-        private Vector3 _angVel;       // axis * rad/s (approx)
+        private Vector3 _vel;
+        private Vector3 _angVel;
         private bool _haveVel;
 
-        // OWNER: absolute spin angle tracking
         private float[] _ownerSpinAbsDeg;
         private int _wheelCount;
         private int _steerCount;
 
-        // Last received extras (for single-snapshot snap/extrap frames)
         private float _remoteEngineRevs01;
         private float _remoteSteerRatio;
+
+        // --- NEW: sender tick counter (owner) ---
+        private ushort _ownerTick;
+
+        // --- NEW: tick->time mapping (receiver) ---
+        private bool _haveTickBase;
+        private ushort _tickBase;
+        private double _timeBase;
+
+        // --- NEW: adaptive delay ---
+        private float _adaptiveDelay;
 
         public override void Start()
         {
@@ -109,6 +107,7 @@ namespace Basis.Network.Vehicles
             base.Start();
 
             _tr = transform;
+            _adaptiveDelay = InterpDelay;
 
             if (Seat != null)
             {
@@ -116,15 +115,11 @@ namespace Basis.Network.Vehicles
                 Seat.OnPlayerExitSeat += OnPlayerExitSeat;
             }
 
-
-            // Cache counts
             _wheelCount = Wheels != null ? Wheels.Length : 0;
             _steerCount = SteerVisuals != null ? SteerVisuals.Length : 0;
 
-            // Allocate owner spin accumulator (absolute)
             _ownerSpinAbsDeg = new float[_wheelCount];
 
-            // If we start as remote, make sure physics is off (but keep audio/steer visuals driven by network)
             if (Player == null || !Player.IsLocal)
             {
                 ToggleItems(false);
@@ -139,20 +134,20 @@ namespace Basis.Network.Vehicles
         {
             BasisLocalPlayer.JustBeforeNetworkApply.RemoveAction(9, SimulateLocal);
             BasisLocalPlayer.JustBeforeNetworkApply.RemoveAction(10, SimulateRemote);
+
             if (Seat != null)
             {
                 Seat.OnPlayerEnterSeat -= OnPlayerEnterSeat;
+                Seat.OnPlayerExitSeat -= OnPlayerExitSeat;
             }
 
             base.OnDestroy();
-
         }
+
         private void OnPlayerExitSeat(BasisPlayer player)
         {
             Player = null;
-            ToggleItems(false);//when player exits the vehicle we set all the items to false
-
-
+            ToggleItems(false);
         }
 
         private void OnPlayerEnterSeat(BasisPlayer player)
@@ -166,17 +161,18 @@ namespace Basis.Network.Vehicles
             {
                 _snapshots.Clear();
                 _haveVel = false;
+                _haveTickBase = false;
+                _ownerTick = 0;
+                _sendTimer = 0f;
 
                 for (int i = 0; i < _ownerSpinAbsDeg.Length; i++)
                     _ownerSpinAbsDeg[i] = 0f;
 
-                // Local: let components compute from real inputs/physics
                 if (EngineAudio != null) EngineAudio.UseNetworkRevs = false;
                 if (SteeringWheel != null) SteeringWheel.UseNetworkSteerRatio = false;
             }
             else
             {
-                // Remote: force network drive
                 ApplyRemoteExtrasToParts(_remoteEngineRevs01, _remoteSteerRatio);
             }
         }
@@ -192,18 +188,13 @@ namespace Basis.Network.Vehicles
 
         public override void OnNetworkMessage(ushort PlayerID, byte[] buffer, Basis.Network.Core.DeliveryMethod DeliveryMethod)
         {
-            if (buffer == null)
-                return;
-
-            // If we're local driver, ignore remote state
-            if (Player != null && Player.IsLocal)
-                return;
+            if (buffer == null) return;
+            if (Player != null && Player.IsLocal) return;
 
             int expectedMin = BasisVehicleNetCodec.MinPacketSize
                             + BasisVehicleWheelNetCodec.ExtraBytes(_wheelCount, _steerCount, SpinBits, SteerBits, EngineBits, SteerRatioBits);
 
-            if (buffer.Length < expectedMin)
-                return;
+            if (buffer.Length < expectedMin) return;
 
             BasisVehicleWheelNetCodec.ReadPacketWithWheels(
                 buffer,
@@ -212,28 +203,45 @@ namespace Basis.Network.Vehicles
                 EngineBits, SteerRatioBits,
                 -SteerRangeDeg, SteerRangeDeg,
                 out Vector3 pos, out Quaternion rot, out Vector3 scale,
-                out float[] spinDeg, out float[] steerDeg,
-                out float engineRevs01, out float steerRatio
+                out float[] spinDegMod, out float[] steerDeg,
+                out float engineRevs01, out float steerRatio,
+                out ushort tick
             );
 
             double now = Time.timeAsDouble;
+
+            // --- NEW: tick->time mapping (turn jittery arrival into stable timeline) ---
+            if (!_haveTickBase)
+            {
+                _haveTickBase = true;
+                _tickBase = tick;
+                _timeBase = now;
+            }
+
+            int dticks = TickDelta(_tickBase, tick);
+            double snapTime = _timeBase + dticks * TickInterval;
+
+            // --- NEW: unwrap spin so it doesn't "shortest-arc" reverse ---
+            float[] spinUnwrapped = UnwrapSpinAgainstLast(spinDegMod);
 
             _remoteEngineRevs01 = engineRevs01;
             _remoteSteerRatio = steerRatio;
 
             var s = new Snapshot
             {
-                t = now,
+                t = snapTime,
                 pos = pos,
                 rot = rot,
                 scale = scale,
-                spinDeg = spinDeg,
+                spinDeg = spinUnwrapped,
                 steerDeg = steerDeg,
                 engineRevs01 = engineRevs01,
-                steerRatio = steerRatio
+                steerRatio = steerRatio,
+                tick = tick
             };
 
-            _snapshots.Add(s);
+            // keep in order by time (rarely, out-of-order happens)
+            InsertSnapshotSorted(s);
 
             if (_snapshots.Count > MaxBufferSize)
                 _snapshots.RemoveRange(0, _snapshots.Count - MaxBufferSize);
@@ -241,48 +249,9 @@ namespace Basis.Network.Vehicles
             UpdateVelocityEstimates();
         }
 
-        private void UpdateVelocityEstimates()
-        {
-            int n = _snapshots.Count;
-            if (n < 2)
-            {
-                _haveVel = false;
-                return;
-            }
-
-            Snapshot a = _snapshots[n - 2];
-            Snapshot b = _snapshots[n - 1];
-
-            double dt = b.t - a.t;
-            if (dt <= 1e-6)
-            {
-                _haveVel = false;
-                return;
-            }
-
-            Vector3 v = (b.pos - a.pos) / (float)dt;
-
-            float speed = v.magnitude;
-            if (speed > MaxExtrapolationSpeed)
-                v = v.normalized * MaxExtrapolationSpeed;
-
-            _vel = v;
-
-            Quaternion dq = b.rot * Quaternion.Inverse(a.rot);
-            dq.ToAngleAxis(out float angleDeg, out Vector3 axis);
-            if (float.IsNaN(axis.x) || axis == Vector3.zero) axis = Vector3.up;
-
-            if (angleDeg > 180f) angleDeg -= 360f;
-
-            float angleRad = angleDeg * Mathf.Deg2Rad;
-            _angVel = axis.normalized * (angleRad / (float)dt);
-
-            _haveVel = true;
-        }
-
+        // ---------------- OWNER SEND ----------------
         public void SimulateLocal()
         {
-            // OWNER SEND
             if (Player != null && Player.IsLocal)
             {
                 UpdateOwnerAbsoluteWheelSpin();
@@ -291,6 +260,9 @@ namespace Basis.Network.Vehicles
                 if (_sendTimer >= SendInterval)
                 {
                     _sendTimer -= SendInterval;
+
+                    // tick increments on each send
+                    _ownerTick++;
 
                     _tr.GetPositionAndRotation(out var pos, out var rot);
                     var scale = _tr.localScale;
@@ -305,6 +277,7 @@ namespace Basis.Network.Vehicles
                         pos, rot, scale,
                         spinDeg, steerDeg,
                         engineRevs01, steerRatio,
+                        _ownerTick,
                         SpinBits, SteerBits,
                         EngineBits, SteerRatioBits,
                         -SteerRangeDeg, SteerRangeDeg
@@ -316,15 +289,28 @@ namespace Basis.Network.Vehicles
                 return;
             }
         }
+
+        // ---------------- REMOTE PLAYBACK ----------------
         public void SimulateRemote()
         {
-            // REMOTE PLAYBACK
-            if (_snapshots.Count == 0)
-                return;
+            if (_snapshots.Count == 0) return;
+
+            // --- NEW: adaptive delay based on buffer health ---
+            float targetDelay = 1.1f * SendInterval;
+            int buffered = _snapshots.Count;
+            if (buffered < 2) targetDelay = 3.0f * SendInterval;
+            else if (buffered > 6) targetDelay = 1.8f * SendInterval;
+
+            _adaptiveDelay = Mathf.MoveTowards(
+                _adaptiveDelay,
+                Mathf.Clamp(targetDelay, MinInterpDelay, MaxInterpDelay),
+                DelayAdjustSpeed * Time.deltaTime
+            );
 
             double now = Time.timeAsDouble;
-            double renderTime = now - InterpDelay;
+            double renderTime = now - _adaptiveDelay;
 
+            // drop old snapshots until we straddle renderTime
             while (_snapshots.Count >= 2 && _snapshots[1].t <= renderTime)
                 _snapshots.RemoveAt(0);
 
@@ -383,8 +369,117 @@ namespace Basis.Network.Vehicles
             }
         }
 
-        // ---------------- OWNER: ABSOLUTE ANGLES ----------------
+        // ---------------- Snapshot helpers ----------------
+        private void InsertSnapshotSorted(in Snapshot s)
+        {
+            // Usually already in order; fast path
+            if (_snapshots.Count == 0 || _snapshots[_snapshots.Count - 1].t <= s.t)
+            {
+                _snapshots.Add(s);
+                return;
+            }
 
+            // Otherwise insert by time (rare out-of-order)
+            int idx = _snapshots.BinarySearch(s, SnapshotTimeComparer.Instance);
+            if (idx < 0) idx = ~idx;
+            _snapshots.Insert(idx, s);
+        }
+
+        private sealed class SnapshotTimeComparer : IComparer<Snapshot>
+        {
+            public static readonly SnapshotTimeComparer Instance = new SnapshotTimeComparer();
+            public int Compare(Snapshot a, Snapshot b) => a.t.CompareTo(b.t);
+        }
+
+        private static int TickDelta(ushort a, ushort b)
+        {
+            // signed delta with wrap support
+            return (short)(b - a);
+        }
+
+        private float[] UnwrapSpinAgainstLast(float[] incomingMod360)
+        {
+            int n = incomingMod360 != null ? incomingMod360.Length : 0;
+            float[] outUnwrapped = new float[n];
+
+            if (n == 0) return outUnwrapped;
+
+            // if we have a last snapshot, unwrap against it; else just use incoming
+            if (_snapshots.Count > 0 && _snapshots[_snapshots.Count - 1].spinDeg != null)
+            {
+                var prev = _snapshots[_snapshots.Count - 1].spinDeg;
+                int m = Mathf.Min(prev.Length, n);
+
+                for (int i = 0; i < m; i++)
+                    outUnwrapped[i] = UnwrapClosest(prev[i], incomingMod360[i]);
+
+                for (int i = m; i < n; i++)
+                    outUnwrapped[i] = incomingMod360[i];
+            }
+            else
+            {
+                for (int i = 0; i < n; i++)
+                    outUnwrapped[i] = incomingMod360[i];
+            }
+
+            return outUnwrapped;
+        }
+
+        private static float UnwrapClosest(float prevUnwrapped, float incomingMod)
+        {
+            float baseVal = Mathf.Repeat(incomingMod, 360f);
+            float k = Mathf.Round((prevUnwrapped - baseVal) / 360f);
+            return baseVal + 360f * k;
+        }
+
+        private static float Wrap360(float deg)
+        {
+            deg %= 360f;
+            if (deg < 0f) deg += 360f;
+            return deg;
+        }
+
+        private void UpdateVelocityEstimates()
+        {
+            int n = _snapshots.Count;
+            if (n < 2)
+            {
+                _haveVel = false;
+                return;
+            }
+
+            // Use last two snapshots (you can later upgrade to multi-sample smoothing)
+            Snapshot a = _snapshots[n - 2];
+            Snapshot b = _snapshots[n - 1];
+
+            double dt = b.t - a.t;
+            if (dt <= 1e-6)
+            {
+                _haveVel = false;
+                return;
+            }
+
+            Vector3 v = (b.pos - a.pos) / (float)dt;
+
+            float speed = v.magnitude;
+            if (speed > MaxExtrapolationSpeed)
+                v = v.normalized * MaxExtrapolationSpeed;
+
+            _vel = v;
+
+            Quaternion dq = b.rot * Quaternion.Inverse(a.rot);
+            dq.ToAngleAxis(out float angleDeg, out Vector3 axis);
+            if (float.IsNaN(axis.x) || axis == Vector3.zero) axis = Vector3.up;
+
+            if (angleDeg > 180f) angleDeg -= 360f;
+
+            float angleRad = angleDeg * Mathf.Deg2Rad;
+            _angVel = axis.normalized * (angleRad / (float)dt);
+
+            _haveVel = true;
+        }
+
+        // ---------------- OWNER: ABSOLUTE ANGLES ----------------
         private void UpdateOwnerAbsoluteWheelSpin()
         {
             if (Colliders == null || _ownerSpinAbsDeg == null) return;
@@ -414,9 +509,7 @@ namespace Basis.Network.Vehicles
         private float[] GetOwnerSteerAbs()
         {
             float[] s = new float[_steerCount];
-
-            if (_steerCount == 0)
-                return s;
+            if (_steerCount == 0) return s;
 
             for (int i = 0; i < _steerCount; i++)
             {
@@ -432,7 +525,6 @@ namespace Basis.Network.Vehicles
 
         private float ComputeEngineRevs01ForNetwork()
         {
-            // Match your BasisVehicleEngineAudio vibe: speed ratio + throttle influence + idle floor.
             float speed = 0f;
             if (Rigidbody != null)
                 speed = Rigidbody.linearVelocity.magnitude;
@@ -462,7 +554,6 @@ namespace Basis.Network.Vehicles
 
         private float ComputeSteerRatioForNetwork()
         {
-            // Steering wheel visual ratio (-1..1). Use average steerAngle / SteerRangeDeg.
             if (Colliders == null || Colliders.Length == 0)
                 return 0f;
 
@@ -484,17 +575,10 @@ namespace Basis.Network.Vehicles
             return (count == 0) ? 0f : (sum / count);
         }
 
-        private static float Wrap360(float deg)
-        {
-            deg %= 360f;
-            if (deg < 0f) deg += 360f;
-            return deg;
-        }
-
         // ---------------- REMOTE: APPLY VISUALS ----------------
-
         private void ApplyRemoteWheelsInterpolated(in Snapshot a, in Snapshot b, float alpha)
         {
+            // Spin: UNWRAPPED linear interpolation (no shortest-arc reversal)
             if (SpinVisuals != null && a.spinDeg != null && b.spinDeg != null)
             {
                 int n = Mathf.Min(SpinVisuals.Length, Mathf.Min(a.spinDeg.Length, b.spinDeg.Length));
@@ -503,11 +587,13 @@ namespace Basis.Network.Vehicles
                     var t = SpinVisuals[i];
                     if (t == null) continue;
 
-                    float deg = Mathf.LerpAngle(a.spinDeg[i], b.spinDeg[i], alpha);
+                    float degUnwrapped = Mathf.Lerp(a.spinDeg[i], b.spinDeg[i], alpha);
+                    float deg = Wrap360(degUnwrapped);
                     SetAxisLocalRotation(t, SpinAxisLocal, deg);
                 }
             }
 
+            // Steer: LerpAngle is fine for [-range,+range]
             if (SteerVisuals != null && a.steerDeg != null && b.steerDeg != null)
             {
                 int n = Mathf.Min(SteerVisuals.Length, Mathf.Min(a.steerDeg.Length, b.steerDeg.Length));
@@ -531,7 +617,8 @@ namespace Basis.Network.Vehicles
                 {
                     var t = SpinVisuals[i];
                     if (t == null) continue;
-                    SetAxisLocalRotation(t, SpinAxisLocal, s.spinDeg[i]);
+
+                    SetAxisLocalRotation(t, SpinAxisLocal, Wrap360(s.spinDeg[i]));
                 }
             }
 
@@ -542,6 +629,7 @@ namespace Basis.Network.Vehicles
                 {
                     var t = SteerVisuals[i];
                     if (t == null) continue;
+
                     SetAxisLocalRotation(t, SteerAxisLocal, s.steerDeg[i]);
                 }
             }
@@ -549,7 +637,6 @@ namespace Basis.Network.Vehicles
 
         private void ApplyRemoteExtrasToParts(float engineRevs01, float steerRatio)
         {
-            // Remotes: physics is off, so these must be network-driven.
             if (EngineAudio != null)
             {
                 EngineAudio.UseNetworkRevs = true;
@@ -587,8 +674,6 @@ namespace Basis.Network.Vehicles
                 foreach (var wheel in Wheels)
                     if (wheel != null) wheel.enabled = state;
             }
-            // EngineAudio.enabled = state || isRemote;
-            //  SteeringWheel.enabled = state || isRemote;
         }
     }
 }

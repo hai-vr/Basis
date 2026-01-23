@@ -1,10 +1,12 @@
-
+// BasisVehicleWheelNetCodec.cs
 using System;
 using UnityEngine;
+
 namespace Basis.Network.Vehicles
 {
     /// <summary>
     /// Adds ABSOLUTE wheel angles after the base 22 bytes, plus:
+    /// - tick (ushort) : monotonically increasing sender tick
     /// - engineRevs01 (0..1)
     /// - steerRatio (-1..1) for steering wheel visuals
     /// Wheels are bitpacked, minimal size, no deltas.
@@ -81,7 +83,11 @@ namespace Basis.Network.Vehicles
                 Mathf.Clamp(engineBits, 1, 16) +
                 Mathf.Clamp(steerRatioBits, 1, 16);
 
-            return ((spinTotalBits + steerTotalBits + extraBits) + 7) >> 3;
+            // +2 bytes for tick (ushort) stored as raw bytes (aligned), BEFORE the bitstream.
+            int tickBytes = 2;
+
+            int bitBytes = ((spinTotalBits + steerTotalBits + extraBits) + 7) >> 3;
+            return tickBytes + bitBytes;
         }
 
         // ---------------- Quantization ----------------
@@ -148,6 +154,7 @@ namespace Basis.Network.Vehicles
             Vector3 pos, Quaternion rot, Vector3 scale,
             float[] wheelSpinDeg, float[] steerDeg,
             float engineRevs01, float steerRatio,
+            ushort tick,
             int spinBits, int steerBits,
             int engineBits, int steerRatioBits,
             float steerMin, float steerMax
@@ -181,6 +188,9 @@ namespace Basis.Network.Vehicles
             WriteU16(buffer, ref o, sy);
             WriteU16(buffer, ref o, sz);
 
+            // --- NEW: sender tick, aligned ---
+            WriteU16(buffer, ref o, tick);
+
             int bitBase = o * 8;
             var bw = new BitWriter(buffer, bitBase);
 
@@ -204,7 +214,8 @@ namespace Basis.Network.Vehicles
             float steerMin, float steerMax,
             out Vector3 pos, out Quaternion rot, out Vector3 scale,
             out float[] wheelSpinDeg, out float[] steerDeg,
-            out float engineRevs01, out float steerRatio
+            out float engineRevs01, out float steerRatio,
+            out ushort tick
         )
         {
             spinBits = Mathf.Clamp(spinBits, 8, 12);
@@ -224,6 +235,7 @@ namespace Basis.Network.Vehicles
                 steerDeg = new float[Mathf.Max(0, steerCount)];
                 engineRevs01 = 0f;
                 steerRatio = 0f;
+                tick = 0;
                 return;
             }
 
@@ -236,6 +248,9 @@ namespace Basis.Network.Vehicles
                 BasisVehicleNetCodec.HalfToFloat(ReadU16(buffer, ref o)),
                 BasisVehicleNetCodec.HalfToFloat(ReadU16(buffer, ref o))
             );
+
+            // --- NEW: sender tick ---
+            tick = ReadU16(buffer, ref o);
 
             wheelSpinDeg = new float[Mathf.Max(0, wheelCount)];
             steerDeg = new float[Mathf.Max(0, steerCount)];
