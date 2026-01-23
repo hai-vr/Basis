@@ -227,7 +227,7 @@ public class BasisEventDriver : MonoBehaviour
     {
         if (BasisLocalPlayer.PlayerReady)
         {
-            BasisLocalPlayer.Instance.SimulateOnRender(DeltaTime);
+            BasisLocalPlayer.Instance.SimulateOnRender();
             BasisRemoteFaceManagement.Apply(); //apply blendshapes
             BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime); //update microphone icon
         }

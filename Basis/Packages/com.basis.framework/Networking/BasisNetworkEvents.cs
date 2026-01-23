@@ -335,7 +335,7 @@ public static class BasisNetworkEvents
             if (disconnectInfo.AdditionalData.TryGetString(out string Reason))
             {
                 BasisMainMenu.Open();
-                var Dialogue = BasisMenuDialoguePanel.CreateNew("Server Connection", Reason, "ok", value =>
+                BasisMainMenu.Instance.OpenDialogue("Server Connection", Reason, "ok", value =>
                 {
                 });
                 BasisDebug.LogError(Reason);
@@ -348,7 +348,7 @@ public static class BasisNetworkEvents
         else
         {
             BasisMainMenu.Open();
-            var Dialogue = BasisMenuDialoguePanel.CreateNew("Server Disconnected", disconnectInfo.Reason.ToString(), "ok", value =>
+            BasisMainMenu.Instance.OpenDialogue("Server Disconnected", disconnectInfo.Reason.ToString(), "ok", value =>
               {
               });
 

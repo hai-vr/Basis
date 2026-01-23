@@ -156,7 +156,7 @@ public static class BasisNetworkModeration
         if (ValidateString(message, nameof(message)))
         {
             BasisMainMenu.Open();
-            var Dialogue = BasisMenuDialoguePanel.CreateNew("admin", message, "ok", value =>
+            BasisMainMenu.Instance.OpenDialogue("admin", message, "ok", value =>
             {
             });
         }

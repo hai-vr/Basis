@@ -444,8 +444,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// Performs movement, bone simulation, T-pose driving, IK targets, animator evaluation, hands,
         /// and then invokes <see cref="AfterSimulateOnRender"/>.
         /// </summary>
-        /// <param name="DeltaTime">Frame delta time.</param>
-        public void SimulateOnRender(float DeltaTime)
+        public void SimulateOnRender()
         {
             OnRenderSimulateBones(this);
 

@@ -630,11 +630,6 @@ public class BasisHandHeldCameraUI
     /// </summary>
     public void CloseUI()
     {
-        if (BasisHamburgerMenu.activeCameraInstance == this.HHC.gameObject)
-        {
-            BasisHamburgerMenu.activeCameraInstance = null;
-        }
-
         var cameraInteractable = HHC.GetComponent<BasisHandHeldCameraInteractable>();
         if (cameraInteractable != null)
             cameraInteractable.ReleasePlayerLocks();
