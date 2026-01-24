@@ -1,4 +1,3 @@
-using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Linq;
@@ -10,9 +9,10 @@ using UnityEngine;
 
 namespace Basis.BasisUI
 {
-    public class PanelAvatarAddNew : PanelComponent
+    public class PanelPropAddNew : PanelComponent
     {
-        public GameObject NewAvatarOverlay;
+        [Header("UI Refs")]
+        public GameObject NewPropOverlay;
         public TMP_InputField NewURLField;
         public PanelPasswordField NewPasswordField;
         public TextMeshProUGUI ErrorLabel;
@@ -20,23 +20,34 @@ namespace Basis.BasisUI
         public PanelButton CancelButton;
         public GameObject OptionsPanel;
         public GameObject LoadingPanel;
-        public PanelAvatarList AvatarList;
+
+        [Header("Target List")]
+        public PanelPropsList PropsList;
+
+        [Header("Behaviour")]
+        [Tooltip("If true, automatically selects the newly added entry.")]
+        public bool SelectAfterAdd = true;
+
+        [Tooltip("If true, immediately spawns/loads after adding to the list.")]
+        public bool AutoSpawnOnAdd = false;
 
         public override void OnCreateEvent()
         {
             base.OnCreateEvent();
 
-            AddButton.OnClicked += () => _ = TryAddAvatar();
-            CancelButton.OnClicked += () => NewAvatarOverlay.SetActive(false);
+            AddButton.OnClicked += () => _ = TryAddProp();
+            CancelButton.OnClicked += () => NewPropOverlay.SetActive(false);
         }
 
         public void Show()
         {
             ErrorLabel.SetText(string.Empty);
-            NewAvatarOverlay.SetActive(true);
+            NewPropOverlay.SetActive(true);
+
             NewURLField.SetTextWithoutNotify(string.Empty);
             NewPasswordField.SetValue(false);
             NewPasswordField.SetPassword(string.Empty);
+
             OptionsPanel.SetActive(true);
             LoadingPanel.SetActive(false);
         }
@@ -46,28 +57,30 @@ namespace Basis.BasisUI
             gameObject.SetActive(false);
         }
 
-        private async Task TryAddAvatar()
+        private async Task TryAddProp()
         {
             try
             {
-                // Trim leading and trailing whitespace from the URL
-                string processedUrl = NewURLField.text.Trim();
-                string password = NewPasswordField.Password.Trim();
-
-                // The fragment may contain an avatar password.
-                // Strip it, and overwrite the URL to prevent it from showing up in logs.
-                // Additionally, `ApplyPlatformConversionOfUrl` may drop the fragment when it converts the URL.
-                // Therefore, this must happen before then.
-                string[] fragments = processedUrl.Split('#', 2);
-                processedUrl = fragments[0];
-
-                string fragment = fragments.ElementAtOrDefault(1);
-
-                if (ApplyPlatformConversionOfUrl(processedUrl, out string link))
+                if (PropsList == null)
                 {
-                    processedUrl = link;
+                    ErrorLabel.SetText("PropsList reference is missing.");
+                    return;
                 }
 
+                // Trim URL + password.
+                string processedUrl = (NewURLField.text ?? string.Empty).Trim();
+                string password = (NewPasswordField.Password ?? string.Empty).Trim();
+
+                // Handle fragment password (#base64password)
+                string[] fragments = processedUrl.Split('#', 2);
+                processedUrl = fragments[0];
+                string fragment = fragments.ElementAtOrDefault(1);
+
+                // Convert platform link (e.g. Google Drive share) to direct download.
+                if (ApplyPlatformConversionOfUrl(processedUrl, out string link))
+                    processedUrl = link;
+
+                // Validate URL
                 ValidateURL(processedUrl, out string errorReason, out bool isValid);
                 if (!isValid)
                 {
@@ -77,6 +90,7 @@ namespace Basis.BasisUI
 
                 NewURLField.SetTextWithoutNotify(processedUrl);
 
+                // If URL fragment exists, attempt to decode it as password.
                 if (!string.IsNullOrEmpty(fragment))
                 {
                     try
@@ -84,7 +98,10 @@ namespace Basis.BasisUI
                         password = Encoding.UTF8.GetString(Convert.FromBase64String(fragment));
                         NewPasswordField.SetPassword(password);
                     }
-                    catch { }
+                    catch
+                    {
+                        // ignore invalid base64
+                    }
                 }
 
                 // Password validation
@@ -94,12 +111,13 @@ namespace Basis.BasisUI
                     return;
                 }
 
-                // Does the avatar list contain the given URL?
-                BasisDataStoreAvatarKeys.AvatarKey[] activeKeys = BasisDataStoreAvatarKeys.DisplayKeys();
+                // Duplicate check against stored prop keys
+                BasisDataStorePropKeys.PropKey[] activeKeys = BasisDataStorePropKeys.DisplayKeys();
                 bool keyExists = false;
-                for (int keysIndex = 0; keysIndex < activeKeys.Length; keysIndex++)
+
+                for (int i = 0; i < activeKeys.Length; i++)
                 {
-                    var cur = activeKeys[keysIndex];
+                    var cur = activeKeys[i];
                     if (cur != null && cur.Url == processedUrl && cur.Pass == password)
                     {
                         keyExists = true;
@@ -109,37 +127,58 @@ namespace Basis.BasisUI
 
                 if (keyExists)
                 {
-                    ErrorLabel.SetText("The avatar key with the same URL and Password already exists. No duplicate will be added.");
+                    ErrorLabel.SetText("A prop/world entry with the same URL and Password already exists. No duplicate will be added.");
                     return;
                 }
 
-                // Data validated! Now to load the avatar...
-
+                // UI: show loading
                 OptionsPanel.SetActive(false);
                 LoadingPanel.SetActive(true);
 
+                // Create a minimal loadable bundle entry (meta/icon fills later in PanelPropsList via HandleMetaOnlyLoad)
                 BasisLoadableBundle loadableBundle = new()
                 {
                     UnlockPassword = password,
-                    BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle { RemoteBeeFileLocation = processedUrl },
+                    BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle
+                    {
+                        RemoteBeeFileLocation = processedUrl
+                    },
                     BasisBundleConnector = new BasisBundleConnector(),
                     BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle()
                 };
 
-                await BasisLocalPlayer.Instance.CreateAvatar(0, loadableBundle);
-                BasisDataStoreAvatarKeys.AvatarKey avatarKey = new() { Url = processedUrl, Pass = password };
-                await BasisDataStoreAvatarKeys.AddNewKey(avatarKey);
+                // Store key
+                BasisDataStorePropKeys.PropKey propKey = new() { Url = processedUrl, Pass = password };
+                await BasisDataStorePropKeys.AddNewKey(propKey);
 
-                NewAvatarOverlay.SetActive(false);
+                // Close overlay
+                NewPropOverlay.SetActive(false);
 
-                await AvatarList.AppendNewAvatar(loadableBundle, true);
+                // Add to list UI
+                await PropsList.AppendNewProp(loadableBundle, SelectAfterAdd);
+
+                // Optionally spawn immediately
+                if (AutoSpawnOnAdd)
+                    await PropsList.LoadSelected();
             }
             catch (Exception ex)
             {
-                ErrorLabel.SetText($"Error during avatar creation: {ex.Message}");
+                ErrorLabel.SetText($"Error during prop/world add: {ex.Message}");
+            }
+            finally
+            {
+                // Ensure panels reset if overlay stays open (in error cases)
+                if (NewPropOverlay.activeSelf)
+                {
+                    OptionsPanel.SetActive(true);
+                    LoadingPanel.SetActive(false);
+                }
             }
         }
 
+        // --------------------------------------------------------------------
+        // URL conversions (same behaviour as your avatar version)
+        // --------------------------------------------------------------------
         public bool ApplyPlatformConversionOfUrl(string sharedLink, out string convertedLink)
         {
             if (IsGoogleDriveLink(sharedLink))
@@ -156,18 +195,19 @@ namespace Basis.BasisUI
                     BasisDebug.LogError("Could not extract File ID from the shared link. Was detected as a google drive", BasisDebug.LogTag.System);
                 }
             }
+
             convertedLink = string.Empty;
             return false;
         }
 
         private bool IsGoogleDriveLink(string url)
         {
-            return Regex.IsMatch(url, @"^https:\/\/drive\.google\.com\/file\/d\/[a-zA-Z0-9_-]+\/");
+            return Regex.IsMatch(url ?? string.Empty, @"^https:\/\/drive\.google\.com\/file\/d\/[a-zA-Z0-9_-]+\/");
         }
 
         private string ExtractFileId(string url)
         {
-            Match match = Regex.Match(url, @"\/file\/d\/([a-zA-Z0-9_-]+)");
+            Match match = Regex.Match(url ?? string.Empty, @"\/file\/d\/([a-zA-Z0-9_-]+)");
             return match.Success ? match.Groups[1].Value : null;
         }
 
@@ -190,6 +230,5 @@ namespace Basis.BasisUI
             errorReason = string.Empty;
             valid = true;
         }
-
     }
 }

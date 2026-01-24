@@ -5399,7 +5399,7 @@ GameObject:
   - component: {fileID: 1520509179152147148}
   - component: {fileID: 1266777005441344723}
   - component: {fileID: 5786328616300109887}
-  - component: {fileID: 1364363602223599493}
+  - component: {fileID: 5160481626463563496}
   m_Layer: 9
   m_Name: New Avatar Overlay
   m_TagString: Untagged
@@ -5509,7 +5509,7 @@ MonoBehaviour:
   <TitleLabel>k__BackingField: {fileID: 0}
   <DescriptionLabel>k__BackingField: {fileID: 0}
   _contentParent: {fileID: 0}
---- !u!114 &1364363602223599493
+--- !u!114 &5160481626463563496
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -5518,10 +5518,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 8671969143677401478}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f8c053dbd9193124ba57d5fa69a5d1bb, type: 3}
+  m_Script: {fileID: 11500000, guid: fbd9ec7f3bd8cde49bbb1e71be45bc61, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.PanelAvatarAddNew
-  NewAvatarOverlay: {fileID: 8671969143677401478}
+  m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.PanelPropAddNew
+  NewPropOverlay: {fileID: 8671969143677401478}
   NewURLField: {fileID: 8721493726921579506}
   NewPasswordField: {fileID: 7810989583234287250}
   ErrorLabel: {fileID: 7774700596127138688}
@@ -5529,7 +5529,9 @@ MonoBehaviour:
   CancelButton: {fileID: 4333524817236705261}
   OptionsPanel: {fileID: 5382192994302136073}
   LoadingPanel: {fileID: 7729721927236216117}
-  AvatarList: {fileID: 0}
+  PropsList: {fileID: 577339512744601844}
+  SelectAfterAdd: 1
+  AutoSpawnOnAdd: 0
 --- !u!1 &8709231968635658793
 GameObject:
   m_ObjectHideFlags: 0
@@ -5675,7 +5677,7 @@ MonoBehaviour:
   LinuxIcon: {fileID: 1119198092240684420}
   AndroidIcon: {fileID: 8308149294259809707}
   IOSIcon: {fileID: 6389822973785534462}
-  NewPropPanel: {fileID: 1364363602223599493}
+  NewPropPanel: {fileID: 5160481626463563496}
   NewPropButton: {fileID: 7592611946962998328}
   RemovePropButton: {fileID: 735613129393307852}
   LoadPropButton: {fileID: 488586198946877094}

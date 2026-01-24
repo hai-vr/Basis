@@ -1,16 +1,4 @@
-// ============================================================================
-// PanelPropsList.cs (FULL REWRITE of your posted file with the changes)
-// Notes:
-// - This keeps CachedPropData as you had it.
-// - Removes the avatar call (CreateAvatar) and replaces it with network spawn/unspawn.
-// - Adds UnloadSelected() and makes Load button act as Load/Unload toggle.
-// - "Remove" (from list) also optionally unloads first (enabled below).
-// - You MUST implement IsWorld(bundle) properly for your SDK (I left safe fallbacks).
-// ============================================================================
-
-using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
-using Basis.Scripts.Networking;
 using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
@@ -20,7 +8,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using static SerializableBasis;
 using Debug = UnityEngine.Debug;
@@ -217,7 +204,7 @@ namespace Basis.BasisUI
         public GameObject LinuxIcon;
         public GameObject AndroidIcon;
         public GameObject IOSIcon;
-        public PanelAvatarAddNew NewPropPanel; // you might rename later, kept for compatibility
+        public PanelPropAddNew NewPropPanel; // you might rename later, kept for compatibility
         public PanelButton NewPropButton;
 
         public PanelButton RemovePropButton;  // Removes from saved list
