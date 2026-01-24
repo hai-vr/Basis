@@ -15,6 +15,7 @@ namespace Basis.Scripts.UI.UI_Panels
         {
             public string Url;
             public string Pass;
+            public bool Persistent;
         }
 
         [System.Serializable]

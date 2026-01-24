@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Basis.BasisUI
 {
@@ -20,6 +21,7 @@ namespace Basis.BasisUI
         public PanelButton CancelButton;
         public GameObject OptionsPanel;
         public GameObject LoadingPanel;
+        public Toggle NewPersistentToggle;
 
         [Header("Target List")]
         public PanelPropsList PropsList;
@@ -34,7 +36,6 @@ namespace Basis.BasisUI
         public override void OnCreateEvent()
         {
             base.OnCreateEvent();
-
             AddButton.OnClicked += () => _ = TryAddProp();
             CancelButton.OnClicked += () => NewPropOverlay.SetActive(false);
         }
@@ -47,6 +48,9 @@ namespace Basis.BasisUI
             NewURLField.SetTextWithoutNotify(string.Empty);
             NewPasswordField.SetValue(false);
             NewPasswordField.SetPassword(string.Empty);
+
+            if (NewPersistentToggle != null)
+                NewPersistentToggle.SetIsOnWithoutNotify(false);
 
             OptionsPanel.SetActive(true);
             LoadingPanel.SetActive(false);
@@ -111,6 +115,8 @@ namespace Basis.BasisUI
                     return;
                 }
 
+                bool persistent = NewPersistentToggle != null && NewPersistentToggle.isOn;
+
                 // Duplicate check against stored prop keys
                 BasisDataStorePropKeys.PropKey[] activeKeys = BasisDataStorePropKeys.DisplayKeys();
                 bool keyExists = false;
@@ -139,16 +145,19 @@ namespace Basis.BasisUI
                 BasisLoadableBundle loadableBundle = new()
                 {
                     UnlockPassword = password,
-                    BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle
-                    {
-                        RemoteBeeFileLocation = processedUrl
-                    },
+                    BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle { RemoteBeeFileLocation = processedUrl },
                     BasisBundleConnector = new BasisBundleConnector(),
                     BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle()
                 };
 
-                // Store key
-                BasisDataStorePropKeys.PropKey propKey = new() { Url = processedUrl, Pass = password };
+                // Store key (includes Persistent)
+                BasisDataStorePropKeys.PropKey propKey = new()
+                {
+                    Url = processedUrl,
+                    Pass = password,
+                    Persistent = persistent
+                };
+
                 await BasisDataStorePropKeys.AddNewKey(propKey);
 
                 // Close overlay
@@ -159,7 +168,7 @@ namespace Basis.BasisUI
 
                 // Optionally spawn immediately
                 if (AutoSpawnOnAdd)
-                    await PropsList.LoadSelected();
+                    await PropsList.SpawnSelectedNewInstance();
             }
             catch (Exception ex)
             {
