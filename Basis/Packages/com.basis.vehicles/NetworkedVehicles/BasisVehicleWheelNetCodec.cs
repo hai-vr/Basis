@@ -83,11 +83,8 @@ namespace Basis.Network.Vehicles
                 Mathf.Clamp(engineBits, 1, 16) +
                 Mathf.Clamp(steerRatioBits, 1, 16);
 
-            // +2 bytes for tick (ushort) stored as raw bytes (aligned), BEFORE the bitstream.
-            int tickBytes = 2;
-
             int bitBytes = ((spinTotalBits + steerTotalBits + extraBits) + 7) >> 3;
-            return tickBytes + bitBytes;
+            return bitBytes;
         }
 
         // ---------------- Quantization ----------------
@@ -154,7 +151,6 @@ namespace Basis.Network.Vehicles
             Vector3 pos, Quaternion rot, Vector3 scale,
             float[] wheelSpinDeg, float[] steerDeg,
             float engineRevs01, float steerRatio,
-            ushort tick,
             int spinBits, int steerBits,
             int engineBits, int steerRatioBits,
             float steerMin, float steerMax
@@ -188,9 +184,6 @@ namespace Basis.Network.Vehicles
             WriteU16(buffer, ref o, sy);
             WriteU16(buffer, ref o, sz);
 
-            // --- NEW: sender tick, aligned ---
-            WriteU16(buffer, ref o, tick);
-
             int bitBase = o * 8;
             var bw = new BitWriter(buffer, bitBase);
 
@@ -214,8 +207,7 @@ namespace Basis.Network.Vehicles
             float steerMin, float steerMax,
             out Vector3 pos, out Quaternion rot, out Vector3 scale,
             out float[] wheelSpinDeg, out float[] steerDeg,
-            out float engineRevs01, out float steerRatio,
-            out ushort tick
+            out float engineRevs01, out float steerRatio
         )
         {
             spinBits = Mathf.Clamp(spinBits, 8, 12);
@@ -223,8 +215,7 @@ namespace Basis.Network.Vehicles
             engineBits = Mathf.Clamp(engineBits, 6, 10);
             steerRatioBits = Mathf.Clamp(steerRatioBits, 7, 11);
 
-            int expectedMin = BasisVehicleNetCodec.MinPacketSize
-                            + ExtraBytes(wheelCount, steerCount, spinBits, steerBits, engineBits, steerRatioBits);
+            int expectedMin = BasisVehicleNetCodec.MinPacketSize + ExtraBytes(wheelCount, steerCount, spinBits, steerBits, engineBits, steerRatioBits);
 
             if (buffer == null || buffer.Length < expectedMin)
             {
@@ -235,7 +226,6 @@ namespace Basis.Network.Vehicles
                 steerDeg = new float[Mathf.Max(0, steerCount)];
                 engineRevs01 = 0f;
                 steerRatio = 0f;
-                tick = 0;
                 return;
             }
 
@@ -248,9 +238,6 @@ namespace Basis.Network.Vehicles
                 BasisVehicleNetCodec.HalfToFloat(ReadU16(buffer, ref o)),
                 BasisVehicleNetCodec.HalfToFloat(ReadU16(buffer, ref o))
             );
-
-            // --- NEW: sender tick ---
-            tick = ReadU16(buffer, ref o);
 
             wheelSpinDeg = new float[Mathf.Max(0, wheelCount)];
             steerDeg = new float[Mathf.Max(0, steerCount)];

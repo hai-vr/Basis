@@ -88,7 +88,6 @@ namespace Basis.Scripts.Vehicles.Main
         /// </summary>
         [Tooltip("Leave blank, this is set at runtime.")]
         public BasisPlayer PilotingPlayer = null;
-
         public override void Awake()
         {
             ResetPitchOnEntry = true;
@@ -109,8 +108,8 @@ namespace Basis.Scripts.Vehicles.Main
             {
                 BasisDebug.LogError("BasisVehiclePilotSeat should be a direct child of a GameObject with a BasisVehicleBody component.");
             }
-            OnPlayerEnterSeat += EnterPilotSeat;
-            OnPlayerExitSeat += ExitPilotSeat;
+            OnLocalPlayerEnterSeat += EnterPilotSeat;
+            OnLocalPlayerExitSeat += ExitPilotSeat;
         }
 
         private void FixedUpdate()

@@ -404,8 +404,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
         #endregion Unity Lifecycle Hooks
 
         #region Basis Integration
-        public Action<BasisPlayer> OnPlayerEnterSeat;
-        public Action<BasisPlayer> OnPlayerExitSeat;
+        public Action<BasisPlayer> OnLocalPlayerEnterSeat;
+        public Action<BasisPlayer> OnLocalPlayerExitSeat;
         private BasisInput _interactingInput = null;
         private bool IsSeatTakenByAnyone = false;
         public bool LocallyInSeat;
@@ -529,7 +529,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             SetSeatOccupied(true);
             LocallyInSeat = true;
-            OnPlayerEnterSeat?.Invoke(player);
+            OnLocalPlayerEnterSeat?.Invoke(player);
         }
 
         /// <summary>
@@ -540,7 +540,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             base.OnInteractEnd(null);
             SetSeatOccupied(false);
             LocallyInSeat = false;
-            OnPlayerExitSeat?.Invoke(player);
+            OnLocalPlayerExitSeat?.Invoke(player);
         }
         public bool ExitRequiresAllDevicesPressed;
         public BasisInputKey ExitKey = BasisInputKey.Trigger;

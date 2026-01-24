@@ -2,61 +2,9 @@ using System;
 using UnityEngine;
 namespace Basis.Network.Vehicles
 {
-    /// <summary>
-    /// Your original base packet codec (UNCHANGED SIZE: 22 bytes)
-    /// Packet: [f32 x][f32 y][f32 z][u32 packedQuat][u16 sxHalf][u16 syHalf][u16 szHalf]
-    /// Size = 12 + 4 + 6 = 22 bytes
-    /// </summary>
     public static class BasisVehicleNetCodec
     {
         public const int MinPacketSize = 22;
-
-        public static byte[] WritePacket(Vector3 pos, Quaternion rot, Vector3 scale)
-        {
-            rot = NormalizeSafe(rot);
-
-            uint packedQuat = PackQuaternionSmallestThree32(rot);
-
-            ushort sx = FloatToHalf(scale.x);
-            ushort sy = FloatToHalf(scale.y);
-            ushort sz = FloatToHalf(scale.z);
-
-            byte[] buffer = new byte[MinPacketSize];
-            int o = 0;
-
-            WriteF32(buffer, ref o, pos.x);
-            WriteF32(buffer, ref o, pos.y);
-            WriteF32(buffer, ref o, pos.z);
-
-            WriteU32(buffer, ref o, packedQuat);
-
-            WriteU16(buffer, ref o, sx);
-            WriteU16(buffer, ref o, sy);
-            WriteU16(buffer, ref o, sz);
-
-            return buffer;
-        }
-
-        public static void ReadPacket(byte[] buffer, out Vector3 pos, out Quaternion rot, out Vector3 scale)
-        {
-            int o = 0;
-
-            pos = new Vector3(
-                ReadF32(buffer, ref o),
-                ReadF32(buffer, ref o),
-                ReadF32(buffer, ref o)
-            );
-
-            rot = UnpackQuaternionSmallestThree32(ReadU32(buffer, ref o));
-
-            scale = new Vector3(
-                HalfToFloat(ReadU16(buffer, ref o)),
-                HalfToFloat(ReadU16(buffer, ref o)),
-                HalfToFloat(ReadU16(buffer, ref o))
-            );
-        }
-
-        // ---------- Bit casting (Unity-safe) ----------
         private static uint FloatToU32(float v)
         {
             var b = BitConverter.GetBytes(v);
@@ -219,48 +167,6 @@ namespace Basis.Network.Vehicles
             uint outExp2 = (exp - 15 + 127) << 23;
             uint outMant2 = mant << 13;
             return U32ToFloat(sign | outExp2 | outMant2);
-        }
-
-        // ---------- Little-endian writes/reads ----------
-        private static void WriteU16(byte[] b, ref int o, ushort v)
-        {
-            b[o++] = (byte)(v & 0xFF);
-            b[o++] = (byte)(v >> 8);
-        }
-
-        private static void WriteU32(byte[] b, ref int o, uint v)
-        {
-            b[o++] = (byte)(v & 0xFF);
-            b[o++] = (byte)((v >> 8) & 0xFF);
-            b[o++] = (byte)((v >> 16) & 0xFF);
-            b[o++] = (byte)((v >> 24) & 0xFF);
-        }
-
-        private static void WriteF32(byte[] b, ref int o, float v)
-        {
-            WriteU32(b, ref o, FloatToU32(v));
-        }
-
-        private static ushort ReadU16(byte[] b, ref int o)
-        {
-            ushort v = (ushort)(b[o] | (b[o + 1] << 8));
-            o += 2;
-            return v;
-        }
-
-        private static uint ReadU32(byte[] b, ref int o)
-        {
-            uint v = (uint)(b[o]
-                          | (b[o + 1] << 8)
-                          | (b[o + 2] << 16)
-                          | (b[o + 3] << 24));
-            o += 4;
-            return v;
-        }
-
-        private static float ReadF32(byte[] b, ref int o)
-        {
-            return U32ToFloat(ReadU32(b, ref o));
         }
     }
 }
