@@ -16,7 +16,6 @@ namespace Basis.Scripts.UI.UI_Panels
             public BundledContentHolder.Mode Mode = BundledContentHolder.Mode.Prop;
             public string Url;
             public string Pass;
-            public bool Persistent;
         }
 
 

@@ -37,7 +37,6 @@ namespace Basis.BasisUI
                 {
                     Pass = loadableBundle.UnlockPassword,
                     Url = loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation,
-                    Persistent = false
                 };
 
                 BasisDataStoreItemKeys.ItemKey[] keys = BasisDataStoreItemKeys.DisplayKeys();
@@ -326,15 +325,15 @@ namespace Basis.BasisUI
                 var url = bundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation ?? string.Empty;
                 var pass = bundle?.UnlockPassword ?? string.Empty;
 
-                bool entryPersistent = false;
                 if (!string.IsNullOrWhiteSpace(url) && TryGetStoredKeyForUrlPass(url, pass, out var storedKey))
-                    entryPersistent = storedKey.Persistent;
+                {
+                }
 
                 PropMenuItem item = new()
                 {
                     Button = button,
                     Wrapper = wrapper,
-                    DefaultPersistent = entryPersistent
+                    DefaultPersistent = false
                 };
 
                 MenuItems.Add(item);
@@ -356,17 +355,17 @@ namespace Basis.BasisUI
             BasisTrackedBundleWrapper wrapper = new() { LoadableBundle = bundle };
 
             // Pull persistent from stored key (it was saved in AddNewKey)
-            bool entryPersistent = false;
             var url = bundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation ?? string.Empty;
             var pass = bundle?.UnlockPassword ?? string.Empty;
             if (!string.IsNullOrWhiteSpace(url) && TryGetStoredKeyForUrlPass(url, pass, out var storedKey))
-                entryPersistent = storedKey.Persistent;
+            {
+            }
 
             PropMenuItem item = new()
             {
                 Button = button,
                 Wrapper = wrapper,
-                DefaultPersistent = entryPersistent
+                DefaultPersistent = false
             };
 
             MenuItems.Add(item);
@@ -540,8 +539,6 @@ namespace Basis.BasisUI
 
             // Replace by remove+add (simple and safe with your current store design).
             await BasisDataStoreItemKeys.RemoveKey(existing);
-
-            existing.Persistent = persistent;
             await BasisDataStoreItemKeys.AddNewKey(existing);
         }
 
@@ -794,7 +791,6 @@ namespace Basis.BasisUI
             {
                 Pass = menuItem.Wrapper.LoadableBundle.UnlockPassword,
                 Url = menuItem.Wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation,
-                Persistent = menuItem.DefaultPersistent
             };
 
             MenuItems.Remove(menuItem);
