@@ -25,6 +25,6 @@ public class PropsProvider : BasisMenuActionProvider<BasisMainMenu>
             BasisMenuPanel.PanelStyles.Page);
         BoundButton?.BindActiveStateToAddressablesInstance(panel);
 
-        PanelPropsList avatarList = PanelPropsList.CreateNew(panel.Descriptor.ContentParent);
+        PanelPropsList proplist = PanelPropsList.CreateNew(panel.Descriptor.ContentParent);
     }
 }
