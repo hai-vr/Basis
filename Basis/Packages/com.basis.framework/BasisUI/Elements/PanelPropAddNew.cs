@@ -118,7 +118,7 @@ namespace Basis.BasisUI
                 bool persistent = NewPersistentToggle != null && NewPersistentToggle.isOn;
 
                 // Duplicate check against stored prop keys
-                BasisDataStorePropKeys.PropKey[] activeKeys = BasisDataStorePropKeys.DisplayKeys();
+                BasisDataStoreItemKeys.ItemKey[] activeKeys = BasisDataStoreItemKeys.DisplayKeys();
                 bool keyExists = false;
 
                 for (int i = 0; i < activeKeys.Length; i++)
@@ -151,14 +151,14 @@ namespace Basis.BasisUI
                 };
 
                 // Store key (includes Persistent)
-                BasisDataStorePropKeys.PropKey propKey = new()
+                BasisDataStoreItemKeys.ItemKey propKey = new()
                 {
                     Url = processedUrl,
                     Pass = password,
                     Persistent = persistent
                 };
 
-                await BasisDataStorePropKeys.AddNewKey(propKey);
+                await BasisDataStoreItemKeys.AddNewKey(propKey);
 
                 // Close overlay
                 NewPropOverlay.SetActive(false);

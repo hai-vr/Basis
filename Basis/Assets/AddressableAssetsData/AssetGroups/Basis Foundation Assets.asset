@@ -35,6 +35,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 1fe4ba37c99a5bc4ab67846df4e71a1c
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/items.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 2a27b24eacd47d84ba39d6ee782dd1e8
     m_Address: Packages/com.basis.sdk/Prefabs/UI/Loading Bar.prefab
     m_ReadOnly: 0
@@ -212,6 +217,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: f84144c055f881f4797d59bd2802d4a4
     m_Address: Packages/com.basis.sdk/Prefabs/Boot/BasisOnSceneLoadCleanup.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f9e0cc4f77f32074a871f7393eb4886d
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Tab Group Horizontal.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

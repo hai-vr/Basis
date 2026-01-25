@@ -5,32 +5,34 @@ using UnityEngine;
 namespace Basis.Scripts.UI.UI_Panels
 {
     /// <summary>
-    /// Separate keystore for PROPS (so props don’t collide with avatar keys).
-    /// Writes to: Application.persistentDataPath/PropKeyStore.json
+    /// Separate keystore for ITEMS (so items don’t collide with avatar keys).
+    /// Writes to: Application.persistentDataPath/ItemKeyStore.json
     /// </summary>
-    public static class BasisDataStorePropKeys
+    public static class BasisDataStoreItemKeys
     {
         [System.Serializable]
-        public class PropKey
+        public class ItemKey
         {
+            public BundledContentHolder.Mode Mode = BundledContentHolder.Mode.Prop;
             public string Url;
             public string Pass;
             public bool Persistent;
         }
 
+
         [System.Serializable]
-        public class PropKeys
+        public class ItemKeys
         {
             [SerializeField]
-            public PropKey[] Data;
+            public ItemKey[] Data;
         }
 
-        public static string FilePath = Path.Combine(Application.persistentDataPath, "PropKeyStore.json");
+        public static string FilePath = Path.Combine(Application.persistentDataPath, "ItemKeyStore.json");
 
         [SerializeField]
-        private static PropKeys keys = new PropKeys { Data = System.Array.Empty<PropKey>() };
+        private static ItemKeys keys = new ItemKeys { Data = System.Array.Empty<ItemKey>() };
 
-        public static async Task AddNewKey(PropKey newKey)
+        public static async Task AddNewKey(ItemKey newKey)
         {
             EnsureInit();
 
@@ -41,23 +43,23 @@ namespace Basis.Scripts.UI.UI_Panels
                 keys.Data[oldLen] = newKey;
 
                 await SaveKeysToFile();
-                BasisDebug.Log($"Prop key added: {newKey.Url}");
+                BasisDebug.Log($"Item key added: {newKey.Url}");
             }
         }
 
-        public static async Task RemoveKey(PropKey keyToRemove)
+        public static async Task RemoveKey(ItemKey keyToRemove)
         {
             EnsureInit();
 
             int index = IndexOfKey(keyToRemove);
             if (index < 0)
             {
-                BasisDebug.Log("Prop key not found.");
+                BasisDebug.Log("Item key not found.");
                 return;
             }
 
             int oldLen = keys.Data.Length;
-            var newArr = new PropKey[oldLen - 1];
+            var newArr = new ItemKey[oldLen - 1];
 
             if (index > 0)
                 System.Array.Copy(keys.Data, 0, newArr, 0, index);
@@ -68,19 +70,19 @@ namespace Basis.Scripts.UI.UI_Panels
             keys.Data = newArr;
 
             await SaveKeysToFile();
-            BasisDebug.Log($"Prop key removed: {keyToRemove.Url}");
+            BasisDebug.Log($"Item key removed: {keyToRemove.Url}");
         }
 
         public static async Task LoadKeys()
         {
-            BasisDebug.Log($"Loading prop keys from file at path: {FilePath}");
+            BasisDebug.Log($"Loading Item keys from file at path: {FilePath}");
 
             EnsureInit();
 
             if (!File.Exists(FilePath))
             {
-                BasisDebug.Log("No prop key file found. Starting fresh.");
-                keys.Data = System.Array.Empty<PropKey>();
+                BasisDebug.Log("No Item key file found. Starting fresh.");
+                keys.Data = System.Array.Empty<ItemKey>();
                 return;
             }
 
@@ -88,21 +90,19 @@ namespace Basis.Scripts.UI.UI_Panels
             {
                 byte[] byteData = await File.ReadAllBytesAsync(FilePath);
 
-                // Deserialize the container (which contains a PropKey[]).
-                keys = BasisSerialization.DeserializeValue<PropKeys>(byteData);
+                // Deserialize the container (which contains a ItemKey[]).
+                keys = BasisSerialization.DeserializeValue<ItemKeys>(byteData);
 
-                if (keys == null)
-                    keys = new PropKeys();
+                keys ??= new ItemKeys();
 
-                if (keys.Data == null)
-                    keys.Data = System.Array.Empty<PropKey>();
+                keys.Data ??= System.Array.Empty<ItemKey>();
 
-                BasisDebug.Log("Prop keys loaded successfully. Count: " + keys.Data.Length);
+                BasisDebug.Log("Item keys loaded successfully. Count: " + keys.Data.Length);
             }
             catch (System.Exception e)
             {
-                BasisDebug.LogError($"Failed to load prop keys: {e.Message}");
-                keys = new PropKeys { Data = System.Array.Empty<PropKey>() };
+                BasisDebug.LogError($"Failed to load Item keys: {e.Message}");
+                keys = new ItemKeys { Data = System.Array.Empty<ItemKey>() };
             }
         }
 
@@ -115,38 +115,32 @@ namespace Basis.Scripts.UI.UI_Panels
                 byte[] byteData = BasisSerialization.SerializeValue(keys);
                 await File.WriteAllBytesAsync(FilePath, byteData);
 
-                BasisDebug.Log($"Prop keys saved to file at: {FilePath}");
+                BasisDebug.Log($"Item keys saved to file at: {FilePath}");
             }
             catch (System.Exception e)
             {
-                BasisDebug.LogError($"Failed to save prop keys: {e.Message}");
+                BasisDebug.LogError($"Failed to save Item keys: {e.Message}");
             }
         }
-
-        public static PropKey[] DisplayKeys()
+        public static ItemKey[] DisplayKeys()
         {
             EnsureInit();
             return keys.Data;
         }
-
-        // ---------- Helpers (array-only) ----------
-
         private static void EnsureInit()
         {
-            if (keys == null)
-                keys = new PropKeys();
+            keys ??= new ItemKeys();
 
-            if (keys.Data == null)
-                keys.Data = System.Array.Empty<PropKey>();
+            keys.Data ??= System.Array.Empty<ItemKey>();
         }
-
-        private static bool ContainsKey(PropKey k) => IndexOfKey(k) >= 0;
-
-        private static int IndexOfKey(PropKey k)
+        private static bool ContainsKey(ItemKey k) => IndexOfKey(k) >= 0;
+        private static int IndexOfKey(ItemKey k)
         {
-            if (k == null) return -1;
+            if (k == null)
+            {
+                return -1;
+            }
 
-            // Compare by Url+Pass (value equality) rather than reference equality.
             for (int i = 0; i < keys.Data.Length; i++)
             {
                 var cur = keys.Data[i];

@@ -33,14 +33,14 @@ namespace Basis.BasisUI
                 BasisLoadableBundle loadableBundle = bundles[i];
 
                 // Default persistent for preloaded: false unless you store it elsewhere.
-                BasisDataStorePropKeys.PropKey key = new()
+                BasisDataStoreItemKeys.ItemKey key = new()
                 {
                     Pass = loadableBundle.UnlockPassword,
                     Url = loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation,
                     Persistent = false
                 };
 
-                BasisDataStorePropKeys.PropKey[] keys = BasisDataStorePropKeys.DisplayKeys();
+                BasisDataStoreItemKeys.ItemKey[] keys = BasisDataStoreItemKeys.DisplayKeys();
                 bool found = false;
 
                 for (int index = 0; index < keys.Length; index++)
@@ -55,21 +55,21 @@ namespace Basis.BasisUI
 
                 if (!found)
                 {
-                    await BasisDataStorePropKeys.AddNewKey(key);
+                    await BasisDataStoreItemKeys.AddNewKey(key);
                 }
             }
         }
 
         public static async Task Initialize()
         {
-            await BasisDataStorePropKeys.LoadKeys();
-            List<BasisDataStorePropKeys.PropKey> activeKeys = new(BasisDataStorePropKeys.DisplayKeys());
-            List<BasisDataStorePropKeys.PropKey> keysToRemove = new();
+            await BasisDataStoreItemKeys.LoadKeys();
+            List<BasisDataStoreItemKeys.ItemKey> activeKeys = new(BasisDataStoreItemKeys.DisplayKeys());
+            List<BasisDataStoreItemKeys.ItemKey> keysToRemove = new();
 
             int count = activeKeys.Count;
             for (int Index = 0; Index < count; Index++)
             {
-                BasisDataStorePropKeys.PropKey key = activeKeys[Index];
+                BasisDataStoreItemKeys.ItemKey key = activeKeys[Index];
 
                 // If the metadata is missing on disk, remove the key and DO NOT attempt to create a bundle from it.
                 if (!BasisLoadHandler.IsMetaDataOnDisc(key.Url, out BasisBEEExtensionMeta info))
@@ -102,9 +102,9 @@ namespace Basis.BasisUI
                 PropBundles.Add(bundle);
             }
 
-            foreach (BasisDataStorePropKeys.PropKey key in keysToRemove)
+            foreach (BasisDataStoreItemKeys.ItemKey key in keysToRemove)
             {
-                await BasisDataStorePropKeys.RemoveKey(key);
+                await BasisDataStoreItemKeys.RemoveKey(key);
             }
 
             Initialized = true;
@@ -287,10 +287,10 @@ namespace Basis.BasisUI
             await CreateButtons();
         }
 
-        private bool TryGetStoredKeyForUrlPass(string url, string pass, out BasisDataStorePropKeys.PropKey key)
+        private bool TryGetStoredKeyForUrlPass(string url, string pass, out BasisDataStoreItemKeys.ItemKey key)
         {
             key = null;
-            var keys = BasisDataStorePropKeys.DisplayKeys();
+            var keys = BasisDataStoreItemKeys.DisplayKeys();
             if (keys == null) return false;
 
             for (int i = 0; i < keys.Length; i++)
@@ -522,10 +522,10 @@ namespace Basis.BasisUI
         private async Task SavePersistentForKey(string url, string pass, bool persistent)
         {
             // Update the key in the keystore (array-based): remove old then add updated.
-            var keys = BasisDataStorePropKeys.DisplayKeys();
+            var keys = BasisDataStoreItemKeys.DisplayKeys();
             if (keys == null) return;
 
-            BasisDataStorePropKeys.PropKey existing = null;
+            BasisDataStoreItemKeys.ItemKey existing = null;
             for (int i = 0; i < keys.Length; i++)
             {
                 var cur = keys[i];
@@ -539,10 +539,10 @@ namespace Basis.BasisUI
             if (existing == null) return;
 
             // Replace by remove+add (simple and safe with your current store design).
-            await BasisDataStorePropKeys.RemoveKey(existing);
+            await BasisDataStoreItemKeys.RemoveKey(existing);
 
             existing.Persistent = persistent;
-            await BasisDataStorePropKeys.AddNewKey(existing);
+            await BasisDataStoreItemKeys.AddNewKey(existing);
         }
 
         // --------------------------------------------------------------------
@@ -790,7 +790,7 @@ namespace Basis.BasisUI
             }
 
             // Remove saved key
-            BasisDataStorePropKeys.PropKey key = new()
+            BasisDataStoreItemKeys.ItemKey key = new()
             {
                 Pass = menuItem.Wrapper.LoadableBundle.UnlockPassword,
                 Url = menuItem.Wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation,
@@ -806,9 +806,9 @@ namespace Basis.BasisUI
             ClearPropInfo();
         }
 
-        public async Task RemoveKey(BasisDataStorePropKeys.PropKey key)
+        public async Task RemoveKey(BasisDataStoreItemKeys.ItemKey key)
         {
-            await BasisDataStorePropKeys.RemoveKey(key);
+            await BasisDataStoreItemKeys.RemoveKey(key);
         }
     }
 }
