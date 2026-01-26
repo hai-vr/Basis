@@ -13,7 +13,7 @@ namespace Basis.Scripts.UI.UI_Panels
         [System.Serializable]
         public class ItemKey
         {
-            public BundledContentHolder.Mode Mode = BundledContentHolder.Mode.Prop;
+            public BundledContentHolder.Mode Mode;
             public string Url;
             public string Pass;
         }

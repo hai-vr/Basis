@@ -15,12 +15,16 @@ namespace Basis.BasisUI
 
         public static class ElementStyles
         {
+            public static string ScrollViewGrid =>
+    "Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical - Grid Variant.prefab";
             public static string ScrollViewVertical =>
                 "Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical.prefab";
             public static string ScrollViewHorizontal =>
                 "Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Horizontal.prefab";
             public static string Group =>
                 "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base.prefab";
+
+            public static string Overlay => "Packages/com.basis.sdk/Prefabs/Panel Elements/Overlay Panel.prefab";
         }
 
         public static PanelElementDescriptor CreateNew(string style, Component parent) =>
