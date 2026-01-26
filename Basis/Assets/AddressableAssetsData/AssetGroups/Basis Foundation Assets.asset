@@ -86,6 +86,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 5063ae403b85a6c4e8d99f33a85ca528
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Close Button.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 506f83456b9f93c40848e084d5684903
     m_Address: HVR.Basis.Comms.FaceTracking.DefaultARKitDefinitionFile
     m_ReadOnly: 0

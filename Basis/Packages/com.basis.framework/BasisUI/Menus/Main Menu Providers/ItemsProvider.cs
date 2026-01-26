@@ -240,16 +240,19 @@ namespace Basis.BasisUI
 
         private static void CreateItemCard(BasisDataStoreItemKeys.ItemKey item, RectTransform container)
         {
-            PanelButton Buttonpanel = PanelButton.CreateNew(ButtonStyles.Prop, container);
+            PanelButton buttonPanel = PanelButton.CreateNew(ButtonStyles.Prop, container);
 
-            // Kick meta-only load that will fill title/icon/description
+            // Meta-only load that will fill title/icon/description
             var wrapperForMeta = BuildWrapper(item);
             var reportForMeta = new BasisProgressReport();
+            _ = LoadItemMetaIntoGroup(wrapperForMeta, reportForMeta, CancellationToken.None, buttonPanel);
 
-            // Fire and forget; UI updates happen inside.
-            _ = LoadItemMetaIntoGroup(wrapperForMeta, reportForMeta, CancellationToken.None, Buttonpanel);
+            // NEW: clicking the item opens the info overlay
+            buttonPanel.OnClicked += () =>
+            {
+                ShowItemOverlay(item);
+            };
         }
-
         private static BasisTrackedBundleWrapper BuildWrapper(BasisDataStoreItemKeys.ItemKey item)
         {
             var wrapper = new BasisTrackedBundleWrapper();
@@ -310,6 +313,82 @@ namespace Basis.BasisUI
                 descripter.SetDescription(e.Message);
                 descripter.ForceRebuild();
             }
+        }
+        private static BasisDataStoreItemKeys.ItemKey _activeItem;
+
+        public static void ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item)
+        {
+            // Prevent stacking overlays
+            CloseOverlay();
+
+            _activeItem = item;
+
+            _background = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Overlay, panel);
+            var button = PanelButton.CreateNew(PanelButton.ButtonStyles.ExitButton, _background);
+            button.OnClicked += () => CloseOverlay();
+            _descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.BaseOverlay, _background);
+
+            _descriptor.rectTransform.localPosition = Vector3.zero;
+            _descriptor.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            _descriptor.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            _descriptor.rectTransform.anchoredPosition = Vector2.zero;
+            _descriptor.SetSize(new Vector2(700, 520));
+            _descriptor.SetTitle("Item");
+            // Title / mode / url / password (masked-ish)
+            CreateText($"Type: {item.Mode}", _descriptor);
+
+            CreateText("URL:", _descriptor);
+            var urlField = PanelPasswordField.CreateNewEntry(_descriptor);
+            urlField._inputField.contentType = TMP_InputField.ContentType.Standard;
+            urlField._placeholderField.text = "";
+            urlField.SetPassword(item.Url);
+            urlField._inputField.interactable = false;
+
+            CreateText("Password:", _descriptor);
+            var passField = PanelPasswordField.CreateNewEntry(_descriptor);
+            passField._placeholderField.text = "";
+            passField.SetPassword(item.Pass); // if supported
+            passField._inputField.interactable = false;
+
+            // Buttons row
+            PanelTabGroup actions = PanelTabGroup.CreateNew(_descriptor, LayoutDirection.HorizontalNoBackground);
+
+            PanelButton DeleteBtn = PanelButton.CreateNew(ButtonStyles.CancelButton, actions.TabButtonParent);
+            PanelButton loadBtn = PanelButton.CreateNew(ButtonStyles.AcceptButton, actions.TabButtonParent);
+
+            DeleteBtn.Descriptor.SetTitle("Delete");
+            loadBtn.Descriptor.SetTitle("Load");
+
+            DeleteBtn.Descriptor.SetWidth(200);
+            DeleteBtn.Descriptor.SetHeight(60);
+            loadBtn.Descriptor.SetWidth(530);
+            loadBtn.Descriptor.SetHeight(60);
+
+            DeleteBtn.OnClicked += async () =>
+            {
+               await BasisDataStoreItemKeys.RemoveKey(item);
+                CloseOverlay();
+            };
+
+            loadBtn.OnClicked += async () =>
+            {
+                if (_isSubmitting) return;
+                _isSubmitting = true;
+
+                try
+                {
+                    //await LoadSelectedItem(item);
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogError(ex);
+                }
+                finally
+                {
+                    _isSubmitting = false;
+                    CloseOverlay();
+                }
+            };
         }
     }
 }
