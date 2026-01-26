@@ -38,7 +38,7 @@ namespace Basis.BasisUI
 
             PanelTabGroup tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
 
-          await  BasisDataStoreItemKeys.LoadKeys();
+            await BasisDataStoreItemKeys.LoadKeys();
             BasisDataStoreItemKeys.ItemKey[] data = BasisDataStoreItemKeys.DisplayKeys();
 
             List<BasisDataStoreItemKeys.ItemKey> props = new();
@@ -120,7 +120,7 @@ namespace Basis.BasisUI
             // Cancel just closes.
             noPanel.OnClicked += () =>
             {
-                CloseOverlayAndLoad(false, Mode.SelectedString,URL.Password,Password.Password);
+                CloseOverlayAndLoad(false, Mode.SelectedString, URL.Password, Password.Password);
             };
 
             // Add does the async work, then closes.
@@ -239,19 +239,19 @@ namespace Basis.BasisUI
             }
         }
 
-        private static void CreateItemCard(BasisDataStoreItemKeys.ItemKey item, RectTransform container)
+        private static async void CreateItemCard(BasisDataStoreItemKeys.ItemKey item, RectTransform container)
         {
             PanelButton buttonPanel = PanelButton.CreateNew(ButtonStyles.Prop, container);
 
             // Meta-only load that will fill title/icon/description
-            var wrapperForMeta = BuildWrapper(item);
+            BasisTrackedBundleWrapper wrapperForMeta = BuildWrapper(item);
             var reportForMeta = new BasisProgressReport();
-            _ = LoadItemMetaIntoGroup(wrapperForMeta, reportForMeta, CancellationToken.None, buttonPanel);
-
+            Task<Sprite> Data = LoadItemMetaIntoGroup(wrapperForMeta, reportForMeta, CancellationToken.None, buttonPanel);
+            Sprite sprite = await Data;
             // NEW: clicking the item opens the info overlay
             buttonPanel.OnClicked += () =>
             {
-                ShowItemOverlay(item);
+                ShowItemOverlay(item, sprite, wrapperForMeta);
             };
         }
         private static BasisTrackedBundleWrapper BuildWrapper(BasisDataStoreItemKeys.ItemKey item)
@@ -268,7 +268,7 @@ namespace Basis.BasisUI
             wrapper.LoadableBundle = loadable;
             return wrapper;
         }
-        private static async Task LoadItemMetaIntoGroup( BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken, PanelButton Buttonpanel)
+        private static async Task<Sprite> LoadItemMetaIntoGroup(BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken, PanelButton Buttonpanel)
         {
             var descripter = Buttonpanel.Descriptor;
             try
@@ -276,7 +276,10 @@ namespace Basis.BasisUI
                 cancellationToken.ThrowIfCancellationRequested();
 
                 await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, report, cancellationToken);
-                if (cancellationToken.IsCancellationRequested) return;
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return null;
+                }
 
                 var desc = wrapper.LoadableBundle.BasisBundleConnector?.BasisBundleDescription;
 
@@ -298,12 +301,13 @@ namespace Basis.BasisUI
                         iconSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
                     }
                 }
-                Buttonpanel.SetIcon(iconSprite,false);
+                Buttonpanel.SetIcon(iconSprite, false);
                 descripter.SetTitle(title);
                 string metaLine = string.Empty;
                 descripter.SetDescription(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
 
                 descripter.ForceRebuild();
+                return iconSprite;
             }
             catch (Exception e)
             {
@@ -313,11 +317,12 @@ namespace Basis.BasisUI
                 descripter.SetTitle("Failed to load meta");
                 descripter.SetDescription(e.Message);
                 descripter.ForceRebuild();
+                return null;
             }
         }
         private static BasisDataStoreItemKeys.ItemKey _activeItem;
 
-        public static void ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item)
+        public static void ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item, Sprite Sprite, BasisTrackedBundleWrapper Wrapper)
         {
             // Prevent stacking overlays
             CloseOverlay();
@@ -331,7 +336,7 @@ namespace Basis.BasisUI
             _descriptor.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
             _descriptor.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             _descriptor.rectTransform.anchoredPosition = Vector2.zero;
-            _descriptor.SetSize(new Vector2(700, 520));
+            _descriptor.SetSize(new Vector2(800, 720));
             _descriptor.SetTitle("Item");
 
             var button = PanelButton.CreateNew(PanelButton.ButtonStyles.ExitButton, _descriptor.Header);
@@ -339,18 +344,23 @@ namespace Basis.BasisUI
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
             button.OnClicked += () => CloseOverlay();
 
-            CreateText("URL:", _descriptor);
+            //Wrapper
+            var Button = PanelImage.CreateNew(PanelImage.ImageStyles.Default, _descriptor);
+            Button.SetIcon(Sprite, false);
+            Button.SetSize(new Vector2(200, 200));
+            //  CreateText("URL:", _descriptor);
             var urlField = PanelPasswordField.CreateNew(_descriptor);
-            urlField._inputField.contentType = TMP_InputField.ContentType.Standard;
             urlField._placeholderField.text = "";
             urlField.SetPassword(item.Url);
             urlField._inputField.interactable = false;
+            urlField.Descriptor.SetTitle("URL:");
 
-            CreateText("Password:", _descriptor);
+            //   CreateText("Password:", _descriptor);
             var passField = PanelPasswordField.CreateNew(_descriptor);
             passField._placeholderField.text = "";
             passField.SetPassword(item.Pass); // if supported
             passField._inputField.interactable = false;
+            passField.Descriptor.SetTitle("Password:");
 
             // Buttons row
             PanelTabGroup actions = PanelTabGroup.CreateNew(_descriptor, LayoutDirection.HorizontalNoBackground);
@@ -361,14 +371,12 @@ namespace Basis.BasisUI
             DeleteBtn.Descriptor.SetTitle("Delete");
             loadBtn.Descriptor.SetTitle("Load");
 
-            DeleteBtn.Descriptor.SetWidth(200);
-            DeleteBtn.Descriptor.SetHeight(60);
-            loadBtn.Descriptor.SetWidth(530);
-            loadBtn.Descriptor.SetHeight(60);
+            DeleteBtn.SetSize(new Vector2(200, 60));
+            loadBtn.SetSize(new Vector2(530, 60));
 
             DeleteBtn.OnClicked += async () =>
             {
-               await BasisDataStoreItemKeys.RemoveKey(item);
+                await BasisDataStoreItemKeys.RemoveKey(item);
                 CloseOverlay();
             };
 
