@@ -1,8 +1,10 @@
 using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TMPro;
 using UnityEngine;
 using static Basis.BasisUI.PanelButton;
 
@@ -64,36 +66,139 @@ namespace Basis.BasisUI
 
             panel.Descriptor.ForceRebuild();
         }
-        public static async void AddNewItem()
+        // Keep refs so you can close/destroy the UI you created.
+        private static PanelElementDescriptor _background;
+        private static PanelElementDescriptor _descriptor;
+
+        // If you need to prevent double-click spam.
+        private static bool _isSubmitting;
+        public static PanelPasswordField URL;
+        public static PanelPasswordField Password;
+        // Prefer Task-returning async methods over async void.
+        public static void AddNewItem()
         {
-            var Background = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Overlay, panel);
-            var Descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, Background);
+            // Build overlay
+            _background = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Overlay, panel);
+            _descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.BaseOverlay, _background);
 
-            Descriptor.rectTransform.localPosition = new Vector3(0, 0, 0);
-            Descriptor.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-            Descriptor.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            Descriptor.rectTransform.anchoredPosition = Vector2.zero;
-            Descriptor.SetSize(new Vector2(700, 400));
-            Descriptor.SetDescription("Background Panel");
+            _descriptor.rectTransform.localPosition = Vector3.zero;
+            _descriptor.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            _descriptor.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            _descriptor.rectTransform.anchoredPosition = Vector2.zero;
+            _descriptor.SetSize(new Vector2(700, 400));
+            _descriptor.SetTitle("Add New Item");
 
+            var Mode = PanelDropdown.CreateNewEntry(_descriptor);
+            string[] modeNames = Enum.GetNames(typeof(BundledContentHolder.Mode));
+            Mode.Descriptor.SetTitle("Item Type");
+            Mode.AssignEntries(modeNames.ToList());
+            Mode.SetValueWithoutNotify(BundledContentHolder.Mode.Avatar.ToString());
 
-            PanelTabGroup AcceptORDenyPanel = PanelTabGroup.CreateNew(Descriptor, LayoutDirection.Horizontal);
-            PanelButton NoPanel = PanelButton.CreateNew(ButtonStyles.CancelButton, AcceptORDenyPanel.TabButtonParent);
-            PanelButton YesPanel = PanelButton.CreateNew(ButtonStyles.AcceptButton, AcceptORDenyPanel.TabButtonParent);
-            NoPanel.Descriptor.SetTitle("Cancel");
-            YesPanel.Descriptor.SetTitle("Add");
-            NoPanel.Descriptor.SetWidth(270);
-            NoPanel.Descriptor.SetHeight(60);
-            YesPanel.Descriptor.SetWidth(270);
-            YesPanel.Descriptor.SetHeight(60);
+            CreateText("Add your BEE File URL", _descriptor);
+            URL = PanelPasswordField.CreateNew(_descriptor);
+            URL._placeholderField.text = "URL";
+            URL._inputField.contentType = TMP_InputField.ContentType.Standard;
+            URL.DisableIcons();
 
-            BasisDataStoreItemKeys.ItemKey Key = new BasisDataStoreItemKeys.ItemKey
+            CreateText("Add your generated BEE file password:", _descriptor);
+            Password = PanelPasswordField.CreateNew(_descriptor);
+            Password._placeholderField.text = "Enter password";
+            PanelTabGroup acceptOrDenyPanel = PanelTabGroup.CreateNew(_descriptor, LayoutDirection.HorizontalNoBackground);
+
+            PanelButton yesPanel = PanelButton.CreateNew(ButtonStyles.AcceptButton, acceptOrDenyPanel.TabButtonParent);
+            PanelButton noPanel = PanelButton.CreateNew(ButtonStyles.CancelButton, acceptOrDenyPanel.TabButtonParent);
+
+            noPanel.Descriptor.SetTitle("Cancel");
+            yesPanel.Descriptor.SetTitle("Add");
+
+            noPanel.Descriptor.SetWidth(270);
+            noPanel.Descriptor.SetHeight(60);
+            yesPanel.Descriptor.SetWidth(270);
+            yesPanel.Descriptor.SetHeight(60);
+
+            // Cancel just closes.
+            noPanel.OnClicked += () =>
             {
-                Pass = "a5742fb62455e10f9e7019d1c5a2b39bbcb59eb5447f4206e6c0c71e40d2d6b1",
-                Url = "https://BasisFramework.b-cdn.net/Version2/Props/Truck/truck2/00e1f4a32a6a451fb450fa79d729defd20260124.BEE",
-                Mode = BundledContentHolder.Mode.Prop
+                CloseOverlayAndLoad(false, Mode.SelectedString,URL.Password,Password.Password);
             };
-            await BasisDataStoreItemKeys.AddNewKey(Key);
+
+            // Add does the async work, then closes.
+            yesPanel.OnClicked += async () =>
+            {
+                if (_isSubmitting) return;
+                _isSubmitting = true;
+
+                try
+                {
+
+                    CloseOverlayAndLoad(true, Mode.SelectedString, URL.Password, Password.Password);
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogError(ex);
+                    _isSubmitting = false;
+                }
+            };
+        }
+        public static TMP_Text CreateText(string content, Component Parent)
+        {
+            GameObject go = new GameObject("RuntimeText");
+            go.transform.SetParent(Parent.transform, false);
+
+            var text = go.AddComponent<TextMeshProUGUI>();
+            text.text = content;
+            text.fontSize = 22;
+            text.color = Color.white;
+            text.alignment = TextAlignmentOptions.Center;
+
+            // Optional sizing
+            var rect = go.GetComponent<RectTransform>();
+            rect.sizeDelta = new Vector2(400, 100);
+
+            return text;
+        }
+
+        public static async void CloseOverlayAndLoad(bool doLoad, string Mode, string URL, string Password)
+        {
+            if (doLoad)
+            {
+                if (Enum.TryParse<BundledContentHolder.Mode>(Mode, out var mode))
+                {
+                    var key = new BasisDataStoreItemKeys.ItemKey
+                    {
+                        Pass = Password,
+                        Url = URL,
+                        Mode = mode
+                    };
+
+                    await BasisDataStoreItemKeys.AddNewKey(key);
+                }
+                else
+                {
+                    CloseOverlay();
+                    BasisDebug.LogError("Coudnt Parse Mode!");
+                }
+            }
+            CloseOverlay();
+        }
+
+        public static void CloseOverlay()
+        {
+            _isSubmitting = false;
+
+            // Destroy / hide whatever your UI framework expects.
+            // If PanelElementDescriptor has a Dispose/Destroy method, use that instead.
+            if (_descriptor != null)
+            {
+                UnityEngine.Object.Destroy(_descriptor.gameObject);
+                _descriptor = null;
+            }
+
+            if (_background != null)
+            {
+                UnityEngine.Object.Destroy(_background.gameObject);
+                _background = null;
+            }
         }
         public static PanelTabPage PropsTab(PanelTabGroup tabGroup, List<BasisDataStoreItemKeys.ItemKey> items)
         {

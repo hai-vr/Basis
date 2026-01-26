@@ -75,6 +75,16 @@ namespace Basis.BasisUI
             }
             return 0;
         }
+        public string SelectedString
+        {
+            get
+            {
+                if (DropdownComponent == null) return string.Empty;
+                int index = DropdownComponent.value;
+                if (index < 0 || index >= DropdownComponent.options.Count) return string.Empty;
+                return DropdownComponent.options[index].text;
+            }
+        }
 
     }
 }

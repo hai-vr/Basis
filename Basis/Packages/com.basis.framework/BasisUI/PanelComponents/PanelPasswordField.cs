@@ -17,8 +17,8 @@ namespace Basis.BasisUI
 
         public string Password => _inputField.text;
 
-        [SerializeField] protected TMP_InputField _inputField;
-        [SerializeField] protected TextMeshProUGUI _placeholderField;
+        [SerializeField] public TMP_InputField _inputField;
+        [SerializeField] public TextMeshProUGUI _placeholderField;
         [SerializeField] protected Toggle _showToggle;
         [SerializeField] protected Image _visibleIcon;
         [SerializeField] protected Image _invisibleIcon;
@@ -47,7 +47,11 @@ namespace Basis.BasisUI
             _showToggle.onValueChanged.AddListener(SetValue);
             _inputField.onEndEdit.AddListener(_ => OnComponentUsed());
         }
-
+        public void DisableIcons()
+        {
+            _visibleIcon.enabled = false;
+            _invisibleIcon.enabled = false;
+        }
         public override void OnComponentUsed()
         {
             base.OnComponentUsed();
