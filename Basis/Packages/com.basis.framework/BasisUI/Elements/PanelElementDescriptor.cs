@@ -24,7 +24,7 @@ namespace Basis.BasisUI
             public static string Group =>
                 "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base.prefab";
 
-            public static string Overlay => "Packages/com.basis.sdk/Prefabs/Panel Elements/Overlay Panel.prefab";
+            public static string Overlay => "Panel Elements/Overlay Panel.prefab";
         }
 
         public static PanelElementDescriptor CreateNew(string style, Component parent) =>

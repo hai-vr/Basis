@@ -25,7 +25,7 @@ namespace Basis.BasisUI
         {
             if (BasisMainMenu.ActiveMenuTitle == Title) return;
 
-            BasisMenuPanel panel = BasisMainMenu.CreateActiveMenu(
+            panel = BasisMainMenu.CreateActiveMenu(
                 BasisMenuPanel.PanelData.Standard(Title),
                 BasisMenuPanel.PanelStyles.Page);
 
@@ -66,14 +66,33 @@ namespace Basis.BasisUI
         }
         public static async void AddNewItem()
         {
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Overlay, panel);
+            var Background = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Overlay, panel);
+            var Descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, Background);
+
+            Descriptor.rectTransform.localPosition = new Vector3(0, 0, 0);
+            Descriptor.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            Descriptor.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            Descriptor.rectTransform.anchoredPosition = Vector2.zero;
+            Descriptor.SetSize(new Vector2(700, 400));
+            Descriptor.SetDescription("Background Panel");
+
+
+            PanelTabGroup AcceptORDenyPanel = PanelTabGroup.CreateNew(Descriptor, LayoutDirection.Horizontal);
+            PanelButton NoPanel = PanelButton.CreateNew(ButtonStyles.CancelButton, AcceptORDenyPanel.TabButtonParent);
+            PanelButton YesPanel = PanelButton.CreateNew(ButtonStyles.AcceptButton, AcceptORDenyPanel.TabButtonParent);
+            NoPanel.Descriptor.SetTitle("Cancel");
+            YesPanel.Descriptor.SetTitle("Add");
+            NoPanel.Descriptor.SetWidth(270);
+            NoPanel.Descriptor.SetHeight(60);
+            YesPanel.Descriptor.SetWidth(270);
+            YesPanel.Descriptor.SetHeight(60);
+
             BasisDataStoreItemKeys.ItemKey Key = new BasisDataStoreItemKeys.ItemKey
             {
                 Pass = "a5742fb62455e10f9e7019d1c5a2b39bbcb59eb5447f4206e6c0c71e40d2d6b1",
                 Url = "https://BasisFramework.b-cdn.net/Version2/Props/Truck/truck2/00e1f4a32a6a451fb450fa79d729defd20260124.BEE",
                 Mode = BundledContentHolder.Mode.Prop
             };
-
             await BasisDataStoreItemKeys.AddNewKey(Key);
         }
         public static PanelTabPage PropsTab(PanelTabGroup tabGroup, List<BasisDataStoreItemKeys.ItemKey> items)

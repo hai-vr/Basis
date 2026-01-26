@@ -65,6 +65,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 44447e3f7d228264e9319ca5bc7c7872
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Button Yes Variant.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 44e34e57747369b4791afeff1fe21695
     m_Address: Assets/Animator/Animated TPose.controller
     m_ReadOnly: 0
@@ -192,6 +197,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: edec16241d972bb47bf0210f7678d6ba
     m_Address: Packages/com.basis.sdk/Prefabs/UI/PlayerSelectionPanel.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f74a5011dbc9f044c90b4a657d1d5199
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Cancel Button Variant.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
