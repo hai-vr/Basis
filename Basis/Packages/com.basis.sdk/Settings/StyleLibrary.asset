@@ -465,3 +465,11 @@ MonoBehaviour:
       OptionsBackgroundStyle: Button Small Foldout
       ScrollbarStyle: Scrollbar Small
       TemplateEntryStyle: Dropdown Entry
+    - Title: Overlay Dropdown
+      SelectionStyle: Highlight On Hover
+      BackgroundStyle: Button Standard
+      IconStyle: Icon
+      LabelStyle: Button Label
+      OptionsBackgroundStyle: Button Small Foldout
+      ScrollbarStyle: Scrollbar Small
+      TemplateEntryStyle: Dropdown Entry

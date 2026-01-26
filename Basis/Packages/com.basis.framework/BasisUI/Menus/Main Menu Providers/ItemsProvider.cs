@@ -85,10 +85,10 @@ namespace Basis.BasisUI
             _descriptor.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
             _descriptor.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
             _descriptor.rectTransform.anchoredPosition = Vector2.zero;
-            _descriptor.SetSize(new Vector2(700, 400));
+            _descriptor.SetSize(new Vector2(700, 500));
             _descriptor.SetTitle("Add New Item");
 
-            var Mode = PanelDropdown.CreateNewEntry(_descriptor);
+            var Mode = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.OverlayEntry, _descriptor);
             string[] modeNames = Enum.GetNames(typeof(BundledContentHolder.Mode));
             Mode.Descriptor.SetTitle("Item Type");
             Mode.AssignEntries(modeNames.ToList());

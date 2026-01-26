@@ -75,6 +75,12 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 45748bc469fa0a2419c17c39d0c614a1
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Dropdown - Entry
+      Variant - Overlay.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 4b6d450b11ad8974e8c4ba0b1e0df50e
     m_Address: RemotePlayer
     m_ReadOnly: 0
