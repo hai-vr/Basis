@@ -49,11 +49,13 @@ namespace Basis.BasisUI
         [field:SerializeField] public TextMeshProUGUI TitleLabel { get; private set; }
         [field:SerializeField] public TextMeshProUGUI DescriptionLabel { get; private set; }
 
+        [field: SerializeField] public RectTransform Header { get; private set; }
+
         public bool HasIcon => IconImage;
         public bool HasTexture => TextureImage;
         public bool HasTitle => TitleLabel;
         public bool HasDescription => DescriptionLabel;
-
+        public bool HasHeader => Header;
         public RectTransform ContentParent
         {
             get

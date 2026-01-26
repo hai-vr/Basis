@@ -23,7 +23,7 @@ namespace Basis.BasisUI
         public override int Order => 1; // after Settings
 
         public static BasisMenuPanel panel;
-        public override void RunAction()
+        public override async void RunAction()
         {
             if (BasisMainMenu.ActiveMenuTitle == Title) return;
 
@@ -38,6 +38,7 @@ namespace Basis.BasisUI
 
             PanelTabGroup tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
 
+          await  BasisDataStoreItemKeys.LoadKeys();
             BasisDataStoreItemKeys.ItemKey[] data = BasisDataStoreItemKeys.DisplayKeys();
 
             List<BasisDataStoreItemKeys.ItemKey> props = new();
@@ -324,8 +325,6 @@ namespace Basis.BasisUI
             _activeItem = item;
 
             _background = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Overlay, panel);
-            var button = PanelButton.CreateNew(PanelButton.ButtonStyles.ExitButton, _background);
-            button.OnClicked += () => CloseOverlay();
             _descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.BaseOverlay, _background);
 
             _descriptor.rectTransform.localPosition = Vector3.zero;
@@ -334,18 +333,21 @@ namespace Basis.BasisUI
             _descriptor.rectTransform.anchoredPosition = Vector2.zero;
             _descriptor.SetSize(new Vector2(700, 520));
             _descriptor.SetTitle("Item");
-            // Title / mode / url / password (masked-ish)
-            CreateText($"Type: {item.Mode}", _descriptor);
+
+            var button = PanelButton.CreateNew(PanelButton.ButtonStyles.ExitButton, _descriptor.Header);
+            button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
+            button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
+            button.OnClicked += () => CloseOverlay();
 
             CreateText("URL:", _descriptor);
-            var urlField = PanelPasswordField.CreateNewEntry(_descriptor);
+            var urlField = PanelPasswordField.CreateNew(_descriptor);
             urlField._inputField.contentType = TMP_InputField.ContentType.Standard;
             urlField._placeholderField.text = "";
             urlField.SetPassword(item.Url);
             urlField._inputField.interactable = false;
 
             CreateText("Password:", _descriptor);
-            var passField = PanelPasswordField.CreateNewEntry(_descriptor);
+            var passField = PanelPasswordField.CreateNew(_descriptor);
             passField._placeholderField.text = "";
             passField.SetPassword(item.Pass); // if supported
             passField._inputField.interactable = false;
