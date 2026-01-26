@@ -94,7 +94,7 @@ namespace Basis.BasisUI
             Mode.AssignEntries(modeNames.ToList());
             Mode.SetValueWithoutNotify(BundledContentHolder.Mode.Avatar.ToString());
 
-            CreateText("Add your BEE File URL", _descriptor);
+            CreateText("Add your BEE File URL:", _descriptor);
             URL = PanelPasswordField.CreateNew(_descriptor);
             URL._placeholderField.text = "URL";
             URL._inputField.contentType = TMP_InputField.ContentType.Standard;
