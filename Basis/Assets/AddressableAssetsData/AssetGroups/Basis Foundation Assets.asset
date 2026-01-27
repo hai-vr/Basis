@@ -40,6 +40,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 39dccb64fd465d0438a825b8ce81f738
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Close Button - Modal.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 3a3df1983396db742b32634900a6e4ad
     m_Address: BasisFramework
     m_ReadOnly: 0
@@ -140,6 +145,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 861fed068fe3fd4449deba6697749c16
     m_Address: UserNamePanel
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 89e24e73c6f0ae14e8c2fa711b96681a
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Prop Panel View.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

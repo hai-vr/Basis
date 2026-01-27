@@ -1,6 +1,7 @@
 using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -204,6 +205,7 @@ namespace Basis.BasisUI
         public static PanelTabPage PropsTab(PanelTabGroup tabGroup, List<BasisDataStoreItemKeys.ItemKey> items)
         {
             PanelTabPage tab = PanelTabPage.CreateGrid(tabGroup.Descriptor.ContentParent);
+            tab.rectTransform.offsetMin = new Vector2(20, 0);
             var d = tab.Descriptor;
             d.SetTitle("Props");
             BuildItemsList(items, tab);
@@ -213,6 +215,7 @@ namespace Basis.BasisUI
         public static PanelTabPage WorldsTab(PanelTabGroup tabGroup, List<BasisDataStoreItemKeys.ItemKey> items)
         {
             PanelTabPage tab = PanelTabPage.CreateGrid(tabGroup.Descriptor.ContentParent);
+            tab.rectTransform.offsetMin = new Vector2(20, 0);
             var d = tab.Descriptor;
             d.SetTitle("Worlds");
             BuildItemsList(items, tab);
@@ -222,6 +225,7 @@ namespace Basis.BasisUI
         public static PanelTabPage AvatarsTab(PanelTabGroup tabGroup, List<BasisDataStoreItemKeys.ItemKey> items)
         {
             PanelTabPage tab = PanelTabPage.CreateGrid(tabGroup.Descriptor.ContentParent);
+            tab.rectTransform.offsetMin = new Vector2(20, 0);
             var d = tab.Descriptor;
             d.SetTitle("Avatars");
             BuildItemsList(items, tab);
@@ -321,33 +325,65 @@ namespace Basis.BasisUI
             }
         }
         private static BasisDataStoreItemKeys.ItemKey _activeItem;
+        public static PanelElementDescriptor CreateBaseOverlay(Vector2 Anchor, Vector2 Scale)//= new Vector2(0.5f, 0.5f) new Vector2(800, 720)
+        {
+            PanelElementDescriptor _descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.BaseOverlay, _background);
 
+            _descriptor.rectTransform.localPosition = Vector3.zero;
+            _descriptor.rectTransform.anchorMin = Anchor;
+            _descriptor.rectTransform.anchorMax = Anchor;
+            _descriptor.rectTransform.anchoredPosition = Vector2.zero;
+            _descriptor.SetSize(Scale);
+            _descriptor.SetTitle("Item");
+            return _descriptor;
+        }
         public static void ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item, Sprite Sprite, BasisTrackedBundleWrapper Wrapper)
         {
             // Prevent stacking overlays
             CloseOverlay();
 
+            var bundle = Wrapper.LoadableBundle;
+
+            BasisBundleDescription description = bundle.BasisBundleConnector.BasisBundleDescription;
+            if (description == null)
+            {
+                BasisDebug.LogError($"Bundle Description on AvatarMenuItem {item} not found.");
+                return;
+            }
+
             _activeItem = item;
 
             _background = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Overlay, panel);
-            _descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.BaseOverlay, _background);
 
-            _descriptor.rectTransform.localPosition = Vector3.zero;
-            _descriptor.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-            _descriptor.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _descriptor.rectTransform.anchoredPosition = Vector2.zero;
-            _descriptor.SetSize(new Vector2(800, 720));
-            _descriptor.SetTitle("Item");
+            _descriptor = CreateBaseOverlay(new Vector2(0.5f, 0.5f), new Vector2(800, 720));
 
-            var button = PanelButton.CreateNew(PanelButton.ButtonStyles.ExitButton, _descriptor.Header);
+            var button = PanelButton.CreateNew(PanelButton.ButtonStyles.ExitButtonOverlay, _descriptor.Header);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
             button.OnClicked += () => CloseOverlay();
 
             //Wrapper
-            var Button = PanelImage.CreateNew(PanelImage.ImageStyles.Default, _descriptor);
-            Button.SetIcon(Sprite, false);
-            Button.SetSize(new Vector2(200, 200));
+            var Descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, _descriptor);
+            Descriptor.SetIcon(Sprite);
+            Descriptor.SetSizeOfImage(new Vector2(200, 200));
+            Descriptor.SetSize(new Vector2(200, 200));
+            Descriptor.SetSizeOfHeader(new Vector2(200, 200));
+            Descriptor.SetTitle(description.AssetBundleName);
+            Descriptor.SetDescription(description.AssetBundleDescription);
+
+            string creationDate = bundle.BasisBundleConnector.DateOfCreation;
+            if (string.IsNullOrEmpty(creationDate))
+            {
+                creationDate = string.Empty;
+            }
+            else
+            {
+                creationDate = DateTime.Parse(creationDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal).ToString(CultureInfo.InvariantCulture);
+                creationDate += " UTC";
+            }
+
+            var CreationDateLabel = CreateText(creationDate, _descriptor);
+            // var FileSizeLabel = CreateText("");
             //  CreateText("URL:", _descriptor);
             var urlField = PanelPasswordField.CreateNew(_descriptor);
             urlField._placeholderField.text = "";

@@ -195,7 +195,30 @@ namespace Basis.BasisUI
             Layout.preferredWidth = size.x;
             Layout.preferredHeight = size.y;
         }
+        public void SetSizeOfHeader(Vector2 size)
+        {
+            Header.sizeDelta = size;
 
+            if (Header.TryGetComponent<LayoutElement>(out LayoutElement Layout))
+            {
+                Layout.minWidth = size.x;
+                Layout.minHeight = size.y;
+                Layout.preferredWidth = size.x;
+                Layout.preferredHeight = size.y;
+            }
+        }
+        public void SetSizeOfImage(Vector2 size)
+        {
+            TextureImage.rectTransform.sizeDelta = size;
+
+            if (TextureImage.TryGetComponent<LayoutElement>(out LayoutElement Layout))
+            {
+                Layout.minWidth = size.x;
+                Layout.minHeight = size.y;
+                Layout.preferredWidth = size.x;
+                Layout.preferredHeight = size.y;
+            }
+        }
         public void SetHeight(float height) => SetSize(new Vector2(rectTransform.sizeDelta.x, height));
         public void SetWidth(float width) => SetSize(new Vector2(rectTransform.sizeDelta.x, width));
 

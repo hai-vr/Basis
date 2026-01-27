@@ -20,6 +20,7 @@ namespace Basis.BasisUI
             public static string CancelButton => "Packages/com.basis.sdk/Prefabs/Panel Elements/Cancel Button Variant.prefab";
 
             public static string ExitButton => "Packages/com.basis.sdk/Prefabs/Panel Elements/Close Button.prefab";
+            public static string ExitButtonOverlay => "Packages/com.basis.sdk/Prefabs/Panel Elements/Close Button - Modal.prefab";
         }
 
         private PanelButton() { }
