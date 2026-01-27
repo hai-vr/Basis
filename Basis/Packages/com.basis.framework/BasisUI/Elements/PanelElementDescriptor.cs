@@ -27,6 +27,7 @@ namespace Basis.BasisUI
             public static string Overlay => "Panel Elements/Overlay Panel.prefab";
 
             public static string BaseOverlay => "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base - Overlay.prefab";
+            public static string GroupLargeIcon => "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base Icon.prefab";
         }
 
         public static PanelElementDescriptor CreateNew(string style, Component parent) =>
@@ -209,14 +210,30 @@ namespace Basis.BasisUI
         }
         public void SetSizeOfImage(Vector2 size)
         {
-            TextureImage.rectTransform.sizeDelta = size;
-
-            if (TextureImage.TryGetComponent<LayoutElement>(out LayoutElement Layout))
+            if (IconImage != null)
             {
-                Layout.minWidth = size.x;
-                Layout.minHeight = size.y;
-                Layout.preferredWidth = size.x;
-                Layout.preferredHeight = size.y;
+                IconImage.rectTransform.sizeDelta = size;
+
+                if (IconImage.TryGetComponent<LayoutElement>(out LayoutElement Layout))
+                {
+                    Layout.minWidth = size.x;
+                    Layout.minHeight = size.y;
+                    Layout.preferredWidth = size.x;
+                    Layout.preferredHeight = size.y;
+                }
+            }
+        }
+        public void SetSizeOfBackgroundImage(Vector2 size)
+        {
+            if (IconBackground != null)
+            {
+                if (IconBackground.TryGetComponent<LayoutElement>(out LayoutElement Layout))
+                {
+                    Layout.minWidth = size.x;
+                    Layout.minHeight = size.y;
+                    Layout.preferredWidth = size.x;
+                    Layout.preferredHeight = size.y;
+                }
             }
         }
         public void SetHeight(float height) => SetSize(new Vector2(rectTransform.sizeDelta.x, height));

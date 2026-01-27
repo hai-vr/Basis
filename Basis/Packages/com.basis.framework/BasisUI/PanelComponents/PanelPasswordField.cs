@@ -16,7 +16,7 @@ namespace Basis.BasisUI
         public Action<string> OnSubmit;
 
         public string Password => _inputField.text;
-
+        [SerializeField] public LayoutElement LayoutElement;
         [SerializeField] public TMP_InputField _inputField;
         [SerializeField] public TextMeshProUGUI _placeholderField;
         [SerializeField] protected Toggle _showToggle;
@@ -31,12 +31,15 @@ namespace Basis.BasisUI
 
             public static string Entry =>
                 "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Password Field - Entry Variant.prefab";
+
+            public static string EntryLong => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Password Field - Entry Variant - Long.prefab";
         }
 
         public static PanelPasswordField CreateNew(Component parent)
             => CreateNew<PanelPasswordField>(PasswordFieldStyles.Default, parent);
 
-
+        public static PanelPasswordField CreateNew(string Entry,Component parent)
+    => CreateNew<PanelPasswordField>(Entry, parent);
         public static PanelPasswordField CreateNewEntry(Component parent)
             => CreateNew<PanelPasswordField>(PasswordFieldStyles.Entry, parent);
 

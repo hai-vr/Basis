@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
 
 namespace Basis.BasisUI
@@ -253,9 +255,9 @@ namespace Basis.BasisUI
             Task<Sprite> Data = LoadItemMetaIntoGroup(wrapperForMeta, reportForMeta, CancellationToken.None, buttonPanel);
             Sprite sprite = await Data;
             // NEW: clicking the item opens the info overlay
-            buttonPanel.OnClicked += () =>
+            buttonPanel.OnClicked += async () =>
             {
-                ShowItemOverlay(item, sprite, wrapperForMeta);
+              await  ShowItemOverlay(item, sprite, wrapperForMeta);
             };
         }
         private static BasisTrackedBundleWrapper BuildWrapper(BasisDataStoreItemKeys.ItemKey item)
@@ -325,7 +327,7 @@ namespace Basis.BasisUI
             }
         }
         private static BasisDataStoreItemKeys.ItemKey _activeItem;
-        public static PanelElementDescriptor CreateBaseOverlay(Vector2 Anchor, Vector2 Scale)//= new Vector2(0.5f, 0.5f) new Vector2(800, 720)
+        public static PanelElementDescriptor CreateBaseOverlay(Vector2 Anchor, Vector2 Scale,string Name)//= new Vector2(0.5f, 0.5f) new Vector2(800, 720)
         {
             PanelElementDescriptor _descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.BaseOverlay, _background);
 
@@ -334,10 +336,10 @@ namespace Basis.BasisUI
             _descriptor.rectTransform.anchorMax = Anchor;
             _descriptor.rectTransform.anchoredPosition = Vector2.zero;
             _descriptor.SetSize(Scale);
-            _descriptor.SetTitle("Item");
+            _descriptor.SetTitle(Name);
             return _descriptor;
         }
-        public static void ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item, Sprite Sprite, BasisTrackedBundleWrapper Wrapper)
+        public static async Task ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item, Sprite Sprite, BasisTrackedBundleWrapper Wrapper)
         {
             // Prevent stacking overlays
             CloseOverlay();
@@ -355,21 +357,12 @@ namespace Basis.BasisUI
 
             _background = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Overlay, panel);
 
-            _descriptor = CreateBaseOverlay(new Vector2(0.5f, 0.5f), new Vector2(800, 720));
+            _descriptor = CreateBaseOverlay(new Vector2(0.5f, 0.5f), new Vector2(800, 000), description.AssetBundleName);
 
             var button = PanelButton.CreateNew(PanelButton.ButtonStyles.ExitButtonOverlay, _descriptor.Header);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
             button.OnClicked += () => CloseOverlay();
-
-            //Wrapper
-            var Descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, _descriptor);
-            Descriptor.SetIcon(Sprite);
-            Descriptor.SetSizeOfImage(new Vector2(200, 200));
-            Descriptor.SetSize(new Vector2(200, 200));
-            Descriptor.SetSizeOfHeader(new Vector2(200, 200));
-            Descriptor.SetTitle(description.AssetBundleName);
-            Descriptor.SetDescription(description.AssetBundleDescription);
 
             string creationDate = bundle.BasisBundleConnector.DateOfCreation;
             if (string.IsNullOrEmpty(creationDate))
@@ -378,25 +371,91 @@ namespace Basis.BasisUI
             }
             else
             {
-                creationDate = DateTime.Parse(creationDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal).ToString(CultureInfo.InvariantCulture);
+                creationDate = DateTime
+                    .Parse(creationDate, CultureInfo.InvariantCulture,
+                           DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal)
+                    .ToString(CultureInfo.InvariantCulture);
+
                 creationDate += " UTC";
             }
 
-            var CreationDateLabel = CreateText(creationDate, _descriptor);
-            // var FileSizeLabel = CreateText("");
-            //  CreateText("URL:", _descriptor);
-            var urlField = PanelPasswordField.CreateNew(_descriptor);
+            // Wrapper
+            var Descriptor = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.GroupLargeIcon, _descriptor);
+
+            Descriptor.SetIcon(Sprite);
+            Descriptor.SetTitle(description.AssetBundleDescription);
+
+            PanelTabGroup actionsSupportedPlatforms =  PanelTabGroup.CreateNew(_descriptor, LayoutDirection.HorizontalNoBackground);
+            if (actionsSupportedPlatforms.TryGetComponent<LayoutElement>(out LayoutElement LayoutElement))
+            {
+                LayoutElement.minHeight = 50;
+            }
+
+            Descriptor.SetDescription("\n<size=80%>Created: " + creationDate + "</size>");
+
+            var IDField = PanelPasswordField.CreateNew(PanelPasswordField.PasswordFieldStyles.Entry, _descriptor);
+            IDField._placeholderField.text = "";//Wrapper
+            IDField.SetPassword(bundle.BasisBundleConnector.UniqueVersion);
+            IDField._inputField.interactable = false;
+            IDField.Descriptor.SetTitle("URL:");
+            IDField.LayoutElement.minWidth = 500;
+
+            var urlField = PanelPasswordField.CreateNew(PanelPasswordField.PasswordFieldStyles.Entry, _descriptor);
             urlField._placeholderField.text = "";
             urlField.SetPassword(item.Url);
             urlField._inputField.interactable = false;
             urlField.Descriptor.SetTitle("URL:");
+            urlField.LayoutElement.minWidth = 500;
 
-            //   CreateText("Password:", _descriptor);
-            var passField = PanelPasswordField.CreateNew(_descriptor);
+            var passField = PanelPasswordField.CreateNew(PanelPasswordField.PasswordFieldStyles.Entry, _descriptor);
             passField._placeholderField.text = "";
             passField.SetPassword(item.Pass); // if supported
             passField._inputField.interactable = false;
             passField.Descriptor.SetTitle("Password:");
+            passField.LayoutElement.minWidth = 500;
+
+            string[] platforms = bundle.BasisBundleConnector.BasisBundleGenerated
+                .Select(pair => pair.Platform)
+                .ToArray();
+
+            foreach (string platform in platforms)
+            {
+                string address = null;
+
+                switch (platform)
+                {
+                    case "StandaloneWindows64":
+                        address = "Packages/com.basis.sdk/Prefabs/Panel Elements/Platform Panel - Windows.prefab";
+                        break;
+
+                    case "StandaloneOSX":
+                        address = "Packages/com.basis.sdk/Prefabs/Panel Elements/Platform Panel - Mac.prefab";
+                        break;
+
+                    case "StandaloneLinux64":
+                        address = "Packages/com.basis.sdk/Prefabs/Panel Elements/Platform Panel - Linux.prefab";
+                        break;
+
+                    case "Android":
+                        address = "Packages/com.basis.sdk/Prefabs/Panel Elements/Platform Panel - Android.prefab";
+                        break;
+
+                    case "iOS":
+                        address = "Packages/com.basis.sdk/Prefabs/Panel Elements/Platform Panel - iOS.prefab";
+                        break;
+                }
+
+                if (string.IsNullOrEmpty(address))
+                {
+                    continue;
+                }
+
+                var handle = Addressables.LoadAssetAsync<GameObject>(address);
+                var prefab = await handle.Task;
+
+                GameObject.Instantiate(prefab, actionsSupportedPlatforms.TabButtonParent.transform);
+            }
 
             // Buttons row
             PanelTabGroup actions = PanelTabGroup.CreateNew(_descriptor, LayoutDirection.HorizontalNoBackground);

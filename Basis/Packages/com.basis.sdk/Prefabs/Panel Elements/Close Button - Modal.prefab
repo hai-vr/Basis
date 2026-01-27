@@ -93,8 +93,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 22
-  m_fontSizeBase: 22
+  m_fontSize: 24
+  m_fontSizeBase: 24
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -150,7 +150,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7d021713f6ce59e4a84952e0b59a3ba5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.Styling.UiStyleLabel
-  ColorStyle: Subtitle
+  ColorStyle: Selection Label
 --- !u!1 &4471947190088638300
 GameObject:
   m_ObjectHideFlags: 0
@@ -217,7 +217,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.42573604, g: 0.41214734, b: 0.57232696, a: 1}
+  m_Color: {r: 0.23431407, g: 0.21949284, b: 0.38993704, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -233,7 +233,7 @@ MonoBehaviour:
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 2
+  m_PixelsPerUnitMultiplier: 4
 --- !u!114 &1986181873647252567
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -322,7 +322,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f8dc53d282f6c474c93857af6e677d70, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.Styling.UiStyleButton
-  ColorStyle: Button Exit Overlay
+  ColorStyle: Entry Button
   Icon: {fileID: 1587783989475031357}
   Indicator: {fileID: 5791697188882396860}
   Label: {fileID: 6928320570560577475}
@@ -453,7 +453,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b07434b547b6d144a23ceb11ba60a41, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Basis Framework::Basis.BasisUI.Styling.UiStyleImage
-  ColorStyle: Icon
+  ColorStyle: Knob
 --- !u!1 &8090736406861785304
 GameObject:
   m_ObjectHideFlags: 0
