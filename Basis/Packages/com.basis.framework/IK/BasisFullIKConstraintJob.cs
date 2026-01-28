@@ -604,8 +604,12 @@ namespace UnityEngine.Animations.Rigging
                 Quaternion delta = hipsDesiredRot * Quaternion.Inverse(hipsOrigRot);
                 SwingTwist(delta, spineAxis, out var swing, out var twist);
 
-                // 5) Apply twist strongly (safe), swing weakly or clamped
-                float swingClampDeg = 75; // tune or expose as property
+
+                float swingClampDeg = 10;
+                if (enabledLeftLowerLeg.Get(stream) || enabledRightLowerLeg.Get(stream))
+                {
+                    swingClampDeg = 75;
+                }
                 swing.ToAngleAxis(out float swingAngle, out Vector3 swingAxis);
                 if (swingAngle > 180f)
                 {
