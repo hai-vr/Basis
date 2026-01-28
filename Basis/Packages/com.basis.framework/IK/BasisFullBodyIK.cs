@@ -717,215 +717,6 @@ w20, w54;
         const float k_MinMag = 1e-6f;
         public FloatProperty jobWeight { get; set; }
         public void ProcessRootMotion(AnimationStream stream) { }
-        static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, Vector3 up, float maxBendDeg)
-        {
-            if (maxBendDeg <= 0f)
-                return hipsPos;
-
-            Vector3 diff = hipsPos - headPos;
-            float sqrMag = diff.sqrMagnitude;
-            if (sqrMag < k_MinMag)
-                return hipsPos;
-
-            up = up.sqrMagnitude > k_MinMag ? up.normalized : Vector3.up;
-
-            // Decompose into vertical (along -up, hips below head) and lateral
-            float verticalDot = Vector3.Dot(diff, -up); // positive if hips are "below" head
-            Vector3 vertical = -up * verticalDot;
-            Vector3 lateral = diff - vertical;
-
-            float lateralLen = lateral.magnitude;
-            float absVertical = Mathf.Abs(verticalDot);
-
-            if (lateralLen < k_MinMag || absVertical < k_MinMag)
-                return hipsPos;
-
-            float currentAngle = Mathf.Atan2(lateralLen, absVertical) * Mathf.Rad2Deg;
-            if (currentAngle <= maxBendDeg)
-                return hipsPos;
-
-            float maxRatio = Mathf.Tan(maxBendDeg * Mathf.Deg2Rad);
-            float newVertical = lateralLen / Mathf.Max(maxRatio, k_MinMag);
-
-            float finalVertical = Mathf.Sign(verticalDot) * Mathf.Max(newVertical, absVertical);
-            Vector3 newVerticalVec = -up * finalVertical;
-
-            Vector3 newDiff = newVerticalVec + lateral.normalized * lateralLen;
-            return headPos + newDiff;
-        }
-
-        // ---------- 2) Add: swing-twist helper to distribute twist nicely ----------
-        static Quaternion ExtractTwist(Quaternion q, Vector3 twistAxis)
-        {
-            // twistAxis must be normalized
-            Vector3 r = new Vector3(q.x, q.y, q.z);
-            Vector3 proj = Vector3.Project(r, twistAxis);
-            Quaternion twist = new Quaternion(proj.x, proj.y, proj.z, q.w);
-            return QuaternionExt.NormalizeSafe(twist);
-        }
-
-        // ---------- 3) Add: Multi-joint FABRIK spine solver (rotations only) ----------
-        unsafe void SolveSpineChainFABRIK(
-            AnimationStream stream,
-            ReadWriteTransformHandle hips,
-            ReadWriteTransformHandle spine,
-            ReadWriteTransformHandle chest,
-            ReadWriteTransformHandle upperChest,
-            ReadWriteTransformHandle neck,
-            ReadWriteTransformHandle head,
-            Vector3 headTargetPos,
-            Quaternion headTargetRot,      // already V4ToQuat(targetRotationHead)
-            Quaternion headTargetOffset,   // targetOffsetHead
-            Vector3 bendNormal,            // character-space bend normal
-            int iterations = 3,
-            float posEps = 1e-4f
-        )
-        {
-            // Build an actual chain from available handles.
-            // Order: (root) Hips -> Spine -> Chest -> UpperChest -> Neck -> Head (tip)
-            // Some rigs may have Spine or UpperChest missing; we skip invalid ones.
-            ReadWriteTransformHandle* H = stackalloc ReadWriteTransformHandle[6];
-            Vector3* p0 = stackalloc Vector3[6];
-            Vector3* p = stackalloc Vector3[6];
-            float* len = stackalloc float[5];
-
-            int n = 0;
-
-            // Root anchor: prefer hips, else chest (still works)
-            if (hips.IsValid(stream)) H[n++] = hips;
-
-            if (spine.IsValid(stream)) H[n++] = spine;
-            if (chest.IsValid(stream)) H[n++] = chest;
-            if (upperChest.IsValid(stream)) H[n++] = upperChest;
-            if (neck.IsValid(stream)) H[n++] = neck;
-            if (head.IsValid(stream)) H[n++] = head;
-
-            // Need at least 3 joints to be meaningful (root, mid, tip)
-            if (n < 3)
-                return;
-
-            // Cache original positions
-            for (int i = 0; i < n; i++)
-            {
-                p0[i] = H[i].GetPosition(stream);
-                p[i] = p0[i];
-            }
-
-            // Root position (anchored)
-            Vector3 rootPos = p0[0];
-
-            // Segment lengths from bind/current pose (stable)
-            float totalLen = 0f;
-            for (int i = 0; i < n - 1; i++)
-            {
-                float L = (p0[i + 1] - p0[i]).magnitude;
-                len[i] = Mathf.Max(L, 1e-6f);
-                totalLen += len[i];
-            }
-
-            Vector3 toTarget = headTargetPos - rootPos;
-            float distToTarget = toTarget.magnitude;
-
-            // Unreachable: just point chain toward target (no weird snapping)
-            if (distToTarget >= totalLen - 1e-6f)
-            {
-                Vector3 dir = distToTarget > 1e-6f ? (toTarget / distToTarget) : (H[0].GetRotation(stream) * Vector3.up);
-                p[0] = rootPos;
-                for (int i = 1; i < n; i++)
-                    p[i] = p[i - 1] + dir * len[i - 1];
-            }
-            else
-            {
-                // FABRIK iterations
-                for (int it = 0; it < iterations; it++)
-                {
-                    // Backward: set tip to target
-                    p[n - 1] = headTargetPos;
-
-                    for (int i = n - 2; i >= 0; i--)
-                    {
-                        Vector3 dir = (p[i] - p[i + 1]);
-                        float mag = dir.magnitude;
-                        dir = mag > 1e-6f ? (dir / mag) : bendNormal; // fallback into bend plane
-                        p[i] = p[i + 1] + dir * len[i];
-                    }
-
-                    // Forward: set root back to anchor
-                    p[0] = rootPos;
-
-                    for (int i = 1; i < n; i++)
-                    {
-                        Vector3 dir = (p[i] - p[i - 1]);
-                        float mag = dir.magnitude;
-                        dir = mag > 1e-6f ? (dir / mag) : bendNormal;
-                        p[i] = p[i - 1] + dir * len[i - 1];
-                    }
-
-                    if ((p[n - 1] - headTargetPos).sqrMagnitude <= posEps * posEps)
-                        break;
-                }
-            }
-
-            // ----------------
-            // Apply ROTATIONS ONLY
-            // ----------------
-            // 1) Aim each bone toward its child using delta = FromTo(currentDir, desiredDir)
-            for (int i = 0; i < n - 1; i++)
-            {
-                Vector3 curDir = (p0[i + 1] - p0[i]);
-                Vector3 desDir = (p[i + 1] - p[i]);
-
-                if (curDir.sqrMagnitude < 1e-10f || desDir.sqrMagnitude < 1e-10f)
-                    continue;
-
-                Quaternion delta = QuaternionExt.FromToRotation(curDir, desDir);
-                H[i].SetRotation(stream, delta * H[i].GetRotation(stream));
-            }
-
-            // 2) Head rotation matches target (with your calibration offset)
-            Quaternion finalHeadRot = headTargetRot * headTargetOffset;
-            H[n - 1].SetRotation(stream, finalHeadRot);
-
-            // 3) Distribute *twist* (prevents owl-neck)
-            // Compute how much twist head has relative to current head after aiming.
-            Quaternion curHead = H[n - 1].GetRotation(stream);
-            Quaternion headDelta = finalHeadRot * Quaternion.Inverse(curHead);
-
-            // Use chain axis as twist axis (root->tip)
-            Vector3 axis = (p[n - 1] - p[0]);
-            float axisMag = axis.magnitude;
-            if (axisMag > 1e-6f)
-            {
-                axis /= axisMag;
-                Quaternion twistOnly = ExtractTwist(headDelta, axis);
-
-                // Weights by role (tune as you like)
-                // indices depend on which joints exist; we bias toward chest-ish bones:
-                // - if UpperChest exists, give it more twist; otherwise Chest takes it.
-                float wSpine = 0.30f;
-                float wChest = 0.30f;
-                float wUpper = upperChest.IsValid(stream) ? 0.30f : 0f;
-                float wNeck = 0.10f;
-
-                // Apply to the *nearest matching joints* that exist in this built chain.
-                // Identify by handle equality (cheap) rather than assuming indices.
-                for (int i = 0; i < n - 1; i++)
-                {
-                    float wT = 0f;
-                    if (spine.IsValid(stream) && H[i].Equals(spine)) wT = wSpine;
-                    else if (chest.IsValid(stream) && H[i].Equals(chest)) wT = wChest;
-                    else if (upperChest.IsValid(stream) && H[i].Equals(upperChest)) wT = wUpper;
-                    else if (neck.IsValid(stream) && H[i].Equals(neck)) wT = wNeck;
-
-                    if (wT <= 0f) continue;
-
-                    Quaternion partialTwist = Quaternion.Slerp(Quaternion.identity, twistOnly, wT);
-                    H[i].SetRotation(stream, partialTwist * H[i].GetRotation(stream));
-                }
-            }
-        }
-
-        // ---------- 4) Update your ProcessAnimation spine section ----------
         public void ProcessAnimation(AnimationStream stream)
         {
             float w = jobWeight.Get(stream);
@@ -940,94 +731,72 @@ w20, w54;
                 return;
             }
 
+            // --- HEAD–HIPS ANCHOR CLAMP ---
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
             float restDist = MinHeadSpineHeight.Get(stream);
 
-            // Character-space up from hips rotation (fallback to world up)
-            Quaternion hipsRotNow = HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : Quaternion.identity;
-            Vector3 hipsUp = hipsRotNow * Vector3.up;
-            if (hipsUp.sqrMagnitude < 1e-6f) hipsUp = Vector3.up;
-
-            // Replace old EnforceSpineBendLimit call:
-            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, hipsUp, maxBendDeg.Get(stream));
+            // 1) Limit spine bend by pushing hips down if needed
+            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg.Get(stream));
 
             hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
+
             targetPositionHips.Set(stream, hipsTargetPos);
 
-            // Apply hips driver (same as before)
-            ApplyHipsDriver(stream, HandleHips, targetPositionHips, targetRotationHips, offsetRotationHips);
+            // 3) Solve hips + spine as before
+            SolveHipsAndSpine(stream,targetPositionHips, targetRotationHips, offsetRotationHips, enabledSpineIK,HandleHips, HandleChest, HandleNeck, HandleHead,targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
 
-            // If spine IK disabled, passthrough upper chain and bail (same intention)
-            if (!enabledSpineIK.Get(stream))
+            if (hintWeightHead.Get(stream))
             {
-                Pass(stream, HandleChest, HandleNeck, HandleHead);
-            }
-            else
-            {
-                // Build bend normal in character space (right vector of hips is a good stable bend plane normal)
-                // You can also use your tracker-derived bendNormalHead if it's already in character space;
-                // but your current code often feeds world up, which is why things look cursed.
-                Vector3 bendN = hipsRotNow * Vector3.right;
-                if (bendN.sqrMagnitude < 1e-6f) bendN = Vector3.right;
-
-                // Head target rotation
-                Quaternion headTRot = V4ToQuat(targetRotationHead.Get(stream));
-
-                // Multi-joint solve (replaces SolveHipsAndSpine + SolveTwoBoneSpine)
-                SolveSpineChainFABRIK(
-                    stream,
-                    HandleHips,
-                    HandleSpine,
-                    HandleChest,
-                    HandleUpperChest,
-                    HandleNeck,
-                    HandleHead,
-                    headTargetPos,
-                    headTRot,
-                    targetOffsetHead,
-                    bendN,
-                    iterations: 3
-                );
-
-                // If you still want chest tracker influence, BLEND IT SOFTLY (don’t hard-clamp then IK).
-                // Keep your MaxChestDeltaDeg clamp if you like, but apply as a *small additive*:
-                if (hintWeightHead.Get(stream) && HandleChest.IsValid(stream))
+                if (HandleChest.IsValid(stream))
                 {
+                    // Neck rotation produced by your spine IK pass – we keep this
+                    Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
+
+                    // Spine as an extra reference if available (nice stabiliser)
+                    Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
+
+                    // Raw chest from tracker
                     Quaternion trackerChestRot = V4ToQuat(hintRotationHead.Get(stream)) * targetOffsetChest;
 
-                    // Clamp relative to current chest (post-IK) to avoid fights/jitter
-                    Quaternion chestNow = HandleChest.GetRotation(stream);
-                    float maxDelta = MaxChestDeltaDeg.Get(stream);
-                    Quaternion clamped = ClampRotation(trackerChestRot, chestNow, maxDelta);
+                    float Value = MaxChestDeltaDeg.Get(stream);
+                    // Clamp relative to neck and spine
+                    Quaternion clampedChestRot = ClampRotation(trackerChestRot, neckRot, Value);
+                    clampedChestRot = ClampRotation(clampedChestRot, spineRot, Value);
 
-                    // Light blend (tune 0.1..0.4)
-                    HandleChest.SetRotation(stream, Quaternion.Slerp(chestNow, clamped, 0.25f));
+                    HandleChest.SetRotation(stream, clampedChestRot);
+
+                    // Build target + hint transforms
+                    var tRot = V4ToQuat(targetRotationHead.Get(stream));
+                    var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                    var bendNormal = bendNormalHead.Get(stream);
+
+                    SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
                 }
             }
+            if (enabledLeftShoulder.Get(stream))
+            {
+                ApplyRotation(stream, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
+            }
+            if (enabledRightShoulder.Get(stream))
+            {
+                ApplyRotation(stream, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
+            }
 
-            // shoulders, legs, hands, toes remain as you had them...
-            if (enabledLeftShoulder.Get(stream)) ApplyRotation(stream, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
-            if (enabledRightShoulder.Get(stream)) ApplyRotation(stream, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
+            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
+            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
 
-            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
-                targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
-                hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
+            SolveHand(stream,
+                enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
+                targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand,
+                HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
 
-            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
-                targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
-                hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
+            SolveHand(stream,
+                enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,
+                targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand,
+                HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
 
-            SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
-                targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand,
-                targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
-                handRadius, handSkin, useHandCapsule, protectElbow);
-
-            SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,
-                targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand,
-                targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled,
-                handRadius, handSkin, useHandCapsule, protectElbow);
 
             ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
             ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
