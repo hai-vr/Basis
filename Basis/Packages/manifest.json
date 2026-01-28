@@ -2,7 +2,7 @@
   "dependencies": {
     "com.llealloo.audiolink": "https://github.com/llealloo/audiolink.git?path=Packages/com.llealloo.audiolink#3.0.0",
     "com.unity.2d.sprite": "1.0.0",
-    "com.unity.addressables": "2.7.6",
+    "com.unity.addressables": "2.8.0",
     "com.unity.animation.rigging": "1.4.0",
     "com.unity.device-simulator.devices": "1.0.1",
     "com.unity.ide.rider": "3.0.38",
