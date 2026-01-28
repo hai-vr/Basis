@@ -32,17 +32,20 @@ namespace UnityEngine.Animations.Rigging
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
-            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg.Get(stream), Vector3.up);
-            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, MinHeadSpineHeight.Get(stream), minFactor.Get(stream), maxFactor.Get(stream));
-            SolveHipsAndSpine(stream, hipsTargetPos, targetRotationHips, offsetRotationHips, enabledSpineIK, HandleHips, HandleChest, HandleNeck, HandleHead, targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
+            SolveHipsAndSpine(stream, headTargetPos, hipsTargetPos, targetRotationHips, offsetRotationHips, enabledSpineIK, HandleHips, HandleChest, HandleNeck, HandleHead, targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
+
             ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
             ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
+
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
+
             SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
             SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
+
             ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
             ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
+
             ApplyOverrides(stream);
         }
         public void ApplyOverrides(AnimationStream stream)
@@ -129,37 +132,37 @@ namespace UnityEngine.Animations.Rigging
                 BasisIKHelpers.PassThrough(stream, handle);
             }
         }
-        static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
+        static Vector3 ClampHipsAroundHead(Vector3 HeadTargetPos, Vector3 HipsTargetPos, float MinHeadSpineHeight, float minFactor, float maxFactor)
         {
-            Vector3 headToHips = hipsPos - headPos;
+            Vector3 headToHips = HipsTargetPos - HeadTargetPos;
             float sqrMag = headToHips.sqrMagnitude;
-            if (sqrMag < BasisIKHelpers.k_MinSqrMagnitude)
+            if (sqrMag >= BasisIKHelpers.k_MinSqrMagnitude)
             {
-                return headPos + restDistance * minFactor * Vector3.down; // could also use previous frame’s axis
+                // Use the head→hips direction as the "up" axis for the clamp
+                Vector3 up = headToHips / Mathf.Sqrt(sqrMag);
+
+                float verticalDot = Vector3.Dot(headToHips, up);
+                Vector3 vertical = up * verticalDot;
+                Vector3 lateral = headToHips - vertical;
+
+                float absY = Mathf.Abs(verticalDot);
+                float minY = MinHeadSpineHeight * minFactor;
+                float maxY = MinHeadSpineHeight * maxFactor;
+                float clampedY = Mathf.Clamp(absY, minY, maxY) * Mathf.Sign(verticalDot);
+                vertical = up * clampedY;
+
+                float lateralLen = lateral.magnitude;
+                float maxLateral = MinHeadSpineHeight * BasisIKHelpers.k_MaxSpineHorizontalFactor;
+
+                if (lateralLen > maxLateral && lateralLen > BasisIKHelpers.k_LengthEpsilon)
+                {
+                    lateral *= maxLateral / lateralLen;
+                }
+
+                return HeadTargetPos + vertical + lateral;
             }
 
-            // Use the head→hips direction as the "up" axis for the clamp
-            Vector3 up = headToHips / Mathf.Sqrt(sqrMag);
-
-            float verticalDot = Vector3.Dot(headToHips, up);
-            Vector3 vertical = up * verticalDot;
-            Vector3 lateral = headToHips - vertical;
-
-            float absY = Mathf.Abs(verticalDot);
-            float minY = restDistance * minFactor;
-            float maxY = restDistance * maxFactor;
-            float clampedY = Mathf.Clamp(absY, minY, maxY) * Mathf.Sign(verticalDot);
-            vertical = up * clampedY;
-
-            float lateralLen = lateral.magnitude;
-            float maxLateral = restDistance * BasisIKHelpers.k_MaxSpineHorizontalFactor;
-
-            if (lateralLen > maxLateral && lateralLen > BasisIKHelpers.k_LengthEpsilon)
-            {
-                lateral *= maxLateral / lateralLen;
-            }
-
-            return headPos + vertical + lateral;
+            return HeadTargetPos + MinHeadSpineHeight * minFactor * Vector3.down; // could also use previous frame’s axis
         }
         public void SolveTwoBoneIKArms(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool hintWeight, Quaternion targetOffset)
         {
@@ -586,8 +589,11 @@ namespace UnityEngine.Animations.Rigging
                 }
             }
         }
-        public void SolveHipsAndSpine(AnimationStream stream, Vector3 hipsTargetPos, Vector4Property targetRotationHips, Vector4Property offsetRotationHips, BoolProperty EnableSpineIK, ReadWriteTransformHandle HandleHips, ReadWriteTransformHandle HandleChest, ReadWriteTransformHandle HandleNeck, ReadWriteTransformHandle HandleHead, Vector3Property targetPositionHead, Vector4Property targetRotationHead, Quaternion targetOffsetHead, Vector3Property bendNormalHead)
+        public void SolveHipsAndSpine(AnimationStream stream,Vector3 headTargetPos, Vector3 hipsTargetPos, Vector4Property targetRotationHips, Vector4Property offsetRotationHips, BoolProperty EnableSpineIK, ReadWriteTransformHandle HandleHips, ReadWriteTransformHandle HandleChest, ReadWriteTransformHandle HandleNeck, ReadWriteTransformHandle HandleHead, Vector3Property targetPositionHead, Vector4Property targetRotationHead, Quaternion targetOffsetHead, Vector3Property bendNormalHead)
         {
+            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg.Get(stream), Vector3.up);
+            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, MinHeadSpineHeight.Get(stream), minFactor.Get(stream), maxFactor.Get(stream));
+
             if (!EnableSpineIK.Get(stream))
             {
                 BasisIKHelpers.Pass(stream, HandleChest, HandleNeck, HandleHead);
@@ -595,57 +601,53 @@ namespace UnityEngine.Animations.Rigging
                 return;
             }
             // Apply hips driver if valid
-            ApplyHipsDriver(stream, HandleHips, hipsTargetPos, targetRotationHips, offsetRotationHips);
+            if (HandleHips.IsValid(stream))
+            {
+                Quaternion hipRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHips.Get(stream));
+                Quaternion hipOff = BasisIKHelpers.ConvertToQuaternion(offsetRotationHips.Get(stream));
+
+                HandleHips.SetPosition(stream, hipsTargetPos);
+                HandleHips.SetRotation(stream, hipRot * hipOff);
+            }
 
             // Validate required upper chain handles (Burst-safe: no params/arrays)
-            bool IsValid = HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream);
-            if (!IsValid)
+            if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
+            {
+                // Build target + hint transforms
+                Quaternion tRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHead.Get(stream));
+                AffineTransform target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                Vector3 bendNormal = bendNormalHead.Get(stream);
+
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+
+                if (hintWeightHead.Get(stream) && HandleChest.IsValid(stream))
+                {
+                    // Neck rotation produced by your spine IK pass – we keep this
+                    Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
+                    // Spine as an extra reference if available (nice stabiliser)
+                    Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
+                    // Raw chest from tracker
+                    Quaternion trackerChestRot = BasisIKHelpers.ConvertToQuaternion(hintRotationHead.Get(stream)) * targetOffsetChest;
+
+                    float MaxChestDelta = MaxChestDeltaDeg.Get(stream);
+                    // Clamp relative to neck and spine
+                    Quaternion clampedChestRot = BasisIKHelpers.ClampRotation(trackerChestRot, neckRot, MaxChestDelta);
+                    clampedChestRot = BasisIKHelpers.ClampRotation(clampedChestRot, spineRot, MaxChestDelta);
+
+                    HandleChest.SetRotation(stream, clampedChestRot);
+
+                    // Build target + hint transforms
+                    tRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHead.Get(stream));
+                    target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+
+                    SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+                }
+            }
+            else
             {
                 BasisIKHelpers.Pass(stream, HandleChest, HandleNeck, HandleHead);
                 return;
             }
-            // Build target + hint transforms
-            var tRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHead.Get(stream));
-            var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-            var bendNormal = bendNormalHead.Get(stream);
-
-            SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
-
-            if (hintWeightHead.Get(stream) && HandleChest.IsValid(stream))
-            {
-                // Neck rotation produced by your spine IK pass – we keep this
-                Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
-                // Spine as an extra reference if available (nice stabiliser)
-                Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
-                // Raw chest from tracker
-                Quaternion trackerChestRot = BasisIKHelpers.ConvertToQuaternion(hintRotationHead.Get(stream)) * targetOffsetChest;
-
-                float MaxChestDelta = MaxChestDeltaDeg.Get(stream);
-                // Clamp relative to neck and spine
-                Quaternion clampedChestRot = BasisIKHelpers.ClampRotation(trackerChestRot, neckRot, MaxChestDelta);
-                clampedChestRot = BasisIKHelpers.ClampRotation(clampedChestRot, spineRot, MaxChestDelta);
-
-                HandleChest.SetRotation(stream, clampedChestRot);
-
-                // Build target + hint transforms
-                tRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHead.Get(stream));
-                target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-                bendNormal = bendNormalHead.Get(stream);
-
-                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
-            }
-        }
-        public void ApplyHipsDriver(AnimationStream stream, ReadWriteTransformHandle hips, Vector3 hipPos, Vector4Property targetRot, Vector4Property offsetRot)
-        {
-            if (!hips.IsValid(stream))
-            {
-                return;
-            }
-            Quaternion hipRot = BasisIKHelpers.ConvertToQuaternion(targetRot.Get(stream));
-            Quaternion hipOff = BasisIKHelpers.ConvertToQuaternion(offsetRot.Get(stream));
-
-            hips.SetPosition(stream, hipPos);
-            hips.SetRotation(stream, hipRot * hipOff);
         }
         public void SolveTwoBoneSpine(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, Quaternion targetOffset, Vector3 bendNormal)
         {
