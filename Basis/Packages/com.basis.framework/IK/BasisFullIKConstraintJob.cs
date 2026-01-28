@@ -1,3 +1,5 @@
+using Unity.Mathematics;
+
 namespace UnityEngine.Animations.Rigging
 {
     [Unity.Burst.BurstCompile]
@@ -29,6 +31,7 @@ namespace UnityEngine.Animations.Rigging
                 BasisIKHelpers.Pass(stream, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand);
                 return;
             }
+
             BasisIKSpine Spine = BasisIKSpine.PackChain(stream, HandleHips, HandleSpine, HandleChest, HandleUpperChest, HandleNeck, HandleHead);
 
             float chainLen = SpineChainLength(stream, Spine);
@@ -36,7 +39,14 @@ namespace UnityEngine.Animations.Rigging
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
-            SolveHipsAndSpine(stream, chainLen, headTargetPos, hipsTargetPos, targetRotationHips, offsetRotationHips, enabledSpineIK, HandleHips, HandleChest, HandleNeck, HandleHead, targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
+            // Head-root prepass: compute *reachable* hips pos respecting segment lengths
+            hipsTargetPos = ComputeReachableHipsFromHeadFABRIK_Inline(stream, Spine, headTargetPos, hipsTargetPos, iterations: 6);
+
+            // Now lock hips to that and solve back up (your existing function)
+            SolveHipsAndSpine(stream, chainLen, headTargetPos, hipsTargetPos,
+                targetRotationHips, offsetRotationHips, enabledSpineIK,
+                HandleHips, HandleChest, HandleNeck, HandleHead,
+                targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
 
             BasisIKHelpers.ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
             BasisIKHelpers.ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
@@ -564,11 +574,51 @@ namespace UnityEngine.Animations.Rigging
             // Apply hips driver if valid
             if (HandleHips.IsValid(stream))
             {
+                HandleHips.SetPosition(stream, hipsTargetPos);
+                // Cache current hips rot (pre-driver)
+                Quaternion hipsOrigRot = HandleHips.GetRotation(stream);
+
+                // Desired driver rot
                 Quaternion hipRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHips.Get(stream));
                 Quaternion hipOff = BasisIKHelpers.ConvertToQuaternion(offsetRotationHips.Get(stream));
+                Quaternion hipsDesiredRot = hipRot * hipOff;
 
-                HandleHips.SetPosition(stream, hipsTargetPos);
-                HandleHips.SetRotation(stream, hipRot * hipOff);
+                // 2) First pass: solve spine with NO hips driver rotation
+                // (or keep original hips rot)
+                HandleHips.SetRotation(stream, hipsOrigRot);
+
+                Quaternion tRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHead.Get(stream));
+                Vector3 bendNormal = bendNormalHead.Get(stream);
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, targetPositionHead.Get(stream), tRot, targetOffsetHead, bendNormal);
+
+                // 3) Compute spine axis after solve (world space)
+                // Use hips->spine or hips->chest as axis (pick the most stable handle you have)
+                Vector3 hipsPos = HandleHips.GetPosition(stream);
+                Vector3 spinePos = HandleSpine.IsValid(stream) ? HandleSpine.GetPosition(stream) : HandleChest.GetPosition(stream);
+                Vector3 spineAxis = (spinePos - hipsPos);
+                if (spineAxis.sqrMagnitude < 1e-8f) spineAxis = Vector3.up;
+                spineAxis.Normalize();
+
+                // 4) Decompose delta from original to desired into swing/twist around spineAxis
+                Quaternion delta = hipsDesiredRot * Quaternion.Inverse(hipsOrigRot);
+                SwingTwist(delta, spineAxis, out var swing, out var twist);
+
+                // 5) Apply twist strongly (safe), swing weakly or clamped
+                float swingClampDeg = 10f; // tune or expose as property
+                float swingAngle; Vector3 swingAxis;
+                swing.ToAngleAxis(out swingAngle, out swingAxis);
+                if (swingAngle > 180f) swingAngle -= 360f;
+
+                // Clamp swing
+                float clamped = Mathf.Clamp(swingAngle, -swingClampDeg, swingClampDeg);
+                Quaternion swingClamped = Quaternion.AngleAxis(clamped, swingAxis);
+
+                // Final hips rot: original * (twist * limited swing)
+                Quaternion hipsFinal = (twist * swingClamped) * hipsOrigRot;
+                HandleHips.SetRotation(stream, hipsFinal);
+
+                // 6) Re-solve spine once to re-lock the head after hips twist/swing
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, targetPositionHead.Get(stream), tRot, targetOffsetHead, bendNormal);
             }
 
             // Validate required upper chain handles (Burst-safe: no params/arrays)
@@ -608,6 +658,26 @@ namespace UnityEngine.Animations.Rigging
                 BasisIKHelpers.Pass(stream, HandleChest, HandleNeck, HandleHead);
                 return;
             }
+        }
+        static Quaternion NormalizeSafe(Quaternion q)
+        {
+            float mag = Mathf.Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+            if (mag > 1e-8f) return new Quaternion(q.x / mag, q.y / mag, q.z / mag, q.w / mag);
+            return Quaternion.identity;
+        }
+
+        // Decompose rotation "q" into twist around axis "axis" (world) and swing (the remainder)
+        static void SwingTwist(Quaternion q, Vector3 axis, out Quaternion swing, out Quaternion twist)
+        {
+            axis = axis.normalized;
+
+            // Project q.xyz onto axis
+            Vector3 r = new Vector3(q.x, q.y, q.z);
+            Vector3 p = Vector3.Project(r, axis);
+
+            twist = NormalizeSafe(new Quaternion(p.x, p.y, p.z, q.w));
+            swing = q * Quaternion.Inverse(twist);
+            swing = NormalizeSafe(swing);
         }
         public void SolveTwoBoneSpine(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3 PositionTarget, Quaternion RotationTarget, Quaternion targetOffset, Vector3 bendNormal)
         {
@@ -649,6 +719,105 @@ namespace UnityEngine.Animations.Rigging
 
             // Set tip rotation to match target orientation (+offset)
             tip.SetRotation(stream, tRot);
+        }
+
+        static ReadWriteTransformHandle GetSpineHandle(BasisIKSpine c, int idxHipsToHead)
+        {
+            // c.J0 = hips ... c.J5 = head (depending on Count)
+            return idxHipsToHead switch
+            {
+                0 => c.J0,
+                1 => c.J1,
+                2 => c.J2,
+                3 => c.J3,
+                4 => c.J4,
+                _ => c.J5
+            };
+        }
+
+        static float3 SafeDir(float3 v, float eps, float3 fallback)
+        {
+            float lsq = math.lengthsq(v);
+            if (lsq > eps * eps) return v * math.rsqrt(lsq);
+            return fallback;
+        }
+
+        /// <summary>
+        /// Head is pinned to headTargetPos. We try to place hips as close as possible to hipsTargetPos,
+        /// while preserving all spine segment lengths (FABRIK). Returns the reachable hips position.
+        /// No allocations: stackalloc only.
+        /// </summary>
+        unsafe static Vector3 ComputeReachableHipsFromHeadFABRIK_Inline( AnimationStream stream,  BasisIKSpine chain,Vector3 headTargetPos, Vector3 hipsTargetPos, int iterations = 6, float eps = 1e-4f)
+        {
+            int n = chain.Count;
+            if (n < 2) return hipsTargetPos;
+
+            // p[0] = head, p[n-1] = hips (reversed order from chain)
+            float3* p = stackalloc float3[6];
+            float* l = stackalloc float[6]; // l[i] = length between p[i-1] and p[i], i>=1
+
+            // Fill current positions head->hips
+            // chain index from hips->head is (n-1 - i)
+            for (int i = 0; i < n; i++)
+            {
+                int ci = (n - 1) - i;
+                var h = GetSpineHandle(chain, ci);
+                float3 pos = h.GetPosition(stream);
+                p[i] = pos;
+            }
+
+            // Pin head to target
+            p[0] = headTargetPos;
+
+            // Segment lengths
+            l[0] = 0f;
+            float totalLen = 0f;
+            for (int i = 1; i < n; i++)
+            {
+                float len = math.max(math.length(p[i] - p[i - 1]), eps);
+                l[i] = len;
+                totalLen += len;
+            }
+
+            float3 basePos = p[0];
+            float3 target = hipsTargetPos;
+
+            float dist = math.length(target - basePos);
+
+            // Unreachable: straighten from head toward target
+            if (dist >= totalLen - eps)
+            {
+                float3 dir = SafeDir(target - basePos, eps, new float3(0f, -1f, 0f));
+                for (int i = 1; i < n; i++)
+                    p[i] = p[i - 1] + dir * l[i];
+
+                return (Vector3)p[n - 1];
+            }
+
+            // Reachable: small FABRIK loop
+            for (int it = 0; it < iterations; it++)
+            {
+                // Backward: set hips to target, pull toward head
+                p[n - 1] = target;
+                for (int i = n - 2; i >= 0; i--)
+                {
+                    float3 dir = SafeDir(p[i] - p[i + 1], eps, new float3(0f, -1f, 0f));
+                    p[i] = p[i + 1] + dir * l[i + 1];
+                }
+
+                // Forward: re-pin head, push toward hips
+                p[0] = headTargetPos;
+                for (int i = 1; i < n; i++)
+                {
+                    float3 dir = SafeDir(p[i] - p[i - 1], eps, new float3(0f, -1f, 0f));
+                    p[i] = p[i - 1] + dir * l[i];
+                }
+
+                if (math.lengthsq(p[n - 1] - target) <= eps * eps)
+                    break;
+            }
+
+            return (Vector3)p[n - 1];
         }
     }
 }
