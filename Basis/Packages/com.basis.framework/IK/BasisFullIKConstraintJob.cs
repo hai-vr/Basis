@@ -162,7 +162,7 @@ namespace UnityEngine.Animations.Rigging
                 return HeadTargetPos + vertical + lateral;
             }
 
-            return HeadTargetPos + MinHeadSpineHeight * minFactor * Vector3.down; // could also use previous frame’s axis
+            return HeadTargetPos + MinHeadSpineHeight * minFactor * Vector3.down;
         }
         public void SolveTwoBoneIKArms(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool hintWeight, Quaternion targetOffset)
         {
@@ -615,15 +615,14 @@ namespace UnityEngine.Animations.Rigging
             {
                 // Build target + hint transforms
                 Quaternion tRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHead.Get(stream));
-                AffineTransform target = new AffineTransform(targetPositionHead.Get(stream), tRot);
                 Vector3 bendNormal = bendNormalHead.Get(stream);
 
-                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, targetPositionHead.Get(stream), tRot, targetOffsetHead, bendNormal);
 
-                if (hintWeightHead.Get(stream) && HandleChest.IsValid(stream))
+                if (hintWeightHead.Get(stream))
                 {
                     // Neck rotation produced by your spine IK pass – we keep this
-                    Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
+                    Quaternion neckRot = HandleNeck.GetRotation(stream);
                     // Spine as an extra reference if available (nice stabiliser)
                     Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
                     // Raw chest from tracker
@@ -638,9 +637,9 @@ namespace UnityEngine.Animations.Rigging
 
                     // Build target + hint transforms
                     tRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHead.Get(stream));
-                    target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                    Vector3 TargetPosition = targetPositionHead.Get(stream);
 
-                    SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+                    SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, TargetPosition, tRot, targetOffsetHead, bendNormal);
                 }
             }
             else
@@ -649,7 +648,7 @@ namespace UnityEngine.Animations.Rigging
                 return;
             }
         }
-        public void SolveTwoBoneSpine(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, Quaternion targetOffset, Vector3 bendNormal)
+        public void SolveTwoBoneSpine(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3 PositionTarget,Quaternion RotationTarget, Quaternion targetOffset, Vector3 bendNormal)
         {
             // Read current joint positions
             Vector3 aPos = root.GetPosition(stream);
@@ -657,14 +656,13 @@ namespace UnityEngine.Animations.Rigging
             Vector3 cPos = tip.GetPosition(stream);
 
             // Target with offset applied in target space
-            Vector3 tPos = target.translation;
-            Quaternion tRot = target.rotation * targetOffset;
+            Quaternion tRot = RotationTarget * targetOffset;
 
             // Current bone vectors
             Vector3 ab = bPos - aPos;
             Vector3 bc = cPos - bPos;
             Vector3 ac = cPos - aPos;
-            Vector3 at = tPos - aPos;
+            Vector3 at = PositionTarget - aPos;
 
             float abLen = ab.magnitude;
             float bcLen = bc.magnitude;
