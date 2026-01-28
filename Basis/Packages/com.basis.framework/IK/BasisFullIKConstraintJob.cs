@@ -593,9 +593,7 @@ namespace UnityEngine.Animations.Rigging
 
                 // 3) Compute spine axis after solve (world space)
                 // Use hips->spine or hips->chest as axis (pick the most stable handle you have)
-                Vector3 hipsPos = HandleHips.GetPosition(stream);
-                Vector3 spinePos = HandleSpine.IsValid(stream) ? HandleSpine.GetPosition(stream) : HandleChest.GetPosition(stream);
-                Vector3 spineAxis = (spinePos - hipsPos);
+                Vector3 spineAxis = (headTargetPos - hipsTargetPos);
                 if (spineAxis.sqrMagnitude < 1e-8f) spineAxis = Vector3.up;
                 spineAxis.Normalize();
 
@@ -604,9 +602,8 @@ namespace UnityEngine.Animations.Rigging
                 SwingTwist(delta, spineAxis, out var swing, out var twist);
 
                 // 5) Apply twist strongly (safe), swing weakly or clamped
-                float swingClampDeg = 10f; // tune or expose as property
-                float swingAngle; Vector3 swingAxis;
-                swing.ToAngleAxis(out swingAngle, out swingAxis);
+                float swingClampDeg = 75; // tune or expose as property
+                swing.ToAngleAxis(out float swingAngle, out Vector3 swingAxis);
                 if (swingAngle > 180f) swingAngle -= 360f;
 
                 // Clamp swing
