@@ -577,11 +577,6 @@ namespace UnityEngine.Animations.Rigging
                 // Cache current hips rot (pre-driver)
                 Quaternion hipsOrigRot = HandleHips.GetRotation(stream);
 
-                // Desired driver rot
-                Quaternion hipRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHips.Get(stream));
-                Quaternion hipOff = BasisIKHelpers.ConvertToQuaternion(offsetRotationHips.Get(stream));
-                Quaternion hipsDesiredRot = hipRot * hipOff;
-
                 // 2) First pass: solve spine with NO hips driver rotation
                 // (or keep original hips rot)
                 HandleHips.SetRotation(stream, hipsOrigRot);
@@ -590,32 +585,52 @@ namespace UnityEngine.Animations.Rigging
                 Vector3 bendNormal = bendNormalHead.Get(stream);
                 SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, targetPositionHead.Get(stream), tRot, targetOffsetHead, bendNormal);
 
-                // 3) Compute spine axis after solve (world space)
-                // Use hips->spine or hips->chest as axis (pick the most stable handle you have)
-                Vector3 spineAxis = (headTargetPos - hipsTargetPos);
+                Vector3 spineAxis = Vector3.up;
+                if (HandleSpine.IsValid(stream))
+                {
+                    spineAxis = HandleSpine.GetPosition(stream) - HandleHips.GetPosition(stream);
+                }
+                else if (HandleChest.IsValid(stream))
+                {
+                    spineAxis = HandleChest.GetPosition(stream) - HandleHips.GetPosition(stream);
+                }
+
                 if (spineAxis.sqrMagnitude < 1e-8f)
                 {
-                    spineAxis = Vector3.up;
+                    spineAxis = HandleHips.GetRotation(stream) * Vector3.up; // hips local up fallback
                 }
 
                 spineAxis.Normalize();
+
+
+                // Desired driver rot
+                Quaternion hipRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHips.Get(stream));
+                Quaternion hipOff = BasisIKHelpers.ConvertToQuaternion(offsetRotationHips.Get(stream));
+                Quaternion hipsDesiredRot = hipRot * hipOff;
 
                 // 4) Decompose delta from original to desired into swing/twist around spineAxis
                 Quaternion delta = hipsDesiredRot * Quaternion.Inverse(hipsOrigRot);
                 SwingTwist(delta, spineAxis, out var swing, out var twist);
 
-
-                float swingClampDeg = 10;
-                if (enabledLeftLowerLeg.Get(stream) || enabledRightLowerLeg.Get(stream))
-                {
-                    swingClampDeg = 75;
-                }
+                // If swing is basically identity, don't build an AngleAxis from noise.
                 swing.ToAngleAxis(out float swingAngle, out Vector3 swingAxis);
-                if (swingAngle > 180f)
+
+                // Unity gives [0..360]. Make it signed-ish.
+                if (swingAngle > 180f) swingAngle -= 360f;
+
+                if (Mathf.Abs(swingAngle) < 0.001f || swingAxis.sqrMagnitude < 1e-8f)
                 {
-                    swingAngle -= 360f;
+                    // No meaningful swing
+                    swing = Quaternion.identity;
+                    swingAxis = spineAxis; // harmless
+                    swingAngle = 0f;
+                }
+                else
+                {
+                    swingAxis.Normalize();
                 }
 
+                float swingClampDeg = 75;
                 // Clamp swing
                 float clamped = Mathf.Clamp(swingAngle, -swingClampDeg, swingClampDeg);
                 Quaternion swingClamped = Quaternion.AngleAxis(clamped, swingAxis);
