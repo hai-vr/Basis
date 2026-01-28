@@ -31,36 +31,10 @@ namespace UnityEngine.Animations.Rigging
             }
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
-            float restDist = MinHeadSpineHeight.Get(stream);
+
             hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg.Get(stream), Vector3.up);
-            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
-            targetPositionHips.Set(stream, hipsTargetPos);
-            SolveHipsAndSpine(stream, targetPositionHips, targetRotationHips, offsetRotationHips, enabledSpineIK, HandleHips, HandleChest, HandleNeck, HandleHead, targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
-            if (hintWeightHead.Get(stream) && HandleChest.IsValid(stream))
-            {
-                // Neck rotation produced by your spine IK pass – we keep this
-                Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
-
-                // Spine as an extra reference if available (nice stabiliser)
-                Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
-
-                // Raw chest from tracker
-                Quaternion trackerChestRot = BasisIKHelpers.ConvertToQuaternion(hintRotationHead.Get(stream)) * targetOffsetChest;
-
-                float MaxChestDelta = MaxChestDeltaDeg.Get(stream);
-                // Clamp relative to neck and spine
-                Quaternion clampedChestRot = ClampRotation(trackerChestRot, neckRot, MaxChestDelta);
-                clampedChestRot = ClampRotation(clampedChestRot, spineRot, MaxChestDelta);
-
-                HandleChest.SetRotation(stream, clampedChestRot);
-
-                // Build target + hint transforms
-                var tRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHead.Get(stream));
-                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-                var bendNormal = bendNormalHead.Get(stream);
-
-                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
-            }
+            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, MinHeadSpineHeight.Get(stream), minFactor.Get(stream), maxFactor.Get(stream));
+            SolveHipsAndSpine(stream, hipsTargetPos, targetRotationHips, offsetRotationHips, enabledSpineIK, HandleHips, HandleChest, HandleNeck, HandleHead, targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
             ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
             ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
@@ -138,19 +112,6 @@ namespace UnityEngine.Animations.Rigging
 
             Vector3 newDiff = newVerticalVec + (lateralLen > BasisIKHelpers.k_MinMagnitude ? lateral.normalized * lateralLen : Vector3.zero);
             return headPos + newDiff;
-        }
-        static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
-        {
-            // Angle between the two orientations
-            float angle = Quaternion.Angle(reference, current);
-            if (angle <= maxAngleDeg)
-            {
-                return current;
-            }
-
-            // Scale back toward the reference so the final difference is exactly maxAngleDeg
-            float t = maxAngleDeg / Mathf.Max(angle, BasisIKHelpers.k_LengthEpsilon);
-            return Quaternion.Slerp(reference, current, t);
         }
         public void ApplyRotation(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
         {
@@ -629,7 +590,7 @@ namespace UnityEngine.Animations.Rigging
                 }
             }
         }
-        public void SolveHipsAndSpine(AnimationStream stream, Vector3Property targetPositionHips, Vector4Property targetRotationHips, Vector4Property offsetRotationHips, BoolProperty EnableSpineIK, ReadWriteTransformHandle HandleHips, ReadWriteTransformHandle HandleChest, ReadWriteTransformHandle HandleNeck, ReadWriteTransformHandle HandleHead, Vector3Property targetPositionHead, Vector4Property targetRotationHead, Quaternion targetOffsetHead, Vector3Property bendNormalHead)
+        public void SolveHipsAndSpine(AnimationStream stream, Vector3 hipsTargetPos, Vector4Property targetRotationHips, Vector4Property offsetRotationHips, BoolProperty EnableSpineIK, ReadWriteTransformHandle HandleHips, ReadWriteTransformHandle HandleChest, ReadWriteTransformHandle HandleNeck, ReadWriteTransformHandle HandleHead, Vector3Property targetPositionHead, Vector4Property targetRotationHead, Quaternion targetOffsetHead, Vector3Property bendNormalHead)
         {
             // Early out: pass-through if spine IK disabled
             if (!EnableSpineIK.Get(stream))
@@ -640,7 +601,7 @@ namespace UnityEngine.Animations.Rigging
             }
 
             // Apply hips driver if valid
-            ApplyHipsDriver(stream, HandleHips, targetPositionHips, targetRotationHips, offsetRotationHips);
+            ApplyHipsDriver(stream, HandleHips, hipsTargetPos, targetRotationHips, offsetRotationHips);
 
             // Validate required upper chain handles (Burst-safe: no params/arrays)
 
@@ -658,15 +619,39 @@ namespace UnityEngine.Animations.Rigging
             var bendNormal = bendNormalHead.Get(stream);
 
             SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+
+            if (hintWeightHead.Get(stream) && HandleChest.IsValid(stream))
+            {
+                // Neck rotation produced by your spine IK pass – we keep this
+                Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
+
+                // Spine as an extra reference if available (nice stabiliser)
+                Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
+
+                // Raw chest from tracker
+                Quaternion trackerChestRot = BasisIKHelpers.ConvertToQuaternion(hintRotationHead.Get(stream)) * targetOffsetChest;
+
+                float MaxChestDelta = MaxChestDeltaDeg.Get(stream);
+                // Clamp relative to neck and spine
+                Quaternion clampedChestRot = BasisIKHelpers.ClampRotation(trackerChestRot, neckRot, MaxChestDelta);
+                clampedChestRot = BasisIKHelpers.ClampRotation(clampedChestRot, spineRot, MaxChestDelta);
+
+                HandleChest.SetRotation(stream, clampedChestRot);
+
+                // Build target + hint transforms
+                tRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHead.Get(stream));
+                target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                bendNormal = bendNormalHead.Get(stream);
+
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+            }
         }
-        public void ApplyHipsDriver(AnimationStream stream, ReadWriteTransformHandle hips, Vector3Property targetPos, Vector4Property targetRot, Vector4Property offsetRot)
+        public void ApplyHipsDriver(AnimationStream stream, ReadWriteTransformHandle hips, Vector3 hipPos, Vector4Property targetRot, Vector4Property offsetRot)
         {
             if (!hips.IsValid(stream))
             {
                 return;
             }
-
-            Vector3 hipPos = targetPos.Get(stream);
             Quaternion hipRot = BasisIKHelpers.ConvertToQuaternion(targetRot.Get(stream));
             Quaternion hipOff = BasisIKHelpers.ConvertToQuaternion(offsetRot.Get(stream));
 

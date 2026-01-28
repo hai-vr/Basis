@@ -19,6 +19,19 @@ namespace UnityEngine.Animations.Rigging
             float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (aLen1 * aLen2) / 2.0f, -1.0f, 1.0f);
             return Mathf.Acos(c);
         }
+        public static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
+        {
+            // Angle between the two orientations
+            float angle = Quaternion.Angle(reference, current);
+            if (angle <= maxAngleDeg)
+            {
+                return current;
+            }
+
+            // Scale back toward the reference so the final difference is exactly maxAngleDeg
+            float t = maxAngleDeg / Mathf.Max(angle, BasisIKHelpers.k_LengthEpsilon);
+            return Quaternion.Slerp(reference, current, t);
+        }
         public static Vector3 ComputeIkAxis(Vector3 bendNormal)
         {
             Vector3 axis;
