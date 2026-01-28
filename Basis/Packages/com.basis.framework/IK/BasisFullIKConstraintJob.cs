@@ -187,12 +187,8 @@ namespace UnityEngine.Animations.Rigging
             float acLen = ac.magnitude;
 
             float oldAbcAngle = BasisIKHelpers.TriangleAngle(acLen, abLen, bcLen);
-            //Vector3 atCorrected = correctedTargetPos - aPosition;
             float atCorrectedLen = atCorrected.magnitude;
-
             float newAbcAngle = BasisIKHelpers.TriangleAngle(atCorrectedLen, abLen, bcLen);
-            // -------------------------------------------------------------
-
             // Prefer current bend plane; fallbacks to hint / at if collinear.
             Vector3 axis = Vector3.Cross(ab, bc);
             if (axis.sqrMagnitude < BasisIKHelpers.k_MinSqrMagnitude)
@@ -220,7 +216,7 @@ namespace UnityEngine.Animations.Rigging
             cPosition = tip.GetPosition(stream);
             ac = cPosition - aPosition;
 
-            // --- IMPORTANT: rotate root towards *corrected* direction, not raw tPosition ---
+            // rotate root towards *corrected* direction, not raw tPosition ---
             if (atCorrectedLen > BasisIKHelpers.k_LengthEpsilon)
             {
                 Quaternion rootDelta = QuaternionExt.FromToRotation(ac, atCorrected);
@@ -592,27 +588,22 @@ namespace UnityEngine.Animations.Rigging
         }
         public void SolveHipsAndSpine(AnimationStream stream, Vector3 hipsTargetPos, Vector4Property targetRotationHips, Vector4Property offsetRotationHips, BoolProperty EnableSpineIK, ReadWriteTransformHandle HandleHips, ReadWriteTransformHandle HandleChest, ReadWriteTransformHandle HandleNeck, ReadWriteTransformHandle HandleHead, Vector3Property targetPositionHead, Vector4Property targetRotationHead, Quaternion targetOffsetHead, Vector3Property bendNormalHead)
         {
-            // Early out: pass-through if spine IK disabled
             if (!EnableSpineIK.Get(stream))
             {
                 BasisIKHelpers.Pass(stream, HandleChest, HandleNeck, HandleHead);
                 BasisIKHelpers.PassThrough(stream, HandleHips);
                 return;
             }
-
             // Apply hips driver if valid
             ApplyHipsDriver(stream, HandleHips, hipsTargetPos, targetRotationHips, offsetRotationHips);
 
             // Validate required upper chain handles (Burst-safe: no params/arrays)
-
             bool IsValid = HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream);
-
             if (!IsValid)
             {
                 BasisIKHelpers.Pass(stream, HandleChest, HandleNeck, HandleHead);
                 return;
             }
-
             // Build target + hint transforms
             var tRot = BasisIKHelpers.ConvertToQuaternion(targetRotationHead.Get(stream));
             var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
@@ -624,10 +615,8 @@ namespace UnityEngine.Animations.Rigging
             {
                 // Neck rotation produced by your spine IK pass – we keep this
                 Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
-
                 // Spine as an extra reference if available (nice stabiliser)
                 Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
-
                 // Raw chest from tracker
                 Quaternion trackerChestRot = BasisIKHelpers.ConvertToQuaternion(hintRotationHead.Get(stream)) * targetOffsetChest;
 
@@ -656,7 +645,7 @@ namespace UnityEngine.Animations.Rigging
             Quaternion hipOff = BasisIKHelpers.ConvertToQuaternion(offsetRot.Get(stream));
 
             hips.SetPosition(stream, hipPos);
-            hips.SetRotation(stream, hipRot * hipOff); // apply offset in target space
+            hips.SetRotation(stream, hipRot * hipOff);
         }
         public void SolveTwoBoneSpine(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, Quaternion targetOffset, Vector3 bendNormal)
         {
