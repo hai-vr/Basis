@@ -3,6 +3,7 @@ namespace UnityEngine.Animations.Rigging
 {
     public struct BasisIKHelpers
     {
+        public const int iterations = 6;
         public const float k_DivisionSafetyEpsilon = 1e-10f;
         public const float k_MinSqrMagnitude = 1e-8f;
         public const float k_LengthEpsilon = 1e-5f;
