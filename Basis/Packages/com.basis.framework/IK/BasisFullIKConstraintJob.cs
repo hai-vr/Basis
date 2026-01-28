@@ -560,7 +560,6 @@ namespace UnityEngine.Animations.Rigging
                 }
             }
         }
-
         public void SolveHipsAndSpine(AnimationStream stream, float chainlength, Vector3 headTargetPos, Vector3 hipsTargetPos, Vector4Property targetRotationHips, Vector4Property offsetRotationHips, BoolProperty EnableSpineIK, ReadWriteTransformHandle HandleHips, ReadWriteTransformHandle HandleChest, ReadWriteTransformHandle HandleNeck, ReadWriteTransformHandle HandleHead, Vector3Property targetPositionHead, Vector4Property targetRotationHead, Quaternion targetOffsetHead, Vector3Property bendNormalHead)
         {
             hipsTargetPos = ClampHipsAroundHeadByChain(headTargetPos, hipsTargetPos, chainlength);
@@ -594,7 +593,11 @@ namespace UnityEngine.Animations.Rigging
                 // 3) Compute spine axis after solve (world space)
                 // Use hips->spine or hips->chest as axis (pick the most stable handle you have)
                 Vector3 spineAxis = (headTargetPos - hipsTargetPos);
-                if (spineAxis.sqrMagnitude < 1e-8f) spineAxis = Vector3.up;
+                if (spineAxis.sqrMagnitude < 1e-8f)
+                {
+                    spineAxis = Vector3.up;
+                }
+
                 spineAxis.Normalize();
 
                 // 4) Decompose delta from original to desired into swing/twist around spineAxis
@@ -604,7 +607,10 @@ namespace UnityEngine.Animations.Rigging
                 // 5) Apply twist strongly (safe), swing weakly or clamped
                 float swingClampDeg = 75; // tune or expose as property
                 swing.ToAngleAxis(out float swingAngle, out Vector3 swingAxis);
-                if (swingAngle > 180f) swingAngle -= 360f;
+                if (swingAngle > 180f)
+                {
+                    swingAngle -= 360f;
+                }
 
                 // Clamp swing
                 float clamped = Mathf.Clamp(swingAngle, -swingClampDeg, swingClampDeg);
