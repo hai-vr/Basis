@@ -13,7 +13,7 @@ namespace UnityEngine.Animations.Rigging
 
         public BoolProperty hintWeightHead, enabledSpineIK, hintWeightLeftLowerLeg, enabledLeftLowerLeg, hintWeightRightLowerLeg, enabledRightLowerLeg, enabledLeftShoulder, enabledRightShoulder, leftToeEnabled, RightToeEnabled, hintWeightLeftHand, enabledLeftHand, hintWeightRightHand, enabledRightHand, useHandCapsule, protectElbow, collisionsEnabled, w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16, w17, w18, w19, w20, w54;
 
-        public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxChestDeltaDeg;
+        public FloatProperty handRadius, handSkin, chestRadius, collisionSkin,  maxBendDeg, maxFactor, struggleStart, struggleEnd, MaxChestDeltaDeg;
         public FloatProperty jobWeight { get; set; }
         public void ProcessRootMotion(AnimationStream stream) { }
         public void ProcessAnimation(AnimationStream stream)
@@ -29,13 +29,17 @@ namespace UnityEngine.Animations.Rigging
                 BasisIKHelpers.Pass(stream, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand);
                 return;
             }
+            BasisIKSpine Spine = PackChain(stream,HandleHips,HandleSpine,HandleChest,HandleUpperChest,HandleNeck,HandleHead);
+
+            float chainLen = SpineChainLength(stream, Spine);
+
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
-            SolveHipsAndSpine(stream, headTargetPos, hipsTargetPos, targetRotationHips, offsetRotationHips, enabledSpineIK, HandleHips, HandleChest, HandleNeck, HandleHead, targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
+            SolveHipsAndSpine(stream, chainLen, headTargetPos, hipsTargetPos, targetRotationHips, offsetRotationHips, enabledSpineIK, HandleHips, HandleChest, HandleNeck, HandleHead, targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
 
-            ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
-            ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
+            BasisIKHelpers.ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
+            BasisIKHelpers.ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
 
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
@@ -43,8 +47,8 @@ namespace UnityEngine.Animations.Rigging
             SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
             SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
 
-            ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
-            ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
+            BasisIKHelpers.ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
+            BasisIKHelpers.ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
 
             ApplyOverrides(stream);
         }
@@ -116,53 +120,52 @@ namespace UnityEngine.Animations.Rigging
             Vector3 newDiff = newVerticalVec + (lateralLen > BasisIKHelpers.k_MinMagnitude ? lateral.normalized * lateralLen : Vector3.zero);
             return headPos + newDiff;
         }
-        public void ApplyRotation(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
+        static Vector3 ClampHipsAroundHeadByChain(Vector3 headTargetPos,Vector3 hipsTargetPos,float chainLen)
         {
-            if (!handle.IsValid(stream))
+            Vector3 v = hipsTargetPos - headTargetPos;
+            float d2 = v.sqrMagnitude;
+
+            // Fallback direction if head == hips
+            if (d2 < BasisIKHelpers.k_MinSqrMagnitude)
             {
-                return;
+                v = Vector3.down;
             }
 
-            if (enabledProp.Get(stream))
-            {
-                handle.SetRotation(stream, BasisIKHelpers.ConvertToQuaternion(targetRotProp.Get(stream)) * RotationOffset);
-            }
-            else
-            {
-                BasisIKHelpers.PassThrough(stream, handle);
-            }
+            float d = Mathf.Sqrt(Mathf.Max(d2, BasisIKHelpers.k_MinSqrMagnitude));
+            Vector3 dir = v / d;
+
+            float clamped = Mathf.Clamp(d, 0.0001f, Mathf.Max(0.0001f, chainLen));
+            return headTargetPos + dir * clamped;
         }
-        static Vector3 ClampHipsAroundHead(Vector3 HeadTargetPos, Vector3 HipsTargetPos, float MinHeadSpineHeight, float minFactor, float maxFactor)
+        static float SpineChainLength(AnimationStream stream,BasisIKSpine Chain)
         {
-            Vector3 headToHips = HipsTargetPos - HeadTargetPos;
-            float sqrMag = headToHips.sqrMagnitude;
-            if (sqrMag >= BasisIKHelpers.k_MinSqrMagnitude)
+            float sum = 0f;
+          int jointCount =  Chain.Count;
+            Vector3 p0 = Chain.J0.GetPosition(stream);
+            Vector3 p1 = Chain.J1.GetPosition(stream);
+            Vector3 p2 = Chain.J2.GetPosition(stream);
+            sum += (p1 - p0).magnitude;
+            sum += (p2 - p1).magnitude;
+
+            if (jointCount > 3)
             {
-                // Use the head→hips direction as the "up" axis for the clamp
-                Vector3 up = headToHips / Mathf.Sqrt(sqrMag);
-
-                float verticalDot = Vector3.Dot(headToHips, up);
-                Vector3 vertical = up * verticalDot;
-                Vector3 lateral = headToHips - vertical;
-
-                float absY = Mathf.Abs(verticalDot);
-                float minY = MinHeadSpineHeight * minFactor;
-                float maxY = MinHeadSpineHeight * maxFactor;
-                float clampedY = Mathf.Clamp(absY, minY, maxY) * Mathf.Sign(verticalDot);
-                vertical = up * clampedY;
-
-                float lateralLen = lateral.magnitude;
-                float maxLateral = MinHeadSpineHeight * BasisIKHelpers.k_MaxSpineHorizontalFactor;
-
-                if (lateralLen > maxLateral && lateralLen > BasisIKHelpers.k_LengthEpsilon)
-                {
-                    lateral *= maxLateral / lateralLen;
-                }
-
-                return HeadTargetPos + vertical + lateral;
+                Vector3 p3 = Chain.J3.GetPosition(stream);
+                sum += (p3 - p2).magnitude;
+                p2 = p3;
+            }
+            if (jointCount > 4)
+            {
+                Vector3 p4 = Chain.J4.GetPosition(stream);
+                sum += (p4 - p2).magnitude;
+                p2 = p4;
+            }
+            if (jointCount > 5)
+            {
+                Vector3 p5 = Chain.J5.GetPosition(stream);
+                sum += (p5 - p2).magnitude;
             }
 
-            return HeadTargetPos + MinHeadSpineHeight * minFactor * Vector3.down;
+            return sum;
         }
         public void SolveTwoBoneIKArms(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool hintWeight, Quaternion targetOffset)
         {
@@ -589,10 +592,12 @@ namespace UnityEngine.Animations.Rigging
                 }
             }
         }
-        public void SolveHipsAndSpine(AnimationStream stream,Vector3 headTargetPos, Vector3 hipsTargetPos, Vector4Property targetRotationHips, Vector4Property offsetRotationHips, BoolProperty EnableSpineIK, ReadWriteTransformHandle HandleHips, ReadWriteTransformHandle HandleChest, ReadWriteTransformHandle HandleNeck, ReadWriteTransformHandle HandleHead, Vector3Property targetPositionHead, Vector4Property targetRotationHead, Quaternion targetOffsetHead, Vector3Property bendNormalHead)
+
+        public void SolveHipsAndSpine(AnimationStream stream,float chainlength,Vector3 headTargetPos, Vector3 hipsTargetPos, Vector4Property targetRotationHips, Vector4Property offsetRotationHips, BoolProperty EnableSpineIK, ReadWriteTransformHandle HandleHips, ReadWriteTransformHandle HandleChest, ReadWriteTransformHandle HandleNeck, ReadWriteTransformHandle HandleHead, Vector3Property targetPositionHead, Vector4Property targetRotationHead, Quaternion targetOffsetHead, Vector3Property bendNormalHead)
         {
-            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg.Get(stream), Vector3.up);
-            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, MinHeadSpineHeight.Get(stream), minFactor.Get(stream), maxFactor.Get(stream));
+       //     hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg.Get(stream), Vector3.up);
+
+            hipsTargetPos = ClampHipsAroundHeadByChain(headTargetPos, hipsTargetPos, chainlength);
 
             if (!EnableSpineIK.Get(stream))
             {
@@ -688,6 +693,107 @@ namespace UnityEngine.Animations.Rigging
 
             // Set tip rotation to match target orientation (+offset)
             tip.SetRotation(stream, tRot);
+        }
+
+
+        public struct BasisIKSpine
+        {
+            public int Count;
+            public ReadWriteTransformHandle J0;
+            public ReadWriteTransformHandle J1;
+            public ReadWriteTransformHandle J2;
+            public ReadWriteTransformHandle J3;
+            public ReadWriteTransformHandle J4;
+            public ReadWriteTransformHandle J5;
+        }
+        static BasisIKSpine PackChain(
+    AnimationStream stream,
+    ReadWriteTransformHandle hips,
+    ReadWriteTransformHandle spine,
+    ReadWriteTransformHandle chest,
+    ReadWriteTransformHandle upperChest,
+    ReadWriteTransformHandle neck,
+    ReadWriteTransformHandle head)
+        {
+            BasisIKSpine c = default;
+            c.Count = 0;
+
+            // Hips
+            if (hips.IsValid(stream))
+            {
+                if (c.Count == 0) c.J0 = hips;
+                else if (c.Count == 1) c.J1 = hips;
+                else if (c.Count == 2) c.J2 = hips;
+                else if (c.Count == 3) c.J3 = hips;
+                else if (c.Count == 4) c.J4 = hips;
+                else if (c.Count == 5) c.J5 = hips;
+                c.Count++;
+            }
+
+            // Spine
+            if (spine.IsValid(stream))
+            {
+                if (c.Count == 0) c.J0 = spine;
+                else if (c.Count == 1) c.J1 = spine;
+                else if (c.Count == 2) c.J2 = spine;
+                else if (c.Count == 3) c.J3 = spine;
+                else if (c.Count == 4) c.J4 = spine;
+                else if (c.Count == 5) c.J5 = spine;
+                c.Count++;
+            }
+
+            // Chest
+            if (chest.IsValid(stream))
+            {
+                if (c.Count == 0) c.J0 = chest;
+                else if (c.Count == 1) c.J1 = chest;
+                else if (c.Count == 2) c.J2 = chest;
+                else if (c.Count == 3) c.J3 = chest;
+                else if (c.Count == 4) c.J4 = chest;
+                else if (c.Count == 5) c.J5 = chest;
+                c.Count++;
+            }
+
+            // UpperChest
+            if (upperChest.IsValid(stream))
+            {
+                if (c.Count == 0) c.J0 = upperChest;
+                else if (c.Count == 1) c.J1 = upperChest;
+                else if (c.Count == 2) c.J2 = upperChest;
+                else if (c.Count == 3) c.J3 = upperChest;
+                else if (c.Count == 4) c.J4 = upperChest;
+                else if (c.Count == 5) c.J5 = upperChest;
+                c.Count++;
+            }
+
+            // Neck
+            if (neck.IsValid(stream))
+            {
+                if (c.Count == 0) c.J0 = neck;
+                else if (c.Count == 1) c.J1 = neck;
+                else if (c.Count == 2) c.J2 = neck;
+                else if (c.Count == 3) c.J3 = neck;
+                else if (c.Count == 4) c.J4 = neck;
+                else if (c.Count == 5) c.J5 = neck;
+                c.Count++;
+            }
+
+            // Head
+            if (head.IsValid(stream))
+            {
+                if (c.Count == 0) c.J0 = head;
+                else if (c.Count == 1) c.J1 = head;
+                else if (c.Count == 2) c.J2 = head;
+                else if (c.Count == 3) c.J3 = head;
+                else if (c.Count == 4) c.J4 = head;
+                else if (c.Count == 5) c.J5 = head;
+                c.Count++;
+            }
+
+            // Clamp to max 6 just in case
+            if (c.Count > 6) c.Count = 6;
+
+            return c;
         }
     }
 }

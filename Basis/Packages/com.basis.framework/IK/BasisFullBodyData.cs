@@ -265,23 +265,16 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_HintRightHandEnabled;
         [SyncSceneToStream, SerializeField] bool m_HintLeftHandEnabled;
 
-        [SyncSceneToStream, SerializeField] float m_MinHeadSpineHeight;
         [SyncSceneToStream, SerializeField] public bool m_enabledLeftShoulder;
         [SyncSceneToStream, SerializeField] public bool m_enabledRightShoulder;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightShoulder;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftShoulder;
 
         [SyncSceneToStream, SerializeField] public float m_MaxBendDeg;
-        [SyncSceneToStream, SerializeField] public float m_MinFactor;
         [SyncSceneToStream, SerializeField] public float m_MaxFactor;
         [SyncSceneToStream, SerializeField] public float m_StruggleStart;
         [SyncSceneToStream, SerializeField] public float m_StruggleEnd;
         [SyncSceneToStream, SerializeField] public float m_MaxChestDeltaDeg;
-        public float minHeadSpineHeight
-        {
-            get => m_MinHeadSpineHeight;
-            set => m_MinHeadSpineHeight = value;
-        }
 
         public Transform chest { get => m_chest; set => m_chest = value; }
         public Transform neck { get => m_neck; set => m_neck = value; }
@@ -356,13 +349,11 @@ namespace UnityEngine.Animations.Rigging
 
         public string enabledLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledLeftShoulder));
         public string enabledRightShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledRightShoulder));
-        public string MinHeadSpineHeightFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MinHeadSpineHeight));
 
         public string TargetRotationLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_TargetRotationLeftShoulder));
         public string TargetRotationRightShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_TargetRotationRightShoulder));
 
         public string MaxBendDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxBendDeg));
-        public string MinFactorFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MinFactor));
         public string MaxFactorFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxFactor));
         public string StruggleStartFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_StruggleStart));
         public string StruggleEndFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_StruggleEnd));
@@ -392,7 +383,6 @@ namespace UnityEngine.Animations.Rigging
         public bool EnabledLeftShoulder { get => m_enabledLeftShoulder; set => m_enabledLeftShoulder = value; }
 
         public float maxBendDeg { get => m_MaxBendDeg; set => m_MaxBendDeg = value; }
-        public float minFactor { get => m_MinFactor; set => m_MinFactor = value; }
         public float maxFactor { get => m_MaxFactor; set => m_MaxFactor = value; }
         public float struggleStart { get => m_StruggleStart; set => m_StruggleStart = value; }
         public float struggleEnd { get => m_StruggleEnd; set => m_StruggleEnd = value; }

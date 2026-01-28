@@ -52,6 +52,22 @@ namespace UnityEngine.Animations.Rigging
             if (mid.IsValid(stream)) PassThrough(stream, mid);
             if (tip.IsValid(stream)) PassThrough(stream, tip);
         }
+        public static void ApplyRotation(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
+        {
+            if (!handle.IsValid(stream))
+            {
+                return;
+            }
+
+            if (enabledProp.Get(stream))
+            {
+                handle.SetRotation(stream, BasisIKHelpers.ConvertToQuaternion(targetRotProp.Get(stream)) * RotationOffset);
+            }
+            else
+            {
+                BasisIKHelpers.PassThrough(stream, handle);
+            }
+        }
         public static void PassThrough(AnimationStream stream, ReadWriteTransformHandle handle)
         {
             handle.GetLocalTRS(stream, out Vector3 position, out Quaternion rotation, out Vector3 scale);

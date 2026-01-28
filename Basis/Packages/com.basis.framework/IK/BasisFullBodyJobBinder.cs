@@ -107,7 +107,6 @@ namespace UnityEngine.Animations.Rigging
                 handSkin = FloatProperty.Bind(animator, component, data.HandSkinFloatProperty),
 
                 maxBendDeg = FloatProperty.Bind(animator, component, data.MaxBendDegFloatProperty),
-                minFactor = FloatProperty.Bind(animator, component, data.MinFactorFloatProperty),
                 maxFactor = FloatProperty.Bind(animator, component, data.MaxFactorFloatProperty),
                 struggleStart = FloatProperty.Bind(animator, component, data.StruggleStartFloatProperty),
                 struggleEnd = FloatProperty.Bind(animator, component, data.StruggleEndFloatProperty),
@@ -130,8 +129,6 @@ namespace UnityEngine.Animations.Rigging
 
                 targetOffsetLeftHand = data.m_CalibratedRotationLeftHand,
                 targetOffsetRightHand = data.m_CalibratedRotationRightHand,
-
-                MinHeadSpineHeight = FloatProperty.Bind(animator, component, data.MinHeadSpineHeightFloatProperty)
 
             };
 
