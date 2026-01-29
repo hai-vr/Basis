@@ -65,7 +65,6 @@ public partial class BasisAvatarSDKInspector : Editor
             rootElement.Add(button);
             BasisAutomaticSetupAvatarEditor.TryToAutomatic(this);
             SetupItems();
-            //deprecated 15/05/2025 use BasisJiggleBonesComponent  AvatarSDKJiggleBonesView.Initialize(this);
             AvatarSDKVisemes.Initialize(this);
             InspectorGuiCreated?.Invoke(this);
         }
@@ -277,8 +276,8 @@ public partial class BasisAvatarSDKInspector : Editor
         AvatarDoNotAutoRenameBonesField.value = Avatar.ProcessingAvatarOptions != null ? Avatar.ProcessingAvatarOptions.doNotAutoRenameBones : false;
         AvatarDoNotAutoRenameBonesField.RegisterCallback<ChangeEvent<bool>>(OnAvatarDoNotAutoRenameBonesField);
 
-        AvatarAutomaticallyRemoveBlendshapesField.value = Avatar.ProcessingAvatarOptions != null ? Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes : false;
-        AvatarAutomaticallyRemoveBlendshapesField.RegisterCallback<ChangeEvent<bool>>(OnAvatarRemoveUnusedBlendshapesField);
+      //  AvatarAutomaticallyRemoveBlendshapesField.value = Avatar.ProcessingAvatarOptions != null ? Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes : false;
+       // AvatarAutomaticallyRemoveBlendshapesField.RegisterCallback<ChangeEvent<bool>>(OnAvatarRemoveUnusedBlendshapesField);
         // Button click events
         avatarEyePositionClick.clicked += () => ClickedAvatarEyePositionButton(avatarEyePositionClick);
         avatarMouthPositionClick.clicked += () => ClickedAvatarMouthPositionButton(avatarMouthPositionClick);
@@ -354,7 +353,7 @@ public partial class BasisAvatarSDKInspector : Editor
                 if (Avatar.ProcessingAvatarOptions != null && Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes)
                 {
                     // If your pipeline needs editor-only stripping, do it here.
-                    BasisBuildBlendshapeStripper.StripForBuild(settings: assetBundleObject, buildRoot, Avatar);
+                  //  BasisBuildBlendshapeStripper.StripForBuild(settings: assetBundleObject, buildRoot, Avatar);
 
                 }
 #if UNITY_6000_2_OR_NEWER
@@ -626,6 +625,7 @@ public partial class BasisAvatarSDKInspector : Editor
         EditorUtility.SetDirty(Avatar);
         AssetDatabase.Refresh();
     }
+    /*
     public void OnAvatarRemoveUnusedBlendshapesField(ChangeEvent<bool> evt)
     {
         if (Avatar.ProcessingAvatarOptions == null) Avatar.ProcessingAvatarOptions = new BasisProcessingAvatarOptions();
@@ -634,4 +634,5 @@ public partial class BasisAvatarSDKInspector : Editor
         EditorUtility.SetDirty(Avatar);
         AssetDatabase.Refresh();
     }
+    */
 }
