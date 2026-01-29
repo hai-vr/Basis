@@ -701,16 +701,17 @@ namespace UnityEngine.Animations.Rigging
             swing = q * Quaternion.Inverse(twist);
             swing = NormalizeSafe(swing);
         }
-        public void SolveTwoBoneSpine(AnimationStream stream,
-            ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
-            Vector3 PositionTarget, Quaternion RotationTarget, Quaternion targetOffset, Vector3 bendNormal)
+        public void SolveTwoBoneSpine(AnimationStream stream,ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,  Vector3 PositionTarget, Quaternion RotationTarget, Quaternion targetOffset, Vector3 bendNormal)
         {
-            Vector3 aPos = root.GetPosition(stream);
-            Vector3 bPos = mid.GetPosition(stream);
-            Vector3 cPos = tip.GetPosition(stream);
+            // Read current joint positions
+            Vector3 aPos = root.GetPosition(stream); // chest
+            Vector3 bPos = mid.GetPosition(stream);  // neck
+            Vector3 cPos = tip.GetPosition(stream);  // head
 
+            // Target rotation (+offset)
             Quaternion tRot = RotationTarget * targetOffset;
 
+            // Current bone vectors
             Vector3 ab = bPos - aPos;
             Vector3 bc = cPos - bPos;
             Vector3 ac = cPos - aPos;
@@ -718,28 +719,26 @@ namespace UnityEngine.Animations.Rigging
             float abLen = ab.magnitude;
             float bcLen = bc.magnitude;
 
-            // --- CLAMP TARGET DISTANCE (prevents neck crumple) ---
-            Vector3 at = PositionTarget - aPos;
-            float atLen = at.magnitude;
-
-            float maxReach = abLen + bcLen;
             float minReach = Mathf.Abs(abLen - bcLen);
 
-            // Keep a stable direction even if target is extremely close
-            Vector3 atDir = (atLen > 1e-6f) ? (at / atLen) : (ac.sqrMagnitude > 1e-8f ? ac.normalized : Vector3.up);
+            Vector3 at = PositionTarget - aPos;
+            float atLen = at.magnitude;
+            float margin = Mathf.Max(1e-3f, (abLen + bcLen) * 0.005f); // ~0.5% of chain
 
-            float clampedLen = Mathf.Clamp(atLen, minReach + 1e-4f, maxReach - 1e-4f);
-            Vector3 atClamped = atDir * clampedLen;
+            if (atLen < minReach + margin)
+            {
+                Vector3 dir = (atLen > 1e-6f) ? (at / atLen) : (ac.sqrMagnitude > 1e-8f) ? ac.normalized : Vector3.up;
+
+                PositionTarget = aPos + dir * (minReach + margin);
+                atLen = minReach + margin;
+            }
+            Vector3 atVec = PositionTarget - aPos;
 
             float acLen = ac.magnitude;
             float oldAbcAngle = BasisIKHelpers.TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = BasisIKHelpers.TriangleAngle(clampedLen, abLen, bcLen);
+            float newAbcAngle = BasisIKHelpers.TriangleAngle(atLen, abLen, bcLen);
 
-            // --- AXIS: use current bend plane when possible (more stable) ---
-            Vector3 axis = Vector3.Cross(ab, bc);
-            if (axis.sqrMagnitude < 1e-8f)
-                axis = BasisIKHelpers.ComputeIkAxis(bendNormal);
-            axis.Normalize();
+            Vector3 axis = BasisIKHelpers.ComputeIkAxis(bendNormal);
 
             float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
             float s = Mathf.Sin(halfAngle);
@@ -747,10 +746,10 @@ namespace UnityEngine.Animations.Rigging
             Quaternion deltaMid = new Quaternion(axis.x * s, axis.y * s, axis.z * s, c);
             mid.SetRotation(stream, deltaMid * mid.GetRotation(stream));
 
-            // Re-evaluate and swing root so AC aligns with AT (clamped)
+            // Re-evaluate and swing root so AC aligns with AT
             cPos = tip.GetPosition(stream);
             ac = cPos - aPos;
-            root.SetRotation(stream, QuaternionExt.FromToRotation(ac, atClamped) * root.GetRotation(stream));
+            root.SetRotation(stream, QuaternionExt.FromToRotation(ac, atVec) * root.GetRotation(stream));
 
             tip.SetRotation(stream, tRot);
         }
