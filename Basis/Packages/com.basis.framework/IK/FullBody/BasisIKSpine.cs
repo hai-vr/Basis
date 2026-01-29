@@ -98,5 +98,36 @@ ReadWriteTransformHandle head)
 
             return c;
         }
+
+        public static float SpineChainLength(AnimationStream stream, BasisIKSpine Chain)
+        {
+            float sum = 0f;
+            int jointCount = Chain.Count;
+            Vector3 p0 = Chain.J0.GetPosition(stream);
+            Vector3 p1 = Chain.J1.GetPosition(stream);
+            Vector3 p2 = Chain.J2.GetPosition(stream);
+            sum += (p1 - p0).magnitude;
+            sum += (p2 - p1).magnitude;
+
+            if (jointCount > 3)
+            {
+                Vector3 p3 = Chain.J3.GetPosition(stream);
+                sum += (p3 - p2).magnitude;
+                p2 = p3;
+            }
+            if (jointCount > 4)
+            {
+                Vector3 p4 = Chain.J4.GetPosition(stream);
+                sum += (p4 - p2).magnitude;
+                p2 = p4;
+            }
+            if (jointCount > 5)
+            {
+                Vector3 p5 = Chain.J5.GetPosition(stream);
+                sum += (p5 - p2).magnitude;
+            }
+
+            return sum;
+        }
     }
 }
