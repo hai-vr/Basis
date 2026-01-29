@@ -11,6 +11,7 @@ namespace UnityEngine.Animations.Rigging
         public const float k_MinMagnitude = 1e-6f;
         public const float k_MaxSpineHorizontalFactor = 0.35f;
         public const float K_Soften = 0.001f;
+
         public static float TriangleAngle(float aLen, float aLen1, float aLen2)
         {
             if (aLen1 <= k_MinSqrMagnitude || aLen2 <= k_MinSqrMagnitude)
@@ -117,6 +118,88 @@ namespace UnityEngine.Animations.Rigging
             float lsq = math.lengthsq(v);
             if (lsq > eps * eps) return v * math.rsqrt(lsq);
             return fallback;
+        }
+        public static float ComputeReach01(Vector3 shoulderPos, Vector3 wristTarget, float maxReach)
+        {
+            float d = (wristTarget - shoulderPos).magnitude;
+            // Start helping at ~70% reach, full help by ~100%
+            return Mathf.Clamp01((d - 0.7f * maxReach) / (0.3f * maxReach));
+        }
+
+        public static float ComputeCrossBody01(Quaternion chestRot, Vector3 shoulderPos, Vector3 wristTarget, bool isLeft)
+        {
+            // chest local X tells left/right; cross-body when target goes to opposite side
+            Vector3 right = chestRot * Vector3.right;
+            float side = Vector3.Dot(wristTarget - shoulderPos, right); // + right, - left
+            float s = isLeft ? Mathf.Clamp01((side) / 0.25f) : Mathf.Clamp01((-side) / 0.25f);
+            return s;
+        }
+        public static Quaternion NormalizeSafe(Quaternion q)
+        {
+            float mag = Mathf.Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+            if (mag > 1e-8f)
+            {
+                return new Quaternion(q.x / mag, q.y / mag, q.z / mag, q.w / mag);
+            }
+
+            return Quaternion.identity;
+        }
+        public static void SwingTwist(Quaternion q, Vector3 axis, out Quaternion swing, out Quaternion twist)
+        {
+            axis = axis.normalized;
+            Vector3 r = new Vector3(q.x, q.y, q.z);
+            Vector3 p = Vector3.Project(r, axis);
+
+            twist = NormalizeSafe(new Quaternion(p.x, p.y, p.z, q.w));
+            swing = NormalizeSafe(q * Quaternion.Inverse(twist));
+        }
+
+        public static Quaternion ClampTwistDegrees(Quaternion twist, float maxAbsDeg)
+        {
+            twist = NormalizeSafe(twist);
+            twist.ToAngleAxis(out float ang, out Vector3 ax);
+
+            if (ax.sqrMagnitude < 1e-8f || Mathf.Abs(ang) < 1e-6f)
+                return Quaternion.identity;
+
+            // Unity gives [0..360]. Make signed-ish.
+            if (ang > 180f) ang -= 360f;
+            float clamped = Mathf.Clamp(ang, -maxAbsDeg, maxAbsDeg);
+
+            ax.Normalize();
+            return Quaternion.AngleAxis(clamped, ax);
+        }
+        public static Vector3 ClampDirectionInCone(Vector3 dir, Vector3 coneAxis, float coneHalfAngleDeg)
+        {
+            // Clamp direction to lie within cone around coneAxis
+            float dirLen = dir.magnitude;
+            if (dirLen < BasisIKHelpers.k_MinMagnitude) return coneAxis.normalized;
+
+            Vector3 d = dir / dirLen;
+            Vector3 a = coneAxis.normalized;
+
+            float dot = Mathf.Clamp(Vector3.Dot(a, d), -1f, 1f);
+            float ang = Mathf.Acos(dot) * Mathf.Rad2Deg;
+            if (ang <= coneHalfAngleDeg)
+            {
+                return d;
+            }
+
+            // Rotate 'a' toward 'd' by coneHalfAngleDeg
+            Vector3 rotAxis = Vector3.Cross(a, d);
+            if (rotAxis.sqrMagnitude < 1e-8f)
+            {
+                // Opposite or same: choose stable perpendicular
+                rotAxis = Vector3.Cross(a, Vector3.up);
+                if (rotAxis.sqrMagnitude < 1e-8f)
+                {
+                    rotAxis = Vector3.Cross(a, Vector3.right);
+                }
+            }
+            rotAxis.Normalize();
+
+            Quaternion q = Quaternion.AngleAxis(coneHalfAngleDeg, rotAxis);
+            return (q * a).normalized;
         }
     }
 }

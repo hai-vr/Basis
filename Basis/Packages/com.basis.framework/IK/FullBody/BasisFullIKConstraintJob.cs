@@ -52,13 +52,24 @@ namespace UnityEngine.Animations.Rigging
             BasisIKHelpers.ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
             BasisIKHelpers.ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
 
-            Vector3 chestForward = HandleChest.IsValid(stream) ? (HandleChest.GetRotation(stream) * Vector3.forward) : Vector3.forward;
+            Quaternion ChestRotation = Quaternion.identity;
+            if (HandleUpperChest.IsValid(stream))
+            {
+                ChestRotation = HandleUpperChest.GetRotation(stream);
+            }
+            else
+            {
+                if (HandleChest.IsValid(stream))
+                {
+                    ChestRotation = HandleChest.GetRotation(stream);
+                }
+            }
 
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
 
-            SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionLeftHand, chestForward);
-            SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionRightHand, chestForward);
+            SolveHand(stream, enabledLeftHand, HandleLeftShoulder, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionLeftHand, ChestRotation);
+            SolveHand(stream, enabledRightHand, HandleRightShoulder, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionRightHand, ChestRotation);
 
             BasisIKHelpers.ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
             BasisIKHelpers.ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
@@ -137,6 +148,49 @@ namespace UnityEngine.Animations.Rigging
             }
 
             return sum;
+        }
+        static void ApplyShoulderPreSwing(
+            AnimationStream stream,
+            ReadWriteTransformHandle shoulder,
+            Vector3 shoulderPos,
+            Vector3 wristTarget,
+            Quaternion chestRot,
+            float maxReach,
+            float maxClavicleDeg,     // e.g. 12..25
+            float maxScapulaDeg,      // e.g. 10..20
+            bool isLeft)
+        {
+            if (!shoulder.IsValid(stream)) return;
+
+            float reach01 = BasisIKHelpers.ComputeReach01(shoulderPos, wristTarget, maxReach);
+            float cross01 = BasisIKHelpers.ComputeCrossBody01(chestRot, shoulderPos, wristTarget, isLeft);
+            float up01 = Mathf.Clamp01(Vector3.Dot((wristTarget - shoulderPos).normalized, chestRot * Vector3.up));
+
+            // Weight: reach + cross + overhead
+            float w = Mathf.Clamp01(0.6f * reach01 + 0.5f * cross01 + 0.5f * up01);
+
+            // Aim direction from shoulder to target
+            Vector3 aim = (wristTarget - shoulderPos);
+            if (aim.sqrMagnitude < 1e-8f) return;
+            aim.Normalize();
+
+            // Define a “neutral” shoulder forward (or use upperArm bone dir if you prefer)
+            Vector3 shoulderFwd = chestRot * Vector3.forward;
+
+            // Swing from neutral toward aim
+            Quaternion swing = QuaternionExt.FromToRotation(shoulderFwd, aim);
+
+            // Clamp swing angle
+            swing.ToAngleAxis(out float ang, out Vector3 ax);
+            if (ang > 180f) ang -= 360f;
+
+            float maxDeg = Mathf.Lerp(maxClavicleDeg, maxClavicleDeg + maxScapulaDeg, 0.5f);
+            float clamped = Mathf.Clamp(ang, -maxDeg, maxDeg);
+            Quaternion swingClamped = Quaternion.AngleAxis(clamped, ax);
+
+            // Apply partially (w)
+            Quaternion pre = Quaternion.Slerp(Quaternion.identity, swingClamped, w);
+            shoulder.SetRotation(stream, pre * shoulder.GetRotation(stream));
         }
         public void SolveTwoBoneIKArms(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool hintWeight, Quaternion targetOffset)
         {
@@ -500,6 +554,7 @@ namespace UnityEngine.Animations.Rigging
         public void SolveHand(
             AnimationStream stream,
             BoolProperty enabledProp,
+            ReadWriteTransformHandle Shoulder,
             ReadWriteTransformHandle root,
             ReadWriteTransformHandle mid,
             ReadWriteTransformHandle tip,
@@ -519,7 +574,7 @@ namespace UnityEngine.Animations.Rigging
             BoolProperty useHandCapsule,
             BoolProperty protectElbow,
             Vector3Property elbowTrackerPosProp,
-               Vector3 referenceAxisWorld
+            Quaternion ChestRotation
             )
         {
             if (!enabledProp.Get(stream))
@@ -533,14 +588,12 @@ namespace UnityEngine.Animations.Rigging
                 return;
             }
 
-            // ---- Read inputs ----
             Vector3 tgtPos = targetPosProp.Get(stream);
             Quaternion tgtRot = BasisIKHelpers.ConvertToQuaternion(targetRotProp.Get(stream));
             Vector3 hintPos = hintPosProp.Get(stream);
             Quaternion hintRot = BasisIKHelpers.ConvertToQuaternion(hintRotProp.Get(stream));
             bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
 
-            // ---- Collision pre-nudge (same as yours) ----
             if (doCollisions)
             {
                 Vector3 a = chestStart.GetPosition(stream);
@@ -571,16 +624,12 @@ namespace UnityEngine.Animations.Rigging
             var target = new AffineTransform(tgtPos, tgtRot);
             var hint = new AffineTransform(hintPos, hintRot);
 
-            // ------------------------------------------------------------
-            // (Optional) Shoulder swing cone clamp BEFORE solving
-            // ------------------------------------------------------------
-            ClampUpperArmSwingCone(stream, root, mid, referenceAxisWorld, ShoulderSwingConeDeg.Get(stream));
+            ClampUpperArmSwingCone(stream, root, mid, ChestRotation * Vector3.forward, ShoulderSwingConeDeg.Get(stream));
 
-            // ============================================================
-            // A) First solve: hand is king
-            // ============================================================
             Quaternion rootRotBeforeSolve = root.GetRotation(stream);
             Quaternion midRotBeforeSolve = mid.GetRotation(stream);
+
+            //  ApplyShoulderPreSwing(stream, Shoulder, targetOffsetRightShoulder, targetPosProp, chestStart.GetRotation(stream),);
 
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset);
 
@@ -591,9 +640,6 @@ namespace UnityEngine.Animations.Rigging
             // Re-lock wrist after twist clamping
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset);
 
-            // ============================================================
-            // B) Elbow tracker: swivel around AC but LIMIT IT, then clamp twist
-            // ============================================================
             if (hintWeightProp.Get(stream))
             {
                 Vector3 A = root.GetPosition(stream);
@@ -621,10 +667,6 @@ namespace UnityEngine.Animations.Rigging
                 // Re-lock wrist exactly after swivel/twist limits
                 SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset);
             }
-
-            // ============================================================
-            // C) Your elbow protection collision pass (unchanged, but clamp)
-            // ============================================================
             if (protectElbow.Get(stream) && doCollisions)
             {
                 Vector3 a = chestStart.GetPosition(stream);
@@ -697,7 +739,7 @@ namespace UnityEngine.Animations.Rigging
 
                 // 4) Decompose delta from original to desired into swing/twist around spineAxis
                 Quaternion delta = hipsDesiredRot * Quaternion.Inverse(hipsOrigRot);
-                SwingTwist(delta, spineAxis, out var swing, out var twist);
+                BasisIKHelpers.SwingTwist(delta, spineAxis, out var swing, out var twist);
 
                 // If swing is basically identity, don't build an AngleAxis from noise.
                 swing.ToAngleAxis(out float swingAngle, out Vector3 swingAxis);
@@ -820,7 +862,6 @@ namespace UnityEngine.Animations.Rigging
 
             tip.SetRotation(stream, tRot);
         }
-
         /// <summary>
         /// Head is pinned to headTargetPos. We try to place hips as close as possible to hipsTargetPos,
         /// while preserving all spine segment lengths (FABRIK). Returns the reachable hips position.
@@ -981,16 +1022,6 @@ namespace UnityEngine.Animations.Rigging
 
             return Vector3.Lerp(Bcurrent, Bdesired, w);
         }
-        static Quaternion NormalizeSafe(Quaternion q)
-        {
-            float mag = Mathf.Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
-            if (mag > 1e-8f)
-            {
-                return new Quaternion(q.x / mag, q.y / mag, q.z / mag, q.w / mag);
-            }
-
-            return Quaternion.identity;
-        }
 
         static float SignedAngleDegAroundAxis(Vector3 from, Vector3 to, Vector3 axis)
         {
@@ -1010,71 +1041,7 @@ namespace UnityEngine.Animations.Rigging
             float sgn = Mathf.Sign(Vector3.Dot(Vector3.Cross(from, to), axis));
             return ang * sgn;
         }
-
-        static void SwingTwist(Quaternion q, Vector3 axis, out Quaternion swing, out Quaternion twist)
-        {
-            axis = axis.normalized;
-            Vector3 r = new Vector3(q.x, q.y, q.z);
-            Vector3 p = Vector3.Project(r, axis);
-
-            twist = NormalizeSafe(new Quaternion(p.x, p.y, p.z, q.w));
-            swing = NormalizeSafe(q * Quaternion.Inverse(twist));
-        }
-
-        static Quaternion ClampTwistDegrees(Quaternion twist, float maxAbsDeg)
-        {
-            twist = NormalizeSafe(twist);
-            twist.ToAngleAxis(out float ang, out Vector3 ax);
-
-            if (ax.sqrMagnitude < 1e-8f || Mathf.Abs(ang) < 1e-6f)
-                return Quaternion.identity;
-
-            // Unity gives [0..360]. Make signed-ish.
-            if (ang > 180f) ang -= 360f;
-            float clamped = Mathf.Clamp(ang, -maxAbsDeg, maxAbsDeg);
-
-            ax.Normalize();
-            return Quaternion.AngleAxis(clamped, ax);
-        }
-        static Vector3 ClampDirectionInCone(Vector3 dir, Vector3 coneAxis, float coneHalfAngleDeg)
-        {
-            // Clamp direction to lie within cone around coneAxis
-            float dirLen = dir.magnitude;
-            if (dirLen < BasisIKHelpers.k_MinMagnitude) return coneAxis.normalized;
-
-            Vector3 d = dir / dirLen;
-            Vector3 a = coneAxis.normalized;
-
-            float dot = Mathf.Clamp(Vector3.Dot(a, d), -1f, 1f);
-            float ang = Mathf.Acos(dot) * Mathf.Rad2Deg;
-            if (ang <= coneHalfAngleDeg)
-            {
-                return d;
-            }
-
-            // Rotate 'a' toward 'd' by coneHalfAngleDeg
-            Vector3 rotAxis = Vector3.Cross(a, d);
-            if (rotAxis.sqrMagnitude < 1e-8f)
-            {
-                // Opposite or same: choose stable perpendicular
-                rotAxis = Vector3.Cross(a, Vector3.up);
-                if (rotAxis.sqrMagnitude < 1e-8f)
-                {
-                    rotAxis = Vector3.Cross(a, Vector3.right);
-                }
-            }
-            rotAxis.Normalize();
-
-            Quaternion q = Quaternion.AngleAxis(coneHalfAngleDeg, rotAxis);
-            return (q * a).normalized;
-        }
-        public static void SwingElbowAroundAC_Clamped(
-            AnimationStream stream,
-            ReadWriteTransformHandle root,
-            ReadWriteTransformHandle mid,
-            ReadWriteTransformHandle tip,
-            Vector3 desiredB,
-            float maxSwivelDeg)
+        public static void SwingElbowAroundAC_Clamped(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3 desiredB, float maxSwivelDeg)
         {
             Vector3 A = root.GetPosition(stream);
             Vector3 C = tip.GetPosition(stream);
@@ -1098,12 +1065,7 @@ namespace UnityEngine.Animations.Rigging
             Quaternion swivel = Quaternion.AngleAxis(clamped, n);
             root.SetRotation(stream, swivel * root.GetRotation(stream));
         }
-        public static void ClampRootTwistAroundAC(
-            AnimationStream stream,
-            ReadWriteTransformHandle root,
-            ReadWriteTransformHandle tip,
-            Quaternion rootRotBefore,
-            float twistLimitDeg)
+        public static void ClampRootTwistAroundAC(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle tip, Quaternion rootRotBefore, float twistLimitDeg)
         {
             Vector3 A = root.GetPosition(stream);
             Vector3 C = tip.GetPosition(stream);
@@ -1114,23 +1076,18 @@ namespace UnityEngine.Animations.Rigging
 
             Quaternion rootRotAfter = root.GetRotation(stream);
             Quaternion delta = rootRotAfter * Quaternion.Inverse(rootRotBefore);
-            delta = NormalizeSafe(delta);
+            delta = BasisIKHelpers.NormalizeSafe(delta);
 
-            SwingTwist(delta, axis, out var swing, out var twist);
-            Quaternion twistClamped = ClampTwistDegrees(twist, twistLimitDeg);
+            BasisIKHelpers.SwingTwist(delta, axis, out var swing, out var twist);
+            Quaternion twistClamped = BasisIKHelpers.ClampTwistDegrees(twist, twistLimitDeg);
 
             // Rebuild delta using same swing but clamped twist.
-            Quaternion deltaLimited = NormalizeSafe(swing * twistClamped);
-            Quaternion newRootRot = NormalizeSafe(deltaLimited * rootRotBefore);
+            Quaternion deltaLimited = BasisIKHelpers.NormalizeSafe(swing * twistClamped);
+            Quaternion newRootRot = BasisIKHelpers.NormalizeSafe(deltaLimited * rootRotBefore);
 
             root.SetRotation(stream, newRootRot);
         }
-        public static void ClampUpperArmSwingCone(
-            AnimationStream stream,
-            ReadWriteTransformHandle upperArm,   // root of arm chain
-            ReadWriteTransformHandle lowerArm,   // mid
-            Vector3 referenceAxisWorld,          // e.g., chest forward/right/up blended
-            float coneHalfAngleDeg)
+        public static void ClampUpperArmSwingCone(AnimationStream stream, ReadWriteTransformHandle upperArm, ReadWriteTransformHandle lowerArm, Vector3 referenceAxisWorld, float coneHalfAngleDeg)
         {
             Vector3 A = upperArm.GetPosition(stream);
             Vector3 B = lowerArm.GetPosition(stream);
@@ -1140,18 +1097,13 @@ namespace UnityEngine.Animations.Rigging
             if (abLen < BasisIKHelpers.k_MinMagnitude) return;
 
             Vector3 desiredDir = AB / abLen;
-            Vector3 clampedDir = ClampDirectionInCone(desiredDir, referenceAxisWorld, coneHalfAngleDeg);
+            Vector3 clampedDir = BasisIKHelpers.ClampDirectionInCone(desiredDir, referenceAxisWorld, coneHalfAngleDeg);
 
             // rotate upperArm so AB aligns with clampedDir
             Quaternion rot = QuaternionExt.FromToRotation(desiredDir, clampedDir);
             upperArm.SetRotation(stream, rot * upperArm.GetRotation(stream));
         }
-        public static void ClampForearmTwistAroundBC(
-            AnimationStream stream,
-            ReadWriteTransformHandle mid,
-            ReadWriteTransformHandle tip,
-            Quaternion midRotBefore,
-            float twistLimitDeg)
+        public static void ClampForearmTwistAroundBC(AnimationStream stream, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Quaternion midRotBefore, float twistLimitDeg)
         {
             Vector3 B = mid.GetPosition(stream);
             Vector3 C = tip.GetPosition(stream);
@@ -1162,13 +1114,13 @@ namespace UnityEngine.Animations.Rigging
 
             Quaternion midRotAfter = mid.GetRotation(stream);
             Quaternion delta = midRotAfter * Quaternion.Inverse(midRotBefore);
-            delta = NormalizeSafe(delta);
+            delta = BasisIKHelpers.NormalizeSafe(delta);
 
-            SwingTwist(delta, axis, out var swing, out var twist);
-            Quaternion twistClamped = ClampTwistDegrees(twist, twistLimitDeg);
+            BasisIKHelpers.SwingTwist(delta, axis, out var swing, out var twist);
+            Quaternion twistClamped = BasisIKHelpers.ClampTwistDegrees(twist, twistLimitDeg);
 
-            Quaternion deltaLimited = NormalizeSafe(swing * twistClamped);
-            Quaternion newMidRot = NormalizeSafe(deltaLimited * midRotBefore);
+            Quaternion deltaLimited = BasisIKHelpers.NormalizeSafe(swing * twistClamped);
+            Quaternion newMidRot = BasisIKHelpers.NormalizeSafe(deltaLimited * midRotBefore);
             mid.SetRotation(stream, newMidRot);
         }
 
