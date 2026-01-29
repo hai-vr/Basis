@@ -106,6 +106,11 @@ namespace UnityEngine.Animations.Rigging
                 handRadius = FloatProperty.Bind(animator, component, data.HandRadiusFloatProperty),
                 handSkin = FloatProperty.Bind(animator, component, data.HandSkinFloatProperty),
 
+                UpperArmTwistLimitDeg = FloatProperty.Bind(animator, component, data.UpperArmTwistLimitDegProperty),
+                ForearmTwistLimitDeg = FloatProperty.Bind(animator, component, data.ForearmTwistLimitDegProperty),
+                ElbowSwivelLimitDeg = FloatProperty.Bind(animator, component, data.ElbowSwivelLimitDegProperty),
+                ShoulderSwingConeDeg = FloatProperty.Bind(animator, component, data.ShoulderSwingConeDegProperty),
+
                 maxBendDeg = FloatProperty.Bind(animator, component, data.MaxBendDegFloatProperty),
                 maxFactor = FloatProperty.Bind(animator, component, data.MaxFactorFloatProperty),
                 struggleStart = FloatProperty.Bind(animator, component, data.StruggleStartFloatProperty),

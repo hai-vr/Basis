@@ -276,6 +276,11 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public float m_StruggleEnd;
         [SyncSceneToStream, SerializeField] public float m_MaxChestDeltaDeg;
 
+        [SyncSceneToStream, SerializeField] public float k_UpperArmTwistLimitDeg;
+        [SyncSceneToStream, SerializeField] public float k_ForearmTwistLimitDeg;
+        [SyncSceneToStream, SerializeField] public float k_ElbowSwivelLimitDeg;
+        [SyncSceneToStream, SerializeField] public float k_ShoulderSwingConeDeg;
+
         public Transform chest { get => m_chest; set => m_chest = value; }
         public Transform neck { get => m_neck; set => m_neck = value; }
         public Transform head { get => m_head; set => m_head = value; }
@@ -347,6 +352,14 @@ namespace UnityEngine.Animations.Rigging
         public string UseHandCapsuleBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UseHandCapsule));
         public string ProtectElbowBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ProtectElbow));
 
+
+        public string UpperArmTwistLimitDegProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(k_UpperArmTwistLimitDeg));
+
+        public string ForearmTwistLimitDegProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(k_ForearmTwistLimitDeg));
+
+        public string ElbowSwivelLimitDegProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(k_ElbowSwivelLimitDeg));
+        public string ShoulderSwingConeDegProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(k_ShoulderSwingConeDeg));
+
         public string enabledLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledLeftShoulder));
         public string enabledRightShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledRightShoulder));
 
@@ -387,6 +400,11 @@ namespace UnityEngine.Animations.Rigging
         public float struggleStart { get => m_StruggleStart; set => m_StruggleStart = value; }
         public float struggleEnd { get => m_StruggleEnd; set => m_StruggleEnd = value; }
         public float maxChestDelta { get => m_MaxChestDeltaDeg; set => m_MaxChestDeltaDeg = value; }
+
+        public float UpperArmTwistLimitDeg { get => k_UpperArmTwistLimitDeg; set => k_UpperArmTwistLimitDeg = value; }
+        public float ForearmTwistLimitDeg { get => k_ForearmTwistLimitDeg; set => k_ForearmTwistLimitDeg = value; }
+        public float ElbowSwivelLimitDeg { get => k_ElbowSwivelLimitDeg; set => k_ElbowSwivelLimitDeg = value; }
+        public float ShoulderSwingConeDeg { get => k_ShoulderSwingConeDeg; set => k_ShoulderSwingConeDeg = value; }
 
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()

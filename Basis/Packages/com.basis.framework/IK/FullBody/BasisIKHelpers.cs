@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Unity.Mathematics;
 namespace UnityEngine.Animations.Rigging
 {
     public struct BasisIKHelpers
@@ -96,5 +97,26 @@ namespace UnityEngine.Animations.Rigging
             }
         }
         public static Quaternion ConvertToQuaternion(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
+
+        public static ReadWriteTransformHandle GetSpineHandle(BasisIKSpine c, int idxHipsToHead)
+        {
+            // c.J0 = hips ... c.J5 = head (depending on Count)
+            return idxHipsToHead switch
+            {
+                0 => c.J0,
+                1 => c.J1,
+                2 => c.J2,
+                3 => c.J3,
+                4 => c.J4,
+                _ => c.J5
+            };
+        }
+
+        public static float3 SafeDir(float3 v, float eps, float3 fallback)
+        {
+            float lsq = math.lengthsq(v);
+            if (lsq > eps * eps) return v * math.rsqrt(lsq);
+            return fallback;
+        }
     }
 }
