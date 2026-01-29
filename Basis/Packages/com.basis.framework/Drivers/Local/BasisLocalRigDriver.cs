@@ -791,6 +791,7 @@ namespace Basis.Scripts.Drivers
             data.ForearmTwistLimitDeg = 80f;
             data.ElbowSwivelLimitDeg = 120f;
             data.ShoulderSwingConeDeg = 95f;
+            data.WristTwistLimitDeg = 70;
 
             BasisFullIKConstraint.data = data;
         }
