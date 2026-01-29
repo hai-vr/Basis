@@ -380,7 +380,7 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 LocalHandDriver.Dispose();
             }
-            BasisLocalEyeDriver.OnDisable();
+            BasisLocalEyeDriver.Dispose();
             if (FacialBlinkDriver != null)
             {
                 FacialBlinkDriver.OnDestroy();
