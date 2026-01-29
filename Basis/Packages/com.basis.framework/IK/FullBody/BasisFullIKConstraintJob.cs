@@ -54,8 +54,8 @@ namespace UnityEngine.Animations.Rigging
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
 
-            SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
-            SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
+            SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow,hintPositionLeftHand);
+            SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow,hintPositionRightHand);
 
             BasisIKHelpers.ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
             BasisIKHelpers.ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
@@ -493,7 +493,29 @@ namespace UnityEngine.Animations.Rigging
 
             SolveTwoBone(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset, bendNormal);
         }
-        public void SolveHand(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled, FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule, BoolProperty protectElbow)
+
+        public void SolveHand(
+            AnimationStream stream,
+            BoolProperty enabledProp,
+            ReadWriteTransformHandle root,
+            ReadWriteTransformHandle mid,
+            ReadWriteTransformHandle tip,
+            Vector3Property targetPosProp,
+            Vector4Property targetRotProp,
+            Vector3Property hintPosProp,
+            Vector4Property hintRotProp,
+            BoolProperty hintWeightProp,
+            Quaternion targetOffset,
+            ReadWriteTransformHandle chestStart,
+            ReadWriteTransformHandle chestEnd,
+            FloatProperty chestRadius,
+            FloatProperty collisionSkin,
+            BoolProperty collisionsEnabled,
+            FloatProperty handRadius,
+            FloatProperty handSkin,
+            BoolProperty useHandCapsule,
+            BoolProperty protectElbow,
+            Vector3Property elbowTrackerPosProp)
         {
             if (!enabledProp.Get(stream))
             {
@@ -506,30 +528,32 @@ namespace UnityEngine.Animations.Rigging
                 return;
             }
 
-            // Read inputs
+            // ---- Read inputs ----
             Vector3 tgtPos = targetPosProp.Get(stream);
             Quaternion tgtRot = BasisIKHelpers.ConvertToQuaternion(targetRotProp.Get(stream));
             Vector3 hintPos = hintPosProp.Get(stream);
             Quaternion hintRot = BasisIKHelpers.ConvertToQuaternion(hintRotProp.Get(stream));
+
             bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
+
+            // ---- Collision pre-nudge (your existing logic) ----
             if (doCollisions)
             {
                 Vector3 a = chestStart.GetPosition(stream);
                 Vector3 b = chestEnd.GetPosition(stream);
                 float chestR = Mathf.Max(0f, chestRadius.Get(stream) + collisionSkin.Get(stream));
+
                 if (useHandCapsule.Get(stream))
                 {
                     float hRad = Mathf.Max(0f, handRadius.Get(stream) + handSkin.Get(stream));
-                    // Use the actual current mid & tip positions as the hand capsule ends
                     Vector3 handA = mid.GetPosition(stream);
                     Vector3 handB = tip.GetPosition(stream);
 
                     Vector3 correction = CapsuleCapsuleResolve(handA, handB, hRad, a, b, chestR);
                     if (correction.sqrMagnitude > 0f)
                     {
-                        // Move the IK target & hint by the same correction
                         tgtPos += correction;
-                        hintPos += correction * 0.25f; // steer elbow slightly
+                        hintPos += correction * 0.25f;
                     }
                 }
                 else
@@ -539,11 +563,44 @@ namespace UnityEngine.Animations.Rigging
                     hintPos = Vector3.Lerp(hintPos, nudgedHint, 0.6f);
                 }
             }
+
             var target = new AffineTransform(tgtPos, tgtRot);
             var hint = new AffineTransform(hintPos, hintRot);
-            // First solve (arms variant to preserve wrist)
+
+            // ============================================================
+            // A) FIRST SOLVE: HAND IS KING (position/rotation)
+            // ============================================================
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset);
-            // Optional elbow protection pass
+
+
+            if (hintWeightProp.Get(stream))
+            {
+                // Current solved positions
+                Vector3 A = root.GetPosition(stream);
+                Vector3 B = mid.GetPosition(stream);
+                Vector3 C = tip.GetPosition(stream);
+
+                float abLen = (B - A).magnitude;
+                float bcLen = (C - B).magnitude;
+
+                Vector3 elbowTracker = elbowTrackerPosProp.Get(stream);
+
+                // 1) Project tracker to the physically valid elbow circle for the current A,C, lengths
+                Vector3 Bvalid = ProjectElbowToValidCircle(A, C, abLen, bcLen, elbowTracker);
+
+                // 2) Blend around the circle (angular blend) so it doesn't "cut through space"
+                Vector3 Bblend = LerpOnCircleAroundAxis(A, C, B, Bvalid, 1);
+
+                // 3) Swivel root around AC to move elbow toward Bblend
+                SwingElbowAroundAC(stream, root, mid, tip, Bblend);
+
+                // 4) Re-lock wrist exactly (this is the magic that prevents mid-blend compromise)
+                SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset);
+            }
+
+            // ============================================================
+            // C) OPTIONAL: your existing elbow protection collision pass
+            // ============================================================
             if (protectElbow.Get(stream) && doCollisions)
             {
                 Vector3 a = chestStart.GetPosition(stream);
@@ -552,10 +609,10 @@ namespace UnityEngine.Animations.Rigging
 
                 Vector3 B = mid.GetPosition(stream);
                 Vector3 pushedB = PushOutFromCapsule(B, a, b, chestR);
+
                 if ((pushedB - B).sqrMagnitude > BasisIKHelpers.k_DivisionSafetyEpsilon)
                 {
                     SwingElbowAroundAC(stream, root, mid, tip, pushedB);
-                    // Re-lock wrist to target after elbow swing
                     SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset);
                 }
             }
@@ -852,5 +909,92 @@ namespace UnityEngine.Animations.Rigging
 
             return (Vector3)p[n - 1];
         }
+        static Vector3 ProjectElbowToValidCircle(Vector3 A, Vector3 C, float abLen, float bcLen, Vector3 elbowTracker)
+        {
+            Vector3 AC = C - A;
+            float acLen = AC.magnitude;
+            if (acLen < 1e-6f) return elbowTracker;
+
+            Vector3 n = AC / acLen;
+
+            // Law of cosines: distance from A along AC to the elbow circle center
+            float x = (abLen * abLen - bcLen * bcLen + acLen * acLen) / (2f * acLen);
+
+            // Radius of the elbow circle around AC
+            float r2 = abLen * abLen - x * x;
+            float r = Mathf.Sqrt(Mathf.Max(0f, r2));
+
+            Vector3 center = A + n * x;
+
+            // Project tracker into plane perpendicular to AC through center
+            Vector3 v = elbowTracker - center;
+            v -= n * Vector3.Dot(v, n);
+
+            float vLen = v.magnitude;
+            if (vLen < 1e-6f)
+            {
+                // Pick any stable perpendicular direction
+                v = Vector3.Cross(n, Vector3.up);
+                if (v.sqrMagnitude < 1e-6f) v = Vector3.Cross(n, Vector3.right);
+                v.Normalize();
+                return center + v * r;
+            }
+
+            v /= vLen;
+            return center + v * r;
+        }
+        static float3 SafeDir3(float3 v, float eps, float3 fallback)
+        {
+            float lsq = math.lengthsq(v);
+            if (lsq > eps * eps) return v * math.rsqrt(lsq);
+            return fallback;
+        }
+
+        static Vector3 LerpOnCircleAroundAxis(Vector3 A, Vector3 C, Vector3 Bcurrent, Vector3 Bdesired, float w)
+        {
+            // We want to blend "around the circle" (i.e., by angle around AC), not straight-line in world space.
+            // Compute angle between current and desired elbow directions in the AC-perpendicular plane and slerp.
+
+            Vector3 AC = C - A;
+            float acLen = AC.magnitude;
+            if (acLen < 1e-6f) return Vector3.Lerp(Bcurrent, Bdesired, w);
+
+            Vector3 n = AC / acLen;
+
+            // Put both in the plane perpendicular to AC (relative to A)
+            Vector3 v1 = Bcurrent - A; v1 -= n * Vector3.Dot(v1, n);
+            Vector3 v2 = Bdesired - A; v2 -= n * Vector3.Dot(v2, n);
+
+            float v1Len = v1.magnitude;
+            float v2Len = v2.magnitude;
+            if (v1Len < 1e-6f || v2Len < 1e-6f) return Vector3.Lerp(Bcurrent, Bdesired, w);
+
+            v1 /= v1Len;
+            v2 /= v2Len;
+
+            float dot = Mathf.Clamp(Vector3.Dot(v1, v2), -1f, 1f);
+            float ang = Mathf.Acos(dot); // radians
+
+            Vector3 cross = Vector3.Cross(v1, v2);
+            float sign = Mathf.Sign(Vector3.Dot(cross, n));
+            float angDeg = ang * sign * Mathf.Rad2Deg;
+
+            Quaternion rot = Quaternion.AngleAxis(angDeg * Mathf.Clamp01(w), n);
+            Vector3 v = rot * (Bcurrent - A);
+
+            // Preserve radius to stay on the same elbow circle for stability
+            float r = (Bcurrent - (A + n * Vector3.Dot(Bcurrent - A, n))).magnitude;
+            Vector3 vPlane = v - n * Vector3.Dot(v, n);
+            float vPlaneLen = vPlane.magnitude;
+            if (vPlaneLen > 1e-6f)
+            {
+                vPlane = vPlane / vPlaneLen * r;
+                float along = Vector3.Dot(Bcurrent - A, n);
+                return A + n * along + vPlane;
+            }
+
+            return Vector3.Lerp(Bcurrent, Bdesired, w);
+        }
+
     }
 }
