@@ -45,8 +45,7 @@ namespace UnityEngine.Animations.Rigging
             Vector3 headNow = HandleHead.GetPosition(stream);
             float restDist = Vector3.Distance(headNow, hipsNow);
 
-            // How “stiff” against compression? 1 = no compression allowed (very stiff), 0 = allow full collapse (bad noodle)
-            float compress01 = 0.9f; // try 0.85..0.98
+            float compress01 = 0.9f;
             float minDist = restDist * compress01;
 
             // (Optional) also cap it by chainLen so minDist never exceeds max
@@ -82,8 +81,22 @@ namespace UnityEngine.Animations.Rigging
                     ChestRotation = HandleChest.GetRotation(stream);
                 }
             }
-            SolveHand(stream, enabledLeftHand, HandleLeftShoulder, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionLeftHand, ChestRotation);
-            SolveHand(stream, enabledRightHand, HandleRightShoulder, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionRightHand, ChestRotation);
+            SolveHand(stream,
+                enabledLeftHand, HandleLeftUpperArm,
+                HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand,
+                targetRotationLeftHand, hintPositionLeftHand,
+                hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck,
+                chestRadius, collisionSkin, collisionsEnabled,
+                handRadius, handSkin, useHandCapsule,
+                protectElbow, hintPositionLeftHand, ChestRotation);
+            SolveHand(stream,
+                enabledRightHand, HandleRightUpperArm,
+                HandleRightLowerArm, HandleRightHand, targetPositionRightHand,
+                targetRotationRightHand, hintPositionRightHand,
+                hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck,
+                chestRadius, collisionSkin, collisionsEnabled,
+                handRadius, handSkin, useHandCapsule,
+                protectElbow, hintPositionRightHand, ChestRotation);
 
             Vector3 leftLegBend = ComputeLegBendNormal(stream, HandleHips, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, true);
             Vector3 rightLegBend = ComputeLegBendNormal(stream, HandleHips, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, false);
@@ -168,7 +181,11 @@ namespace UnityEngine.Animations.Rigging
 
             // Aim direction from shoulder to target
             Vector3 aim = (wristTarget - shoulderPos);
-            if (aim.sqrMagnitude < 1e-8f) return;
+            if (aim.sqrMagnitude < 1e-8f)
+            {
+                return;
+            }
+
             aim.Normalize();
 
             // Define a “neutral” shoulder forward (or use upperArm bone dir if you prefer)
@@ -179,7 +196,10 @@ namespace UnityEngine.Animations.Rigging
 
             // Clamp swing angle
             swing.ToAngleAxis(out float ang, out Vector3 ax);
-            if (ang > 180f) ang -= 360f;
+            if (ang > 180f)
+            {
+                ang -= 360f;
+            }
 
             float maxDeg = Mathf.Lerp(maxClavicleDeg, maxClavicleDeg + maxScapulaDeg, 0.5f);
             float clamped = Mathf.Clamp(ang, -maxDeg, maxDeg);
@@ -430,16 +450,7 @@ namespace UnityEngine.Animations.Rigging
         /// <param name="hint">The transform handle for the hint transform.</param>
         /// <param name="HasHint">The weight for which hint transform has an effect on IK calculations. This is a value in between 0 and 1.</param>
         /// <param name="targetOffset">The offset applied to the target transform.</param>
-        public void SolveTwoBone(
-     AnimationStream stream,
-     ReadWriteTransformHandle root,
-     ReadWriteTransformHandle mid,
-     ReadWriteTransformHandle tip,
-     AffineTransform target,
-     AffineTransform hint,
-     bool HasHint,
-     Quaternion targetOffset,
-     Vector3 BendNormal)
+        public void SolveTwoBone(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool HasHint, Quaternion targetOffset, Vector3 BendNormal)
         {
             Vector3 aPosition = root.GetPosition(stream);
             Vector3 bPosition = mid.GetPosition(stream);
@@ -545,19 +556,7 @@ namespace UnityEngine.Animations.Rigging
 
             tip.SetRotation(stream, tRotation);
         }
-        public void SolveLegs(
-            AnimationStream stream,
-            BoolProperty enabledProp,
-            ReadWriteTransformHandle root,
-            ReadWriteTransformHandle mid,
-            ReadWriteTransformHandle tip,
-            Vector3Property targetPosProp,
-            Vector4Property targetRotProp,
-            Vector3Property hintPosProp,
-            Vector4Property hintRotProp,
-            BoolProperty hintWeightProp,
-            Quaternion targetOffset,
-            Vector3 bendNormal)
+        public void SolveLegs(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, Vector3 bendNormal)
         {
             if (!enabledProp.Get(stream) || !(root.IsValid(stream) && mid.IsValid(stream) && tip.IsValid(stream)))
             {
@@ -573,13 +572,7 @@ namespace UnityEngine.Animations.Rigging
 
             SolveTwoBone(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset, bendNormal);
         }
-        static Vector3 ComputeLegBendNormal(
-            AnimationStream stream,
-            ReadWriteTransformHandle hips,
-            ReadWriteTransformHandle upperLeg,
-            ReadWriteTransformHandle lowerLeg,
-            ReadWriteTransformHandle foot,
-            bool isLeft)
+        static Vector3 ComputeLegBendNormal(AnimationStream stream, ReadWriteTransformHandle hips, ReadWriteTransformHandle upperLeg, ReadWriteTransformHandle lowerLeg, ReadWriteTransformHandle foot, bool isLeft)
         {
             Vector3 A = upperLeg.GetPosition(stream);
             Vector3 B = lowerLeg.GetPosition(stream);
@@ -611,7 +604,6 @@ namespace UnityEngine.Animations.Rigging
         public void SolveHand(
             AnimationStream stream,
             BoolProperty enabledProp,
-            ReadWriteTransformHandle Shoulder,
             ReadWriteTransformHandle root,
             ReadWriteTransformHandle mid,
             ReadWriteTransformHandle tip,
@@ -923,7 +915,10 @@ namespace UnityEngine.Animations.Rigging
         unsafe static Vector3 ComputeReachableHipsFromHeadFABRIK_Inline(AnimationStream stream, BasisIKSpine chain, Vector3 headTargetPos, Vector3 hipsTargetPos, int iterations = 6, float eps = 1e-4f)
         {
             int n = chain.Count;
-            if (n < 2) return hipsTargetPos;
+            if (n < 2)
+            {
+                return hipsTargetPos;
+            }
 
             // p[0] = head, p[n-1] = hips (reversed order from chain)
             float3* p = stackalloc float3[6];
@@ -987,7 +982,9 @@ namespace UnityEngine.Animations.Rigging
                 }
 
                 if (math.lengthsq(p[n - 1] - target) <= eps * eps)
+                {
                     break;
+                }
             }
 
             return (Vector3)p[n - 1];
@@ -996,7 +993,10 @@ namespace UnityEngine.Animations.Rigging
         {
             Vector3 AC = C - A;
             float acLen = AC.magnitude;
-            if (acLen < 1e-6f) return elbowTracker;
+            if (acLen < 1e-6f)
+            {
+                return elbowTracker;
+            }
 
             Vector3 n = AC / acLen;
 
@@ -1102,7 +1102,10 @@ namespace UnityEngine.Animations.Rigging
 
             Vector3 AC = C - A;
             float acSqr = Vector3.Dot(AC, AC);
-            if (acSqr <= 1e-8f) return;
+            if (acSqr <= 1e-8f)
+            {
+                return;
+            }
 
             Vector3 n = AC / Mathf.Sqrt(acSqr);
 
@@ -1110,7 +1113,10 @@ namespace UnityEngine.Animations.Rigging
             Vector3 vCur = B - A; vCur -= n * Vector3.Dot(vCur, n);
             Vector3 vDes = desiredB - A; vDes -= n * Vector3.Dot(vDes, n);
 
-            if (vCur.sqrMagnitude <= 1e-10f || vDes.sqrMagnitude <= 1e-10f) return;
+            if (vCur.sqrMagnitude <= 1e-10f || vDes.sqrMagnitude <= 1e-10f)
+            {
+                return;
+            }
 
             float angDeg = SignedAngleDegAroundAxis(vCur, vDes, n);
             float clamped = Mathf.Clamp(angDeg, -maxSwivelDeg, maxSwivelDeg);
