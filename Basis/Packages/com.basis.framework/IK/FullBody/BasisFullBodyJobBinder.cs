@@ -106,8 +106,6 @@ namespace UnityEngine.Animations.Rigging
                 handRadius = FloatProperty.Bind(animator, component, data.HandRadiusFloatProperty),
                 handSkin = FloatProperty.Bind(animator, component, data.HandSkinFloatProperty),
 
-                WristTwistLimitDeg = FloatProperty.Bind(animator, component, data.WristTwistLimitDegProperty),
-
                 UpperArmTwistLimitDeg = FloatProperty.Bind(animator, component, data.UpperArmTwistLimitDegProperty),
                 ForearmTwistLimitDeg = FloatProperty.Bind(animator, component, data.ForearmTwistLimitDegProperty),
                 ElbowSwivelLimitDeg = FloatProperty.Bind(animator, component, data.ElbowSwivelLimitDegProperty),
@@ -119,7 +117,7 @@ namespace UnityEngine.Animations.Rigging
                 struggleEnd = FloatProperty.Bind(animator, component, data.StruggleEndFloatProperty),
                 MaxChestDeltaDeg = FloatProperty.Bind(animator, component, data.MaxChestDeltaDegFloatProperty),
 
-                enabledLeftShoulder = BoolProperty.Bind(animator, component, data.enabledLeftShoulderProperty),
+                enabledLeftShoulder =  BoolProperty.Bind(animator, component, data.enabledLeftShoulderProperty),
                 enabledRightShoulder = BoolProperty.Bind(animator, component, data.enabledRightShoulderProperty),
 
                 targetOffsetLeftShoulder = data.m_CalibratedRotationLeftShoulder,

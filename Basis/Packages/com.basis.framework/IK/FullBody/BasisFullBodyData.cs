@@ -280,7 +280,6 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public float k_ForearmTwistLimitDeg;
         [SyncSceneToStream, SerializeField] public float k_ElbowSwivelLimitDeg;
         [SyncSceneToStream, SerializeField] public float k_ShoulderSwingConeDeg;
-        [SyncSceneToStream, SerializeField] public float m_WristTwistLimitDeg;
 
         public Transform chest { get => m_chest; set => m_chest = value; }
         public Transform neck { get => m_neck; set => m_neck = value; }
@@ -373,9 +372,6 @@ namespace UnityEngine.Animations.Rigging
         public string StruggleEndFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_StruggleEnd));
         public string MaxChestDeltaDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxChestDeltaDeg));
 
-        public string WristTwistLimitDegProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_WristTwistLimitDeg));
-
-
         public bool hintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
         public bool HintWeightLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
@@ -410,7 +406,6 @@ namespace UnityEngine.Animations.Rigging
         public float ElbowSwivelLimitDeg { get => k_ElbowSwivelLimitDeg; set => k_ElbowSwivelLimitDeg = value; }
         public float ShoulderSwingConeDeg { get => k_ShoulderSwingConeDeg; set => k_ShoulderSwingConeDeg = value; }
 
-        public float WristTwistLimitDeg { get => m_WristTwistLimitDeg; set => m_WristTwistLimitDeg = value; }
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
