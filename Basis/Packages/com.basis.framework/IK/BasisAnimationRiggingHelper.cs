@@ -84,7 +84,6 @@ public static class BasisAnimationRiggingHelper
         Quaternion leftBoneBind = Mapping.leftHand.rotation;
         Quaternion rightBoneBind = Mapping.rightHand.rotation;
 
-        // IMPORTANT: because job does final = target * offset
         data.m_CalibratedRotationLeftHand = Quaternion.Inverse(leftLandmarkBind) * leftBoneBind;
         data.m_CalibratedRotationRightHand = Quaternion.Inverse(rightLandmarkBind) * rightBoneBind;
 
@@ -138,16 +137,12 @@ public static class BasisAnimationRiggingHelper
 
         data.m_TargetRotationLeftShoulder = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData.rotation;
         data.m_TargetRotationRightShoulder = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData.rotation;
-        // ----------------------------
-        // Flags / options
-        // ----------------------------
+
         data.collisionsEnabled = true;
         data.useHandCapsule = true;
         data.protectElbow = true;
         data.EnabledSpineIK = true;
-        // ----------------------------
-        // Write back once
-        // ----------------------------
+
         BasisFullIKConstraint.data = data;
 
         GeneratedRequiredTransforms(player, Mapping.head);

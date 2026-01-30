@@ -1,8 +1,6 @@
 namespace UnityEngine.Animations.Rigging
 {
     [DisallowMultipleComponent]
-    [AddComponentMenu("Animation Rigging/Basis FullBody IK")]
-    [HelpURL("https://docs.unity3d.com/Packages/com.unity.animation.rigging@1.3/manual/index.html")]
     public class BasisFullBodyIK : RigConstraint<BasisFullIKConstraintJob, BasisFullBodyData, BasisFullBodyJobBinder>
     {
         protected override void OnValidate()

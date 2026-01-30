@@ -1,6 +1,6 @@
 namespace UnityEngine.Animations.Rigging
 {
-    public struct BasisIKSpine
+    public struct BasisIKChain
     {
         public int Count;
         public ReadWriteTransformHandle J0;
@@ -9,7 +9,7 @@ namespace UnityEngine.Animations.Rigging
         public ReadWriteTransformHandle J3;
         public ReadWriteTransformHandle J4;
         public ReadWriteTransformHandle J5;
-        public static BasisIKSpine PackChain(
+        public static BasisIKChain PackChain(
 AnimationStream stream,
 ReadWriteTransformHandle hips,
 ReadWriteTransformHandle spine,
@@ -18,7 +18,7 @@ ReadWriteTransformHandle upperChest,
 ReadWriteTransformHandle neck,
 ReadWriteTransformHandle head)
         {
-            BasisIKSpine c = default;
+            BasisIKChain c = default;
             c.Count = 0;
 
             // Hips
@@ -99,7 +99,7 @@ ReadWriteTransformHandle head)
             return c;
         }
 
-        public static float SpineChainLength(AnimationStream stream, BasisIKSpine Chain)
+        public static float SpineChainLength(AnimationStream stream, BasisIKChain Chain)
         {
             float sum = 0f;
             int jointCount = Chain.Count;

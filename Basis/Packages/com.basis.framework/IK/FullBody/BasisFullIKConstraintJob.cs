@@ -25,8 +25,8 @@ namespace UnityEngine.Animations.Rigging
                 BasisIKHelpers.Pass(stream, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand);
                 return;
             }
-            BasisIKSpine Spine = BasisIKSpine.PackChain(stream, HandleHips, HandleSpine, HandleChest, HandleUpperChest, HandleNeck, HandleHead);
-            float chainLen = BasisIKSpine.SpineChainLength(stream, Spine);
+            BasisIKChain Spine = BasisIKChain.PackChain(stream, HandleHips, HandleSpine, HandleChest, HandleUpperChest, HandleNeck, HandleHead);
+            float chainLen = BasisIKChain.SpineChainLength(stream, Spine);
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
             // Measure current (pre-solve) distance as a stability reference
@@ -427,11 +427,17 @@ namespace UnityEngine.Animations.Rigging
 
             Vector3 axis;
             if (HasHint && axisHint.sqrMagnitude >= BasisIKHelpers.k_MinSqrMagnitude)
+            {
                 axis = axisHint;
+            }
             else if (axisAt.sqrMagnitude >= BasisIKHelpers.k_MinSqrMagnitude)
+            {
                 axis = axisAt;
+            }
             else
+            {
                 axis = refAxis;
+            }
 
             // Hemisphere lock: keep axis on same side as refAxis => no snapping backwards
             if (Vector3.Dot(axis, refAxis) < 0f)
@@ -838,7 +844,7 @@ namespace UnityEngine.Animations.Rigging
         /// while preserving all spine segment lengths (FABRIK). Returns the reachable hips position.
         /// No allocations: stackalloc only.
         /// </summary>
-        unsafe static Vector3 ComputeReachableHipsFromHeadFABRIK_Inline(AnimationStream stream, BasisIKSpine chain, Vector3 headTargetPos, Vector3 hipsTargetPos, int iterations = 6, float eps = 1e-4f)
+        unsafe static Vector3 ComputeReachableHipsFromHeadFABRIK_Inline(AnimationStream stream, BasisIKChain chain, Vector3 headTargetPos, Vector3 hipsTargetPos, int iterations = 6, float eps = 1e-4f)
         {
             int n = chain.Count;
             if (n < 2)
