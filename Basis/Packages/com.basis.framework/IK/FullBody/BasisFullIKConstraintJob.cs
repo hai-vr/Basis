@@ -67,8 +67,8 @@ namespace UnityEngine.Animations.Rigging
             SolveHand(stream, enabledLeftHand, HandleLeftShoulder, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionLeftHand, ChestRotation);
             SolveHand(stream, enabledRightHand, HandleRightShoulder, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionRightHand, ChestRotation);
 
-            Vector3 leftLegBend = ComputeLegBendNormal(stream, HandleHips, isLeft: true);
-            Vector3 rightLegBend = ComputeLegBendNormal(stream, HandleHips, isLeft: false);
+            Vector3 leftLegBend = ComputeLegBendNormal(stream, HandleHips, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, true);
+            Vector3 rightLegBend = ComputeLegBendNormal(stream, HandleHips, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, false);
 
 
             SolveLegs(stream, enabledLeftLowerLeg,
@@ -451,19 +451,24 @@ namespace UnityEngine.Animations.Rigging
             Vector3 atCorrected = tPosition - aPosition;
             float atCorrectedLen = atCorrected.magnitude;
 
+
+
             float newAbcAngle = BasisIKHelpers.TriangleAngle(atCorrectedLen, abLen, bcLen);
 
-            // ---------------- FIX: stable bend axis selection ----------------
-            // Reference axis = “human bend direction” (must be stable)
             Vector3 refAxis = BendNormal;
             if (refAxis.sqrMagnitude < 1e-8f)
+            {
                 refAxis = Vector3.up;
+            }
+
             refAxis.Normalize();
 
             // Candidate axis from hint (can flip when hint crosses behind)
             Vector3 axisHint = Vector3.zero;
             if (HasHint)
-                axisHint = Vector3.Cross(hint.translation - aPosition, bc);
+            {
+                axisHint = Vector3.Cross(hint.translation - aPosition, atCorrected);
+            }
 
             // Fallback axis from target direction (also can go degenerate)
             Vector3 axisAt = Vector3.Cross(atCorrected, bc);
@@ -553,19 +558,40 @@ namespace UnityEngine.Animations.Rigging
 
             SolveTwoBone(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset, bendNormal);
         }
-        static Vector3 ComputeLegBendNormal(AnimationStream stream, ReadWriteTransformHandle hips, bool isLeft)
+        static Vector3 ComputeLegBendNormal(
+            AnimationStream stream,
+            ReadWriteTransformHandle hips,
+            ReadWriteTransformHandle upperLeg,
+            ReadWriteTransformHandle lowerLeg,
+            ReadWriteTransformHandle foot,
+            bool isLeft)
         {
-            // A reasonable default: “knees bend forward” relative to hips forward.
-            // (If your rig axes differ, swap forward/up/right as needed.)
+            Vector3 A = upperLeg.GetPosition(stream);
+            Vector3 B = lowerLeg.GetPosition(stream);
+            Vector3 C = foot.GetPosition(stream);
+
+            Vector3 ab = B - A;
+            Vector3 bc = C - B;
+
+            // Current bend plane normal (this is the gold)
+            Vector3 n = Vector3.Cross(ab, bc);
+
+            if (n.sqrMagnitude > 1e-8f)
+                return n.normalized;
+
+            // Degenerate (straight leg): use a hips-based guess, but make it consistent.
             Quaternion hipsRot = hips.IsValid(stream) ? hips.GetRotation(stream) : Quaternion.identity;
+
+            // Many rigs: knees generally point roughly in hips forward direction.
             Vector3 forward = hipsRot * Vector3.forward;
 
-            // Slight outward bias so knees don’t try to collapse inward
+            // Small outward bias keeps knees from collapsing inward.
             Vector3 outward = hipsRot * (isLeft ? Vector3.left : Vector3.right);
 
-            Vector3 n = (forward + 0.25f * outward);
-            if (n.sqrMagnitude < 1e-8f) n = Vector3.forward;
-            return n.normalized;
+            Vector3 guess = forward + 0.15f * outward;
+            if (guess.sqrMagnitude < 1e-8f) guess = Vector3.forward;
+
+            return guess.normalized;
         }
         public void SolveHand(
             AnimationStream stream,
