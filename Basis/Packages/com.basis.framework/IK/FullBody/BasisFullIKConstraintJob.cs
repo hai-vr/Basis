@@ -1,22 +1,15 @@
 using Unity.Mathematics;
-
 namespace UnityEngine.Animations.Rigging
 {
     [Unity.Burst.BurstCompile]
     public struct BasisFullIKConstraintJob : IWeightedAnimationJob
     {
         public ReadWriteTransformHandle HandleChest, HandleNeck, HandleHead, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, HandleHips, HandleSpine, HandleUpperChest, HandleLeftShoulder, HandleRightShoulder, HandleLeftToe, HandleRightToe, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand;
-
         public Vector3Property targetPositionHead, hintPositionHead, bendNormalHead, targetPositionLeftLowerLeg, hintPositionLeftLowerLeg, targetPositionRightLowerLeg, hintPositionRightLowerLeg, targetPositionHips, leftDrivenTargetPos, rightDrivenTargetPos, targetPositionLeftHand, hintPositionLeftHand, targetPositionRightHand, hintPositionRightHand, p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p54;
-
         public Vector4Property targetRotationHead, hintRotationHead, targetRotationLeftLowerLeg, hintRotationLeftLowerLeg, targetRotationRightLowerLeg, hintRotationRightLowerLeg, targetRotationHips, offsetRotationHips, leftDrivenTargetRot, rightDrivenTargetRot, targetRotationLeftHand, hintRotationLeftHand, targetRotationRightHand, hintRotationRightHand, TargetRotationLeftShoulder, TargetRotationRightShoulder, r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19, r20, r54, o0, o1, o2, o3, o4, o5, o6, o7, o8, o9, o10, o11, o12, o13, o14, o15, o16, o17, o18, o19, o20, o54;
-
         public Quaternion targetOffsetNeck, targetOffsetHead, targetOffsetChest, targetOffsetLeftToe, targetOffsetRightToe, targetOffsetLeftShoulder, targetOffsetRightShoulder, targetOffsetLeftFoot, targetOffsetRightFoot, targetOffsetLeftHand, targetOffsetRightHand;
-
         public BoolProperty hintWeightHead, enabledSpineIK, hintWeightLeftLowerLeg, enabledLeftLowerLeg, hintWeightRightLowerLeg, enabledRightLowerLeg, enabledLeftShoulder, enabledRightShoulder, leftToeEnabled, RightToeEnabled, hintWeightLeftHand, enabledLeftHand, hintWeightRightHand, enabledRightHand, useHandCapsule, protectElbow, collisionsEnabled, w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16, w17, w18, w19, w20, w54;
-
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, maxBendDeg, maxFactor, struggleStart, struggleEnd, MaxChestDeltaDeg, UpperArmTwistLimitDeg, ForearmTwistLimitDeg, ElbowSwivelLimitDeg, ShoulderSwingConeDeg;
-
         public FloatProperty jobWeight { get; set; }
         public void ProcessRootMotion(AnimationStream stream) { }
         public void ProcessAnimation(AnimationStream stream)
@@ -32,34 +25,24 @@ namespace UnityEngine.Animations.Rigging
                 BasisIKHelpers.Pass(stream, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand);
                 return;
             }
-
             BasisIKSpine Spine = BasisIKSpine.PackChain(stream, HandleHips, HandleSpine, HandleChest, HandleUpperChest, HandleNeck, HandleHead);
-
             float chainLen = BasisIKSpine.SpineChainLength(stream, Spine);
-
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
-
             // Measure current (pre-solve) distance as a stability reference
             Vector3 hipsNow = HandleHips.GetPosition(stream);
             Vector3 headNow = HandleHead.GetPosition(stream);
             float restDist = Vector3.Distance(headNow, hipsNow);
-
             float compress01 = 0.9f;
             float minDist = restDist * compress01;
-
             // (Optional) also cap it by chainLen so minDist never exceeds max
             minDist = Mathf.Min(minDist, chainLen - 1e-4f);
-
             // Now do your reachable hips solve, but make sure the target itself respects minDist too
             hipsTargetPos = ClampHipsAroundHeadByChain(headTargetPos, hipsTargetPos, minDist, chainLen);
-
             // Your FABRIK prepass (this will now “prefer” solutions that don’t over-compress because the target can’t be too close)
             hipsTargetPos = ComputeReachableHipsFromHeadFABRIK_Inline(stream, Spine, headTargetPos, hipsTargetPos, iterations: 6);
-
             // And one last clamp after FABRIK (important!)
             hipsTargetPos = ClampHipsAroundHeadByChain(headTargetPos, hipsTargetPos, minDist, chainLen);
-
             // Now lock hips to that and solve back up (your existing function)
             SolveHipsAndSpine(stream, chainLen, headTargetPos, hipsTargetPos,
                 targetRotationHips, offsetRotationHips, enabledSpineIK,
@@ -68,7 +51,6 @@ namespace UnityEngine.Animations.Rigging
 
             BasisIKHelpers.ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
             BasisIKHelpers.ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
-
             Quaternion ChestRotation = Quaternion.identity;
             if (HandleUpperChest.IsValid(stream))
             {
@@ -100,26 +82,20 @@ namespace UnityEngine.Animations.Rigging
 
             Vector3 leftLegBend = ComputeLegBendNormal(stream, HandleHips, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, true);
             Vector3 rightLegBend = ComputeLegBendNormal(stream, HandleHips, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, false);
-
-
             SolveLegs(stream, enabledLeftLowerLeg,
                 HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
                 targetPositionLeftLowerLeg, targetRotationLeftLowerLeg,
                 hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg,
                 targetOffsetLeftFoot, leftLegBend);
-
             SolveLegs(stream, enabledRightLowerLeg,
                 HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
                 targetPositionRightLowerLeg, targetRotationRightLowerLeg,
                 hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg,
                 targetOffsetRightFoot, rightLegBend);
-
             BasisIKHelpers.ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
             BasisIKHelpers.ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
-
             ApplyOverrides(stream);
         }
-
         public void ApplyOverrides(AnimationStream stream)
         {
             BasisIKHelpers.Apply(stream, HandleHips, p0, r0, o0, w0);
@@ -158,56 +134,6 @@ namespace UnityEngine.Animations.Rigging
 
             float clamped = Mathf.Clamp(d, minDist, Mathf.Max(minDist, maxDist));
             return headTargetPos + dir * clamped;
-        }
-        static void ApplyShoulderPreSwing(
-            AnimationStream stream,
-            ReadWriteTransformHandle shoulder,
-            Vector3 shoulderPos,
-            Vector3 wristTarget,
-            Quaternion chestRot,
-            float maxReach,
-            float maxClavicleDeg,     // e.g. 12..25
-            float maxScapulaDeg,      // e.g. 10..20
-            bool isLeft)
-        {
-            if (!shoulder.IsValid(stream)) return;
-
-            float reach01 = BasisIKHelpers.ComputeReach01(shoulderPos, wristTarget, maxReach);
-            float cross01 = BasisIKHelpers.ComputeCrossBody01(chestRot, shoulderPos, wristTarget, isLeft);
-            float up01 = Mathf.Clamp01(Vector3.Dot((wristTarget - shoulderPos).normalized, chestRot * Vector3.up));
-
-            // Weight: reach + cross + overhead
-            float w = Mathf.Clamp01(0.6f * reach01 + 0.5f * cross01 + 0.5f * up01);
-
-            // Aim direction from shoulder to target
-            Vector3 aim = (wristTarget - shoulderPos);
-            if (aim.sqrMagnitude < 1e-8f)
-            {
-                return;
-            }
-
-            aim.Normalize();
-
-            // Define a “neutral” shoulder forward (or use upperArm bone dir if you prefer)
-            Vector3 shoulderFwd = chestRot * Vector3.forward;
-
-            // Swing from neutral toward aim
-            Quaternion swing = QuaternionExt.FromToRotation(shoulderFwd, aim);
-
-            // Clamp swing angle
-            swing.ToAngleAxis(out float ang, out Vector3 ax);
-            if (ang > 180f)
-            {
-                ang -= 360f;
-            }
-
-            float maxDeg = Mathf.Lerp(maxClavicleDeg, maxClavicleDeg + maxScapulaDeg, 0.5f);
-            float clamped = Mathf.Clamp(ang, -maxDeg, maxDeg);
-            Quaternion swingClamped = Quaternion.AngleAxis(clamped, ax);
-
-            // Apply partially (w)
-            Quaternion pre = Quaternion.Slerp(Quaternion.identity, swingClamped, w);
-            shoulder.SetRotation(stream, pre * shoulder.GetRotation(stream));
         }
         public void SolveTwoBoneIKArms(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool hintWeight, Quaternion targetOffset)
         {
