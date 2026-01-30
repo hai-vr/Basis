@@ -64,6 +64,8 @@ namespace UnityEngine.Animations.Rigging
                     ChestRotation = HandleChest.GetRotation(stream);
                 }
             }
+            SolveHand(stream, enabledLeftHand, HandleLeftShoulder, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionLeftHand, ChestRotation);
+            SolveHand(stream, enabledRightHand, HandleRightShoulder, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionRightHand, ChestRotation);
 
             Vector3 leftLegBend = ComputeLegBendNormal(stream, HandleHips, isLeft: true);
             Vector3 rightLegBend = ComputeLegBendNormal(stream, HandleHips, isLeft: false);
