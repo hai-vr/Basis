@@ -65,11 +65,21 @@ namespace UnityEngine.Animations.Rigging
                 }
             }
 
-            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
-            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
+            Vector3 leftLegBend = ComputeLegBendNormal(stream, HandleHips, isLeft: true);
+            Vector3 rightLegBend = ComputeLegBendNormal(stream, HandleHips, isLeft: false);
 
-            SolveHand(stream, enabledLeftHand, HandleLeftShoulder, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionLeftHand, ChestRotation);
-            SolveHand(stream, enabledRightHand, HandleRightShoulder, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow, hintPositionRightHand, ChestRotation);
+
+            SolveLegs(stream, enabledLeftLowerLeg,
+                HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
+                targetPositionLeftLowerLeg, targetRotationLeftLowerLeg,
+                hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg,
+                targetOffsetLeftFoot, leftLegBend);
+
+            SolveLegs(stream, enabledRightLowerLeg,
+                HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
+                targetPositionRightLowerLeg, targetRotationRightLowerLeg,
+                hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg,
+                targetOffsetRightFoot, rightLegBend);
 
             BasisIKHelpers.ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
             BasisIKHelpers.ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
@@ -403,7 +413,16 @@ namespace UnityEngine.Animations.Rigging
         /// <param name="hint">The transform handle for the hint transform.</param>
         /// <param name="HasHint">The weight for which hint transform has an effect on IK calculations. This is a value in between 0 and 1.</param>
         /// <param name="targetOffset">The offset applied to the target transform.</param>
-        public void SolveTwoBone(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool HasHint, Quaternion targetOffset, Vector3 BendNormal)
+        public void SolveTwoBone(
+     AnimationStream stream,
+     ReadWriteTransformHandle root,
+     ReadWriteTransformHandle mid,
+     ReadWriteTransformHandle tip,
+     AffineTransform target,
+     AffineTransform hint,
+     bool HasHint,
+     Quaternion targetOffset,
+     Vector3 BendNormal)
         {
             Vector3 aPosition = root.GetPosition(stream);
             Vector3 bPosition = mid.GetPosition(stream);
@@ -426,38 +445,46 @@ namespace UnityEngine.Animations.Rigging
 
             float maxReach = abLen + bcLen;
             float oldAbcAngle = BasisIKHelpers.TriangleAngle(acLen, abLen, bcLen);
+
             Vector3 atCorrected = tPosition - aPosition;
-            // Vector3 atCorrected = correctedTargetPos - aPosition;
             float atCorrectedLen = atCorrected.magnitude;
 
             float newAbcAngle = BasisIKHelpers.TriangleAngle(atCorrectedLen, abLen, bcLen);
 
-            Vector3 axis;
+            // ---------------- FIX: stable bend axis selection ----------------
+            // Reference axis = “human bend direction” (must be stable)
+            Vector3 refAxis = BendNormal;
+            if (refAxis.sqrMagnitude < 1e-8f)
+                refAxis = Vector3.up;
+            refAxis.Normalize();
+
+            // Candidate axis from hint (can flip when hint crosses behind)
+            Vector3 axisHint = Vector3.zero;
             if (HasHint)
-            {
-                axis = Vector3.Cross(hint.translation - aPosition, bc);
+                axisHint = Vector3.Cross(hint.translation - aPosition, bc);
 
-                if (axis.sqrMagnitude < BasisIKHelpers.k_MinSqrMagnitude)
-                {
-                    // use corrected vector, not raw tPosition
-                    axis = Vector3.Cross(atCorrected, bc);
-                }
+            // Fallback axis from target direction (also can go degenerate)
+            Vector3 axisAt = Vector3.Cross(atCorrected, bc);
 
-                if (axis.sqrMagnitude < BasisIKHelpers.k_MinSqrMagnitude)
-                {
-                    axis = BendNormal;
-                }
-            }
+            Vector3 axis;
+            if (HasHint && axisHint.sqrMagnitude >= BasisIKHelpers.k_MinSqrMagnitude)
+                axis = axisHint;
+            else if (axisAt.sqrMagnitude >= BasisIKHelpers.k_MinSqrMagnitude)
+                axis = axisAt;
             else
-            {
-                axis = BendNormal;
-            }
+                axis = refAxis;
 
-            axis = Vector3.Normalize(axis);
+            // Hemisphere lock: keep axis on same side as refAxis => no snapping backwards
+            if (Vector3.Dot(axis, refAxis) < 0f)
+                axis = -axis;
+
+            axis.Normalize();
+            // ----------------------------------------------------------------
 
             float a = 0.5f * (oldAbcAngle - newAbcAngle);
             float sin = Mathf.Sin(a);
             float cos = Mathf.Cos(a);
+
             Quaternion deltaR = new Quaternion(axis.x * sin, axis.y * sin, axis.z * sin, cos);
             mid.SetRotation(stream, deltaR * mid.GetRotation(stream));
 
@@ -467,7 +494,6 @@ namespace UnityEngine.Animations.Rigging
 
             if (atCorrectedLen > BasisIKHelpers.k_LengthEpsilon)
             {
-                // Swing root toward corrected target
                 root.SetRotation(stream, QuaternionExt.FromToRotation(ac, atCorrected) * root.GetRotation(stream));
             }
 
@@ -497,15 +523,21 @@ namespace UnityEngine.Animations.Rigging
 
             tip.SetRotation(stream, tRotation);
         }
-        public void SolveLegs(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp)
+        public void SolveLegs(
+            AnimationStream stream,
+            BoolProperty enabledProp,
+            ReadWriteTransformHandle root,
+            ReadWriteTransformHandle mid,
+            ReadWriteTransformHandle tip,
+            Vector3Property targetPosProp,
+            Vector4Property targetRotProp,
+            Vector3Property hintPosProp,
+            Vector4Property hintRotProp,
+            BoolProperty hintWeightProp,
+            Quaternion targetOffset,
+            Vector3 bendNormal)   // <-- changed from Vector3Property
         {
-            if (!enabledProp.Get(stream))
-            {
-                BasisIKHelpers.Pass(stream, root, mid, tip);
-                return;
-            }
-
-            if (!(root.IsValid(stream) && mid.IsValid(stream) && tip.IsValid(stream)))
+            if (!enabledProp.Get(stream) || !(root.IsValid(stream) && mid.IsValid(stream) && tip.IsValid(stream)))
             {
                 BasisIKHelpers.Pass(stream, root, mid, tip);
                 return;
@@ -516,11 +548,23 @@ namespace UnityEngine.Animations.Rigging
 
             AffineTransform target = new AffineTransform(targetPosProp.Get(stream), tRot);
             AffineTransform hint = new AffineTransform(hintPosProp.Get(stream), hRot);
-            Vector3 bendNormal = bendNormalProp.Get(stream);
 
             SolveTwoBone(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset, bendNormal);
         }
+        static Vector3 ComputeLegBendNormal(AnimationStream stream, ReadWriteTransformHandle hips, bool isLeft)
+        {
+            // A reasonable default: “knees bend forward” relative to hips forward.
+            // (If your rig axes differ, swap forward/up/right as needed.)
+            Quaternion hipsRot = hips.IsValid(stream) ? hips.GetRotation(stream) : Quaternion.identity;
+            Vector3 forward = hipsRot * Vector3.forward;
 
+            // Slight outward bias so knees don’t try to collapse inward
+            Vector3 outward = hipsRot * (isLeft ? Vector3.left : Vector3.right);
+
+            Vector3 n = (forward + 0.25f * outward);
+            if (n.sqrMagnitude < 1e-8f) n = Vector3.forward;
+            return n.normalized;
+        }
         public void SolveHand(
             AnimationStream stream,
             BoolProperty enabledProp,
