@@ -40,8 +40,26 @@ namespace UnityEngine.Animations.Rigging
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
-            // Head-root prepass: compute *reachable* hips pos respecting segment lengths
+            // Measure current (pre-solve) distance as a stability reference
+            Vector3 hipsNow = HandleHips.GetPosition(stream);
+            Vector3 headNow = HandleHead.GetPosition(stream);
+            float restDist = Vector3.Distance(headNow, hipsNow);
+
+            // How “stiff” against compression? 1 = no compression allowed (very stiff), 0 = allow full collapse (bad noodle)
+            float compress01 = 0.9f; // try 0.85..0.98
+            float minDist = restDist * compress01;
+
+            // (Optional) also cap it by chainLen so minDist never exceeds max
+            minDist = Mathf.Min(minDist, chainLen - 1e-4f);
+
+            // Now do your reachable hips solve, but make sure the target itself respects minDist too
+            hipsTargetPos = ClampHipsAroundHeadByChain(headTargetPos, hipsTargetPos, minDist, chainLen);
+
+            // Your FABRIK prepass (this will now “prefer” solutions that don’t over-compress because the target can’t be too close)
             hipsTargetPos = ComputeReachableHipsFromHeadFABRIK_Inline(stream, Spine, headTargetPos, hipsTargetPos, iterations: 6);
+
+            // And one last clamp after FABRIK (important!)
+            hipsTargetPos = ClampHipsAroundHeadByChain(headTargetPos, hipsTargetPos, minDist, chainLen);
 
             // Now lock hips to that and solve back up (your existing function)
             SolveHipsAndSpine(stream, chainLen, headTargetPos, hipsTargetPos,
@@ -114,21 +132,18 @@ namespace UnityEngine.Animations.Rigging
             BasisIKHelpers.Apply(stream, HandleRightToe, p20, r20, o20, w20);
             BasisIKHelpers.Apply(stream, HandleUpperChest, p54, r54, o54, w54);
         }
-        static Vector3 ClampHipsAroundHeadByChain(Vector3 headTargetPos, Vector3 hipsTargetPos, float chainLen)
+        static Vector3 ClampHipsAroundHeadByChain(Vector3 headTargetPos, Vector3 hipsTargetPos, float minDist, float maxDist)
         {
             Vector3 v = hipsTargetPos - headTargetPos;
             float d2 = v.sqrMagnitude;
 
-            // Fallback direction if head == hips
             if (d2 < BasisIKHelpers.k_MinSqrMagnitude)
-            {
                 v = Vector3.down;
-            }
 
             float d = Mathf.Sqrt(Mathf.Max(d2, BasisIKHelpers.k_MinSqrMagnitude));
             Vector3 dir = v / d;
 
-            float clamped = Mathf.Clamp(d, 0.0001f, Mathf.Max(0.0001f, chainLen));
+            float clamped = Mathf.Clamp(d, minDist, Mathf.Max(minDist, maxDist));
             return headTargetPos + dir * clamped;
         }
         static void ApplyShoulderPreSwing(
@@ -542,7 +557,7 @@ namespace UnityEngine.Animations.Rigging
             Vector4Property hintRotProp,
             BoolProperty hintWeightProp,
             Quaternion targetOffset,
-            Vector3 bendNormal)   // <-- changed from Vector3Property
+            Vector3 bendNormal)
         {
             if (!enabledProp.Get(stream) || !(root.IsValid(stream) && mid.IsValid(stream) && tip.IsValid(stream)))
             {
@@ -731,8 +746,6 @@ namespace UnityEngine.Animations.Rigging
         }
         public void SolveHipsAndSpine(AnimationStream stream, float chainlength, Vector3 headTargetPos, Vector3 hipsTargetPos, Vector4Property targetRotationHips, Vector4Property offsetRotationHips, BoolProperty EnableSpineIK, ReadWriteTransformHandle HandleHips, ReadWriteTransformHandle HandleChest, ReadWriteTransformHandle HandleNeck, ReadWriteTransformHandle HandleHead, Vector3Property targetPositionHead, Vector4Property targetRotationHead, Quaternion targetOffsetHead, Vector3Property bendNormalHead)
         {
-            hipsTargetPos = ClampHipsAroundHeadByChain(headTargetPos, hipsTargetPos, chainlength);
-
             if (!EnableSpineIK.Get(stream))
             {
                 BasisIKHelpers.Pass(stream, HandleChest, HandleNeck, HandleHead);
