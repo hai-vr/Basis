@@ -73,7 +73,7 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
 
             if(AccountForScale)
             {
-                ScaledDeviceCoord.position *= BasisHeightDriver.heightScaleFactor;
+                ScaledDeviceCoord.position *= BasisHeightDriver.AvatarToPlayerScale;
             }
 
             if (hasRoleAssigned)

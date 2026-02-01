@@ -152,13 +152,13 @@ namespace Basis.Scripts.UI
         {
             if (LineRenderer != null)
             {
-                float Size = lineWidth * BasisHeightDriver.heightScaleFactor;
+                float Size = lineWidth * BasisHeightDriver.AvatarToPlayerScale;
                 LineRenderer.startWidth = Size;
                 LineRenderer.endWidth = Size;
             }
             if (highlightQuadInstance != null)
             {
-                highlightQuadInstance.transform.localScale = highlightQuadInitalSize * BasisHeightDriver.heightScaleFactor;
+                highlightQuadInstance.transform.localScale = highlightQuadInitalSize * BasisHeightDriver.AvatarToPlayerScale;
             }
         }
 

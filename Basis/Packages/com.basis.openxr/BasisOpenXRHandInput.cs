@@ -143,7 +143,7 @@ public class BasisOpenXRHandInput : BasisInputController
         ConvertToScaledDeviceCoord();
         ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
         UpdateRaycastOffset();
-        float avatarScale = BasisHeightDriver.heightScaleFactor;
+        float avatarScale = BasisHeightDriver.AvatarToPlayerScale;
 
         ComputeRaycastDirection(OffsetCoords.position + (PointerPositionYScaled.position * avatarScale), HandFinal.rotation, ActiveRaycastOffset);
         UpdateInputEvents();
@@ -161,7 +161,7 @@ public class BasisOpenXRHandInput : BasisInputController
     {
         if (TryGetRole(out BasisBoneTrackedRole assignedRole))
         {
-            float avatarScale = BasisHeightDriver.heightScaleFactor;
+            float avatarScale = BasisHeightDriver.AvatarToPlayerScale;
             switch (assignedRole)
             {
                 case BasisBoneTrackedRole.LeftHand:
