@@ -787,11 +787,6 @@ namespace Basis.Scripts.Drivers
             data.struggleEnd = 1;
             data.maxChestDelta = 90;
 
-            data.UpperArmTwistLimitDeg = 60f;
-            data.ForearmTwistLimitDeg = 80f;
-            data.ElbowSwivelLimitDeg = 120f;
-            data.ShoulderSwingConeDeg = 95f;
-
             BasisFullIKConstraint.data = data;
         }
 
