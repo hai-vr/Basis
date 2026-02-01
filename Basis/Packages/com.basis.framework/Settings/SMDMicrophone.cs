@@ -142,7 +142,7 @@ public class SMDMicrophone : BasisSettingsBase
             selectedUseAGC = value;
             OnAgcEnabledChanged?.Invoke(selectedUseAGC);
             // also re-emit params so listeners can refresh their state in one shot
-            OnAgcParamsChanged?.Invoke(selectedAgcTargetRms, selectedAgcMaxGainDb, selectedAgcAttack, selectedAgcRelease);
+            OnAgcParamsChanged?.Invoke(selectedAgcTargetRms, selectAgcMaxGainDb, selectedAgcAttack, selectedAgcRelease);
         }
     }
 
@@ -153,18 +153,18 @@ public class SMDMicrophone : BasisSettingsBase
         set
         {
             selectedAgcTargetRms = Mathf.Max(1e-6f, value);
-            OnAgcParamsChanged?.Invoke(selectedAgcTargetRms, selectedAgcMaxGainDb, selectedAgcAttack, selectedAgcRelease);
+            OnAgcParamsChanged?.Invoke(selectedAgcTargetRms, selectAgcMaxGainDb, selectedAgcAttack, selectedAgcRelease);
         }
     }
 
-    private static float selectedAgcMaxGainDb = 10f;
-    public static float SelectedAgcMaxGainDb
+    private static float selectAgcMaxGainDb = 10f;
+    public static float SelectAgcMaxGainDb
     {
-        get => selectedAgcMaxGainDb;
+        get => selectAgcMaxGainDb;
         set
         {
-            selectedAgcMaxGainDb = value;
-            OnAgcParamsChanged?.Invoke(selectedAgcTargetRms, selectedAgcMaxGainDb, selectedAgcAttack, selectedAgcRelease);
+            selectAgcMaxGainDb = value;
+            OnAgcParamsChanged?.Invoke(selectedAgcTargetRms, selectAgcMaxGainDb, selectedAgcAttack, selectedAgcRelease);
         }
     }
 
@@ -175,7 +175,7 @@ public class SMDMicrophone : BasisSettingsBase
         set
         {
             selectedAgcAttack = Mathf.Clamp01(value);
-            OnAgcParamsChanged?.Invoke(selectedAgcTargetRms, selectedAgcMaxGainDb, selectedAgcAttack, selectedAgcRelease);
+            OnAgcParamsChanged?.Invoke(selectedAgcTargetRms, selectAgcMaxGainDb, selectedAgcAttack, selectedAgcRelease);
         }
     }
 
@@ -186,7 +186,7 @@ public class SMDMicrophone : BasisSettingsBase
         set
         {
             selectedAgcRelease = Mathf.Clamp01(value);
-            OnAgcParamsChanged?.Invoke(selectedAgcTargetRms, selectedAgcMaxGainDb, selectedAgcAttack, selectedAgcRelease);
+            OnAgcParamsChanged?.Invoke(selectedAgcTargetRms, selectAgcMaxGainDb, selectedAgcAttack, selectedAgcRelease);
         }
     }
 
@@ -269,7 +269,7 @@ public class SMDMicrophone : BasisSettingsBase
 
         SelectedUseAGC = savedUseAgc;
         SelectedAgcTargetRms = savedAgcTargetRms;
-        SelectedAgcMaxGainDb = savedAgcMaxGainDb;
+        SelectAgcMaxGainDb = savedAgcMaxGainDb;
         SelectedAgcAttack = savedAgcAttack;
         SelectedAgcRelease = savedAgcRelease;
 
@@ -385,14 +385,14 @@ public class SMDMicrophone : BasisSettingsBase
         AgcAttackSettings[mode] = attack;
         AgcReleaseSettings[mode] = release;
 
-        PlayerPrefs.SetFloat($"{mode}_AgcTargetRms", targetRms);
-        PlayerPrefs.SetFloat($"{mode}_AgcMaxGainDb", maxGainDb);
-        PlayerPrefs.SetFloat($"{mode}_AgcAttack", attack);
-        PlayerPrefs.SetFloat($"{mode}_AgcRelease", release);
+        PlayerPrefs.SetFloat($"{mode}_agcTargetRms", targetRms);
+        PlayerPrefs.SetFloat($"{mode}_agcMaxGainDb", maxGainDb);
+        PlayerPrefs.SetFloat($"{mode}_agcAttack", attack);
+        PlayerPrefs.SetFloat($"{mode}_agcRelease", release);
         PlayerPrefs.Save();
 
         SelectedAgcTargetRms = targetRms;
-        SelectedAgcMaxGainDb = maxGainDb;
+        SelectAgcMaxGainDb = maxGainDb;
         SelectedAgcAttack = attack;
         SelectedAgcRelease = release;
     }
@@ -469,7 +469,7 @@ public class SMDMicrophone : BasisSettingsBase
 
                 case var s when s == K_AGC_TARGET:
                     if (float.TryParse(optionValue, st, ci, out float tr))
-                        SaveAgcParams(mode, tr, SelectedAgcMaxGainDb, SelectedAgcAttack, SelectedAgcRelease);
+                        SaveAgcParams(mode, tr, SelectAgcMaxGainDb, SelectedAgcAttack, SelectedAgcRelease);
                     else
                         BasisDebug.LogError($"Bad AGCTargetRms: {optionValue}");
                     break;
@@ -483,14 +483,14 @@ public class SMDMicrophone : BasisSettingsBase
 
                 case var s when s == K_AGC_ATTACK:
                     if (float.TryParse(optionValue, st, ci, out float att))
-                        SaveAgcParams(mode, SelectedAgcTargetRms, SelectedAgcMaxGainDb, att, SelectedAgcRelease);
+                        SaveAgcParams(mode, SelectedAgcTargetRms, SelectAgcMaxGainDb, att, SelectedAgcRelease);
                     else
                         BasisDebug.LogError($"Bad AGCAttack: {optionValue}");
                     break;
 
                 case var s when s == K_AGC_RELEASE:
                     if (float.TryParse(optionValue, st, ci, out float rel))
-                        SaveAgcParams(mode, SelectedAgcTargetRms, SelectedAgcMaxGainDb, SelectedAgcAttack, rel);
+                        SaveAgcParams(mode, SelectedAgcTargetRms, SelectAgcMaxGainDb, SelectedAgcAttack, rel);
                     else
                         BasisDebug.LogError($"Bad AGCRelease: {optionValue}");
                     break;

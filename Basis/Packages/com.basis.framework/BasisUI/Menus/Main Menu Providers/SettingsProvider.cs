@@ -422,7 +422,7 @@ BasisSettingsDefaults.mousesensitivty);
                 agcGroup,
                 PanelSlider.SliderSettings.Advanced("AGC Max Gain (dB)", 0f, 36f, false, 1, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.AgcMaxGainDb);
-            sliderAgcMaxGain.SetValueWithoutNotify(SMDMicrophone.SelectedAgcMaxGainDb);
+            sliderAgcMaxGain.SetValueWithoutNotify(SMDMicrophone.SelectAgcMaxGainDb);
 
             // Attack/Release: 0..1 as your code expects
             PanelSlider sliderAgcAttack = PanelSlider.CreateEntryAndBind(
@@ -442,7 +442,7 @@ BasisSettingsDefaults.mousesensitivty);
                 SMDMicrophone.SaveAgcParams(
                     BasisDeviceManagement.StaticCurrentMode,
                     v,
-                    SMDMicrophone.SelectedAgcMaxGainDb,
+                    SMDMicrophone.SelectAgcMaxGainDb,
                     SMDMicrophone.SelectedAgcAttack,
                     SMDMicrophone.SelectedAgcRelease);
             }
@@ -460,7 +460,7 @@ BasisSettingsDefaults.mousesensitivty);
                 SMDMicrophone.SaveAgcParams(
                     BasisDeviceManagement.StaticCurrentMode,
                     SMDMicrophone.SelectedAgcTargetRms,
-                    SMDMicrophone.SelectedAgcMaxGainDb,
+                    SMDMicrophone.SelectAgcMaxGainDb,
                     v,
                     SMDMicrophone.SelectedAgcRelease);
             }
@@ -469,7 +469,7 @@ BasisSettingsDefaults.mousesensitivty);
                 SMDMicrophone.SaveAgcParams(
                     BasisDeviceManagement.StaticCurrentMode,
                     SMDMicrophone.SelectedAgcTargetRms,
-                    SMDMicrophone.SelectedAgcMaxGainDb,
+                    SMDMicrophone.SelectAgcMaxGainDb,
                     SMDMicrophone.SelectedAgcAttack,
                     v);
             }
