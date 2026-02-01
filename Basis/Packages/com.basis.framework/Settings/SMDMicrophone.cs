@@ -157,7 +157,7 @@ public class SMDMicrophone : BasisSettingsBase
         }
     }
 
-    private static float selectedAgcMaxGainDb = 18f;
+    private static float selectedAgcMaxGainDb = 10f;
     public static float SelectedAgcMaxGainDb
     {
         get => selectedAgcMaxGainDb;
