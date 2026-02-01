@@ -636,6 +636,21 @@ namespace Basis.Scripts.Drivers
             BodyData.chestRadius = 0.07f * Scale;
             BodyData.collisionSkin = 0.05f * Scale;
 
+            var hips = BasisLocalBoneDriver.HipsControl.TposeLocalScaled;
+            var spine = BasisLocalBoneDriver.SpineControl.TposeLocalScaled;
+            var chest = BasisLocalBoneDriver.ChestControl.TposeLocalScaled;
+
+            var neck = BasisLocalBoneDriver.NeckControl.TposeLocalScaled;
+            var head = BasisLocalBoneDriver.HeadControl.TposeLocalScaled;
+
+
+            float d = 0f;
+            d += Vector3.Distance(hips.position, spine.position);
+            d += Vector3.Distance(spine.position, chest.position);
+            d += Vector3.Distance(chest.position, neck.position);
+            d += Vector3.Distance(neck.position, head.position);
+
+            BodyData.minHeadSpineHeight = d;
         }
         public void Spine(GameObject mainRig)
         {
