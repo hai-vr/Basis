@@ -69,17 +69,23 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedRotationLeftFoot = Mapping.Hashead ? Mapping.leftFoot.rotation : Quaternion.identity;
         data.m_CalibratedRotationRightFoot = Mapping.Hashead ? Mapping.rightFoot.rotation : Quaternion.identity;
 
+        Quaternion leftLandmarkBind = Quaternion.identity;
+        Quaternion rightLandmarkBind = Quaternion.identity;
 
-        Quaternion leftLandmarkBind = HandRotationFromLandmarks(
-            Mapping.leftHand.position,
-            Mapping.LeftIndex[0].position,
-            Mapping.LeftLittle[0].position);
-
-        Quaternion rightLandmarkBind = HandRotationFromLandmarks(
-            Mapping.rightHand.position,
-            Mapping.RightIndex[0].position,
-            Mapping.RightLittle[0].position);
-
+        if (Mapping.HasleftHand)
+        {
+            Vector3 wrist = Mapping.leftHand.position;
+            var a = new[] { GetLM(Mapping.LeftIndex, 0), GetLM(Mapping.LeftIndex, 0), GetLM(Mapping.LeftMiddle, 0) };
+            var b = new[] { GetLM(Mapping.LeftLittle, 0), GetLM(Mapping.LeftMiddle, 0), GetLM(Mapping.LeftLittle, 0) };
+            leftLandmarkBind = ComputeHandRotationWithFallback(wrist, a, b, ref _hasLastLeft, ref _lastGoodLeftRot);
+        }
+        if (Mapping.HasrightHand)
+        {
+            Vector3 wrist = Mapping.rightHand.position;
+            var a = new[] { GetLM(Mapping.RightIndex, 0), GetLM(Mapping.RightIndex, 0), GetLM(Mapping.RightMiddle, 0) };
+            var b = new[] { GetLM(Mapping.RightLittle, 0), GetLM(Mapping.RightMiddle, 0), GetLM(Mapping.RightLittle, 0) };
+            rightLandmarkBind = ComputeHandRotationWithFallback(wrist, a, b, ref _hasLastRight, ref _lastGoodRightRot);
+        }
         // Bone bind rotations (world space)
         Quaternion leftBoneBind = Mapping.leftHand.rotation;
         Quaternion rightBoneBind = Mapping.rightHand.rotation;
@@ -153,19 +159,55 @@ public static class BasisAnimationRiggingHelper
         GeneratedRequiredTransforms(player, Mapping.leftHand);
         GeneratedRequiredTransforms(player, Mapping.rightHand);
     }
-   public static Quaternion HandRotationFromLandmarks(Vector3 wrist, Vector3 indexMCP, Vector3 pinkyMCP)
+    private static Quaternion _lastGoodLeftRot = Quaternion.identity;
+    private static Quaternion _lastGoodRightRot = Quaternion.identity;
+    private static bool _hasLastLeft;
+    private static bool _hasLastRight;
+    private static (bool valid, Vector3 pos) GetLM(Transform[] arr, int i)
     {
-        // Palm right direction (index to pinky)
-        Vector3 right = (pinkyMCP - indexMCP).normalized;
+        if (arr != null && i >= 0 && i < arr.Length && arr[i] != null)
+            return (true, arr[i].position);
 
-        // Palm forward direction (wrist to between knuckles)
+        return (false, Vector3.zero);
+    }
+    private static Quaternion ComputeHandRotationWithFallback( Vector3 wrist,(bool valid, Vector3 pos)[] pointsA,(bool valid, Vector3 pos)[] pointsB, ref bool hasLast, ref Quaternion lastRot)
+    {
+        // pointsA[i] pairs with pointsB[i] as a candidate
+        for (int i = 0; i < pointsA.Length; i++)
+        {
+            if (!pointsA[i].valid || !pointsB[i].valid) continue;
+
+            Quaternion rot = HandRotationFromLandmarks(wrist, pointsA[i].pos, pointsB[i].pos);
+            if (rot == Quaternion.identity) continue;
+
+            lastRot = rot;
+            hasLast = true;
+            return rot;
+        }
+
+        return hasLast ? lastRot : Quaternion.identity;
+    }
+    public static Quaternion HandRotationFromLandmarks(Vector3 wrist, Vector3 indexMCP, Vector3 pinkyMCP)
+    {
+        Vector3 right = (pinkyMCP - indexMCP);
         Vector3 knuckleMid = (indexMCP + pinkyMCP) * 0.5f;
-        Vector3 forward = (knuckleMid - wrist).normalized;
+        Vector3 forward = (knuckleMid - wrist);
 
-        // Palm normal (up-ish). Order matters: swap if flipped.
-        Vector3 up = Vector3.Cross(forward, right).normalized;
+        if (right.sqrMagnitude < 1e-8f || forward.sqrMagnitude < 1e-8f)
+        {
+            return Quaternion.identity; // caller will treat as "no usable landmark rotation"
+        }
 
-        // Re-orthogonalize to avoid drift
+        right.Normalize();
+        forward.Normalize();
+
+        Vector3 up = Vector3.Cross(forward, right);
+        if (up.sqrMagnitude < 1e-8f)
+        {
+            return Quaternion.identity;
+        }
+
+        up.Normalize();
         right = Vector3.Cross(up, forward).normalized;
 
         return Quaternion.LookRotation(forward, up);
