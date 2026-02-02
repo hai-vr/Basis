@@ -27,7 +27,7 @@ public static class BasisAnimationRiggingHelper
         // Skeleton references
         // ----------------------------
         // Torso / head chain
-        data.hips =  Mapping.Hips;
+        data.hips = Mapping.Hips;
         data.spine = Mapping.spine;
         data.chest = Mapping.chest;
         data.upperChest = Mapping.Upperchest;
@@ -71,6 +71,11 @@ public static class BasisAnimationRiggingHelper
 
         Quaternion leftLandmarkBind = Quaternion.identity;
         Quaternion rightLandmarkBind = Quaternion.identity;
+
+        Quaternion _lastGoodLeftRot = Quaternion.identity;
+        Quaternion _lastGoodRightRot = Quaternion.identity;
+        bool _hasLastLeft = false;
+        bool _hasLastRight = false;
 
         if (Mapping.HasleftHand)
         {
@@ -159,10 +164,6 @@ public static class BasisAnimationRiggingHelper
         GeneratedRequiredTransforms(player, Mapping.leftHand);
         GeneratedRequiredTransforms(player, Mapping.rightHand);
     }
-    private static Quaternion _lastGoodLeftRot = Quaternion.identity;
-    private static Quaternion _lastGoodRightRot = Quaternion.identity;
-    private static bool _hasLastLeft;
-    private static bool _hasLastRight;
     private static (bool valid, Vector3 pos) GetLM(Transform[] arr, int i)
     {
         if (arr != null && i >= 0 && i < arr.Length && arr[i] != null)
