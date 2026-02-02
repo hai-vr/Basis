@@ -324,7 +324,7 @@ public class BasisAvatarValidator
                     null));
             }
         }
-
+        /*
         // Processing options
         if (Avatar.ProcessingAvatarOptions != null && Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes == false && Avatar.transform.Find("HVR.Networking") == null)
         {
@@ -334,6 +334,7 @@ public class BasisAvatarValidator
                 "Turn on RemoveUnusedBlendshapes (dont if your using Face/Eye Tracking!!!"
             ));
         }
+        */
 
         // IL2CPP
         if (ReportIfNoIll2CPP())
@@ -392,14 +393,14 @@ public class BasisAvatarValidator
 
         return errors.Count == 0;
     }
-
+    /*
     public void FixRemoveUnusedBlendShape()
     {
         if (Avatar?.ProcessingAvatarOptions == null) return;
         Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes = true;
         EditorUtility.SetDirty(Avatar);
     }
-
+    */
     // -----------------------------
     // NEW: Fix helpers
     // -----------------------------
