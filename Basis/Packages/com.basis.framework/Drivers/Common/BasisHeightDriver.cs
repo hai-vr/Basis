@@ -177,6 +177,8 @@ public static class BasisHeightDriver
         BasisDebug.Log($"Height Mode is {Height} with height {SelectedPlayerHeight} with avatar height {SelectedAvatarHeight} with selected player to default scale {PlayerToAvatarScale} select avatar to avatar scale {AvatarToPlayerScale}", BasisDebug.LogTag.Avatar);
     }
     public static float heightScaleFactor = 1;
+
+    public static float HumanNormalizeScale =>  FallbackHeightInMeters / SelectedPlayerHeight;
     /// <summary>
     /// Fallback height (meters) used when no measurement is available.
     /// not the total height but the eye height

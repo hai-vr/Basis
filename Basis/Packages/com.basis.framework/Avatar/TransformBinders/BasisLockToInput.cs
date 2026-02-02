@@ -50,6 +50,9 @@ namespace Basis.Scripts.TransformBinders
             {
                 BasisDeviceManagement.Instance.AllInputDevices.OnListChanged += FindRole;
                 BasisDeviceManagement.Instance.AllInputDevices.OnListItemRemoved += ResetIfNeeded;
+
+                BasisLocalPlayer.OnLocalAvatarChanged += ApplyScale;
+                BasisLocalPlayer.OnPlayersHeightChangedNextFrame += ApplyScale;
                 HasEvent = true;
             }
 
@@ -65,6 +68,10 @@ namespace Basis.Scripts.TransformBinders
             {
                 BasisDeviceManagement.Instance.AllInputDevices.OnListChanged -= FindRole;
                 BasisDeviceManagement.Instance.AllInputDevices.OnListItemRemoved -= ResetIfNeeded;
+
+                BasisLocalPlayer.OnLocalAvatarChanged -= ApplyScale;
+                BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= ApplyScale;
+
                 HasEvent = false;
             }
         }
@@ -105,7 +112,7 @@ namespace Basis.Scripts.TransformBinders
                             BasisInput = Input;
                             this.transform.parent = BasisInput.transform;
                             this.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-                            this.transform.localScale = Vector3.one * BasisHeightDriver.AvatarToPlayerScale;
+                            ApplyScale();
                             return;
                         }
                     }
@@ -120,6 +127,10 @@ namespace Basis.Scripts.TransformBinders
                     if (!Application.isPlaying) BasisDebug.LogError("There was a missing BasisInput at " + Index);
                 }
             }
+        }
+        public void ApplyScale()
+        {
+            this.transform.localScale = Vector3.one * BasisHeightDriver.AvatarToPlayerScale;
         }
     }
 }
