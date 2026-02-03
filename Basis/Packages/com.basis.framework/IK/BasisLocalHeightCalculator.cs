@@ -124,16 +124,11 @@ public static class BasisLocalHeightCalculator
         boneDriver.FindBone(out var leftHandBone, BasisBoneTrackedRole.LeftHand);
         boneDriver.FindBone(out var rightHandBone, BasisBoneTrackedRole.RightHand);
 
-        Vector3 HeadPosition = HeadBone.TposeLocal.position;
-        Vector3 headFlat = new Vector3(HeadPosition.x, 0f, HeadPosition.z);
         Vector3 leftFlat = new Vector3(leftHandBone.TposeLocal.position.x, 0f, leftHandBone.TposeLocal.position.z);
         Vector3 rightFlat = new Vector3(rightHandBone.TposeLocal.position.x, 0f, rightHandBone.TposeLocal.position.z);
 
-        float leftArmLength = Vector3.Distance(headFlat, leftFlat);
-        float rightArmLength = Vector3.Distance(headFlat, rightFlat);
-
-        float averageArmLength = (leftArmLength + rightArmLength) * 0.5f;
-        BasisHeightDriver.AvatarArmSpan = averageArmLength * 2f;
+        float ArmLength = Vector3.Distance(leftFlat, rightFlat);
+        BasisHeightDriver.AvatarArmSpan = ArmLength * 2f;
         BasisDebug.Log($"Current Avatar Arm Span: {BasisHeightDriver.AvatarArmSpan}", BasisDebug.LogTag.Avatar);
     }
     public static void ValidateEyeToArmSizes()
