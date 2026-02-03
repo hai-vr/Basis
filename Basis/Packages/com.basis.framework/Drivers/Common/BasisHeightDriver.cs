@@ -180,7 +180,7 @@ public static class BasisHeightDriver
         }
 
         // Preserve the currently applied scale, measure at scale=1, then restore.
-        float ApplyScale = avatarDriver.ScaleAvatarModification.ApplyScale;
+        AppliedUpScale = avatarDriver.ScaleAvatarModification.ApplyScale;
 
         ApplyAvatarScale(1f); // Force unscaled to capture correct baseline measurements.
 
@@ -188,7 +188,7 @@ public static class BasisHeightDriver
         BasisLocalHeightCalculator.CalculateAvatarArmSpan();
         BasisLocalHeightCalculator.ValidateEyeToArmSizes();
 
-        ApplyAvatarScale(ApplyScale);
+        ApplyAvatarScale(AppliedUpScale);
 
         // Notify next frame so listeners read consistent updated values.
         BasisLocalPlayer.Instance.ExecuteNextFrame(() =>
@@ -260,19 +260,19 @@ public static class BasisHeightDriver
         }
 
         // Current applied avatar scale (1 = unscaled).
-        float ApplyScale = avatarDriver.ScaleAvatarModification.ApplyScale;
+        AppliedUpScale = avatarDriver.ScaleAvatarModification.ApplyScale;
 
         switch (Height)
         {
             case BasisSelectedHeightMode.ArmSpan:
-                SelectedScaledPlayerHeight = PlayerArmSpan * ApplyScale;
-                SelectedScaledAvatarHeight = AvatarArmSpan * ApplyScale;
+                SelectedScaledPlayerHeight = PlayerArmSpan * AppliedUpScale;
+                SelectedScaledAvatarHeight = AvatarArmSpan * AppliedUpScale;
                 SelectedUnScaledAvatarHeight = AvatarArmSpan;
                 break;
 
             case BasisSelectedHeightMode.EyeHeight:
-                SelectedScaledPlayerHeight = PlayerEyeHeight * ApplyScale;
-                SelectedScaledAvatarHeight = AvatarEyeHeight * ApplyScale;
+                SelectedScaledPlayerHeight = PlayerEyeHeight * AppliedUpScale;
+                SelectedScaledAvatarHeight = AvatarEyeHeight * AppliedUpScale;
                 SelectedUnScaledAvatarHeight = AvatarEyeHeight;
                 break;
         }
@@ -310,7 +310,7 @@ public static class BasisHeightDriver
             BasisDebug.LogTag.Avatar
         );
     }
-
+    public static float AppliedUpScale = 1;
     /// <summary>
     /// The most recently applied scale factor used to match the avatar to the selected target measurement.
     /// 1.0 means no scaling.
