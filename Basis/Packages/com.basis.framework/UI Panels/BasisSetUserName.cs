@@ -99,8 +99,8 @@ namespace Basis.Scripts.UI.UI_Panels
         {
             if (BasisLocalPlayer.Instance != null)
             {
-                this.transform.localScale = InitalScale * BasisHeightDriver.heightScaleFactor;
-                this.transform.position  = new Vector3(this.transform.position.x, BasisHeightDriver.SelectedPlayerHeight + InitalYOffset, this.transform.position.z);
+                this.transform.localScale = InitalScale * BasisHeightDriver.ScaledToMatchValue;
+                this.transform.position  = new Vector3(this.transform.position.x, BasisHeightDriver.SelectedScaledPlayerHeight + InitalYOffset, this.transform.position.z);
             }
         }
 

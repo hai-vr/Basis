@@ -64,7 +64,7 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
             ScaledDeviceCoord.position = VOut;
             Quaternion LocalRawRotation = QOut;
 
-            float SPTDS = BasisHeightDriver.PlayerToAvatarScale;
+            float SPTDS = BasisHeightDriver.AvatarToPlayerRatioScaled;
 
             // Normalize to player default scale and restore (keeps internal math consistent)
             ScaledDeviceCoord.position /= SPTDS;
@@ -73,7 +73,7 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
 
             if(AccountForScale)
             {
-                ScaledDeviceCoord.position *= BasisHeightDriver.AvatarToPlayerScale;
+                ScaledDeviceCoord.position *= BasisHeightDriver.AvatarToPlayerRatioScaled;
             }
 
             if (hasRoleAssigned)

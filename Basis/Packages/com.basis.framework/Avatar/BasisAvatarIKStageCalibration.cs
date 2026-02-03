@@ -120,7 +120,7 @@ namespace Basis.Scripts.Avatar
                 if (BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out BasisLocalBoneControl control, role))
                 {
                     //0.3f * 1 
-                    float ScaledDistance = MaxDistanceBeforeTrackerIsIrrelivant(role) * BasisHeightDriver.heightScaleFactor;
+                    float ScaledDistance = MaxDistanceBeforeTrackerIsIrrelivant(role) * BasisHeightDriver.ScaledToMatchValue;
                     if (StoredRolesTransforms.TryGetValue(role, out Transform Transform))
                     {
                         //  BasisLocalPlayer.Instance.LocalBoneDriver.AddGizmo($"{control.name} IK Calibration with Scaler Distance {ScaledDistance}", Transform, ScaledDistance, control.Color, role);
@@ -177,7 +177,7 @@ namespace Basis.Scripts.Avatar
             }
 
             // Choose push magnitudes (tweakable)
-            float hs = BasisHeightDriver.heightScaleFactor;
+            float hs = BasisHeightDriver.ScaledToMatchValue;
 
             float elbowPush = 0.12f * hs;
             float kneePush = 0.10f * hs;

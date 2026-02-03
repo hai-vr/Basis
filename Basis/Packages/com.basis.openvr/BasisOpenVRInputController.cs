@@ -160,7 +160,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             UnscaledDeviceCoord.rotation = devicePose.mDeviceToAbsoluteTracking.GetRotation();
 
             // scale from the avatar currently selected to the avatar's "default" rig size
-            float avatarScale = BasisHeightDriver.AvatarToPlayerScale;
+            float Scale = BasisHeightDriver.AvatarToPlayerRatioScaled;
 
             // Wrist data from skeleton
             int idxWrist = SteamVR_Skeleton_JointIndexes.wrist;
@@ -193,7 +193,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             Quaternion wristWorldRot = baseWristWorldRot * rotOffset;
 
             // ---------- SCALE UP TO AVATAR SPACE ----------
-            Vector3 wristWorldPos = wristWorldPosUnscaled * avatarScale;
+            Vector3 wristWorldPos = wristWorldPosUnscaled * Scale;
 
             // Global offset is in scaled space (as before)
             wristWorldPos += OffsetCoords.position;
@@ -209,7 +209,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             UpdateRaycastOffset();
             ComputeRaycastDirection(
-                wristWorldPos + (UnscaledDeviceCoord.rotation * (isLeft ? LeftRaycastOffset : RightRaycastOffset * avatarScale)),
+                wristWorldPos + (UnscaledDeviceCoord.rotation * (isLeft ? LeftRaycastOffset : RightRaycastOffset * Scale)),
                 HandFinal.rotation,
                 ActiveRaycastOffset
             );

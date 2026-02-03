@@ -143,9 +143,13 @@ public class BasisOpenXRHandInput : BasisInputController
         ConvertToScaledDeviceCoord();
         ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
         UpdateRaycastOffset();
-        float avatarScale = BasisHeightDriver.AvatarToPlayerScale;
+        float playerToAvatar = BasisHeightDriver.AvatarToPlayerRatioScaled;
 
-        ComputeRaycastDirection(OffsetCoords.position + (PointerPositionYScaled.position * avatarScale), HandFinal.rotation, ActiveRaycastOffset);
+        ComputeRaycastDirection(
+            OffsetCoords.position + (PointerPositionYScaled.position * playerToAvatar),
+            HandFinal.rotation,
+            ActiveRaycastOffset
+        );
         UpdateInputEvents();
     }
     public BasisCalibratedCoords PointerPositionYScaled;
@@ -161,7 +165,7 @@ public class BasisOpenXRHandInput : BasisInputController
     {
         if (TryGetRole(out BasisBoneTrackedRole assignedRole))
         {
-            float avatarScale = BasisHeightDriver.AvatarToPlayerScale;
+            float playerToAvatar = BasisHeightDriver.AvatarToPlayerRatioScaled;
             switch (assignedRole)
             {
                 case BasisBoneTrackedRole.LeftHand:
@@ -169,18 +173,18 @@ public class BasisOpenXRHandInput : BasisInputController
                     {
                         UpdateHandPose(subsystem.leftHand, BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, out HandRaw.position, out HandRaw.rotation);
                         HandFinal.rotation = HandleHandFinalRotation(HandRaw.rotation);
-                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * avatarScale);
+                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * playerToAvatar);
                     }
                     else
                     {
                         HandRaw.position = PalmPoseActionPosition.action.ReadValue<Vector3>();
                         HandRaw.rotation = PalmPoseActionRotation.action.ReadValue<Quaternion>();
                         HandFinal.rotation = math.mul(HandRaw.rotation, Quaternion.Euler(LeftHandPalmCorrection));
-                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * avatarScale);
+                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * playerToAvatar);
                         FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.LeftHand);
                         if (UseIKPositionOffset)
                         {
-                            HandFinal.position += HandRaw.rotation * (leftHandToIKPositionOffset * avatarScale);
+                            HandFinal.position += HandRaw.rotation * (leftHandToIKPositionOffset * playerToAvatar);
                         }
                     }
                     break;
@@ -189,18 +193,18 @@ public class BasisOpenXRHandInput : BasisInputController
                     {
                         UpdateHandPose(subsystem.rightHand, BasisLocalPlayer.Instance.LocalHandDriver.RightHand, out HandRaw.position, out HandRaw.rotation);
                         HandFinal.rotation = HandleHandFinalRotation(HandRaw.rotation);
-                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * avatarScale);
+                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * playerToAvatar);
                     }
                     else
                     {
                         HandRaw.position = PalmPoseActionPosition.action.ReadValue<Vector3>();
                         HandRaw.rotation = PalmPoseActionRotation.action.ReadValue<Quaternion>();
                         HandFinal.rotation = math.mul(HandRaw.rotation, Quaternion.Euler(RightHandPalmCorrection));
-                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * avatarScale);
+                        HandFinal.position = OffsetCoords.position + (ChangeHandYHeight(HandRaw.position) * playerToAvatar);
                         FallbackHand(BasisLocalPlayer.Instance.LocalHandDriver.RightHand);
                         if (UseIKPositionOffset)
                         {
-                            HandFinal.position += HandRaw.rotation * (rightHandToIKPositionOffset * avatarScale);
+                            HandFinal.position += HandRaw.rotation * (rightHandToIKPositionOffset * playerToAvatar);
                         }
                     }
                     break;

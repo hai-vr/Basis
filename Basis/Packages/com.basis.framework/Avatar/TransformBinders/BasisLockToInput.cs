@@ -130,7 +130,7 @@ namespace Basis.Scripts.TransformBinders
         }
         public void ApplyScale()
         {
-            this.transform.localScale = Vector3.one * BasisHeightDriver.AvatarToPlayerScale;
+            this.transform.localScale = Vector3.one * BasisHeightDriver.AvatarToDefaultRatioScaled;
         }
     }
 }
