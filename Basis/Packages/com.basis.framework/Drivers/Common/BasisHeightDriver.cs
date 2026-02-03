@@ -317,8 +317,12 @@ public static class BasisHeightDriver
 
         Vector3 CalibrationScale = avatarDriver.ScaleAvatarModification.DuringCalibrationScale;
         //if we 10x the player scale we need to 10x the avatar scale
-        ControllerScaler = (CalibrationScale.y * AppliedUpScale) * (SelectedUnScaledPlayerHeight / SelectedUnScaledAvatarHeight);
-        CameraScale = (CalibrationScale.y * AppliedUpScale) * (SelectedUnScaledPlayerHeight / SelectedUnScaledAvatarHeight);
+        var avatarScaledMetric = SelectedUnScaledAvatarHeight * AppliedUpScale;
+        var playerMetric = SelectedUnScaledPlayerHeight;
+        var Scaler = CalibrationScale.y * (avatarScaledMetric / playerMetric);
+
+        ControllerScaler = Scaler;
+        CameraScale = Scaler;
     }
     public static float AppliedUpScale = 1;
     /// <summary>
