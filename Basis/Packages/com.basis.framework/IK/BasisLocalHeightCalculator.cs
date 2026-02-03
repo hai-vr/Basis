@@ -51,14 +51,9 @@ public static class BasisLocalHeightCalculator
         Vector3 l = left.UnscaledDeviceCoord.position;
         Vector3 r = right.UnscaledDeviceCoord.position;
 
-        // Choose one:
-        // full 3D span:
-        // BasisHeightDriver.PlayerArmSpan = Vector3.Distance(l, r);
-
-        // or flattened (often better if you want "horizontal wingspan"):
         Vector3 lFlat = new Vector3(l.x, 0f, l.z);
         Vector3 rFlat = new Vector3(r.x, 0f, r.z);
-        BasisHeightDriver.PlayerArmSpan = Vector3.Distance(lFlat, rFlat);
+        BasisHeightDriver.PlayerArmSpan = Vector3.Distance(lFlat, rFlat) * 2f;
 
         BasisDebug.Log($"Player hand-to-hand arm span: {BasisHeightDriver.PlayerArmSpan}", BasisDebug.LogTag.Avatar);
     }
@@ -120,7 +115,7 @@ public static class BasisLocalHeightCalculator
             return;
         }
         var boneDriver = Local.LocalBoneDriver;
-        boneDriver.FindBone(out var HeadBone, BasisBoneTrackedRole.Head);
+        //i believe the bone is wrong! we are not actually getting the tpose here! -LD
         boneDriver.FindBone(out var leftHandBone, BasisBoneTrackedRole.LeftHand);
         boneDriver.FindBone(out var rightHandBone, BasisBoneTrackedRole.RightHand);
 
