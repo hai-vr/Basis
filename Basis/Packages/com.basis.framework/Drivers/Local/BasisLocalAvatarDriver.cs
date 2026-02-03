@@ -354,7 +354,7 @@ namespace Basis.Scripts.Drivers
             TposeStateChange?.Invoke();
 
             //anytime a avatar goes into a tpose we can grab the avatar height information
-            BasisHeightDriver.CaptureAvatarHeight();
+            BasisHeightDriver.CaptureAvatarHeightDuringTpose();
         }
 
         /// <summary>

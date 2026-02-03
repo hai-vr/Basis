@@ -23,13 +23,14 @@ namespace Basis.Scripts.Drivers
         {
             DuringCalibrationScale = Animator.transform.localScale;
             ApplyScale = 1;
-            FinalScale = DuringCalibrationScale;
+            FinalScale = ApplyScale * DuringCalibrationScale;
+
         }
         public void SetAvatarheightOverride(float Scale)
         {
             ApplyScale = Scale;
             // Final scale = Default scale * Override scale (component-wise)
-            FinalScale = DuringCalibrationScale * Scale;
+            FinalScale = DuringCalibrationScale * ApplyScale;
             if (BasisLocalPlayer.Instance.BasisAvatar != null)
             {
                 BasisLocalPlayer.Instance.BasisAvatar.transform.localScale = FinalScale;

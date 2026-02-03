@@ -159,7 +159,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, devicePose.mDeviceToAbsoluteTracking.GetPosition());
             UnscaledDeviceCoord.rotation = devicePose.mDeviceToAbsoluteTracking.GetRotation();
 
-            float Scale = BasisHeightDriver.PlayerToDefaultRatioScaled;
+            float Scale = BasisHeightDriver.ControllerScaler;
 
             // Wrist data from skeleton
             int idxWrist = SteamVR_Skeleton_JointIndexes.wrist;

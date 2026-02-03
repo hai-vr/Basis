@@ -1,6 +1,7 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.TransformBinders.BoneControl;
+using UnityEngine;
 
 /// <summary>
 /// Centralized height/scale orchestration for the local player avatar.
@@ -42,7 +43,7 @@ public static class BasisHeightDriver
     }
 
     /// <summary>
-    /// Call when the avatar has completed full-body calibration.
+    /// Call when the avatar is going through full-body calibration.
     /// Captures player measurements first (unscaled by avatar), then updates scale and ratios.
     /// </summary>
     public static void OnAvatarFBCalibration()
@@ -163,7 +164,7 @@ public static class BasisHeightDriver
     ///
     /// Also runs <see cref="BasisLocalHeightCalculator.ValidateEyeToArmSizes"/> to sanity-check the rig.
     /// </summary>
-    public static void CaptureAvatarHeight()
+    public static void CaptureAvatarHeightDuringTpose()
     {
         var player = BasisLocalPlayer.Instance;
         if (player == null)
@@ -208,10 +209,12 @@ public static class BasisHeightDriver
         {
             case BasisSelectedHeightMode.ArmSpan:
                 SelectedUnScaledAvatarHeight = AvatarArmSpan;
+                SelectedUnScaledPlayerHeight = PlayerArmSpan;
                 break;
 
             case BasisSelectedHeightMode.EyeHeight:
                 SelectedUnScaledAvatarHeight = AvatarEyeHeight;
+                SelectedUnScaledPlayerHeight = PlayerEyeHeight;
                 break;
         }
     }
@@ -268,12 +271,14 @@ public static class BasisHeightDriver
                 SelectedScaledPlayerHeight = PlayerArmSpan * AppliedUpScale;
                 SelectedScaledAvatarHeight = AvatarArmSpan * AppliedUpScale;
                 SelectedUnScaledAvatarHeight = AvatarArmSpan;
+                SelectedUnScaledPlayerHeight = PlayerArmSpan;
                 break;
 
             case BasisSelectedHeightMode.EyeHeight:
                 SelectedScaledPlayerHeight = PlayerEyeHeight * AppliedUpScale;
                 SelectedScaledAvatarHeight = AvatarEyeHeight * AppliedUpScale;
                 SelectedUnScaledAvatarHeight = AvatarEyeHeight;
+                SelectedUnScaledPlayerHeight = PlayerEyeHeight;
                 break;
         }
 
@@ -309,6 +314,11 @@ public static class BasisHeightDriver
             $"PlayerToDefault: {PlayerToDefaultRatioScaled} | AvatarToDefault: {AvatarToDefaultRatioScaled}",
             BasisDebug.LogTag.Avatar
         );
+
+        Vector3 CalibrationScale = avatarDriver.ScaleAvatarModification.DuringCalibrationScale;
+        //if we 10x the player scale we need to 10x the avatar scale
+        ControllerScaler = (CalibrationScale.y * AppliedUpScale) * (SelectedUnScaledPlayerHeight / SelectedUnScaledAvatarHeight);
+        CameraScale = (CalibrationScale.y * AppliedUpScale) * (SelectedUnScaledPlayerHeight / SelectedUnScaledAvatarHeight);
     }
     public static float AppliedUpScale = 1;
     /// <summary>
@@ -356,6 +366,11 @@ public static class BasisHeightDriver
     public static float SelectedUnScaledAvatarHeight = FallbackHeightInMeters;
 
     /// <summary>
+    /// Selected player metric (meters) in unscaled space (player scale forced to 1.0).
+    /// This value is used when computing the scale factor: target / unscaledAvatarMetric.
+    /// </summary>
+    public static float SelectedUnScaledPlayerHeight = FallbackHeightInMeters;
+    /// <summary>
     /// Ratio of player metric to avatar metric after scaling:
     /// <code>PlayerToAvatarRatioScaled = SelectedScaledPlayerHeight / SelectedScaledAvatarHeight</code>
     ///
@@ -398,4 +413,8 @@ public static class BasisHeightDriver
     /// Useful for scaling avatar-relative systems against a stable default reference.
     /// </summary>
     public static float AvatarToDefaultRatioScaled = 1f;
+
+    public static float ControllerScaler = 1f;
+
+    public static float CameraScale = 1f;
 }
