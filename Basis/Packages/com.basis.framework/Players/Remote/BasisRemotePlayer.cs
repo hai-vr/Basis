@@ -229,9 +229,12 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <returns>A task that completes when the avatar is loaded or a fallback is applied.</returns>
         public async Task CreateAvatar(byte Mode, BasisLoadableBundle BasisLoadableBundle)
         {
+            if (IsLoadingAnAvatar)
+            {
+                BasisDebug.LogWarning("We Loaded a Avatar While a Existing Avatar was loading!!", BasisDebug.LogTag.Remote);
+            }
             IsLoadingAnAvatar = true;
-            if (BasisLoadableBundle == null ||
-                string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
+            if (BasisLoadableBundle == null || string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
             {
                 BasisDebug.LogError("trying to create Avatar with empty Bundle", BasisDebug.LogTag.Remote);
                 BasisLoadableBundle = BasisAvatarFactory.LoadingAvatar;

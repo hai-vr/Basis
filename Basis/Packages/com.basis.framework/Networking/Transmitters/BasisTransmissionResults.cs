@@ -73,6 +73,7 @@ public partial class BasisTransmissionResults
     private NativeArray<float> smallestD2; // length 1
     private NativeArray<int> changeMask;   // length 1
 
+   public static float HysteresisPercent = 1.10f * 1.10f; // 10% hysteresis
     /// <summary>
     /// Called each frame; drives scheduling of distance job and network sync.
     /// </summary>
@@ -82,12 +83,16 @@ public partial class BasisTransmissionResults
         timer += dt;
 
         if (timer < intervalSeconds)
+        {
             return;
+        }
 
         float intervalUsedThisTick = intervalSeconds;
 
         if (!CanDoSimulate(intervalUsedThisTick, out BasisAvatar avatar))
+        {
             return;
+        }
 
         int receiverCount = BasisNetworkPlayers.ReceiverCount;
         var snapshot = BasisNetworkPlayers.ReceiversSnapshot;
@@ -105,14 +110,18 @@ public partial class BasisTransmissionResults
         LengthOfArrays = receiverCount;
 
         // Fill target positions aligned to snapshot order
-        for (int i = 0; i < receiverCount; i++)
+        for (int Index = 0; Index < receiverCount; Index++)
         {
-            BasisNetworkReceiver remote = snapshot[i];
+            BasisNetworkReceiver remote = snapshot[Index];
             ushort id = remote.playerId;
 
             if (RemoteBoneJobSystem.GetOutGoingMouth(id, out float3 outgoing))
             {
-                targetPositions[i] = outgoing;
+                targetPositions[Index] = outgoing;
+            }
+            else
+            {
+                targetPositions[Index] = BasisLocalCameraDriver.Position + new Vector3(900, 900, 900);//shove it way outside of our understanding.
             }
 
         }
@@ -125,8 +134,7 @@ public partial class BasisTransmissionResults
         distanceJob.referencePosition = BasisLocalCameraDriver.Position;
         distanceJob.ReductionMultiplier = SMModuleDistanceBasedReductions.MeshLod;
 
-        // Use > 1 for hysteresis stickiness (matches your previous caller usage)
-        distanceJob.HysteresisPercent = 1.10f;
+        distanceJob.HysteresisPercent = HysteresisPercent;
 
         // Schedule distance job (parallel)
         distanceJobHandle = distanceJob.Schedule(receiverCount, 64);
@@ -183,12 +191,12 @@ public partial class BasisTransmissionResults
         // Apply avatar load toggles only when needed
         if (avatarChange)
         {
-            for (int i = 0; i < receiverCount; i++)
+            for (int Index = 0; Index < receiverCount; Index++)
             {
-                var receiver = snapshot[i];
+                var receiver = snapshot[Index];
                 var remote = receiver.RemotePlayer;
 
-                bool inRange = AvatarRange[i];
+                bool inRange = AvatarRange[Index];
                 if (!remote.IsLoadingAnAvatar && remote.InAvatarRange != inRange)
                 {
                     remote.InAvatarRange = inRange;
