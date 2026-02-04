@@ -229,9 +229,9 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void OnDisable()
         {
-            if (BasisLocalAvatarDriver.References != null && BasisLocalAvatarDriver.References.head != null)
+            if (BasisLocalAvatarDriver.Mapping != null && BasisLocalAvatarDriver.Mapping.head != null)
             {
-                BasisLocalAvatarDriver.References.head.localScale = BasisLocalAvatarDriver.HeadScale;
+                BasisLocalAvatarDriver.Mapping.head.localScale = BasisLocalAvatarDriver.HeadScale;
             }
             if (HasEvents)
             {
@@ -309,7 +309,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         private void EndCameraRendering(ScriptableRenderContext context, Camera camera)
         {
-            if (BasisLocalAvatarDriver.References.Hashead)
+            if (BasisLocalAvatarDriver.Mapping.Hashead)
             {
                 if (Camera.GetInstanceID() == CameraInstanceID)
                 {
@@ -323,7 +323,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void BeginCameraRendering(ScriptableRenderContext context, Camera Camera)
         {
-            if (BasisLocalAvatarDriver.References.Hashead)
+            if (BasisLocalAvatarDriver.Mapping.Hashead)
             {
                 if (Camera.GetInstanceID() == CameraInstanceID)
                 {
@@ -334,7 +334,7 @@ namespace Basis.Scripts.Drivers
 
         public void Simulate()
         {
-            if (BasisLocalAvatarDriver.References.Hashead)
+            if (BasisLocalAvatarDriver.Mapping.Hashead)
             {
                 this.transform.GetPositionAndRotation(out Position, out Rotation);
                 if (CameraData.allowXRRendering)

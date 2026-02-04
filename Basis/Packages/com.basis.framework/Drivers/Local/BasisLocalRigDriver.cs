@@ -831,7 +831,7 @@ namespace Basis.Scripts.Drivers
         private Transform ResolveHumanoidBoneTransform(HumanBodyBones bone)
         {
             // Prefer references map if available
-            if (BasisLocalAvatarDriver.References != null && BasisLocalAvatarDriver.References.GetTransform(bone, out Transform refT))
+            if (BasisLocalAvatarDriver.Mapping != null && BasisLocalAvatarDriver.Mapping.GetTransform(bone, out Transform refT))
             {
                 return refT;
             }

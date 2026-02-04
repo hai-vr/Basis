@@ -332,7 +332,7 @@ namespace Basis.Scripts.Avatar
         /// <returns></returns>
         public static Dictionary<BasisBoneTrackedRole, Transform> GetAllRolesAsTransform()
         {
-            Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.References;
+            Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
             Dictionary<BasisBoneTrackedRole, Transform> transforms = new Dictionary<BasisBoneTrackedRole, Transform>
     {
         { BasisBoneTrackedRole.Hips,Mapping.Hips },

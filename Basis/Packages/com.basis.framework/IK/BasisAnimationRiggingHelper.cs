@@ -220,7 +220,7 @@ public static class BasisAnimationRiggingHelper
             return;
         }
 
-        Transform hips = BasisLocalAvatarDriver.References.Hips;
+        Transform hips = BasisLocalAvatarDriver.Mapping.Hips;
         Transform current = baseLevel;
 
         // Stop when we reach either the hips or the player root.

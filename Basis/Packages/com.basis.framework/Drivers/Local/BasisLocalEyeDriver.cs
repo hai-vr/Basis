@@ -57,7 +57,7 @@ public class BasisLocalEyeDriver
     {
         Dispose();
 
-        var References = BasisLocalAvatarDriver.References;
+        var References = BasisLocalAvatarDriver.Mapping;
         if (References.HasLeftEye == false || References.HasRightEye == false)
         {
             IsEnabled = false;
