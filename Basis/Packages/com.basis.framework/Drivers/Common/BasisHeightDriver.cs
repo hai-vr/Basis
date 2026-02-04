@@ -150,6 +150,7 @@ public static class BasisHeightDriver
         BasisDebug.Log("Capturing Player Height", BasisDebug.LogTag.IK);
         BasisLocalHeightCalculator.CalculatePlayerEyeHeight();
         BasisLocalHeightCalculator.CalculatePlayerArmSpan();
+        BasisLocalHeightCalculator.ValidateEyeToArmSizesPlayer();
     }
 
     /// <summary>
@@ -162,7 +163,7 @@ public static class BasisHeightDriver
     /// - <see cref="AvatarEyeHeight"/>
     /// - <see cref="AvatarArmSpan"/>
     ///
-    /// Also runs <see cref="BasisLocalHeightCalculator.ValidateEyeToArmSizes"/> to sanity-check the rig.
+    /// Also runs <see cref="BasisLocalHeightCalculator.ValidateEyeToArmSizesAvatar"/> to sanity-check the rig.
     /// </summary>
     public static void CaptureAvatarHeightDuringTpose()
     {
@@ -187,7 +188,7 @@ public static class BasisHeightDriver
 
         BasisLocalHeightCalculator.CalculateAvatarEyeHeight();
         BasisLocalHeightCalculator.CalculateAvatarArmSpan();
-        BasisLocalHeightCalculator.ValidateEyeToArmSizes();
+        BasisLocalHeightCalculator.ValidateEyeToArmSizesAvatar();
 
         ApplyAvatarScale(AppliedUpScale);
 
