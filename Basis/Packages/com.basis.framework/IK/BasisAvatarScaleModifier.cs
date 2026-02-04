@@ -22,6 +22,10 @@ namespace Basis.Scripts.Drivers
         public void ReInitalize(Animator Animator)
         {
             DuringCalibrationScale = Animator.transform.localScale;
+            if(DuringCalibrationScale == Vector3.zero)
+            {
+                DuringCalibrationScale = Vector3.one;
+            }
             ApplyScale = 1;
             FinalScale = ApplyScale * DuringCalibrationScale;
 

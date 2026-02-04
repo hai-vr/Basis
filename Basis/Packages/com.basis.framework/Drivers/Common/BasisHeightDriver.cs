@@ -261,22 +261,22 @@ public static class BasisHeightDriver
             BasisDebug.LogError("Avatar or Bone driver missing; cannot apply custom height.", BasisDebug.LogTag.Avatar);
             return;
         }
-
+        Vector3 CalibrationScale = avatarDriver.ScaleAvatarModification.DuringCalibrationScale;
         // Current applied avatar scale (1 = unscaled).
         AppliedUpScale = avatarDriver.ScaleAvatarModification.ApplyScale;
 
         switch (Height)
         {
             case BasisSelectedHeightMode.ArmSpan:
-                SelectedScaledPlayerHeight = PlayerArmSpan * AppliedUpScale;
-                SelectedScaledAvatarHeight = AvatarArmSpan * AppliedUpScale;
+                SelectedScaledPlayerHeight = CalibrationScale.y * (PlayerArmSpan * AppliedUpScale);
+                SelectedScaledAvatarHeight = CalibrationScale.y * (AvatarArmSpan * AppliedUpScale);
                 SelectedUnScaledAvatarHeight = AvatarArmSpan;
                 SelectedUnScaledPlayerHeight = PlayerArmSpan;
                 break;
 
             case BasisSelectedHeightMode.EyeHeight:
-                SelectedScaledPlayerHeight = PlayerEyeHeight * AppliedUpScale;
-                SelectedScaledAvatarHeight = AvatarEyeHeight * AppliedUpScale;
+                SelectedScaledPlayerHeight = CalibrationScale.y * (PlayerEyeHeight * AppliedUpScale);
+                SelectedScaledAvatarHeight = CalibrationScale.y * (AvatarEyeHeight * AppliedUpScale);
                 SelectedUnScaledAvatarHeight = AvatarEyeHeight;
                 SelectedUnScaledPlayerHeight = PlayerEyeHeight;
                 break;
@@ -315,7 +315,6 @@ public static class BasisHeightDriver
             BasisDebug.LogTag.Avatar
         );
 
-        Vector3 CalibrationScale = avatarDriver.ScaleAvatarModification.DuringCalibrationScale;
         //if we 10x the player scale we need to 10x the avatar scale
         var avatarScaledMetric = SelectedUnScaledAvatarHeight * AppliedUpScale;
         var playerMetric = SelectedUnScaledPlayerHeight;
