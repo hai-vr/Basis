@@ -137,12 +137,18 @@ public static class BasisLocalHeightCalculator
                 BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.PlayerEyeHeight;
                 BasisDebug.LogWarning($"Player arm span was invalid. Set to player eye height: {BasisHeightDriver.PlayerArmSpan}",BasisDebug.LogTag.Avatar);
             }
+            else if (BasisHeightDriver.PlayerArmSpan < BasisHeightDriver.PlayerEyeHeight)
+            {
+                BasisDebug.LogWarning($"Player arm span ({BasisHeightDriver.PlayerArmSpan}) < player eye height ({BasisHeightDriver.PlayerEyeHeight}). Clamping arm span to eye height.",BasisDebug.LogTag.Avatar);
+
+                BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.PlayerEyeHeight;
+            }
         }
         else
         {
             // If eye height is invalid too, fall back to default + keep arm span aligned.
             BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
-            if (BasisHeightDriver.PlayerArmSpan <= 0f )
+            if (BasisHeightDriver.PlayerArmSpan <= 0f || BasisHeightDriver.PlayerArmSpan < BasisHeightDriver.PlayerEyeHeight)
             {
                 BasisHeightDriver.PlayerArmSpan = BasisHeightDriver.PlayerEyeHeight;
             }
@@ -160,11 +166,16 @@ public static class BasisLocalHeightCalculator
                 BasisHeightDriver.AvatarArmSpan = BasisHeightDriver.AvatarEyeHeight;
                 BasisDebug.LogWarning($"Avatar arm span was invalid. Set to avatar eye height: {BasisHeightDriver.AvatarArmSpan}",BasisDebug.LogTag.Avatar);
             }
+            else if (BasisHeightDriver.AvatarArmSpan < BasisHeightDriver.AvatarEyeHeight)
+            {
+                BasisDebug.LogWarning($"Avatar arm span ({BasisHeightDriver.AvatarArmSpan}) < avatar eye height ({BasisHeightDriver.AvatarEyeHeight}). Clamping arm span to eye height.",BasisDebug.LogTag.Avatar);
+                BasisHeightDriver.AvatarArmSpan = BasisHeightDriver.AvatarEyeHeight;
+            }
         }
         else
         {
             BasisHeightDriver.AvatarEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
-            if (BasisHeightDriver.AvatarArmSpan <= 0f)
+            if (BasisHeightDriver.AvatarArmSpan <= 0f || BasisHeightDriver.AvatarArmSpan < BasisHeightDriver.AvatarEyeHeight)
             {
                 BasisHeightDriver.AvatarArmSpan = BasisHeightDriver.AvatarEyeHeight;
             }

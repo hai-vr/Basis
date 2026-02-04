@@ -304,8 +304,31 @@ public static class BasisHeightDriver
         AvatarToPlayerRatioScaled = SelectedScaledAvatarHeight / SelectedScaledPlayerHeight;
 
         // Defensive clamps to prevent invalid downstream multipliers.
-        if (PlayerToAvatarRatioScaled <= 0f) PlayerToAvatarRatioScaled = 1f;
-        if (AvatarToPlayerRatioScaled <= 0f) AvatarToPlayerRatioScaled = 1f;
+        if (PlayerToAvatarRatioScaled <= 0f)
+        {
+            PlayerToAvatarRatioScaled = 1f;
+        }
+
+        if (AvatarToPlayerRatioScaled <= 0f)
+        {
+            AvatarToPlayerRatioScaled = 1f;
+        }
+
+        // Defensive clamps to prevent invalid downstream multipliers.
+        if (SelectedUnScaledAvatarHeight <= 0f)
+        {
+            SelectedUnScaledAvatarHeight = 1f;
+        }
+
+        if (SelectedUnScaledPlayerHeight <= 0f)
+        {
+            SelectedUnScaledPlayerHeight = 1f;
+        }
+        //if we 10x the player scale we need to 10x the avatar scale
+        var avatarScaledMetric = SelectedUnScaledAvatarHeight * AppliedUpScale;
+        var playerMetric = SelectedUnScaledPlayerHeight;
+
+        DeviceScale = CalibrationScale.y * (avatarScaledMetric / playerMetric);
 
         BasisDebug.Log(
             $"Height Mode: {Height} | PlayerMetric(scaled): {SelectedScaledPlayerHeight}m | " +
@@ -314,14 +337,6 @@ public static class BasisHeightDriver
             $"PlayerToDefault: {PlayerToDefaultRatioScaled} | AvatarToDefault: {AvatarToDefaultRatioScaled}",
             BasisDebug.LogTag.Avatar
         );
-
-        //if we 10x the player scale we need to 10x the avatar scale
-        var avatarScaledMetric = SelectedUnScaledAvatarHeight * AppliedUpScale;
-        var playerMetric = SelectedUnScaledPlayerHeight;
-        var Scaler = CalibrationScale.y * (avatarScaledMetric / playerMetric);
-
-        ControllerScaler = Scaler;
-        CameraScale = Scaler;
     }
     public static float AppliedUpScale = 1;
     /// <summary>
@@ -417,7 +432,5 @@ public static class BasisHeightDriver
     /// </summary>
     public static float AvatarToDefaultRatioScaled = 1f;
 
-    public static float ControllerScaler = 1f;
-
-    public static float CameraScale = 1f;
+    public static float DeviceScale = 1f;
 }

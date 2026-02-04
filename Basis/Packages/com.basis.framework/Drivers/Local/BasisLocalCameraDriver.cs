@@ -287,7 +287,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void UpdateCameraScale()
         {
-            this.transform.localScale = Vector3.one * BasisHeightDriver.CameraScale;
+            this.transform.localScale = Vector3.one * BasisHeightDriver.DeviceScale;
             // Ensure that the near clip plane is never far enough away that the avatar body clips through it.
             // Critically we need to avoid small player heights causing the UI to become unusable due to clipping.
             // At the same time, we need to pull in the far clip plane on mobile platforms to avoid depth buffer precision issues.
