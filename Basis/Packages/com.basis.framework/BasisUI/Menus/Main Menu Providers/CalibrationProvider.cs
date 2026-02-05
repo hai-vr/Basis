@@ -84,13 +84,13 @@ namespace Basis.BasisUI
         {
             BasisHeightDriver.AdditionalPlayerHeight += 0.1f;
             HeightDescription.DescriptionLabel.text = $"Additional Height is: {BasisHeightDriver.AdditionalPlayerHeight}";
-           BasisHeightDriver.ChooseHeightToUse(SMModuleCalibration.HeightMode);
+            BasisHeightDriver.ApplyScaleAndHeight();
         }
         public void DecreasePlayerSize()
         {
             BasisHeightDriver.AdditionalPlayerHeight -= 0.1f;
             HeightDescription.DescriptionLabel.text = $"Additional Height is: {BasisHeightDriver.AdditionalPlayerHeight}";
-            BasisHeightDriver.ChooseHeightToUse(SMModuleCalibration.HeightMode);
+            BasisHeightDriver.ApplyScaleAndHeight();
         }
         public void Calibrate()
         {
