@@ -310,8 +310,8 @@ namespace UnityEngine.Animations.Rigging
         public string HintWeightBoolPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintHeadEnabled));
         public string TargetPositionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHead));
         public string TargetRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHead));
-        public string HintPositionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionHead));
-        public string HintRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationHead));
+        public string PositionPropertyChest => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionHead));
+        public string RotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationHead));
         public string BendNormalHeadProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintDirection));
         public string EnabledPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftLowerLegEnabled));
         public string HintWeightBoolPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintLeftLowerLegEnabled));
@@ -670,7 +670,7 @@ namespace UnityEngine.Animations.Rigging
   HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
   HandleRightUpperArm, HandleRightLowerArm, HandleRightHand;
 
-        public Vector3Property targetPositionHead, hintPositionHead, bendNormalHead,
+        public Vector3Property targetPositionHead, PositionChest, bendNormalHead,
 targetPositionLeftLowerLeg, hintPositionLeftLowerLeg,
 targetPositionRightLowerLeg, hintPositionRightLowerLeg,
 targetPositionHips,
@@ -681,7 +681,7 @@ p0, p1, p2, p3, p4, p5, p6, p7, p8, p9,
 p10, p11, p12, p13, p14, p15, p16, p17, p18, p19,
 p20, p54;
 
-        public Vector4Property targetRotationHead, hintRotationHead,
+        public Vector4Property targetRotationHead, RotationHead,
 targetRotationLeftLowerLeg, hintRotationLeftLowerLeg,
 targetRotationRightLowerLeg, hintRotationRightLowerLeg,
 targetRotationHips, offsetRotationHips,
@@ -753,7 +753,7 @@ w20, w54;
                     Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
 
                     // Raw chest from tracker
-                    Quaternion trackerChestRot = V4ToQuat(hintRotationHead.Get(stream)) * targetOffsetChest;
+                    Quaternion trackerChestRot = V4ToQuat(RotationHead.Get(stream)) * targetOffsetChest;
 
                     float Value = MaxChestDeltaDeg.Get(stream);
                     // Clamp relative to neck and spine
@@ -1509,7 +1509,7 @@ w20, w54;
                 HandleRightShoulder = BindHandle(animator, data.RightShoulder),
                 targetPositionHips = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHips),
                 targetPositionHead = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHead),
-                hintPositionHead = Vector3Property.Bind(animator, component, data.HintPositionPropertyHead),
+                PositionChest = Vector3Property.Bind(animator, component, data.PositionPropertyChest),
                 bendNormalHead = Vector3Property.Bind(animator, component, data.BendNormalHeadProperty),
                 targetPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.TargetPositionPropertyLeftLowerLeg),
                 hintPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.HintPositionPropertyLeftLowerLeg),
@@ -1524,7 +1524,7 @@ w20, w54;
                 targetRotationHips = Vector4Property.Bind(animator, component, data.TargetRotationPropertyHips),
                 offsetRotationHips = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyHips),
                 targetRotationHead = Vector4Property.Bind(animator, component, data.TargetRotationPropertyHead),
-                hintRotationHead = Vector4Property.Bind(animator, component, data.HintRotationPropertyHead),
+                RotationHead = Vector4Property.Bind(animator, component, data.RotationPropertyHead),
                 TargetRotationLeftShoulder = Vector4Property.Bind(animator, component, data.TargetRotationLeftShoulderProperty),
                 TargetRotationRightShoulder = Vector4Property.Bind(animator, component, data.TargetRotationRightShoulderProperty),
                 targetRotationLeftLowerLeg = Vector4Property.Bind(animator, component, data.TargetRotationPropertyLeftLowerLeg),
