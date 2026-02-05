@@ -6,6 +6,7 @@ using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using static Basis.Scripts.Avatar.BasisAvatarIKStageCalibration;
 namespace Basis.Scripts.Avatar
 {
     /// <summary>
@@ -159,122 +160,11 @@ namespace Basis.Scripts.Avatar
             // 8) IMPORTANT: simulate once AFTER assignments so the bone controls reflect new tracker bindings.
             BasisLocalPlayer.Instance.LocalBoneDriver.SimulateAndApplyWithoutLerp(BasisLocalPlayer.Instance);
 
-            // 9) Bake "hint push up/out" offsets at calibration time
-            //    We store offsets in tracker-local space so they rotate with the tracker at runtime.
-            //    Then BasisLocalRigDriver applies: hintPos = rawPos + rawRot * localOffset;
+            ComputeHints(storedRoleTransforms);
 
-            // Grab reference rotations from the avatar in T-pose (stable)
-            Quaternion chestRefRot = Quaternion.identity;
-            Quaternion hipsRefRot = Quaternion.identity;
-
-            if (storedRoleTransforms.TryGetValue(BasisBoneTrackedRole.Chest, out var chestT) && chestT != null)
-            {
-                chestRefRot = chestT.rotation;
-            }
-
-            if (storedRoleTransforms.TryGetValue(BasisBoneTrackedRole.Hips, out var hipsT) && hipsT != null)
-            {
-                hipsRefRot = hipsT.rotation;
-            }
-
-            // Choose push magnitudes (tweakable)
-            float hs = BasisHeightDriver.ScaledToMatchValue;
-
-            float elbowPush = 0.12f * hs;
-            float kneePush = 0.10f * hs;
-            float headPush = 0.08f * hs;
-
-            // Optional clamp so calibration can never store insane offsets
-            float maxPush = 0.25f * hs;
-            // Chest-as-head-hint bias (push "up" in chest frame)
-            {
-                var chestCtrl = BasisLocalBoneDriver.ChestControl;
-                if (chestCtrl != null && chestCtrl.HasTracked == BasisHasTracked.HasTracker)
-                {
-                    Quaternion trackerRot = chestCtrl.OutgoingWorldData.rotation;
-
-                    Vector3 worldUp = chestRefRot * Vector3.up;
-                    Vector3 localUp = Quaternion.Inverse(trackerRot) * worldUp;
-                    Vector3 localOffset = (localUp.sqrMagnitude < 1e-8f ? Vector3.up : localUp.normalized) * headPush;
-                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
-
-                    BasisHintBiasStore.Set(BasisBoneTrackedRole.Chest, localOffset);
-                }
-                else
-                {
-                    BasisHintBiasStore.Set(BasisBoneTrackedRole.Chest, Vector3.up * headPush);
-                }
-            }
-
-            // Elbow hints (lower arms)
-            {
-                var lla = BasisLocalBoneDriver.LeftLowerArmControl;
-                if (lla != null && lla.HasTracked == BasisHasTracked.HasTracker)
-                {
-                    Quaternion trackerRot = lla.OutgoingWorldData.rotation;
-                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, chestRefRot, isLeft: true, distanceMeters: elbowPush, outWeight: 0.85f, upWeight: 0.35f, fwdWeight: 0.15f);
-                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
-                    BasisHintBiasStore.Set(BasisBoneTrackedRole.LeftLowerArm, localOffset);
-                }
-
-                var rla = BasisLocalBoneDriver.RightLowerArmControl;
-                if (rla != null && rla.HasTracked == BasisHasTracked.HasTracker)
-                {
-                    Quaternion trackerRot = rla.OutgoingWorldData.rotation;
-                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, chestRefRot, isLeft: false, distanceMeters: elbowPush, outWeight: 0.85f, upWeight: 0.35f, fwdWeight: 0.15f);
-                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
-                    BasisHintBiasStore.Set(BasisBoneTrackedRole.RightLowerArm, localOffset);
-                }
-            }
-
-            // Knee hints (lower legs) — often better with a touch of forward
-            {
-                var lll = BasisLocalBoneDriver.LeftLowerLegControl;
-                if (lll != null && lll.HasTracked == BasisHasTracked.HasTracker)
-                {
-                    Quaternion trackerRot = lll.OutgoingWorldData.rotation;
-                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: true, distanceMeters: kneePush, outWeight: 0.55f, upWeight: 0.25f, fwdWeight: 0.55f);
-                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
-                    BasisHintBiasStore.Set(BasisBoneTrackedRole.LeftLowerLeg, localOffset);
-                }
-
-                var rll = BasisLocalBoneDriver.RightLowerLegControl;
-                if (rll != null && rll.HasTracked == BasisHasTracked.HasTracker)
-                {
-                    Quaternion trackerRot = rll.OutgoingWorldData.rotation;
-                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: false, distanceMeters: kneePush, outWeight: 0.55f, upWeight: 0.25f, fwdWeight: 0.55f);
-                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
-                    BasisHintBiasStore.Set(BasisBoneTrackedRole.RightLowerLeg, localOffset);
-                }
-            }
             BasisLocalPlayer.Instance.LocalAvatarDriver.ResetAvatarAnimator();
             BasisLocalPlayer.Instance.LocalRigDriver.RigLayer.active = true;
             BasisLocalPlayer.Instance.LocalAnimatorDriver.AssignHipsFBTracker();
-        }
-        // Helper local function to compute a tracker-local offset vector that points "up and out"
-        static Vector3 ComputeHintBiasLocal(
-            Quaternion trackerWorldRot,
-            Quaternion referenceWorldRot,   // chest for arms, hips for legs
-            bool isLeft,
-            float distanceMeters,           // already scaled
-            float outWeight = 0.85f,
-            float upWeight = 0.35f,
-            float fwdWeight = 0.00f         // optional: add a bit of forward if you want knees/elbows forward
-        )
-        {
-            Vector3 up = referenceWorldRot * Vector3.up;
-            Vector3 outDir = referenceWorldRot * (isLeft ? Vector3.left : Vector3.right);
-            Vector3 fwd = referenceWorldRot * Vector3.forward;
-
-            Vector3 worldDir = (outDir * outWeight + up * upWeight + fwd * fwdWeight);
-            if (worldDir.sqrMagnitude < 1e-8f) worldDir = up;
-            worldDir.Normalize();
-
-            // Convert desired world push into tracker-local direction
-            Vector3 localDir = Quaternion.Inverse(trackerWorldRot) * worldDir;
-            if (localDir.sqrMagnitude < 1e-8f) localDir = Vector3.up;
-
-            return localDir.normalized * distanceMeters;
         }
         /// <summary>
         /// Finds trackers from the basis input system.
@@ -473,15 +363,130 @@ namespace Basis.Scripts.Avatar
         BasisBoneTrackedRole.LeftShoulder,
         BasisBoneTrackedRole.RightShoulder,
         };
-    }
-    /// <summary>
-    /// data for ik calibration
-    /// </summary>
-    public class BasisCalibrationData
-    {
-        [SerializeField]
-        public BasisInput BasisInput;
-        public float Distance;
-    }
+        public static void ComputeHints(Dictionary<BasisBoneTrackedRole, Transform> storedRoleTransforms)
+        {
+            // 9) Bake "hint push up/out" offsets at calibration time
+            //    We store offsets in tracker-local space so they rotate with the tracker at runtime.
+            //    Then BasisLocalRigDriver applies: hintPos = rawPos + rawRot * localOffset;
 
+            // Grab reference rotations from the avatar in T-pose (stable)
+            Quaternion chestRefRot = Quaternion.identity;
+            Quaternion hipsRefRot = Quaternion.identity;
+
+            if (storedRoleTransforms.TryGetValue(BasisBoneTrackedRole.Chest, out var chestT) && chestT != null)
+            {
+                chestRefRot = chestT.rotation;
+            }
+
+            if (storedRoleTransforms.TryGetValue(BasisBoneTrackedRole.Hips, out var hipsT) && hipsT != null)
+            {
+                hipsRefRot = hipsT.rotation;
+            }
+
+            // Choose push magnitudes (tweakable)
+            float hs = BasisHeightDriver.ScaledToMatchValue;
+
+            float elbowPush = 0.12f * hs;
+            float kneePush = 0.10f * hs;
+            float headPush = 0.08f * hs;
+
+            // Optional clamp so calibration can never store insane offsets
+            float maxPush = 0.25f * hs;
+            // Chest-as-head-hint bias (push "up" in chest frame)
+            {
+                var chestCtrl = BasisLocalBoneDriver.ChestControl;
+                if (chestCtrl != null && chestCtrl.HasTracked == BasisHasTracked.HasTracker)
+                {
+                    Quaternion trackerRot = chestCtrl.OutgoingWorldData.rotation;
+
+                    Vector3 worldUp = chestRefRot * Vector3.up;
+                    Vector3 localUp = Quaternion.Inverse(trackerRot) * worldUp;
+                    Vector3 localOffset = (localUp.sqrMagnitude < 1e-8f ? Vector3.up : localUp.normalized) * headPush;
+                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
+
+                    BasisHintBiasStore.Set(BasisBoneTrackedRole.Chest, localOffset);
+                }
+                else
+                {
+                    BasisHintBiasStore.Set(BasisBoneTrackedRole.Chest, Vector3.up * headPush);
+                }
+            }
+
+            // Elbow hints (lower arms)
+            {
+                var lla = BasisLocalBoneDriver.LeftLowerArmControl;
+                if (lla != null && lla.HasTracked == BasisHasTracked.HasTracker)
+                {
+                    Quaternion trackerRot = lla.OutgoingWorldData.rotation;
+                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, chestRefRot, isLeft: true, distanceMeters: elbowPush, outWeight: 0.85f, upWeight: 0.35f, fwdWeight: 0.15f);
+                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
+                    BasisHintBiasStore.Set(BasisBoneTrackedRole.LeftLowerArm, localOffset);
+                }
+
+                var rla = BasisLocalBoneDriver.RightLowerArmControl;
+                if (rla != null && rla.HasTracked == BasisHasTracked.HasTracker)
+                {
+                    Quaternion trackerRot = rla.OutgoingWorldData.rotation;
+                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, chestRefRot, isLeft: false, distanceMeters: elbowPush, outWeight: 0.85f, upWeight: 0.35f, fwdWeight: 0.15f);
+                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
+                    BasisHintBiasStore.Set(BasisBoneTrackedRole.RightLowerArm, localOffset);
+                }
+            }
+
+            // Knee hints (lower legs) — often better with a touch of forward
+            {
+                var lll = BasisLocalBoneDriver.LeftLowerLegControl;
+                if (lll != null && lll.HasTracked == BasisHasTracked.HasTracker)
+                {
+                    Quaternion trackerRot = lll.OutgoingWorldData.rotation;
+                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: true, distanceMeters: kneePush, outWeight: 0.55f, upWeight: 0.25f, fwdWeight: 0.55f);
+                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
+                    BasisHintBiasStore.Set(BasisBoneTrackedRole.LeftLowerLeg, localOffset);
+                }
+
+                var rll = BasisLocalBoneDriver.RightLowerLegControl;
+                if (rll != null && rll.HasTracked == BasisHasTracked.HasTracker)
+                {
+                    Quaternion trackerRot = rll.OutgoingWorldData.rotation;
+                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: false, distanceMeters: kneePush, outWeight: 0.55f, upWeight: 0.25f, fwdWeight: 0.55f);
+                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
+                    BasisHintBiasStore.Set(BasisBoneTrackedRole.RightLowerLeg, localOffset);
+                }
+            }
+        }
+        // Helper local function to compute a tracker-local offset vector that points "up and out"
+        static Vector3 ComputeHintBiasLocal(
+            Quaternion trackerWorldRot,
+            Quaternion referenceWorldRot,   // chest for arms, hips for legs
+            bool isLeft,
+            float distanceMeters,           // already scaled
+            float outWeight = 0.85f,
+            float upWeight = 0.35f,
+            float fwdWeight = 0.00f         // optional: add a bit of forward if you want knees/elbows forward
+        )
+        {
+            Vector3 up = referenceWorldRot * Vector3.up;
+            Vector3 outDir = referenceWorldRot * (isLeft ? Vector3.left : Vector3.right);
+            Vector3 fwd = referenceWorldRot * Vector3.forward;
+
+            Vector3 worldDir = (outDir * outWeight + up * upWeight + fwd * fwdWeight);
+            if (worldDir.sqrMagnitude < 1e-8f) worldDir = up;
+            worldDir.Normalize();
+
+            // Convert desired world push into tracker-local direction
+            Vector3 localDir = Quaternion.Inverse(trackerWorldRot) * worldDir;
+            if (localDir.sqrMagnitude < 1e-8f) localDir = Vector3.up;
+
+            return localDir.normalized * distanceMeters;
+        }
+        /// <summary>
+        /// data for ik calibration
+        /// </summary>
+        public class BasisCalibrationData
+        {
+            [SerializeField]
+            public BasisInput BasisInput;
+            public float Distance;
+        }
+    }
 }
