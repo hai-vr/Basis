@@ -5,9 +5,11 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
+using Basis.Scripts.UI;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Basis.BasisUI
 {
@@ -59,6 +61,27 @@ namespace Basis.BasisUI
             var Button = PanelButton.CreateNew(container);
             Button.OnClicked += Calibrate;
             Button.Descriptor.SetTitle("Calibrate");
+
+            var Buttons = PanelTabGroup.CreateNew(container, LayoutDirection.Horizontal);
+
+            var MinusButton = PanelButton.CreateNew(Buttons);
+            MinusButton.OnClicked += Calibrate;
+            MinusButton.Descriptor.SetTitle("-");
+
+            var PlusButton = PanelButton.CreateNew(Buttons);
+            PlusButton.OnClicked += Calibrate;
+            PlusButton.Descriptor.SetTitle("+");
+        }
+        /// <summary>
+        /// tracker balls
+        /// </summary>
+        public void IncreasePlayerSize()
+        {
+
+        }
+        public void DecreasePlayerSize()
+        {
+
         }
         public void Calibrate()
         {
@@ -68,6 +91,7 @@ namespace Basis.BasisUI
             }
 
             var localplayer = BasisLocalPlayer.Instance;
+            BasisUINeedsVisibleTrackers.Instance.Add(localplayer);
             // kept because you had it (even if unused)
             var localBoneDriver = localplayer.LocalBoneDriver;
 
@@ -144,7 +168,9 @@ namespace Basis.BasisUI
 
             // Fallback: any device trigger pressed
             if (trigger >= 0.9f)
+            {
                 CalibrateOnce();
+            }
         }
 
         private void CalibrateOnce()
@@ -156,6 +182,7 @@ namespace Basis.BasisUI
 
             UnsubscribeAll();
             BasisAvatarIKStageCalibration.FullBodyCalibration();
+            BasisUINeedsVisibleTrackers.Instance.Remove(BasisLocalPlayer.Instance);
         }
 
         public override void OnButtonCreated(PanelButton button)
