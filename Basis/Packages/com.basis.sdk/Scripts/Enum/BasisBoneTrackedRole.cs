@@ -34,6 +34,8 @@ namespace Basis.Scripts.TransformBinders.BoneControl
         RightToes = 21,
 
         Mouth = 22,
+
+
     }
 
     public static class BasisBoneTrackedRoleCommonCheck
@@ -54,6 +56,63 @@ namespace Basis.Scripts.TransformBinders.BoneControl
                 && role != BasisBoneTrackedRole.Neck
                 && role != BasisBoneTrackedRole.Mouth
                 && role != BasisBoneTrackedRole.Spine;
+        }
+        /// <summary>
+        /// True if the role is explicitly a left-side body part.
+        /// </summary>
+        public static bool IsLeft(this BasisBoneTrackedRole role)
+        {
+            return role switch
+            {
+                BasisBoneTrackedRole.LeftUpperLeg => true,
+                BasisBoneTrackedRole.LeftLowerLeg => true,
+                BasisBoneTrackedRole.LeftFoot => true,
+                BasisBoneTrackedRole.LeftToes => true,
+
+                BasisBoneTrackedRole.LeftShoulder => true,
+                BasisBoneTrackedRole.LeftUpperArm => true,
+                BasisBoneTrackedRole.LeftLowerArm => true,
+                BasisBoneTrackedRole.LeftHand => true,
+
+                _ => false
+            };
+        }
+
+        /// <summary>
+        /// True if the role is explicitly a right-side body part.
+        /// </summary>
+        public static bool IsRight(this BasisBoneTrackedRole role)
+        {
+            return role switch
+            {
+                BasisBoneTrackedRole.RightUpperLeg => true,
+                BasisBoneTrackedRole.RightLowerLeg => true,
+                BasisBoneTrackedRole.RightFoot => true,
+                BasisBoneTrackedRole.RightToes => true,
+
+                BasisBoneTrackedRole.RightShoulder => true,
+                BasisBoneTrackedRole.RightUpperArm => true,
+                BasisBoneTrackedRole.RightLowerArm => true,
+                BasisBoneTrackedRole.RightHand => true,
+
+                _ => false
+            };
+        }
+
+        /// <summary>
+        /// True if the role is not a left/right specific limb (centerline body).
+        /// </summary>
+        public static bool IsCenter(this BasisBoneTrackedRole role) => !role.IsLeft() && !role.IsRight();
+
+        /// <summary>
+        /// Returns -1 for left, +1 for right, 0 for center.
+        /// Useful for compact side checks.
+        /// </summary>
+        public static int SideSign(this BasisBoneTrackedRole role)
+        {
+            if (role.IsLeft()) return -1;
+            if (role.IsRight()) return 1;
+            return 0;
         }
     }
 }
