@@ -199,7 +199,7 @@ namespace UnityEngine.Animations.Rigging
 
         // Hips
         [SyncSceneToStream, SerializeField] public Vector3 PositionHips;
-        [SyncSceneToStream, SerializeField] public Quaternion RotationEulerHips;
+        [SyncSceneToStream, SerializeField] public Quaternion RotationHips;
         [SyncSceneToStream, SerializeField] public Quaternion OffsetRotationHips;
 
         // Left Leg
@@ -312,7 +312,7 @@ namespace UnityEngine.Animations.Rigging
         public string TargetRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHead));
         public string HintPositionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionHead));
         public string HintRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationHead));
-        public string bendNormalHeadProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintDirection));
+        public string BendNormalHeadProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintDirection));
         public string EnabledPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftLowerLegEnabled));
         public string HintWeightBoolPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintLeftLowerLegEnabled));
         public string TargetPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftFootPosition));
@@ -326,7 +326,7 @@ namespace UnityEngine.Animations.Rigging
         public string HintPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionRightFoot));
         public string HintRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationRightFoot));
         public string TargetPositionPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHips));
-        public string TargetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationEulerHips));
+        public string TargetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHips));
         public string OffsetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotationHips));
         public string LeftToeEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftToeEnabled));
         public string RightToeEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_RightToeEnabled));
@@ -368,7 +368,7 @@ namespace UnityEngine.Animations.Rigging
         public string StruggleEndFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_StruggleEnd));
         public string MaxChestDeltaDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxChestDeltaDeg));
 
-        public bool hintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
+        public bool HintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
         public bool HintWeightLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
         public bool EnableLeftLeg { get => m_LeftLowerLegEnabled; set => m_LeftLowerLegEnabled = value; }
@@ -376,27 +376,27 @@ namespace UnityEngine.Animations.Rigging
         public bool EnableRightLeg { get => m_RightLowerLegEnabled; set => m_RightLowerLegEnabled = value; }
         public bool LeftToeEnabled { get => m_LeftToeEnabled; set => m_LeftToeEnabled = value; }
         public bool RightToeEnabled { get => m_RightToeEnabled; set => m_RightToeEnabled = value; }
-        public bool hintWeightLeftHand { get => m_HintLeftHandEnabled; set => m_HintLeftHandEnabled = value; }
-        public bool enabledLeftHand { get => m_EnabledLeftHand; set => m_EnabledLeftHand = value; }
+        public bool HintWeightLeftHand { get => m_HintLeftHandEnabled; set => m_HintLeftHandEnabled = value; }
+        public bool EnabledLeftHand { get => m_EnabledLeftHand; set => m_EnabledLeftHand = value; }
 
-        public bool enabledRightHand { get => m_EnabledRightHand; set => m_EnabledRightHand = value; }
-        public bool protectElbow { get => m_ProtectElbow; set => m_ProtectElbow = value; }
-        public bool hintWeightRightHand { get => m_HintRightHandEnabled; set => m_HintRightHandEnabled = value; }
-        public float handRadius { get => m_HandRadius; set => m_HandRadius = value; }
-        public float handSkin { get => m_HandSkin; set => m_HandSkin = value; }
-        public bool useHandCapsule { get => m_UseHandCapsule; set => m_UseHandCapsule = value; }
-        public float chestRadius { get => m_ChestRadius; set => m_ChestRadius = value; }
-        public float collisionSkin { get => m_CollisionSkin; set => m_CollisionSkin = value; }
-        public bool collisionsEnabled { get => m_CollisionsEnabled; set => m_CollisionsEnabled = value; }
+        public bool EnabledRightHand { get => m_EnabledRightHand; set => m_EnabledRightHand = value; }
+        public bool ProtectElbow { get => m_ProtectElbow; set => m_ProtectElbow = value; }
+        public bool HintWeightRightHand { get => m_HintRightHandEnabled; set => m_HintRightHandEnabled = value; }
+        public float HandRadius { get => m_HandRadius; set => m_HandRadius = value; }
+        public float HandSkin { get => m_HandSkin; set => m_HandSkin = value; }
+        public bool UseHandCapsule { get => m_UseHandCapsule; set => m_UseHandCapsule = value; }
+        public float ChestRadius { get => m_ChestRadius; set => m_ChestRadius = value; }
+        public float CollisionSkin { get => m_CollisionSkin; set => m_CollisionSkin = value; }
+        public bool CollisionsEnabled { get => m_CollisionsEnabled; set => m_CollisionsEnabled = value; }
         public bool EnabledRightShoulder { get => m_enabledRightShoulder; set => m_enabledRightShoulder = value; }
         public bool EnabledLeftShoulder { get => m_enabledLeftShoulder; set => m_enabledLeftShoulder = value; }
 
-        public float maxBendDeg { get => m_MaxBendDeg; set => m_MaxBendDeg = value; }
-        public float minFactor { get => m_MinFactor; set => m_MinFactor = value; }
-        public float maxFactor { get => m_MaxFactor; set => m_MaxFactor = value; }
-        public float struggleStart { get => m_StruggleStart; set => m_StruggleStart = value; }
-        public float struggleEnd { get => m_StruggleEnd; set => m_StruggleEnd = value; }
-        public float maxChestDelta { get => m_MaxChestDeltaDeg; set => m_MaxChestDeltaDeg = value; }
+        public float MaxBendDeg { get => m_MaxBendDeg; set => m_MaxBendDeg = value; }
+        public float MinFactor { get => m_MinFactor; set => m_MinFactor = value; }
+        public float MaxFactor { get => m_MaxFactor; set => m_MaxFactor = value; }
+        public float StruggleStart { get => m_StruggleStart; set => m_StruggleStart = value; }
+        public float StruggleEnd { get => m_StruggleEnd; set => m_StruggleEnd = value; }
+        public float MaxChestDelta { get => m_MaxChestDeltaDeg; set => m_MaxChestDeltaDeg = value; }
 
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
@@ -444,7 +444,7 @@ namespace UnityEngine.Animations.Rigging
             m_HintDirection = Vector3.up;
 
             PositionHips = Vector3.zero;
-            RotationEulerHips = Quaternion.identity;
+            RotationHips = Quaternion.identity;
             OffsetRotationHips = Quaternion.identity;
 
             // Integrated driven TR defaults
@@ -634,7 +634,7 @@ namespace UnityEngine.Animations.Rigging
         {
             base.OnValidate();
             // force serialize dirty for animated bools
-            m_Data.hintWeightHead = m_Data.hintWeightHead;
+            m_Data.HintWeightHead = m_Data.HintWeightHead;
             m_Data.HintWeightLeftLowerLeg = m_Data.HintWeightLeftLowerLeg;
             m_Data.HintWeightRightLowerLeg = m_Data.HintWeightRightLowerLeg;
             m_Data.EnabledSpineIK = m_Data.EnabledSpineIK;
@@ -644,18 +644,22 @@ namespace UnityEngine.Animations.Rigging
             m_Data.RightToeEnabled = m_Data.RightToeEnabled;
 
             // hands toggles
-            m_Data.hintWeightLeftHand = m_Data.hintWeightLeftHand;
-            m_Data.hintWeightRightHand = m_Data.hintWeightRightHand;
-            m_Data.enabledLeftHand = m_Data.enabledLeftHand;
-            m_Data.enabledRightHand = m_Data.enabledRightHand;
-            m_Data.protectElbow = m_Data.protectElbow;
+            m_Data.HintWeightLeftHand = m_Data.HintWeightLeftHand;
+            m_Data.HintWeightRightHand = m_Data.HintWeightRightHand;
+            m_Data.EnabledLeftHand = m_Data.EnabledLeftHand;
+            m_Data.EnabledRightHand = m_Data.EnabledRightHand;
+            m_Data.ProtectElbow = m_Data.ProtectElbow;
         }
     }
 
     [Unity.Burst.BurstCompile]
     public struct BasisFullIKConstraintJob : IWeightedAnimationJob
     {
-        const float k_SqrEpsilon = 1e-8f;
+        const float maxHorizontalFactor = 0.35f;
+        const float k_Epsilon = 1e-5f; // or 0.00001f
+        const float k_MinMag = 1e-6f;// or 0.000001f
+        const float k_SqrEpsilon = 1e-8f;// or 0.00000001f
+
         public ReadWriteTransformHandle HandleChest, HandleNeck, HandleHead,
   HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
   HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
@@ -712,9 +716,6 @@ w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
 w20, w54;
 
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxChestDeltaDeg;
-
-        const float k_Epsilon = 1e-5f; // or 0.00001f
-        const float k_MinMag = 1e-6f;
         public FloatProperty jobWeight { get; set; }
         public void ProcessRootMotion(AnimationStream stream) { }
         public void ProcessAnimation(AnimationStream stream)
@@ -899,12 +900,12 @@ w20, w54;
         }
         static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
         {
-            const float maxHorizontalFactor = 0.35f;
-
             Vector3 headToHips = hipsPos - headPos;
             float sqrMag = headToHips.sqrMagnitude;
             if (sqrMag < k_SqrEpsilon)
+            {
                 return headPos + restDistance * minFactor * Vector3.down; // could also use previous frame’s axis
+            }
 
             // Use the head→hips direction as the "up" axis for the clamp
             Vector3 up = headToHips / Mathf.Sqrt(sqrMag);
@@ -923,7 +924,9 @@ w20, w54;
             float maxLateral = restDistance * maxHorizontalFactor;
 
             if (lateralLen > maxLateral && lateralLen > k_Epsilon)
+            {
                 lateral *= maxLateral / lateralLen;
+            }
 
             return headPos + vertical + lateral;
         }
@@ -1535,7 +1538,7 @@ w20, w54;
                 targetPositionHips = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHips),
                 targetPositionHead = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHead),
                 hintPositionHead = Vector3Property.Bind(animator, component, data.HintPositionPropertyHead),
-                bendNormalHead = Vector3Property.Bind(animator, component, data.bendNormalHeadProperty),
+                bendNormalHead = Vector3Property.Bind(animator, component, data.BendNormalHeadProperty),
 
                 targetPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.TargetPositionPropertyLeftLowerLeg),
                 hintPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.HintPositionPropertyLeftLowerLeg),

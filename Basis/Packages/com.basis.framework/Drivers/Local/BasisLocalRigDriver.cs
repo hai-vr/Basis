@@ -348,7 +348,7 @@ namespace Basis.Scripts.Drivers
                 hipsRot = EuroRot[S_Hips] ? fRotHips.Filter(hipsRot, timeAccumulator) : FallbackRot(ref sRotHips, hipsRot, deltaTime);
 
             data.PositionHips = hipsPos;
-            data.RotationEulerHips = hipsRot;
+            data.RotationHips = hipsRot;
             data.m_HintDirection = hipsRot * Vector3.right;
 
             // ---------------- HEAD ----------------
@@ -625,10 +625,10 @@ namespace Basis.Scripts.Drivers
         public static void SetHandCollisionScale(ref BasisFullBodyData BodyData, float Scale)
         {
             //1.6m is the default values for below..
-            BodyData.handSkin = 0.03f * Scale;
-            BodyData.handRadius = 0.01f * Scale;
-            BodyData.chestRadius = 0.07f * Scale;
-            BodyData.collisionSkin = 0.05f * Scale;
+            BodyData.HandSkin = 0.03f * Scale;
+            BodyData.HandRadius = 0.01f * Scale;
+            BodyData.ChestRadius = 0.07f * Scale;
+            BodyData.CollisionSkin = 0.05f * Scale;
 
             var hips = BasisLocalBoneDriver.HipsControl.TposeLocalScaled;
             var spine = BasisLocalBoneDriver.SpineControl.TposeLocalScaled;
@@ -718,44 +718,44 @@ namespace Basis.Scripts.Drivers
             BasisLocalBoneDriver.LeftHandControl.OnHasRigChanged += () =>
             {
                 var d = BasisFullIKConstraint.data;
-                d.enabledLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftHandControl);
+                d.EnabledLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftHandControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.enabledLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftHandControl);
+            data.EnabledLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftHandControl);
 
             BasisLocalBoneDriver.RightHandControl.OnHasRigChanged += () =>
             {
                 var d = BasisFullIKConstraint.data;
-                d.enabledRightHand = HasRigLayer(BasisLocalBoneDriver.RightHandControl);
+                d.EnabledRightHand = HasRigLayer(BasisLocalBoneDriver.RightHandControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.enabledRightHand = HasRigLayer(BasisLocalBoneDriver.RightHandControl);
+            data.EnabledRightHand = HasRigLayer(BasisLocalBoneDriver.RightHandControl);
 
             // Lower arms (hand hints)
             BasisLocalBoneDriver.LeftLowerArmControl.OnHasRigChanged += () =>
             {
                 var d = BasisFullIKConstraint.data;
-                d.hintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
+                d.HintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.hintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
+            data.HintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
 
             BasisLocalBoneDriver.RightLowerArmControl.OnHasRigChanged += () =>
             {
                 var d = BasisFullIKConstraint.data;
-                d.hintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
+                d.HintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.hintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
+            data.HintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
 
             // Chest (head hint)
             BasisLocalBoneDriver.ChestControl.OnHasRigChanged += () =>
             {
                 var d = BasisFullIKConstraint.data;
-                d.hintWeightHead = HasRigLayer(BasisLocalBoneDriver.ChestControl);
+                d.HintWeightHead = HasRigLayer(BasisLocalBoneDriver.ChestControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.hintWeightHead = HasRigLayer(BasisLocalBoneDriver.ChestControl);
+            data.HintWeightHead = HasRigLayer(BasisLocalBoneDriver.ChestControl);
 
             // Chest (head hint)
             BasisLocalBoneDriver.LeftShoulderControl.OnHasRigChanged += () =>
@@ -790,11 +790,11 @@ namespace Basis.Scripts.Drivers
                 data.SetOffsetRotation(slot, t.rotation);
                 data.SetTargetRotation(slot, t.rotation);
             }
-            data.maxBendDeg = 90;
-            data.maxFactor = 1f;
-            data.struggleStart = 0.9f;
-            data.struggleEnd = 1;
-            data.maxChestDelta = 90;
+            data.MaxBendDeg = 90;
+            data.MaxFactor = 1f;
+            data.StruggleStart = 0.9f;
+            data.StruggleEnd = 1;
+            data.MaxChestDelta = 90;
 
             BasisFullIKConstraint.data = data;
         }

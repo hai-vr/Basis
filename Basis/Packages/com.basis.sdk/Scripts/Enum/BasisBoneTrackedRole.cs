@@ -43,6 +43,12 @@ namespace Basis.Scripts.TransformBinders.BoneControl
             return role != BasisBoneTrackedRole.LeftHand
                 && role != BasisBoneTrackedRole.RightHand
 
+                && role != BasisBoneTrackedRole.LeftUpperLeg
+                && role != BasisBoneTrackedRole.RightUpperLeg
+
+                && role != BasisBoneTrackedRole.RightUpperArm
+                && role != BasisBoneTrackedRole.LeftUpperArm
+
                 && role != BasisBoneTrackedRole.CenterEye
                 && role != BasisBoneTrackedRole.Head
                 && role != BasisBoneTrackedRole.Neck

@@ -133,7 +133,7 @@ public static class BasisAnimationRiggingHelper
 
         // Hips
         data.PositionHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
-        data.RotationEulerHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation;
+        data.RotationHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.rotation;
 
         // Hands
         data.PositionLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.position;
@@ -149,9 +149,9 @@ public static class BasisAnimationRiggingHelper
         data.m_TargetRotationLeftShoulder = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData.rotation;
         data.m_TargetRotationRightShoulder = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData.rotation;
 
-        data.collisionsEnabled = true;
-        data.useHandCapsule = true;
-        data.protectElbow = true;
+        data.CollisionsEnabled = true;
+        data.UseHandCapsule = true;
+        data.ProtectElbow = true;
         data.EnabledSpineIK = true;
 
         BasisFullIKConstraint.data = data;
