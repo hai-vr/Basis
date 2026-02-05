@@ -5,6 +5,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace Basis.Scripts.Avatar
@@ -27,33 +28,6 @@ namespace Basis.Scripts.Avatar
         public static bool HasFBIKTrackers = false;
 
         /// <summary>
-        /// gets all roles in a desired order
-        /// </summary>
-        private static List<BasisBoneTrackedRole> GetAllRolesDesired()
-        {
-            List<BasisBoneTrackedRole> rolesToDiscover = new List<BasisBoneTrackedRole>(23);
-            foreach (BasisBoneTrackedRole role in Enum.GetValues(typeof(BasisBoneTrackedRole)))
-            {
-                rolesToDiscover.Add(role);
-            }
-
-            Dictionary<BasisBoneTrackedRole, int> orderLookup = new Dictionary<BasisBoneTrackedRole, int>();
-            for (int i = 0; i < desiredOrder.Length; i++)
-                orderLookup[desiredOrder[i]] = i;
-
-            int largeIndex = desiredOrder.Length;
-
-            rolesToDiscover.Sort((x, y) =>
-            {
-                int ix = orderLookup.ContainsKey(x) ? orderLookup[x] : largeIndex;
-                int iy = orderLookup.ContainsKey(y) ? orderLookup[y] : largeIndex;
-                return ix.CompareTo(iy);
-            });
-
-            return rolesToDiscover;
-        }
-
-        /// <summary>
         /// does calibration of trackers
         /// </summary>
         public static void FullBodyCalibration()
@@ -70,7 +44,7 @@ namespace Basis.Scripts.Avatar
 
             Dictionary<BasisBoneTrackedRole, Transform> storedRoleTransforms = GetAllRolesAsTransform();
 
-            List<BasisBoneTrackedRole> rolesToDiscover = GetAllRolesDesired();
+            List<BasisBoneTrackedRole> rolesToDiscover = desiredOrder.ToList();
 
             List<BasisBoneTrackedRole> trackInputRoles = new List<BasisBoneTrackedRole>(23);
 
@@ -83,9 +57,9 @@ namespace Basis.Scripts.Avatar
             List<BasisInput> usedInputs = new List<BasisInput>(23);
 
             // Build list of tracker-roles we want to assign
-            for (int i = 0; i < rolesToDiscover.Count; i++)
+            for (int Index = 0; Index < rolesToDiscover.Count; Index++)
             {
-                BasisBoneTrackedRole role = rolesToDiscover[i];
+                BasisBoneTrackedRole role = rolesToDiscover[Index];
                 if (BasisBoneTrackedRoleCommonCheck.CheckItsFBTracker(role))
                 {
                     trackInputRoles.Add(role);
@@ -184,8 +158,7 @@ namespace Basis.Scripts.Avatar
         {
             Common.BasisTransformMapping Mapping = BasisLocalAvatarDriver.Mapping;
 
-            Dictionary<BasisBoneTrackedRole, Transform> transforms =
-                new Dictionary<BasisBoneTrackedRole, Transform>
+            Dictionary<BasisBoneTrackedRole, Transform> transforms = new Dictionary<BasisBoneTrackedRole, Transform>
                 {
             { BasisBoneTrackedRole.Hips, Mapping.Hips },
          //   { BasisBoneTrackedRole.Spine, Mapping.spine },
@@ -202,8 +175,8 @@ namespace Basis.Scripts.Avatar
             { BasisBoneTrackedRole.LeftLowerArm, Mapping.leftLowerArm },
             { BasisBoneTrackedRole.RightLowerArm, Mapping.RightLowerArm },
 
-            { BasisBoneTrackedRole.LeftHand, Mapping.leftHand },
-            { BasisBoneTrackedRole.RightHand, Mapping.rightHand },
+           // { BasisBoneTrackedRole.LeftHand, Mapping.leftHand },
+           // { BasisBoneTrackedRole.RightHand, Mapping.rightHand },
 
             { BasisBoneTrackedRole.LeftUpperLeg, Mapping.LeftUpperLeg },
             { BasisBoneTrackedRole.RightUpperLeg, Mapping.RightUpperLeg },
@@ -224,10 +197,7 @@ namespace Basis.Scripts.Avatar
         /// Finds trackers from the basis input system.
         /// Uses left/right side filtering to prevent mirrored swaps.
         /// </summary>
-        public static void FindTrackersFromInputs(
-            BasisTrackerMapping mapping,
-            ref List<BasisInput> usedInputs,
-            ref List<BasisBoneTrackedRole> usedRoles)
+        public static void FindTrackersFromInputs( BasisTrackerMapping mapping, ref List<BasisInput> usedInputs,ref List<BasisBoneTrackedRole> usedRoles)
         {
             int requiredSide = mapping.BasisBoneControlRole.SideSign(); // -1 left, +1 right, 0 center
 
@@ -236,8 +206,15 @@ namespace Basis.Scripts.Avatar
                 var cand = mapping.Candidates[i];
                 if (cand.BasisInput == null) continue;
 
-                if (usedInputs.Contains(cand.BasisInput)) continue;
-                if (usedRoles.Contains(mapping.BasisBoneControlRole)) continue;
+                if (usedInputs.Contains(cand.BasisInput))
+                {
+                    continue;
+                }
+
+                if (usedRoles.Contains(mapping.BasisBoneControlRole))
+                {
+                    continue;
+                }
 
                 // Extra safety: if role is left/right, reject opposite side candidates.
                 // Unknown side (0) is allowed.
@@ -312,23 +289,18 @@ namespace Basis.Scripts.Avatar
             BasisBoneTrackedRole.RightLowerLeg,
             BasisBoneTrackedRole.LeftLowerArm,
             BasisBoneTrackedRole.RightLowerArm,
-
-            BasisBoneTrackedRole.CenterEye,
+            //BasisBoneTrackedRole.CenterEye,
             BasisBoneTrackedRole.Chest,
-
-        //    BasisBoneTrackedRole.Head,
-      //      BasisBoneTrackedRole.Neck,
-
-           // BasisBoneTrackedRole.LeftHand,
-           // BasisBoneTrackedRole.RightHand,
-
+            //BasisBoneTrackedRole.Head,
+            //BasisBoneTrackedRole.Neck,
+            //BasisBoneTrackedRole.LeftHand,
+            //BasisBoneTrackedRole.RightHand,
             BasisBoneTrackedRole.LeftToes,
             BasisBoneTrackedRole.RightToes,
-
-            BasisBoneTrackedRole.LeftUpperArm,
-            BasisBoneTrackedRole.RightUpperArm,
-            BasisBoneTrackedRole.LeftUpperLeg,
-            BasisBoneTrackedRole.RightUpperLeg,
+           //BasisBoneTrackedRole.LeftUpperArm,
+           //BasisBoneTrackedRole.RightUpperArm,
+           //BasisBoneTrackedRole.LeftUpperLeg,
+           //BasisBoneTrackedRole.RightUpperLeg,
             BasisBoneTrackedRole.LeftShoulder,
             BasisBoneTrackedRole.RightShoulder,
         };
