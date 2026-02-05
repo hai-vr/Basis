@@ -55,7 +55,7 @@ namespace Basis.BasisUI
 
             RectTransform container = panel.Descriptor.ContentParent;
 
-            PanelElementDescriptor layout =PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewVertical, container);
+            PanelElementDescriptor layout = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewVertical, container);
             container = layout.ContentParent;
 
             var Button = PanelButton.CreateNew(container);
@@ -63,7 +63,7 @@ namespace Basis.BasisUI
             Button.Descriptor.SetTitle("Calibrate");
 
             HeightDescription = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            HeightDescription.SetTitle("Additional Height");
+            HeightDescription.SetTitle("Additional Player Height");
             HeightDescription.SetDescription(AdditionalHeight);
 
             var MinusButton = PanelButton.CreateNew(container);
