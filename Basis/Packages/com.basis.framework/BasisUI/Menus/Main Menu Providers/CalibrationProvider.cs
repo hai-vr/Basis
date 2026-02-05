@@ -1,5 +1,6 @@
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
@@ -33,8 +34,38 @@ namespace Basis.BasisUI
 
         public override void RunAction()
         {
-            if (BasisLocalAvatarDriver.CurrentlyTposing)
+            if (BasisMainMenu.ActiveMenuTitle == Title)
+            {
+                BasisMainMenu.Instance.ActiveMenu.ReleaseInstance();
                 return;
+            }
+
+            BasisMenuPanel panel = BasisMainMenu.CreateActiveMenu(
+                new BasisMenuPanel.PanelData
+                {
+                    Title = this.Title,
+                    PanelSize = new Vector2(600, 800),
+                    PanelPosition = default
+                },
+                BasisMenuPanel.PanelStyles.Page);
+            BoundButton?.BindActiveStateToAddressablesInstance(panel);
+
+            RectTransform container = panel.Descriptor.ContentParent;
+
+            PanelElementDescriptor layout =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewVertical, container);
+            container = layout.ContentParent;
+
+            var Button = PanelButton.CreateNew(container);
+            Button.OnClicked += Calibrate;
+            Button.Descriptor.SetTitle("Calibrate");
+        }
+        public void Calibrate()
+        {
+            if (BasisLocalAvatarDriver.CurrentlyTposing)
+            {
+                return;
+            }
 
             var localplayer = BasisLocalPlayer.Instance;
             // kept because you had it (even if unused)
@@ -70,7 +101,6 @@ namespace Basis.BasisUI
                 }
             }
         }
-
         private void Subscribe(BasisInput device, Action handler)
         {
             _triggerDelegates[device] = handler;
