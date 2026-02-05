@@ -354,8 +354,8 @@ namespace UnityEngine.Animations.Rigging
         public string UseHandCapsuleBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_UseHandCapsule));
         public string ProtectElbowBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ProtectElbow));
 
-        public string enabledLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledLeftShoulder));
-        public string enabledRightShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledRightShoulder));
+        public string EnabledLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledLeftShoulder));
+        public string EnabledRightShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledRightShoulder));
         public string MinHeadSpineHeightFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MinHeadSpineHeight));
 
         public string TargetRotationLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_TargetRotationLeftShoulder));
@@ -723,12 +723,6 @@ w20, w54;
             float w = jobWeight.Get(stream);
             if (w <= 0f)
             {
-                Pass(stream, HandleHips, HandleLeftToe, HandleRightToe);
-                Pass(stream, HandleChest, HandleNeck, HandleHead);
-                Pass(stream, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot);
-                Pass(stream, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot);
-                Pass(stream, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand);
-                Pass(stream, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand);
                 return;
             }
 
@@ -828,7 +822,9 @@ w20, w54;
         static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg)
         {
             if (maxBendDeg <= 0f)
+            {
                 return hipsPos;
+            }
 
             Vector3 diff = hipsPos - headPos;
             float sqrMag = diff.sqrMagnitude;
@@ -848,12 +844,16 @@ w20, w54;
             float absVertical = Mathf.Abs(verticalDot);
 
             if (lateralLen < k_MinMag || absVertical < k_MinMag)
+            {
                 return hipsPos;
+            }
 
             // Current bend angle from head to hips
             float currentAngle = Mathf.Atan2(lateralLen, absVertical) * Mathf.Rad2Deg;
             if (currentAngle <= maxBendDeg)
+            {
                 return hipsPos;
+            }
 
             // We want lateral / newVertical = tan(maxBend)
             float maxRatio = Mathf.Tan(maxBendDeg * Mathf.Deg2Rad);
@@ -871,30 +871,32 @@ w20, w54;
             // Angle between the two orientations
             float angle = Quaternion.Angle(reference, current);
             if (angle <= maxAngleDeg)
+            {
                 return current;
+            }
 
             // Scale back toward the reference so the final difference is exactly maxAngleDeg
-            float t = maxAngleDeg / Mathf.Max(angle, 1e-5f);
+            float t = maxAngleDeg / Mathf.Max(angle, k_Epsilon);
             return Quaternion.Slerp(reference, current, t);
         }
         public void ApplyRotation(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
         {
             if (!handle.IsValid(stream))
+            {
                 return;
+            }
 
             if (enabledProp.Get(stream))
             {
                 handle.SetRotation(stream, V4ToQuat(targetRotProp.Get(stream)) * RotationOffset);
             }
-            else
-            {
-                PassThrough(stream, handle);
-            }
         }
         public void ApplyRotation(AnimationStream stream, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
         {
             if (!handle.IsValid(stream))
+            {
                 return;
+            }
 
             handle.SetRotation(stream, V4ToQuat(targetRotProp.Get(stream)) * RotationOffset);
         }
@@ -1095,8 +1097,8 @@ w20, w54;
             {
                 Vector3 axis = (q2 - p2);
                 normal = Vector3.Normalize(Vector3.Cross(axis, Vector3.up));
-                if (normal.sqrMagnitude < 1e-6f) normal = Vector3.Normalize(Vector3.Cross(axis, Vector3.right));
-                if (normal.sqrMagnitude < 1e-6f) normal = Vector3.up;
+                if (normal.sqrMagnitude < k_MinMag) normal = Vector3.Normalize(Vector3.Cross(axis, Vector3.right));
+                if (normal.sqrMagnitude < k_MinMag) normal = Vector3.up;
             }
 
             float d = Mathf.Sqrt(Mathf.Max(dSqr, 0f));
@@ -1131,11 +1133,6 @@ w20, w54;
             Quaternion swing = Quaternion.AngleAxis(ang * dir * Mathf.Rad2Deg, n);
 
             root.SetRotation(stream, swing * root.GetRotation(stream));
-        }
-        public static void PassThrough(AnimationStream stream, ReadWriteTransformHandle handle)
-        {
-            handle.GetLocalTRS(stream, out Vector3 position, out Quaternion rotation, out Vector3 scale);
-            handle.SetLocalTRS(stream, position, rotation, scale);
         }
         public static Vector3 PushOutFromCapsule(Vector3 p, Vector3 a, Vector3 b, float radiusWithSkin)
         {
@@ -1270,13 +1267,11 @@ w20, w54;
         {
             if (!enabledProp.Get(stream))
             {
-                Pass(stream, root, mid, tip);
                 return;
             }
 
             if (!(root.IsValid(stream) && mid.IsValid(stream) && tip.IsValid(stream)))
             {
-                Pass(stream, root, mid, tip);
                 return;
             }
 
@@ -1305,10 +1300,6 @@ w20, w54;
                     h.SetPosition(stream, targetPos);
                     h.SetRotation(stream, finalRot);
                 }
-                else
-                {
-                    PassThrough(stream, h);
-                }
             }
         }
         public void SolveHand(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
@@ -1318,12 +1309,10 @@ w20, w54;
         {
             if (!enabledProp.Get(stream))
             {
-                Pass(stream, root, mid, tip);
                 return;
             }
             if (!(root.IsValid(stream) && mid.IsValid(stream) && tip.IsValid(stream)))
             {
-                Pass(stream, root, mid, tip);
                 return;
             }
 
@@ -1383,19 +1372,11 @@ w20, w54;
                 }
             }
         }
-        public void Pass(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip)
-        {
-            if (root.IsValid(stream)) PassThrough(stream, root);
-            if (mid.IsValid(stream)) PassThrough(stream, mid);
-            if (tip.IsValid(stream)) PassThrough(stream, tip);
-        }
         public void SolveHipsAndSpine(AnimationStream stream, Vector3Property targetPositionHips, Vector4Property targetRotationHips, Vector4Property offsetRotationHips, BoolProperty EnableSpineIK, ReadWriteTransformHandle HandleHips, ReadWriteTransformHandle HandleChest, ReadWriteTransformHandle HandleNeck, ReadWriteTransformHandle HandleHead, Vector3Property targetPositionHead, Vector4Property targetRotationHead, Quaternion targetOffsetHead, Vector3Property bendNormalHead)
         {
             // Early out: pass-through if spine IK disabled
             if (!EnableSpineIK.Get(stream))
             {
-                Pass(stream, HandleChest, HandleNeck, HandleHead);
-                PassThrough(stream, HandleHips);
                 return;
             }
 
@@ -1408,7 +1389,6 @@ w20, w54;
 
             if (!IsValid)
             {
-                Pass(stream, HandleChest, HandleNeck, HandleHead);
                 return;
             }
 
@@ -1505,135 +1485,98 @@ w20, w54;
         {
             var job = new BasisFullIKConstraintJob
             {
-                // Transforms
                 HandleHips = BindHandle(animator, data.hips),
                 HandleChest = BindHandle(animator, data.chest),
                 HandleNeck = BindHandle(animator, data.neck),
                 HandleHead = BindHandle(animator, data.head),
-
                 HandleLeftUpperLeg = BindHandle(animator, data.LeftUpperLeg),
                 HandleLeftLowerLeg = BindHandle(animator, data.LeftLowerLeg),
                 HandleLeftFoot = BindHandle(animator, data.leftFoot),
-
                 HandleRightUpperLeg = BindHandle(animator, data.RightUpperLeg),
                 HandleRightLowerLeg = BindHandle(animator, data.RightLowerLeg),
                 HandleRightFoot = BindHandle(animator, data.RightFoot),
-
                 HandleLeftToe = BindHandle(animator, data.LeftToe),
                 HandleRightToe = BindHandle(animator, data.RightToe),
-
                 HandleLeftUpperArm = BindHandle(animator, data.leftUpperArm),
                 HandleLeftLowerArm = BindHandle(animator, data.leftLowerArm),
                 HandleLeftHand = BindHandle(animator, data.LeftHand),
-
                 HandleRightUpperArm = BindHandle(animator, data.RightUpperArm),
                 HandleRightLowerArm = BindHandle(animator, data.RightLowerArm),
                 HandleRightHand = BindHandle(animator, data.RightHand),
-
                 HandleSpine = BindHandle(animator, data.spine),
                 HandleUpperChest = BindHandle(animator, data.upperChest),
                 HandleLeftShoulder = BindHandle(animator, data.LeftShoulder),
                 HandleRightShoulder = BindHandle(animator, data.RightShoulder),
-
                 targetPositionHips = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHips),
                 targetPositionHead = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHead),
                 hintPositionHead = Vector3Property.Bind(animator, component, data.HintPositionPropertyHead),
                 bendNormalHead = Vector3Property.Bind(animator, component, data.BendNormalHeadProperty),
-
                 targetPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.TargetPositionPropertyLeftLowerLeg),
                 hintPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.HintPositionPropertyLeftLowerLeg),
-
                 targetPositionRightLowerLeg = Vector3Property.Bind(animator, component, data.TargetPositionPropertyRightLowerLeg),
                 hintPositionRightLowerLeg = Vector3Property.Bind(animator, component, data.HintPositionPropertyRightLowerLeg),
-
                 leftDrivenTargetPos = Vector3Property.Bind(animator, component, data.LeftDrivenTargetPosProperty),
                 rightDrivenTargetPos = Vector3Property.Bind(animator, component, data.RightDrivenTargetPosProperty),
-
                 targetPositionLeftHand = Vector3Property.Bind(animator, component, data.TargetPositionPropertyLeftHand),
                 hintPositionLeftHand = Vector3Property.Bind(animator, component, data.HintPositionPropertyLeftHand),
-
                 targetPositionRightHand = Vector3Property.Bind(animator, component, data.TargetPositionPropertyRightHand),
                 hintPositionRightHand = Vector3Property.Bind(animator, component, data.HintPositionPropertyRightHand),
-
                 targetRotationHips = Vector4Property.Bind(animator, component, data.TargetRotationPropertyHips),
                 offsetRotationHips = Vector4Property.Bind(animator, component, data.OffsetRotationPropertyHips),
-
                 targetRotationHead = Vector4Property.Bind(animator, component, data.TargetRotationPropertyHead),
                 hintRotationHead = Vector4Property.Bind(animator, component, data.HintRotationPropertyHead),
-
                 TargetRotationLeftShoulder = Vector4Property.Bind(animator, component, data.TargetRotationLeftShoulderProperty),
                 TargetRotationRightShoulder = Vector4Property.Bind(animator, component, data.TargetRotationRightShoulderProperty),
-
                 targetRotationLeftLowerLeg = Vector4Property.Bind(animator, component, data.TargetRotationPropertyLeftLowerLeg),
                 hintRotationLeftLowerLeg = Vector4Property.Bind(animator, component, data.HintRotationPropertyLeftLowerLeg),
-
                 targetRotationRightLowerLeg = Vector4Property.Bind(animator, component, data.TargetRotationPropertyRightLowerLeg),
                 hintRotationRightLowerLeg = Vector4Property.Bind(animator, component, data.HintRotationPropertyRightLowerLeg),
-
                 leftDrivenTargetRot = Vector4Property.Bind(animator, component, data.LeftDrivenTargetRotProperty),
                 rightDrivenTargetRot = Vector4Property.Bind(animator, component, data.RightDrivenTargetRotProperty),
-
                 targetRotationLeftHand = Vector4Property.Bind(animator, component, data.TargetRotationPropertyLeftHand),
                 hintRotationLeftHand = Vector4Property.Bind(animator, component, data.HintRotationPropertyLeftHand),
-
                 targetRotationRightHand = Vector4Property.Bind(animator, component, data.TargetRotationPropertyRightHand),
                 hintRotationRightHand = Vector4Property.Bind(animator, component, data.HintRotationPropertyRightHand),
                 enabledSpineIK = BoolProperty.Bind(animator, component, data.EnabledPropertySpineIK),
                 hintWeightHead = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyHead),
-
                 enabledLeftLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyLeftLowerLeg),
                 hintWeightLeftLowerLeg = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyLeftLowerLeg),
-
                 enabledRightLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyRightLowerLeg),
                 hintWeightRightLowerLeg = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyRightLowerLeg),
-
                 leftToeEnabled = BoolProperty.Bind(animator, component, data.LeftToeEnabledProperty),
                 RightToeEnabled = BoolProperty.Bind(animator, component, data.RightToeEnabledProperty),
-
                 enabledLeftHand = BoolProperty.Bind(animator, component, data.EnabledPropertyLeftHand),
                 hintWeightLeftHand = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyLeftHand),
-
                 enabledRightHand = BoolProperty.Bind(animator, component, data.EnabledPropertyRightHand),
                 hintWeightRightHand = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyRightHand),
-
                 protectElbow = BoolProperty.Bind(animator, component, data.ProtectElbowBoolProperty),
-
                 collisionsEnabled = BoolProperty.Bind(animator, component, data.CollisionsEnabledBoolProperty),
                 useHandCapsule = BoolProperty.Bind(animator, component, data.UseHandCapsuleBoolProperty),
                 chestRadius = FloatProperty.Bind(animator, component, data.ChestRadiusFloatProperty),
                 collisionSkin = FloatProperty.Bind(animator, component, data.CollisionSkinFloatProperty),
                 handRadius = FloatProperty.Bind(animator, component, data.HandRadiusFloatProperty),
                 handSkin = FloatProperty.Bind(animator, component, data.HandSkinFloatProperty),
-
                 maxBendDeg = FloatProperty.Bind(animator, component, data.MaxBendDegFloatProperty),
                 minFactor = FloatProperty.Bind(animator, component, data.MinFactorFloatProperty),
                 maxFactor = FloatProperty.Bind(animator, component, data.MaxFactorFloatProperty),
                 struggleStart = FloatProperty.Bind(animator, component, data.StruggleStartFloatProperty),
                 struggleEnd = FloatProperty.Bind(animator, component, data.StruggleEndFloatProperty),
                 MaxChestDeltaDeg = FloatProperty.Bind(animator, component, data.MaxChestDeltaDegFloatProperty),
-
-                enabledLeftShoulder =  BoolProperty.Bind(animator, component, data.enabledLeftShoulderProperty),
-                enabledRightShoulder = BoolProperty.Bind(animator, component, data.enabledRightShoulderProperty),
-
+                enabledLeftShoulder =  BoolProperty.Bind(animator, component, data.EnabledLeftShoulderProperty),
+                enabledRightShoulder = BoolProperty.Bind(animator, component, data.EnabledRightShoulderProperty),
                 targetOffsetLeftShoulder = data.m_CalibratedRotationLeftShoulder,
                 targetOffsetRightShoulder = data.m_CalibratedRotationRightShoulder,
-
                 targetOffsetNeck = data.m_CalibratedRotationNeck,
                 targetOffsetHead = data.m_CalibratedRotationHead,
                 targetOffsetChest = data.m_CalibratedRotationChest,
                 targetOffsetLeftToe = data.m_CalibratedRotationLeftToe,
                 targetOffsetRightToe = data.m_CalibratedRotationRightToe,
-
                 targetOffsetLeftFoot = data.m_CalibratedRotationLeftFoot,
                 targetOffsetRightFoot = data.m_CalibratedRotationRightFoot,
-
                 targetOffsetLeftHand = data.m_CalibratedRotationLeftHand,
                 targetOffsetRightHand = data.m_CalibratedRotationRightHand,
-
                 MinHeadSpineHeight = FloatProperty.Bind(animator, component, data.MinHeadSpineHeightFloatProperty)
-
             };
-
             // Bind positions
             job.p0 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(0));
             job.p1 = Vector3Property.Bind(animator, component, data.GetTargetPositionVector3Property(1));
@@ -1703,7 +1646,6 @@ w20, w54;
             job.o19 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(19));
             job.o20 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(20));
             job.o54 = Vector4Property.Bind(animator, component, data.GetOffsetRotationVector4Property(54));
-
             // Bind per-slot weights
             job.w0 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(0));
             job.w1 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(1));

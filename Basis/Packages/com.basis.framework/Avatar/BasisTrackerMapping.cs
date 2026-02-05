@@ -27,7 +27,7 @@ namespace Basis.Scripts.Avatar
             Transform avatarRoleTransform,
             Transform avatarRootForSide, // avatar root (or hips) used to compute left/right in avatar-local space
             BasisBoneTrackedRole role,
-            List<BasisAvatarIKStageCalibration.BasisCalibrationData> calibration,
+            List<BasisInput> calibration,
             float calibrationMaxDistance,
             float sideDeadZoneMeters = 0.03f
         )
@@ -43,7 +43,7 @@ namespace Basis.Scripts.Avatar
 
             for (int i = 0; i < calibration.Count; i++)
             {
-                var input = calibration[i].BasisInput;
+                var input = calibration[i];
                 if (input == null) continue;
 
                 Vector3 inputWorldPos = input.transform.position;

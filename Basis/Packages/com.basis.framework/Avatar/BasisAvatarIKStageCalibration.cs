@@ -33,7 +33,9 @@ namespace Basis.Scripts.Avatar
         {
             List<BasisBoneTrackedRole> rolesToDiscover = new List<BasisBoneTrackedRole>(23);
             foreach (BasisBoneTrackedRole role in Enum.GetValues(typeof(BasisBoneTrackedRole)))
+            {
                 rolesToDiscover.Add(role);
+            }
 
             Dictionary<BasisBoneTrackedRole, int> orderLookup = new Dictionary<BasisBoneTrackedRole, int>();
             for (int i = 0; i < desiredOrder.Length; i++)
@@ -73,7 +75,7 @@ namespace Basis.Scripts.Avatar
             List<BasisBoneTrackedRole> trackInputRoles = new List<BasisBoneTrackedRole>(23);
 
             // IMPORTANT: connectors no longer store Distance (distance is per mapping)
-            List<BasisCalibrationData> connectors = new List<BasisCalibrationData>(23);
+            List<BasisInput> connectors = new List<BasisInput>(23);
 
             List<BasisTrackerMapping> boneTransformMappings = new List<BasisTrackerMapping>(23);
 
@@ -110,7 +112,7 @@ namespace Basis.Scripts.Avatar
                 }
 
                 // whether it had a role or not, it's a candidate connector
-                connectors.Add(new BasisCalibrationData { BasisInput = baseInput });
+                connectors.Add(baseInput);
             }
 
             // Choose an avatar root transform for side computation (local X)
@@ -186,10 +188,10 @@ namespace Basis.Scripts.Avatar
                 new Dictionary<BasisBoneTrackedRole, Transform>
                 {
             { BasisBoneTrackedRole.Hips, Mapping.Hips },
-            { BasisBoneTrackedRole.Spine, Mapping.spine },
+         //   { BasisBoneTrackedRole.Spine, Mapping.spine },
             { BasisBoneTrackedRole.Chest, Mapping.chest },
-            { BasisBoneTrackedRole.Neck, Mapping.neck },
-            { BasisBoneTrackedRole.Head, Mapping.head },
+          //  { BasisBoneTrackedRole.Neck, Mapping.neck },
+           // { BasisBoneTrackedRole.Head, Mapping.head },
 
             { BasisBoneTrackedRole.LeftShoulder, Mapping.leftShoulder },
             { BasisBoneTrackedRole.RightShoulder, Mapping.RightShoulder },
@@ -314,11 +316,11 @@ namespace Basis.Scripts.Avatar
             BasisBoneTrackedRole.CenterEye,
             BasisBoneTrackedRole.Chest,
 
-            BasisBoneTrackedRole.Head,
-            BasisBoneTrackedRole.Neck,
+        //    BasisBoneTrackedRole.Head,
+      //      BasisBoneTrackedRole.Neck,
 
-            BasisBoneTrackedRole.LeftHand,
-            BasisBoneTrackedRole.RightHand,
+           // BasisBoneTrackedRole.LeftHand,
+           // BasisBoneTrackedRole.RightHand,
 
             BasisBoneTrackedRole.LeftToes,
             BasisBoneTrackedRole.RightToes,
@@ -436,14 +438,6 @@ namespace Basis.Scripts.Avatar
             if (localDir.sqrMagnitude < 1e-8f) localDir = Vector3.up;
 
             return localDir.normalized * distanceMeters;
-        }
-
-        /// <summary>
-        /// data for ik calibration (NO shared Distance field!)
-        /// </summary>
-        public class BasisCalibrationData
-        {
-            [SerializeField] public BasisInput BasisInput;
         }
     }
 }
