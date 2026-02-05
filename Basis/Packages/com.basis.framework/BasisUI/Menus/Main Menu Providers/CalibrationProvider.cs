@@ -1,17 +1,17 @@
-using System;
-using System.Collections.Generic;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.TransformBinders.BoneControl;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Basis.BasisUI
 {
     public class CalibrationProvider : BasisMenuActionProvider<BasisMainMenu>
     {
-
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
         {
@@ -22,36 +22,110 @@ namespace Basis.BasisUI
         public override string IconAddress => AddressableAssets.Sprites.Calibrate;
         public override int Order => 10;
 
-        private Dictionary<BasisInput, Action> _triggerDelegates = new();
+        private readonly Dictionary<BasisInput, Action> _triggerDelegates = new();
 
+        private BasisInput _leftHand;
+        private BasisInput _rightHand;
+
+        private bool _leftPressed;
+        private bool _rightPressed;
+        private bool _calibrated;
 
         public override void RunAction()
         {
-            if (BasisLocalAvatarDriver.CurrentlyTposing == false)
-            {
-                BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
+            if (BasisLocalAvatarDriver.CurrentlyTposing)
+                return;
 
+            var localplayer = BasisLocalPlayer.Instance;
+            // kept because you had it (even if unused)
+            var localBoneDriver = localplayer.LocalBoneDriver;
+
+            localplayer.LocalAvatarDriver.PutAvatarIntoTPose();
+
+            bool hasLeft = BasisDeviceManagement.Instance.FindDevice(out BasisInput leftHand, BasisBoneTrackedRole.LeftHand);
+            bool hasRight = BasisDeviceManagement.Instance.FindDevice(out BasisInput rightHand, BasisBoneTrackedRole.RightHand);
+
+            // Safety: clear any old subscriptions before adding new ones
+            UnsubscribeAll();
+
+            _calibrated = false;
+            _leftPressed = false;
+            _rightPressed = false;
+
+            if (hasLeft && hasRight)
+            {
+                _leftHand = leftHand;
+                _rightHand = rightHand;
+
+                // Subscribe ONLY to left + right. Calibrate when BOTH pressed.
+                Subscribe(_leftHand, () => OnTriggerChanged(_leftHand));
+                Subscribe(_rightHand, () => OnTriggerChanged(_rightHand));
+            }
+            else
+            {
+                // Fallback: controllers missing -> behave as normal (any trigger >= 0.9 calibrates)
                 foreach (BasisInput device in BasisDeviceManagement.Instance.AllInputDevices)
                 {
-                    Action triggerDelegate = () => OnTriggerChanged(device);
-                    _triggerDelegates[device] = triggerDelegate;
-                    device.CurrentInputState.OnTriggerChanged += triggerDelegate;
+                    Subscribe(device, () => OnTriggerChanged(device));
                 }
             }
         }
 
+        private void Subscribe(BasisInput device, Action handler)
+        {
+            _triggerDelegates[device] = handler;
+            device.CurrentInputState.OnTriggerChanged += handler;
+        }
+
+        private void UnsubscribeAll()
+        {
+            foreach (KeyValuePair<BasisInput, Action> entry in _triggerDelegates)
+            {
+                entry.Key.CurrentInputState.OnTriggerChanged -= entry.Value;
+            }
+
+            _triggerDelegates.Clear();
+
+            _leftHand = null;
+            _rightHand = null;
+        }
+
         private void OnTriggerChanged(BasisInput device)
         {
-            if (device.CurrentInputState.Trigger >= 0.9f)
-            {
-                foreach (KeyValuePair<BasisInput, Action> entry in _triggerDelegates)
-                {
-                    entry.Key.CurrentInputState.OnTriggerChanged -= entry.Value;
-                }
+            if (_calibrated)
+                return;
 
-                _triggerDelegates.Clear();
-                BasisAvatarIKStageCalibration.FullBodyCalibration();
+            float trigger = device.CurrentInputState.Trigger;
+
+            // If we have both hands, require BOTH triggers pressed
+            if (_leftHand != null && _rightHand != null)
+            {
+                if (device == _leftHand)
+                    _leftPressed = (trigger >= 0.9f);
+
+                if (device == _rightHand)
+                    _rightPressed = (trigger >= 0.9f);
+
+                if (_leftPressed && _rightPressed)
+                    CalibrateOnce();
+
+                return;
             }
+
+            // Fallback: any device trigger pressed
+            if (trigger >= 0.9f)
+                CalibrateOnce();
+        }
+
+        private void CalibrateOnce()
+        {
+            if (_calibrated)
+                return;
+
+            _calibrated = true;
+
+            UnsubscribeAll();
+            BasisAvatarIKStageCalibration.FullBodyCalibration();
         }
 
         public override void OnButtonCreated(PanelButton button)
