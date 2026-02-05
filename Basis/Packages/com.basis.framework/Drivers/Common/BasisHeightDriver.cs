@@ -269,14 +269,14 @@ public static class BasisHeightDriver
         switch (Height)
         {
             case BasisSelectedHeightMode.ArmSpan:
-                SelectedScaledPlayerHeight = CalibrationScale.y * (PlayerArmSpan * AppliedUpScale);
+                SelectedScaledPlayerHeight = CalibrationScale.y * ((AdditionalPlayerHeight + PlayerArmSpan) * AppliedUpScale);
                 SelectedScaledAvatarHeight = CalibrationScale.y * (AvatarArmSpan * AppliedUpScale);
                 SelectedUnScaledAvatarHeight = AvatarArmSpan;
                 SelectedUnScaledPlayerHeight = PlayerArmSpan;
                 break;
 
             case BasisSelectedHeightMode.EyeHeight:
-                SelectedScaledPlayerHeight = CalibrationScale.y * (PlayerEyeHeight * AppliedUpScale);
+                SelectedScaledPlayerHeight = CalibrationScale.y * ((AdditionalPlayerHeight + PlayerEyeHeight) * AppliedUpScale);
                 SelectedScaledAvatarHeight = CalibrationScale.y * (AvatarEyeHeight * AppliedUpScale);
                 SelectedUnScaledAvatarHeight = AvatarEyeHeight;
                 SelectedUnScaledPlayerHeight = PlayerEyeHeight;
@@ -327,7 +327,7 @@ public static class BasisHeightDriver
         }
         //if we 10x the player scale we need to 10x the avatar scale
         var avatarScaledMetric = SelectedUnScaledAvatarHeight * AppliedUpScale;
-        var playerMetric = SelectedUnScaledPlayerHeight;
+        var playerMetric = AdditionalPlayerHeight + SelectedUnScaledPlayerHeight;
 
         DeviceScale = CalibrationScale.y * (avatarScaledMetric / playerMetric);
 
@@ -339,6 +339,9 @@ public static class BasisHeightDriver
             BasisDebug.LogTag.Avatar
         );
     }
+    public static float AdditionalPlayerHeight = 0;
+
+
     public static float AppliedUpScale = 1;
     /// <summary>
     /// The most recently applied scale factor used to match the avatar to the selected target measurement.

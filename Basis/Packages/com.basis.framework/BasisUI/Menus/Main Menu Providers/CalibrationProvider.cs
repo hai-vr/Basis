@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
+using static UnityEngine.Rendering.DebugUI;
 
 namespace Basis.BasisUI
 {
@@ -54,36 +55,40 @@ namespace Basis.BasisUI
 
             RectTransform container = panel.Descriptor.ContentParent;
 
-            PanelElementDescriptor layout =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewVertical, container);
+            PanelElementDescriptor layout =PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewVertical, container);
             container = layout.ContentParent;
 
             var Button = PanelButton.CreateNew(container);
             Button.OnClicked += Calibrate;
             Button.Descriptor.SetTitle("Calibrate");
 
-            //   var Buttons = PanelTabGroup.CreateNew(container, LayoutDirection.Horizontal);
+            HeightDescription = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            HeightDescription.SetTitle("Player Scale");
+            HeightDescription.SetDescription($"Additional Height is: {BasisHeightDriver.AdditionalPlayerHeight}");
 
             var MinusButton = PanelButton.CreateNew(container);
-            MinusButton.OnClicked += Calibrate;
+            MinusButton.OnClicked += DecreasePlayerSize;
             MinusButton.Descriptor.SetTitle("-");
             MinusButton.Descriptor.SetDescription("Removes 0.01f from the players height");
-            ;
+
             var PlusButton = PanelButton.CreateNew(container);
-            PlusButton.OnClicked += Calibrate;
+            PlusButton.OnClicked += IncreasePlayerSize;
             PlusButton.Descriptor.SetTitle("+");
             MinusButton.Descriptor.SetDescription("Adds 0.01f to the players height");
         }
+        public PanelElementDescriptor HeightDescription;
         /// <summary>
         /// tracker balls
         /// </summary>
         public void IncreasePlayerSize()
         {
-
+            BasisHeightDriver.AdditionalPlayerHeight += 0.1f;
+            HeightDescription.DescriptionLabel.text = $"Additional Height is: {BasisHeightDriver.AdditionalPlayerHeight}";
         }
         public void DecreasePlayerSize()
         {
-
+            BasisHeightDriver.AdditionalPlayerHeight -= 0.1f;
+            HeightDescription.DescriptionLabel.text = $"Additional Height is: {BasisHeightDriver.AdditionalPlayerHeight}";
         }
         public void Calibrate()
         {
