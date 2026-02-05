@@ -44,19 +44,27 @@ namespace Basis.Scripts.Avatar
             for (int i = 0; i < calibration.Count; i++)
             {
                 var input = calibration[i];
-                if (input == null) continue;
+                if (input == null)
+                {
+                    continue;
+                }
 
                 Vector3 inputWorldPos = input.transform.position;
 
                 float dist = Vector3.Distance(CalibrationPoint, inputWorldPos);
-                if (dist >= calibrationMaxDistance) continue;
+                if (dist >= calibrationMaxDistance)
+                {
+                    continue;
+                }
 
                 int inputSide = ComputeInputSideSign(inputWorldPos, avatarRootForSide, sideDeadZoneMeters);
 
                 // If the role is explicitly left/right, do not allow opposite-side candidates.
                 // Unknown side (0) is allowed (centerline / deadzone).
                 if (requiredSide != 0 && inputSide != 0 && inputSide != requiredSide)
+                {
                     continue;
+                }
 
                 Candidates.Add(new BasisCalibrationCandidate
                 {

@@ -48,7 +48,6 @@ namespace Basis.Scripts.Avatar
 
             List<BasisBoneTrackedRole> trackInputRoles = new List<BasisBoneTrackedRole>(23);
 
-            // IMPORTANT: connectors no longer store Distance (distance is per mapping)
             List<BasisInput> connectors = new List<BasisInput>(23);
 
             List<BasisTrackerMapping> boneTransformMappings = new List<BasisTrackerMapping>(23);
@@ -68,9 +67,9 @@ namespace Basis.Scripts.Avatar
 
             // Gather all input devices as connectors
             int allInputCount = BasisDeviceManagement.Instance.AllInputDevices.Count;
-            for (int i = 0; i < allInputCount; i++)
+            for (int Index = 0; Index < allInputCount; Index++)
             {
-                BasisInput baseInput = BasisDeviceManagement.Instance.AllInputDevices[i];
+                BasisInput baseInput = BasisDeviceManagement.Instance.AllInputDevices[Index];
                 if (baseInput == null)
                 {
                     continue;
@@ -82,11 +81,11 @@ namespace Basis.Scripts.Avatar
                     {
                         // in use un assign first
                         baseInput.UnAssignFullBodyTrackers();
+
+                        // whether it had a role or not, it's a candidate connector
+                        connectors.Add(baseInput);
                     }
                 }
-
-                // whether it had a role or not, it's a candidate connector
-                connectors.Add(baseInput);
             }
 
             // Choose an avatar root transform for side computation (local X)
@@ -219,7 +218,9 @@ namespace Basis.Scripts.Avatar
                 // Extra safety: if role is left/right, reject opposite side candidates.
                 // Unknown side (0) is allowed.
                 if (requiredSide != 0 && cand.SideSign != 0 && cand.SideSign != requiredSide)
+                {
                     continue;
+                }
 
                 usedRoles.Add(mapping.BasisBoneControlRole);
                 usedInputs.Add(cand.BasisInput);
