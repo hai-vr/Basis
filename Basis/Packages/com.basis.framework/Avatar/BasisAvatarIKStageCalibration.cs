@@ -395,48 +395,36 @@ namespace Basis.Scripts.Avatar
             // Chest-as-head-hint bias (push "up" in chest frame)
             {
                 var chestCtrl = BasisLocalBoneDriver.ChestControl;
-                if (chestCtrl != null && chestCtrl.HasTracked == BasisHasTracked.HasTracker)
-                {
-                    Quaternion trackerRot = chestCtrl.OutgoingWorldData.rotation;
+                Quaternion trackerRot = chestCtrl.OutgoingWorldData.rotation;
 
-                    Vector3 worldUp = chestRefRot * Vector3.up;
-                    Vector3 localUp = Quaternion.Inverse(trackerRot) * worldUp;
-                    Vector3 localOffset = (localUp.sqrMagnitude < 1e-8f ? Vector3.up : localUp.normalized) * headPush;
-                    localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
+                Vector3 worldUp = chestRefRot * Vector3.up;
+                Vector3 localUp = Quaternion.Inverse(trackerRot) * worldUp;
+                Vector3 localOffset = (localUp.sqrMagnitude < 1e-8f ? Vector3.up : localUp.normalized) * headPush;
+                localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
 
-                    BasisHintBiasStore.Set(BasisBoneTrackedRole.Chest, localOffset);
-                }
-                else
-                {
-                    BasisHintBiasStore.Set(BasisBoneTrackedRole.Chest, Vector3.up * headPush);
-                }
+                BasisHintBiasStore.Set(BasisBoneTrackedRole.Chest, localOffset);
             }
 
             // Elbow hints (lower arms)
             {
-                var lla = BasisLocalBoneDriver.LeftLowerArmControl;
-                if (lla != null && lla.HasTracked == BasisHasTracked.HasTracker)
                 {
+                    var lla = BasisLocalBoneDriver.LeftLowerArmControl;
                     Quaternion trackerRot = lla.OutgoingWorldData.rotation;
                     Vector3 localOffset = ComputeHintBiasLocal(trackerRot, chestRefRot, isLeft: true, distanceMeters: elbowPush, outWeight: 0.85f, upWeight: 0.35f, fwdWeight: 0.15f);
                     localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
                     BasisHintBiasStore.Set(BasisBoneTrackedRole.LeftLowerArm, localOffset);
                 }
-
-                var rla = BasisLocalBoneDriver.RightLowerArmControl;
-                if (rla != null && rla.HasTracked == BasisHasTracked.HasTracker)
                 {
+                    var rla = BasisLocalBoneDriver.RightLowerArmControl;
                     Quaternion trackerRot = rla.OutgoingWorldData.rotation;
                     Vector3 localOffset = ComputeHintBiasLocal(trackerRot, chestRefRot, isLeft: false, distanceMeters: elbowPush, outWeight: 0.85f, upWeight: 0.35f, fwdWeight: 0.15f);
                     localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
                     BasisHintBiasStore.Set(BasisBoneTrackedRole.RightLowerArm, localOffset);
                 }
             }
-
             // Knee hints (lower legs) — often better with a touch of forward
             {
                 var lll = BasisLocalBoneDriver.LeftLowerLegControl;
-                if (lll != null && lll.HasTracked == BasisHasTracked.HasTracker)
                 {
                     Quaternion trackerRot = lll.OutgoingWorldData.rotation;
                     Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: true, distanceMeters: kneePush, outWeight: 0.55f, upWeight: 0.25f, fwdWeight: 0.55f);
@@ -445,7 +433,6 @@ namespace Basis.Scripts.Avatar
                 }
 
                 var rll = BasisLocalBoneDriver.RightLowerLegControl;
-                if (rll != null && rll.HasTracked == BasisHasTracked.HasTracker)
                 {
                     Quaternion trackerRot = rll.OutgoingWorldData.rotation;
                     Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: false, distanceMeters: kneePush, outWeight: 0.55f, upWeight: 0.25f, fwdWeight: 0.55f);

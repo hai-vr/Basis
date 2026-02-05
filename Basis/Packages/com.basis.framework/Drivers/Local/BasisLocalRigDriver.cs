@@ -557,7 +557,10 @@ namespace Basis.Scripts.Drivers
         static Vector3 ApplyHintBias(BasisBoneTrackedRole hintRole, Vector3 rawPos, Quaternion rawRot)
         {
             if (BasisHintBiasStore.TryGet(hintRole, out var localOffset))
+            {
                 return rawPos + rawRot * localOffset;
+            }
+
             return rawPos;
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
