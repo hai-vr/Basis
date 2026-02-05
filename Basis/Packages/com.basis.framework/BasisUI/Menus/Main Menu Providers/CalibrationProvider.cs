@@ -68,13 +68,11 @@ namespace Basis.BasisUI
 
             var MinusButton = PanelButton.CreateNew(container);
             MinusButton.OnClicked += DecreasePlayerSize;
-            MinusButton.Descriptor.SetTitle("-");
-            MinusButton.Descriptor.SetDescription("Removes 0.01f from the players height");
+            MinusButton.Descriptor.SetTitle("Remove 0.01f Height");
 
             var PlusButton = PanelButton.CreateNew(container);
             PlusButton.OnClicked += IncreasePlayerSize;
-            PlusButton.Descriptor.SetTitle("+");
-            MinusButton.Descriptor.SetDescription("Adds 0.01f to the players height");
+            PlusButton.Descriptor.SetTitle("Add 0.01f Height");
         }
         public PanelElementDescriptor HeightDescription;
         public string AdditionalHeight = $"{BasisHeightDriver.AdditionalPlayerHeight:F2}";
