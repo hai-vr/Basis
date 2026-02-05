@@ -62,15 +62,17 @@ namespace Basis.BasisUI
             Button.OnClicked += Calibrate;
             Button.Descriptor.SetTitle("Calibrate");
 
-            var Buttons = PanelTabGroup.CreateNew(container, LayoutDirection.Horizontal);
+            //   var Buttons = PanelTabGroup.CreateNew(container, LayoutDirection.Horizontal);
 
-            var MinusButton = PanelButton.CreateNew(Buttons);
+            var MinusButton = PanelButton.CreateNew(container);
             MinusButton.OnClicked += Calibrate;
             MinusButton.Descriptor.SetTitle("-");
-
-            var PlusButton = PanelButton.CreateNew(Buttons);
+            MinusButton.Descriptor.SetDescription("Removes 0.01f from the players height");
+            ;
+            var PlusButton = PanelButton.CreateNew(container);
             PlusButton.OnClicked += Calibrate;
             PlusButton.Descriptor.SetTitle("+");
+            MinusButton.Descriptor.SetDescription("Adds 0.01f to the players height");
         }
         /// <summary>
         /// tracker balls
