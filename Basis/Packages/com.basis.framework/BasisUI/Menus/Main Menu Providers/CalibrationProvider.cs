@@ -4,6 +4,7 @@ using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.Drivers;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -26,13 +27,16 @@ namespace Basis.BasisUI
 
         public override void RunAction()
         {
-            BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
-
-            foreach (BasisInput device in BasisDeviceManagement.Instance.AllInputDevices)
+            if (BasisLocalAvatarDriver.CurrentlyTposing == false)
             {
-                Action triggerDelegate = () => OnTriggerChanged(device);
-                _triggerDelegates[device] = triggerDelegate;
-                device.CurrentInputState.OnTriggerChanged += triggerDelegate;
+                BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
+
+                foreach (BasisInput device in BasisDeviceManagement.Instance.AllInputDevices)
+                {
+                    Action triggerDelegate = () => OnTriggerChanged(device);
+                    _triggerDelegates[device] = triggerDelegate;
+                    device.CurrentInputState.OnTriggerChanged += triggerDelegate;
+                }
             }
         }
 
