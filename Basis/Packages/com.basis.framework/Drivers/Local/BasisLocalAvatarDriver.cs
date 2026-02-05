@@ -65,6 +65,9 @@ namespace Basis.Scripts.Drivers
         /// <summary>Cached length of <see cref="SkinnedMeshRenderer"/>.</summary>
         public static int SkinnedMeshRendererLength;
 
+        /// <summary>Stores the transforms for each tracked role at calibration time.</summary>
+        public Dictionary<BasisBoneTrackedRole, Transform> StoredRolesTransforms = new Dictionary<BasisBoneTrackedRole, Transform>();
+
         /// <summary>Runtime scale modification settings for the avatar.</summary>
         [SerializeField]
         public BasisAvatarScaleModifier ScaleAvatarModification = new BasisAvatarScaleModifier();
@@ -172,6 +175,7 @@ namespace Basis.Scripts.Drivers
             {
                 Spine.HasRigLayer = BasisHasRigLayer.HasRigLayer;
             }
+            StoredRolesTransforms = BasisAvatarIKStageCalibration.GetAllRolesAsTransform();
             player.AvatarTransform.parent = player.transform;
             player.AvatarTransform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             player.LocalRigDriver.BuildBuilder();
