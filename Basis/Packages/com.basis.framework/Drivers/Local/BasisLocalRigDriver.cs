@@ -190,6 +190,8 @@ namespace Basis.Scripts.Drivers
             PlayableGraph = localPlayer.BasisAvatar.Animator.playableGraph;
             PlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
             Builder.Build(PlayableGraph);
+
+            ResetSmoothingState();
         }
 
         public void SetBodySettings()
@@ -246,13 +248,41 @@ namespace Basis.Scripts.Drivers
                 control?.OnHasRigChanged?.Invoke();
             }
         }
+        public void ResetSmoothingState()
+        {
+            timeAccumulator = 0;
+            hasFallbackState = false;
+
+            // Reset Euro filters (rotation)
+            fRotHips.Reset();
+            fRotHead.Reset();
+            fRotLeftFoot.Reset();
+            fRotRightFoot.Reset();
+            fRotChest.Reset();
+            fRotLeftLowerLeg.Reset();
+            fRotRightLowerLeg.Reset();
+            fRotLeftHand.Reset();
+            fRotRightHand.Reset();
+            fRotLeftLowerArm.Reset();
+            fRotRightLowerArm.Reset();
+            fRotLeftToe.Reset();
+            fRotRightToe.Reset();
+            fRotLeftShoulder.Reset();
+            fRotRightShoulder.Reset();
+
+            
+        }
         public void SimulateIKDestinations(float deltaTime)
         {
             if (BasisFullIKConstraint == null || Builder == null)
+            {
                 return;
+            }
 
             if (!PlayableGraph.IsValid())
+            {
                 return;
+            }
 
             timeAccumulator += Mathf.Max(deltaTime, 1e-6f);
 
@@ -552,7 +582,7 @@ namespace Basis.Scripts.Drivers
             return state;
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void UpdateEuroSettings()
+        public void UpdateEuroSettings()
         {
             // Position filters
             fPosHips.minCutoff = MinCutoff; fPosHips.beta = Beta; fPosHips.dCutoff = DerivativeCutoff;
