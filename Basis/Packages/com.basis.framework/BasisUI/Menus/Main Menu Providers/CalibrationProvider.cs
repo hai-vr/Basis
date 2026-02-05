@@ -47,7 +47,7 @@ namespace Basis.BasisUI
                 new BasisMenuPanel.PanelData
                 {
                     Title = this.Title,
-                    PanelSize = new Vector2(600, 800),
+                    PanelSize = new Vector2(500, 500),
                     PanelPosition = default
                 },
                 BasisMenuPanel.PanelStyles.Page);
@@ -63,8 +63,8 @@ namespace Basis.BasisUI
             Button.Descriptor.SetTitle("Calibrate");
 
             HeightDescription = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            HeightDescription.SetTitle("Player Scale");
-            HeightDescription.SetDescription($"Additional Height is: {BasisHeightDriver.AdditionalPlayerHeight}");
+            HeightDescription.SetTitle("Additional Height");
+            HeightDescription.SetDescription(AdditionalHeight);
 
             var MinusButton = PanelButton.CreateNew(container);
             MinusButton.OnClicked += DecreasePlayerSize;
@@ -77,19 +77,20 @@ namespace Basis.BasisUI
             MinusButton.Descriptor.SetDescription("Adds 0.01f to the players height");
         }
         public PanelElementDescriptor HeightDescription;
+        public string AdditionalHeight = $"{BasisHeightDriver.AdditionalPlayerHeight:F2}";
         /// <summary>
         /// tracker balls
         /// </summary>
         public void IncreasePlayerSize()
         {
             BasisHeightDriver.AdditionalPlayerHeight += 0.1f;
-            HeightDescription.DescriptionLabel.text = $"Additional Height is: {BasisHeightDriver.AdditionalPlayerHeight}";
+            HeightDescription.DescriptionLabel.text = AdditionalHeight;
             BasisHeightDriver.ApplyScaleAndHeight();
         }
         public void DecreasePlayerSize()
         {
             BasisHeightDriver.AdditionalPlayerHeight -= 0.1f;
-            HeightDescription.DescriptionLabel.text = $"Additional Height is: {BasisHeightDriver.AdditionalPlayerHeight}";
+            HeightDescription.DescriptionLabel.text = AdditionalHeight;
             BasisHeightDriver.ApplyScaleAndHeight();
         }
         public void Calibrate()
