@@ -1,5 +1,4 @@
 using Basis.Scripts.TransformBinders.BoneControl;
-using Packages.com.basis.framework.Avatar;
 using System.Collections.Generic;
 using UnityEngine;
 namespace Basis.Scripts.Avatar

@@ -6,7 +6,7 @@ using UnityEngine;
 using Unity.Mathematics;
 using Basis.Scripts.BasisCharacterController;
 using Basis.Scripts.Drivers;
-using Packages.com.basis.framework.Avatar;
+using Basis.Scripts.Avatar;
 
 namespace Basis.Scripts.Animator_Driver
 {
