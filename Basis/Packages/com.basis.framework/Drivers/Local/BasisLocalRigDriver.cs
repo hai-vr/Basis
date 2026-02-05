@@ -407,8 +407,8 @@ namespace Basis.Scripts.Drivers
             // Apply "up" hint bias for head hint (Chest role is the hint driver)
             chestPos = ApplyHintBias(BasisBoneTrackedRole.Chest, chestPos, chestRot);
 
-            data.HintPositionHead = chestPos;
-            data.HintRotationHead = chestRot;
+            data.ChestPosition = chestPos;
+            data.ChestRotation = chestRot;
 
             // ---------------- LEFT LOWER LEG (hint) ----------------
             var lll = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
@@ -424,8 +424,8 @@ namespace Basis.Scripts.Drivers
             // Apply knee "up/out/forward" bias
             lllPos = ApplyHintBias(BasisBoneTrackedRole.LeftLowerLeg, lllPos, lllRot);
 
-            data.HintPositionLeftLowerLeg = lllPos;
-            data.HintRotationLeftLowerLeg = lllRot;
+            data.PositionLeftLowerLeg = lllPos;
+            data.RotationLeftLowerLeg = lllRot;
 
             // ---------------- RIGHT LOWER LEG (your code writes into RightFoot hint fields) ----------------
             var rll = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
@@ -441,8 +441,8 @@ namespace Basis.Scripts.Drivers
             // Apply knee "up/out/forward" bias
             rllPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerLeg, rllPos, rllRot);
 
-            data.HintPositionRightFoot = rllPos;
-            data.HintRotationRightFoot = rllRot;
+            data.PositionRightLowerLeg = rllPos;
+            data.RotationRightLowerLeg = rllRot;
 
             // ---------------- LEFT HAND ----------------
             var lh = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData;
@@ -487,8 +487,8 @@ namespace Basis.Scripts.Drivers
             llaPos = ApplyHintBias(BasisBoneTrackedRole.LeftLowerArm, llaPos, llaRot);
 
             // NOTE: keeping your original field mapping exactly
-            data.HintPositionLeftHand = llaPos;
-            data.HintRotationLeftHand = llaRot;
+            data.LeftLowerArmPosition = llaPos;
+            data.LeftLowerArmRotation = llaRot;
 
             // ---------------- RIGHT LOWER ARM (hand hint) ----------------
             var rla = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData;
@@ -504,8 +504,8 @@ namespace Basis.Scripts.Drivers
             // Apply elbow "up/out" bias
             rlaPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerArm, rlaPos, rlaRot);
 
-            data.HintPositionRightHand = rlaPos;
-            data.HintRotationRightHand = rlaRot;
+            data.RightLowerArmPosition = rlaPos;
+            data.RightLowerArmRotation = rlaRot;
 
             // ---------------- TOES ----------------
             var lt = BasisLocalBoneDriver.LeftToeControl.OutgoingWorldData;
@@ -539,13 +539,13 @@ namespace Basis.Scripts.Drivers
             if (SmoothRot[S_LeftShoulder])
                 ls = EuroRot[S_LeftShoulder] ? fRotLeftShoulder.Filter(ls, timeAccumulator) : FallbackRot(ref sRotLeftShoulder, ls, deltaTime);
 
-            data.m_TargetRotationLeftShoulder = ls;
+            data.LeftShoulderRotation = ls;
 
             var rs = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData.rotation;
             if (SmoothRot[S_RightShoulder])
                 rs = EuroRot[S_RightShoulder] ? fRotRightShoulder.Filter(rs, timeAccumulator) : FallbackRot(ref sRotRightShoulder, rs, deltaTime);
 
-            data.m_TargetRotationRightShoulder = rs;
+            data.RightShoulderRotation = rs;
 
             // Commit & evaluate
             BasisFullIKConstraint.data = data;
@@ -554,7 +554,7 @@ namespace Basis.Scripts.Drivers
             PlayableGraph.Evaluate(deltaTime);
         }
 
-        static Vector3 ApplyHintBias(BasisBoneTrackedRole hintRole, Vector3 rawPos, Quaternion rawRot)
+        public static Vector3 ApplyHintBias(BasisBoneTrackedRole hintRole, Vector3 rawPos, Quaternion rawRot)
         {
             if (BasisHintBiasStore.TryGet(hintRole, out var localOffset))
             {

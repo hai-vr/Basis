@@ -426,16 +426,26 @@ namespace Basis.Scripts.Avatar
             {
                 var lll = BasisLocalBoneDriver.LeftLowerLegControl;
                 {
+                    float fwdWeight = 1;
+                    if (lll.HasTracked == BasisHasTracked.HasTracker)
+                    {
+                        fwdWeight = 0.55f;
+                    }
                     Quaternion trackerRot = lll.OutgoingWorldData.rotation;
-                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: true, distanceMeters: kneePush, outWeight: 0.55f, upWeight: 0.25f, fwdWeight: 0.55f);
+                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: true, distanceMeters: kneePush, outWeight: 0, upWeight: 0.25f, fwdWeight);
                     localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
                     BasisHintBiasStore.Set(BasisBoneTrackedRole.LeftLowerLeg, localOffset);
                 }
 
                 var rll = BasisLocalBoneDriver.RightLowerLegControl;
                 {
+                    float fwdWeight = 1;
+                    if (rll.HasTracked == BasisHasTracked.HasTracker)
+                    {
+                         fwdWeight = 0.55f;
+                    }
                     Quaternion trackerRot = rll.OutgoingWorldData.rotation;
-                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: false, distanceMeters: kneePush, outWeight: 0.55f, upWeight: 0.25f, fwdWeight: 0.55f);
+                    Vector3 localOffset = ComputeHintBiasLocal(trackerRot, hipsRefRot, isLeft: false, distanceMeters: kneePush, outWeight: 0, upWeight: 0.25f, fwdWeight);
                     localOffset = Vector3.ClampMagnitude(localOffset, maxPush);
                     BasisHintBiasStore.Set(BasisBoneTrackedRole.RightLowerLeg, localOffset);
                 }

@@ -185,16 +185,16 @@ namespace UnityEngine.Animations.Rigging
         // Head
         [SyncSceneToStream, SerializeField] public Vector3 PositionHead;
         [SyncSceneToStream, SerializeField] public Quaternion RotationHead;
-        [SyncSceneToStream, SerializeField] public Vector3 HintPositionHead;
-        [SyncSceneToStream, SerializeField] public Quaternion HintRotationHead;
+        [SyncSceneToStream, SerializeField] public Vector3 ChestPosition;
+        [SyncSceneToStream, SerializeField] public Quaternion ChestRotation;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationHead;
 
           [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightToe;
           [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftToe;
           [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationChest;
 
-        [SyncSceneToStream, SerializeField] public Quaternion m_TargetRotationLeftShoulder;
-          [SyncSceneToStream, SerializeField] public Quaternion m_TargetRotationRightShoulder;
+        [SyncSceneToStream, SerializeField] public Quaternion LeftShoulderRotation;
+          [SyncSceneToStream, SerializeField] public Quaternion RightShoulderRotation;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationNeck;
 
         // Hips
@@ -205,16 +205,16 @@ namespace UnityEngine.Animations.Rigging
         // Left Leg
         [SyncSceneToStream, SerializeField] public Vector3 LeftFootPosition;
         [SyncSceneToStream, SerializeField] public Quaternion LeftFootRotation;
-        [SyncSceneToStream, SerializeField] public Vector3 HintPositionLeftLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion HintRotationLeftLowerLeg;
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftFoot;
+        [SyncSceneToStream, SerializeField] public Vector3 PositionLeftLowerLeg;
+        [SyncSceneToStream, SerializeField] public Quaternion RotationLeftLowerLeg;
+        [SyncSceneToStream, SerializeField] public Quaternion M_CalibrationLeftFootRotation;
 
         // Right Leg
         [SyncSceneToStream, SerializeField] public Vector3 RightFootPosition;
         [SyncSceneToStream, SerializeField] public Quaternion RightFootRotation;
-        [SyncSceneToStream, SerializeField] public Vector3 HintPositionRightFoot;
-        [SyncSceneToStream, SerializeField] public Quaternion HintRotationRightFoot;
-        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightFoot;
+        [SyncSceneToStream, SerializeField] public Vector3 PositionRightLowerLeg;
+        [SyncSceneToStream, SerializeField] public Quaternion RotationRightLowerLeg;
+        [SyncSceneToStream, SerializeField] public Quaternion M_CalibrationRightFootRotation;
 
         // Toes
         [SyncSceneToStream, SerializeField] public Vector3 OutGoingLeftToePosition;
@@ -225,16 +225,16 @@ namespace UnityEngine.Animations.Rigging
         // Left Hand
         [SyncSceneToStream, SerializeField] public Vector3 PositionLeftHand;
         [SyncSceneToStream, SerializeField] public Quaternion RotationLeftHand;
-        [SyncSceneToStream, SerializeField] public Vector3 HintPositionLeftHand;
-        [SyncSceneToStream, SerializeField] public Quaternion HintRotationLeftHand;
+        [SyncSceneToStream, SerializeField] public Vector3 LeftLowerArmPosition;
+        [SyncSceneToStream, SerializeField] public Quaternion LeftLowerArmRotation;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftHand;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftHandHint;
 
         // Right Hand
         [SyncSceneToStream, SerializeField] public Vector3 PositionRightHand;
         [SyncSceneToStream, SerializeField] public Quaternion RotationRightHand;
-        [SyncSceneToStream, SerializeField] public Vector3 HintPositionRightHand;
-        [SyncSceneToStream, SerializeField] public Quaternion HintRotationRightHand;
+        [SyncSceneToStream, SerializeField] public Vector3 RightLowerArmPosition;
+        [SyncSceneToStream, SerializeField] public Quaternion RightLowerArmRotation;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightHand;
 
         // Misc
@@ -310,21 +310,21 @@ namespace UnityEngine.Animations.Rigging
         public string HintWeightBoolPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintHeadEnabled));
         public string TargetPositionPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHead));
         public string TargetRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHead));
-        public string PositionPropertyChest => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionHead));
-        public string RotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationHead));
+        public string PositionPropertyChest => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestPosition));
+        public string RotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestRotation));
         public string BendNormalHeadProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintDirection));
         public string EnabledPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftLowerLegEnabled));
         public string HintWeightBoolPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintLeftLowerLegEnabled));
         public string TargetPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftFootPosition));
         public string TargetRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftFootRotation));
-        public string HintPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionLeftLowerLeg));
-        public string HintRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationLeftLowerLeg));
+        public string HintPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionLeftLowerLeg));
+        public string HintRotationPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationLeftLowerLeg));
         public string EnabledPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_RightLowerLegEnabled));
         public string HintWeightBoolPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintRightLowerLegEnabled));
         public string TargetPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightFootPosition));
         public string TargetRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightFootRotation));
-        public string HintPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionRightFoot));
-        public string HintRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationRightFoot));
+        public string HintPositionPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionRightLowerLeg));
+        public string HintRotationPropertyRightLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationRightLowerLeg));
         public string TargetPositionPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionHips));
         public string TargetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHips));
         public string OffsetRotationPropertyHips => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(OffsetRotationHips));
@@ -337,15 +337,15 @@ namespace UnityEngine.Animations.Rigging
         public string HintWeightBoolPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintLeftHandEnabled));
         public string TargetPositionPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionLeftHand));
         public string TargetRotationPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationLeftHand));
-        public string HintPositionPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionLeftHand));
-        public string HintRotationPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationLeftHand));
+        public string HintPositionPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftLowerArmPosition));
+        public string HintRotationPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftLowerArmRotation));
         public string EnabledPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_EnabledRightHand));
         public string EnabledPropertyLeftHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_EnabledLeftHand));
         public string HintWeightBoolPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintRightHandEnabled));
         public string TargetPositionPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PositionRightHand));
         public string TargetRotationPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationRightHand));
-        public string HintPositionPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintPositionRightHand));
-        public string HintRotationPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(HintRotationRightHand));
+        public string HintPositionPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightLowerArmPosition));
+        public string HintRotationPropertyRightHand => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightLowerArmRotation));
         public string ChestRadiusFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ChestRadius));
         public string CollisionSkinFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollisionSkin));
         public string CollisionsEnabledBoolProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_CollisionsEnabled));
@@ -358,8 +358,8 @@ namespace UnityEngine.Animations.Rigging
         public string EnabledRightShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_enabledRightShoulder));
         public string MinHeadSpineHeightFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MinHeadSpineHeight));
 
-        public string TargetRotationLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_TargetRotationLeftShoulder));
-        public string TargetRotationRightShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_TargetRotationRightShoulder));
+        public string TargetRotationLeftShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftShoulderRotation));
+        public string TargetRotationRightShoulderProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RightShoulderRotation));
 
         public string MaxBendDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxBendDeg));
         public string MinFactorFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MinFactor));
@@ -438,7 +438,7 @@ namespace UnityEngine.Animations.Rigging
 
             m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
             m_EnabledLeftHand = m_EnabledRightHand = true;
-            m_CalibratedRotationHead = m_CalibratedRotationLeftFoot = m_CalibratedRotationRightFoot = Quaternion.identity;
+            m_CalibratedRotationHead = M_CalibrationLeftFootRotation = M_CalibrationRightFootRotation = Quaternion.identity;
             m_CalibratedRotationLeftHand = m_CalibratedRotationRightHand = Quaternion.identity;
 
             m_HintDirection = Vector3.up;
@@ -779,8 +779,8 @@ w20, w54;
                 ApplyRotation(stream, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
             }
 
-            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead);
-            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead);
+            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead,true);
+            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead,false);
 
             SolveHand(stream,
                 enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
@@ -1164,7 +1164,7 @@ w20, w54;
             AffineTransform hint,
             bool HasHint,
             Quaternion targetOffset,
-            Vector3 BendNormal)
+            Vector3 BendNormal,bool IsLeft)
         {
             Vector3 aPosition = root.GetPosition(stream);
             Vector3 bPosition = mid.GetPosition(stream);
@@ -1211,7 +1211,7 @@ w20, w54;
             }
             else
             {
-                axis = BendNormal;
+                axis = ComputeBendAxis(ab, bc, root.GetRotation(stream), IsLeft);
             }
 
             axis = Vector3.Normalize(axis);
@@ -1258,12 +1258,45 @@ w20, w54;
 
             tip.SetRotation(stream, tRotation);
         }
+        static Vector3 ComputeBendAxis(
+    Vector3 ab, Vector3 bc,
+    Quaternion rootRotation,
+    bool isLeftLeg
+)
+        {
+            // 1) Primary: current limb plane normal
+            Vector3 axis = Vector3.Cross(ab, bc);
+            float mag2 = axis.sqrMagnitude;
 
+            if (mag2 > 1e-8f)
+                return axis / Mathf.Sqrt(mag2);
+
+            // 2) Straight limb fallback: choose a stable "knee points roughly forward" axis.
+            // Use root's local right/left (or forward) to define a consistent plane.
+            Vector3 lateral = rootRotation * (isLeftLeg ? Vector3.left : Vector3.right);
+
+            // If ab is also degenerate, just return something deterministic
+            float ab2 = ab.sqrMagnitude;
+            if (ab2 <= 1e-8f)
+                return lateral.sqrMagnitude > 1e-8f ? lateral.normalized : Vector3.forward;
+
+            Vector3 abN = ab / Mathf.Sqrt(ab2);
+
+            // Make axis perpendicular to ab
+            axis = Vector3.Cross(abN, lateral);
+            mag2 = axis.sqrMagnitude;
+
+            if (mag2 > 1e-8f)
+                return axis / Mathf.Sqrt(mag2);
+
+            // 3) Last resort
+            return Vector3.forward;
+        }
         public Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
         public void SolveLegs(AnimationStream stream, BoolProperty enabledProp,
         ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
         Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp,
-        BoolProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp)
+        BoolProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp,bool IsLeft)
         {
             if (!enabledProp.Get(stream))
             {
@@ -1282,7 +1315,7 @@ w20, w54;
             AffineTransform hint = new AffineTransform(hintPosProp.Get(stream), hRot);
             Vector3 bendNormal = bendNormalProp.Get(stream);
 
-            SolveTwoBone(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset, bendNormal);
+            SolveTwoBone(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset, bendNormal, IsLeft);
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Apply(AnimationStream stream, ReadWriteTransformHandle h, Vector3Property p, Vector4Property r, Vector4Property o, BoolProperty sw)
@@ -1571,8 +1604,8 @@ w20, w54;
                 targetOffsetChest = data.m_CalibratedRotationChest,
                 targetOffsetLeftToe = data.m_CalibratedRotationLeftToe,
                 targetOffsetRightToe = data.m_CalibratedRotationRightToe,
-                targetOffsetLeftFoot = data.m_CalibratedRotationLeftFoot,
-                targetOffsetRightFoot = data.m_CalibratedRotationRightFoot,
+                targetOffsetLeftFoot = data.M_CalibrationLeftFootRotation,
+                targetOffsetRightFoot = data.M_CalibrationRightFootRotation,
                 targetOffsetLeftHand = data.m_CalibratedRotationLeftHand,
                 targetOffsetRightHand = data.m_CalibratedRotationRightHand,
                 MinHeadSpineHeight = FloatProperty.Bind(animator, component, data.MinHeadSpineHeightFloatProperty)

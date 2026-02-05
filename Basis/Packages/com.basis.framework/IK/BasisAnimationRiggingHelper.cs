@@ -66,8 +66,8 @@ public static class BasisAnimationRiggingHelper
         data.m_CalibratedRotationHead = Mapping.Hashead ? Mapping.head.rotation : Quaternion.identity;
 
         // Feet
-        data.m_CalibratedRotationLeftFoot = Mapping.Hashead ? Mapping.leftFoot.rotation : Quaternion.identity;
-        data.m_CalibratedRotationRightFoot = Mapping.Hashead ? Mapping.rightFoot.rotation : Quaternion.identity;
+        data.M_CalibrationLeftFootRotation = Mapping.Hashead ? Mapping.leftFoot.rotation : Quaternion.identity;
+        data.M_CalibrationRightFootRotation = Mapping.Hashead ? Mapping.rightFoot.rotation : Quaternion.identity;
 
         Quaternion leftLandmarkBind = Quaternion.identity;
         Quaternion rightLandmarkBind = Quaternion.identity;
@@ -116,20 +116,14 @@ public static class BasisAnimationRiggingHelper
         // Head
         data.PositionHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
         data.RotationHead = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation;
-        data.HintPositionHead = BasisLocalBoneDriver.ChestControl.OutgoingWorldData.position;
-        data.HintRotationHead = BasisLocalBoneDriver.ChestControl.OutgoingWorldData.rotation;
 
-        // Left leg / foot
+        // Left foot
         data.LeftFootPosition = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.position;
         data.LeftFootRotation = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData.rotation;
-        data.HintPositionLeftLowerLeg = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData.position;
-        data.HintRotationLeftLowerLeg = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData.rotation;
 
-        // Right leg / foot
+        // Right  foot
         data.RightFootPosition = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.position;
         data.RightFootRotation = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData.rotation;
-        data.HintPositionRightFoot = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.position;
-        data.HintRotationRightFoot = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData.rotation;
 
         // Hips
         data.PositionHips = BasisLocalBoneDriver.HipsControl.OutgoingWorldData.position;
@@ -138,16 +132,43 @@ public static class BasisAnimationRiggingHelper
         // Hands
         data.PositionLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.position;
         data.RotationLeftHand = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData.rotation;
+
         data.PositionRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.position;
         data.RotationRightHand = BasisLocalBoneDriver.RightHandControl.OutgoingWorldData.rotation;
 
-        data.HintPositionLeftHand = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.position;
-        data.HintRotationLeftHand = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData.rotation;
-        data.HintPositionRightHand = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.position;
-        data.HintRotationRightHand = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData.rotation;
+        // Cache world data once per control (less property spam, easier to read)
+        var leftLowerArm = BasisLocalBoneDriver.LeftLowerArmControl.OutgoingWorldData;
+        var rightLowerArm = BasisLocalBoneDriver.RightLowerArmControl.OutgoingWorldData;
 
-        data.m_TargetRotationLeftShoulder = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData.rotation;
-        data.m_TargetRotationRightShoulder = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData.rotation;
+        var chest = BasisLocalBoneDriver.ChestControl.OutgoingWorldData;
+
+        var leftLowerLeg = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
+        var rightLowerLeg = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
+
+        var leftShoulder = BasisLocalBoneDriver.LeftShoulderControl.OutgoingWorldData;
+        var rightShoulder = BasisLocalBoneDriver.RightShoulderControl.OutgoingWorldData;
+
+        // --- Arms ---
+        data.LeftLowerArmPosition = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerArm, leftLowerArm.position, leftLowerArm.rotation);
+        data.LeftLowerArmRotation = leftLowerArm.rotation;
+
+        data.RightLowerArmPosition = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerArm, rightLowerArm.position, rightLowerArm.rotation);
+        data.RightLowerArmRotation = rightLowerArm.rotation;
+
+        // --- Shoulders (rotation only in your data model) ---
+        data.LeftShoulderRotation = leftShoulder.rotation;
+        data.RightShoulderRotation = rightShoulder.rotation;
+
+        // --- Legs ---
+        data.PositionLeftLowerLeg = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.LeftLowerLeg, leftLowerLeg.position, leftLowerLeg.rotation);
+        data.RotationLeftLowerLeg = leftLowerLeg.rotation;
+
+        data.PositionRightLowerLeg = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.RightLowerLeg, rightLowerLeg.position, rightLowerLeg.rotation);
+        data.RotationRightLowerLeg = rightLowerLeg.rotation;
+
+        // --- Chest ---
+        data.ChestPosition = BasisLocalRigDriver.ApplyHintBias(Basis.Scripts.TransformBinders.BoneControl.BasisBoneTrackedRole.Chest, chest.position, chest.rotation);
+        data.ChestRotation = chest.rotation;
 
         data.CollisionsEnabled = true;
         data.UseHandCapsule = true;

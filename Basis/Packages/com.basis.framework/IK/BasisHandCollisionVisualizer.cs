@@ -53,14 +53,14 @@ public class BasisHandCollisionVisualizer : MonoBehaviour
         if (left)
         {
             tgtPos = data.PositionLeftHand;
-            hintPos = data.HintPositionLeftHand;
+            hintPos = data.LeftLowerArmPosition;
             hsLocal = data.LeftHand.position;
             heLocal = data.leftLowerArm.position;
         }
         else
         {
             tgtPos = data.PositionRightHand;
-            hintPos = data.HintPositionRightHand;
+            hintPos = data.RightLowerArmPosition;
             hsLocal = data.RightHand.position;
             heLocal = data.RightLowerArm.position;
         }
