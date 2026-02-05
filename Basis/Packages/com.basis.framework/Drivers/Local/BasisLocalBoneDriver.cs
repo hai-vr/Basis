@@ -1,7 +1,7 @@
-using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.TransformBinders.BoneControl;
+using Packages.com.basis.framework.Avatar;
 using System;
 using System.Collections.Generic;
 using System.Data;

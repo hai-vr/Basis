@@ -1,9 +1,8 @@
-using Basis.Scripts.Avatar; // BasisHintBiasStore
 using Basis.Scripts.Device_Management; // (only if needed for enums)
 using Basis.Scripts.Drivers; // BasisLocalBoneDriver
 using Basis.Scripts.TransformBinders.BoneControl; // BasisLocalBoneControl
 using UnityEngine;
-using static Basis.Scripts.Avatar.BasisAvatarIKStageCalibration;
+using static Packages.com.basis.framework.Avatar.BasisAvatarIKStageCalibration;
 
 namespace Basis.Scripts.Debugging
 {

@@ -30,7 +30,7 @@ namespace Basis.Scripts.Avatar
         /// <returns></returns>
         private static List<BasisBoneTrackedRole> GetAllRolesDesired()
         {
-            List<BasisBoneTrackedRole> rolesToDiscover = new List<BasisBoneTrackedRole>();
+            List<BasisBoneTrackedRole> rolesToDiscover = new List<BasisBoneTrackedRole>(23);
             foreach (BasisBoneTrackedRole role in Enum.GetValues(typeof(BasisBoneTrackedRole)))
             {
                 rolesToDiscover.Add(role);
@@ -71,7 +71,12 @@ namespace Basis.Scripts.Avatar
 
             Dictionary<BasisBoneTrackedRole, Transform> storedRoleTransforms = BasisLocalPlayer.Instance.LocalAvatarDriver.StoredRolesTransforms;
             List<BasisBoneTrackedRole> rolesToDiscover = GetAllRolesDesired();
-            List<BasisBoneTrackedRole> trackInputRoles = new List<BasisBoneTrackedRole>();
+            List<BasisBoneTrackedRole> trackInputRoles = new List<BasisBoneTrackedRole>(23);
+            List<BasisCalibrationData> connectors = new List<BasisCalibrationData>(23);
+            List<BasisTrackerMapping> boneTransformMappings = new List<BasisTrackerMapping>(23);
+            List<BasisBoneTrackedRole> roles = new List<BasisBoneTrackedRole>(23);
+            List<BasisInput> BasisInputs = new List<BasisInput>(23);
+
             int count = rolesToDiscover.Count;
             for (int Index = 0; Index < count; Index++)
             {
@@ -81,7 +86,6 @@ namespace Basis.Scripts.Avatar
                     trackInputRoles.Add(Role);
                 }
             }
-            List<BasisCalibrationData> connectors = new List<BasisCalibrationData>();
             int AllInputDevicesCount = BasisDeviceManagement.Instance.AllInputDevices.Count;
             for (int Index = 0; Index < AllInputDevicesCount; Index++)
             {
@@ -111,7 +115,6 @@ namespace Basis.Scripts.Avatar
                     connectors.Add(calibrationConnector);
                 }
             }
-            List<BasisTrackerMapping> boneTransformMappings = new List<BasisTrackerMapping>();
             int Count = trackInputRoles.Count;
             Dictionary<BasisBoneTrackedRole, Transform> StoredRolesTransforms = BasisLocalPlayer.Instance.LocalAvatarDriver.StoredRolesTransforms;
             for (int Index = 0; Index < Count; Index++)
@@ -137,8 +140,6 @@ namespace Basis.Scripts.Avatar
                     BasisDebug.LogError($"Missing bone control for role {role}");
                 }
             }
-            List<BasisBoneTrackedRole> roles = new List<BasisBoneTrackedRole>();
-            List<BasisInput> BasisInputs = new List<BasisInput>();
             int cachedCount = boneTransformMappings.Count;
             // Find optimal matches
             for (int Index = 0; Index < cachedCount; Index++)

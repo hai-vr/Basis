@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
+using Packages.com.basis.framework.Avatar;
 using UnityEngine;
 
 namespace Basis.BasisUI
