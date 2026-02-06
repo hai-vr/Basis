@@ -733,7 +733,10 @@ w20, w54;
         public void ProcessAnimation(AnimationStream stream)
         {
             float w = jobWeight.Get(stream);
-            if (w <= 0f) return;
+            if (w <= 0f)
+            {
+                return;
+            }
 
             // --- HEAD–HIPS ANCHOR CLAMP ---
             Vector3 headTargetPos = targetPositionHead.Get(stream);
@@ -741,173 +744,72 @@ w20, w54;
 
             float restDist = MinHeadSpineHeight.Get(stream);
 
+            // 1) Limit spine bend by pushing hips down if needed
             hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg.Get(stream));
+
             hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
+
             targetPositionHips.Set(stream, hipsTargetPos);
-
-            bool doSpine = enabledSpineIK.Get(stream);
-
-            // --- Apply hips driver (base of everything) ---
-            if (doSpine && HandleHips.IsValid(stream))
+            // Early out: pass-through if spine IK disabled
+            if (enabledSpineIK.Get(stream))
             {
-                Vector3 hipPos = targetPositionHips.Get(stream);
-                Quaternion hipRot = V4ToQuat(targetRotationHips.Get(stream));
-                Quaternion hipOff = V4ToQuat(offsetRotationHips.Get(stream));
-
-                HandleHips.SetPosition(stream, hipPos);
-                HandleHips.SetRotation(stream, hipRot * hipOff);
-            }
-
-            // --- Multi-segment spine solve (virtual FABRIK) ---
-            if (doSpine)
-            {
-                bool chainOK =
-                    HandleHips.IsValid(stream) &&
-                    HandleSpine.IsValid(stream) &&
-                    HandleChest.IsValid(stream) &&
-                    HandleNeck.IsValid(stream) &&
-                    HandleHead.IsValid(stream);
-
-                if (chainOK)
+                // Apply hips driver if valid
+                if (HandleHips.IsValid(stream))
                 {
-                    // Current world joint positions AFTER hips applied
-                    Vector3 p0 = HandleHips.GetPosition(stream);
-                    Vector3 p1 = HandleSpine.GetPosition(stream);
-                    Vector3 p2 = HandleChest.GetPosition(stream);
-                    Vector3 p3 = HandleNeck.GetPosition(stream);
-                    Vector3 p4 = HandleHead.GetPosition(stream);
+                    Vector3 hipPos = targetPositionHips.Get(stream);
+                    Quaternion hipRot = V4ToQuat(targetRotationHips.Get(stream));
+                    Quaternion hipOff = V4ToQuat(offsetRotationHips.Get(stream));
 
-                    float l01 = (p1 - p0).magnitude;
-                    float l12 = (p2 - p1).magnitude;
-                    float l23 = (p3 - p2).magnitude;
-                    float l34 = (p4 - p3).magnitude;
-
-                    if (l01 > k_Epsilon && l12 > k_Epsilon && l23 > k_Epsilon && l34 > k_Epsilon)
-                    {
-                        // --- Targets ---
-                        Quaternion headTargetRot = V4ToQuat(targetRotationHead.Get(stream)) * targetOffsetHead;
-
-                        // (A) PARTIAL position reach: don't hard-solve to the head target
-                        // 0 = no positional chase (pure rotation smoothing), 1 = full chase
-                        const float reachPos = 0.35f;
-
-                        Vector3 currentHeadPos = p4;
-                        Vector3 desiredEndPos = Vector3.Lerp(currentHeadPos, headTargetPos, reachPos);
-
-                        // Virtual positions for FABRIK (still helps bend direction nicely)
-                        Vector3 v0 = p0, v1 = p1, v2 = p2, v3 = p3, v4 = p4;
-
-                        // Stiffness: lower spine stiffer (preserves base), upper looser
-                        const float stiff01 = 0.80f;
-                        const float stiff12 = 0.55f;
-                        const float stiff23 = 0.25f;
-
-                        FabrikSpineVirtual(
-                            ref v0, ref v1, ref v2, ref v3, ref v4,
-                            basePos: p0,
-                            endPos: desiredEndPos,
-                            l01, l12, l23, l34,
-                            iterations: k_SpineIterationsDefault,
-                            stiffness01: stiff01, stiffness12: stiff12, stiffness23: stiff23
-                        );
-
-                        // (B) WEIGHTED AIM: upper joints correct more than lower joints
-                        // These weights are the “relax down the chain” lever.
-                        const float aimSpineW = 0.25f;
-                        const float aimChestW = 0.55f;
-                        const float aimNeckW = 0.85f;
-
-                        RotateBoneFromToWeighted(stream, HandleSpine,
-                            currentChildWorldPos: HandleChest.GetPosition(stream),
-                            desiredChildWorldPos: v2,
-                            weight01: aimSpineW);
-
-                        RotateBoneFromToWeighted(stream, HandleChest,
-                            currentChildWorldPos: HandleNeck.GetPosition(stream),
-                            desiredChildWorldPos: v3,
-                            weight01: aimChestW);
-
-                        RotateBoneFromToWeighted(stream, HandleNeck,
-                            currentChildWorldPos: HandleHead.GetPosition(stream),
-                            desiredChildWorldPos: v4,
-                            weight01: aimNeckW);
-
-                        // (C) ROTATION BRIDGE: smooth rotation from hips -> head across the spine
-                        // Think of these T values as "where along the bridge" each joint sits.
-                        // You can skew them upward so lower spine stays anchored.
-                        const float spineT = 0.20f;
-                        const float chestT = 0.55f;
-                        const float neckT = 0.85f;
-
-                        // How strongly each joint follows the bridge (again: relax down chain)
-                        const float bridgeSpineW = 0.20f;
-                        const float bridgeChestW = 0.45f;
-                        const float bridgeNeckW = 0.70f;
-
-                        ApplyRotationBridge(stream,
-                            HandleHips, HandleSpine, HandleChest, HandleNeck,
-                            headTargetRot,
-                            spineT, chestT, neckT,
-                            bridgeSpineW, bridgeChestW, bridgeNeckW
-                        );
-
-                        // Optional: chest tracker rotation as a *soft* constraint (still clamped)
-                        if (HasChestTracker.Get(stream))
-                        {
-                            Quaternion clampedTrackerChest = GetClampedChestTrackerRotation(
-                                stream,
-                                HandleChest, HandleNeck, HandleSpine,
-                                RotationHead,      // your bound chest tracker rot prop
-                                targetOffsetChest,
-                                MaxChestDeltaDeg
-                            );
-
-                            // Lower this if you want the "bridge" to dominate
-                            const float chestTrackerWeight = 0.45f;
-
-                            Quaternion currentChest = HandleChest.GetRotation(stream);
-                            HandleChest.SetRotation(stream, Quaternion.Slerp(currentChest, clampedTrackerChest, chestTrackerWeight));
-
-                            // After chest is nudged, let neck re-aim a bit (weighted)
-                            RotateBoneFromToWeighted(stream, HandleNeck,
-                                currentChildWorldPos: HandleHead.GetPosition(stream),
-                                desiredChildWorldPos: v4,
-                                weight01: 0.60f);
-                        }
-
-                        // Final: lock head rotation to target (this anchors the whole “bridge”)
-                        HandleHead.SetRotation(stream, headTargetRot);
-                    }
+                    HandleHips.SetPosition(stream, hipPos);
+                    HandleHips.SetRotation(stream, hipRot * hipOff);
                 }
-                else
+                if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
                 {
-                    // Fallback (your existing 3-bone)
-                    if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
-                    {
-                        var tRot = V4ToQuat(targetRotationHead.Get(stream));
-                        var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-                        var bendNormal = bendNormalHead.Get(stream);
-                        SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
-                    }
+                    // Build target + hint transforms
+                    var tRot = V4ToQuat(targetRotationHead.Get(stream));
+                    var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                    var bendNormal = bendNormalHead.Get(stream);
+
+                    SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
                 }
             }
+            if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
+            {
+                // Neck rotation produced by your spine IK pass – we keep this
+                Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
 
-            // --- SHOULDERS ---
+                // Spine as an extra reference if available (nice stabiliser)
+                Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
+
+                // Raw chest from tracker
+                Quaternion trackerChestRot = V4ToQuat(RotationHead.Get(stream)) * targetOffsetChest;
+
+                float Value = MaxChestDeltaDeg.Get(stream);
+                // Clamp relative to neck and spine
+                Quaternion clampedChestRot = ClampRotation(trackerChestRot, neckRot, Value);
+                clampedChestRot = ClampRotation(clampedChestRot, spineRot, Value);
+
+                HandleChest.SetRotation(stream, clampedChestRot);
+
+                // Build target + hint transforms
+                var tRot = V4ToQuat(targetRotationHead.Get(stream));
+                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                var bendNormal = bendNormalHead.Get(stream);
+
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+            }
             if (enabledLeftShoulder.Get(stream))
+            {
                 ApplyRotation(stream, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
+            }
             if (enabledRightShoulder.Get(stream))
+            {
                 ApplyRotation(stream, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
+            }
 
-            // --- LEGS ---
-            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot,
-                targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg,
-                hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft);
+            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft);
+            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight);
 
-            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot,
-                targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg,
-                hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight);
-
-            // --- HANDS ---
             SolveHand(stream,
                 enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
                 targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand,
@@ -918,12 +820,10 @@ w20, w54;
                 targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand,
                 HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
 
-            // --- TOES ---
+
             ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
             ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
 
-
-            // --- YOUR “SINGLE JOB DRIVEN TR” PASS (unchanged) ---
             Apply(stream, HandleHips, p0, r0, o0, w0);
             Apply(stream, HandleLeftUpperLeg, p1, r1, o1, w1);
             Apply(stream, HandleRightUpperLeg, p2, r2, o2, w2);
@@ -946,70 +846,6 @@ w20, w54;
             Apply(stream, HandleLeftToe, p19, r19, o19, w19);
             Apply(stream, HandleRightToe, p20, r20, o20, w20);
             Apply(stream, HandleUpperChest, p54, r54, o54, w54);
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static void RotateBoneFromToWeighted(
-    AnimationStream stream,
-    ReadWriteTransformHandle bone,
-    Vector3 currentChildWorldPos,
-    Vector3 desiredChildWorldPos,
-    float weight01 // 0..1
-)
-        {
-            if (!bone.IsValid(stream) || weight01 <= 0f) return;
-
-            Vector3 a = bone.GetPosition(stream);
-            Vector3 cur = currentChildWorldPos - a;
-            Vector3 des = desiredChildWorldPos - a;
-
-            float curSqr = Vector3.Dot(cur, cur);
-            float desSqr = Vector3.Dot(des, des);
-            if (curSqr <= k_SqrEpsilon || desSqr <= k_SqrEpsilon) return;
-
-            Quaternion fullDelta = QuaternionExt.FromToRotation(cur, des);
-            fullDelta = QuaternionExt.NormalizeSafe(fullDelta);
-
-            // scale the correction
-            Quaternion delta = Quaternion.Slerp(Quaternion.identity, fullDelta, Mathf.Clamp01(weight01));
-            bone.SetRotation(stream, delta * bone.GetRotation(stream));
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static Quaternion SlerpBridge(Quaternion a, Quaternion b, float t01)
-            => Quaternion.Slerp(a, b, Mathf.Clamp01(t01));
-
-        static void ApplyRotationBridge(
-            AnimationStream stream,
-            ReadWriteTransformHandle hips,
-            ReadWriteTransformHandle spine,
-            ReadWriteTransformHandle chest,
-            ReadWriteTransformHandle neck,
-            Quaternion headTargetRot,
-            float spineT, float chestT, float neckT,   // 0..1 where along the bridge each joint sits
-            float spineW, float chestW, float neckW    // 0..1 how strongly each joint follows the bridge
-        )
-        {
-            if (!hips.IsValid(stream)) return;
-
-            Quaternion hipsRot = hips.GetRotation(stream);
-
-            if (spine.IsValid(stream) && spineW > 0f)
-            {
-                Quaternion goal = SlerpBridge(hipsRot, headTargetRot, spineT);
-                spine.SetRotation(stream, Quaternion.Slerp(spine.GetRotation(stream), goal, spineW));
-            }
-
-            if (chest.IsValid(stream) && chestW > 0f)
-            {
-                Quaternion goal = SlerpBridge(hipsRot, headTargetRot, chestT);
-                chest.SetRotation(stream, Quaternion.Slerp(chest.GetRotation(stream), goal, chestW));
-            }
-
-            if (neck.IsValid(stream) && neckW > 0f)
-            {
-                Quaternion goal = SlerpBridge(hipsRot, headTargetRot, neckT);
-                neck.SetRotation(stream, Quaternion.Slerp(neck.GetRotation(stream), goal, neckW));
-            }
         }
         static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg)
         {
@@ -1628,111 +1464,6 @@ w20, w54;
 
             return axis / Mathf.Sqrt(mag2);
         }
-
-        const int k_SpineIterationsDefault = 3;
-
-        static void FabrikSpineVirtual(
-            ref Vector3 p0, ref Vector3 p1, ref Vector3 p2, ref Vector3 p3, ref Vector3 p4,
-            Vector3 basePos,
-            Vector3 endPos,
-            float l01, float l12, float l23, float l34,
-            int iterations,
-            float stiffness01, float stiffness12, float stiffness23
-        )
-        {
-            Vector3 o1 = p1, o2 = p2, o3 = p3;
-
-            for (int it = 0; it < iterations; it++)
-            {
-                // Backward
-                p4 = endPos;
-                p3 = p4 + (p3 - p4).normalized * l34;
-                p2 = p3 + (p2 - p3).normalized * l23;
-                p1 = p2 + (p1 - p2).normalized * l12;
-                p0 = p1 + (p0 - p1).normalized * l01;
-
-                // Forward
-                p0 = basePos;
-                p1 = p0 + (p1 - p0).normalized * l01;
-                p2 = p1 + (p2 - p1).normalized * l12;
-                p3 = p2 + (p3 - p2).normalized * l23;
-                p4 = p3 + (p4 - p3).normalized * l34;
-
-                // Shape stiffness
-                if (stiffness01 > 0f) p1 = Vector3.Lerp(p1, o1, stiffness01);
-                if (stiffness12 > 0f) p2 = Vector3.Lerp(p2, o2, stiffness12);
-                if (stiffness23 > 0f) p3 = Vector3.Lerp(p3, o3, stiffness23);
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static void AimBoneTowardVirtual(
-            AnimationStream stream,
-            ReadWriteTransformHandle bone,
-            Vector3 desiredChildWorldPos
-        )
-        {
-            if (!bone.IsValid(stream)) return;
-
-            Vector3 a = bone.GetPosition(stream);
-
-            // Current forward = current child direction (using current hierarchy)
-            // We'll infer "child direction" from the current bone's rotation and a tiny step,
-            // BUT that’s unreliable across rigs. Better: use the next joint current position.
-            // This helper is meant to be called with a desired child position, and you should
-            // compute currentChildPos externally and call RotateFromTo (below).
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static void RotateBoneFromTo(
-            AnimationStream stream,
-            ReadWriteTransformHandle bone,
-            Vector3 currentChildWorldPos,
-            Vector3 desiredChildWorldPos
-        )
-        {
-            if (!bone.IsValid(stream)) return;
-
-            Vector3 a = bone.GetPosition(stream);
-            Vector3 cur = currentChildWorldPos - a;
-            Vector3 des = desiredChildWorldPos - a;
-
-            float curSqr = Vector3.Dot(cur, cur);
-            float desSqr = Vector3.Dot(des, des);
-            if (curSqr <= k_SqrEpsilon || desSqr <= k_SqrEpsilon) return;
-
-            Quaternion delta = QuaternionExt.FromToRotation(cur, des);
-            delta = QuaternionExt.NormalizeSafe(delta);
-
-            bone.SetRotation(stream, delta * bone.GetRotation(stream));
-        }
-
-        static Quaternion GetClampedChestTrackerRotation(
-            AnimationStream stream,
-            ReadWriteTransformHandle chest,
-            ReadWriteTransformHandle neck,
-            ReadWriteTransformHandle spine,
-            Vector4Property trackerChestRotProp,
-            Quaternion chestOffset,
-            FloatProperty maxChestDeltaDeg
-        )
-        {
-            // Raw chest from tracker (+ calibrated offset)
-            Quaternion tracker = V4ToQuatStatic(trackerChestRotProp.Get(stream)) * chestOffset;
-
-            float maxDelta = maxChestDeltaDeg.Get(stream);
-
-            if (neck.IsValid(stream))
-                tracker = ClampRotation(tracker, neck.GetRotation(stream), maxDelta);
-
-            if (spine.IsValid(stream))
-                tracker = ClampRotation(tracker, spine.GetRotation(stream), maxDelta);
-
-            return tracker;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static Quaternion V4ToQuatStatic(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
     }
     public class BasisFullBodyJobBinder : AnimationJobBinder<BasisFullIKConstraintJob, BasisFullBodyData>
     {
