@@ -840,12 +840,7 @@ namespace Basis.Scripts.Drivers
 
             BasisFullIKConstraint.data = data;
         }
-        void UpdateDynamicKneeBendWeights(
-    Quaternion hipsRot,
-    Vector3 hipsPos,
-    Vector3 leftKnee, Vector3 leftAnkle,
-    Vector3 rightKnee, Vector3 rightAnkle,
-    ref Vector3 kneeWLeft, ref Vector3 kneeWRight)
+        void UpdateDynamicKneeBendWeights(Quaternion hipsRot,Vector3 hipsPos,Vector3 leftKnee, Vector3 leftAnkle,Vector3 rightKnee, Vector3 rightAnkle,ref Vector3 kneeWLeft, ref Vector3 kneeWRight)
         {
             Vector3 fwd = hipsRot * Vector3.forward;
             Vector3 outR = hipsRot * Vector3.right;
@@ -856,7 +851,7 @@ namespace Basis.Scripts.Drivers
             float cross = CrossLeg01(hipsRot, leftAnkle, rightAnkle, flexL, flexR);
 
             // outward sign: left knee prefers “-outR”, right knee “+outR” (typical humanoid)
-            Vector3 nL = StableKneePlaneNormal(hipsPos, leftKnee, leftAnkle, outR, -1f);
+            Vector3 nL = StableKneePlaneNormal(hipsPos, leftKnee, leftAnkle, outR, +1f);
             Vector3 nR = StableKneePlaneNormal(hipsPos, rightKnee, rightAnkle, outR, +1f);
 
             // Standing baseline (your current defaults)
@@ -891,7 +886,11 @@ namespace Basis.Scripts.Drivers
             );
 
             // scale doesn’t matter much (you normalize later), but avoid tiny vectors
-            if (w.sqrMagnitude < 1e-6f) w = new Vector3(0.1f, 1f, 0.1f);
+            if (w.sqrMagnitude < 1e-6f)
+            {
+                w = new Vector3(0.1f, 1f, 0.1f);
+            }
+
             return w;
         }
         static Vector3 StableKneePlaneNormal(Vector3 hip, Vector3 knee, Vector3 ankle, Vector3 hipsOut, float outwardSign)
@@ -927,7 +926,10 @@ namespace Basis.Scripts.Drivers
 
             // Optional: “swap sides” signal (tune thresholds to your avatar scale)
             float swapped = 0f;
-            if (la.x > 0.05f && ra.x < -0.05f) swapped = 1f; // ankles strongly on opposite sides
+            if (la.x > 0.05f && ra.x < -0.05f)
+            {
+                swapped = 1f; // ankles strongly on opposite sides
+            }
 
             return Mathf.Clamp01(Mathf.Max(close, swapped) * bent);
         }
