@@ -570,9 +570,9 @@ MonoBehaviour:
     OutputkneeBendPrefRightWeights: {x: 0, y: 0, z: 0}
     kneeBendPrefLeftWeights: {x: 0, y: 1, z: -0.2}
     kneeBendPrefRightWeights: {x: 0, y: 1, z: 0.2}
-    elbowBendPrefLeftWeights: {x: 0.6, y: -1, z: -0.15}
-    elbowBendPrefRightWeights: {x: 0.6, y: 1, z: -0.15}
-    spineBendNormalWeights: {x: 1, y: 0, z: 0}
+    elbowBendPrefLeftWeights: {x: 0, y: 1, z: 0}
+    elbowBendPrefRightWeights: {x: 0, y: 1, z: 0}
+    spineBendNormalWeights: {x: 0, y: 1, z: 0}
     ScrossLeggedModifier: {x: 1.25, y: 0.25}
   LocalCharacterDriver:
     LocalPlayer: {fileID: 4587526044252889482}
