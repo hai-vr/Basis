@@ -546,6 +546,7 @@ namespace Basis.Scripts.Drivers
 
             data.RightShoulderRotation = rs;
 
+            UpdateDynamicKneeBendWeights(hipsRot, hipsPos,lllPos, lfPos,rllPos, rfPos,ref kneeBendPrefLeftWeights,ref kneeBendPrefRightWeights);
 
             Vector3 fwdC = chestRot * Vector3.forward;
             Vector3 outC = chestRot * Vector3.right;
@@ -839,7 +840,97 @@ namespace Basis.Scripts.Drivers
 
             BasisFullIKConstraint.data = data;
         }
+        void UpdateDynamicKneeBendWeights(
+    Quaternion hipsRot,
+    Vector3 hipsPos,
+    Vector3 leftKnee, Vector3 leftAnkle,
+    Vector3 rightKnee, Vector3 rightAnkle,
+    ref Vector3 kneeWLeft, ref Vector3 kneeWRight)
+        {
+            Vector3 fwd = hipsRot * Vector3.forward;
+            Vector3 outR = hipsRot * Vector3.right;
+            Vector3 up = hipsRot * Vector3.up;
 
+            float flexL = KneeFlex01(hipsPos, leftKnee, leftAnkle);
+            float flexR = KneeFlex01(hipsPos, rightKnee, rightAnkle);
+            float cross = CrossLeg01(hipsRot, leftAnkle, rightAnkle, flexL, flexR);
+
+            // outward sign: left knee prefers “-outR”, right knee “+outR” (typical humanoid)
+            Vector3 nL = StableKneePlaneNormal(hipsPos, leftKnee, leftAnkle, outR, -1f);
+            Vector3 nR = StableKneePlaneNormal(hipsPos, rightKnee, rightAnkle, outR, +1f);
+
+            // Standing baseline (your current defaults)
+            Vector3 baseL = (outR * +1f + up * 0.05f).normalized;
+            Vector3 baseR = (outR * +1f + up * 0.05f).normalized;
+
+            // Cross-legged target: more up + a bit forward helps “pull around” in tight poses
+            Vector3 crossL = (nL + up * 1.25f + fwd * 0.25f).normalized;
+            Vector3 crossR = (nR + up * 1.25f + fwd * 0.25f).normalized;
+
+            // Blend based on cross amount AND flex (cross-leg while straight isn’t real)
+            float tL = Mathf.Clamp01(cross * flexL);
+            float tR = Mathf.Clamp01(cross * flexR);
+
+            Vector3 prefL = Vector3.Slerp(baseL, crossL, tL);
+            Vector3 prefR = Vector3.Slerp(baseR, crossR, tR);
+
+            kneeWLeft = WeightsFromWorldPref(prefL, hipsRot);
+            kneeWRight = WeightsFromWorldPref(prefR, hipsRot);
+        }
+        static Vector3 WeightsFromWorldPref(Vector3 prefWorld, Quaternion hipsRot)
+        {
+            Vector3 fwd = hipsRot * Vector3.forward;
+            Vector3 outR = hipsRot * Vector3.right;
+            Vector3 up = hipsRot * Vector3.up;
+
+            // components in that basis
+            Vector3 w = new Vector3(
+                Vector3.Dot(prefWorld, fwd),
+                Vector3.Dot(prefWorld, outR),
+                Vector3.Dot(prefWorld, up)
+            );
+
+            // scale doesn’t matter much (you normalize later), but avoid tiny vectors
+            if (w.sqrMagnitude < 1e-6f) w = new Vector3(0.1f, 1f, 0.1f);
+            return w;
+        }
+        static Vector3 StableKneePlaneNormal(Vector3 hip, Vector3 knee, Vector3 ankle, Vector3 hipsOut, float outwardSign)
+        {
+            Vector3 thigh = (knee - hip);
+            Vector3 shin = (ankle - knee);
+
+            Vector3 n = Vector3.Cross(thigh, shin);
+            if (n.sqrMagnitude < 1e-8f) return hipsOut * outwardSign; // fallback
+            n.Normalize();
+
+            // Make it consistently point outward
+            if (Vector3.Dot(n, hipsOut * outwardSign) < 0f) n = -n;
+            return n;
+        }
+        static float KneeFlex01(Vector3 hip, Vector3 knee, Vector3 ankle)
+        {
+            Vector3 a = (hip - knee).normalized;
+            Vector3 b = (ankle - knee).normalized;
+            float ang = Vector3.Angle(a, b);              // 180 straight -> smaller = more bent
+            return Mathf.Clamp01(Mathf.InverseLerp(165f, 60f, ang));
+        }
+
+        static float CrossLeg01(Quaternion hipsRot, Vector3 leftAnkle, Vector3 rightAnkle, float flexL, float flexR)
+        {
+            // In hips local, crossed legs often put ankles on “wrong” sides or very close together.
+            Vector3 la = Quaternion.Inverse(hipsRot) * (leftAnkle);
+            Vector3 ra = Quaternion.Inverse(hipsRot) * (rightAnkle);
+
+            // closeness + both bent is a good cheap signal
+            float close = Mathf.Clamp01(Mathf.InverseLerp(0.35f, 0.10f, Vector3.Distance(la, ra)));
+            float bent = Mathf.Min(flexL, flexR);
+
+            // Optional: “swap sides” signal (tune thresholds to your avatar scale)
+            float swapped = 0f;
+            if (la.x > 0.05f && ra.x < -0.05f) swapped = 1f; // ankles strongly on opposite sides
+
+            return Mathf.Clamp01(Mathf.Max(close, swapped) * bent);
+        }
         private static bool HasRigLayer(BasisLocalBoneControl control)
         {
             return control.HasRigLayer == BasisHasRigLayer.HasRigLayer;
