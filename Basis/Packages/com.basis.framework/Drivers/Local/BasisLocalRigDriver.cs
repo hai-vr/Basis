@@ -567,10 +567,7 @@ namespace Basis.Scripts.Drivers
             data.KneeBendPrefLeft = (hipsRot * Vector3.right);
             data.KneeBendPrefRight = (hipsRot * Vector3.right);
 
-            data.SpineBendNormal =
-                (fwd * spineBendNormalWeights.x +
-                 outR * spineBendNormalWeights.y +
-                 up * spineBendNormalWeights.z).normalized;
+            data.SpineBendNormal = (fwd * spineBendNormalWeights.x + outR * spineBendNormalWeights.y + up * spineBendNormalWeights.z).normalized;
             // Commit & evaluate
             BasisFullIKConstraint.data = data;
 
@@ -579,10 +576,7 @@ namespace Basis.Scripts.Drivers
         }
         [SerializeField] private Vector3 elbowBendPrefLeftWeights = new Vector3(0, 1, 0);
         [SerializeField] private Vector3 elbowBendPrefRightWeights = new Vector3(0, 1, 0);
-
         [SerializeField] private Vector3 spineBendNormalWeights = new Vector3(1f, 0f, 0f);
-
-        [SerializeField] private Vector2 ScrossLeggedModifier = new Vector2(1.25f, 0.25f);
         public static Vector3 ApplyHintBias(BasisBoneTrackedRole hintRole, Vector3 rawPos, Quaternion rawRot)
         {
             if (BasisHintBiasStore.TryGet(hintRole, out var localOffset))
