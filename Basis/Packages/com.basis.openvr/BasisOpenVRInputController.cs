@@ -29,7 +29,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             HandBiasSplay = -0.8f;
 
             // existing hand rotation offsets
-            leftHandToIKRotationOffset = new Vector3(105, 185, 265);
+            leftHandToIKRotationOffset = new Vector3(73, 94, 163);
             rightHandToIKRotationOffset = new Vector3(105, 185,280);
 
             leftHandToIKPositionOffset = new Vector3(-0.02f, 0.07f, 0.02f);

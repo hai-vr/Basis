@@ -238,7 +238,14 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightHand;
 
         // Misc
-        [SyncSceneToStream, SerializeField] public Vector3 m_HintDirection;
+        [SyncSceneToStream, SerializeField] public Vector3 SpineBendNormal;
+
+        [SyncSceneToStream, SerializeField] public Vector3 ElbowBendPrefLeft;
+        [SyncSceneToStream, SerializeField] public Vector3 ElbowBendPrefRight;
+
+        [SyncSceneToStream, SerializeField] public Vector3 KneeBendPrefLeft;
+        [SyncSceneToStream, SerializeField] public Vector3 KneeBendPrefRight;
+
         [SyncSceneToStream, SerializeField] public float m_HandSkin;
         [SyncSceneToStream, SerializeField] public bool m_UseHandCapsule;
         [SyncSceneToStream, SerializeField, Min(0f)] public float m_HandRadius;
@@ -312,7 +319,12 @@ namespace UnityEngine.Animations.Rigging
         public string TargetRotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(RotationHead));
         public string PositionPropertyChest => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestPosition));
         public string RotationPropertyHead => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestRotation));
-        public string BendNormalHeadProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintDirection));
+        public string BendNormalHeadProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(SpineBendNormal));
+        public string KneeBendPrefLeftProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(KneeBendPrefLeft));
+        public string KneeBendPrefRightProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(KneeBendPrefRight));
+        public string ElbowBendPrefLeftProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ElbowBendPrefLeft));
+        public string ElbowBendPrefRightProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ElbowBendPrefRight));
+
         public string EnabledPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_LeftLowerLegEnabled));
         public string HintWeightBoolPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HintLeftLowerLegEnabled));
         public string TargetPositionPropertyLeftLowerLeg => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(LeftFootPosition));
@@ -441,7 +453,7 @@ namespace UnityEngine.Animations.Rigging
             m_CalibratedRotationHead = M_CalibrationLeftFootRotation = M_CalibrationRightFootRotation = Quaternion.identity;
             m_CalibratedRotationLeftHand = m_CalibratedRotationRightHand = Quaternion.identity;
 
-            m_HintDirection = Vector3.up;
+            SpineBendNormal = Vector3.up;
 
             PositionHips = Vector3.zero;
             RotationHips = Quaternion.identity;
@@ -670,7 +682,7 @@ namespace UnityEngine.Animations.Rigging
   HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
   HandleRightUpperArm, HandleRightLowerArm, HandleRightHand;
 
-        public Vector3Property targetPositionHead, PositionChest, bendNormalHead,
+        public Vector3Property targetPositionHead, PositionChest, bendNormalHead, KneeBendPrefLeft, KneeBendPrefRight, ElbowBendPrefLeft, ElbowBendPrefRight,
 targetPositionLeftLowerLeg, hintPositionLeftLowerLeg,
 targetPositionRightLowerLeg, hintPositionRightLowerLeg,
 targetPositionHips,
@@ -779,8 +791,8 @@ w20, w54;
                 ApplyRotation(stream, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
             }
 
-            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, bendNormalHead,true);
-            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, bendNormalHead,false);
+            SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft);
+            SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight);
 
             SolveHand(stream,
                 enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
@@ -1164,7 +1176,7 @@ w20, w54;
             AffineTransform hint,
             bool HasHint,
             Quaternion targetOffset,
-            Vector3 BendNormal,bool IsLeft)
+            Vector3 BendNormal)
         {
             Vector3 aPosition = root.GetPosition(stream);
             Vector3 bPosition = mid.GetPosition(stream);
@@ -1211,7 +1223,7 @@ w20, w54;
             }
             else
             {
-                axis = ComputeBendAxis(ab, bc, root.GetRotation(stream), IsLeft);
+                axis = BendNormal;
             }
 
             axis = Vector3.Normalize(axis);
@@ -1258,45 +1270,11 @@ w20, w54;
 
             tip.SetRotation(stream, tRotation);
         }
-        static Vector3 ComputeBendAxis(
-    Vector3 ab, Vector3 bc,
-    Quaternion rootRotation,
-    bool isLeftLeg
-)
-        {
-            // 1) Primary: current limb plane normal
-            Vector3 axis = Vector3.Cross(ab, bc);
-            float mag2 = axis.sqrMagnitude;
-
-            if (mag2 > 1e-8f)
-                return axis / Mathf.Sqrt(mag2);
-
-            // 2) Straight limb fallback: choose a stable "knee points roughly forward" axis.
-            // Use root's local right/left (or forward) to define a consistent plane.
-            Vector3 lateral = rootRotation * (isLeftLeg ? Vector3.left : Vector3.right);
-
-            // If ab is also degenerate, just return something deterministic
-            float ab2 = ab.sqrMagnitude;
-            if (ab2 <= 1e-8f)
-                return lateral.sqrMagnitude > 1e-8f ? lateral.normalized : Vector3.forward;
-
-            Vector3 abN = ab / Mathf.Sqrt(ab2);
-
-            // Make axis perpendicular to ab
-            axis = Vector3.Cross(abN, lateral);
-            mag2 = axis.sqrMagnitude;
-
-            if (mag2 > 1e-8f)
-                return axis / Mathf.Sqrt(mag2);
-
-            // 3) Last resort
-            return Vector3.forward;
-        }
         public Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
         public void SolveLegs(AnimationStream stream, BoolProperty enabledProp,
         ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
         Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp,
-        BoolProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp,bool IsLeft)
+        BoolProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp)
         {
             if (!enabledProp.Get(stream))
             {
@@ -1315,7 +1293,7 @@ w20, w54;
             AffineTransform hint = new AffineTransform(hintPosProp.Get(stream), hRot);
             Vector3 bendNormal = bendNormalProp.Get(stream);
 
-            SolveTwoBone(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset, bendNormal, IsLeft);
+            SolveTwoBone(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset, bendNormal);
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Apply(AnimationStream stream, ReadWriteTransformHandle h, Vector3Property p, Vector4Property r, Vector4Property o, BoolProperty sw)
@@ -1544,6 +1522,13 @@ w20, w54;
                 targetPositionHead = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHead),
                 PositionChest = Vector3Property.Bind(animator, component, data.PositionPropertyChest),
                 bendNormalHead = Vector3Property.Bind(animator, component, data.BendNormalHeadProperty),
+
+                KneeBendPrefLeft = Vector3Property.Bind(animator, component, data.KneeBendPrefLeftProperty),
+                KneeBendPrefRight = Vector3Property.Bind(animator, component, data.KneeBendPrefRightProperty),
+
+                ElbowBendPrefLeft = Vector3Property.Bind(animator, component, data.ElbowBendPrefLeftProperty),
+                ElbowBendPrefRight = Vector3Property.Bind(animator, component, data.ElbowBendPrefRightProperty),
+
                 targetPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.TargetPositionPropertyLeftLowerLeg),
                 hintPositionLeftLowerLeg = Vector3Property.Bind(animator, component, data.HintPositionPropertyLeftLowerLeg),
                 targetPositionRightLowerLeg = Vector3Property.Bind(animator, component, data.TargetPositionPropertyRightLowerLeg),

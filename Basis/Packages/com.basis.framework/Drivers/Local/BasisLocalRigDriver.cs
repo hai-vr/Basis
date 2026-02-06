@@ -349,7 +349,6 @@ namespace Basis.Scripts.Drivers
 
             data.PositionHips = hipsPos;
             data.RotationHips = hipsRot;
-            data.m_HintDirection = hipsRot * Vector3.right;
 
             // ---------------- HEAD ----------------
             var head = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
@@ -547,13 +546,52 @@ namespace Basis.Scripts.Drivers
 
             data.RightShoulderRotation = rs;
 
+
+            Vector3 fwdC = chestRot * Vector3.forward;
+            Vector3 outC = chestRot * Vector3.right;
+            Vector3 upC = chestRot * Vector3.up;
+
+            data.ElbowBendPrefLeft =
+                (fwdC * elbowBendPrefLeftWeights.x +
+                 outC * elbowBendPrefLeftWeights.y +
+                 upC * elbowBendPrefLeftWeights.z).normalized;
+
+            data.ElbowBendPrefRight =
+                (fwdC * elbowBendPrefRightWeights.x +
+                 outC * elbowBendPrefRightWeights.y +
+                 upC * elbowBendPrefRightWeights.z).normalized;
+
+            Vector3 fwd = hipsRot * Vector3.forward;
+            Vector3 outR = hipsRot * Vector3.right;
+            Vector3 up = hipsRot * Vector3.up;
+
+            data.KneeBendPrefLeft =
+                (fwd * kneeBendPrefLeftWeights.x +
+                 outR * kneeBendPrefLeftWeights.y +
+                 up * kneeBendPrefLeftWeights.z).normalized;
+
+            data.KneeBendPrefRight =
+                (fwd * kneeBendPrefRightWeights.x +
+                 outR * kneeBendPrefRightWeights.y +
+                 up * kneeBendPrefRightWeights.z).normalized;
+
+            data.SpineBendNormal =
+                (fwd * spineBendNormalWeights.x +
+                 outR * spineBendNormalWeights.y +
+                 up * spineBendNormalWeights.z).normalized;
             // Commit & evaluate
             BasisFullIKConstraint.data = data;
 
             Builder.SyncLayers();
             PlayableGraph.Evaluate(deltaTime);
         }
+        [SerializeField] private Vector3 elbowBendPrefLeftWeights = new Vector3(0.6f, -1.0f, -0.15f);
+        [SerializeField] private Vector3 elbowBendPrefRightWeights = new Vector3(0.6f, 1.0f, -0.15f);
 
+        [SerializeField] private Vector3 kneeBendPrefLeftWeights = new Vector3(0, 1, 0.05f);
+        [SerializeField] private Vector3 kneeBendPrefRightWeights = new Vector3(0, 1, 0.05f);
+
+        [SerializeField] private Vector3 spineBendNormalWeights = new Vector3(1f, 0f, 0f);
         public static Vector3 ApplyHintBias(BasisBoneTrackedRole hintRole, Vector3 rawPos, Quaternion rawRot)
         {
             if (BasisHintBiasStore.TryGet(hintRole, out var localOffset))
