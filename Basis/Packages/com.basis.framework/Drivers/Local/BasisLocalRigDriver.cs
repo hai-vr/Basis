@@ -862,7 +862,7 @@ namespace Basis.Scripts.Drivers
 
             float flexL = KneeFlex01(hipsPos, leftKnee, leftAnkle);
             float flexR = KneeFlex01(hipsPos, rightKnee, rightAnkle);
-            float cross = CrossLeg01(hipsRot, leftAnkle, rightAnkle, flexL, flexR);
+            float cross = CrossLeg01(hipsRot, hipsPos, leftAnkle, rightAnkle, flexL, flexR);
 
             // Baselines from your defaults
             Vector3 basePrefL = WorldPrefFromWeights(defaultLeftWeights, hipsRot);
@@ -928,22 +928,17 @@ namespace Basis.Scripts.Drivers
             return Mathf.Clamp01(Mathf.InverseLerp(165f, 60f, ang));
         }
 
-        static float CrossLeg01(Quaternion hipsRot, Vector3 leftAnkle, Vector3 rightAnkle, float flexL, float flexR)
+        static float CrossLeg01(Quaternion hipsRot, Vector3 hipsPos, Vector3 leftAnkle, Vector3 rightAnkle, float flexL, float flexR)
         {
-            // In hips local, crossed legs often put ankles on “wrong” sides or very close together.
-            Vector3 la = Quaternion.Inverse(hipsRot) * (leftAnkle);
-            Vector3 ra = Quaternion.Inverse(hipsRot) * (rightAnkle);
+            Vector3 la = Quaternion.Inverse(hipsRot) * (leftAnkle - hipsPos);
+            Vector3 ra = Quaternion.Inverse(hipsRot) * (rightAnkle - hipsPos);
 
-            // closeness + both bent is a good cheap signal
             float close = Mathf.Clamp01(Mathf.InverseLerp(0.35f, 0.10f, Vector3.Distance(la, ra)));
             float bent = Mathf.Min(flexL, flexR);
 
-            // Optional: “swap sides” signal (tune thresholds to your avatar scale)
             float swapped = 0f;
             if (la.x > 0.05f && ra.x < -0.05f)
-            {
-                swapped = 1f; // ankles strongly on opposite sides
-            }
+                swapped = 1f;
 
             return Mathf.Clamp01(Mathf.Max(close, swapped) * bent);
         }
