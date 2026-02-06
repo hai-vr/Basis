@@ -713,7 +713,7 @@ o20, o54;
             targetOffsetRightFoot, targetOffsetLeftHand, targetOffsetRightHand;
 
         public BoolProperty
-hintWeightHead, enabledSpineIK,
+HasChestTracker, enabledSpineIK,
 hintWeightLeftLowerLeg, enabledLeftLowerLeg,
 hintWeightRightLowerLeg, enabledRightLowerLeg,
             enabledLeftShoulder, enabledRightShoulder,
@@ -750,30 +750,21 @@ w20, w54;
             hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
 
             targetPositionHips.Set(stream, hipsTargetPos);
-
-            // 3) Solve hips + spine as before
-            SolveHipsAndSpine(stream,targetPositionHips, targetRotationHips, offsetRotationHips, enabledSpineIK,HandleHips, HandleChest, HandleNeck, HandleHead,targetPositionHead, targetRotationHead, targetOffsetHead, bendNormalHead);
-
-            if (hintWeightHead.Get(stream))
+            // Early out: pass-through if spine IK disabled
+            if (enabledSpineIK.Get(stream))
             {
-                if (HandleChest.IsValid(stream))
+                // Apply hips driver if valid
+                if (HandleHips.IsValid(stream))
                 {
-                    // Neck rotation produced by your spine IK pass – we keep this
-                    Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
+                    Vector3 hipPos = targetPositionHips.Get(stream);
+                    Quaternion hipRot = V4ToQuat(targetRotationHips.Get(stream));
+                    Quaternion hipOff = V4ToQuat(offsetRotationHips.Get(stream));
 
-                    // Spine as an extra reference if available (nice stabiliser)
-                    Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
-
-                    // Raw chest from tracker
-                    Quaternion trackerChestRot = V4ToQuat(RotationHead.Get(stream)) * targetOffsetChest;
-
-                    float Value = MaxChestDeltaDeg.Get(stream);
-                    // Clamp relative to neck and spine
-                    Quaternion clampedChestRot = ClampRotation(trackerChestRot, neckRot, Value);
-                    clampedChestRot = ClampRotation(clampedChestRot, spineRot, Value);
-
-                    HandleChest.SetRotation(stream, clampedChestRot);
-
+                    HandleHips.SetPosition(stream, hipPos);
+                    HandleHips.SetRotation(stream, hipRot * hipOff);
+                }
+                if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
+                {
                     // Build target + hint transforms
                     var tRot = V4ToQuat(targetRotationHead.Get(stream));
                     var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
@@ -781,6 +772,31 @@ w20, w54;
 
                     SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
                 }
+            }
+            if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
+            {
+                // Neck rotation produced by your spine IK pass – we keep this
+                Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
+
+                // Spine as an extra reference if available (nice stabiliser)
+                Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
+
+                // Raw chest from tracker
+                Quaternion trackerChestRot = V4ToQuat(RotationHead.Get(stream)) * targetOffsetChest;
+
+                float Value = MaxChestDeltaDeg.Get(stream);
+                // Clamp relative to neck and spine
+                Quaternion clampedChestRot = ClampRotation(trackerChestRot, neckRot, Value);
+                clampedChestRot = ClampRotation(clampedChestRot, spineRot, Value);
+
+                HandleChest.SetRotation(stream, clampedChestRot);
+
+                // Build target + hint transforms
+                var tRot = V4ToQuat(targetRotationHead.Get(stream));
+                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                var bendNormal = bendNormalHead.Get(stream);
+
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
             }
             if (enabledLeftShoulder.Get(stream))
             {
@@ -1383,47 +1399,6 @@ w20, w54;
                 }
             }
         }
-        public void SolveHipsAndSpine(AnimationStream stream, Vector3Property targetPositionHips, Vector4Property targetRotationHips, Vector4Property offsetRotationHips, BoolProperty EnableSpineIK, ReadWriteTransformHandle HandleHips, ReadWriteTransformHandle HandleChest, ReadWriteTransformHandle HandleNeck, ReadWriteTransformHandle HandleHead, Vector3Property targetPositionHead, Vector4Property targetRotationHead, Quaternion targetOffsetHead, Vector3Property bendNormalHead)
-        {
-            // Early out: pass-through if spine IK disabled
-            if (!EnableSpineIK.Get(stream))
-            {
-                return;
-            }
-
-            // Apply hips driver if valid
-            ApplyHipsDriver(stream, HandleHips, targetPositionHips, targetRotationHips, offsetRotationHips);
-
-            // Validate required upper chain handles (Burst-safe: no params/arrays)
-
-           bool IsValid = HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream);
-
-            if (!IsValid)
-            {
-                return;
-            }
-
-            // Build target + hint transforms
-            var tRot = V4ToQuat(targetRotationHead.Get(stream));
-            var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-            var bendNormal = bendNormalHead.Get(stream);
-
-            SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
-        }
-        public void ApplyHipsDriver(AnimationStream stream, ReadWriteTransformHandle hips, Vector3Property targetPos, Vector4Property targetRot, Vector4Property offsetRot)
-        {
-            if (!hips.IsValid(stream))
-            {
-                return;
-            }
-
-            Vector3 hipPos = targetPos.Get(stream);
-            Quaternion hipRot = V4ToQuat(targetRot.Get(stream));
-            Quaternion hipOff = V4ToQuat(offsetRot.Get(stream));
-
-            hips.SetPosition(stream, hipPos);
-            hips.SetRotation(stream, hipRot * hipOff); // apply offset in target space
-        }
         public void SolveTwoBoneSpine(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, Quaternion targetOffset, Vector3 bendNormal)
         {
             // Read current joint positions
@@ -1556,7 +1531,7 @@ w20, w54;
                 targetRotationRightHand = Vector4Property.Bind(animator, component, data.TargetRotationPropertyRightHand),
                 hintRotationRightHand = Vector4Property.Bind(animator, component, data.HintRotationPropertyRightHand),
                 enabledSpineIK = BoolProperty.Bind(animator, component, data.EnabledPropertySpineIK),
-                hintWeightHead = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyHead),
+                HasChestTracker = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyHead),
                 enabledLeftLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyLeftLowerLeg),
                 hintWeightLeftLowerLeg = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyLeftLowerLeg),
                 enabledRightLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyRightLowerLeg),
