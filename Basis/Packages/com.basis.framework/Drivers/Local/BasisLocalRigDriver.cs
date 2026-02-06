@@ -566,15 +566,18 @@ namespace Basis.Scripts.Drivers
             Vector3 outR = hipsRot * Vector3.right;
             Vector3 up = hipsRot * Vector3.up;
 
-            data.KneeBendPrefLeft =
-                (fwd * OutputkneeBendPrefLeftWeights.x +
-                 outR * OutputkneeBendPrefLeftWeights.y +
-                 up * OutputkneeBendPrefLeftWeights.z).normalized;
+            //  data.KneeBendPrefLeft =
+            //    (fwd * OutputkneeBendPrefLeftWeights.x +
+            //    outR * OutputkneeBendPrefLeftWeights.y +
+            //   up * OutputkneeBendPrefLeftWeights.z).normalized;
 
-            data.KneeBendPrefRight =
-                (fwd * OutputkneeBendPrefRightWeights.x +
-                 outR * OutputkneeBendPrefRightWeights.y +
-                 up * OutputkneeBendPrefRightWeights.z).normalized;
+            //   data.KneeBendPrefRight =
+            //     (fwd * OutputkneeBendPrefRightWeights.x +
+            //      outR * OutputkneeBendPrefRightWeights.y +
+            //     up * OutputkneeBendPrefRightWeights.z).normalized;
+
+            data.KneeBendPrefLeft = -(hipsRot * Vector3.right); // left = -right
+            data.KneeBendPrefRight = (hipsRot * Vector3.right); // right = +right
 
             data.SpineBendNormal =
                 (fwd * spineBendNormalWeights.x +
@@ -938,7 +941,9 @@ namespace Basis.Scripts.Drivers
 
             float swapped = 0f;
             if (la.x > 0.05f && ra.x < -0.05f)
+            {
                 swapped = 1f;
+            }
 
             return Mathf.Clamp01(Mathf.Max(close, swapped) * bent);
         }
