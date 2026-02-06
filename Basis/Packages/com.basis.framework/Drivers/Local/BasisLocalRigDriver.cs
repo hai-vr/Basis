@@ -546,7 +546,7 @@ namespace Basis.Scripts.Drivers
 
             data.RightShoulderRotation = rs;
 
-            UpdateDynamicKneeBendWeights(hipsRot, hipsPos,lllPos, lfPos,rllPos, rfPos,ref kneeBendPrefLeftWeights,ref kneeBendPrefRightWeights);
+            UpdateDynamicKneeBendWeights(kneeBendPrefLeftWeights, kneeBendPrefRightWeights, hipsRot, hipsPos,lllPos, lfPos,rllPos, rfPos, out OutputkneeBendPrefLeftWeights, out OutputkneeBendPrefRightWeights);
 
             Vector3 fwdC = chestRot * Vector3.forward;
             Vector3 outC = chestRot * Vector3.right;
@@ -567,14 +567,14 @@ namespace Basis.Scripts.Drivers
             Vector3 up = hipsRot * Vector3.up;
 
             data.KneeBendPrefLeft =
-                (fwd * kneeBendPrefLeftWeights.x +
-                 outR * kneeBendPrefLeftWeights.y +
-                 up * kneeBendPrefLeftWeights.z).normalized;
+                (fwd * OutputkneeBendPrefLeftWeights.x +
+                 outR * OutputkneeBendPrefLeftWeights.y +
+                 up * OutputkneeBendPrefLeftWeights.z).normalized;
 
             data.KneeBendPrefRight =
-                (fwd * kneeBendPrefRightWeights.x +
-                 outR * kneeBendPrefRightWeights.y +
-                 up * kneeBendPrefRightWeights.z).normalized;
+                (fwd * OutputkneeBendPrefRightWeights.x +
+                 outR * OutputkneeBendPrefRightWeights.y +
+                 up * OutputkneeBendPrefRightWeights.z).normalized;
 
             data.SpineBendNormal =
                 (fwd * spineBendNormalWeights.x +
@@ -586,13 +586,15 @@ namespace Basis.Scripts.Drivers
             Builder.SyncLayers();
             PlayableGraph.Evaluate(deltaTime);
         }
-        [SerializeField] private Vector3 elbowBendPrefLeftWeights = new Vector3(0.6f, -1.0f, -0.15f);
-        [SerializeField] private Vector3 elbowBendPrefRightWeights = new Vector3(0.6f, 1.0f, -0.15f);
-
+        [SerializeField] private Vector3 OutputkneeBendPrefLeftWeights;
+        [SerializeField] private Vector3 OutputkneeBendPrefRightWeights;
         [SerializeField] private Vector3 kneeBendPrefLeftWeights = new Vector3(0, 1, 0.05f);
         [SerializeField] private Vector3 kneeBendPrefRightWeights = new Vector3(0, 1, 0.05f);
-
+        [SerializeField] private Vector3 elbowBendPrefLeftWeights = new Vector3(0.6f, -1.0f, -0.15f);
+        [SerializeField] private Vector3 elbowBendPrefRightWeights = new Vector3(0.6f, 1.0f, -0.15f);
         [SerializeField] private Vector3 spineBendNormalWeights = new Vector3(1f, 0f, 0f);
+
+        [SerializeField] private Vector2 ScrossLeggedModifier = new Vector2(1.25f, 0.25f);
         public static Vector3 ApplyHintBias(BasisBoneTrackedRole hintRole, Vector3 rawPos, Quaternion rawRot)
         {
             if (BasisHintBiasStore.TryGet(hintRole, out var localOffset))
@@ -607,7 +609,6 @@ namespace Basis.Scripts.Drivers
         {
             return 1f - Mathf.Exp(-2f * Mathf.PI * Mathf.Max(0.0001f, hz) * Mathf.Max(0.000001f, dt));
         }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Vector3 FallbackPos(ref Vector3 state, Vector3 raw, float dt)
         {
@@ -615,7 +616,6 @@ namespace Basis.Scripts.Drivers
             state = Vector3.LerpUnclamped(state, raw, a);
             return state;
         }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Quaternion FallbackRot(ref Quaternion state, Quaternion raw, float dt)
         {
@@ -840,7 +840,18 @@ namespace Basis.Scripts.Drivers
 
             BasisFullIKConstraint.data = data;
         }
-        void UpdateDynamicKneeBendWeights(Quaternion hipsRot,Vector3 hipsPos,Vector3 leftKnee, Vector3 leftAnkle,Vector3 rightKnee, Vector3 rightAnkle,ref Vector3 kneeWLeft, ref Vector3 kneeWRight)
+        // Convert weights (x=fwd, y=outR, z=up) into a world-space preferred direction.
+        static Vector3 WorldPrefFromWeights(Vector3 w, Quaternion hipsRot)
+        {
+            Vector3 fwd = hipsRot * Vector3.forward;
+            Vector3 outR = hipsRot * Vector3.right;
+            Vector3 up = hipsRot * Vector3.up;
+
+            Vector3 v = (fwd * w.x + outR * w.y + up * w.z);
+            if (v.sqrMagnitude < 1e-6f) v = outR; // fallback
+            return v.normalized;
+        }
+        void UpdateDynamicKneeBendWeights(Vector3 defaultLeftWeights, Vector3 defaultRightWeights,Quaternion hipsRot,Vector3 hipsPos,Vector3 leftKnee, Vector3 leftAnkle,Vector3 rightKnee, Vector3 rightAnkle, out Vector3 kneeWLeft,out Vector3 kneeWRight)
         {
             Vector3 fwd = hipsRot * Vector3.forward;
             Vector3 outR = hipsRot * Vector3.right;
@@ -850,24 +861,24 @@ namespace Basis.Scripts.Drivers
             float flexR = KneeFlex01(hipsPos, rightKnee, rightAnkle);
             float cross = CrossLeg01(hipsRot, leftAnkle, rightAnkle, flexL, flexR);
 
-            // outward sign: left knee prefers “-outR”, right knee “+outR” (typical humanoid)
-            Vector3 nL = StableKneePlaneNormal(hipsPos, leftKnee, leftAnkle, outR, +1f);
+            // Baselines from your defaults
+            Vector3 basePrefL = WorldPrefFromWeights(defaultLeftWeights, hipsRot);
+            Vector3 basePrefR = WorldPrefFromWeights(defaultRightWeights, hipsRot);
+
+            // Stable knee-plane normals, forced outward in hips-space
+            Vector3 nL = StableKneePlaneNormal(hipsPos, leftKnee, leftAnkle, outR, -1f);
             Vector3 nR = StableKneePlaneNormal(hipsPos, rightKnee, rightAnkle, outR, +1f);
 
-            // Standing baseline (your current defaults)
-            Vector3 baseL = (outR * +1f + up * 0.05f).normalized;
-            Vector3 baseR = (outR * +1f + up * 0.05f).normalized;
+            // Cross-legged targets: more up + a bit forward helps wrap in tight poses
+            Vector3 crossPrefL = (nL + up * ScrossLeggedModifier.x + fwd * ScrossLeggedModifier.y).normalized;
+            Vector3 crossPrefR = (nR + up * ScrossLeggedModifier.x + fwd * ScrossLeggedModifier.y).normalized;
 
-            // Cross-legged target: more up + a bit forward helps “pull around” in tight poses
-            Vector3 crossL = (nL + up * 1.25f + fwd * 0.25f).normalized;
-            Vector3 crossR = (nR + up * 1.25f + fwd * 0.25f).normalized;
-
-            // Blend based on cross amount AND flex (cross-leg while straight isn’t real)
+            // Blend strength: only activates when bent AND crossed
             float tL = Mathf.Clamp01(cross * flexL);
             float tR = Mathf.Clamp01(cross * flexR);
 
-            Vector3 prefL = Vector3.Slerp(baseL, crossL, tL);
-            Vector3 prefR = Vector3.Slerp(baseR, crossR, tR);
+            Vector3 prefL = Vector3.Slerp(basePrefL, crossPrefL, tL);
+            Vector3 prefR = Vector3.Slerp(basePrefR, crossPrefR, tR);
 
             kneeWLeft = WeightsFromWorldPref(prefL, hipsRot);
             kneeWRight = WeightsFromWorldPref(prefR, hipsRot);
