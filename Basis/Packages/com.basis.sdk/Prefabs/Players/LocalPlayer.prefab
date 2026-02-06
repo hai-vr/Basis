@@ -566,11 +566,14 @@ MonoBehaviour:
       m_Active: 0
     BasisFullIKConstraint: {fileID: 0}
     timeAccumulator: 0
+    OutputkneeBendPrefLeftWeights: {x: 0, y: 0, z: 0}
+    OutputkneeBendPrefRightWeights: {x: 0, y: 0, z: 0}
+    kneeBendPrefLeftWeights: {x: 0, y: 1, z: -0.4}
+    kneeBendPrefRightWeights: {x: 0, y: 1, z: 0.4}
     elbowBendPrefLeftWeights: {x: 0.6, y: -1, z: -0.15}
     elbowBendPrefRightWeights: {x: 0.6, y: 1, z: -0.15}
-    kneeBendPrefLeftWeights: {x: 0, y: 1, z: 0.05}
-    kneeBendPrefRightWeights: {x: 0, y: 1, z: 0.05}
     spineBendNormalWeights: {x: 1, y: 0, z: 0}
+    ScrossLeggedModifier: {x: 1.25, y: 0.25}
   LocalCharacterDriver:
     LocalPlayer: {fileID: 4587526044252889482}
     characterController: {fileID: 5548795088377030369}
