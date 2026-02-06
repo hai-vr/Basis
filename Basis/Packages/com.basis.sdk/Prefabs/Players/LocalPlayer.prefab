@@ -568,8 +568,8 @@ MonoBehaviour:
     timeAccumulator: 0
     OutputkneeBendPrefLeftWeights: {x: 0, y: 0, z: 0}
     OutputkneeBendPrefRightWeights: {x: 0, y: 0, z: 0}
-    kneeBendPrefLeftWeights: {x: 0, y: 1, z: -0.4}
-    kneeBendPrefRightWeights: {x: 0, y: 1, z: 0.4}
+    kneeBendPrefLeftWeights: {x: 0, y: 1, z: -0.2}
+    kneeBendPrefRightWeights: {x: 0, y: 1, z: 0.2}
     elbowBendPrefLeftWeights: {x: 0.6, y: -1, z: -0.15}
     elbowBendPrefRightWeights: {x: 0.6, y: 1, z: -0.15}
     spineBendNormalWeights: {x: 1, y: 0, z: 0}

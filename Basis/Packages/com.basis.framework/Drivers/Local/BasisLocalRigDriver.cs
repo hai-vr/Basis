@@ -588,8 +588,8 @@ namespace Basis.Scripts.Drivers
         }
         [SerializeField] private Vector3 OutputkneeBendPrefLeftWeights;
         [SerializeField] private Vector3 OutputkneeBendPrefRightWeights;
-        [SerializeField] private Vector3 kneeBendPrefLeftWeights = new Vector3(0, 1, -0.4f);
-        [SerializeField] private Vector3 kneeBendPrefRightWeights = new Vector3(0, 1, 0.4f);
+        [SerializeField] private Vector3 kneeBendPrefLeftWeights = new Vector3(0, 1, -0.2f);
+        [SerializeField] private Vector3 kneeBendPrefRightWeights = new Vector3(0, 1, 0.2f);
         [SerializeField] private Vector3 elbowBendPrefLeftWeights = new Vector3(0.6f, -1.0f, -0.15f);
         [SerializeField] private Vector3 elbowBendPrefRightWeights = new Vector3(0.6f, 1.0f, -0.15f);
         [SerializeField] private Vector3 spineBendNormalWeights = new Vector3(1f, 0f, 0f);
