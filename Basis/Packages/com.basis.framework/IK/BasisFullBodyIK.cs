@@ -781,7 +781,7 @@ w20, w54;
                 // First try full desired
                 HandleHips.SetRotation(stream, hipDesired);
                 bool achieved = SolveSpineFABRIK(stream, headPos, headRot);
-
+                /*
                 if (!achieved)
                 {
                     // Binary search blend factor
@@ -815,6 +815,7 @@ w20, w54;
                     // Final spine solve for the committed pose
                     SolveSpineFABRIK(stream, headPos, headRot);
                 }
+                */
             }
             if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
             {
