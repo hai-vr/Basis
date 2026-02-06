@@ -576,7 +576,7 @@ namespace Basis.Scripts.Drivers
             //      outR * OutputkneeBendPrefRightWeights.y +
             //     up * OutputkneeBendPrefRightWeights.z).normalized;
 
-            data.KneeBendPrefLeft = -(hipsRot * Vector3.right); // left = -right
+            data.KneeBendPrefLeft = (hipsRot * Vector3.right); // left = -right
             data.KneeBendPrefRight = (hipsRot * Vector3.right); // right = +right
 
             data.SpineBendNormal =
