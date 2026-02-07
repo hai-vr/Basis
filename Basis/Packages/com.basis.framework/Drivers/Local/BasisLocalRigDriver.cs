@@ -815,10 +815,12 @@ namespace Basis.Scripts.Drivers
                 data.SetTargetRotation(slot, t.rotation);
             }
             data.MaxBendDeg = 90;
+            data.MinFactor = 1f;
             data.MaxFactor = 1f;
             data.StruggleStart = 0.9f;
             data.StruggleEnd = 1;
             data.MaxChestDelta = 90;
+            data.MaxHipDelta = 90;
 
             BasisFullIKConstraint.data = data;
         }
