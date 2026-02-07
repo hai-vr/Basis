@@ -653,6 +653,7 @@ public AnimationJobCache spineCache;
     [HelpURL("https://docs.unity3d.com/Packages/com.unity.animation.rigging@1.3/manual/index.html")]
     public class BasisFullBodyIK : RigConstraint<BasisFullIKConstraintJob, BasisFullBodyData, BasisFullBodyJobBinder>
     {
+
         protected override void OnValidate()
         {
             base.OnValidate();
@@ -678,7 +679,6 @@ public AnimationJobCache spineCache;
     [Unity.Burst.BurstCompile]
     public struct BasisFullIKConstraintJob : IWeightedAnimationJob
     {
-        const float maxHorizontalFactor = 0.35f;
         const float k_Epsilon = 1e-5f; // or 0.00001f
         const float k_MinMag = 1e-6f;// or 0.000001f
         const float k_SqrEpsilon = 1e-8f;// or 0.00000001f
@@ -737,7 +737,15 @@ collisionsEnabled,
 w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
 w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
 w20, w54;
+        public NativeArray<ReadWriteTransformHandle> spineChain;
+        public NativeArray<float> spineLinkLengths;
+        public NativeArray<Vector3> spineLinkPositions;
+        public float spineMaxReach;
 
+        // optional tuning (can be constants or properties)
+        public CacheIndex spineToleranceIdx;
+        public CacheIndex spineMaxIterationsIdx;
+        public AnimationJobCache spineCache;
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxChestDeltaDeg;
         public FloatProperty jobWeight { get; set; }
         public void ProcessRootMotion(AnimationStream stream) { }
@@ -748,120 +756,15 @@ w20, w54;
             {
                 return;
             }
-
-            // --- HEAD–HIPS ANCHOR CLAMP ---
-            Vector3 headTargetPos = targetPositionHead.Get(stream);
-            Vector3 hipsTargetPos = targetPositionHips.Get(stream);
-
-            float restDist = MinHeadSpineHeight.Get(stream);
-
-            // 1) Limit spine bend by pushing hips down if needed
-            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg.Get(stream));
-
-            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
-
-            targetPositionHips.Set(stream, hipsTargetPos);
-            // Early out: pass-through if spine IK disabled
-            if (enabledSpineIK.Get(stream) && HandleHips.IsValid(stream))
-            {
-                Vector3 hipPos = targetPositionHips.Get(stream);
-
-                Quaternion hipDesired = V4ToQuat(targetRotationHips.Get(stream)) * V4ToQuat(offsetRotationHips.Get(stream));
-
-                // "safe" reference: current hips rotation in stream (or you can store a calibrated rest)
-                Quaternion hipSafe = HandleHips.GetRotation(stream);
-
-                // Apply hips position always (your existing logic)
-                HandleHips.SetPosition(stream, hipPos);
-
-                // Now back off rotation until head is reachable
-                Vector3 headPos = targetPositionHead.Get(stream);
-                Quaternion headRot = V4ToQuat(targetRotationHead.Get(stream)) * targetOffsetHead;
-
-                // First try full desired
-                HandleHips.SetRotation(stream, hipDesired);
-                bool achieved = SolveSpineFABRIK(stream, headPos, headRot);
-                /*
-                if (!achieved)
-                {
-                    // Binary search blend factor
-                    float lo = 0f;
-                    float hi = 1f;
-                    float best = 0f;
-
-                    // 8-10 iterations is plenty (cheap + stable)
-                    for (int i = 0; i < 10; i++)
-                    {
-                        float mid = (lo + hi) * 0.5f;
-                        Quaternion hipTry = Quaternion.Slerp(hipSafe, hipDesired, mid);
-
-                        HandleHips.SetRotation(stream, hipTry);
-                        bool okMid = SolveSpineFABRIK(stream, headPos, headRot);
-
-                        if (okMid)
-                        {
-                            best = mid;
-                            lo = mid;      // can allow more hip rotation
-                        }
-                        else
-                        {
-                            hi = mid;      // too much hip rotation, reduce
-                        }
-                    }
-
-                    // Commit best feasible hips rotation
-                    HandleHips.SetRotation(stream, Quaternion.Slerp(hipSafe, hipDesired, best));
-
-                    // Final spine solve for the committed pose
-                    SolveSpineFABRIK(stream, headPos, headRot);
-                }
-                */
-            }
-            if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
-            {
-                // Neck rotation produced by your spine IK pass – we keep this
-                Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
-
-                // Spine as an extra reference if available (nice stabiliser)
-                Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
-
-                // Raw chest from tracker
-                Quaternion trackerChestRot = V4ToQuat(RotationHead.Get(stream)) * targetOffsetChest;
-
-                float Value = MaxChestDeltaDeg.Get(stream);
-                // Clamp relative to neck and spine
-                Quaternion clampedChestRot = ClampRotation(trackerChestRot, neckRot, Value);
-                clampedChestRot = ClampRotation(clampedChestRot, spineRot, Value);
-
-                HandleChest.SetRotation(stream, clampedChestRot);
-                SolveSpineFABRIK(stream, targetPositionHead.Get(stream), V4ToQuat(targetRotationHead.Get(stream)) * targetOffsetHead);
-            }
-            if (enabledLeftShoulder.Get(stream))
-            {
-                ApplyRotation(stream, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
-            }
-            if (enabledRightShoulder.Get(stream))
-            {
-                ApplyRotation(stream, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
-            }
-
+            SolveSpine(stream);
+            ApplyRotation(stream, enabledLeftShoulder, HandleLeftShoulder, TargetRotationLeftShoulder, targetOffsetLeftShoulder);
+            ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight);
-
-            SolveHand(stream,
-                enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
-                targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand,
-                HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
-
-            SolveHand(stream,
-                enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,
-                targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand,
-                HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
-
-
+            SolveHand(stream,enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand,HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
+            SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand,HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
             ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
             ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
-
             Apply(stream, HandleHips, p0, r0, o0, w0);
             Apply(stream, HandleLeftUpperLeg, p1, r1, o1, w1);
             Apply(stream, HandleRightUpperLeg, p2, r2, o2, w2);
@@ -885,15 +788,63 @@ w20, w54;
             Apply(stream, HandleRightToe, p20, r20, o20, w20);
             Apply(stream, HandleUpperChest, p54, r54, o54, w54);
         }
-        public NativeArray<ReadWriteTransformHandle> spineChain;
-        public NativeArray<float> spineLinkLengths;
-        public NativeArray<Vector3> spineLinkPositions;
-        public float spineMaxReach;
+        public void SolveSpine(AnimationStream stream)
+        {
 
-        // optional tuning (can be constants or properties)
-        public CacheIndex spineToleranceIdx;
-        public CacheIndex spineMaxIterationsIdx;
-        public AnimationJobCache spineCache;
+            // --- HEAD–HIPS ANCHOR CLAMP ---
+            Vector3 headTargetPos = targetPositionHead.Get(stream);
+            Vector3 hipsTargetPos = targetPositionHips.Get(stream);
+
+            Vector4 HeadTargetRotV4 = targetRotationHead.Get(stream);
+            Vector4 HipsTargetRotV4 = targetRotationHips.Get(stream);
+
+            Quaternion HeadTargetRot = V4ToQuat(HeadTargetRotV4);
+            Quaternion HipsTargetRot = V4ToQuat(HipsTargetRotV4);
+
+            
+            if (HandleHead.IsValid(stream))
+            {
+                HandleHead.SetGlobalTR(stream,headTargetPos, HeadTargetRot);
+            }
+
+            // Early out: pass-through if spine IK disabled
+            if (enabledSpineIK.Get(stream) && HandleHips.IsValid(stream))
+            {
+                Vector3 hipPos = targetPositionHips.Get(stream);
+
+                Quaternion hipDesired = V4ToQuat(targetRotationHips.Get(stream)) * V4ToQuat(offsetRotationHips.Get(stream));
+
+                // Apply hips position always (your existing logic)
+                HandleHips.SetPosition(stream, hipPos);
+
+                Quaternion headRot = HeadTargetRot * targetOffsetHead;
+
+                // First try full desired
+                HandleHips.SetRotation(stream, hipDesired);
+                bool achieved = SolveSpineFABRIK(stream, headTargetPos, headRot);
+            }
+            if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
+            {
+                // Neck rotation produced by your spine IK pass – we keep this
+                Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
+
+                // Spine as an extra reference if available (nice stabiliser)
+                Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
+
+                // Raw chest from tracker
+                Quaternion trackerChestRot = V4ToQuat(RotationHead.Get(stream)) * targetOffsetChest;
+
+                float ChestDelta = MaxChestDeltaDeg.Get(stream);
+                // Clamp relative to neck and spine
+                Quaternion clampedChestRot = ClampRotation(trackerChestRot, neckRot, ChestDelta);
+                clampedChestRot = ClampRotation(clampedChestRot, spineRot, ChestDelta);
+
+                HandleChest.SetRotation(stream, clampedChestRot);
+                SolveSpineFABRIK(stream, headTargetPos, HeadTargetRot * targetOffsetHead);
+            }
+            targetPositionHips.Set(stream, hipsTargetPos);
+
+        }
         public bool SolveSpineFABRIK(AnimationStream stream, Vector3 headTargetPos, Quaternion headTargetRot)
         {
             if (!spineChain.IsCreated || spineChain.Length < 2)
@@ -933,53 +884,6 @@ w20, w54;
 
             return achieved;
         }
-        static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg)
-        {
-            if (maxBendDeg <= 0f)
-            {
-                return hipsPos;
-            }
-
-            Vector3 diff = hipsPos - headPos;
-            float sqrMag = diff.sqrMagnitude;
-            if (sqrMag < k_MinMag)
-            {
-                return hipsPos;
-            }
-
-            Vector3 up = Vector3.up;
-
-            // Decompose into vertical (along -up, hips below head) and lateral
-            float verticalDot = Vector3.Dot(diff, -up); // positive if hips are "below" head
-            Vector3 vertical = -up * verticalDot;
-            Vector3 lateral = diff - vertical;
-
-            float lateralLen = lateral.magnitude;
-            float absVertical = Mathf.Abs(verticalDot);
-
-            if (lateralLen < k_MinMag || absVertical < k_MinMag)
-            {
-                return hipsPos;
-            }
-
-            // Current bend angle from head to hips
-            float currentAngle = Mathf.Atan2(lateralLen, absVertical) * Mathf.Rad2Deg;
-            if (currentAngle <= maxBendDeg)
-            {
-                return hipsPos;
-            }
-
-            // We want lateral / newVertical = tan(maxBend)
-            float maxRatio = Mathf.Tan(maxBendDeg * Mathf.Deg2Rad);
-            float newVertical = lateralLen / Mathf.Max(maxRatio, k_MinMag);
-
-            // Push hips further down in the same direction along -up
-            float finalVertical = Mathf.Sign(verticalDot) * Mathf.Max(newVertical, absVertical);
-            Vector3 newVerticalVec = -up * finalVertical;
-
-            Vector3 newDiff = newVerticalVec + (lateralLen > k_MinMag ? lateral.normalized * lateralLen : Vector3.zero);
-            return headPos + newDiff;
-        }
         static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
             // Angle between the two orientations
@@ -1004,47 +908,6 @@ w20, w54;
             {
                 handle.SetRotation(stream, V4ToQuat(targetRotProp.Get(stream)) * RotationOffset);
             }
-        }
-        public void ApplyRotation(AnimationStream stream, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
-        {
-            if (!handle.IsValid(stream))
-            {
-                return;
-            }
-
-            handle.SetRotation(stream, V4ToQuat(targetRotProp.Get(stream)) * RotationOffset);
-        }
-        static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
-        {
-            Vector3 headToHips = hipsPos - headPos;
-            float sqrMag = headToHips.sqrMagnitude;
-            if (sqrMag < k_SqrEpsilon)
-            {
-                return headPos + restDistance * minFactor * Vector3.down; // could also use previous frame’s axis
-            }
-
-            // Use the head→hips direction as the "up" axis for the clamp
-            Vector3 up = headToHips / Mathf.Sqrt(sqrMag);
-
-            float verticalDot = Vector3.Dot(headToHips, up);
-            Vector3 vertical = up * verticalDot;
-            Vector3 lateral = headToHips - vertical;
-
-            float absY = Mathf.Abs(verticalDot);
-            float minY = restDistance * minFactor;
-            float maxY = restDistance * maxFactor;
-            float clampedY = Mathf.Clamp(absY, minY, maxY) * Mathf.Sign(verticalDot);
-            vertical = up * clampedY;
-
-            float lateralLen = lateral.magnitude;
-            float maxLateral = restDistance * maxHorizontalFactor;
-
-            if (lateralLen > maxLateral && lateralLen > k_Epsilon)
-            {
-                lateral *= maxLateral / lateralLen;
-            }
-
-            return headPos + vertical + lateral;
         }
         public void SolveTwoBoneIKArms(
             AnimationStream stream,
