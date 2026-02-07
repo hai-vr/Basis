@@ -741,7 +741,8 @@ w20, w54;
         public CacheIndex spineToleranceIdx;
         public CacheIndex spineMaxIterationsIdx;
         public AnimationJobCache spineCache;
-
+        public Vector3 TposeLengthHeadToChest;
+        public Vector3 TposeLengthHeadToHips;
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxHipDeltaProperty, MaxChestDeltaProperty;
         public FloatProperty jobWeight { get; set; }
         const float maxHorizontalFactor = 0.35f;
@@ -805,46 +806,31 @@ w20, w54;
             Quaternion headDesired = headTargetRot * targetOffsetHead;
             Quaternion chestDesired = chestTargetRot * targetOffsetChest;
 
-            // ---- Rest lengths (cached from T-pose in binder) ----
-            float restLenHips = TposeLengthHeadToHips.magnitude;
-            // ---- Tuning ----
-            float minF = minFactor.Get(stream);
-            float maxF = maxFactor.Get(stream);
-            float s0 = struggleStart.Get(stream);
-            float s1 = struggleEnd.Get(stream);
-            float MaxHipDelta = MaxHipDeltaProperty.Get(stream);
-            float MaxChestDelta = MaxChestDeltaProperty.Get(stream);
             // 1) HIPS: clamp pos + limit rot
             float restDist = MinHeadSpineHeight.Get(stream);
 
+            float MaxBendDeg = maxBendDeg.Get(stream);
             // 1) Limit spine bend by pushing hips down if needed
-            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg.Get(stream));
+            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, MaxBendDeg);
 
             hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
 
             targetPositionHips.Set(stream, hipsTargetPos);
-            // Early out: pass-through if spine IK disabled
-            if (enabledSpineIK.Get(stream))
+
+            // Apply hips driver if valid
+            if (HandleHips.IsValid(stream))
             {
-                // Apply hips driver if valid
-                if (HandleHips.IsValid(stream))
-                {
-                    Vector3 hipPos = targetPositionHips.Get(stream);
-                    Quaternion hipRot = V4ToQuat(targetRotationHips.Get(stream));
-                    Quaternion hipOff = V4ToQuat(offsetRotationHips.Get(stream));
+                HandleHips.SetPosition(stream, hipsTargetPos);
+                HandleHips.SetRotation(stream, hipDesired);
+            }
+            if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
+            {
+                // Build target + hint transforms
+                var tRot = V4ToQuat(targetRotationHead.Get(stream));
+                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                var bendNormal = bendNormalHead.Get(stream);
 
-                    HandleHips.SetPosition(stream, hipPos);
-                    HandleHips.SetRotation(stream, hipRot * hipOff);
-                }
-                if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
-                {
-                    // Build target + hint transforms
-                    var tRot = V4ToQuat(targetRotationHead.Get(stream));
-                    var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-                    var bendNormal = bendNormalHead.Get(stream);
-
-                    SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
-                }
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
             }
             if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
             {
@@ -1108,16 +1094,7 @@ w20, w54;
             if (dist < 1e-6f) return root;
             return root + d * (maxReach / dist);
         }
-        Quaternion LimitLinkRotationForPinnedHead(
-     Vector3 headPos,
-     Vector3 linkPos,
-     Quaternion currentLinkRot,
-     Quaternion desiredLinkRot,
-     float restLen,
-     float struggleStartF,
-     float struggleEndF,
-     float maxTwistDegProp // treat as twist limit degrees
- )
+        Quaternion LimitLinkRotationForPinnedHead(Vector3 headPos,Vector3 linkPos,Quaternion currentLinkRot,Quaternion desiredLinkRot,float restLen,float struggleStartF,float struggleEndF,float maxTwistDegProp)
         {
             // World axis from hips->head
             Vector3 axisW = headPos - linkPos;
@@ -1192,23 +1169,6 @@ w20, w54;
             float inv = 1f / m;
             return new Quaternion(q.x * inv, q.y * inv, q.z * inv, q.w * inv);
         }
-        // Clamp a swing rotation to maxDegrees (keeps axis of swing, reduces angle)
-        static Quaternion ClampSwing(Quaternion swing, float maxDegrees)
-        {
-            swing = NormalizeSafe(swing);
-
-            // Convert swing to angle-axis
-            swing.ToAngleAxis(out float ang, out Vector3 ax);
-            if (ang > 180f) ang -= 360f;
-            float abs = Mathf.Abs(ang);
-
-            if (abs <= maxDegrees) return swing;
-
-            float clamped = Mathf.Sign(ang) * maxDegrees;
-            return Quaternion.AngleAxis(clamped, ax);
-        }
-        public Vector3 TposeLengthHeadToChest;
-        public Vector3 TposeLengthHeadToHips;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static float Saturate(float x) => Mathf.Clamp01(x);
 
