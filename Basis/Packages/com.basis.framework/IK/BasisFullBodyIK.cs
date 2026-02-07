@@ -286,6 +286,7 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public float m_StruggleStart;
         [SyncSceneToStream, SerializeField] public float m_StruggleEnd;
         [SyncSceneToStream, SerializeField] public float m_MaxChestDeltaDeg;
+        [SyncSceneToStream, SerializeField] public float m_MaxHipDeltaDeg;
         public float minHeadSpineHeight
         {
             get => m_MinHeadSpineHeight;
@@ -380,8 +381,8 @@ namespace UnityEngine.Animations.Rigging
         public string MaxFactorFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxFactor));
         public string StruggleStartFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_StruggleStart));
         public string StruggleEndFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_StruggleEnd));
-        public string MaxChestDeltaDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxChestDeltaDeg));
-
+        public string MaxHipDeltaPropertyDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxHipDeltaDeg));
+        public string MaxChestDeltaPropertyDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxChestDeltaDeg));
         public bool HintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
         public bool HintWeightLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
@@ -411,7 +412,7 @@ namespace UnityEngine.Animations.Rigging
         public float StruggleStart { get => m_StruggleStart; set => m_StruggleStart = value; }
         public float StruggleEnd { get => m_StruggleEnd; set => m_StruggleEnd = value; }
         public float MaxChestDelta { get => m_MaxChestDeltaDeg; set => m_MaxChestDeltaDeg = value; }
-
+        public float MaxHipDelta { get => m_MaxHipDeltaDeg; set => m_MaxHipDeltaDeg = value; }
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
@@ -741,7 +742,7 @@ w20, w54;
         public CacheIndex spineMaxIterationsIdx;
         public AnimationJobCache spineCache;
 
-        public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxChestDeltaDeg;
+        public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxHipDeltaProperty, MaxChestDeltaProperty;
         public FloatProperty jobWeight { get; set; }
         public void ProcessRootMotion(AnimationStream stream) { }
         public void ProcessAnimation(AnimationStream stream)
@@ -813,15 +814,15 @@ w20, w54;
             float maxF = maxFactor.Get(stream);
             float s0 = struggleStart.Get(stream);
             float s1 = struggleEnd.Get(stream);
-            float maxDelta = MaxChestDeltaDeg.Get(stream);
-
+            float MaxHipDelta = MaxHipDeltaProperty.Get(stream);
+            float MaxChestDelta = MaxChestDeltaProperty.Get(stream);
             // 1) HIPS: clamp pos + limit rot
-            Vector3 obtainableHipsTarget = ComputeObtainableHipsTarget(headTargetPos, hipsTargetPos, restLenHips, minF, maxF, s0, s1);
+            Vector3 obtainableHipsTarget = ComputeObtainableTarget(headTargetPos, hipsTargetPos, restLenHips, minF, maxF, s0, s1);
 
             if (HandleHips.IsValid(stream))
             {
                 Quaternion hipsCurrent = HandleHips.GetRotation(stream);
-                Quaternion hipLimited = LimitLinkRotationForPinnedHead(headTargetPos, obtainableHipsTarget, hipsCurrent, hipDesired, restLenHips, s0, s1, maxDelta);
+                Quaternion hipLimited = LimitLinkRotationForPinnedHead(headTargetPos, obtainableHipsTarget, hipsCurrent, hipDesired, restLenHips, s0, s1, MaxHipDelta);
 
                 HandleHips.SetPosition(stream, obtainableHipsTarget);
                 HandleHips.SetRotation(stream, hipLimited);
@@ -850,13 +851,13 @@ w20, w54;
                 Vector3 chestPosForClamp = HandleChest.GetPosition(stream);
                 if (restLenChest > k_Epsilon)
                 {
-                    chestPosForClamp = ComputeObtainableHipsTarget(headTargetPos, chestTargetPos, restLenChest, minF, maxF, s0, s1);
+                    chestPosForClamp = ComputeObtainableTarget(headTargetPos, chestTargetPos, restLenChest, minF, maxF, s0, s1);
                     HandleChest.SetPosition(stream, chestPosForClamp);
                 }
 
                 // --- PASS A: limit chest rotation using current chest rotation ---
                 Quaternion chestCurrentA = HandleChest.GetRotation(stream);
-                Quaternion chestLimitedA = LimitLinkRotationForPinnedHead(headTargetPos, chestPosForClamp, chestCurrentA, chestDesired, restLenChest, s0, s1, maxDelta);
+                Quaternion chestLimitedA = LimitLinkRotationForPinnedHead(headTargetPos, chestPosForClamp, chestCurrentA, chestDesired, restLenChest, s0, s1, MaxChestDelta);
 
                 HandleChest.SetRotation(stream, chestLimitedA);
 
@@ -1015,7 +1016,7 @@ w20, w54;
         /// Returns a hips target position that is reachable from the head, based on T-pose distance
         /// and your min/max/struggle tuning.
         /// </summary>
-        Vector3 ComputeObtainableHipsTarget(Vector3 headPos, Vector3 hipsTargetPos, float restLen, float minF, float maxF, float struggleStartF, float struggleEndF)
+        Vector3 ComputeObtainableTarget(Vector3 headPos, Vector3 hipsTargetPos, float restLen, float minF, float maxF, float struggleStartF, float struggleEndF)
         {
             Vector3 headToHips = hipsTargetPos - headPos;
             float dist = headToHips.magnitude;
@@ -1630,7 +1631,8 @@ w20, w54;
                 maxFactor = FloatProperty.Bind(animator, component, data.MaxFactorFloatProperty),
                 struggleStart = FloatProperty.Bind(animator, component, data.StruggleStartFloatProperty),
                 struggleEnd = FloatProperty.Bind(animator, component, data.StruggleEndFloatProperty),
-                MaxChestDeltaDeg = FloatProperty.Bind(animator, component, data.MaxChestDeltaDegFloatProperty),
+                MaxHipDeltaProperty = FloatProperty.Bind(animator, component, data.MaxHipDeltaPropertyDegFloatProperty),
+                MaxChestDeltaProperty = FloatProperty.Bind(animator, component, data.MaxChestDeltaPropertyDegFloatProperty),
                 enabledLeftShoulder = BoolProperty.Bind(animator, component, data.EnabledLeftShoulderProperty),
                 enabledRightShoulder = BoolProperty.Bind(animator, component, data.EnabledRightShoulderProperty),
                 targetOffsetLeftShoulder = data.m_CalibratedRotationLeftShoulder,
