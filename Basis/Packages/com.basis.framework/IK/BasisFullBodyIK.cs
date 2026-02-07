@@ -806,8 +806,6 @@ w20, w54;
 
             // ---- Rest lengths (cached from T-pose in binder) ----
             float restLenHips = TposeLengthHeadToHips.magnitude;
-            float restLenChest = TposeLengthHeadToChest.magnitude;
-
             // ---- Tuning ----
             float minF = minFactor.Get(stream);
             float maxF = maxFactor.Get(stream);
@@ -851,20 +849,19 @@ w20, w54;
 
                 // Rotate chest (this will drag head/neck world positions)
                 HandleChest.SetRotation(stream, clampedChestRot);
-
-                // HARD PIN head position immediately (don’t allow drift)
-                if (HandleHead.IsValid(stream))
-                    HandleHead.SetPosition(stream, headTargetPos);
-
-                // Try to recover neck/head chain
-                bool ok = SolveChestToHeadFABRIK(stream, headTargetPos);
-
-                // Even if the solver failed, never allow head drift:
-                if (HandleHead.IsValid(stream))
-                    HandleHead.SetPosition(stream, headTargetPos);
             }
+            // HARD PIN head position immediately (don’t allow drift)
             if (HandleHead.IsValid(stream))
             {
+                HandleHead.SetPosition(stream, headTargetPos);
+            }
+            // Try to recover neck/head chain
+            bool ok = SolveChestToHeadFABRIK(stream, headTargetPos);
+
+            // Even if the solver failed, never allow head drift:
+            if (HandleHead.IsValid(stream))
+            {
+                HandleHead.SetPosition(stream, headTargetPos);
                 HandleHead.SetRotation(stream, headDesired);
             }
         }
@@ -960,7 +957,7 @@ w20, w54;
             // Final: you may pin the head to the *true* target for tracker truth,
             // but NOW the chain has a coherent pose (no snapping between two modes).
             if (ChainChestToHead[tipIndex].IsValid(stream))
-                ChainChestToHead[tipIndex].SetPosition(stream, headTargetPos);
+                ChainChestToHead[tipIndex].SetPosition(stream, reachableTarget);
 
             return true; // returning “true” avoids external code branching too
         }
