@@ -1002,6 +1002,58 @@ w20, w54;
             float t = maxAngleDeg / Mathf.Max(angle, k_Epsilon);
             return Quaternion.Slerp(reference, current, t);
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static Vector3 ClampToReach(Vector3 root, Vector3 target, float maxReach)
+        {
+            Vector3 d = target - root;
+            float dist = d.magnitude;
+            if (dist <= maxReach) return target;
+            if (dist < 1e-6f) return root;
+            return root + d * (maxReach / dist);
+        }
+        // Twist is a rotation *around axis*. We clamp its signed angle around that axis.
+        static Quaternion ClampTwistAroundAxis(Quaternion twist, Vector3 axis, float maxDegrees)
+        {
+            axis = axis.normalized;
+            twist = NormalizeSafe(twist);
+
+            twist.ToAngleAxis(out float ang, out Vector3 ax);
+            if (ang > 180f) ang -= 360f;
+
+            if (Vector3.Dot(ax, axis) < 0f)
+                ang = -ang;
+
+            float clamped = Mathf.Clamp(ang, -maxDegrees, maxDegrees);
+            return Quaternion.AngleAxis(clamped, axis);
+        }
+        // Decompose q into swing (no twist around axis) and twist (pure rotation around axis).
+        static void SwingTwistDecompose(Quaternion q, Vector3 axis, out Quaternion swing, out Quaternion twist)
+        {
+            axis = axis.normalized;
+            Vector3 r = new Vector3(q.x, q.y, q.z);
+
+            // Project rotation vector part onto axis => twist component
+            Vector3 proj = axis * Vector3.Dot(r, axis);
+            twist = NormalizeSafe(new Quaternion(proj.x, proj.y, proj.z, q.w));
+            swing = NormalizeSafe(q * Quaternion.Inverse(twist));
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static Quaternion NormalizeSafe(Quaternion q)
+        {
+            float m = Mathf.Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+            if (m < 1e-8f) return Quaternion.identity;
+            float inv = 1f / m;
+            return new Quaternion(q.x * inv, q.y * inv, q.z * inv, q.w * inv);
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static float Saturate(float x) => Mathf.Clamp01(x);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        float Remap01(float x, float a, float b)
+        {
+            if (Mathf.Abs(b - a) < 1e-6f) return 1f;
+            return Saturate((x - a) / (b - a));
+        }
         public bool SolveChestToHeadFABRIK(AnimationStream stream, Vector3 headTargetPos)
         {
             if (!ChainChestToHead.IsCreated || ChainChestToHead.Length < 2)
@@ -1085,135 +1137,6 @@ w20, w54;
 
             return true; // returning “true” avoids external code branching too
         }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static Vector3 ClampToReach(Vector3 root, Vector3 target, float maxReach)
-        {
-            Vector3 d = target - root;
-            float dist = d.magnitude;
-            if (dist <= maxReach) return target;
-            if (dist < 1e-6f) return root;
-            return root + d * (maxReach / dist);
-        }
-        Quaternion LimitLinkRotationForPinnedHead(Vector3 headPos,Vector3 linkPos,Quaternion currentLinkRot,Quaternion desiredLinkRot,float restLen,float struggleStartF,float struggleEndF,float maxTwistDegProp)
-        {
-            // World axis from hips->head
-            Vector3 axisW = headPos - linkPos;
-            float axisSqr = axisW.sqrMagnitude;
-            if (axisSqr < 1e-8f)
-                return desiredLinkRot;
-
-            float dist = Mathf.Sqrt(axisSqr);
-            axisW /= dist;
-
-            // Overreach factor (0..1)
-            float startLen = restLen * Mathf.Max(0f, struggleStartF);
-            float endLen = restLen * Mathf.Max(struggleStartF, struggleEndF);
-            float t = Remap01(dist, startLen, endLen);
-
-            // --- IMPORTANT CHANGE ---
-            // Work in LINK-LOCAL space so "twist" stays twist even when the body yaws in world.
-            Quaternion invCurrent = Quaternion.Inverse(currentLinkRot);
-            Vector3 axisL = invCurrent * axisW;                 // axis expressed in link local
-            Quaternion deltaL = invCurrent * desiredLinkRot;    // local delta: current * deltaL = desired
-
-            deltaL = NormalizeSafe(deltaL);
-            axisL = axisL.normalized;
-
-            SwingTwistDecompose(deltaL, axisL, out var swingL, out var twistL);
-
-            // Clamp twist (optionally slightly tighter under struggle)
-            float twistComfort = Mathf.Max(5f, maxTwistDegProp);
-            float twistStruggle = Mathf.Max(2f, twistComfort * 0.6f);
-            float maxTwist = Mathf.Lerp(twistComfort, twistStruggle, t);
-
-            Quaternion twistClampedL = ClampTwistAroundAxis(twistL, axisL, maxTwist);
-
-            // DO NOT CLAMP SWING (or you will break sideways/angled poses)
-            Quaternion limitedDeltaL = swingL * twistClampedL;
-
-            // Convert back to world: current * limitedLocal
-            return currentLinkRot * limitedDeltaL;
-        }
-
-        // Twist is a rotation *around axis*. We clamp its signed angle around that axis.
-        static Quaternion ClampTwistAroundAxis(Quaternion twist, Vector3 axis, float maxDegrees)
-        {
-            axis = axis.normalized;
-            twist = NormalizeSafe(twist);
-
-            twist.ToAngleAxis(out float ang, out Vector3 ax);
-            if (ang > 180f) ang -= 360f;
-
-            if (Vector3.Dot(ax, axis) < 0f)
-                ang = -ang;
-
-            float clamped = Mathf.Clamp(ang, -maxDegrees, maxDegrees);
-            return Quaternion.AngleAxis(clamped, axis);
-        }
-        // Decompose q into swing (no twist around axis) and twist (pure rotation around axis).
-        static void SwingTwistDecompose(Quaternion q, Vector3 axis, out Quaternion swing, out Quaternion twist)
-        {
-            axis = axis.normalized;
-            Vector3 r = new Vector3(q.x, q.y, q.z);
-
-            // Project rotation vector part onto axis => twist component
-            Vector3 proj = axis * Vector3.Dot(r, axis);
-            twist = NormalizeSafe(new Quaternion(proj.x, proj.y, proj.z, q.w));
-            swing = NormalizeSafe(q * Quaternion.Inverse(twist));
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static Quaternion NormalizeSafe(Quaternion q)
-        {
-            float m = Mathf.Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
-            if (m < 1e-8f) return Quaternion.identity;
-            float inv = 1f / m;
-            return new Quaternion(q.x * inv, q.y * inv, q.z * inv, q.w * inv);
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static float Saturate(float x) => Mathf.Clamp01(x);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        float Remap01(float x, float a, float b)
-        {
-            if (Mathf.Abs(b - a) < 1e-6f) return 1f;
-            return Saturate((x - a) / (b - a));
-        }
-
-        /// <summary>
-        /// Returns a hips target position that is reachable from the head, based on T-pose distance
-        /// and your min/max/struggle tuning.
-        /// </summary>
-        Vector3 ComputeObtainableTarget(Vector3 headPos, Vector3 hipsTargetPos, float restLen, float minF, float maxF, float struggleStartF, float struggleEndF)
-        {
-            Vector3 headToHips = hipsTargetPos - headPos;
-            float dist = headToHips.magnitude;
-
-            if (dist < k_Epsilon || restLen < k_Epsilon)
-            {
-                return hipsTargetPos;
-            }
-
-            float minLen = restLen * Mathf.Max(0f, minF);
-            float maxLen = restLen * Mathf.Max(minF, maxF);
-
-            // Where does "struggle" begin/end in *distance* terms?
-            float struggleStartLen = restLen * Mathf.Max(0f, struggleStartF);
-            float struggleEndLen = restLen * Mathf.Max(struggleStartF, struggleEndF);
-
-            // If beyond max, we clamp hard. If between struggleStart..struggleEnd, we ease toward clamping.
-            float clamped = Mathf.Clamp(dist, minLen, maxLen);
-
-            // Ease only when we're "overreaching"
-            if (dist > struggleStartLen && dist > clamped)
-            {
-                float t = Remap01(dist, struggleStartLen, struggleEndLen);
-                // t=0 => no clamp, t=1 => full clamp
-                float eased = Mathf.Lerp(dist, clamped, t);
-                return headPos + (headToHips / dist) * eased;
-            }
-
-            return headPos + (headToHips / dist) * clamped;
-        }
         public void SolveSpineFABRIK(AnimationStream stream, Vector3 Target)
         {
             if (!ChainHeadToSpine.IsCreated || ChainHeadToSpine.Length < 2)
@@ -1255,7 +1178,7 @@ w20, w54;
                 handle.SetRotation(stream, V4ToQuat(targetRotProp.Get(stream)) * RotationOffset);
             }
         }
-        public void SolveTwoBoneIKArms(AnimationStream stream,ReadWriteTransformHandle root,ReadWriteTransformHandle mid,ReadWriteTransformHandle tip,AffineTransform target,AffineTransform hint,bool hintWeight,Quaternion targetOffset)
+        public void SolveTwoBoneIKArms(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool hintWeight, Quaternion targetOffset)
         {
             Vector3 aPosition = root.GetPosition(stream);
             Vector3 bPosition = mid.GetPosition(stream);
@@ -1469,7 +1392,7 @@ w20, w54;
         /// <param name="hint">The transform handle for the hint transform.</param>
         /// <param name="HasHint">The weight for which hint transform has an effect on IK calculations. This is a value in between 0 and 1.</param>
         /// <param name="targetOffset">The offset applied to the target transform.</param>
-        public void SolveTwoBone(AnimationStream stream,ReadWriteTransformHandle root,ReadWriteTransformHandle mid,ReadWriteTransformHandle tip,AffineTransform target,AffineTransform hint,bool HasHint,Quaternion targetOffset, Vector3 BendNormal)
+        public void SolveTwoBone(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool HasHint, Quaternion targetOffset, Vector3 BendNormal)
         {
             Vector3 aPosition = root.GetPosition(stream);
             Vector3 bPosition = mid.GetPosition(stream);
@@ -1564,7 +1487,7 @@ w20, w54;
             tip.SetRotation(stream, tRotation);
         }
         public Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
-        public void SolveLegs(AnimationStream stream, BoolProperty enabledProp,ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp)
+        public void SolveLegs(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp)
         {
             if (!enabledProp.Get(stream))
             {
@@ -1603,7 +1526,7 @@ w20, w54;
                 }
             }
         }
-        public void SolveHand(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset,ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled,FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule, BoolProperty protectElbow)
+        public void SolveHand(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled, FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule, BoolProperty protectElbow)
         {
             if (!enabledProp.Get(stream))
             {
@@ -1883,7 +1806,7 @@ w20, w54;
             job.w54 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(54));
 
 
-            GenerateHeadToSpine(animator,ref job,ref data);
+            GenerateHeadToSpine(animator, ref job, ref data);
             GenerateChestToHead(animator, ref job, ref data);
 
             var cacheBuilder = new AnimationJobCacheBuilder();
@@ -1898,7 +1821,7 @@ w20, w54;
         }
         public void GenerateHeadToSpine(Animator animator, ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
         {
-            var HeadToSpine = new Transform[] { data.head, data.neck, data.chest, data.spine,data.hips };
+            var HeadToSpine = new Transform[] { data.head, data.neck, data.chest, data.spine, data.hips };
             int SpineToHeadLength = HeadToSpine.Length;
             job.ChainHeadToSpine = new NativeArray<ReadWriteTransformHandle>(SpineToHeadLength, Allocator.Persistent);
             job.ChainHeadToSpineLengths = new NativeArray<float>(SpineToHeadLength, Allocator.Persistent);
