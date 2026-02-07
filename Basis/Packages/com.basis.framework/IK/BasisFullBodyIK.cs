@@ -796,7 +796,9 @@ w20, w54;
         public void SolveSpine(AnimationStream stream)
         {
             if (!enabledSpineIK.Get(stream))
+            {
                 return;
+            }
 
             // ---- Read targets ----
             Vector3 headTargetPos = targetPositionHead.Get(stream);
@@ -822,51 +824,28 @@ w20, w54;
             float s0 = struggleStart.Get(stream);
             float s1 = struggleEnd.Get(stream);
             float maxDelta = MaxChestDeltaDeg.Get(stream);
-
-            // ============================================================
             // 1) HIPS: compute obtainable position + limit rotation
-            // ============================================================
-            Vector3 obtainableHipsTarget =
-                ComputeObtainableHipsTarget(headTargetPos, hipsTargetPos, restLenHips, minF, maxF, s0, s1);
-
+            Vector3 obtainableHipsTarget = ComputeObtainableHipsTarget(headTargetPos, hipsTargetPos, restLenHips, minF, maxF, s0, s1);
             if (HandleHips.IsValid(stream))
             {
                 Quaternion hipsCurrent = HandleHips.GetRotation(stream);
-
-                Quaternion hipLimited = LimitLinkRotationForPinnedHead(
-                    headTargetPos,
-                    obtainableHipsTarget,
-                    hipsCurrent,
-                    hipDesired,
-                    restLenHips,
-                    s0, s1,
-                    maxDelta
-                );
-
+                Quaternion hipLimited = LimitLinkRotationForPinnedHead(headTargetPos,obtainableHipsTarget,hipsCurrent,hipDesired,restLenHips,s0, s1,maxDelta);
                 HandleHips.SetPosition(stream, obtainableHipsTarget);
                 HandleHips.SetRotation(stream, hipLimited);
             }
-
-            // ============================================================
             // 2) HEAD: pin position before solving the chain
-            // ============================================================
             if (HandleHead.IsValid(stream))
+            {
                 HandleHead.SetPosition(stream, headTargetPos);
-
-            // ============================================================
+            }
             // 3) FABRIK: solve so SPINE end reaches obtainable hips target
-            // ============================================================
             SolveSpineFABRIK(stream, obtainableHipsTarget);
-
-            // ============================================================
             // 4) HEAD: re-apply rotation last
-            // ============================================================
             if (HandleHead.IsValid(stream))
+            {
                 HandleHead.SetRotation(stream, headDesired);
-
-            // ============================================================
+            }
             // 5) CHEST: compute obtainable target + limit rotation, then re-solve upwards
-            // ============================================================
             bool chestTrackerEnabled = HasChestTracker.Get(stream);
             if (chestTrackerEnabled && HandleChest.IsValid(stream))
             {
@@ -875,21 +854,12 @@ w20, w54;
                 Vector3 chestPosForClamp = HandleChest.GetPosition(stream);
                 if (restLenChest > k_Epsilon) // only if we have a meaningful rest length
                 {
-                    chestPosForClamp = ComputeObtainableHipsTarget( // reuse the same clamp logic
-                        headTargetPos,
-                        chestTargetPos,
-                        restLenChest,
-                        minF, maxF,
-                        s0, s1
-                    );
-
+                    chestPosForClamp = ComputeObtainableHipsTarget(headTargetPos,chestTargetPos,restLenChest,minF, maxF,s0, s1);
                     // Optional: actually apply chest position if your tracker provides it.
                     // If you DON'T want chest position driven, comment this out.
                     HandleChest.SetPosition(stream, chestPosForClamp);
                 }
-
                 Quaternion chestCurrent = HandleChest.GetRotation(stream);
-
                 Quaternion chestLimited = LimitLinkRotationForPinnedHead(headTargetPos,chestPosForClamp,chestCurrent,chestDesired,restLenChest,s0, s1,maxDelta);
 
                 HandleChest.SetRotation(stream, chestLimited);
@@ -907,7 +877,7 @@ w20, w54;
 
                 // Re-solve chest->head so neck follows the pinned head with the new chest rotation
                 SolveChestToHeadFABRIK(stream, headTargetPos);
-
+                //ok cool we have solved it again the limiter will now be different lets correct that
                 if (HandleHead.IsValid(stream))
                 {
                     HandleHead.SetRotation(stream, headDesired);
@@ -917,14 +887,18 @@ w20, w54;
         public void SolveChestToHeadFABRIK(AnimationStream stream, Vector3 headTargetPos)
         {
             if (!ChainChestToHead.IsCreated || ChainChestToHead.Length < 2)
+            {
                 return;
+            }
 
             int n = ChainChestToHead.Length;
             int tipIndex = n - 1;
 
             // --- cache BEFORE positions (for rotation deltas) ---
             for (int i = 0; i < n; i++)
+            {
                 ChainChestToHeadLinkPositions[i] = ChainChestToHead[i].GetPosition(stream);
+            }
 
             // Keep a copy of the "before" positions (n is 3 in your binder)
             Vector3 b0 = ChainChestToHeadLinkPositions[0];
@@ -945,7 +919,9 @@ w20, w54;
             // We generally don't want to overwrite chest position here (it's root), but setting it to itself is harmless.
             // Set neck + head positions from solved points.
             for (int i = 1; i < n; i++)
+            {
                 ChainChestToHead[i].SetPosition(stream, ChainChestToHeadLinkPositions[i]);
+            }
 
             // --- rotation deltas: align segment directions chest->neck, neck->head ---
             for (int i = 0; i < tipIndex; i++)
@@ -967,15 +943,7 @@ w20, w54;
                 ChainChestToHead[i].SetRotation(stream, delta * rot);
             }
         }
-        Quaternion LimitLinkRotationForPinnedHead(
-    Vector3 headPos,
-    Vector3 linkPos,
-    Quaternion currentLinkRot,
-    Quaternion desiredLinkRot,
-    float restLen,
-    float struggleStartF,
-    float struggleEndF,
-    float maxDeltaDegProp)
+        Quaternion LimitLinkRotationForPinnedHead( Vector3 headPos, Vector3 linkPos,Quaternion currentLinkRot,Quaternion desiredLinkRot,float restLen,float struggleStartF,float struggleEndF,float maxDeltaDegProp)
         {
             Vector3 axis = headPos - linkPos;
             float axisSqr = axis.sqrMagnitude;
@@ -1058,7 +1026,9 @@ w20, w54;
             float dist = headToHips.magnitude;
 
             if (dist < k_Epsilon || restLen < k_Epsilon)
+            {
                 return hipsTargetPos;
+            }
 
             float minLen = restLen * Mathf.Max(0f, minF);
             float maxLen = restLen * Mathf.Max(minF, maxF);
@@ -1084,14 +1054,18 @@ w20, w54;
         public void SolveSpineFABRIK(AnimationStream stream, Vector3 targetSpinePos)
         {
             if (!ChainHeadToSpine.IsCreated || ChainHeadToSpine.Length < 2)
+            {
                 return;
+            }
 
             int n = ChainHeadToSpine.Length;
             int tipIndex = n - 1;
 
             // Cache "before" positions for rotation deltas
             for (int i = 0; i < n; i++)
+            {
                 ChainHeadToSpineLinkPositions[i] = ChainHeadToSpine[i].GetPosition(stream);
+            }
 
             // Keep local copies of before positions (your chain is small)
             Vector3 b0 = ChainHeadToSpineLinkPositions[0];
@@ -1103,18 +1077,16 @@ w20, w54;
             int iters = (int)spineCache.GetRaw(spineMaxIterationsIdx);
 
             // Solve positions: head is root, spine is tip
-            if (!AnimationRuntimeUtils.SolveFABRIK(
-                    ref ChainHeadToSpineLinkPositions,
-                    ref ChainHeadToSpineLengths,
-                    targetSpinePos,
-                    tol,
-                    MaxReachSpineTohead,
-                    iters))
+            if (!AnimationRuntimeUtils.SolveFABRIK(ref ChainHeadToSpineLinkPositions,ref ChainHeadToSpineLengths,targetSpinePos,tol, MaxReachSpineTohead,iters))
+            {
                 return;
+            }
 
             // Write positions back (keep root pinned by caller; set the rest)
             for (int i = 1; i < n; i++)
+            {
                 ChainHeadToSpine[i].SetPosition(stream, ChainHeadToSpineLinkPositions[i]);
+            }
 
             // Apply rotations based on BEFORE vs AFTER segment directions
             for (int i = 0; i < tipIndex; i++)
@@ -1148,16 +1120,7 @@ w20, w54;
                 handle.SetRotation(stream, V4ToQuat(targetRotProp.Get(stream)) * RotationOffset);
             }
         }
-        public void SolveTwoBoneIKArms(
-            AnimationStream stream,
-            ReadWriteTransformHandle root,
-            ReadWriteTransformHandle mid,
-            ReadWriteTransformHandle tip,
-            AffineTransform target,
-            AffineTransform hint,
-            bool hintWeight,
-            Quaternion targetOffset
-        )
+        public void SolveTwoBoneIKArms(AnimationStream stream,ReadWriteTransformHandle root,ReadWriteTransformHandle mid,ReadWriteTransformHandle tip,AffineTransform target,AffineTransform hint,bool hintWeight,Quaternion targetOffset)
         {
             Vector3 aPosition = root.GetPosition(stream);
             Vector3 bPosition = mid.GetPosition(stream);
@@ -1371,16 +1334,7 @@ w20, w54;
         /// <param name="hint">The transform handle for the hint transform.</param>
         /// <param name="HasHint">The weight for which hint transform has an effect on IK calculations. This is a value in between 0 and 1.</param>
         /// <param name="targetOffset">The offset applied to the target transform.</param>
-        public void SolveTwoBone(
-            AnimationStream stream,
-            ReadWriteTransformHandle root,
-            ReadWriteTransformHandle mid,
-            ReadWriteTransformHandle tip,
-            AffineTransform target,
-            AffineTransform hint,
-            bool HasHint,
-            Quaternion targetOffset,
-            Vector3 BendNormal)
+        public void SolveTwoBone(AnimationStream stream,ReadWriteTransformHandle root,ReadWriteTransformHandle mid,ReadWriteTransformHandle tip,AffineTransform target,AffineTransform hint,bool HasHint,Quaternion targetOffset, Vector3 BendNormal)
         {
             Vector3 aPosition = root.GetPosition(stream);
             Vector3 bPosition = mid.GetPosition(stream);
@@ -1475,10 +1429,7 @@ w20, w54;
             tip.SetRotation(stream, tRotation);
         }
         public Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
-        public void SolveLegs(AnimationStream stream, BoolProperty enabledProp,
-        ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
-        Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp,
-        BoolProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp)
+        public void SolveLegs(AnimationStream stream, BoolProperty enabledProp,ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp)
         {
             if (!enabledProp.Get(stream))
             {
@@ -1517,10 +1468,7 @@ w20, w54;
                 }
             }
         }
-        public void SolveHand(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,
-        Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset,
-        ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled,
-        FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule, BoolProperty protectElbow)
+        public void SolveHand(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip,Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset,ReadWriteTransformHandle chestStart, ReadWriteTransformHandle chestEnd, FloatProperty chestRadius, FloatProperty collisionSkin, BoolProperty collisionsEnabled,FloatProperty handRadius, FloatProperty handSkin, BoolProperty useHandCapsule, BoolProperty protectElbow)
         {
             if (!enabledProp.Get(stream))
             {
