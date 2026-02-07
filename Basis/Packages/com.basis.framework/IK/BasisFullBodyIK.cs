@@ -191,12 +191,12 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public Quaternion ChestRotation;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationHead;
 
-          [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightToe;
-          [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftToe;
-          [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationChest;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationRightToe;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationLeftToe;
+        [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationChest;
 
         [SyncSceneToStream, SerializeField] public Quaternion LeftShoulderRotation;
-          [SyncSceneToStream, SerializeField] public Quaternion RightShoulderRotation;
+        [SyncSceneToStream, SerializeField] public Quaternion RightShoulderRotation;
         [SyncSceneToStream, SerializeField] public Quaternion m_CalibratedRotationNeck;
 
         // Hips
@@ -288,14 +288,14 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public float m_MaxChestDeltaDeg;
 
         public NativeArray<ReadWriteTransformHandle> spineChain;
-public NativeArray<float> spineLinkLengths;
-public NativeArray<Vector3> spineLinkPositions;
-public float spineMaxReach;
+        public NativeArray<float> spineLinkLengths;
+        public NativeArray<Vector3> spineLinkPositions;
+        public float spineMaxReach;
 
-// optional tuning (can be constants or properties)
-public CacheIndex spineToleranceIdx;
-public CacheIndex spineMaxIterationsIdx;
-public AnimationJobCache spineCache;
+        // optional tuning (can be constants or properties)
+        public CacheIndex spineToleranceIdx;
+        public CacheIndex spineMaxIterationsIdx;
+        public AnimationJobCache spineCache;
         public float minHeadSpineHeight
         {
             get => m_MinHeadSpineHeight;
@@ -766,8 +766,8 @@ w20, w54;
             ApplyRotation(stream, enabledRightShoulder, HandleRightShoulder, TargetRotationRightShoulder, targetOffsetRightShoulder);
             SolveLegs(stream, enabledLeftLowerLeg, HandleLeftUpperLeg, HandleLeftLowerLeg, HandleLeftFoot, targetPositionLeftLowerLeg, targetRotationLeftLowerLeg, hintPositionLeftLowerLeg, hintRotationLeftLowerLeg, hintWeightLeftLowerLeg, targetOffsetLeftFoot, KneeBendPrefLeft);
             SolveLegs(stream, enabledRightLowerLeg, HandleRightUpperLeg, HandleRightLowerLeg, HandleRightFoot, targetPositionRightLowerLeg, targetRotationRightLowerLeg, hintPositionRightLowerLeg, hintRotationRightLowerLeg, hintWeightRightLowerLeg, targetOffsetRightFoot, KneeBendPrefRight);
-            SolveHand(stream,enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand,HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
-            SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand,targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand,HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
+            SolveHand(stream, enabledLeftHand, HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand, targetPositionLeftHand, targetRotationLeftHand, hintPositionLeftHand, hintRotationLeftHand, hintWeightLeftHand, targetOffsetLeftHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
+            SolveHand(stream, enabledRightHand, HandleRightUpperArm, HandleRightLowerArm, HandleRightHand, targetPositionRightHand, targetRotationRightHand, hintPositionRightHand, hintRotationRightHand, hintWeightRightHand, targetOffsetRightHand, HandleChest, HandleNeck, chestRadius, collisionSkin, collisionsEnabled, handRadius, handSkin, useHandCapsule, protectElbow);
             ApplyRotation(stream, leftToeEnabled, HandleLeftToe, leftDrivenTargetRot, targetOffsetLeftToe);
             ApplyRotation(stream, RightToeEnabled, HandleRightToe, rightDrivenTargetRot, targetOffsetRightToe);
             Apply(stream, HandleHips, p0, r0, o0, w0);
@@ -795,73 +795,235 @@ w20, w54;
         }
         public void SolveSpine(AnimationStream stream)
         {
-            if(!enabledSpineIK.Get(stream))
+            if (!enabledSpineIK.Get(stream))
             {
                 return;
             }
+
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
-            Vector4 HeadTargetRotV4 = targetRotationHead.Get(stream);
-            Vector4 HipsTargetRotV4 = targetRotationHips.Get(stream);
-
-            Quaternion HeadTargetRot = V4ToQuat(HeadTargetRotV4);
-            Quaternion HipsTargetRot = V4ToQuat(HipsTargetRotV4);
+            Quaternion HeadTargetRot = V4ToQuat(targetRotationHead.Get(stream));
+            Quaternion HipsTargetRot = V4ToQuat(targetRotationHips.Get(stream));
             Quaternion OffsetHips = V4ToQuat(offsetRotationHips.Get(stream));
 
             Quaternion hipDesired = HipsTargetRot * OffsetHips;
             Quaternion headDesired = HeadTargetRot * targetOffsetHead;
 
-            // Early out: pass-through if spine IK disabled
+            // Rest length from T-pose (cached at Create time)
+            float restLen = TposeLengthHeadToHips.magnitude;
+
+            // Use your tuning props (already bound)
+            float minF = minFactor.Get(stream);
+            float maxF = maxFactor.Get(stream);
+            float s0 = struggleStart.Get(stream);
+            float s1 = struggleEnd.Get(stream);
+            float maxDelta = MaxChestDeltaDeg.Get(stream);
+
+            Vector3 obtainableHipsTarget = ComputeObtainableHipsTarget(headTargetPos, hipsTargetPos, restLen, minF, maxF, s0, s1);
+            Quaternion hipsCurrent = HandleHips.GetRotation(stream);
+            Quaternion hipLimited = LimitHipsRotationForHead(headTargetPos, obtainableHipsTarget, hipsCurrent, hipDesired, restLen, s0, s1, maxDelta);
+            // Apply hips first (pos+rot)
             if (HandleHips.IsValid(stream))
             {
-                // Apply hips position always (your existing logic)
-                //   HandleHips.SetPosition(stream, hipsTargetPos);
-                HandleHips.SetPosition(stream, hipsTargetPos);
-                // First try full desired
-                HandleHips.SetRotation(stream, hipDesired);
+                HandleHips.SetPosition(stream, obtainableHipsTarget);
+
+                HandleHips.SetRotation(stream, hipLimited);
             }
-            //we always apply head last even if we use it first for ik.
-            //this is becouse the position and rotation get screwy when we rotate the chain items
+
+            // Head is “pinned” to tracker
             if (HandleHead.IsValid(stream))
             {
-                // Apply hips position always (your existing logic)
                 HandleHead.SetPosition(stream, headTargetPos);
+            }
 
+            // Solve chain so SPINE end reaches obtainable hips target
+            SolveSpineFABRIK(stream, obtainableHipsTarget);
 
-                SolveSpineFABRIK(stream, hipsTargetPos);
-                //apply head final rotation again
+            // Re-apply head rotation last
+            if (HandleHead.IsValid(stream))
+            {
                 HandleHead.SetRotation(stream, headDesired);
             }
         }
+        /// Limits hips rotation so the head can remain obtainable.
+        /// Only clamps SWING around the head-hips axis; preserves TWIST.
+        Quaternion LimitHipsRotationForHead(Vector3 headPos,Vector3 hipsPos,Quaternion currentHipsRot,Quaternion desiredHipsRot,float restLen,float struggleStartF,float struggleEndF,float maxChestDeltaDegProp)
+        {
+            Vector3 axis = headPos - hipsPos;
+            float axisSqr = axis.sqrMagnitude;
+            if (axisSqr < 1e-8f)
+            {
+                return desiredHipsRot;
+            }
+
+            axis /= Mathf.Sqrt(axisSqr);
+
+            float dist = Mathf.Sqrt(axisSqr);
+
+            float startLen = restLen * Mathf.Max(0f, struggleStartF);
+            float endLen = restLen * Mathf.Max(struggleStartF, struggleEndF);
+            float t = Remap01(dist, startLen, endLen);
+
+            // Delta from current to desired, expressed in world space
+            Quaternion delta = desiredHipsRot * Quaternion.Inverse(currentHipsRot);
+            delta = NormalizeSafe(delta);
+
+            SwingTwistDecompose(delta, axis, out var swing, out var twist);
+
+            // Allowed swing shrinks as we struggle.
+            // At t=0, allow essentially full MaxChestDelta (or more).
+            // At t=1, allow a smaller fraction.
+            float maxSwingComfort = Mathf.Max(5f, maxChestDeltaDegProp);           // e.g. 30-60 deg
+            float maxSwingStruggle = Mathf.Max(2f, maxChestDeltaDegProp * 0.25f);  // e.g. 7.5-15 deg
+
+            float maxSwing = Mathf.Lerp(maxSwingComfort, maxSwingStruggle, t);
+
+            Quaternion swingClamped = ClampSwing(swing, maxSwing);
+
+            Quaternion limitedDelta = swingClamped * twist;
+            return limitedDelta * currentHipsRot;
+        }
+        // Decompose q into swing (no twist around axis) and twist (pure rotation around axis).
+        static void SwingTwistDecompose(Quaternion q, Vector3 axis, out Quaternion swing, out Quaternion twist)
+        {
+            axis = axis.normalized;
+            Vector3 r = new Vector3(q.x, q.y, q.z);
+
+            // Project rotation vector part onto axis => twist component
+            Vector3 proj = axis * Vector3.Dot(r, axis);
+            twist = NormalizeSafe(new Quaternion(proj.x, proj.y, proj.z, q.w));
+            swing = NormalizeSafe(q * Quaternion.Inverse(twist));
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static Quaternion NormalizeSafe(Quaternion q)
+        {
+            float m = Mathf.Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+            if (m < 1e-8f) return Quaternion.identity;
+            float inv = 1f / m;
+            return new Quaternion(q.x * inv, q.y * inv, q.z * inv, q.w * inv);
+        }
+        // Clamp a swing rotation to maxDegrees (keeps axis of swing, reduces angle)
+        static Quaternion ClampSwing(Quaternion swing, float maxDegrees)
+        {
+            swing = NormalizeSafe(swing);
+
+            // Convert swing to angle-axis
+            swing.ToAngleAxis(out float ang, out Vector3 ax);
+            if (ang > 180f) ang -= 360f;
+            float abs = Mathf.Abs(ang);
+
+            if (abs <= maxDegrees) return swing;
+
+            float clamped = Mathf.Sign(ang) * maxDegrees;
+            return Quaternion.AngleAxis(clamped, ax);
+        }
         public Vector3 TposeLengthHeadToHips;
-        public void SolveSpineFABRIK(AnimationStream stream, Vector3 Target)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static float Saturate(float x) => Mathf.Clamp01(x);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        float Remap01(float x, float a, float b)
+        {
+            if (Mathf.Abs(b - a) < 1e-6f) return 1f;
+            return Saturate((x - a) / (b - a));
+        }
+
+        /// <summary>
+        /// Returns a hips target position that is reachable from the head, based on T-pose distance
+        /// and your min/max/struggle tuning.
+        /// </summary>
+        Vector3 ComputeObtainableHipsTarget(Vector3 headPos, Vector3 hipsTargetPos, float restLen, float minF, float maxF, float struggleStartF, float struggleEndF)
+        {
+            Vector3 headToHips = hipsTargetPos - headPos;
+            float dist = headToHips.magnitude;
+
+            if (dist < k_Epsilon || restLen < k_Epsilon)
+                return hipsTargetPos;
+
+            float minLen = restLen * Mathf.Max(0f, minF);
+            float maxLen = restLen * Mathf.Max(minF, maxF);
+
+            // Where does "struggle" begin/end in *distance* terms?
+            float struggleStartLen = restLen * Mathf.Max(0f, struggleStartF);
+            float struggleEndLen = restLen * Mathf.Max(struggleStartF, struggleEndF);
+
+            // If beyond max, we clamp hard. If between struggleStart..struggleEnd, we ease toward clamping.
+            float clamped = Mathf.Clamp(dist, minLen, maxLen);
+
+            // Ease only when we're "overreaching"
+            if (dist > struggleStartLen && dist > clamped)
+            {
+                float t = Remap01(dist, struggleStartLen, struggleEndLen);
+                // t=0 => no clamp, t=1 => full clamp
+                float eased = Mathf.Lerp(dist, clamped, t);
+                return headPos + (headToHips / dist) * eased;
+            }
+
+            return headPos + (headToHips / dist) * clamped;
+        }
+        public void SolveSpineFABRIK(AnimationStream stream, Vector3 targetSpinePos)
         {
             if (!ChainHeadToSpine.IsCreated || ChainHeadToSpine.Length < 2)
             {
                 return;
             }
 
-            // read current positions
-            for (int i = 0; i < ChainHeadToSpine.Length; i++)
+            int n = ChainHeadToSpine.Length;
+            int tipIndex = n - 1;
+
+            // Cache "before" positions for rotation deltas
+            // (you already have ChainSpineToheadLinkPositions allocated; reuse it)
+            for (int i = 0; i < n; i++)
             {
                 ChainSpineToheadLinkPositions[i] = ChainHeadToSpine[i].GetPosition(stream);
             }
 
-            int tipIndex = ChainHeadToSpine.Length - 1;
+            // Make a copy for "before" (need one extra array; easiest is allocate once in job if you can)
+            // If you don't want another NativeArray, you can use a small stackalloc for n<=8, but yours is 4.
+            Vector3 p0 = ChainSpineToheadLinkPositions[0];
+            Vector3 p1 = ChainSpineToheadLinkPositions[1];
+            Vector3 p2 = (n > 2) ? ChainSpineToheadLinkPositions[2] : Vector3.zero;
+            Vector3 p3 = (n > 3) ? ChainSpineToheadLinkPositions[3] : Vector3.zero;
 
             float tol = spineCache.GetRaw(spineToleranceIdx);
             int iters = (int)spineCache.GetRaw(spineMaxIterationsIdx);
 
-            if (AnimationRuntimeUtils.SolveFABRIK(ref ChainSpineToheadLinkPositions, ref ChainSpineToheadLengths, Target, tol, spineMaxReach, iters))
+            // Solve positions: head is root, spine is tip. Target is where we want SPINE to go.
+            if (!AnimationRuntimeUtils.SolveFABRIK(ref ChainSpineToheadLinkPositions,ref ChainSpineToheadLengths,targetSpinePos,tol,spineMaxReach,iters))
             {
-                for (int i = 0; i < tipIndex; ++i)
-                {
-                    var prevDir = ChainHeadToSpine[i + 1].GetPosition(stream) - ChainHeadToSpine[i].GetPosition(stream);
-                    var newDir = ChainSpineToheadLinkPositions[i + 1] - ChainSpineToheadLinkPositions[i];
-                    var rot = ChainHeadToSpine[i].GetRotation(stream);
-                    ChainHeadToSpine[i].SetRotation(stream, Quaternion.Lerp(rot, QuaternionExt.FromToRotation(prevDir, newDir) * rot, 1));
-                }
+                return;
+            }
+
+            // Write positions back (IMPORTANT)
+            // Keep head pinned by caller; set others (neck/chest/spine)
+            for (int i = 1; i < n; i++)
+                ChainHeadToSpine[i].SetPosition(stream, ChainSpineToheadLinkPositions[i]);
+
+            // Compute rotations using BEFORE vs AFTER directions
+            // Restore before positions from locals (n is 4 in your binder setup)
+            Vector3 b0 = p0;
+            Vector3 b1 = p1;
+            Vector3 b2 = (n > 2) ? p2 : Vector3.zero;
+            Vector3 b3 = (n > 3) ? p3 : Vector3.zero;
+
+            for (int i = 0; i < tipIndex; i++)
+            {
+                Vector3 beforeA = (i == 0) ? b0 : (i == 1 ? b1 : b2);
+                Vector3 beforeB = (i == 0) ? b1 : (i == 1 ? b2 : b3);
+
+                Vector3 afterA = ChainSpineToheadLinkPositions[i];
+                Vector3 afterB = ChainSpineToheadLinkPositions[i + 1];
+
+                Vector3 prevDir = beforeB - beforeA;
+                Vector3 newDir = afterB - afterA;
+
+                if (prevDir.sqrMagnitude < k_SqrEpsilon || newDir.sqrMagnitude < k_SqrEpsilon)
+                    continue;
+
+                Quaternion rot = ChainHeadToSpine[i].GetRotation(stream);
+                Quaternion delta = QuaternionExt.FromToRotation(prevDir, newDir);
+                ChainHeadToSpine[i].SetRotation(stream, delta * rot);
             }
         }
         public void ApplyRotation(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
@@ -1416,7 +1578,7 @@ w20, w54;
                 struggleStart = FloatProperty.Bind(animator, component, data.StruggleStartFloatProperty),
                 struggleEnd = FloatProperty.Bind(animator, component, data.StruggleEndFloatProperty),
                 MaxChestDeltaDeg = FloatProperty.Bind(animator, component, data.MaxChestDeltaDegFloatProperty),
-                enabledLeftShoulder =  BoolProperty.Bind(animator, component, data.EnabledLeftShoulderProperty),
+                enabledLeftShoulder = BoolProperty.Bind(animator, component, data.EnabledLeftShoulderProperty),
                 enabledRightShoulder = BoolProperty.Bind(animator, component, data.EnabledRightShoulderProperty),
                 targetOffsetLeftShoulder = data.m_CalibratedRotationLeftShoulder,
                 targetOffsetRightShoulder = data.m_CalibratedRotationRightShoulder,
