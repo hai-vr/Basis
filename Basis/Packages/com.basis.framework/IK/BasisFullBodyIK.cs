@@ -1050,51 +1050,42 @@ w20, w54;
         public void SolveSpineFABRIK(AnimationStream stream, Vector3 targetSpinePos)
         {
             if (!ChainHeadToSpine.IsCreated || ChainHeadToSpine.Length < 2)
-            {
                 return;
-            }
 
             int n = ChainHeadToSpine.Length;
             int tipIndex = n - 1;
 
-            // Cache "before" positions for rotation deltas
+            // BEFORE snapshot (managed array)
+            var before = new Vector3[n];
+
             for (int i = 0; i < n; i++)
             {
-                ChainHeadToSpineLinkPositions[i] = ChainHeadToSpine[i].GetPosition(stream);
+                Vector3 p = ChainHeadToSpine[i].GetPosition(stream);
+                before[i] = p;
+                ChainHeadToSpineLinkPositions[i] = p; // FABRIK working array
             }
-
-            // Keep local copies of before positions (your chain is small)
-            Vector3 b0 = ChainHeadToSpineLinkPositions[0];
-            Vector3 b1 = (n > 1) ? ChainHeadToSpineLinkPositions[1] : Vector3.zero;
-            Vector3 b2 = (n > 2) ? ChainHeadToSpineLinkPositions[2] : Vector3.zero;
-            Vector3 b3 = (n > 3) ? ChainHeadToSpineLinkPositions[3] : Vector3.zero;
 
             float tol = spineCache.GetRaw(spineToleranceIdx);
             int iters = (int)spineCache.GetRaw(spineMaxIterationsIdx);
 
-            // Solve positions: head is root, spine is tip
-            if (!AnimationRuntimeUtils.SolveFABRIK(ref ChainHeadToSpineLinkPositions,ref ChainHeadToSpineLengths,targetSpinePos,tol, MaxReachSpineTohead,iters))
-            {
+            if (!AnimationRuntimeUtils.SolveFABRIK(
+                    ref ChainHeadToSpineLinkPositions,
+                    ref ChainHeadToSpineLengths,
+                    targetSpinePos,
+                    tol,
+                    MaxReachSpineTohead,
+                    iters))
                 return;
-            }
 
-            // Write positions back (keep root pinned by caller; set the rest)
+            // write positions back (skip root: head pinned externally)
             for (int i = 1; i < n; i++)
-            {
                 ChainHeadToSpine[i].SetPosition(stream, ChainHeadToSpineLinkPositions[i]);
-            }
 
-            // Apply rotations based on BEFORE vs AFTER segment directions
+            // rotations: BEFORE vs AFTER
             for (int i = 0; i < tipIndex; i++)
             {
-                Vector3 beforeA = (i == 0) ? b0 : (i == 1 ? b1 : b2);
-                Vector3 beforeB = (i == 0) ? b1 : (i == 1 ? b2 : b3);
-
-                Vector3 afterA = ChainHeadToSpineLinkPositions[i];
-                Vector3 afterB = ChainHeadToSpineLinkPositions[i + 1];
-
-                Vector3 prevDir = beforeB - beforeA;
-                Vector3 newDir = afterB - afterA;
+                Vector3 prevDir = before[i + 1] - before[i];
+                Vector3 newDir = ChainHeadToSpineLinkPositions[i + 1] - ChainHeadToSpineLinkPositions[i];
 
                 if (prevDir.sqrMagnitude < k_SqrEpsilon || newDir.sqrMagnitude < k_SqrEpsilon)
                     continue;
@@ -1759,7 +1750,7 @@ w20, w54;
         }
         public void GenerateHeadToSpine(Animator animator, ref BasisFullIKConstraintJob job, ref BasisFullBodyData data)
         {
-            var HeadToSpine = new Transform[] { data.head, data.neck, data.chest, data.spine };
+            var HeadToSpine = new Transform[] { data.head, data.neck, data.chest, data.spine,data.hips };
             int SpineToHeadLength = HeadToSpine.Length;
             job.ChainHeadToSpine = new NativeArray<ReadWriteTransformHandle>(SpineToHeadLength, Allocator.Persistent);
             job.ChainHeadToSpineLengths = new NativeArray<float>(SpineToHeadLength, Allocator.Persistent);
