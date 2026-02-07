@@ -842,7 +842,33 @@ w20, w54;
             {
                 HandleHead.SetRotation(stream, headDesired);
             }
+            if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
+            {
+                // Neck rotation produced by your spine IK pass – we keep this
+                Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
 
+                // Spine as an extra reference if available (nice stabiliser)
+                Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
+
+                // Clamp relative to neck and spine
+                Quaternion clampedChestRot = ClampRotation(chestDesired, neckRot, MaxChestDelta);
+                clampedChestRot = ClampRotation(clampedChestRot, spineRot, MaxChestDelta);
+
+                HandleChest.SetRotation(stream, clampedChestRot);
+
+                // Build target + hint transforms
+                var tRot = V4ToQuat(targetRotationHead.Get(stream));
+                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                var bendNormal = bendNormalHead.Get(stream);
+
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+            }
+            if (HandleHead.IsValid(stream))
+            {
+                HandleHead.SetRotation(stream, headDesired);
+            }
+
+            /*
             // 5) CHEST tracker block
             bool chestTrackerEnabled = HasChestTracker.Get(stream);
             if (chestTrackerEnabled && HandleChest.IsValid(stream))
@@ -879,6 +905,75 @@ w20, w54;
                     HandleHead.SetRotation(stream, headDesired);
                 }
             }
+            */
+        }
+        public void SolveTwoBoneSpine(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, Quaternion targetOffset, Vector3 bendNormal)
+        {
+            // Read current joint positions
+            Vector3 aPos = root.GetPosition(stream);
+            Vector3 bPos = mid.GetPosition(stream);
+            Vector3 cPos = tip.GetPosition(stream);
+
+            // Target with offset applied in target space
+            Vector3 tPos = target.translation;
+            Quaternion tRot = target.rotation * targetOffset;
+
+            // Current bone vectors
+            Vector3 ab = bPos - aPos;
+            Vector3 bc = cPos - bPos;
+            Vector3 ac = cPos - aPos;
+            Vector3 at = tPos - aPos;
+
+            float abLen = ab.magnitude;
+            float bcLen = bc.magnitude;
+            float acLen = ac.magnitude;
+            float atLen = at.magnitude;
+            float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
+            float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
+
+            // Compute rotation axis for mid joint bend
+            Vector3 axis = ComputeIkAxis(bendNormal);
+
+            // Rotate mid joint by half the angle delta (distributes motion)
+            float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
+            float s = Mathf.Sin(halfAngle);
+            float c = Mathf.Cos(halfAngle);
+            Quaternion deltaMid = new Quaternion(axis.x * s, axis.y * s, axis.z * s, c);
+            mid.SetRotation(stream, deltaMid * mid.GetRotation(stream));
+
+            // Re-evaluate and swing root so AC aligns with AT
+            cPos = tip.GetPosition(stream);
+            ac = cPos - aPos;
+            root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
+
+            // Set tip rotation to match target orientation (+offset)
+            tip.SetRotation(stream, tRot);
+        }
+        private Vector3 ComputeIkAxis(Vector3 bendNormal)
+        {
+            Vector3 axis;
+            axis = bendNormal;
+            float mag2 = axis.sqrMagnitude;
+            if (mag2 < k_SqrEpsilon)
+            {
+                // Deterministic fallback to avoid NaNs/garbage under Burst
+                return Vector3.forward;
+            }
+
+            return axis / Mathf.Sqrt(mag2);
+        }
+        static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
+        {
+            // Angle between the two orientations
+            float angle = Quaternion.Angle(reference, current);
+            if (angle <= maxAngleDeg)
+            {
+                return current;
+            }
+
+            // Scale back toward the reference so the final difference is exactly maxAngleDeg
+            float t = maxAngleDeg / Mathf.Max(angle, k_Epsilon);
+            return Quaternion.Slerp(reference, current, t);
         }
         public void SolveChestToHeadFABRIK(AnimationStream stream, Vector3 headTargetPos)
         {
@@ -1056,7 +1151,7 @@ w20, w54;
             int tipIndex = n - 1;
 
             // BEFORE snapshot (managed array)
-            var before = new Vector3[n];
+            Unity.Collections.NativeArray<Vector3> before = new NativeArray<Vector3>(n, Allocator.Temp);
 
             for (int i = 0; i < n; i++)
             {
@@ -1094,6 +1189,7 @@ w20, w54;
                 Quaternion delta = QuaternionExt.FromToRotation(prevDir, newDir);
                 ChainHeadToSpine[i].SetRotation(stream, delta * rot);
             }
+            before.Dispose();
         }
         public void ApplyRotation(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
         {
