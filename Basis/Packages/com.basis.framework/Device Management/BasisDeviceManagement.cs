@@ -434,11 +434,28 @@ namespace Basis.Scripts.Device_Management
         {
             yield return new WaitForEndOfFrame();
 
-            if (input != null && input.Control != null && CheckBeforeOverride(prev))
+            if (input != null && input.Control != null)
             {
                 BasisDebug.Log($"Device restored: {prev.trackedRole}", BasisDebug.LogTag.Device);
-                input.ApplyTrackerCalibration(prev.trackedRole);
-                input.Control.InverseOffsetFromBone = prev.InverseOffsetFromBone;
+                if (prev.hasRoleAssigned)
+                {
+                    if (CheckBeforeOverride(prev))
+                    {
+                        input.ApplyTrackerCalibration(prev.trackedRole);
+                    }
+                    else
+                    {
+                        BasisDebug.Log($"Device unable to take role: {prev.trackedRole} already had existing role", BasisDebug.LogTag.Device);
+                    }
+                }
+                if (prev.hasRoleAssigned)
+                {
+                    input.Control.InverseOffsetFromBone = prev.InverseOffsetFromBone;
+                }
+                if (input.HasControl)
+                {
+                    input.Control.OnHasRigChanged?.Invoke(true);
+                }
             }
         }
 
