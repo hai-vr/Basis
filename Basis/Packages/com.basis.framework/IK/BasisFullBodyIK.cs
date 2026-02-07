@@ -971,58 +971,53 @@ w20, w54;
             return root + d * (maxReach / dist);
         }
         Quaternion LimitLinkRotationForPinnedHead(
-            Vector3 headPos,
-            Vector3 linkPos,
-            Quaternion currentLinkRot,
-            Quaternion desiredLinkRot,
-            float restLen,
-            float struggleStartF,
-            float struggleEndF,
-            float maxTwistDegProp,   // repurpose this as twist limit (degrees). e.g. 30-60.
-            float maxSwingDegProp = 140f // optional swing cap (degrees). big by default.
-        )
+     Vector3 headPos,
+     Vector3 linkPos,
+     Quaternion currentLinkRot,
+     Quaternion desiredLinkRot,
+     float restLen,
+     float struggleStartF,
+     float struggleEndF,
+     float maxTwistDegProp // treat as twist limit degrees
+ )
         {
-            // Axis for twist: from hips toward head.
-            Vector3 axis = headPos - linkPos;
-            float axisSqr = axis.sqrMagnitude;
+            // World axis from hips->head
+            Vector3 axisW = headPos - linkPos;
+            float axisSqr = axisW.sqrMagnitude;
             if (axisSqr < 1e-8f)
                 return desiredLinkRot;
 
             float dist = Mathf.Sqrt(axisSqr);
-            axis /= dist;
+            axisW /= dist;
 
-            // How “overreached” are we? 0..1
+            // Overreach factor (0..1)
             float startLen = restLen * Mathf.Max(0f, struggleStartF);
             float endLen = restLen * Mathf.Max(struggleStartF, struggleEndF);
-            float t = Remap01(dist, startLen, endLen); // 0 comfy, 1 struggling
+            float t = Remap01(dist, startLen, endLen);
 
-            // Delta from current -> desired in link space
-            Quaternion delta = desiredLinkRot * Quaternion.Inverse(currentLinkRot);
-            delta = NormalizeSafe(delta);
+            // --- IMPORTANT CHANGE ---
+            // Work in LINK-LOCAL space so "twist" stays twist even when the body yaws in world.
+            Quaternion invCurrent = Quaternion.Inverse(currentLinkRot);
+            Vector3 axisL = invCurrent * axisW;                 // axis expressed in link local
+            Quaternion deltaL = invCurrent * desiredLinkRot;    // local delta: current * deltaL = desired
 
-            // Split into swing & twist around axis
-            SwingTwistDecompose(delta, axis, out var swing, out var twist);
+            deltaL = NormalizeSafe(deltaL);
+            axisL = axisL.normalized;
 
-            // ---- TWIST LIMIT (main limiter) ----
-            // Allow some twist, but not infinite.
-            // In struggle, you can optionally tighten a bit, but don’t overdo it.
-            float twistComfort = Mathf.Max(5f, maxTwistDegProp);      // at least 5°
-            float twistStruggle = Mathf.Max(2f, twistComfort * 0.6f); // mildly tighter under struggle
+            SwingTwistDecompose(deltaL, axisL, out var swingL, out var twistL);
+
+            // Clamp twist (optionally slightly tighter under struggle)
+            float twistComfort = Mathf.Max(5f, maxTwistDegProp);
+            float twistStruggle = Mathf.Max(2f, twistComfort * 0.6f);
             float maxTwist = Mathf.Lerp(twistComfort, twistStruggle, t);
-            Quaternion twistClamped = ClampTwistAroundAxis(twist, axis, maxTwist);
 
-            // ---- SWING LIMIT (optional, very loose) ----
-            // Big swing is required for laying down. Keep this huge.
-            // If you *really* want extra stability under extreme stretch, you can gently reduce swing a little.
-            float swingComfort = Mathf.Clamp(maxSwingDegProp, 30f, 180f);
-            float swingStruggle = Mathf.Clamp(swingComfort * 0.9f, 30f, 180f); // barely tighter
-            float maxSwing = Mathf.Lerp(swingComfort, swingStruggle, t);
-            Quaternion swingClamped = ClampSwing(swing, maxSwing);
+            Quaternion twistClampedL = ClampTwistAroundAxis(twistL, axisL, maxTwist);
 
-            // Recompose (swing then twist)
-            Quaternion limitedDelta = swingClamped * twistClamped;
+            // DO NOT CLAMP SWING (or you will break sideways/angled poses)
+            Quaternion limitedDeltaL = swingL * twistClampedL;
 
-            return limitedDelta * currentLinkRot;
+            // Convert back to world: current * limitedLocal
+            return currentLinkRot * limitedDeltaL;
         }
 
         // Twist is a rotation *around axis*. We clamp its signed angle around that axis.
@@ -1031,11 +1026,9 @@ w20, w54;
             axis = axis.normalized;
             twist = NormalizeSafe(twist);
 
-            // Convert twist to angle-axis
             twist.ToAngleAxis(out float ang, out Vector3 ax);
             if (ang > 180f) ang -= 360f;
 
-            // Ensure the axis direction matches our chosen axis (or the angle sign flips)
             if (Vector3.Dot(ax, axis) < 0f)
                 ang = -ang;
 
