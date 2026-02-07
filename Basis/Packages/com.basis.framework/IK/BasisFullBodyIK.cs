@@ -744,7 +744,6 @@ w20, w54;
 
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxHipDeltaProperty, MaxChestDeltaProperty;
         public FloatProperty jobWeight { get; set; }
-        const float maxHorizontalFactor = 0.35f;
         public void ProcessRootMotion(AnimationStream stream) { }
         public void ProcessAnimation(AnimationStream stream)
         {
@@ -793,7 +792,7 @@ w20, w54;
             }
             // ---- Read targets ----
             Vector3 headTargetPos = targetPositionHead.Get(stream);
-            Vector3 obtainableHipsTarget = targetPositionHips.Get(stream);
+            Vector3 hipsTargetPos = targetPositionHips.Get(stream);
             Vector3 chestTargetPos = TargetChestPosition.Get(stream);
 
             Quaternion headTargetRot = V4ToQuat(targetRotationHead.Get(stream));
@@ -815,12 +814,7 @@ w20, w54;
             float MaxHipDelta = MaxHipDeltaProperty.Get(stream);
             float MaxChestDelta = MaxChestDeltaProperty.Get(stream);
             // 1) HIPS: clamp pos + limit rot
-            //Vector3 obtainableHipsTarget = ComputeObtainableTarget(headTargetPos, hipsTargetPos, restLenHips, minF, maxF, s0, s1, maxHorizontalFactor);
-
-            // 1) Limit spine bend by pushing hips down if needed
-            obtainableHipsTarget = EnforceSpineBendLimit(headTargetPos, obtainableHipsTarget, maxBendDeg.Get(stream));
-
-          //  obtainableHipsTarget = ClampHipsAroundHead(headTargetPos, obtainableHipsTarget, MinHeadSpineHeight.Get(stream), minFactor.Get(stream), maxFactor.Get(stream));
+            Vector3 obtainableHipsTarget = ComputeObtainableTarget(headTargetPos, hipsTargetPos, restLenHips, minF, maxF, s0, s1);
 
             if (HandleHips.IsValid(stream))
             {
@@ -870,85 +864,6 @@ w20, w54;
                 HandleHead.SetPosition(stream, headTargetPos);
                 HandleHead.SetRotation(stream, headDesired);
             }
-        }
-        static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg)
-        {
-            if (maxBendDeg <= 0f)
-            {
-                return hipsPos;
-            }
-
-            Vector3 diff = hipsPos - headPos;
-            float sqrMag = diff.sqrMagnitude;
-            if (sqrMag < k_MinMag)
-            {
-                return hipsPos;
-            }
-
-            Vector3 up = Vector3.up;
-
-            // Decompose into vertical (along -up, hips below head) and lateral
-            float verticalDot = Vector3.Dot(diff, -up); // positive if hips are "below" head
-            Vector3 vertical = -up * verticalDot;
-            Vector3 lateral = diff - vertical;
-
-            float lateralLen = lateral.magnitude;
-            float absVertical = Mathf.Abs(verticalDot);
-
-            if (lateralLen < k_MinMag || absVertical < k_MinMag)
-            {
-                return hipsPos;
-            }
-
-            // Current bend angle from head to hips
-            float currentAngle = Mathf.Atan2(lateralLen, absVertical) * Mathf.Rad2Deg;
-            if (currentAngle <= maxBendDeg)
-            {
-                return hipsPos;
-            }
-
-            // We want lateral / newVertical = tan(maxBend)
-            float maxRatio = Mathf.Tan(maxBendDeg * Mathf.Deg2Rad);
-            float newVertical = lateralLen / Mathf.Max(maxRatio, k_MinMag);
-
-            // Push hips further down in the same direction along -up
-            float finalVertical = Mathf.Sign(verticalDot) * Mathf.Max(newVertical, absVertical);
-            Vector3 newVerticalVec = -up * finalVertical;
-
-            Vector3 newDiff = newVerticalVec + (lateralLen > k_MinMag ? lateral.normalized * lateralLen : Vector3.zero);
-            return headPos + newDiff;
-        }
-        static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
-        {
-            Vector3 headToHips = hipsPos - headPos;
-            float sqrMag = headToHips.sqrMagnitude;
-            if (sqrMag < k_SqrEpsilon)
-            {
-                return headPos + restDistance * minFactor * Vector3.down; // could also use previous frame’s axis
-            }
-
-            // Use the head→hips direction as the "up" axis for the clamp
-            Vector3 up = headToHips / Mathf.Sqrt(sqrMag);
-
-            float verticalDot = Vector3.Dot(headToHips, up);
-            Vector3 vertical = up * verticalDot;
-            Vector3 lateral = headToHips - vertical;
-
-            float absY = Mathf.Abs(verticalDot);
-            float minY = restDistance * minFactor;
-            float maxY = restDistance * maxFactor;
-            float clampedY = Mathf.Clamp(absY, minY, maxY) * Mathf.Sign(verticalDot);
-            vertical = up * clampedY;
-
-            float lateralLen = lateral.magnitude;
-            float maxLateral = restDistance * maxHorizontalFactor;
-
-            if (lateralLen > maxLateral && lateralLen > k_Epsilon)
-            {
-                lateral *= maxLateral / lateralLen;
-            }
-
-            return headPos + vertical + lateral;
         }
         static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
@@ -1132,7 +1047,7 @@ w20, w54;
         /// Returns a hips target position that is reachable from the head, based on T-pose distance
         /// and your min/max/struggle tuning.
         /// </summary>
-        Vector3 ComputeObtainableTarget( Vector3 headPos,Vector3 hipsTargetPos,float restLen,float minF,float maxF,float struggleStartF,float struggleEndF,float maxHorizontalFactor)
+        Vector3 ComputeObtainableTarget(Vector3 headPos, Vector3 hipsTargetPos, float restLen, float minF, float maxF, float struggleStartF, float struggleEndF)
         {
             Vector3 headToHips = hipsTargetPos - headPos;
             float dist = headToHips.magnitude;
@@ -1142,45 +1057,26 @@ w20, w54;
                 return hipsTargetPos;
             }
 
-            // ---- Choose an axis that defines "vertical"
-            // Using world up here, but you could use head.up or spine axis
-            Vector3 up = Vector3.up;
-
-            // ---- Decompose into vertical and lateral
-            float verticalDot = Vector3.Dot(headToHips, up);
-            Vector3 vertical = up * verticalDot;
-            Vector3 lateral = headToHips - vertical;
-
-            float verticalLen = Mathf.Abs(verticalDot);
-
-            // ---- Vertical limits (same logic you already had, but applied to vertical length)
             float minLen = restLen * Mathf.Max(0f, minF);
             float maxLen = restLen * Mathf.Max(minF, maxF);
 
+            // Where does "struggle" begin/end in *distance* terms?
             float struggleStartLen = restLen * Mathf.Max(0f, struggleStartF);
             float struggleEndLen = restLen * Mathf.Max(struggleStartF, struggleEndF);
 
-            float clampedVerticalLen = Mathf.Clamp(verticalLen, minLen, maxLen);
+            // If beyond max, we clamp hard. If between struggleStart..struggleEnd, we ease toward clamping.
+            float clamped = Mathf.Clamp(dist, minLen, maxLen);
 
-            // Ease when overreaching vertically
-            if (verticalLen > struggleStartLen && verticalLen > clampedVerticalLen)
+            // Ease only when we're "overreaching"
+            if (dist > struggleStartLen && dist > clamped)
             {
-                float t = Remap01(verticalLen, struggleStartLen, struggleEndLen);
-                clampedVerticalLen = Mathf.Lerp(verticalLen, clampedVerticalLen, t);
+                float t = Remap01(dist, struggleStartLen, struggleEndLen);
+                // t=0 => no clamp, t=1 => full clamp
+                float eased = Mathf.Lerp(dist, clamped, t);
+                return headPos + (headToHips / dist) * eased;
             }
 
-            vertical = up * clampedVerticalLen * Mathf.Sign(verticalDot);
-
-            // ---- Horizontal clamp
-            float lateralLen = lateral.magnitude;
-            float maxLateral = restLen * maxHorizontalFactor;
-
-            if (lateralLen > maxLateral && lateralLen > k_Epsilon)
-            {
-                lateral *= maxLateral / lateralLen;
-            }
-
-            return headPos + vertical + lateral;
+            return headPos + (headToHips / dist) * clamped;
         }
         public void SolveSpineFABRIK(AnimationStream stream, Vector3 Target)
         {
