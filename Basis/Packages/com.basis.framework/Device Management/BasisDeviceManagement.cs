@@ -476,7 +476,7 @@ namespace Basis.Scripts.Device_Management
             for (int i = 0; i < PreviouslyConnectedDevices.Count; i++)
             {
                 var dev = PreviouslyConnectedDevices[i];
-                if (dev != null && dev.UniqueID == id && dev.SubSystem == subsystem)
+                if (dev != null && dev.UniqueDeviceIdentifier == id && dev.SubSystemIdentifier == subsystem)
                 {
                     restored = dev;
                     PreviouslyConnectedDevices.RemoveAt(i);
@@ -501,8 +501,8 @@ namespace Basis.Scripts.Device_Management
                 {
                     trackedRole = role,
                     hasRoleAssigned = device.hasRoleAssigned,
-                    SubSystem = device.SubSystemIdentifier,
-                    UniqueID = device.UniqueDeviceIdentifier,
+                    SubSystemIdentifier = device.SubSystemIdentifier,
+                    UniqueDeviceIdentifier = device.UniqueDeviceIdentifier,
                     InverseOffsetFromBone = device.Control.InverseOffsetFromBone
                 });
             }
@@ -536,13 +536,21 @@ namespace Basis.Scripts.Device_Management
         /// <returns><c>true</c> if no live device currently uses the stored role; otherwise <c>false</c>.</returns>
         public bool CheckBeforeOverride(BasisStoredPreviousDevice stored)
         {
-            if (stored == null) return false;
+            if (stored == null)
+            {
+                return false;
+            }
 
             for (int i = 0; i < AllInputDevices.Count; i++)
             {
                 var device = AllInputDevices[i];
                 if (device != null && device.TryGetRole(out var role) && role == stored.trackedRole)
-                    return false;
+                {
+                    if (stored.UniqueDeviceIdentifier != device.UniqueDeviceIdentifier)
+                    {
+                        return false;
+                    }
+                }
             }
             return true;
         }

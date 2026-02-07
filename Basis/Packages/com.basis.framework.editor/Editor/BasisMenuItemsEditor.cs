@@ -68,7 +68,7 @@ public static class BasisMenuItemsEditor
         var Value = FindSimulate();
         foreach (var device in allDevicesToRemove)
         {
-            Value.CreatePhysicalTrackedDevice(device.UniqueID, "{htc}vr_tracker_vive_3_0");
+            Value.CreatePhysicalTrackedDevice(device.UniqueDeviceIdentifier, "{htc}vr_tracker_vive_3_0");
         }
     }
     public static BasisSimulateXR FindSimulate()
