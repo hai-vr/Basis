@@ -286,16 +286,6 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public float m_StruggleStart;
         [SyncSceneToStream, SerializeField] public float m_StruggleEnd;
         [SyncSceneToStream, SerializeField] public float m_MaxChestDeltaDeg;
-
-        public NativeArray<ReadWriteTransformHandle> spineChain;
-        public NativeArray<float> spineLinkLengths;
-        public NativeArray<Vector3> spineLinkPositions;
-        public float spineMaxReach;
-
-        // optional tuning (can be constants or properties)
-        public CacheIndex spineToleranceIdx;
-        public CacheIndex spineMaxIterationsIdx;
-        public AnimationJobCache spineCache;
         public float minHeadSpineHeight
         {
             get => m_MinHeadSpineHeight;
@@ -816,7 +806,7 @@ w20, w54;
 
             // ---- Rest lengths (cached from T-pose in binder) ----
             float restLenHips = TposeLengthHeadToHips.magnitude;
-            float restLenChest = TposeLengthHeadToChest.magnitude; // <-- add this field & fill it in binder
+            float restLenChest = TposeLengthHeadToChest.magnitude;
 
             // ---- Tuning ----
             float minF = minFactor.Get(stream);
@@ -824,60 +814,65 @@ w20, w54;
             float s0 = struggleStart.Get(stream);
             float s1 = struggleEnd.Get(stream);
             float maxDelta = MaxChestDeltaDeg.Get(stream);
-            // 1) HIPS: compute obtainable position + limit rotation
+
+            // 1) HIPS: clamp pos + limit rot
             Vector3 obtainableHipsTarget = ComputeObtainableHipsTarget(headTargetPos, hipsTargetPos, restLenHips, minF, maxF, s0, s1);
+
             if (HandleHips.IsValid(stream))
             {
                 Quaternion hipsCurrent = HandleHips.GetRotation(stream);
-                Quaternion hipLimited = LimitLinkRotationForPinnedHead(headTargetPos,obtainableHipsTarget,hipsCurrent,hipDesired,restLenHips,s0, s1,maxDelta);
+                Quaternion hipLimited = LimitLinkRotationForPinnedHead(headTargetPos, obtainableHipsTarget, hipsCurrent, hipDesired, restLenHips, s0, s1, maxDelta);
+
                 HandleHips.SetPosition(stream, obtainableHipsTarget);
                 HandleHips.SetRotation(stream, hipLimited);
             }
-            // 2) HEAD: pin position before solving the chain
+
+            // 2) Pin HEAD position
             if (HandleHead.IsValid(stream))
             {
                 HandleHead.SetPosition(stream, headTargetPos);
             }
-            // 3) FABRIK: solve so SPINE end reaches obtainable hips target
+
+            // 3) Solve HEAD->SPINE chain toward hips target
             SolveSpineFABRIK(stream, obtainableHipsTarget);
-            // 4) HEAD: re-apply rotation last
+
+            // 4) Re-apply HEAD rotation last
             if (HandleHead.IsValid(stream))
             {
                 HandleHead.SetRotation(stream, headDesired);
             }
-            // 5) CHEST: compute obtainable target + limit rotation, then re-solve upwards
+
+            // 5) CHEST tracker block
             bool chestTrackerEnabled = HasChestTracker.Get(stream);
             if (chestTrackerEnabled && HandleChest.IsValid(stream))
             {
-                // If you drive chest position from a tracker too, clamp it like hips.
-                // If your chest tracker is rotation-only, you can skip this and just use current chest position.
+                // If you clamp chest position (optional)
                 Vector3 chestPosForClamp = HandleChest.GetPosition(stream);
-                if (restLenChest > k_Epsilon) // only if we have a meaningful rest length
+                if (restLenChest > k_Epsilon)
                 {
-                    chestPosForClamp = ComputeObtainableHipsTarget(headTargetPos,chestTargetPos,restLenChest,minF, maxF,s0, s1);
-                    // Optional: actually apply chest position if your tracker provides it.
-                    // If you DON'T want chest position driven, comment this out.
+                    chestPosForClamp = ComputeObtainableHipsTarget(headTargetPos, chestTargetPos, restLenChest, minF, maxF, s0, s1);
                     HandleChest.SetPosition(stream, chestPosForClamp);
                 }
-                Quaternion chestCurrent = HandleChest.GetRotation(stream);
-                Quaternion chestLimited = LimitLinkRotationForPinnedHead(headTargetPos,chestPosForClamp,chestCurrent,chestDesired,restLenChest,s0, s1,maxDelta);
 
-                HandleChest.SetRotation(stream, chestLimited);
+                // --- PASS A: limit chest rotation using current chest rotation ---
+                Quaternion chestCurrentA = HandleChest.GetRotation(stream);
+                Quaternion chestLimitedA = LimitLinkRotationForPinnedHead(headTargetPos, chestPosForClamp, chestCurrentA, chestDesired, restLenChest, s0, s1, maxDelta);
 
-                // ---- RE-EVALUATE CHAIN UPWARDS ----
-                // Chest rotation moved neck/head in world space; re-pin + solve again.
+                HandleChest.SetRotation(stream, chestLimitedA);
+
+                // Re-pin head before solving the upper chain again
                 if (HandleHead.IsValid(stream))
                 {
                     HandleHead.SetPosition(stream, headTargetPos);
                 }
+
                 if (HandleHead.IsValid(stream))
                 {
                     HandleHead.SetRotation(stream, headDesired);
                 }
 
-                // Re-solve chest->head so neck follows the pinned head with the new chest rotation
+                // --- FABRIK: this may rotate CHEST (since your solver rotates i=0) ---
                 SolveChestToHeadFABRIK(stream, headTargetPos);
-                //ok cool we have solved it again the limiter will now be different lets correct that
                 if (HandleHead.IsValid(stream))
                 {
                     HandleHead.SetRotation(stream, headDesired);
