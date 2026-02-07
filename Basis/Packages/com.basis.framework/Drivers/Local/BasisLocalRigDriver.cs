@@ -692,7 +692,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnableLeftLeg = true;
+                d.EnableLeftLeg = HasRigLayer(BasisLocalBoneDriver.LeftFootControl);
                 BasisFullIKConstraint.data = d;
             };
             data.EnableLeftLeg = HasRigLayer(BasisLocalBoneDriver.LeftFootControl);
@@ -704,7 +704,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnableRightLeg = true;
+                d.EnableRightLeg = HasRigLayer(BasisLocalBoneDriver.RightFootControl);
                 BasisFullIKConstraint.data = d;
             };
             data.EnableRightLeg = HasRigLayer(BasisLocalBoneDriver.RightFootControl);
@@ -716,7 +716,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnableLeftLowerLeg = true;
+                d.EnableLeftLowerLeg = HasRigLayer(BasisLocalBoneDriver.LeftLowerLegControl);
                 BasisFullIKConstraint.data = d;
             };
             data.EnableLeftLowerLeg = HasRigLayer(BasisLocalBoneDriver.LeftLowerLegControl);
@@ -728,7 +728,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnableRightLowerLeg = true;
+                d.EnableRightLowerLeg = HasRigLayer(BasisLocalBoneDriver.RightLowerLegControl);
                 BasisFullIKConstraint.data = d;
             };
             data.EnableRightLowerLeg = HasRigLayer(BasisLocalBoneDriver.RightLowerLegControl);
@@ -741,7 +741,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.LeftToeEnabled = true;
+                d.LeftToeEnabled = HasRigLayer(BasisLocalBoneDriver.LeftToeControl);
                 BasisFullIKConstraint.data = d;
             };
             data.LeftToeEnabled = HasRigLayer(BasisLocalBoneDriver.LeftToeControl);
@@ -753,7 +753,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.RightToeEnabled = true;
+                d.RightToeEnabled = HasRigLayer(BasisLocalBoneDriver.RightToeControl);
                 BasisFullIKConstraint.data = d;
             };
             data.RightToeEnabled = HasRigLayer(BasisLocalBoneDriver.RightToeControl);
@@ -766,7 +766,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnabledLeftHand = true;
+                d.EnabledLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftHandControl);
                 BasisFullIKConstraint.data = d;
             };
             data.EnabledLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftHandControl);
@@ -778,7 +778,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnabledRightHand = true;
+                d.EnabledRightHand = HasRigLayer(BasisLocalBoneDriver.RightHandControl);
                 BasisFullIKConstraint.data = d;
             };
             data.EnabledRightHand = HasRigLayer(BasisLocalBoneDriver.RightHandControl);
@@ -791,7 +791,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.HintWeightLeftHand = true;
+                d.HintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
                 BasisFullIKConstraint.data = d;
             };
             data.HintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
@@ -803,7 +803,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.HintWeightRightHand = true;
+                d.HintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
                 BasisFullIKConstraint.data = d;
             };
             data.HintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
@@ -816,7 +816,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.HintWeightHead = true;
+                d.HintWeightHead = HasRigLayer(BasisLocalBoneDriver.ChestControl);
                 BasisFullIKConstraint.data = d;
             };
             data.HintWeightHead = HasRigLayer(BasisLocalBoneDriver.ChestControl);
@@ -829,7 +829,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnabledLeftShoulder = true;
+                d.EnabledLeftShoulder = HasRigLayer(BasisLocalBoneDriver.LeftShoulderControl);
                 BasisFullIKConstraint.data = d;
             };
             data.EnabledLeftShoulder = HasRigLayer(BasisLocalBoneDriver.LeftShoulderControl);
@@ -842,7 +842,7 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnabledRightShoulder = true;
+                d.EnabledRightShoulder = HasRigLayer(BasisLocalBoneDriver.RightShoulderControl);
                 BasisFullIKConstraint.data = d;
             };
             data.EnabledRightShoulder = HasRigLayer(BasisLocalBoneDriver.RightShoulderControl);
@@ -874,21 +874,24 @@ namespace Basis.Scripts.Drivers
         }
         public void DisableAllTrackers()
         {
-            var data = BasisFullIKConstraint.data;
-            data.EnableLeftLeg = false;
-            data.EnableRightLeg = false;
-            data.EnableLeftLowerLeg = false;
-            data.EnableRightLowerLeg = false;
-            data.LeftToeEnabled = false;
-            data.RightToeEnabled = false;
-            // data.EnabledLeftHand = false;
-            // data.EnabledRightHand = false;
-            data.HintWeightLeftHand = false;
-            data.HintWeightRightHand = false;
-            data.HintWeightHead = false;
-            data.EnabledLeftShoulder = false;
-            data.EnabledRightShoulder = false;
-            BasisFullIKConstraint.data = data;
+            if (BasisFullIKConstraint != null)
+            {
+                var data = BasisFullIKConstraint.data;
+                data.EnableLeftLeg = false;
+                data.EnableRightLeg = false;
+                data.EnableLeftLowerLeg = false;
+                data.EnableRightLowerLeg = false;
+                data.LeftToeEnabled = false;
+                data.RightToeEnabled = false;
+                // data.EnabledLeftHand = false;
+                // data.EnabledRightHand = false;
+                data.HintWeightLeftHand = false;
+                data.HintWeightRightHand = false;
+                data.HintWeightHead = false;
+                data.EnabledLeftShoulder = false;
+                data.EnabledRightShoulder = false;
+                BasisFullIKConstraint.data = data;
+            }
         }
         private static bool HasRigLayer(BasisLocalBoneControl control)
         {
