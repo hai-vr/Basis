@@ -744,6 +744,7 @@ w20, w54;
 
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxHipDeltaProperty, MaxChestDeltaProperty;
         public FloatProperty jobWeight { get; set; }
+        const float maxHorizontalFactor = 0.35f;
         public void ProcessRootMotion(AnimationStream stream) { }
         public void ProcessAnimation(AnimationStream stream)
         {
@@ -814,56 +815,193 @@ w20, w54;
             float MaxHipDelta = MaxHipDeltaProperty.Get(stream);
             float MaxChestDelta = MaxChestDeltaProperty.Get(stream);
             // 1) HIPS: clamp pos + limit rot
-            Vector3 obtainableHipsTarget = ComputeObtainableTarget(headTargetPos, hipsTargetPos, restLenHips, minF, maxF, s0, s1);
+            float restDist = MinHeadSpineHeight.Get(stream);
 
-            if (HandleHips.IsValid(stream))
+            // 1) Limit spine bend by pushing hips down if needed
+            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, maxBendDeg.Get(stream));
+
+            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
+
+            targetPositionHips.Set(stream, hipsTargetPos);
+            // Early out: pass-through if spine IK disabled
+            if (enabledSpineIK.Get(stream))
             {
-                Quaternion hipsCurrent = HandleHips.GetRotation(stream);
-                Quaternion hipLimited = LimitLinkRotationForPinnedHead(headTargetPos, obtainableHipsTarget, hipsCurrent, hipDesired, restLenHips, s0, s1, MaxHipDelta);
+                // Apply hips driver if valid
+                if (HandleHips.IsValid(stream))
+                {
+                    Vector3 hipPos = targetPositionHips.Get(stream);
+                    Quaternion hipRot = V4ToQuat(targetRotationHips.Get(stream));
+                    Quaternion hipOff = V4ToQuat(offsetRotationHips.Get(stream));
 
-                HandleHips.SetPosition(stream, obtainableHipsTarget);
-                HandleHips.SetRotation(stream, hipLimited);
-            }
+                    HandleHips.SetPosition(stream, hipPos);
+                    HandleHips.SetRotation(stream, hipRot * hipOff);
+                }
+                if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
+                {
+                    // Build target + hint transforms
+                    var tRot = V4ToQuat(targetRotationHead.Get(stream));
+                    var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                    var bendNormal = bendNormalHead.Get(stream);
 
-            // 2) Pin HEAD position
-            if (HandleHead.IsValid(stream))
-            {
-                HandleHead.SetPosition(stream, headTargetPos);
-            }
-
-            // 3) Solve HEAD->SPINE chain toward hips target
-            SolveSpineFABRIK(stream, obtainableHipsTarget);
-
-            // 4) Re-apply HEAD rotation last
-            if (HandleHead.IsValid(stream))
-            {
-                HandleHead.SetRotation(stream, headDesired);
+                    SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+                }
             }
             if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
             {
+                // Neck rotation produced by your spine IK pass – we keep this
                 Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
+
+                // Spine as an extra reference if available (nice stabiliser)
                 Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
 
-                Quaternion clampedChestRot = ClampRotation(chestDesired, neckRot, MaxChestDelta);
-                clampedChestRot = ClampRotation(clampedChestRot, spineRot, MaxChestDelta);
+                float Value = MaxChestDeltaProperty.Get(stream);
+                // Clamp relative to neck and spine
+                Quaternion clampedChestRot = ClampRotation(chestDesired, neckRot, Value);
+                clampedChestRot = ClampRotation(clampedChestRot, spineRot, Value);
 
-                // Rotate chest (this will drag head/neck world positions)
                 HandleChest.SetRotation(stream, clampedChestRot);
-            }
-            // HARD PIN head position immediately (don’t allow drift)
-            if (HandleHead.IsValid(stream))
-            {
-                HandleHead.SetPosition(stream, headTargetPos);
-            }
-            // Try to recover neck/head chain
-            bool ok = SolveChestToHeadFABRIK(stream, headTargetPos);
 
-            // Even if the solver failed, never allow head drift:
-            if (HandleHead.IsValid(stream))
-            {
-                HandleHead.SetPosition(stream, headTargetPos);
-                HandleHead.SetRotation(stream, headDesired);
+                // Build target + hint transforms
+                var tRot = V4ToQuat(targetRotationHead.Get(stream));
+                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                var bendNormal = bendNormalHead.Get(stream);
+
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
             }
+        }
+        public void SolveTwoBoneSpine(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, Quaternion targetOffset, Vector3 bendNormal)
+        {
+            // Read current joint positions
+            Vector3 aPos = root.GetPosition(stream);
+            Vector3 bPos = mid.GetPosition(stream);
+            Vector3 cPos = tip.GetPosition(stream);
+
+            // Target with offset applied in target space
+            Vector3 tPos = target.translation;
+            Quaternion tRot = target.rotation * targetOffset;
+
+            // Current bone vectors
+            Vector3 ab = bPos - aPos;
+            Vector3 bc = cPos - bPos;
+            Vector3 ac = cPos - aPos;
+            Vector3 at = tPos - aPos;
+
+            float abLen = ab.magnitude;
+            float bcLen = bc.magnitude;
+            float acLen = ac.magnitude;
+            float atLen = at.magnitude;
+            float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
+            float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
+
+            // Compute rotation axis for mid joint bend
+            Vector3 axis = ComputeIkAxis(bendNormal);
+
+            // Rotate mid joint by half the angle delta (distributes motion)
+            float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
+            float s = Mathf.Sin(halfAngle);
+            float c = Mathf.Cos(halfAngle);
+            Quaternion deltaMid = new Quaternion(axis.x * s, axis.y * s, axis.z * s, c);
+            mid.SetRotation(stream, deltaMid * mid.GetRotation(stream));
+
+            // Re-evaluate and swing root so AC aligns with AT
+            cPos = tip.GetPosition(stream);
+            ac = cPos - aPos;
+            root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
+
+            // Set tip rotation to match target orientation (+offset)
+            tip.SetRotation(stream, tRot);
+        }
+        private Vector3 ComputeIkAxis(Vector3 bendNormal)
+        {
+            Vector3 axis;
+            axis = bendNormal;
+            float mag2 = axis.sqrMagnitude;
+            if (mag2 < k_SqrEpsilon)
+            {
+                // Deterministic fallback to avoid NaNs/garbage under Burst
+                return Vector3.forward;
+            }
+
+            return axis / Mathf.Sqrt(mag2);
+        }
+        static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
+        {
+            Vector3 headToHips = hipsPos - headPos;
+            float sqrMag = headToHips.sqrMagnitude;
+            if (sqrMag < k_SqrEpsilon)
+            {
+                return headPos + restDistance * minFactor * Vector3.down; // could also use previous frame’s axis
+            }
+
+            // Use the head→hips direction as the "up" axis for the clamp
+            Vector3 up = headToHips / Mathf.Sqrt(sqrMag);
+
+            float verticalDot = Vector3.Dot(headToHips, up);
+            Vector3 vertical = up * verticalDot;
+            Vector3 lateral = headToHips - vertical;
+
+            float absY = Mathf.Abs(verticalDot);
+            float minY = restDistance * minFactor;
+            float maxY = restDistance * maxFactor;
+            float clampedY = Mathf.Clamp(absY, minY, maxY) * Mathf.Sign(verticalDot);
+            vertical = up * clampedY;
+
+            float lateralLen = lateral.magnitude;
+            float maxLateral = restDistance * maxHorizontalFactor;
+
+            if (lateralLen > maxLateral && lateralLen > k_Epsilon)
+            {
+                lateral *= maxLateral / lateralLen;
+            }
+
+            return headPos + vertical + lateral;
+        }
+        static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg)
+        {
+            if (maxBendDeg <= 0f)
+            {
+                return hipsPos;
+            }
+
+            Vector3 diff = hipsPos - headPos;
+            float sqrMag = diff.sqrMagnitude;
+            if (sqrMag < k_MinMag)
+            {
+                return hipsPos;
+            }
+
+            Vector3 up = Vector3.up;
+
+            // Decompose into vertical (along -up, hips below head) and lateral
+            float verticalDot = Vector3.Dot(diff, -up); // positive if hips are "below" head
+            Vector3 vertical = -up * verticalDot;
+            Vector3 lateral = diff - vertical;
+
+            float lateralLen = lateral.magnitude;
+            float absVertical = Mathf.Abs(verticalDot);
+
+            if (lateralLen < k_MinMag || absVertical < k_MinMag)
+            {
+                return hipsPos;
+            }
+
+            // Current bend angle from head to hips
+            float currentAngle = Mathf.Atan2(lateralLen, absVertical) * Mathf.Rad2Deg;
+            if (currentAngle <= maxBendDeg)
+            {
+                return hipsPos;
+            }
+
+            // We want lateral / newVertical = tan(maxBend)
+            float maxRatio = Mathf.Tan(maxBendDeg * Mathf.Deg2Rad);
+            float newVertical = lateralLen / Mathf.Max(maxRatio, k_MinMag);
+
+            // Push hips further down in the same direction along -up
+            float finalVertical = Mathf.Sign(verticalDot) * Mathf.Max(newVertical, absVertical);
+            Vector3 newVerticalVec = -up * finalVertical;
+
+            Vector3 newDiff = newVerticalVec + (lateralLen > k_MinMag ? lateral.normalized * lateralLen : Vector3.zero);
+            return headPos + newDiff;
         }
         static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
