@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Unity.Collections;
+using static UnityEngine.GraphicsBuffer;
 namespace UnityEngine.Animations.Rigging
 {
     /// <summary>
@@ -737,15 +738,19 @@ collisionsEnabled,
 w0, w1, w2, w3, w4, w5, w6, w7, w8, w9,
 w10, w11, w12, w13, w14, w15, w16, w17, w18, w19,
 w20, w54;
-        public NativeArray<ReadWriteTransformHandle> spineChain;
-        public NativeArray<float> spineLinkLengths;
-        public NativeArray<Vector3> spineLinkPositions;
+        public NativeArray<ReadWriteTransformHandle> ChainSpineToHead;
+        public NativeArray<ReadWriteTransformHandle> ChainHeadToSpine;
+        public NativeArray<float> ChainSpineToheadLengths;
+        public NativeArray<float> ChainHeadToSpineLengths;
+        public NativeArray<Vector3> ChainSpineToheadLinkPositions;
+        public NativeArray<Vector3> ChainHeadToSpineLinkPositions;
         public float spineMaxReach;
 
         // optional tuning (can be constants or properties)
         public CacheIndex spineToleranceIdx;
         public CacheIndex spineMaxIterationsIdx;
         public AnimationJobCache spineCache;
+
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxChestDeltaDeg;
         public FloatProperty jobWeight { get; set; }
         public void ProcessRootMotion(AnimationStream stream) { }
@@ -790,8 +795,10 @@ w20, w54;
         }
         public void SolveSpine(AnimationStream stream)
         {
-
-            // --- HEAD–HIPS ANCHOR CLAMP ---
+            if(!enabledSpineIK.Get(stream))
+            {
+                return;
+            }
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
@@ -800,102 +807,62 @@ w20, w54;
 
             Quaternion HeadTargetRot = V4ToQuat(HeadTargetRotV4);
             Quaternion HipsTargetRot = V4ToQuat(HipsTargetRotV4);
+            Quaternion OffsetHips = V4ToQuat(offsetRotationHips.Get(stream));
 
-            
-            if (HandleHead.IsValid(stream))
-            {
-                HandleHead.SetGlobalTR(stream,headTargetPos, HeadTargetRot);
-            }
+            Quaternion hipDesired = HipsTargetRot * OffsetHips;
+            Quaternion headDesired = HeadTargetRot * targetOffsetHead;
 
             // Early out: pass-through if spine IK disabled
-            if (enabledSpineIK.Get(stream) && HandleHips.IsValid(stream))
+            if (HandleHips.IsValid(stream))
             {
-                Vector3 hipPos = targetPositionHips.Get(stream);
-
-                Quaternion hipDesired = V4ToQuat(targetRotationHips.Get(stream)) * V4ToQuat(offsetRotationHips.Get(stream));
-
                 // Apply hips position always (your existing logic)
-                HandleHips.SetPosition(stream, hipPos);
-
-                Quaternion headRot = HeadTargetRot * targetOffsetHead;
-
+                //   HandleHips.SetPosition(stream, hipsTargetPos);
+                HandleHips.SetPosition(stream, hipsTargetPos);
                 // First try full desired
                 HandleHips.SetRotation(stream, hipDesired);
-                bool achieved = SolveSpineFABRIK(stream, headTargetPos, headRot);
             }
-            if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
+            //we always apply head last even if we use it first for ik.
+            //this is becouse the position and rotation get screwy when we rotate the chain items
+            if (HandleHead.IsValid(stream))
             {
-                // Neck rotation produced by your spine IK pass – we keep this
-                Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
+                // Apply hips position always (your existing logic)
+                HandleHead.SetPosition(stream, headTargetPos);
 
-                // Spine as an extra reference if available (nice stabiliser)
-                Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
 
-                // Raw chest from tracker
-                Quaternion trackerChestRot = V4ToQuat(RotationHead.Get(stream)) * targetOffsetChest;
-
-                float ChestDelta = MaxChestDeltaDeg.Get(stream);
-                // Clamp relative to neck and spine
-                Quaternion clampedChestRot = ClampRotation(trackerChestRot, neckRot, ChestDelta);
-                clampedChestRot = ClampRotation(clampedChestRot, spineRot, ChestDelta);
-
-                HandleChest.SetRotation(stream, clampedChestRot);
-                SolveSpineFABRIK(stream, headTargetPos, HeadTargetRot * targetOffsetHead);
+                SolveSpineFABRIK(stream, hipsTargetPos);
+                //apply head final rotation again
+                HandleHead.SetRotation(stream, headDesired);
             }
-            targetPositionHips.Set(stream, hipsTargetPos);
-
         }
-        public bool SolveSpineFABRIK(AnimationStream stream, Vector3 headTargetPos, Quaternion headTargetRot)
+        public Vector3 TposeLengthHeadToHips;
+        public void SolveSpineFABRIK(AnimationStream stream, Vector3 Target)
         {
-            if (!spineChain.IsCreated || spineChain.Length < 2)
-                return false;
+            if (!ChainHeadToSpine.IsCreated || ChainHeadToSpine.Length < 2)
+            {
+                return;
+            }
 
             // read current positions
-            for (int i = 0; i < spineChain.Length; i++)
-                spineLinkPositions[i] = spineChain[i].GetPosition(stream);
+            for (int i = 0; i < ChainHeadToSpine.Length; i++)
+            {
+                ChainSpineToheadLinkPositions[i] = ChainHeadToSpine[i].GetPosition(stream);
+            }
 
-            int tipIndex = spineChain.Length - 1;
+            int tipIndex = ChainHeadToSpine.Length - 1;
 
             float tol = spineCache.GetRaw(spineToleranceIdx);
             int iters = (int)spineCache.GetRaw(spineMaxIterationsIdx);
 
-            bool ok = AnimationRuntimeUtils.SolveFABRIK(ref spineLinkPositions, ref spineLinkLengths,  headTargetPos, tol,spineMaxReach, iters);
-
-            // Even if ok==true, verify tip is actually close enough.
-            bool achieved = ok && HeadIsAchieved(spineLinkPositions, headTargetPos, tol);
-
-            if (ok)
+            if (AnimationRuntimeUtils.SolveFABRIK(ref ChainSpineToheadLinkPositions, ref ChainSpineToheadLengths, Target, tol, spineMaxReach, iters))
             {
-                for (int i = 0; i < tipIndex; i++)
+                for (int i = 0; i < tipIndex; ++i)
                 {
-                    Vector3 prevDir = spineChain[i + 1].GetPosition(stream) - spineChain[i].GetPosition(stream);
-                    Vector3 newDir = spineLinkPositions[i + 1] - spineLinkPositions[i];
-
-                    if (prevDir.sqrMagnitude > 1e-8f && newDir.sqrMagnitude > 1e-8f)
-                    {
-                        Quaternion rot = spineChain[i].GetRotation(stream);
-                        spineChain[i].SetRotation(stream, QuaternionExt.FromToRotation(prevDir, newDir) * rot);
-                    }
+                    var prevDir = ChainHeadToSpine[i + 1].GetPosition(stream) - ChainHeadToSpine[i].GetPosition(stream);
+                    var newDir = ChainSpineToheadLinkPositions[i + 1] - ChainSpineToheadLinkPositions[i];
+                    var rot = ChainHeadToSpine[i].GetRotation(stream);
+                    ChainHeadToSpine[i].SetRotation(stream, Quaternion.Lerp(rot, QuaternionExt.FromToRotation(prevDir, newDir) * rot, 1));
                 }
             }
-
-            // lock head orientation (even if not achieved, still track best effort)
-            spineChain[tipIndex].SetRotation(stream, headTargetRot);
-
-            return achieved;
-        }
-        static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
-        {
-            // Angle between the two orientations
-            float angle = Quaternion.Angle(reference, current);
-            if (angle <= maxAngleDeg)
-            {
-                return current;
-            }
-
-            // Scale back toward the reference so the final difference is exactly maxAngleDeg
-            float t = maxAngleDeg / Mathf.Max(angle, k_Epsilon);
-            return Quaternion.Slerp(reference, current, t);
         }
         public void ApplyRotation(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
         {
@@ -1358,12 +1325,6 @@ w20, w54;
             float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (aLen1 * aLen2) / 2.0f, -1.0f, 1.0f);
             return Mathf.Acos(c);
         }
-        static bool HeadIsAchieved(NativeArray<Vector3> solvedPositions, Vector3 headTargetPos, float tolerance)
-        {
-            int tip = solvedPositions.Length - 1;
-            float errSqr = (solvedPositions[tip] - headTargetPos).sqrMagnitude;
-            return errSqr <= (tolerance * tolerance);
-        }
     }
     public class BasisFullBodyJobBinder : AnimationJobBinder<BasisFullIKConstraintJob, BasisFullBodyData>
     {
@@ -1566,36 +1527,54 @@ w20, w54;
             job.w54 = BoolProperty.Bind(animator, component, data.GetWeightFloatProperty(54));
 
 
-            var spine = new Transform[] { data.spine, data.chest, data.neck, data.head };
-            int n = spine.Length;
+            var SpineToHead = new Transform[] { data.spine, data.chest, data.neck, data.head };
+            var HeadToSpine = new Transform[] { data.head, data.neck, data.chest, data.spine };
+            int n = SpineToHead.Length;
 
-            job.spineChain = new NativeArray<ReadWriteTransformHandle>(n, Allocator.Persistent);
-            job.spineLinkLengths = new NativeArray<float>(n, Allocator.Persistent);
-            job.spineLinkPositions = new NativeArray<Vector3>(n, Allocator.Persistent);
+            job.ChainHeadToSpine = new NativeArray<ReadWriteTransformHandle>(n, Allocator.Persistent);
+            job.ChainHeadToSpineLengths = new NativeArray<float>(n, Allocator.Persistent);
+            job.ChainHeadToSpineLinkPositions = new NativeArray<Vector3>(n, Allocator.Persistent);
+
+
+            job.ChainSpineToHead = new NativeArray<ReadWriteTransformHandle>(n, Allocator.Persistent);
+            job.ChainSpineToheadLengths = new NativeArray<float>(n, Allocator.Persistent);
+            job.ChainSpineToheadLinkPositions = new NativeArray<Vector3>(n, Allocator.Persistent);
             job.spineMaxReach = 0f;
 
             int tip = n - 1;
             for (int i = 0; i < n; i++)
             {
-                job.spineChain[i] = ReadWriteTransformHandle.Bind(animator, spine[i]);
-                job.spineLinkLengths[i] = (i != tip) ? Vector3.Distance(spine[i].position, spine[i + 1].position) : 0f;
-                job.spineMaxReach += job.spineLinkLengths[i];
-            }
+                job.ChainHeadToSpine[i] = ReadWriteTransformHandle.Bind(animator, HeadToSpine[i]);
+                job.ChainSpineToHead[i] = ReadWriteTransformHandle.Bind(animator, SpineToHead[i]);
 
-            // this is where your snippet goes
+                job.ChainHeadToSpineLengths[i] = (i != tip) ? Vector3.Distance(HeadToSpine[i].position, HeadToSpine[i + 1].position) : 0f;
+
+                job.ChainSpineToheadLengths[i] = (i != tip) ? Vector3.Distance(SpineToHead[i].position, SpineToHead[i + 1].position) : 0f;
+
+                job.spineMaxReach += job.ChainSpineToheadLengths[i];
+            }
             var cacheBuilder = new AnimationJobCacheBuilder();
             job.spineMaxIterationsIdx = cacheBuilder.Add(10);
             job.spineToleranceIdx = cacheBuilder.Add(0.001f);
             job.spineCache = cacheBuilder.Build();
+
+            if (data.hips != null && data.head != null)
+                job.TposeLengthHeadToHips = (data.head.position - data.hips.position);
+            else
+                job.TposeLengthHeadToHips = Vector3.zero;
+
             return job;
         }
         static ReadWriteTransformHandle BindHandle(Animator animator, Transform t)
     => (t != null) ? ReadWriteTransformHandle.Bind(animator, t) : default;
         public override void Destroy(BasisFullIKConstraintJob job)
         {
-            if (job.spineChain.IsCreated) job.spineChain.Dispose();
-            if (job.spineLinkLengths.IsCreated) job.spineLinkLengths.Dispose();
-            if (job.spineLinkPositions.IsCreated) job.spineLinkPositions.Dispose();
+            if (job.ChainHeadToSpine.IsCreated) job.ChainHeadToSpine.Dispose();
+            if (job.ChainSpineToHead.IsCreated) job.ChainSpineToHead.Dispose();
+            if (job.ChainSpineToheadLengths.IsCreated) job.ChainSpineToheadLengths.Dispose();
+            if (job.ChainSpineToheadLinkPositions.IsCreated) job.ChainSpineToheadLinkPositions.Dispose();
+            if (job.ChainHeadToSpineLengths.IsCreated) job.ChainHeadToSpineLengths.Dispose();
+            if (job.ChainHeadToSpineLinkPositions.IsCreated) job.ChainHeadToSpineLinkPositions.Dispose();
             job.spineCache.Dispose();
         }
     }
