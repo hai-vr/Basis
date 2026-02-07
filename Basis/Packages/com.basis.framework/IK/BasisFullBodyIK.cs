@@ -790,7 +790,6 @@ w20, w54;
             {
                 return;
             }
-
             // ---- Read targets ----
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
@@ -844,123 +843,30 @@ w20, w54;
             }
             if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
             {
-                // Neck rotation produced by your spine IK pass – we keep this
                 Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
-
-                // Spine as an extra reference if available (nice stabiliser)
                 Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
 
-                // Clamp relative to neck and spine
                 Quaternion clampedChestRot = ClampRotation(chestDesired, neckRot, MaxChestDelta);
                 clampedChestRot = ClampRotation(clampedChestRot, spineRot, MaxChestDelta);
 
+                // Rotate chest (this will drag head/neck world positions)
                 HandleChest.SetRotation(stream, clampedChestRot);
 
-                // Build target + hint transforms
-                var tRot = V4ToQuat(targetRotationHead.Get(stream));
-                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-                var bendNormal = bendNormalHead.Get(stream);
+                // HARD PIN head position immediately (don’t allow drift)
+                if (HandleHead.IsValid(stream))
+                    HandleHead.SetPosition(stream, headTargetPos);
 
-                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+                // Try to recover neck/head chain
+                bool ok = SolveChestToHeadFABRIK(stream, headTargetPos);
+
+                // Even if the solver failed, never allow head drift:
+                if (HandleHead.IsValid(stream))
+                    HandleHead.SetPosition(stream, headTargetPos);
             }
             if (HandleHead.IsValid(stream))
             {
                 HandleHead.SetRotation(stream, headDesired);
             }
-
-            /*
-            // 5) CHEST tracker block
-            bool chestTrackerEnabled = HasChestTracker.Get(stream);
-            if (chestTrackerEnabled && HandleChest.IsValid(stream))
-            {
-                // If you clamp chest position (optional)
-                Vector3 chestPosForClamp = HandleChest.GetPosition(stream);
-                if (restLenChest > k_Epsilon)
-                {
-                    chestPosForClamp = ComputeObtainableTarget(headTargetPos, chestTargetPos, restLenChest, minF, maxF, s0, s1);
-                    HandleChest.SetPosition(stream, chestPosForClamp);
-                }
-
-                // --- PASS A: limit chest rotation using current chest rotation ---
-                Quaternion chestCurrentA = HandleChest.GetRotation(stream);
-                Quaternion chestLimitedA = LimitLinkRotationForPinnedHead(headTargetPos, chestPosForClamp, chestCurrentA, chestDesired, restLenChest, s0, s1, MaxChestDelta);
-
-                HandleChest.SetRotation(stream, chestLimitedA);
-
-                // Re-pin head before solving the upper chain again
-                if (HandleHead.IsValid(stream))
-                {
-                    HandleHead.SetPosition(stream, headTargetPos);
-                }
-
-                if (HandleHead.IsValid(stream))
-                {
-                    HandleHead.SetRotation(stream, headDesired);
-                }
-
-                // --- FABRIK: this may rotate CHEST (since your solver rotates i=0) ---
-                SolveChestToHeadFABRIK(stream, headTargetPos);
-                if (HandleHead.IsValid(stream))
-                {
-                    HandleHead.SetRotation(stream, headDesired);
-                }
-            }
-            */
-        }
-        public void SolveTwoBoneSpine(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, Quaternion targetOffset, Vector3 bendNormal)
-        {
-            // Read current joint positions
-            Vector3 aPos = root.GetPosition(stream);
-            Vector3 bPos = mid.GetPosition(stream);
-            Vector3 cPos = tip.GetPosition(stream);
-
-            // Target with offset applied in target space
-            Vector3 tPos = target.translation;
-            Quaternion tRot = target.rotation * targetOffset;
-
-            // Current bone vectors
-            Vector3 ab = bPos - aPos;
-            Vector3 bc = cPos - bPos;
-            Vector3 ac = cPos - aPos;
-            Vector3 at = tPos - aPos;
-
-            float abLen = ab.magnitude;
-            float bcLen = bc.magnitude;
-            float acLen = ac.magnitude;
-            float atLen = at.magnitude;
-            float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
-            float newAbcAngle = TriangleAngle(atLen, abLen, bcLen);
-
-            // Compute rotation axis for mid joint bend
-            Vector3 axis = ComputeIkAxis(bendNormal);
-
-            // Rotate mid joint by half the angle delta (distributes motion)
-            float halfAngle = 0.5f * (oldAbcAngle - newAbcAngle);
-            float s = Mathf.Sin(halfAngle);
-            float c = Mathf.Cos(halfAngle);
-            Quaternion deltaMid = new Quaternion(axis.x * s, axis.y * s, axis.z * s, c);
-            mid.SetRotation(stream, deltaMid * mid.GetRotation(stream));
-
-            // Re-evaluate and swing root so AC aligns with AT
-            cPos = tip.GetPosition(stream);
-            ac = cPos - aPos;
-            root.SetRotation(stream, QuaternionExt.FromToRotation(ac, at) * root.GetRotation(stream));
-
-            // Set tip rotation to match target orientation (+offset)
-            tip.SetRotation(stream, tRot);
-        }
-        private Vector3 ComputeIkAxis(Vector3 bendNormal)
-        {
-            Vector3 axis;
-            axis = bendNormal;
-            float mag2 = axis.sqrMagnitude;
-            if (mag2 < k_SqrEpsilon)
-            {
-                // Deterministic fallback to avoid NaNs/garbage under Burst
-                return Vector3.forward;
-            }
-
-            return axis / Mathf.Sqrt(mag2);
         }
         static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
@@ -975,23 +881,22 @@ w20, w54;
             float t = maxAngleDeg / Mathf.Max(angle, k_Epsilon);
             return Quaternion.Slerp(reference, current, t);
         }
-        public void SolveChestToHeadFABRIK(AnimationStream stream, Vector3 headTargetPos)
+        public bool SolveChestToHeadFABRIK(AnimationStream stream, Vector3 headTargetPos)
         {
             if (!ChainChestToHead.IsCreated || ChainChestToHead.Length < 2)
             {
-                return;
+                if (HandleHead.IsValid(stream))
+                    HandleHead.SetPosition(stream, headTargetPos);
+                return false;
             }
 
             int n = ChainChestToHead.Length;
             int tipIndex = n - 1;
 
-            // --- cache BEFORE positions (for rotation deltas) ---
+            // Cache current positions
             for (int i = 0; i < n; i++)
-            {
                 ChainChestToHeadLinkPositions[i] = ChainChestToHead[i].GetPosition(stream);
-            }
 
-            // Keep a copy of the "before" positions (n is 3 in your binder)
             Vector3 b0 = ChainChestToHeadLinkPositions[0];
             Vector3 b1 = ChainChestToHeadLinkPositions[1];
             Vector3 b2 = (n > 2) ? ChainChestToHeadLinkPositions[2] : Vector3.zero;
@@ -999,22 +904,40 @@ w20, w54;
             float tol = spineCache.GetRaw(spineToleranceIdx);
             int iters = (int)spineCache.GetRaw(spineMaxIterationsIdx);
 
-            // Root is chest (index 0). Target is head position.
-            // SolveFABRIK will keep index 0 fixed and move the tip toward headTargetPos.
-            if (!AnimationRuntimeUtils.SolveFABRIK(ref ChainChestToHeadLinkPositions,ref ChainChestToHeadLengths,headTargetPos,tol,MaxReachHeadToChest,iters))
+            // --- Continuous reach handling (prevents solved/unsolved toggling) ---
+            Vector3 chestPos = ChainChestToHeadLinkPositions[0];
+            float maxReach = MaxReachHeadToChest;
+
+            // tiny slack so we don’t sit exactly on the boundary (reduces numeric flapping)
+            const float reachSlack = 1e-4f;
+            Vector3 reachableTarget = ClampToReach(chestPos, headTargetPos, Mathf.Max(0f, maxReach - reachSlack));
+
+            bool solved = AnimationRuntimeUtils.SolveFABRIK(
+                ref ChainChestToHeadLinkPositions,
+                ref ChainChestToHeadLengths,
+                reachableTarget,
+                tol,
+                MaxReachHeadToChest,
+                iters
+            );
+
+            // If FABRIK still fails, do a deterministic “stretch line” fallback
+            if (!solved)
             {
-                return;
+                Vector3 dir = reachableTarget - chestPos;
+                float d = dir.magnitude;
+                dir = (d > 1e-6f) ? (dir / d) : Vector3.forward;
+
+                ChainChestToHeadLinkPositions[0] = chestPos;
+                for (int i = 1; i < n; i++)
+                    ChainChestToHeadLinkPositions[i] = ChainChestToHeadLinkPositions[i - 1] + dir * ChainChestToHeadLengths[i - 1];
             }
 
-            // --- write positions back ---
-            // We generally don't want to overwrite chest position here (it's root), but setting it to itself is harmless.
-            // Set neck + head positions from solved points.
+            // Write positions back (neck/head)
             for (int i = 1; i < n; i++)
-            {
                 ChainChestToHead[i].SetPosition(stream, ChainChestToHeadLinkPositions[i]);
-            }
 
-            // --- rotation deltas: align segment directions chest->neck, neck->head ---
+            // Rotate links to match new segment directions
             for (int i = 0; i < tipIndex; i++)
             {
                 Vector3 beforeA = (i == 0) ? b0 : b1;
@@ -1033,6 +956,22 @@ w20, w54;
                 Quaternion delta = QuaternionExt.FromToRotation(prevDir, newDir);
                 ChainChestToHead[i].SetRotation(stream, delta * rot);
             }
+
+            // Final: you may pin the head to the *true* target for tracker truth,
+            // but NOW the chain has a coherent pose (no snapping between two modes).
+            if (ChainChestToHead[tipIndex].IsValid(stream))
+                ChainChestToHead[tipIndex].SetPosition(stream, headTargetPos);
+
+            return true; // returning “true” avoids external code branching too
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static Vector3 ClampToReach(Vector3 root, Vector3 target, float maxReach)
+        {
+            Vector3 d = target - root;
+            float dist = d.magnitude;
+            if (dist <= maxReach) return target;
+            if (dist < 1e-6f) return root;
+            return root + d * (maxReach / dist);
         }
         Quaternion LimitLinkRotationForPinnedHead( Vector3 headPos, Vector3 linkPos,Quaternion currentLinkRot,Quaternion desiredLinkRot,float restLen,float struggleStartF,float struggleEndF,float maxDeltaDegProp)
         {
@@ -1142,54 +1081,34 @@ w20, w54;
 
             return headPos + (headToHips / dist) * clamped;
         }
-        public void SolveSpineFABRIK(AnimationStream stream, Vector3 targetSpinePos)
+        public void SolveSpineFABRIK(AnimationStream stream, Vector3 Target)
         {
             if (!ChainHeadToSpine.IsCreated || ChainHeadToSpine.Length < 2)
-                return;
-
-            int n = ChainHeadToSpine.Length;
-            int tipIndex = n - 1;
-
-            // BEFORE snapshot (managed array)
-            Unity.Collections.NativeArray<Vector3> before = new NativeArray<Vector3>(n, Allocator.Temp);
-
-            for (int i = 0; i < n; i++)
             {
-                Vector3 p = ChainHeadToSpine[i].GetPosition(stream);
-                before[i] = p;
-                ChainHeadToSpineLinkPositions[i] = p; // FABRIK working array
+                return;
             }
+
+            // read current positions
+            for (int i = 0; i < ChainHeadToSpine.Length; i++)
+            {
+                ChainHeadToSpineLinkPositions[i] = ChainHeadToSpine[i].GetPosition(stream);
+            }
+
+            int tipIndex = ChainHeadToSpine.Length - 1;
 
             float tol = spineCache.GetRaw(spineToleranceIdx);
             int iters = (int)spineCache.GetRaw(spineMaxIterationsIdx);
 
-            if (!AnimationRuntimeUtils.SolveFABRIK(
-                    ref ChainHeadToSpineLinkPositions,
-                    ref ChainHeadToSpineLengths,
-                    targetSpinePos,
-                    tol,
-                    MaxReachSpineTohead,
-                    iters))
-                return;
-
-            // write positions back (skip root: head pinned externally)
-            for (int i = 1; i < n; i++)
-                ChainHeadToSpine[i].SetPosition(stream, ChainHeadToSpineLinkPositions[i]);
-
-            // rotations: BEFORE vs AFTER
-            for (int i = 0; i < tipIndex; i++)
+            if (AnimationRuntimeUtils.SolveFABRIK(ref ChainHeadToSpineLinkPositions, ref ChainHeadToSpineLengths, Target, tol, MaxReachSpineTohead, iters))
             {
-                Vector3 prevDir = before[i + 1] - before[i];
-                Vector3 newDir = ChainHeadToSpineLinkPositions[i + 1] - ChainHeadToSpineLinkPositions[i];
-
-                if (prevDir.sqrMagnitude < k_SqrEpsilon || newDir.sqrMagnitude < k_SqrEpsilon)
-                    continue;
-
-                Quaternion rot = ChainHeadToSpine[i].GetRotation(stream);
-                Quaternion delta = QuaternionExt.FromToRotation(prevDir, newDir);
-                ChainHeadToSpine[i].SetRotation(stream, delta * rot);
+                for (int i = 0; i < tipIndex; ++i)
+                {
+                    var prevDir = ChainHeadToSpine[i + 1].GetPosition(stream) - ChainHeadToSpine[i].GetPosition(stream);
+                    var newDir = ChainHeadToSpineLinkPositions[i + 1] - ChainHeadToSpineLinkPositions[i];
+                    var rot = ChainHeadToSpine[i].GetRotation(stream);
+                    ChainHeadToSpine[i].SetRotation(stream, Quaternion.Lerp(rot, QuaternionExt.FromToRotation(prevDir, newDir) * rot, 1));
+                }
             }
-            before.Dispose();
         }
         public void ApplyRotation(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle handle, Vector4Property targetRotProp, Quaternion RotationOffset)
         {
