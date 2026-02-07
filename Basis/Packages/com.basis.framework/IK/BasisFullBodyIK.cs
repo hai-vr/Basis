@@ -805,9 +805,10 @@ w20, w54;
             Quaternion chestDesired = chestTargetRot * targetOffsetChest;
 
             // ---- Rest lengths (cached from T-pose in binder) ----
-            float restLenHips = TposeLengthHeadToHips.magnitude;
-            float restLenChest = TposeLengthHeadToChest.magnitude;
-
+        //    float restLenHips = TposeLengthHeadToHips.magnitude;
+         //   float restLenChest = TposeLengthHeadToChest.magnitude;
+         float restLenHips  = MaxReachSpineTohead;   // head->...->hips chain length
+float restLenChest = MaxReachHeadToChest;   // chest->neck->head chain length
             // ---- Tuning ----
             float minF = minFactor.Get(stream);
             float maxF = maxFactor.Get(stream);
@@ -851,20 +852,20 @@ w20, w54;
 
                 // Rotate chest (this will drag head/neck world positions)
                 HandleChest.SetRotation(stream, clampedChestRot);
-
-                // HARD PIN head position immediately (don’t allow drift)
-                if (HandleHead.IsValid(stream))
-                    HandleHead.SetPosition(stream, headTargetPos);
-
-                // Try to recover neck/head chain
-                bool ok = SolveChestToHeadFABRIK(stream, headTargetPos);
-
-                // Even if the solver failed, never allow head drift:
-                if (HandleHead.IsValid(stream))
-                    HandleHead.SetPosition(stream, headTargetPos);
             }
+            // HARD PIN head position immediately (don’t allow drift)
             if (HandleHead.IsValid(stream))
             {
+                HandleHead.SetPosition(stream, headTargetPos);
+            }
+
+            // Try to recover neck/head chain
+            bool ok = SolveChestToHeadFABRIK(stream, headTargetPos);
+
+            // Even if the solver failed, never allow head drift:
+            if (HandleHead.IsValid(stream))
+            {
+                HandleHead.SetPosition(stream, headTargetPos);
                 HandleHead.SetRotation(stream, headDesired);
             }
         }
@@ -886,7 +887,10 @@ w20, w54;
             if (!ChainChestToHead.IsCreated || ChainChestToHead.Length < 2)
             {
                 if (HandleHead.IsValid(stream))
+                {
                     HandleHead.SetPosition(stream, headTargetPos);
+                }
+
                 return false;
             }
 
@@ -895,7 +899,9 @@ w20, w54;
 
             // Cache current positions
             for (int i = 0; i < n; i++)
+            {
                 ChainChestToHeadLinkPositions[i] = ChainChestToHead[i].GetPosition(stream);
+            }
 
             Vector3 b0 = ChainChestToHeadLinkPositions[0];
             Vector3 b1 = ChainChestToHeadLinkPositions[1];
@@ -912,14 +918,7 @@ w20, w54;
             const float reachSlack = 1e-4f;
             Vector3 reachableTarget = ClampToReach(chestPos, headTargetPos, Mathf.Max(0f, maxReach - reachSlack));
 
-            bool solved = AnimationRuntimeUtils.SolveFABRIK(
-                ref ChainChestToHeadLinkPositions,
-                ref ChainChestToHeadLengths,
-                reachableTarget,
-                tol,
-                MaxReachHeadToChest,
-                iters
-            );
+            bool solved = AnimationRuntimeUtils.SolveFABRIK(ref ChainChestToHeadLinkPositions, ref ChainChestToHeadLengths,reachableTarget,tol,MaxReachHeadToChest,iters);
 
             // If FABRIK still fails, do a deterministic “stretch line” fallback
             if (!solved)
@@ -930,12 +929,16 @@ w20, w54;
 
                 ChainChestToHeadLinkPositions[0] = chestPos;
                 for (int i = 1; i < n; i++)
+                {
                     ChainChestToHeadLinkPositions[i] = ChainChestToHeadLinkPositions[i - 1] + dir * ChainChestToHeadLengths[i - 1];
+                }
             }
 
             // Write positions back (neck/head)
             for (int i = 1; i < n; i++)
+            {
                 ChainChestToHead[i].SetPosition(stream, ChainChestToHeadLinkPositions[i]);
+            }
 
             // Rotate links to match new segment directions
             for (int i = 0; i < tipIndex; i++)
@@ -958,9 +961,10 @@ w20, w54;
             }
 
             // Final: you may pin the head to the *true* target for tracker truth,
-            // but NOW the chain has a coherent pose (no snapping between two modes).
             if (ChainChestToHead[tipIndex].IsValid(stream))
+            {
                 ChainChestToHead[tipIndex].SetPosition(stream, headTargetPos);
+            }
 
             return true; // returning “true” avoids external code branching too
         }
