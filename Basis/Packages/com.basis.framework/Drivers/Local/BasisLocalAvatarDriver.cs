@@ -352,6 +352,7 @@ namespace Basis.Scripts.Drivers
             ForceUpdateAnimator(BasisLocalPlayer.Instance.BasisAvatar.Animator);
             TposeStateChange?.Invoke();
 
+            BasisLocalPlayer.Instance.LocalRigDriver.DisableAllTrackers();
             //anytime a avatar goes into a tpose we can grab the avatar height information
             BasisHeightDriver.CaptureAvatarHeightDuringTpose();
         }
