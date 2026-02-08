@@ -761,10 +761,6 @@ namespace Basis.Scripts.Drivers
             // Hands
             BasisLocalBoneDriver.LeftHandControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.EnabledLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftHandControl);
                 BasisFullIKConstraint.data = d;
@@ -773,10 +769,6 @@ namespace Basis.Scripts.Drivers
 
             BasisLocalBoneDriver.RightHandControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.EnabledRightHand = HasRigLayer(BasisLocalBoneDriver.RightHandControl);
                 BasisFullIKConstraint.data = d;
