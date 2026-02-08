@@ -1,6 +1,5 @@
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Players;
-using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
@@ -9,8 +8,6 @@ using Basis.Scripts.UI;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UIElements;
-using static UnityEngine.Rendering.DebugUI;
 
 namespace Basis.BasisUI
 {
@@ -24,7 +21,7 @@ namespace Basis.BasisUI
 
         public override string Title => "Calibrate";
         public override string IconAddress => AddressableAssets.Sprites.Calibrate;
-        public override int Order => 10;
+        public override int Order => 50;
 
         private readonly Dictionary<BasisInput, Action> _triggerDelegates = new();
 
@@ -48,7 +45,7 @@ namespace Basis.BasisUI
                 {
                     Title = this.Title,
                     PanelSize = new Vector2(500, 500),
-                    PanelPosition = default
+                    PanelPosition = new Vector3(500, -260, 0),
                 },
                 BasisMenuPanel.PanelStyles.Page);
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
@@ -58,13 +55,16 @@ namespace Basis.BasisUI
             PanelElementDescriptor layout = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewVertical, container);
             container = layout.ContentParent;
 
-            var Button = PanelButton.CreateNew(container);
+            Button = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             Button.OnClicked += Calibrate;
             Button.Descriptor.SetTitle("Calibrate");
 
             HeightDescription = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             HeightDescription.SetTitle("Additional Player Height");
             HeightDescription.SetDescription(AdditionalHeight);
+
+            var Description = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            Description.SetDescription("Pull Both Triggers On Controller To Calibrate");
 
             var MinusButton = PanelButton.CreateNew(container);
             MinusButton.OnClicked += DecreasePlayerSize;
@@ -74,6 +74,7 @@ namespace Basis.BasisUI
             PlusButton.OnClicked += IncreasePlayerSize;
             PlusButton.Descriptor.SetTitle("Add 0.01f Height");
         }
+        public PanelButton Button;
         public PanelElementDescriptor HeightDescription;
         public string AdditionalHeight = $"{BasisHeightDriver.AdditionalPlayerHeight:F2}";
         /// <summary>
@@ -97,7 +98,7 @@ namespace Basis.BasisUI
             {
                 return;
             }
-
+            Button.Descriptor.SetTitle("Calibrating");
             var localplayer = BasisLocalPlayer.Instance;
             BasisUINeedsVisibleTrackers.Instance.Add(localplayer);
             // kept because you had it (even if unused)
@@ -191,6 +192,7 @@ namespace Basis.BasisUI
             UnsubscribeAll();
             BasisAvatarIKStageCalibration.FullBodyCalibration();
             BasisUINeedsVisibleTrackers.Instance.Remove(BasisLocalPlayer.Instance);
+            Button.Descriptor.SetTitle("Calibrate");
         }
 
         public override void OnButtonCreated(PanelButton button)
