@@ -443,7 +443,7 @@ namespace Basis.Scripts.Device_Management
             BasisDebug.Log("Waiting until end of frame for input", BasisDebug.LogTag.Device);
             yield return new WaitForEndOfFrame();
 
-            if (input != null && input.Control != null)
+            if (input != null)
             {
                 BasisDebug.Log($"Device restored: {prev.trackedRole}", BasisDebug.LogTag.Device);
                 if (prev.hasRoleAssigned)
