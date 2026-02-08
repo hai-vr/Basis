@@ -132,7 +132,10 @@
       "version": "file:UnityJigglePhysics-upm",
       "depth": 0,
       "source": "embedded",
-      "dependencies": {}
+      "dependencies": {
+        "com.unity.mathematics": "1.0.0",
+        "com.unity.collections": "2.0.0"
+      }
     },
     "com.hecomi.basisulipsync": {
       "version": "file:com.hecomi.ulipsync",
