@@ -44,8 +44,8 @@ namespace Basis.BasisUI
                 new BasisMenuPanel.PanelData
                 {
                     Title = this.Title,
-                    PanelSize = new Vector2(500, 500),
-                    PanelPosition = new Vector3(500, -260, 0),
+                    PanelSize = new Vector2(440, 565),
+                    PanelPosition = new Vector3(530, -225, 0),
                 },
                 BasisMenuPanel.PanelStyles.Page);
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
@@ -64,13 +64,13 @@ namespace Basis.BasisUI
             HeightDescription.SetDescription(AdditionalHeight);
 
             var Description = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            Description.SetDescription("Pull Both Triggers On Controller To Calibrate");
+            Description.SetTitle("Pull Triggers to Calibrate");
 
-            var MinusButton = PanelButton.CreateNew(container);
+            var MinusButton = PanelButton.CreateNew(Description.ContentParent);
             MinusButton.OnClicked += DecreasePlayerSize;
             MinusButton.Descriptor.SetTitle("Remove 0.01f Height");
 
-            var PlusButton = PanelButton.CreateNew(container);
+            var PlusButton = PanelButton.CreateNew(Description.ContentParent);
             PlusButton.OnClicked += IncreasePlayerSize;
             PlusButton.Descriptor.SetTitle("Add 0.01f Height");
         }
