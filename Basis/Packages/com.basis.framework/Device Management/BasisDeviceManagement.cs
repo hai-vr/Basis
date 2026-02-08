@@ -417,9 +417,17 @@ namespace Basis.Scripts.Device_Management
 
             AllInputDevices.Add(input);
 
-            if (RestoreDevice(input.SubSystemIdentifier, input.UniqueDeviceIdentifier, out var prev) && CheckBeforeOverride(prev))
+            if (RestoreDevice(input.SubSystemIdentifier, input.UniqueDeviceIdentifier, out var prev))
             {
-                StartCoroutine(RestoreInversetOffsets(input, prev));
+                if (CheckBeforeOverride(prev))
+                {
+                    BasisDebug.Log("Override Check Passed", BasisDebug.LogTag.Device);
+                    StartCoroutine(RestoreInversetOffsets(input, prev));
+                }
+                else
+                {
+                    BasisDebug.LogError("Existing Device Exist with this role!", BasisDebug.LogTag.Device);
+                }
             }
 
             return true;
@@ -432,6 +440,7 @@ namespace Basis.Scripts.Device_Management
         /// <param name="prev">The previously stored device metadata.</param>
         private IEnumerator RestoreInversetOffsets(BasisInput input, BasisStoredPreviousDevice prev)
         {
+            BasisDebug.Log("Waiting until end of frame for input", BasisDebug.LogTag.Device);
             yield return new WaitForEndOfFrame();
 
             if (input != null && input.Control != null)
@@ -456,6 +465,10 @@ namespace Basis.Scripts.Device_Management
                 {
                     input.Control.OnHasRigChanged?.Invoke(true);
                 }
+            }
+            else
+            {
+                BasisDebug.LogError("Device was removed!", BasisDebug.LogTag.Device);
             }
         }
 
@@ -538,6 +551,7 @@ namespace Basis.Scripts.Device_Management
         {
             if (stored == null)
             {
+                BasisDebug.Log("stored Was Null!", BasisDebug.LogTag.Device);
                 return false;
             }
 
@@ -548,6 +562,7 @@ namespace Basis.Scripts.Device_Management
                 {
                     if (stored.UniqueDeviceIdentifier != device.UniqueDeviceIdentifier)
                     {
+                        BasisDebug.Log($"Bail as device Existed Already in that role {stored.UniqueDeviceIdentifier} - {device.UniqueDeviceIdentifier}", BasisDebug.LogTag.Device);
                         return false;
                     }
                 }
