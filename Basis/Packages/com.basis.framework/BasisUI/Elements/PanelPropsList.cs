@@ -10,10 +10,9 @@ using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.UIElements;
+using static Basis.BasisUI.PanelPropsList;
 using static BundledContentHolder;
 using static SerializableBasis;
-using static UnityEditor.FilePathAttribute;
 using Debug = UnityEngine.Debug;
 
 namespace Basis.BasisUI
@@ -23,10 +22,10 @@ namespace Basis.BasisUI
     /// </summary>
     public static class CachedPropData
     {
-        public static List<BasisLoadableBundle> PropBundles = new();
+        public static List<BasisLoadableBundleWrapper> PropBundles = new();
         public static bool Initialized;
 
-        public static async Task FillPreloadedBundles(List<BasisLoadableBundle> bundles)
+        public static async Task FillPreloadedBundles(List<BasisLoadableBundleWrapper> bundles)
         {
             PropBundles.Clear();
             PropBundles.AddRange(bundles);
@@ -34,13 +33,14 @@ namespace Basis.BasisUI
             int preloadedCount = bundles.Count;
             for (int i = 0; i < preloadedCount; i++)
             {
-                BasisLoadableBundle loadableBundle = bundles[i];
+                BasisLoadableBundleWrapper Wrapper = bundles[i];
 
                 // Default persistent for preloaded: false unless you store it elsewhere.
                 BasisDataStoreItemKeys.ItemKey key = new()
                 {
-                    Pass = loadableBundle.UnlockPassword,
-                    Url = loadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation,
+                    Pass = Wrapper.BasisLoadableBundle.UnlockPassword,
+                    Url = Wrapper.BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation,
+                     ISEmbedded =  Wrapper.IsOnDisc,
                 };
 
                 BasisDataStoreItemKeys.ItemKey[] keys = BasisDataStoreItemKeys.DisplayKeys();
@@ -83,11 +83,11 @@ namespace Basis.BasisUI
                 }
 
                 // If we already have a bundle entry for this url, do nothing.
-                if (PropBundles.Exists(b => b.BasisRemoteBundleEncrypted.RemoteBeeFileLocation == key.Url))
+                if (PropBundles.Exists(b => b.BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation == key.Url))
                 {
                     continue;
                 }
-
+                BasisLoadableBundleWrapper Wrapper = new BasisLoadableBundleWrapper();
                 // Otherwise create a bundle entry from stored meta.
                 BasisLoadableBundle bundle = new()
                 {
@@ -101,8 +101,9 @@ namespace Basis.BasisUI
                         UniqueVersion = "",
                     },
                 };
-
-                PropBundles.Add(bundle);
+                Wrapper.BasisLoadableBundle = bundle;
+                Wrapper.IsOnDisc = false;
+                PropBundles.Add(Wrapper);
             }
 
             foreach (BasisDataStoreItemKeys.ItemKey key in keysToRemove)
@@ -176,9 +177,13 @@ namespace Basis.BasisUI
                 Button.Descriptor.SetTitle(title);
             }
         }
-
+        public class BasisLoadableBundleWrapper
+        {
+            public bool IsOnDisc;
+            public BasisLoadableBundle BasisLoadableBundle;
+        }
         // (renamed) PreLoaded props
-        public List<BasisLoadableBundle> PreLoadedProps = new();
+        public List<BasisLoadableBundleWrapper> PreLoadedProps = new();
         public bool ToggleLoadUnload = true;
         public bool RemoveAlsoUnloads = true;
         public bool Persistent = false;
@@ -290,19 +295,15 @@ namespace Basis.BasisUI
             SelectionButtons.Clear();
             MenuItems.Clear();
 
-            foreach (BasisLoadableBundle bundle in CachedPropData.PropBundles)
+            foreach (BasisLoadableBundleWrapper Wrapper in CachedPropData.PropBundles)
             {
                 PanelButton button = PanelButton.CreateNew(PanelButton.ButtonStyles.Prop, TabButtonParent);
                 SelectionButtons.Add(button);
                 button.Descriptor.SetTitle("Prop");
 
-                BasisTrackedBundleWrapper wrapper = new()
-                {
-                    LoadableBundle = bundle,
-                };
-
-                var url = bundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation ?? string.Empty;
-                var pass = bundle?.UnlockPassword ?? string.Empty;
+              var BasisLoadableBundle =  Wrapper.BasisLoadableBundle;
+                var url = BasisLoadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation ?? string.Empty;
+                var pass = BasisLoadableBundle?.UnlockPassword ?? string.Empty;
 
                 if (!string.IsNullOrWhiteSpace(url) && TryGetStoredKeyForUrlPass(url, pass, out var storedKey))
                 {
@@ -311,7 +312,7 @@ namespace Basis.BasisUI
                 PropMenuItem item = new()
                 {
                     Button = button,
-                    Wrapper = wrapper,
+                    Wrapper = Wrapper,
                 };
 
                 MenuItems.Add(item);

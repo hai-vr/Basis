@@ -16,6 +16,7 @@ namespace Basis.Scripts.UI.UI_Panels
             public BundledContentHolder.Mode Mode;
             public string Url;
             public string Pass;
+            public bool ISEmbedded = false;
         }
 
 
