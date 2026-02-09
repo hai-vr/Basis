@@ -11,6 +11,7 @@ using UnityEngine.AddressableAssets;
 using UnityEngine.EventSystems;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
 
 namespace Basis.Scripts.UI
 {
@@ -150,15 +151,16 @@ namespace Basis.Scripts.UI
 
         public void OnPlayersHeightChanged()
         {
+            float uiScale = BasisHeightDriver.PlayerToDefaultRatioScaled;
             if (LineRenderer != null)
             {
-                float Size = lineWidth * BasisHeightDriver.heightScaleFactor;
-                LineRenderer.startWidth = Size;
-                LineRenderer.endWidth = Size;
+                float size = lineWidth * uiScale;
+                LineRenderer.startWidth = size;
+                LineRenderer.endWidth = size;
             }
             if (highlightQuadInstance != null)
             {
-                highlightQuadInstance.transform.localScale = highlightQuadInitalSize * BasisHeightDriver.heightScaleFactor;
+                highlightQuadInstance.transform.localScale = highlightQuadInitalSize * uiScale;
             }
         }
 

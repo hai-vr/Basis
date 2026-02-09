@@ -176,7 +176,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     {
                         interactInput.HasvalidRay = true;
                         // NOTE: this will skip a frame of hover after stopping interact
-                        UpdatePickupState(hitInteractable,ref interactInput);
+                        UpdatePickupState(hitInteractable, ref interactInput);
                     }
                     else
                     {
@@ -190,10 +190,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     if (interactInput.lastTarget != null)
                     {
                         // Implementation could allow for hovering and holding of the same object, clear independently
-                        bool autoHold = BasisDeviceManagement.IsUserInDesktop() &&interactInput.lastTarget.AutoHold == BasisAutoHold.Yes;
+                        bool autoHold = BasisDeviceManagement.IsUserInDesktop() && interactInput.lastTarget.AutoHold == BasisAutoHold.Yes;
 
                         // Drop logic: only drop when not triggered
-                        if (!interactInput.lastTarget.IsInteractTriggered(interactInput.input) &&interactInput.lastTarget.IsInteractingWith(interactInput.input) && !autoHold)
+                        if (!interactInput.lastTarget.IsInteractTriggered(interactInput.input) && interactInput.lastTarget.IsInteractingWith(interactInput.input) && !autoHold)
                         {
                             interactInput.lastTarget.OnInteractEnd(interactInput.input);
                         }
@@ -537,17 +537,17 @@ namespace Basis.Scripts.BasisSdk.Interactions
             }
         }
 
-        private void OnDrawGizmos()
+        public static void DrawAll()
         {
-            if (InteractInputs == null)
+            if (Instance.InteractInputs == null)
             {
                 return;
             }
 
-            int count = InteractInputs.Length;
+            int count = Instance.InteractInputs.Length;
             for (int index = 0; index < count; index++)
             {
-                var device = InteractInputs[index];
+                var device = Instance.InteractInputs[index];
 
                 if (device.input == null || device.input.hoverSphere == null)
                 {
@@ -574,7 +574,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
                 // Hover target
                 Gizmos.color = Color.blue;
-                if (ClosestInfluencableHover(device.input.hoverSphere, device.input, out var result, out _))
+                if (Instance.ClosestInfluencableHover(device.input.hoverSphere, device.input, out var result, out _))
                 {
                     Gizmos.DrawLine(device.input.RaycastCoord.position, result.closestPointToCenter);
                 }

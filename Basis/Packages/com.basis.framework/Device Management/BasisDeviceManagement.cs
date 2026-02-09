@@ -211,7 +211,7 @@ namespace Basis.Scripts.Device_Management
         #endregion
 
         #region Initialization
-
+        public static bool OnInitializationComplete = false;
         /// <summary>
         /// Initializes the device system, creates a local player, starts persistent devices, and switches to the default mode.
         /// </summary>
@@ -231,6 +231,7 @@ namespace Basis.Scripts.Device_Management
             await BasisActionDriver.LoadBindings();
 
             OnInitializationCompleted?.Invoke();
+            OnInitializationComplete = true;
         }
 
         #endregion
@@ -417,9 +418,17 @@ namespace Basis.Scripts.Device_Management
 
             AllInputDevices.Add(input);
 
-            if (RestoreDevice(input.SubSystemIdentifier, input.UniqueDeviceIdentifier, out var prev) && CheckBeforeOverride(prev))
+            if (RestoreDevice(input.SubSystemIdentifier, input.UniqueDeviceIdentifier, out var prev))
             {
-                StartCoroutine(RestoreInversetOffsets(input, prev));
+                if (CheckBeforeOverride(prev))
+                {
+                    BasisDebug.Log("Override Check Passed", BasisDebug.LogTag.Device);
+                    StartCoroutine(RestoreInversetOffsets(input, prev));
+                }
+                else
+                {
+                    BasisDebug.LogError("Existing Device Exist with this role!", BasisDebug.LogTag.Device);
+                }
             }
 
             return true;
@@ -432,13 +441,35 @@ namespace Basis.Scripts.Device_Management
         /// <param name="prev">The previously stored device metadata.</param>
         private IEnumerator RestoreInversetOffsets(BasisInput input, BasisStoredPreviousDevice prev)
         {
+            BasisDebug.Log("Waiting until end of frame for input", BasisDebug.LogTag.Device);
             yield return new WaitForEndOfFrame();
 
-            if (input != null && input.Control != null && CheckBeforeOverride(prev))
+            if (input != null)
             {
                 BasisDebug.Log($"Device restored: {prev.trackedRole}", BasisDebug.LogTag.Device);
-                input.ApplyTrackerCalibration(prev.trackedRole);
-                input.Control.InverseOffsetFromBone = prev.InverseOffsetFromBone;
+                if (prev.hasRoleAssigned)
+                {
+                    if (CheckBeforeOverride(prev))
+                    {
+                        input.ApplyTrackerCalibration(prev.trackedRole);
+                    }
+                    else
+                    {
+                        BasisDebug.Log($"Device unable to take role: {prev.trackedRole} already had existing role", BasisDebug.LogTag.Device);
+                    }
+                }
+                if (prev.hasRoleAssigned)
+                {
+                    input.Control.InverseOffsetFromBone = prev.InverseOffsetFromBone;
+                }
+                if (input.HasControl)
+                {
+                    input.Control.OnHasRigChanged?.Invoke(true);
+                }
+            }
+            else
+            {
+                BasisDebug.LogError("Device was removed!", BasisDebug.LogTag.Device);
             }
         }
 
@@ -459,7 +490,7 @@ namespace Basis.Scripts.Device_Management
             for (int i = 0; i < PreviouslyConnectedDevices.Count; i++)
             {
                 var dev = PreviouslyConnectedDevices[i];
-                if (dev != null && dev.UniqueID == id && dev.SubSystem == subsystem)
+                if (dev != null && dev.UniqueDeviceIdentifier == id && dev.SubSystemIdentifier == subsystem)
                 {
                     restored = dev;
                     PreviouslyConnectedDevices.RemoveAt(i);
@@ -484,8 +515,8 @@ namespace Basis.Scripts.Device_Management
                 {
                     trackedRole = role,
                     hasRoleAssigned = device.hasRoleAssigned,
-                    SubSystem = device.SubSystemIdentifier,
-                    UniqueID = device.UniqueDeviceIdentifier,
+                    SubSystemIdentifier = device.SubSystemIdentifier,
+                    UniqueDeviceIdentifier = device.UniqueDeviceIdentifier,
                     InverseOffsetFromBone = device.Control.InverseOffsetFromBone
                 });
             }
@@ -519,13 +550,23 @@ namespace Basis.Scripts.Device_Management
         /// <returns><c>true</c> if no live device currently uses the stored role; otherwise <c>false</c>.</returns>
         public bool CheckBeforeOverride(BasisStoredPreviousDevice stored)
         {
-            if (stored == null) return false;
+            if (stored == null)
+            {
+                BasisDebug.Log("stored Was Null!", BasisDebug.LogTag.Device);
+                return false;
+            }
 
             for (int i = 0; i < AllInputDevices.Count; i++)
             {
                 var device = AllInputDevices[i];
                 if (device != null && device.TryGetRole(out var role) && role == stored.trackedRole)
-                    return false;
+                {
+                    if (stored.UniqueDeviceIdentifier != device.UniqueDeviceIdentifier)
+                    {
+                        BasisDebug.Log($"Bail as device Existed Already in that role {stored.UniqueDeviceIdentifier} - {device.UniqueDeviceIdentifier}", BasisDebug.LogTag.Device);
+                        return false;
+                    }
+                }
             }
             return true;
         }

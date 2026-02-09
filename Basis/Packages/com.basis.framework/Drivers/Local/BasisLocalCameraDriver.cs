@@ -23,7 +23,8 @@ namespace Basis.Scripts.Drivers
 
         /// <summary>Singleton instance set in <see cref="OnEnable"/>.</summary>
         public static BasisLocalCameraDriver Instance;
-
+        /// <summary>Main camera used for local rendering.</summary>
+        public static Camera CameraInstance;
         /// <summary>Main camera used for local rendering.</summary>
         public Camera Camera;
 
@@ -171,7 +172,7 @@ namespace Basis.Scripts.Drivers
                 Instance = this;
                 HasInstance = true;
             }
-
+            CameraInstance = Camera;
             CameraInstanceID = Camera.GetInstanceID();
 
             // Set initial scale from player height and set the clip planes.
@@ -188,6 +189,7 @@ namespace Basis.Scripts.Drivers
 
                 BasisDeviceManagement.OnBootModeChanged += OnModeSwitch;
                 BasisLocalPlayer.OnPlayersHeightChangedNextFrame += UpdateCameraScale;
+                BasisLocalPlayer.OnLocalAvatarChanged += UpdateCameraScale;
 
                 InstanceExists?.Invoke();
                 HasEvents = true;
@@ -213,10 +215,12 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void OnDestroy()
         {
+            CameraInstance = null;
             RenderPipelineManager.beginCameraRendering -= BeginCameraRendering;
             RenderPipelineManager.endCameraRendering -= EndCameraRendering;
             BasisDeviceManagement.OnBootModeChanged -= OnModeSwitch;
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= UpdateCameraScale;
+            BasisLocalPlayer.OnLocalAvatarChanged -= UpdateCameraScale;
             BasisLocalMicrophoneDriver.OnPausedAction -= microphoneIconDriver.OnPausedEvent;
             HasEvents = false;
             HasInstance = false;
@@ -227,9 +231,9 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void OnDisable()
         {
-            if (BasisLocalAvatarDriver.References != null && BasisLocalAvatarDriver.References.head != null)
+            if (BasisLocalAvatarDriver.Mapping != null && BasisLocalAvatarDriver.Mapping.head != null)
             {
-                BasisLocalAvatarDriver.References.head.localScale = BasisLocalAvatarDriver.HeadScale;
+                BasisLocalAvatarDriver.Mapping.head.localScale = BasisLocalAvatarDriver.HeadScale;
             }
             if (HasEvents)
             {
@@ -285,12 +289,11 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void UpdateCameraScale()
         {
-            // the normal users scale is 1.6m; scale camera with selected avatar scale
-            this.transform.localScale = Vector3.one * BasisHeightDriver.heightScaleFactor;
+            this.transform.localScale = Vector3.one * BasisHeightDriver.DeviceScale;
             // Ensure that the near clip plane is never far enough away that the avatar body clips through it.
             // Critically we need to avoid small player heights causing the UI to become unusable due to clipping.
             // At the same time, we need to pull in the far clip plane on mobile platforms to avoid depth buffer precision issues.
-            float eyeHeightMeters = Mathf.Max(BasisHeightDriver.SelectedPlayerHeight, 1e-4f);
+            float eyeHeightMeters = Mathf.Max(BasisHeightDriver.SelectedScaledPlayerHeight, 1e-4f);
             if (BasisDeviceManagement.IsMobileHardware())
             {
                 Camera.nearClipPlane = Mathf.Clamp(DesiredClipNear, eyeHeightMeters / 32.0f, eyeHeightMeters / 16.0f);
@@ -308,7 +311,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         private void EndCameraRendering(ScriptableRenderContext context, Camera camera)
         {
-            if (BasisLocalAvatarDriver.References.Hashead)
+            if (BasisLocalAvatarDriver.Mapping.Hashead)
             {
                 if (Camera.GetInstanceID() == CameraInstanceID)
                 {
@@ -322,7 +325,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void BeginCameraRendering(ScriptableRenderContext context, Camera Camera)
         {
-            if (BasisLocalAvatarDriver.References.Hashead)
+            if (BasisLocalAvatarDriver.Mapping.Hashead)
             {
                 if (Camera.GetInstanceID() == CameraInstanceID)
                 {
@@ -333,7 +336,7 @@ namespace Basis.Scripts.Drivers
 
         public void Simulate()
         {
-            if (BasisLocalAvatarDriver.References.Hashead)
+            if (BasisLocalAvatarDriver.Mapping.Hashead)
             {
                 this.transform.GetPositionAndRotation(out Position, out Rotation);
                 if (CameraData.allowXRRendering)
@@ -347,14 +350,14 @@ namespace Basis.Scripts.Drivers
                         Vector3 worldPoint = Camera.ViewportToWorldPoint(MobileMicrophoneViewportPosition);
                         // assume this transform is the camera parent
                         Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
-                        ParentOfUI.localPosition = localPos * BasisHeightDriver.heightScaleFactor;
+                        ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaled;
                     }
                     else
                     {
                         Vector3 worldPoint = Camera.ViewportToWorldPoint(DesktopMicrophoneViewportPosition);
                         // assume this transform is the camera parent
                         Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
-                        ParentOfUI.localPosition = localPos * BasisHeightDriver.heightScaleFactor;
+                        ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaled;
                     }
                 }
             }

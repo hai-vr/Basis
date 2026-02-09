@@ -479,6 +479,7 @@ public class SMModuleCalibration : BasisSettingsBase
                 break;
 
         }
+        BasisLocalPlayer.Instance.LocalRigDriver.UpdateEuroSettings();
     }
 
     public override void ChangedSettings()

@@ -58,7 +58,7 @@ namespace Basis.Scripts.UI.UI_Panels
         /// Singleton instance of this UI controller.
         /// </summary>
         public static BasisSetUserName Instance;
-        public float InitalYOffset = -1.35f;
+        public float InitalY;
         /// <summary>
         /// Unity Start hook. Initializes UI, registers callbacks, and loads cached settings.
         /// </summary>
@@ -66,6 +66,7 @@ namespace Basis.Scripts.UI.UI_Panels
         {
             Instance = this;
             InitalScale = gameObject.transform.localScale;
+            InitalY = gameObject.transform.position.y;
             UserNameTMP_InputField.text = BasisDataStore.LoadString(LoadFileName, string.Empty);
             Ready.onClick.AddListener(HasUserName);
             AdvancedSettingsPanel.SetActive(false);
@@ -99,8 +100,8 @@ namespace Basis.Scripts.UI.UI_Panels
         {
             if (BasisLocalPlayer.Instance != null)
             {
-                this.transform.localScale = InitalScale * BasisHeightDriver.heightScaleFactor;
-                this.transform.position  = new Vector3(this.transform.position.x, BasisHeightDriver.SelectedPlayerHeight + InitalYOffset, this.transform.position.z);
+                this.transform.localScale = InitalScale * BasisHeightDriver.PlayerToDefaultRatioScaled;
+                this.transform.position  = new Vector3(this.transform.position.x, -1.4f + BasisHeightDriver.SelectedScaledPlayerHeight, this.transform.position.z);
             }
         }
 

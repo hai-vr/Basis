@@ -101,14 +101,14 @@ public static class BasisLocalMicrophoneDriver
     /// <summary>Optional AGC.</summary>
     public static bool UseAGC = false;
     public static float AgcTargetRms = 0.06f;   // ≈ −24 dBFS
-    public static float AgcMaxGainDb = 18f;
+    public static float AgcMaxGainDb = 10f;
     public static float AgcAttack = 0.10f;      // towards needed gain when too quiet
     public static float AgcRelease = 0.01f;     // when too loud (reduce gain slowly)
     private static float agcGainDb = 0f;
 
     // Temp buffers for denoiser wet/dry and chunking
     private static float[] _denoiseDry; // copy of pre-denoise frame
-    #if !UNITY_ANDROID && !UNITY_IOS && !UNITY_STANDALONE_LINUX
+#if !UNITY_ANDROID && !UNITY_IOS && !UNITY_STANDALONE_LINUX
     private static float[] _tmp480;     // 480-sample scratch (allocated on demand)
 #endif
     // ---------------------------------------------------------
@@ -684,7 +684,11 @@ public static class BasisLocalMicrophoneDriver
 
     private static void UpdateAgc(float frameRms)
     {
-        if (frameRms <= 1e-6f) frameRms = 1e-6f;
+        if (frameRms <= 1e-6f)
+        {
+            frameRms = 1e-6f;
+        }
+
         float neededDb = 20f * Mathf.Log10(AgcTargetRms / frameRms);
         neededDb = Mathf.Clamp(neededDb, -AgcMaxGainDb, AgcMaxGainDb);
         float k = (neededDb > agcGainDb) ? AgcAttack : AgcRelease;

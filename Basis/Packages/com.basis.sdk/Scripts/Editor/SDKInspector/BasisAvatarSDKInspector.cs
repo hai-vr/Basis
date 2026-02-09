@@ -65,7 +65,6 @@ public partial class BasisAvatarSDKInspector : Editor
             rootElement.Add(button);
             BasisAutomaticSetupAvatarEditor.TryToAutomatic(this);
             SetupItems();
-            //deprecated 15/05/2025 use BasisJiggleBonesComponent  AvatarSDKJiggleBonesView.Initialize(this);
             AvatarSDKVisemes.Initialize(this);
             InspectorGuiCreated?.Invoke(this);
         }
@@ -277,8 +276,8 @@ public partial class BasisAvatarSDKInspector : Editor
         AvatarDoNotAutoRenameBonesField.value = Avatar.ProcessingAvatarOptions != null ? Avatar.ProcessingAvatarOptions.doNotAutoRenameBones : false;
         AvatarDoNotAutoRenameBonesField.RegisterCallback<ChangeEvent<bool>>(OnAvatarDoNotAutoRenameBonesField);
 
-        AvatarAutomaticallyRemoveBlendshapesField.value = Avatar.ProcessingAvatarOptions != null ? Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes : false;
-        AvatarAutomaticallyRemoveBlendshapesField.RegisterCallback<ChangeEvent<bool>>(OnAvatarRemoveUnusedBlendshapesField);
+      //  AvatarAutomaticallyRemoveBlendshapesField.value = Avatar.ProcessingAvatarOptions != null ? Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes : false;
+       // AvatarAutomaticallyRemoveBlendshapesField.RegisterCallback<ChangeEvent<bool>>(OnAvatarRemoveUnusedBlendshapesField);
         // Button click events
         avatarEyePositionClick.clicked += () => ClickedAvatarEyePositionButton(avatarEyePositionClick);
         avatarMouthPositionClick.clicked += () => ClickedAvatarMouthPositionButton(avatarMouthPositionClick);
@@ -316,7 +315,7 @@ public partial class BasisAvatarSDKInspector : Editor
     {
         if (targets == null || targets.Count == 0)
         {
-            Debug.LogError("No build targets selected.");
+            BasisDebug.LogError("No build targets selected.");
             return;
         }
         if (BasisAvatarValidator.ValidateAvatar(out List<BasisValidationIssue> Errors, out List<BasisValidationIssue> Warnings, out List<string> Passes))
@@ -326,7 +325,7 @@ public partial class BasisAvatarSDKInspector : Editor
                 string path = AssetDatabase.GetAssetPath(Avatar.Animator.runtimeAnimatorController);
                 if (path == BasisSDKConstants.AvatarAnimatorControllerPath)
                 {
-                    Debug.Log("Animator Controller Used was the default! UnAssigning");
+                    BasisDebug.Log("Animator Controller Used was the default! UnAssigning");
                     Avatar.Animator.runtimeAnimatorController = null;
                     EditorUtility.SetDirty(Avatar.Animator);
                     AssetDatabase.SaveAssetIfDirty(Avatar);
@@ -347,21 +346,21 @@ public partial class BasisAvatarSDKInspector : Editor
             BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
             try
             {
-                Debug.Log($"Building Gameobject Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
+                BasisDebug.Log($"Building Gameobject Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
                 // Build from a stripped clone so the authored avatar stays untouched.
                 buildRoot = GameObject.Instantiate(Avatar.gameObject);
                 buildRoot.TryGetComponent<BasisAvatar>(out Avatar);
-                if (Avatar.ProcessingAvatarOptions != null && Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes)
-                {
-                    // If your pipeline needs editor-only stripping, do it here.
-                    BasisBuildBlendshapeStripper.StripForBuild(settings: assetBundleObject, buildRoot, Avatar);
+                //  if (Avatar.ProcessingAvatarOptions != null && Avatar.ProcessingAvatarOptions.RemoveUnusedBlendshapes)
+                //  {
+                // If your pipeline needs editor-only stripping, do it here.
+                //  BasisBuildBlendshapeStripper.StripForBuild(settings: assetBundleObject, buildRoot, Avatar);
 
-                }
+                //}
 #if UNITY_6000_2_OR_NEWER
                 GenerateMeshLODs(3);
 #endif
 
-                Debug.Log($"Building Gameobject Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
+                BasisDebug.Log($"Building Gameobject Bundles for: {string.Join(", ", targets.ConvertAll(t => BasisSDKConstants.targetDisplayNames[t]))}");
                 BundleCreatedState = await BasisBundleBuild.GameObjectBundleBuild(ImageBytes, Avatar, targets, assetBundleObject.UseCustomPassword, assetBundleObject.UserSelectedPassword);
 
                 EditorUtility.ClearProgressBar();
@@ -416,7 +415,7 @@ public partial class BasisAvatarSDKInspector : Editor
         var smrs = Avatar.GetComponentsInChildren<SkinnedMeshRenderer>(true);
         if (smrs == null || smrs.Length == 0)
         {
-            Debug.LogWarning("GenerateMeshLODs: No SkinnedMeshRenderer found under root.");
+            BasisDebug.LogWarning("GenerateMeshLODs: No SkinnedMeshRenderer found under root.");
             return;
         }
 
@@ -626,6 +625,7 @@ public partial class BasisAvatarSDKInspector : Editor
         EditorUtility.SetDirty(Avatar);
         AssetDatabase.Refresh();
     }
+    /*
     public void OnAvatarRemoveUnusedBlendshapesField(ChangeEvent<bool> evt)
     {
         if (Avatar.ProcessingAvatarOptions == null) Avatar.ProcessingAvatarOptions = new BasisProcessingAvatarOptions();
@@ -634,4 +634,5 @@ public partial class BasisAvatarSDKInspector : Editor
         EditorUtility.SetDirty(Avatar);
         AssetDatabase.Refresh();
     }
+    */
 }

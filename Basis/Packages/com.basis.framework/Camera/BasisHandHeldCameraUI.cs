@@ -336,14 +336,12 @@ public class BasisHandHeldCameraUI
                 continue;
 
             var button = descriptor.button;
-            bool createdNew = false;
 
             // Dynamic creation if no button was assigned
             if (button == null && ButtonPrefab != null && DynamicButtonRoot != null)
             {
                 button = UnityEngine.Object.Instantiate(ButtonPrefab, DynamicButtonRoot, false);
                 descriptor.button = button;
-                createdNew = true;
             }
 
             if (button == null)

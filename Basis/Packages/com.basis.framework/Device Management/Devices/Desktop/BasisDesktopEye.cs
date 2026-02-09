@@ -85,8 +85,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
             if (BasisLocalPlayer.Instance.LocalAvatarDriver != null)
             {
-                BasisDebug.Log($"Using Configured Height {BasisHeightDriver.SelectedPlayerHeight}", BasisDebug.LogTag.Input);
-                ScaledDeviceCoord.position = new Vector3(X, BasisHeightDriver.SelectedPlayerHeight, Z);
+                BasisDebug.Log($"Using Configured Height {BasisHeightDriver.SelectedScaledPlayerHeight}", BasisDebug.LogTag.Input);
+                ScaledDeviceCoord.position = new Vector3(X, BasisHeightDriver.SelectedScaledPlayerHeight, Z);
             }
             else
             {

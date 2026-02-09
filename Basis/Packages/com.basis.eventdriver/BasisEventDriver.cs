@@ -1,5 +1,7 @@
 using Basis.BTween;
+using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Debugging;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
@@ -53,10 +55,10 @@ public class BasisEventDriver : MonoBehaviour
     /// realtimeSinceStartupAsDouble
     /// </summary>
     public double realtimeSinceStartupAsDouble;
-   /// <summary>
-   /// material we use to display jiggle physics visually
-   /// </summary>
-   [SerializeField]
+    /// <summary>
+    /// material we use to display jiggle physics visually
+    /// </summary>
+    [SerializeField]
     private UnityEngine.Material proceduralMaterial;
     /// <summary>
     /// mesh we use to display around the jiggle physics
@@ -252,8 +254,22 @@ public class BasisEventDriver : MonoBehaviour
     {
 #if UNITY_SERVER
 #else
-        JigglePhysics.OnDrawGizmos();
         //    BasisLocalPlayer.Instance.BasisLocalFootDriver.DrawGizmos();
+        if (BasisLocalPlayer.PlayerReady)
+        {
+            BasisHintOffsetGizmos.DrawAll();
+        }
+#endif
+    }
+    public void OnDrawGizmosSelected()
+    {
+#if UNITY_SERVER
+#else
+        JigglePhysics.OnDrawGizmos();
+        if (BasisLocalPlayer.PlayerReady)
+        {
+            BasisPlayerInteract.DrawAll();
+        }
 #endif
     }
 }

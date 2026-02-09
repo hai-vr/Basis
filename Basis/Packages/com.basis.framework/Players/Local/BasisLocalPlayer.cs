@@ -380,7 +380,7 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 LocalHandDriver.Dispose();
             }
-            BasisLocalEyeDriver.OnDisable();
+            BasisLocalEyeDriver.Dispose();
             if (FacialBlinkDriver != null)
             {
                 FacialBlinkDriver.OnDestroy();
@@ -418,6 +418,7 @@ namespace Basis.Scripts.BasisSdk.Players
             // moves Avatar Hip Transform to where it belongs in tpose.
             if (BasisLocalAvatarDriver.CurrentlyTposing)
             {
+                LocalRigDriver.ResetSmoothingState();
                 DriveTpose();
             }
 

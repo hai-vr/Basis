@@ -191,7 +191,7 @@ namespace Basis.BasisUI
 
         private void SetRootOffset(RootModeOffset offset)
         {
-            float playerHeight = BasisHeightDriver.PlayerToAvatarScale;
+            float playerHeight = BasisHeightDriver.AvatarToDefaultRatioScaled;
             GroupOffset.SetLocalPositionAndRotation(offset.Position, offset.Rotation);
 
             Vector3 offsetScale =  Vector3.one * (offset.Scale * RootScale);
@@ -203,7 +203,7 @@ namespace Basis.BasisUI
 
         private void SetEyeOffset(float scaleFactor)
         {
-            float playerHeight = BasisHeightDriver.PlayerToAvatarScale;
+            float playerHeight = BasisHeightDriver.AvatarToDefaultRatioScaled;
             Vector3 scaledOffset = Vector3.Scale(HeadOffset.Position, new Vector3(scaleFactor, scaleFactor, 1));
             GroupOffset.SetLocalPositionAndRotation(scaledOffset, HeadOffset.Rotation);
 
@@ -226,21 +226,23 @@ namespace Basis.BasisUI
                 case PanelGroupRootMode.World:
                     break;
                 case PanelGroupRootMode.Eye:
-                    // 11-30-2025: This value did not report the active value, as this setting was not applied to the application immediately.
-                    // float fieldOfView = BasisSettingsSystem.LoadFloat(BasisSettingsDefaults.FieldOfView.BindingKey);
-                    float fieldOfView = BasisLocalPlayer.Instance.LocalCameraDriver.Camera.fieldOfView;
-                    float tanFOV = Mathf.Tan((Mathf.Deg2Rad * fieldOfView) / 2);
+                    if (BasisLocalCameraDriver.HasInstance)
+                    {
+                        // 11-30-2025: This value did not report the active value, as this setting was not applied to the application immediately.
+                        // float fieldOfView = BasisSettingsSystem.LoadFloat(BasisSettingsDefaults.FieldOfView.BindingKey);
+                        float fieldOfView = BasisLocalCameraDriver.CameraInstance.fieldOfView;
+                        float tanFOV = Mathf.Tan((Mathf.Deg2Rad * fieldOfView) / 2);
 
-                    // 80 was the FOV the Menu was designed at.
-                    const float designerMenuScale = 80;
-                    float tanFOVBase = Mathf.Tan((Mathf.Deg2Rad * designerMenuScale) / 2);
-                    float scaleFactor = tanFOV / tanFOVBase;
+                        // 80 was the FOV the Menu was designed at.
+                        const float designerMenuScale = 80;
+                        float tanFOVBase = Mathf.Tan((Mathf.Deg2Rad * designerMenuScale) / 2);
+                        float scaleFactor = tanFOV / tanFOVBase;
 
-                    BasisLocalCameraDriver.GetPositionAndRotation(out Position, out Rotation);
-                    transform.SetPositionAndRotation(Position, Rotation);
+                        BasisLocalCameraDriver.GetPositionAndRotation(out Position, out Rotation);
+                        transform.SetPositionAndRotation(Position, Rotation);
 
-                    SetEyeOffset(scaleFactor);
-
+                        SetEyeOffset(scaleFactor);
+                    }
                     break;
                 case PanelGroupRootMode.LeftHand:
                     BasisCalibratedCoords leftData = _leftHandControl.OutgoingWorldData;

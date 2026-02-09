@@ -780,7 +780,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 Vector3 newTargetOffset = targetOffset + sourceTransform.InverseTransformVector(movement);
 
                 // Enforce min/max distance along the source forward.
-                float maxDistance = DesktopZoopMaxDistance + BasisHeightDriver.SelectedPlayerHeight / 2;
+                float maxDistance = DesktopZoopMaxDistance + BasisHeightDriver.SelectedScaledPlayerHeight / 2;
 
                 if (mouseScroll != 0 && newTargetOffset.z > DesktopZoopMinDistance && newTargetOffset.z < maxDistance)
                 {

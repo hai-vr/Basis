@@ -93,7 +93,7 @@ namespace Basis.Scripts.UI.UI_Panels
             Vector3 eulerRotation = Rotation.eulerAngles;
             eulerRotation.z = 0f;
 
-            float Scale = BasisHeightDriver.PlayerToAvatarScale;
+            float Scale = BasisHeightDriver.PlayerToDefaultRatioScaled;
             Quaternion horizontalRotation = Quaternion.Euler(eulerRotation);
             Vector3 adjustedOffset = new Vector3(WorldOffset.x, 0, WorldOffset.z) * Scale;
             targetPosition = Position + (horizontalRotation * adjustedOffset);
@@ -101,7 +101,7 @@ namespace Basis.Scripts.UI.UI_Panels
             transform.SetPositionAndRotation(targetPosition, horizontalRotation);
             transform.localScale = InitalScale * Scale;
 
-            CurrentMaxDistanceInVRBeforeSnap = MaxDistanceInVRBeforeSnap * BasisHeightDriver.PlayerToAvatarScale;
+            CurrentMaxDistanceInVRBeforeSnap = MaxDistanceInVRBeforeSnap * Scale;
         }
     }
 }

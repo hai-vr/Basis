@@ -4,10 +4,8 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.UIElements;
 
 namespace Basis.Scripts.Drivers
 {
@@ -190,7 +188,7 @@ namespace Basis.Scripts.Drivers
                 GizmoBone GizmoBone = GizmoBones[i];
                 if (GizmoBone.GizmoTransform != null)
                 {
-                    float ScaledDistance = BasisAvatarIKStageCalibration.MaxDistanceBeforeTrackerIsIrrelivant(GizmoBone.Control) * BasisHeightDriver.heightScaleFactor;
+                    float ScaledDistance = BasisAvatarIKStageCalibration.MaxDistanceBeforeTrackerIsIrrelivant(GizmoBone.Control) * BasisHeightDriver.ScaledToMatchValue;
                     BasisGizmoManager.UpdateSphereGizmo(GizmoBone.GizmoReference, GizmoBone.GizmoTransform.position, Vector3.one * ScaledDistance);
                 }
             }
@@ -365,7 +363,7 @@ namespace Basis.Scripts.Drivers
         public void UpdateGizmoUsage(bool State)
         {
             BasisDebug.Log("Running Bone Driver Gizmos", BasisDebug.LogTag.Gizmo);
-            float Size = BasisHeightDriver.heightScaleFactor;
+            float Size = BasisHeightDriver.ScaledToMatchValue;
             for (int Index = 0; Index < ControlsLength; Index++)
             {
                 BasisLocalBoneControl Control = Controls[Index];

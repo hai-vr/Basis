@@ -81,8 +81,8 @@ namespace Basis.Scripts.Device_Management
         /// </summary>
         public void UpdateVisualSizeAndOffset()
         {
-            gameObject.transform.localScale = ScaleOfModel * BasisHeightDriver.heightScaleFactor;
-            gameObject.transform.SetLocalPositionAndRotation(Vector3.zero, ModelRotationOffset);
+            this.transform.localScale = ScaleOfModel * BasisHeightDriver.AvatarToDefaultRatioScaled;
+            this.transform.SetLocalPositionAndRotation(Vector3.zero, ModelRotationOffset);
         }
     }
 }

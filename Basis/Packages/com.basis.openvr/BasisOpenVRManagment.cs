@@ -201,6 +201,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 {
                     role = BasisBoneTrackedRole.LeftHand;
                     source = SteamVR_Input_Sources.LeftHand;
+                    BasisDebug.Log($"{deviceIndex} was found to be a LeftHand");
                     return true;
                 }
 
@@ -208,6 +209,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 {
                     role = BasisBoneTrackedRole.RightHand;
                     source = SteamVR_Input_Sources.RightHand;
+                    BasisDebug.Log($"{deviceIndex} was found to be a RightHand");
                     return true;
                 }
                 if (NameInCaseFallback.ToLower().Contains("left"))

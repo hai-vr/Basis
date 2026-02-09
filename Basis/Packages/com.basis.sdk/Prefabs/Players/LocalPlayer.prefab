@@ -566,6 +566,14 @@ MonoBehaviour:
       m_Active: 0
     BasisFullIKConstraint: {fileID: 0}
     timeAccumulator: 0
+    OutputkneeBendPrefLeftWeights: {x: 0, y: 0, z: 0}
+    OutputkneeBendPrefRightWeights: {x: 0, y: 0, z: 0}
+    kneeBendPrefLeftWeights: {x: 0, y: 1, z: -0.2}
+    kneeBendPrefRightWeights: {x: 0, y: 1, z: 0.2}
+    elbowBendPrefLeftWeights: {x: 0, y: 1, z: 0}
+    elbowBendPrefRightWeights: {x: 0, y: 1, z: 0}
+    spineBendNormalWeights: {x: 0, y: 1, z: 0}
+    ScrossLeggedModifier: {x: 1.25, y: 0.25}
   LocalCharacterDriver:
     LocalPlayer: {fileID: 4587526044252889482}
     characterController: {fileID: 5548795088377030369}
@@ -669,8 +677,6 @@ MonoBehaviour:
     maxAngleDeg: 25
     holdTimeRange: {x: 0.55, y: 4}
     saccadeTimeRange: {x: 0.05, y: 0.15}
-    microSaccadeDeg: 0.35
-    microIntervalRange: {x: 1, y: 2}
     centerBias: 2.5
     perEyeVarianceDeg: 0.4
     occasionalCenterReturn: 1

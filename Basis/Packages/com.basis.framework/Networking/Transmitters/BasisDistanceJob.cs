@@ -14,7 +14,7 @@ public struct BasisDistanceJobParallel : IJobParallelFor
     public float SquaredVoiceDistance;
     public float SquaredHearingDistance;
     public float SquaredAvatarDistance;
-
+    public bool ComputeRange;
     /// <summary>Multiplier for exit threshold (use > 1 for hysteresis, e.g. 1.10f)</summary>
     public float HysteresisPercent;
 
@@ -80,10 +80,25 @@ public struct BasisDistanceJobParallel : IJobParallelFor
         MeshLodRange[i] = lodChanged;
 
         int mask = 0;
-        if (voice != prevVoice) mask |= 1;
-        if (hearing != prevHearing) mask |= 2;
-        if (avatar != prevAvatar) mask |= 4;
-        if (lodChanged) mask |= 8;
+        if (voice != prevVoice)
+        {
+            mask |= 1;
+        }
+
+        if (hearing != prevHearing)
+        {
+            mask |= 2;
+        }
+
+        if (avatar != prevAvatar)
+        {
+            mask |= 4;
+        }
+
+        if (lodChanged)
+        {
+            mask |= 8;
+        }
 
         PerIndexMask[i] = mask;
         PerIndexMinD2[i] = d2;
