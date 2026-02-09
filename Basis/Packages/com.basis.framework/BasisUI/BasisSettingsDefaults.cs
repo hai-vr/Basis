@@ -374,9 +374,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> DenoiseWet => new("denoisewet", new BasisPlatformDefault<float>(1f)); // 0..1
 
 
-        public static BasisSettingsBinding<float> AgcTargetRms => new("agctargetrms", new BasisPlatformDefault<float>(0.06f)); // ~ -24 dBFS
+        public static BasisSettingsBinding<float> AgcTargetRms => new("agctargetrms", new BasisPlatformDefault<float>(0.1f)); // ~ -24 dBFS
 
-        public static BasisSettingsBinding<float> AgcMaxGainDb => new("agcmaxgaindb", new BasisPlatformDefault<float>(18f));
+        public static BasisSettingsBinding<float> AgcMaxGainDb => new("agcdbgainmax", new BasisPlatformDefault<float>(8f));
 
         public static BasisSettingsBinding<float> AgcAttack => new("agcattack", new BasisPlatformDefault<float>(0.10f)); // 0..1
 

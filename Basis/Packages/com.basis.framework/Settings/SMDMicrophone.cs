@@ -146,7 +146,7 @@ public class SMDMicrophone : BasisSettingsBase
         }
     }
 
-    private static float selectedAgcTargetRms = 0.06f; // ≈ −24 dBFS
+    private static float selectedAgcTargetRms = 0.1f; // ≈ −24 dBFS
     public static float SelectedAgcTargetRms
     {
         get => selectedAgcTargetRms;
@@ -157,7 +157,7 @@ public class SMDMicrophone : BasisSettingsBase
         }
     }
 
-    private static float selectAgcMaxGainDb = 10f;
+    private static float selectAgcMaxGainDb = 8f;
     public static float SelectAgcMaxGainDb
     {
         get => selectAgcMaxGainDb;
