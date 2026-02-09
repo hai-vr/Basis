@@ -155,7 +155,8 @@ namespace Basis.Scripts.Drivers
                 ),
                 NamePlate: RemotePlayer.RemoteNamePlate.Self,
                 AvatarScale: RemotePlayer.BasisAvatar.Animator.transform,
-                MouthTransform: RemotePlayer.MouthTransform
+                MouthTransform: RemotePlayer.MouthTransform,
+                TposedScale: RemotePlayer.RemoteAvatarDriver.AvatarInitalScale
             );
             InBoneDriver = true;
 
