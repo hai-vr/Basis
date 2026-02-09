@@ -348,14 +348,14 @@ namespace Basis.Scripts.Drivers
                         Vector3 worldPoint = Camera.ViewportToWorldPoint(MobileMicrophoneViewportPosition);
                         // assume this transform is the camera parent
                         Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
-                        ParentOfUI.localPosition = localPos * BasisHeightDriver.ScaledToMatchValue;
+                        ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaled;
                     }
                     else
                     {
                         Vector3 worldPoint = Camera.ViewportToWorldPoint(DesktopMicrophoneViewportPosition);
                         // assume this transform is the camera parent
                         Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
-                        ParentOfUI.localPosition = localPos * BasisHeightDriver.ScaledToMatchValue;
+                        ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaled;
                     }
                 }
             }

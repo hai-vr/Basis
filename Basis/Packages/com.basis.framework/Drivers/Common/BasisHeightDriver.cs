@@ -297,12 +297,12 @@ public static class BasisHeightDriver
         }
 
         // Ratios relative to the project's default reference eye height.
-        AvatarToDefaultRatioScaled = SelectedScaledAvatarHeight / FallbackHeightInMeters;
-        PlayerToDefaultRatioScaled = SelectedScaledPlayerHeight / FallbackHeightInMeters;
+        AvatarToDefaultRatioScaled = (CalibrationScale.y * SelectedScaledAvatarHeight) / (CalibrationScale.y * FallbackHeightInMeters);
+        PlayerToDefaultRatioScaled = (CalibrationScale.y * SelectedScaledPlayerHeight) / (CalibrationScale.y * FallbackHeightInMeters);
 
         // Relative ratios between player and avatar.
-        PlayerToAvatarRatioScaled = SelectedScaledPlayerHeight / SelectedScaledAvatarHeight;
-        AvatarToPlayerRatioScaled = SelectedScaledAvatarHeight / SelectedScaledPlayerHeight;
+        PlayerToAvatarRatioScaled = (CalibrationScale.y * SelectedScaledPlayerHeight) / (CalibrationScale.y * SelectedScaledAvatarHeight);
+        AvatarToPlayerRatioScaled = (CalibrationScale.y * SelectedScaledAvatarHeight) / (CalibrationScale.y * SelectedScaledPlayerHeight);
 
         // Defensive clamps to prevent invalid downstream multipliers.
         if (PlayerToAvatarRatioScaled <= 0f)
