@@ -179,18 +179,9 @@ namespace Basis.BasisUI
 
         // (renamed) PreLoaded props
         public List<BasisLoadableBundle> PreLoadedProps = new();
-
-        [Header("Spawn/World Behaviour")]
-        [Tooltip("If true, clicking Load will unload ALL instances if any are loaded; if false, Load always spawns a new instance.")]
         public bool ToggleLoadUnload = true;
-
-        [Tooltip("If true, clicking 'Remove Prop' (remove from list) will also unload ALL instances currently loaded for this URL.")]
         public bool RemoveAlsoUnloads = true;
-
-        [Tooltip("Legacy global default persistent if you do not use per-entry persistence.")]
         public bool Persistent = false;
-
-        [Header("Optional Spawn Overrides (Props only)")]
         public bool UseCustomSpawnPosition = false;
         public Vector3 CustomSpawnPosition;
         public Quaternion CustomSpawnRotation = Quaternion.identity;
@@ -404,7 +395,7 @@ namespace Basis.BasisUI
             {
                 PersistentToggle.SetValueWithoutNotify(Persistent);
             }
-            PersistentToggle.Descriptor.SetTitle("Is Network Persistent?");
+            PersistentToggle.Descriptor.SetTitle("Sync Mode");
             PersistentToggle.Descriptor.SetDescription("Can this Object Be Loaded by joining clients?");
 
             NewPropPanel.Hide();
@@ -452,7 +443,9 @@ namespace Basis.BasisUI
 
             PropPasswordField.SetValue(false);
             PropPasswordField.SetPassword(bundle.UnlockPassword);
-
+            Mode.Descriptor.SetTitle("Sync Mode");
+            PersistentToggle.Descriptor.SetTitle("Is Network Persistent?");
+            PersistentToggle.Descriptor.SetDescription("Can this Object Be Loaded by joining clients?");
             string creationDate = bundle.BasisBundleConnector.DateOfCreation;
             if (string.IsNullOrEmpty(creationDate))
             {
@@ -460,9 +453,7 @@ namespace Basis.BasisUI
             }
             else
             {
-                creationDate = DateTime
-                    .Parse(creationDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal)
-                    .ToString(CultureInfo.InvariantCulture);
+                creationDate = DateTime.Parse(creationDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal).ToString(CultureInfo.InvariantCulture);
                 creationDate += " UTC";
             }
 
@@ -612,21 +603,14 @@ namespace Basis.BasisUI
             if (Mode.Value == "Local")
             {
                 BasisProgressReport Report = new BasisProgressReport();
-                GameObject CreateObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, Report, new CancellationToken(),
-                spawnPos, spawnRot, spawnScale, ApplyCustomScale, Selector.Prop,
-                BasisNetworkManagement.Instance.transform);
+                CancellationToken Cancel = new CancellationToken();
+                GameObject CreateObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, Report, Cancel, spawnPos, spawnRot, spawnScale, ApplyCustomScale, Selector.Prop,BasisNetworkManagement.Instance.transform);
             }
             else
             {
-                if (Mode.Value == "Network")
+                if (Mode.Value == "Networked")
                 {
-                    BasisNetworkSpawnItem.RequestGameObjectLoad(
-                    pass, url,
-                    spawnPos, spawnRot, spawnScale,
-                    persistent,
-                    ApplyCustomScale,
-                    out LocalLoadResource loadedProp
-                );
+                    BasisNetworkSpawnItem.RequestGameObjectLoad(pass, url,spawnPos, spawnRot, spawnScale,persistent,ApplyCustomScale,out LocalLoadResource loadedProp);
                     // Store as a new instance (1-to-many)
                     Basis.BasisRuntimeSpawnRegistry.Add(url, loadedProp.LoadedNetID, persistent, out _);
                 }
@@ -672,7 +656,9 @@ namespace Basis.BasisUI
             {
                 var inst = instances[i];
                 if (inst != null && !string.IsNullOrEmpty(inst.LoadedNetID))
+                {
                     BasisNetworkSpawnItem.RequestGameObjectUnLoad(inst.LoadedNetID);
+                }
             }
 
             Basis.BasisRuntimeSpawnRegistry.ClearAll(url);
