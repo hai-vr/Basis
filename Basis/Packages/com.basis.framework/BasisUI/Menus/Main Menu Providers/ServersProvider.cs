@@ -14,8 +14,8 @@ namespace Basis.BasisUI
         {
             BasisMenuBase<BasisMainMenu>.AddProvider(new ServersProvider());
         }
-
-        public override string Title => "Servers";
+        public static string TitleStatic = "Servers";
+        public override string Title => TitleStatic;
         public override string IconAddress => AddressableAssets.Sprites.Servers;
         public override int Order => 1;
 

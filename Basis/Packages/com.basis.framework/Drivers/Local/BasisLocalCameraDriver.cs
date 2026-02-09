@@ -23,7 +23,8 @@ namespace Basis.Scripts.Drivers
 
         /// <summary>Singleton instance set in <see cref="OnEnable"/>.</summary>
         public static BasisLocalCameraDriver Instance;
-
+        /// <summary>Main camera used for local rendering.</summary>
+        public static Camera CameraInstance;
         /// <summary>Main camera used for local rendering.</summary>
         public Camera Camera;
 
@@ -171,7 +172,7 @@ namespace Basis.Scripts.Drivers
                 Instance = this;
                 HasInstance = true;
             }
-
+            CameraInstance = Camera;
             CameraInstanceID = Camera.GetInstanceID();
 
             // Set initial scale from player height and set the clip planes.
@@ -214,6 +215,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void OnDestroy()
         {
+            CameraInstance = null;
             RenderPipelineManager.beginCameraRendering -= BeginCameraRendering;
             RenderPipelineManager.endCameraRendering -= EndCameraRendering;
             BasisDeviceManagement.OnBootModeChanged -= OnModeSwitch;

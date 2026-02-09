@@ -211,7 +211,7 @@ namespace Basis.Scripts.Device_Management
         #endregion
 
         #region Initialization
-
+        public static bool OnInitializationComplete = false;
         /// <summary>
         /// Initializes the device system, creates a local player, starts persistent devices, and switches to the default mode.
         /// </summary>
@@ -231,6 +231,7 @@ namespace Basis.Scripts.Device_Management
             await BasisActionDriver.LoadBindings();
 
             OnInitializationCompleted?.Invoke();
+            OnInitializationComplete = true;
         }
 
         #endregion
