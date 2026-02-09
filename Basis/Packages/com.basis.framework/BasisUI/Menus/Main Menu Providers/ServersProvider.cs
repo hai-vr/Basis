@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
@@ -74,8 +75,11 @@ namespace Basis.BasisUI
             {
                 LoadCurrentSettings();
             }
+            else
+            {
+                BasisNetworkManagement.OnIstanceCreated += LoadCurrentSettings;
+            }
         }
-
         private PanelTextField usernameField;
         private PanelTextField ipAddressField;
         private PanelButton useLocalhost;

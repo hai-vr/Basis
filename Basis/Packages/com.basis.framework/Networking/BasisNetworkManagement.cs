@@ -50,6 +50,7 @@ namespace Basis.Scripts.Networking
         /// </summary>
         public static BasisNetworkManagement Instance;
 
+        public static Action OnIstanceCreated;
         /// <summary>
         /// Indicates whether the network is currently running.
         /// </summary>
@@ -105,6 +106,7 @@ namespace Basis.Scripts.Networking
 
             Instance = this;
             BasisNetworkLifeCycle.Initalize(this);
+            OnIstanceCreated?.Invoke();
         }
 
         private async void OnDisable()
