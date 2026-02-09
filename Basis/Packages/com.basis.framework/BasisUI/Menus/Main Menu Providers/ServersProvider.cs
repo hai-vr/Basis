@@ -1,10 +1,11 @@
-using System;
-using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
+using System;
+using System.Threading.Tasks;
 using UnityEngine;
+using static uLipSync.BasisLipSyncJob;
 
 namespace Basis.BasisUI
 {
@@ -32,7 +33,7 @@ namespace Basis.BasisUI
                 new BasisMenuPanel.PanelData
                 {
                     Title = this.Title,
-                    PanelSize = new Vector2(600, 900),
+                    PanelSize = new Vector2(650, 900),
                     PanelPosition = default
                 },
                 BasisMenuPanel.PanelStyles.Page);
@@ -78,6 +79,8 @@ namespace Basis.BasisUI
             ShowAdvancedSettings.Descriptor.SetTitle("Show Advanced Settings");
             ShowAdvancedSettings.OnClicked += ShowAdvancedOptions;
 
+            Info = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group,container);
+
             portField.gameObject.SetActive(false);
             useLocalhost.gameObject.SetActive(false);
             passwordField.gameObject.SetActive(false);
@@ -112,6 +115,7 @@ namespace Basis.BasisUI
             portField.gameObject.SetActive(Opposite);
             ipAddressField.gameObject.SetActive(Opposite);
         }
+        private PanelElementDescriptor Info;
         private PanelButton ShowAdvancedSettings;
         private PanelTextField usernameField;
         private PanelTextField ipAddressField;
@@ -136,32 +140,41 @@ namespace Basis.BasisUI
         {
             // Set button to non-interactable immediately after clicking
             connectButton.ButtonComponent.interactable = false;
-
+            Info.SetTitle("Connecting");
+            Info.SetDescription("Initalizing...");
             if (!string.IsNullOrEmpty(usernameField.Value))
             {
                 if (BasisNetworkConnection.LocalPlayerIsConnected)
                 {
+                    Info.SetTitle("Connecting");
+                    Info.SetDescription("Disconnecting...");
                     await BasisNetworkLifeCycle.Destroy(BasisNetworkManagement.Instance);
                     BasisNetworkLifeCycle.Initalize(BasisNetworkManagement.Instance);
                 }
-
+                Info.SetTitle("Connecting");
+                Info.SetDescription("Preparing...");
                 BasisLocalPlayer.Instance.DisplayName = usernameField.Value;
                 BasisLocalPlayer.Instance.SetSafeDisplayname();
                 BasisDataStore.SaveString(BasisLocalPlayer.Instance.DisplayName, LoadFileName);
                 if (BasisNetworkManagement.Instance)
                 {
+                    Info.SetTitle("Connecting");
+                    Info.SetDescription("Loading Asset Bundle...");
                     await CreateAssetBundle();
                     BasisNetworkManagement.Instance.Ip = ipAddressField.Value;
                     BasisNetworkManagement.Instance.Password = passwordField.Password;
                     BasisNetworkManagement.Instance.IsHostMode = hostModeToggle.Value;
                     ushort.TryParse(portField.Value, out BasisNetworkManagement.Instance.Port);
+                    Info.SetTitle("Connecting");
+                    Info.SetDescription("Staging...");
                     BasisNetworkManagement.Instance.Connect();
                     BasisMainMenu.Close();
                 }
             }
             else
             {
-                BasisDebug.LogError("Name was empty, bailing");
+                Info.SetTitle("Error");
+                Info.SetDescription("Display Name Was Empty");
                 // Re-enable button interaction if username is empty
                 connectButton.ButtonComponent.interactable = true;
             }
