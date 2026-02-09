@@ -394,6 +394,7 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 float db = 20f * Mathf.Log10(volume);
                 gain = (int)(db * 256f);
+                audioSource.volume = 1;
             }
             if (decoder != null)
             {
