@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Networking;
 using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
@@ -9,7 +10,10 @@ using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
+using static BundledContentHolder;
 using static SerializableBasis;
+using static UnityEditor.FilePathAttribute;
 using Debug = UnityEngine.Debug;
 
 namespace Basis.BasisUI
@@ -130,10 +134,6 @@ namespace Basis.BasisUI
 
             public Texture2D IconTexture;
             public Sprite IconSprite;
-
-            // New: persistent default for this entry (saved in PropKeyStore.json)
-            public bool DefaultPersistent;
-
             public void Clear()
             {
                 Button.ReleaseInstance();
@@ -190,10 +190,6 @@ namespace Basis.BasisUI
         [Tooltip("Legacy global default persistent if you do not use per-entry persistence.")]
         public bool Persistent = false;
 
-        [Header("Optional Per-Entry Persistent UI")]
-        [Tooltip("Optional UI toggle to edit per-entry Persistent setting. If not assigned, the global 'Persistent' bool is used.")]
-        public Toggle PersistentToggle;
-
         [Header("Optional Spawn Overrides (Props only)")]
         public bool UseCustomSpawnPosition = false;
         public Vector3 CustomSpawnPosition;
@@ -213,6 +209,9 @@ namespace Basis.BasisUI
         public PanelPasswordField PropUrlField;
         public PanelPasswordField PropPasswordField;
 
+        public PanelDropdown Mode;
+        public PanelToggle PersistentToggle;
+
         public GameObject WindowsIcon;
         public GameObject MacIcon;
         public GameObject LinuxIcon;
@@ -224,12 +223,7 @@ namespace Basis.BasisUI
 
         public PanelButton RemovePropButton; // Removes from saved list
         public PanelButton LoadPropButton;   // Spawn / Unload-all toggle
-
-        [Header("Optional Instance Controls")]
-        [Tooltip("Optional: unload ONLY the most recently spawned instance for the selected URL.")]
         public PanelButton UnloadLastButton;
-
-        [Tooltip("Optional: unload ALL spawned instances for the selected URL.")]
         public PanelButton UnloadAllButton;
 
         public List<PropMenuItem> MenuItems = new();
@@ -254,9 +248,6 @@ namespace Basis.BasisUI
             if (UnloadAllButton != null)
                 UnloadAllButton.OnClicked += UnloadAllInstancesSelected;
 
-            if (PersistentToggle != null)
-                PersistentToggle.onValueChanged.AddListener(OnPersistentToggleChanged);
-
             NewPropPanel.Hide();
             _ = LoadPropBundles();
         }
@@ -270,9 +261,6 @@ namespace Basis.BasisUI
                 CancellationSource.Cancel();
                 CancellationSource.Dispose();
             }
-
-            if (PersistentToggle != null)
-                PersistentToggle.onValueChanged.RemoveListener(OnPersistentToggleChanged);
         }
 
         private async Task LoadPropBundles()
@@ -333,7 +321,6 @@ namespace Basis.BasisUI
                 {
                     Button = button,
                     Wrapper = wrapper,
-                    DefaultPersistent = false
                 };
 
                 MenuItems.Add(item);
@@ -365,7 +352,6 @@ namespace Basis.BasisUI
             {
                 Button = button,
                 Wrapper = wrapper,
-                DefaultPersistent = false
             };
 
             MenuItems.Add(item);
@@ -400,6 +386,14 @@ namespace Basis.BasisUI
             PropPasswordField.SetValue(false);
             PropPasswordField.SetPassword(string.Empty);
 
+            List<string> Modes = new List<string>
+            {
+                "Local",
+                "Networked"
+            };
+            Mode.AssignEntries(Modes);
+            Mode.SetValueWithoutNotify("Local");
+            Mode.Descriptor.SetTitle("Is This Network Synced?");
             WindowsIcon.SetActive(false);
             MacIcon.SetActive(false);
             LinuxIcon.SetActive(false);
@@ -407,7 +401,11 @@ namespace Basis.BasisUI
             IOSIcon.SetActive(false);
 
             if (PersistentToggle != null)
-                PersistentToggle.SetIsOnWithoutNotify(Persistent);
+            {
+                PersistentToggle.SetValueWithoutNotify(Persistent);
+            }
+            PersistentToggle.Descriptor.SetTitle("Is Network Persistent?");
+            PersistentToggle.Descriptor.SetDescription("Can this Object Be Loaded by joining clients?");
 
             NewPropPanel.Hide();
             RefreshLoadButtonLabel();
@@ -455,10 +453,6 @@ namespace Basis.BasisUI
             PropPasswordField.SetValue(false);
             PropPasswordField.SetPassword(bundle.UnlockPassword);
 
-            // Per-entry persistent UI (optional)
-            if (PersistentToggle != null)
-                PersistentToggle.SetIsOnWithoutNotify(item.DefaultPersistent);
-
             string creationDate = bundle.BasisBundleConnector.DateOfCreation;
             if (string.IsNullOrEmpty(creationDate))
             {
@@ -474,9 +468,7 @@ namespace Basis.BasisUI
 
             CreationDateLabel.text = creationDate;
 
-            string[] platforms = bundle.BasisBundleConnector.BasisBundleGenerated
-                .Select(pair => pair.Platform)
-                .ToArray();
+            string[] platforms = bundle.BasisBundleConnector.BasisBundleGenerated.Select(pair => pair.Platform).ToArray();
 
             WindowsIcon.SetActive(false);
             MacIcon.SetActive(false);
@@ -501,50 +493,6 @@ namespace Basis.BasisUI
             LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
         }
 
-        private void OnPersistentToggleChanged(bool newValue)
-        {
-            // Update selected entry persistent + save it back to the key store.
-            if (SelectedProp == null) return;
-
-            SelectedProp.DefaultPersistent = newValue;
-
-            var bundle = SelectedProp.Wrapper?.LoadableBundle;
-            if (bundle == null) return;
-
-            string url = bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
-            string pass = bundle.UnlockPassword;
-            if (string.IsNullOrWhiteSpace(url)) return;
-
-            _ = SavePersistentForKey(url, pass, newValue);
-        }
-
-        private async Task SavePersistentForKey(string url, string pass, bool persistent)
-        {
-            // Update the key in the keystore (array-based): remove old then add updated.
-            var keys = BasisDataStoreItemKeys.DisplayKeys();
-            if (keys == null) return;
-
-            BasisDataStoreItemKeys.ItemKey existing = null;
-            for (int i = 0; i < keys.Length; i++)
-            {
-                var cur = keys[i];
-                if (cur != null && cur.Url == url && cur.Pass == pass)
-                {
-                    existing = cur;
-                    break;
-                }
-            }
-
-            if (existing == null) return;
-
-            // Replace by remove+add (simple and safe with your current store design).
-            await BasisDataStoreItemKeys.RemoveKey(existing);
-            await BasisDataStoreItemKeys.AddNewKey(existing);
-        }
-
-        // --------------------------------------------------------------------
-        // Spawn helpers
-        // --------------------------------------------------------------------
         private Vector3 GetSpawnPosition()
         {
             if (UseCustomSpawnPosition) return CustomSpawnPosition;
@@ -573,16 +521,6 @@ namespace Basis.BasisUI
             return SelectedProp?.Wrapper?.LoadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation ?? string.Empty;
         }
 
-        private bool GetSpawnPersistent()
-        {
-            // If we have a persistent toggle UI: per-entry uses SelectedProp.DefaultPersistent.
-            if (PersistentToggle != null && SelectedProp != null)
-                return SelectedProp.DefaultPersistent;
-
-            // Otherwise fallback to old global bool.
-            return Persistent;
-        }
-
         private void RefreshLoadButtonLabel()
         {
             if (LoadPropButton == null) return;
@@ -605,10 +543,6 @@ namespace Basis.BasisUI
                 LoadPropButton.Descriptor.SetTitle("Spawn (+1)");
             }
         }
-
-        // --------------------------------------------------------------------
-        // UI actions: Spawn / Unload / Remove
-        // --------------------------------------------------------------------
         public async Task LoadOrUnloadSelected()
         {
             if (SelectedProp == null)
@@ -674,18 +608,29 @@ namespace Basis.BasisUI
             Quaternion spawnRot = GetSpawnRotation();
             Vector3 spawnScale = GetSpawnScale();
 
-            bool persistent = GetSpawnPersistent();
-
-            BasisNetworkSpawnItem.RequestGameObjectLoad(
-                pass, url,
-                spawnPos, spawnRot, spawnScale,
-                persistent,
-                ApplyCustomScale,
-                out LocalLoadResource loadedProp
-            );
-
-            // Store as a new instance (1-to-many)
-            Basis.BasisRuntimeSpawnRegistry.Add(url, loadedProp.LoadedNetID, persistent, out _);
+            bool persistent = PersistentToggle.Value;
+            if (Mode.Value == "Local")
+            {
+                BasisProgressReport Report = new BasisProgressReport();
+                GameObject CreateObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, Report, new CancellationToken(),
+                spawnPos, spawnRot, spawnScale, ApplyCustomScale, Selector.Prop,
+                BasisNetworkManagement.Instance.transform);
+            }
+            else
+            {
+                if (Mode.Value == "Network")
+                {
+                    BasisNetworkSpawnItem.RequestGameObjectLoad(
+                    pass, url,
+                    spawnPos, spawnRot, spawnScale,
+                    persistent,
+                    ApplyCustomScale,
+                    out LocalLoadResource loadedProp
+                );
+                    // Store as a new instance (1-to-many)
+                    Basis.BasisRuntimeSpawnRegistry.Add(url, loadedProp.LoadedNetID, persistent, out _);
+                }
+            }
 
             await Task.CompletedTask;
         }
@@ -700,16 +645,6 @@ namespace Basis.BasisUI
                 BasisDebug.LogError("No selected bundle URL.");
                 return;
             }
-
-            //  if (!Basis.BasisRuntimeSpawnRegistry.RemoveInstance(url, out var removed))
-            //{
-            //     BasisDebug.Log("Nothing loaded for this item.");
-            //    RefreshLoadButtonLabel();
-            //     return;
-            // }
-
-            //  if (!string.IsNullOrEmpty(removed.LoadedNetID))
-            //     BasisNetworkSpawnItem.RequestGameObjectUnLoad(removed.LoadedNetID);
 
             RefreshLoadButtonLabel();
         }
@@ -753,7 +688,7 @@ namespace Basis.BasisUI
             }
 
             BasisMainMenu.Instance.OpenDialogue(
-                "Basis VR",
+                "Basis",
                 "Are you sure you want to remove this item from your list?",
                 "Cancel",
                 "Remove",
