@@ -32,7 +32,7 @@ namespace Basis.BasisUI
                 new BasisMenuPanel.PanelData
                 {
                     Title = this.Title,
-                    PanelSize = new Vector2(600, 800),
+                    PanelSize = new Vector2(600, 900),
                     PanelPosition = default
                 },
                 BasisMenuPanel.PanelStyles.Page);
@@ -50,6 +50,8 @@ namespace Basis.BasisUI
 
             ipAddressField = PanelTextField.CreateNewEntry(container);
             ipAddressField.Descriptor.SetTitle("IP Address");
+
+
 
             useLocalhost = PanelButton.CreateNew(container);
             useLocalhost.Descriptor.SetTitle("Use \"Localhost\"");
@@ -71,6 +73,16 @@ namespace Basis.BasisUI
             connectButton.Descriptor.SetHeight(80);
             connectButton.OnClicked += () => _ = HasUserName();
 
+            ShowAdvancedSettings = PanelButton.CreateNew(container);
+
+            ShowAdvancedSettings.Descriptor.SetTitle("Show Advanced Settings");
+            ShowAdvancedSettings.OnClicked += ShowAdvancedOptions;
+
+            portField.gameObject.SetActive(false);
+            useLocalhost.gameObject.SetActive(false);
+            passwordField.gameObject.SetActive(false);
+            hostModeToggle.gameObject.SetActive(false);
+            ipAddressField.gameObject.SetActive(false);
             if (BasisNetworkManagement.Instance)
             {
                 LoadCurrentSettings();
@@ -80,6 +92,27 @@ namespace Basis.BasisUI
                 BasisNetworkManagement.OnIstanceCreated += LoadCurrentSettings;
             }
         }
+        public void ShowAdvancedOptions()
+        {
+
+            bool State = useLocalhost.gameObject.activeSelf;
+            bool Opposite = !State;
+
+            if(Opposite)
+            {
+                ShowAdvancedSettings.Descriptor.SetTitle("Hide Advanced Settings");
+            }
+            else
+            {
+                ShowAdvancedSettings.Descriptor.SetTitle("Show Advanced Settings");
+            }
+            useLocalhost.gameObject.SetActive(Opposite);
+            passwordField.gameObject.SetActive(Opposite);
+            hostModeToggle.gameObject.SetActive(Opposite);
+            portField.gameObject.SetActive(Opposite);
+            ipAddressField.gameObject.SetActive(Opposite);
+        }
+        private PanelButton ShowAdvancedSettings;
         private PanelTextField usernameField;
         private PanelTextField ipAddressField;
         private PanelButton useLocalhost;
