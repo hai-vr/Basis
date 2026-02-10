@@ -308,11 +308,12 @@ namespace Basis.BasisUI
                 if (!string.IsNullOrWhiteSpace(url) && TryGetStoredKeyForUrlPass(url, pass, out var storedKey))
                 {
                 }
-
+                BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper();
+                wrapper.LoadableBundle =
                 PropMenuItem item = new()
                 {
                     Button = button,
-                    Wrapper = Wrapper,
+                    Wrapper = wrapper,
                 };
 
                 MenuItems.Add(item);
@@ -322,7 +323,9 @@ namespace Basis.BasisUI
             }
 
             foreach (PropMenuItem item in MenuItems)
+            {
                 await item.LoadItemData(Report, CancellationSource.Token);
+            }
         }
 
         public async Task AppendNewProp(BasisLoadableBundle bundle, bool selectAfterCreate)
