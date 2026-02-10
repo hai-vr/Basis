@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using Basis.Scripts.UI.UI_Panels;
 using System;
@@ -9,10 +10,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.UI;
+using UnityEngine.UIElements;
 using static Basis.BasisUI.PanelPropsList;
 using static BundledContentHolder;
 using static SerializableBasis;
+using static UnityEditor.FilePathAttribute;
 using Debug = UnityEngine.Debug;
 
 namespace Basis.BasisUI
@@ -40,7 +45,7 @@ namespace Basis.BasisUI
                 {
                     Pass = Wrapper.BasisLoadableBundle.UnlockPassword,
                     Url = Wrapper.BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation,
-                     ISEmbedded =  Wrapper.IsOnDisc,
+                    ISEmbedded = Wrapper.ISEmbedded,
                 };
 
                 BasisDataStoreItemKeys.ItemKey[] keys = BasisDataStoreItemKeys.DisplayKeys();
@@ -102,7 +107,7 @@ namespace Basis.BasisUI
                     },
                 };
                 Wrapper.BasisLoadableBundle = bundle;
-                Wrapper.IsOnDisc = false;
+                Wrapper.ISEmbedded = false;
                 PropBundles.Add(Wrapper);
             }
 
@@ -131,6 +136,7 @@ namespace Basis.BasisUI
         public class PropMenuItem
         {
             public PanelButton Button;
+            public bool IsEmbedded;
             public BasisTrackedBundleWrapper Wrapper;
 
             public Texture2D IconTexture;
@@ -145,6 +151,23 @@ namespace Basis.BasisUI
             public async Task LoadItemData(BasisProgressReport report, CancellationToken cancellationToken)
             {
                 string title = "Prop";
+                if (IsEmbedded)
+                {
+                    try
+                    {
+                        IconSprite = null;
+                        title = Wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+                        Button.Descriptor.SetIcon(IconSprite);
+                        Button.Descriptor.SetTitle(title);
+                        return;
+                    }
+                    catch (Exception e)
+                    {
+                        BasisDebug.LogError(e);
+                        BasisLoadHandler.RemoveDiscInfo(Wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+                        return;
+                    }
+                }
                 try
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -186,13 +209,16 @@ namespace Basis.BasisUI
                 Button.Descriptor.SetTitle(title);
             }
         }
+        [System.Serializable]
         public class BasisLoadableBundleWrapper
         {
-            public bool IsOnDisc;
+            public bool ISEmbedded = false;
+            public bool ForceSpawnAtEyeLevel = false;
             public BasisLoadableBundle BasisLoadableBundle;
         }
         // (renamed) PreLoaded props
-        public List<BasisLoadableBundleWrapper> PreLoadedProps = new();
+        [SerializeField]
+        public List<BasisLoadableBundleWrapper> PreLoadedProps = new List<BasisLoadableBundleWrapper>();
         public bool ToggleLoadUnload = true;
         public bool RemoveAlsoUnloads = true;
         public bool Persistent = false;
@@ -324,6 +350,7 @@ namespace Basis.BasisUI
                 {
                     Button = button,
                     Wrapper = wrapper,
+                     IsEmbedded = Wrapper.ISEmbedded,
                 };
 
                 MenuItems.Add(item);
@@ -357,6 +384,7 @@ namespace Basis.BasisUI
             {
                 Button = button,
                 Wrapper = wrapper,
+                 IsEmbedded = false,
             };
 
             MenuItems.Add(item);
@@ -500,24 +528,46 @@ namespace Basis.BasisUI
 
         private Vector3 GetSpawnPosition()
         {
-            if (UseCustomSpawnPosition) return CustomSpawnPosition;
-            if (BasisLocalPlayer.Instance != null) return BasisLocalPlayer.Instance.transform.position;
-            if (Camera.main != null) return Camera.main.transform.position;
+            if (UseCustomSpawnPosition)
+            {
+                return CustomSpawnPosition;
+            }
+
+            if (BasisLocalPlayer.Instance != null)
+            {
+                return BasisLocalPlayer.Instance.transform.position;
+            }
+
+            if (Camera.main != null)
+            {
+                return Camera.main.transform.position;
+            }
+
             return Vector3.zero;
         }
 
         private Quaternion GetSpawnRotation()
         {
             if (CustomSpawnRotation == new Quaternion(0, 0, 0, 0))
+            {
                 CustomSpawnRotation = Quaternion.identity;
+            }
 
             return UseCustomSpawnPosition ? CustomSpawnRotation : Quaternion.identity;
         }
 
         private Vector3 GetSpawnScale()
         {
-            if (!ApplyCustomScale) return Vector3.one;
-            if (CustomSpawnScale == Vector3.zero) CustomSpawnScale = Vector3.one;
+            if (!ApplyCustomScale)
+            {
+                return Vector3.one;
+            }
+
+            if (CustomSpawnScale == Vector3.zero)
+            {
+                CustomSpawnScale = Vector3.one;
+            }
+
             return CustomSpawnScale;
         }
 
@@ -595,8 +645,8 @@ namespace Basis.BasisUI
                 BasisDebug.LogError("No selected bundle.");
                 return;
             }
-
-            var bundle = SelectedProp.Wrapper.LoadableBundle;
+            var Wrapper = SelectedProp.Wrapper;
+            var bundle = Wrapper.LoadableBundle;
             if (bundle == null)
             {
                 BasisDebug.LogError("Selected bundle is null.");
@@ -617,19 +667,28 @@ namespace Basis.BasisUI
             Vector3 spawnScale = GetSpawnScale();
 
             bool persistent = PersistentToggle.Value;
-            if (Mode.Value == "Local")
+            if (SelectedProp.IsEmbedded)
             {
-                BasisProgressReport Report = new BasisProgressReport();
-                CancellationToken Cancel = new CancellationToken();
-                GameObject CreateObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, Report, Cancel, spawnPos, spawnRot, spawnScale, ApplyCustomScale, Selector.Prop,BasisNetworkManagement.Instance.transform);
+                AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+                GameObject CreatedObject = op.WaitForCompletion();
+                var inSceneLoadingAvatar = GameObject.Instantiate(CreatedObject, spawnPos, spawnRot, BasisDeviceManagement.Instance.transform);
             }
             else
             {
-                if (Mode.Value == "Networked")
+                if (Mode.Value == "Local")
                 {
-                    BasisNetworkSpawnItem.RequestGameObjectLoad(pass, url,spawnPos, spawnRot, spawnScale,persistent,ApplyCustomScale,out LocalLoadResource loadedProp);
-                    // Store as a new instance (1-to-many)
-                    Basis.BasisRuntimeSpawnRegistry.Add(url, loadedProp.LoadedNetID, persistent, out _);
+                    BasisProgressReport Report = new BasisProgressReport();
+                    CancellationToken Cancel = new CancellationToken();
+                    GameObject CreateObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, Report, Cancel, spawnPos, spawnRot, spawnScale, ApplyCustomScale, Selector.Prop, BasisNetworkManagement.Instance.transform);
+                }
+                else
+                {
+                    if (Mode.Value == "Networked")
+                    {
+                        BasisNetworkSpawnItem.RequestGameObjectLoad(pass, url, spawnPos, spawnRot, spawnScale, persistent, ApplyCustomScale, out LocalLoadResource loadedProp);
+                        // Store as a new instance (1-to-many)
+                        Basis.BasisRuntimeSpawnRegistry.Add(url, loadedProp.LoadedNetID, persistent, out _);
+                    }
                 }
             }
 
@@ -719,7 +778,9 @@ namespace Basis.BasisUI
                 {
                     var inst = instances[Index];
                     if (inst != null && !string.IsNullOrEmpty(inst.LoadedNetID))
+                    {
                         BasisNetworkSpawnItem.RequestGameObjectUnLoad(inst.LoadedNetID);
+                    }
                 }
                 Basis.BasisRuntimeSpawnRegistry.ClearAll(url);
             }

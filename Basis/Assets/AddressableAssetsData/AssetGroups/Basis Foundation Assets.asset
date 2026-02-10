@@ -32,7 +32,7 @@ MonoBehaviour:
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 0c9ffb72ecdca914b875fc177d06dd61
-    m_Address: Packages/com.basis.sdk/Prefabs/UI/Player Held Camera.prefab
+    m_Address: Photo Camera
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -260,7 +260,7 @@ MonoBehaviour:
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ed07444dbf3e0f744a12b80ab0a8a2b7
-    m_Address: Packages/com.basis.sdk/Prefabs/UI/Personal Mirror Prefab/PersonalMirror.prefab
+    m_Address: Personal Mirror
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

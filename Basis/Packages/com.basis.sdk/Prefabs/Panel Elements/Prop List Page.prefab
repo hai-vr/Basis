@@ -15659,19 +15659,36 @@ MonoBehaviour:
   TabButtonParent: {fileID: 4879213706854071637}
   SelectionButtons: []
   PreLoadedProps:
-  - UnlockPassword: 
-    BasisRemoteBundleEncrypted:
-      RemoteBeeFileLocation: 
-    BasisLocalEncryptedBundle:
-      DownloadedBeeFileLocation: 
-    BasisBundleConnector:
-      UniqueVersion: 
-      BasisBundleDescription:
-        AssetBundleName: 
-        AssetBundleDescription: 
-      BasisBundleGenerated: []
-      ImageBase64: 
-      DateOfCreation: 
+  - ISEmbedded: 1
+    BasisLoadableBundle:
+      UnlockPassword: 
+      BasisRemoteBundleEncrypted:
+        RemoteBeeFileLocation: Personal Mirror
+      BasisLocalEncryptedBundle:
+        DownloadedBeeFileLocation: 
+      BasisBundleConnector:
+        UniqueVersion: 
+        BasisBundleDescription:
+          AssetBundleName: 
+          AssetBundleDescription: 
+        BasisBundleGenerated: []
+        ImageBase64: 
+        DateOfCreation: 
+  - ISEmbedded: 1
+    BasisLoadableBundle:
+      UnlockPassword: 
+      BasisRemoteBundleEncrypted:
+        RemoteBeeFileLocation: Photo Camera
+      BasisLocalEncryptedBundle:
+        DownloadedBeeFileLocation: 
+      BasisBundleConnector:
+        UniqueVersion: 
+        BasisBundleDescription:
+          AssetBundleName: 
+          AssetBundleDescription: 
+        BasisBundleGenerated: []
+        ImageBase64: 
+        DateOfCreation: 
   ToggleLoadUnload: 1
   RemoveAlsoUnloads: 1
   Persistent: 1
