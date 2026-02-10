@@ -98,7 +98,7 @@ namespace Basis.BasisUI
                     {
                         BasisBundleDescription = new BasisBundleDescription(),
                         BasisBundleGenerated = new BasisBundleGenerated[] { new() },
-                        UniqueVersion = "",
+                        UniqueVersion = info.UniqueVersion,
                     },
                 };
                 Wrapper.BasisLoadableBundle = bundle;
@@ -150,22 +150,31 @@ namespace Basis.BasisUI
                     cancellationToken.ThrowIfCancellationRequested();
 
                     await BasisBeeManagement.HandleMetaOnlyLoad(Wrapper, report, cancellationToken);
-                    if (cancellationToken.IsCancellationRequested) return;
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
 
-                    var desc = Wrapper.LoadableBundle.BasisBundleConnector?.BasisBundleDescription;
+                    BasisBundleDescription desc = Wrapper.LoadableBundle.BasisBundleConnector?.BasisBundleDescription;
                     if (desc != null && !string.IsNullOrWhiteSpace(desc.AssetBundleName))
+                    {
                         title = desc.AssetBundleName;
+                    }
 
                     string imageBytes = Wrapper.LoadableBundle.BasisBundleConnector?.ImageBase64;
                     if (!string.IsNullOrEmpty(imageBytes))
                     {
                         IconTexture = BasisTextureCompression.FromPngBytes(imageBytes);
                         if (IconTexture)
+                        {
                             IconSprite = Sprite.Create(IconTexture, new Rect(0, 0, IconTexture.width, IconTexture.height), Vector2.zero);
+                        }
                     }
 
                     if (IconSprite)
+                    {
                         Button.Descriptor.SetIcon(IconSprite);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -276,9 +285,9 @@ namespace Basis.BasisUI
             var keys = BasisDataStoreItemKeys.DisplayKeys();
             if (keys == null) return false;
 
-            for (int i = 0; i < keys.Length; i++)
+            for (int Index = 0; Index < keys.Length; Index++)
             {
-                var cur = keys[i];
+                var cur = keys[Index];
                 if (cur != null && cur.Url == url && cur.Pass == pass)
                 {
                     key = cur;
@@ -301,7 +310,7 @@ namespace Basis.BasisUI
                 SelectionButtons.Add(button);
                 button.Descriptor.SetTitle("Prop");
 
-              var BasisLoadableBundle =  Wrapper.BasisLoadableBundle;
+                var BasisLoadableBundle = Wrapper.BasisLoadableBundle;
                 var url = BasisLoadableBundle?.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation ?? string.Empty;
                 var pass = BasisLoadableBundle?.UnlockPassword ?? string.Empty;
 
@@ -309,8 +318,9 @@ namespace Basis.BasisUI
                 {
                 }
                 BasisTrackedBundleWrapper wrapper = new BasisTrackedBundleWrapper();
-                wrapper.LoadableBundle =
-                PropMenuItem item = new()
+                wrapper.LoadableBundle = BasisLoadableBundle;
+
+                PropMenuItem item = new PropMenuItem
                 {
                     Button = button,
                     Wrapper = wrapper,
@@ -356,7 +366,7 @@ namespace Basis.BasisUI
 
             await item.LoadItemData(Report, CancellationSource.Token);
 
-            CachedPropData.PropBundles.Add(bundle);
+            CachedPropData.PropBundles.Add(new BasisLoadableBundleWrapper());
 
             if (selectAfterCreate) button.OnClick();
         }
@@ -518,7 +528,10 @@ namespace Basis.BasisUI
 
         private void RefreshLoadButtonLabel()
         {
-            if (LoadPropButton == null) return;
+            if (LoadPropButton == null)
+            {
+                return;
+            }
 
             string url = SelectedUrl();
             if (string.IsNullOrWhiteSpace(url))
@@ -702,9 +715,9 @@ namespace Basis.BasisUI
 
                 // Unload ALL instances for this URL
                 var instances = Basis.BasisRuntimeSpawnRegistry.GetInstances(url);
-                for (int i = instances.Count - 1; i >= 0; i--)
+                for (int Index = instances.Count - 1; Index >= 0; Index--)
                 {
-                    var inst = instances[i];
+                    var inst = instances[Index];
                     if (inst != null && !string.IsNullOrEmpty(inst.LoadedNetID))
                         BasisNetworkSpawnItem.RequestGameObjectUnLoad(inst.LoadedNetID);
                 }
