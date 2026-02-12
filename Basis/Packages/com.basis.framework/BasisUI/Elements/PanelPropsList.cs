@@ -13,11 +13,9 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.UI;
-using UnityEngine.UIElements;
 using static Basis.BasisUI.PanelPropsList;
 using static BundledContentHolder;
 using static SerializableBasis;
-using static UnityEditor.FilePathAttribute;
 using Debug = UnityEngine.Debug;
 
 namespace Basis.BasisUI
