@@ -53,39 +53,40 @@ namespace Basis.Scripts.Device_Management.Devices.Simulation
                     UnityEngine.Random.Range(-MinMaxOffset, MinMaxOffset),
                     UnityEngine.Random.Range(-MinMaxOffset, MinMaxOffset));
 
-                float LerpAmounts = LerpAmount * Time.deltaTime;
-                Quaternion LerpRotation = Quaternion.Lerp(FollowMovement.localRotation, UnityEngine.Random.rotation, LerpAmounts);
-                Vector3 newPosition = Vector3.Lerp(FollowMovement.localPosition, FollowMovement.localPosition + randomOffset, LerpAmounts);
+                float lerpAmt = LerpAmount * Time.deltaTime;
+                Quaternion lerpRot = Quaternion.Lerp(FollowMovement.localRotation, UnityEngine.Random.rotation, lerpAmt);
+                Vector3 newPos = Vector3.Lerp(FollowMovement.localPosition, FollowMovement.localPosition + randomOffset, lerpAmt);
 
-                FollowMovement.SetLocalPositionAndRotation(newPosition, LerpRotation);
+                FollowMovement.SetLocalPositionAndRotation(newPos, lerpRot);
             }
 
-            FollowMovement.GetLocalPositionAndRotation(out Vector3 VOut, out Quaternion QOut);
-            ScaledDeviceCoord.position = VOut;
-            Quaternion LocalRawRotation = QOut;
+            FollowMovement.GetLocalPositionAndRotation(out Vector3 localPos, out Quaternion localRot);
 
-            float SPTDS = BasisHeightDriver.AvatarToPlayerRatioScaled;
+            float sptds = BasisHeightDriver.AvatarToPlayerRatioScaled;
 
-            // Normalize to player default scale and restore (keeps internal math consistent)
-            ScaledDeviceCoord.position /= SPTDS;
-            ScaledDeviceCoord.position = OffsetCoords.position + (ScaledDeviceCoord.position * SPTDS);
-            ScaledDeviceCoord.rotation = LocalRawRotation;
+            // Interpret FollowMovement.localPos as "device local in player space" (unscaled)
+            Vector3 unscaledPos = localPos / sptds;          // normalize to player units
+            Quaternion unscaledRot = localRot;
 
-            if(AccountForScale)
+            // Scale into avatar space
+            Vector3 scaledPos = unscaledPos * sptds;
+
+            // Apply OffsetCoords as a rigid transform (THIS is the important bit)
+            ScaledDeviceCoord.position = OffsetCoords.position + (OffsetCoords.rotation * scaledPos);
+            ScaledDeviceCoord.rotation = OffsetCoords.rotation * unscaledRot;
+
+            if (AccountForScale)
             {
+                // Be careful: this will scale again. Only keep this if you truly want a second scale layer.
                 ScaledDeviceCoord.position *= BasisHeightDriver.AvatarToPlayerRatioScaled;
             }
 
-            if (hasRoleAssigned)
+            if (hasRoleAssigned && Control.HasTracked != BasisHasTracked.HasNoTracker)
             {
-                if (Control.HasTracked != BasisHasTracked.HasNoTracker)
-                {
-                    // Apply pose to incoming data for the bone control
-                    Control.IncomingData.position = ScaledDeviceCoord.position;
-                    Control.IncomingData.rotation = ScaledDeviceCoord.rotation;
-                    this.transform.name = Control.name;
-                    this.FollowMovement.name = $"{Control.name} Moveable transform";
-                }
+                Control.IncomingData.position = ScaledDeviceCoord.position;
+                Control.IncomingData.rotation = ScaledDeviceCoord.rotation;
+                this.transform.name = Control.name;
+                this.FollowMovement.name = $"{Control.name} Moveable transform";
             }
 
             ComputeRaycastDirection(ScaledDeviceCoord.position, ScaledDeviceCoord.rotation, Quaternion.identity);

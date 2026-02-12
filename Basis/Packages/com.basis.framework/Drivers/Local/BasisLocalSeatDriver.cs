@@ -107,15 +107,22 @@ namespace Basis.Scripts.Drivers
                 previousHeadPitchGlobal = BasisDesktopEye.Instance.rotationPitch;
                 previousHeadYawVsSeat = BasisDesktopEye.Instance.rotationYaw - (_seat.transform.rotation * _seat.SpineRotation).eulerAngles.y;
             }
-            if (BasisDeviceManagement.Instance.FindDevice(out BasisInput Input, TransformBinders.BoneControl.BasisBoneTrackedRole.CenterEye))
+            if (BasisDeviceManagement.Instance.FindDevice(out BasisInput input, TransformBinders.BoneControl.BasisBoneTrackedRole.CenterEye))
             {
-                Vector3 offset = -Input.ScaledDeviceCoord.position;
-                offset.y = 0.0f;
-                Quaternion rot = Input.ScaledDeviceCoord.rotation;
-                rot.x = 0.0f;
-                rot.z = 0.0f;
-                rot.Normalize();
-                BasisInput.OffsetCoords = new Common.BasisCalibratedCoords(offset, Quaternion.Inverse(rot));
+                // This must be the same "unscaled" pose that your poll uses BEFORE applying OffsetCoords.
+                // Ideally: read from your device driver right before you set OffsetCoords.
+                Vector3 unscaledPos = input.UnscaledDeviceCoord.position;     // or however you can access it
+                Quaternion unscaledRot = input.UnscaledDeviceCoord.rotation;
+
+                // This is where you WANT the device pose to end up in world space after seating.
+                // Replace these with your actual seated target.
+                Vector3 desiredPos = input.Control.TposeLocalScaled.position;
+                Quaternion desiredRot = _seat.transform.localRotation;
+
+                Quaternion offsetRot = desiredRot * Quaternion.Inverse(unscaledRot);
+                Vector3 offsetPos = desiredPos - (offsetRot * unscaledPos);
+
+                BasisInput.OffsetCoords = new Common.BasisCalibratedCoords(offsetPos, offsetRot);
             }
             // Disable character movement and add a movement lock so other systems respect being seated.
             BasisLocalVirtualSpineDriver.HipsFreezeToTpose = true;
@@ -126,8 +133,6 @@ namespace Basis.Scripts.Drivers
             LocalPlayer.LocalAnimatorDriver.PauseAnimator = true;
             if (BasisDesktopEye.Instance != null)
             {
-                // Set the player's relative yaw to zero to face forward on the seat.
-                BasisDesktopEye.Instance.rotationYaw = 0.0f;
                 // Only do the same for pitch if requested by the seat, to avoid disorienting the player.
                 if (_seat.ResetPitchOnEntry)
                 {
@@ -143,6 +148,11 @@ namespace Basis.Scripts.Drivers
                 hasEvent = true;
             }
             OnSimulate();
+        }
+        static Quaternion YawOnly(Quaternion q)
+        {
+            var e = q.eulerAngles;
+            return Quaternion.Euler(0f, e.y, 0f);
         }
         /// <summary>
         /// Releases the player from the seat, re-enabling movement and disabling leg overrides.

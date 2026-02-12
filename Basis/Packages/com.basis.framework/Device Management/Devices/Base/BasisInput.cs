@@ -635,18 +635,30 @@ namespace Basis.Scripts.Device_Management.Devices
             }
         }
         public static BasisCalibratedCoords OffsetCoords = new BasisCalibratedCoords();
-        /// <summary>
-        /// Applies player scale to <see cref="UnscaledDeviceCoord"/> to produce <see cref="ScaledDeviceCoord"/>.
+        // <summary>
+        /// Applies player scale and OffsetCoords to UnscaledDeviceCoord to produce ScaledDeviceCoord.
+        /// OffsetCoords is treated as a rigid transform (R, t).
         /// </summary>
-        public void ConvertToScaledDeviceCoord(ref BasisCalibratedCoords UnscaledDeviceCoord,ref BasisCalibratedCoords ScaledDeviceCoord)
+        public void ConvertToScaledDeviceCoord(ref BasisCalibratedCoords unscaled, ref BasisCalibratedCoords scaled)
         {
-            ScaledDeviceCoord.position = OffsetCoords.position + (UnscaledDeviceCoord.position * BasisHeightDriver.DeviceScale);
-            ScaledDeviceCoord.rotation = UnscaledDeviceCoord.rotation;
+            float s = BasisHeightDriver.DeviceScale;
+
+            Vector3 p = unscaled.position * s;
+            Quaternion r = unscaled.rotation;
+
+            scaled.position = OffsetCoords.position + (OffsetCoords.rotation * p);
+            scaled.rotation = OffsetCoords.rotation * r;
         }
+
         public void ConvertToScaledDeviceCoord()
         {
-            ScaledDeviceCoord.position = OffsetCoords.position + (UnscaledDeviceCoord.position * BasisHeightDriver.DeviceScale);
-            ScaledDeviceCoord.rotation = UnscaledDeviceCoord.rotation;
+            float s = BasisHeightDriver.DeviceScale;
+
+            Vector3 p = UnscaledDeviceCoord.position * s;
+            Quaternion r = UnscaledDeviceCoord.rotation;
+
+            ScaledDeviceCoord.position = OffsetCoords.position + (OffsetCoords.rotation * p);
+            ScaledDeviceCoord.rotation = OffsetCoords.rotation * r;
         }
 
         /// <summary>

@@ -259,8 +259,8 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             ComputeUnscaledDeviceCoord(ref UnscaledDeviceCoord, eyeWorld);
             UnscaledDeviceCoord.rotation = targetRot;
 
-            ScaledDeviceCoord.position = OffsetCoords.position + UnscaledDeviceCoord.position;
-            ScaledDeviceCoord.rotation = UnscaledDeviceCoord.rotation;
+            ScaledDeviceCoord.rotation = OffsetCoords.rotation * UnscaledDeviceCoord.rotation;
+            ScaledDeviceCoord.position = OffsetCoords.position + (OffsetCoords.rotation * UnscaledDeviceCoord.position);
 
             ControlOnlyAsDevice();
             if (IsComputingRaycast)

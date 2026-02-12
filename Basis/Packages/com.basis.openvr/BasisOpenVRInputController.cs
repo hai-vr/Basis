@@ -192,17 +192,18 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             Quaternion wristWorldRot = baseWristWorldRot * rotOffset;
 
             // ---------- SCALE UP TO AVATAR SPACE ----------
-            Vector3 wristWorldPos = wristWorldPosUnscaled * Scale;
+            Vector3 wristScaledPos = wristWorldPosUnscaled * Scale;
 
-            // Global offset is in scaled space (as before)
-            wristWorldPos += OffsetCoords.position;
+            // Apply OffsetCoords as a proper transform
+            Vector3 wristWorldPos = OffsetCoords.position + (OffsetCoords.rotation * wristScaledPos);
 
-            // Push results
+            Quaternion wristFinalRot = OffsetCoords.rotation * wristWorldRot;
+
             ScaledDeviceCoord.position = wristWorldPos;
-            ScaledDeviceCoord.rotation = wristWorldRot;
+            ScaledDeviceCoord.rotation = wristFinalRot;
 
-            HandFinal.rotation = wristWorldRot;
             HandFinal.position = wristWorldPos;
+            HandFinal.rotation = wristFinalRot;
 
             ControlOnlyAsHand(HandFinal.position, HandFinal.rotation);
 
