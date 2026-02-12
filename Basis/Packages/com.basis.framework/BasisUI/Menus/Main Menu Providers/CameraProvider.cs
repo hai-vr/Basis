@@ -19,7 +19,7 @@ namespace Basis.BasisUI
 
         public static GameObject ActiveCameraInstance;
 
-        public static string CameraPrefabPath = "Packages/com.basis.sdk/Prefabs/UI/Player Held Camera.prefab";
+        public static string CameraPrefabPath = "Photo Camera";
 
         public override async void RunAction()
         {

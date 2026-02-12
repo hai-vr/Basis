@@ -20,8 +20,7 @@ namespace Basis.BasisUI
         public static bool HasMirror;
         public static BasisPersonalMirror PersonalMirrorInstance;
 
-        public static string MirrorPath =
-            "Packages/com.basis.sdk/Prefabs/UI/Personal Mirror Prefab/PersonalMirror.prefab";
+        public static string MirrorPath = "Personal Mirror";
 
         public override async void RunAction()
         {
