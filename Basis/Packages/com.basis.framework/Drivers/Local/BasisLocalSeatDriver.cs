@@ -114,13 +114,13 @@ namespace Basis.Scripts.Drivers
             {
                 // This must be the same "unscaled" pose that your poll uses BEFORE applying OffsetCoords.
                 // Ideally: read from your device driver right before you set OffsetCoords.
-                Vector3 unscaledPos = input.UnscaledDeviceCoord.position;     // or however you can access it
+                Vector3 unscaledPos = input.UnscaledDeviceCoord.position;
                 Quaternion unscaledRot = input.UnscaledDeviceCoord.rotation;
                 unscaledRot = YawOnly(unscaledRot);
                 // This is where you WANT the device pose to end up in world space after seating.
                 // Replace these with your actual seated target.
                 Vector3 desiredPos = input.Control.TposeLocalScaled.position;
-                Quaternion desiredRot = _seat.transform.localRotation;
+                Quaternion desiredRot = _seat.transform.rotation;
 
                 Quaternion offsetRot = desiredRot * Quaternion.Inverse(unscaledRot);
                 Vector3 offsetPos = desiredPos - (offsetRot * unscaledPos);
