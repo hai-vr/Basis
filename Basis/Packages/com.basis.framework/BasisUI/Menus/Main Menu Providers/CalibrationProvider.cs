@@ -32,6 +32,9 @@ namespace Basis.BasisUI
         private bool _rightPressed;
         private bool _calibrated;
 
+        public PanelButton Button;
+        public PanelElementDescriptor HeightDescription;
+        public string AdditionalHeight = $"{BasisHeightDriver.AdditionalPlayerHeight:F2}";
         public override void RunAction()
         {
             if (BasisMainMenu.ActiveMenuTitle == Title)
@@ -74,22 +77,22 @@ namespace Basis.BasisUI
             PlusButton.OnClicked += IncreasePlayerSize;
             PlusButton.Descriptor.SetTitle("Add 0.01f Height");
         }
-        public PanelButton Button;
-        public PanelElementDescriptor HeightDescription;
-        public string AdditionalHeight = $"{BasisHeightDriver.AdditionalPlayerHeight:F2}";
         /// <summary>
         /// tracker balls
         /// </summary>
         public void IncreasePlayerSize()
         {
             BasisHeightDriver.AdditionalPlayerHeight += 0.1f;
-            HeightDescription.DescriptionLabel.text = AdditionalHeight;
-            BasisHeightDriver.ApplyScaleAndHeight();
+            ApplyAndUpdateUI();
         }
         public void DecreasePlayerSize()
         {
             BasisHeightDriver.AdditionalPlayerHeight -= 0.1f;
-            HeightDescription.DescriptionLabel.text = AdditionalHeight;
+            ApplyAndUpdateUI();
+        }
+        public void ApplyAndUpdateUI()
+        {
+            HeightDescription.SetDescription(AdditionalHeight);
             BasisHeightDriver.ApplyScaleAndHeight();
         }
         public void Calibrate()
