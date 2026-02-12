@@ -98,6 +98,23 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public float LowerLegLength { get; private set; } = 0.5f;
         public float LegAngleDegrees { get; private set; } = 90.0f;
 
+        private AsyncOperationHandle<Material> _asyncOperationHighlightMat;
+        private GameObject _seatHighlightObject;
+        private MeshFilter _seatHighlightMeshFilter;
+        private Material _colliderHighlightMat;
+        private const string k_LoadMaterialAddress = "Interactable/InteractHighlightMat.mat";
+        public Action<BasisPlayer> OnLocalPlayerEnterSeat;
+        public Action<BasisPlayer> OnLocalPlayerExitSeat;
+        private BasisInput _interactingInput = null;
+        private bool IsSeatTakenByAnyone = false;
+        public bool LocallyInSeat;
+        public bool ResetPitchOnEntry = false;
+        public bool ExitRequiresAllDevicesPressed;
+        public BasisInputKey ExitKey = BasisInputKey.Trigger;
+        public BasisBoneTrackedRole[] ExitRoles = null;
+
+        // Internal latch to prevent repeat firing while held (used when ExitOnPressDown == true).
+        private bool _exitLatch;
         public void SetPoints(Vector3 back, Vector3 foot, Vector3 knee, double angle = 90.0)
         {
             _back = back;
@@ -138,12 +155,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
         #endregion Seat Internals
 
         #region Highlight Code
-        private AsyncOperationHandle<Material> _asyncOperationHighlightMat;
-        private GameObject _seatHighlightObject;
-        private MeshFilter _seatHighlightMeshFilter;
-        private Material _colliderHighlightMat;
-        private const string k_LoadMaterialAddress = "Interactable/InteractHighlightMat.mat";
-
         private Mesh _generateSeatHighlightMesh()
         {
             const float k_lineWidth = 0.1f;
@@ -388,6 +399,15 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         public override void OnDestroy()
         {
+            if (LocallyInSeat)
+            {
+                if (BasisLocalPlayer.Instance != null)
+                {
+                    BasisLocalPlayer.Instance?.LocalSeatDriver.Stand();
+                }
+                SetSeatOccupied(false);
+                LocallyInSeat = false;
+            }
             if (_seatHighlightMeshFilter != null)
             {
                 if (_seatHighlightMeshFilter.mesh != null)
@@ -404,12 +424,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
         #endregion Unity Lifecycle Hooks
 
         #region Basis Integration
-        public Action<BasisPlayer> OnLocalPlayerEnterSeat;
-        public Action<BasisPlayer> OnLocalPlayerExitSeat;
-        private BasisInput _interactingInput = null;
-        private bool IsSeatTakenByAnyone = false;
-        public bool LocallyInSeat;
-        public bool ResetPitchOnEntry = false;
         public override bool CanHover(BasisInput input)
         {
             // Can only hover when not already hovering or interacting.
@@ -507,7 +521,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
             _interactingInput = input;
             if (LocallyInSeat)
             {
-                BasisLocalPlayer.Instance.LocalSeatDriver.Stand();//we got to make it to here to exit a seat.
+                if (BasisLocalPlayer.Instance != null)
+                {
+                    BasisLocalPlayer.Instance?.LocalSeatDriver.Stand();
+                }
                 SetSeatOccupied(false);
                 LocallyInSeat = false;
             }
@@ -517,6 +534,18 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 OnEnterSeat(BasisLocalPlayer.Instance);
             }
             base.OnInteractStart(input);
+        }
+        public void OnDisable()
+        {
+            if (LocallyInSeat)
+            {
+                if (BasisLocalPlayer.Instance != null)
+                {
+                    BasisLocalPlayer.Instance?.LocalSeatDriver.Stand();
+                }
+                SetSeatOccupied(false);
+                LocallyInSeat = false;
+            }
         }
 
         public override void OnInteractEnd(BasisInput input)
@@ -548,12 +577,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             LocallyInSeat = false;
             OnLocalPlayerExitSeat?.Invoke(player);
         }
-        public bool ExitRequiresAllDevicesPressed;
-        public BasisInputKey ExitKey = BasisInputKey.Trigger;
-        public BasisBoneTrackedRole[] ExitRoles = null;
-
-        // Internal latch to prevent repeat firing while held (used when ExitOnPressDown == true).
-        private bool _exitLatch;
         public void LateUpdate()
         {
             if (LocallyInSeat)
@@ -611,7 +634,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
         }
         private void RequestExit()
         {
-            BasisLocalPlayer.Instance.LocalSeatDriver.Stand();//we got to make it to here to exit a seat.
+            if (BasisLocalPlayer.Instance != null)
+            {
+                BasisLocalPlayer.Instance?.LocalSeatDriver.Stand();
+            }
             SetSeatOccupied(false);
             LocallyInSeat = false;
         }

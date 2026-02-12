@@ -53,6 +53,11 @@ namespace Basis.Scripts.Drivers
         private Vector3 previousRelativePosition = Vector3.zero;
         private float previousHeadPitchGlobal = 0.0f;
         private float previousHeadYawVsSeat = 0.0f;
+        public bool UseDefaultMasking = true;
+        public LayerMask GroundMask;
+        public LayerMask BlockingMask;
+        public float maxDownProbe = 3.0f;
+        public float maxUpProbe = 1.0f;
         private bool hasEvent = false;
 
         private void GrabLatestTposeLocalScaleData()
@@ -129,7 +134,7 @@ namespace Basis.Scripts.Drivers
                     BasisDesktopEye.Instance.rotationPitch = 0.0f;
                 }
             }
-            _setAllOverrideUsages(true);
+            SetAllOverrideUsages(true);
             LocalPlayer.OnVirtualData += OnSimulate;
             GrabLatestTposeLocalScaleData();
             if (hasEvent == false)
@@ -139,44 +144,48 @@ namespace Basis.Scripts.Drivers
             }
             OnSimulate();
         }
-        public bool UseDefaultMasking = true;
-        public LayerMask GroundMask;
-        public LayerMask BlockingMask;
-        public float maxDownProbe = 3.0f;
-        public float maxUpProbe = 1.0f;
         /// <summary>
         /// Releases the player from the seat, re-enabling movement and disabling leg overrides.
         /// </summary>
         public void Stand()
         {
-            if (LocalPlayer == null || _seat == null)
+            BasisLocalVirtualSpineDriver.HipsFreezeToTpose = false;
+            if (hasEvent)
+            {
+                BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= GrabLatestTposeLocalScaleData;
+                hasEvent = false;
+            }
+            if (LocalPlayer == null)
             {
                 return;
             }
 
             LocalPlayer.LocalAnimatorDriver.PauseAnimator = false;
-            _seat.OnExitSeat(LocalPlayer);
-            BasisLocalVirtualSpineDriver.HipsFreezeToTpose = false;
             LocalPlayer.OnVirtualData -= OnSimulate;
             LocalPlayer.LocalCharacterDriver.MovementLock.Remove(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.CrouchingLock.Remove(nameof(BasisLocalSeatDriver));
             LocalPlayer.LocalCharacterDriver.IsEnabled = true;
             BasisInput.OffsetCoords = new Common.BasisCalibratedCoords(Vector3.zero, Quaternion.identity);
-            _setAllOverrideUsages(false);
+            SetAllOverrideUsages(false);
+            // You should pull these from your actual character controller if possible:
+            var CC = BasisLocalPlayer.Instance.LocalCharacterDriver.characterController;
+
+            if (_seat == null)
+            {
+                return;
+            }
+            _seat.OnExitSeat(LocalPlayer);
             if (BasisDesktopEye.Instance != null)
             {
                 BasisDesktopEye.Instance.rotationPitch = previousHeadPitchGlobal;
                 BasisDesktopEye.Instance.rotationYaw = previousHeadYawVsSeat + (_seat.transform.rotation * _seat.SpineRotation).eulerAngles.y;
             }
             Vector3 desiredPos = _seat.transform.TransformPoint(previousRelativePosition);
-
-            // You should pull these from your actual character controller if possible:
-           var CC = BasisLocalPlayer.Instance.LocalCharacterDriver.characterController;
             // Decide masks:
             // - groundMask: what counts as "floor" (static world, terrain, platforms)
             // - blockingMask: what you can't spawn inside (usually same + dynamic props)
 
-            if (BasisSafeTeleportUtil.TryFindSafeStandingPosition(desiredPos, CC.radius, CC.height, CC.skinWidth, GroundMask,BlockingMask, maxDownProbe, maxUpProbe, out Vector3 safePos))
+            if (BasisSafeTeleportUtil.TryFindSafeStandingPosition(desiredPos, CC.radius, CC.height, CC.skinWidth, GroundMask, BlockingMask, maxDownProbe, maxUpProbe, out Vector3 safePos))
             {
                 LocalPlayer.Teleport(safePos, Quaternion.identity, true);
             }
@@ -186,12 +195,6 @@ namespace Basis.Scripts.Drivers
                 // Options: keep player where they are, or teleport to last known safe / spawn.
                 BasisDebug.LogWarning("No safe exit position found for seat.");
                 LocalPlayer.Teleport(LocalPlayer.transform.position, Quaternion.identity, true);
-            }
-            GrabLatestTposeLocalScaleData();
-            if (hasEvent)
-            {
-                BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= GrabLatestTposeLocalScaleData;
-                hasEvent = false;
             }
             _seat = null;
         }
@@ -230,8 +233,7 @@ namespace Basis.Scripts.Drivers
                 targetUpperLegDirRelToHips
             );
             // Adjust the upper leg target points to account for the character's legs being shorter or longer than the seat's ideal leg lengths.
-            float upperLegHorizontalTravelRatio = Vector3.Dot(_seat.UpperLegDir,
-                    _seat.SpineRotation * desiredLeftUpperLegRot * Vector3.down);
+            float upperLegHorizontalTravelRatio = Vector3.Dot(_seat.UpperLegDir, _seat.SpineRotation * desiredLeftUpperLegRot * Vector3.down);
             float availableUpperLegHorizontalTravel = Vector3.Distance(targetKnee - _seat.UpperLegPerp * upperLegKneeRadius, targetBack - _seat.UpperLegPerp * upperLegBackRadius);
             float characterUpperLegHorizontalTravel = upperLegLength * upperLegHorizontalTravelRatio;
             if (characterUpperLegHorizontalTravel < availableUpperLegHorizontalTravel)
@@ -304,23 +306,12 @@ namespace Basis.Scripts.Drivers
                 targetLowerLegDirRelToHips
             );
             // Apply the calculated leg pose.
-            _applyLocalLegPose(
-                targetBack,
-                desiredLeftUpperLegRot,
-                desiredRightUpperLegRot,
-                desiredLeftLowerLegRot,
-                desiredRightLowerLegRot
-            );
+            ApplyLocalLegPose(targetBack,desiredLeftUpperLegRot,desiredRightUpperLegRot,desiredLeftLowerLegRot,desiredRightLowerLegRot);
         }
 
-        private void _applyLocalLegPose(
-            Vector3 pelvisPos,
-            Quaternion leftUpperLegRot,
-            Quaternion rightUpperLegRot,
-            Quaternion leftLowerLegRot,
-            Quaternion rightLowerLegRot
-        )
+        private void ApplyLocalLegPose(Vector3 pelvisPos, Quaternion leftUpperLegRot, Quaternion rightUpperLegRot,Quaternion leftLowerLegRot,Quaternion rightLowerLegRot)
         {
+            Quaternion TposeHips = BasisLocalBoneDriver.HipsControl.TposeLocalScaled.rotation;
             // Actually set the transforms of the player. These are in global space
             // so we need to apply the seat's global transform to our local data.
             Quaternion seatQuat = _seat.transform.rotation;
@@ -329,7 +320,7 @@ namespace Basis.Scripts.Drivers
             // Note that, for seating purposes, the point we actually want to align is between the legs ("pelvis").
             Vector3 pelvisWorldPos = _seat.transform.TransformPoint(pelvisPos);
             Quaternion hipsWorldRot = seatQuat * _seat.SpineRotation;
-            Quaternion playerRot = hipsWorldRot * Quaternion.Inverse(BasisLocalBoneDriver.HipsControl.TposeLocalScaled.rotation);
+            Quaternion playerRot = hipsWorldRot * Quaternion.Inverse(TposeHips);
             Vector3 playerPelvisLocalPos = 0.5f * (BasisLocalBoneDriver.LeftUpperLegControl.TposeLocalScaled.position + BasisLocalBoneDriver.RightUpperLegControl.TposeLocalScaled.position);
             Vector3 playerPos = pelvisWorldPos - playerRot * playerPelvisLocalPos;
 
@@ -339,25 +330,13 @@ namespace Basis.Scripts.Drivers
             // Despite the above comment, we do ALSO need to set the hips override to prevent it from rotating.
             LocalPlayer.LocalRigDriver.SetOverrideData(HumanBodyBones.Hips, pelvisWorldPos, hipsWorldRot);
             // Set the leg bone transforms.
-            LocalPlayer.LocalRigDriver.SetOverrideData(
-                HumanBodyBones.LeftUpperLeg,
-                BasisLocalBoneDriver.LeftUpperLegControl.TposeLocalScaled.position,
-                hipsWorldRot * leftUpperLegRot);
-            LocalPlayer.LocalRigDriver.SetOverrideData(
-                HumanBodyBones.RightUpperLeg,
-                BasisLocalBoneDriver.RightUpperLegControl.TposeLocalScaled.position,
-                hipsWorldRot * rightUpperLegRot);
-            LocalPlayer.LocalRigDriver.SetOverrideData(
-                HumanBodyBones.LeftLowerLeg,
-                BasisLocalBoneDriver.LeftLowerLegControl.TposeLocalScaled.position,
-                hipsWorldRot * leftLowerLegRot);
-            LocalPlayer.LocalRigDriver.SetOverrideData(
-                HumanBodyBones.RightLowerLeg,
-                BasisLocalBoneDriver.RightLowerLegControl.TposeLocalScaled.position,
-                hipsWorldRot * rightLowerLegRot);
+            LocalPlayer.LocalRigDriver.SetOverrideData(HumanBodyBones.LeftUpperLeg,BasisLocalBoneDriver.LeftUpperLegControl.TposeLocalScaled.position, hipsWorldRot * leftUpperLegRot);
+            LocalPlayer.LocalRigDriver.SetOverrideData(HumanBodyBones.RightUpperLeg,BasisLocalBoneDriver.RightUpperLegControl.TposeLocalScaled.position,hipsWorldRot * rightUpperLegRot);
+            LocalPlayer.LocalRigDriver.SetOverrideData(HumanBodyBones.LeftLowerLeg, BasisLocalBoneDriver.LeftLowerLegControl.TposeLocalScaled.position,hipsWorldRot * leftLowerLegRot);
+            LocalPlayer.LocalRigDriver.SetOverrideData(HumanBodyBones.RightLowerLeg,BasisLocalBoneDriver.RightLowerLegControl.TposeLocalScaled.position,hipsWorldRot * rightLowerLegRot);
         }
 
-        private void _setAllOverrideUsages(bool enabled)
+        private void SetAllOverrideUsages(bool enabled)
         {
             LocalPlayer.LocalRigDriver.SetOverrideUsage(HumanBodyBones.Hips, enabled);
             LocalPlayer.LocalRigDriver.SetOverrideUsage(HumanBodyBones.LeftUpperLeg, enabled);
