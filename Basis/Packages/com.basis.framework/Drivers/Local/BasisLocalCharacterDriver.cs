@@ -134,6 +134,10 @@ namespace Basis.Scripts.BasisCharacterController
         {
             if (!IsEnabled)
             {
+
+                // If you want basis localToWorld using the *new* pose:
+                BasisLocalPlayerTransform.GetPositionAndRotation(out Vector3 Position,out Quaternion Rotation);
+                BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(Position, Rotation, BasisLocalPlayerTransform.lossyScale);
                 return;
             }
             LastBottomPoint = bottomPointLocalSpace;

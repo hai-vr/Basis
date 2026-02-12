@@ -444,14 +444,20 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public override void OnHoverStart(BasisInput input)
         {
             var found = Inputs.FindExcludeExtras(input);
-            if (found != null && found.Value.GetState() != BasisInteractInputState.Ignored)
+            if (found == null)
             {
-                // BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " input state is not ignored OnHoverStart, this shouldn't happen");
+                return;
             }
+            //  if (found.Value.GetState() != BasisInteractInputState.Ignored)
+            // {
+            // BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " input state is not ignored OnHoverStart, this shouldn't happen");
+            // }
 
             var added = Inputs.ChangeStateByRole(found.Value.Role, BasisInteractInputState.Hovering);
             if (!added)
+            {
                 BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " did not find role for input on hover");
+            }
 
             OnHoverStartEvent?.Invoke(input);
             HighlightSeat(true);
