@@ -149,11 +149,6 @@ namespace Basis.Scripts.Drivers
             }
             OnSimulate();
         }
-        static Quaternion YawOnly(Quaternion q)
-        {
-            var e = q.eulerAngles;
-            return Quaternion.Euler(0f, e.y, 0f);
-        }
         /// <summary>
         /// Releases the player from the seat, re-enabling movement and disabling leg overrides.
         /// </summary>
