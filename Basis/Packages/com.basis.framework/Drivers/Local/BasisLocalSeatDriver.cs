@@ -92,7 +92,10 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void Sit(BasisSeat seat)
         {
-            if (LocalPlayer == null || seat == null) return;
+            if (LocalPlayer == null || seat == null)
+            {
+                return;
+            }
             // If already seated (using a seat from a seat), stand first.
             if (_seat != null)
             {
@@ -113,7 +116,7 @@ namespace Basis.Scripts.Drivers
                 // Ideally: read from your device driver right before you set OffsetCoords.
                 Vector3 unscaledPos = input.UnscaledDeviceCoord.position;     // or however you can access it
                 Quaternion unscaledRot = input.UnscaledDeviceCoord.rotation;
-
+                unscaledRot = YawOnly(unscaledRot);
                 // This is where you WANT the device pose to end up in world space after seating.
                 // Replace these with your actual seated target.
                 Vector3 desiredPos = input.Control.TposeLocalScaled.position;
@@ -136,6 +139,7 @@ namespace Basis.Scripts.Drivers
                 // Only do the same for pitch if requested by the seat, to avoid disorienting the player.
                 if (_seat.ResetPitchOnEntry)
                 {
+                    BasisDesktopEye.Instance.rotationYaw = 0;
                     BasisDesktopEye.Instance.rotationPitch = 0.0f;
                 }
             }
@@ -148,6 +152,11 @@ namespace Basis.Scripts.Drivers
                 hasEvent = true;
             }
             OnSimulate();
+        }
+        static Quaternion YawOnly(Quaternion q)
+        {
+            var e = q.eulerAngles;
+            return Quaternion.Euler(0f, e.y, 0f);
         }
         /// <summary>
         /// Releases the player from the seat, re-enabling movement and disabling leg overrides.
