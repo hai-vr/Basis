@@ -436,6 +436,10 @@ namespace Basis.Scripts.BasisSdk.Players
 
             AfterSimulateOnLate?.Invoke();
         }
+        public void OnDrawGizmosSelected()
+        {
+            LocalSeatDriver.DrawGizmosSelected();
+        }
         public static void FireJustBeforeNetworkApply()
         {
             JustBeforeNetworkApply?.Invoke();

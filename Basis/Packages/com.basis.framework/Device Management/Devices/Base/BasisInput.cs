@@ -634,7 +634,7 @@ namespace Basis.Scripts.Device_Management.Devices
                 BasisVisualTracker.Initialization(this);
             }
         }
-        public static BasisCalibratedCoords OffsetCoords = new BasisCalibratedCoords();
+        public static BasisCalibratedCoords OffsetCoords = new BasisCalibratedCoords(Vector3.zero,Quaternion.identity);
         // <summary>
         /// Applies player scale and OffsetCoords to UnscaledDeviceCoord to produce ScaledDeviceCoord.
         /// OffsetCoords is treated as a rigid transform (R, t).

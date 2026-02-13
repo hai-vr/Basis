@@ -642,5 +642,21 @@ namespace Basis.Scripts.BasisSdk.Interactions
             LocallyInSeat = false;
         }
         #endregion Basis Integration
+        private void OnDrawGizmosSelected()
+        {
+            Gizmos.matrix = transform.localToWorldMatrix;
+
+            Gizmos.DrawSphere(_back, 0.04f);
+            Gizmos.DrawSphere(_knee, 0.04f);
+            Gizmos.DrawSphere(_foot, 0.04f);
+
+            Gizmos.DrawLine(_back, _knee);
+            Gizmos.DrawLine(_knee, _foot);
+
+            // show local forward
+            Gizmos.DrawLine(Vector3.zero, Vector3.forward * 0.3f);
+
+            Gizmos.matrix = Matrix4x4.identity;
+        }
     }
 }
