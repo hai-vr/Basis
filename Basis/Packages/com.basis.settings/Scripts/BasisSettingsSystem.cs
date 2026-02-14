@@ -15,19 +15,25 @@ public class KeyValue
 [Serializable]
 public class SettingsData
 {
-    public string version;
+    //  public string version;
+    [SerializeField]
     public List<KeyValue> settingsList = new List<KeyValue>();
 
     [NonSerialized]
     public Dictionary<string, string> settings = new Dictionary<string, string>();
+
+    public SettingsData()
+    {
+        settings = new Dictionary<string, string>();
+        settingsList = new List<KeyValue>();
+    }
+
     public void RebuildDictionary()
     {
         settings.Clear();
-
-        settingsList ??= new List<KeyValue>();
-
-        foreach (var kv in settingsList)
+        for (int Index = 0; Index < settingsList.Count; Index++)
         {
+            KeyValue kv = settingsList[Index];
             if (kv == null)
             {
                 continue;
@@ -55,7 +61,7 @@ public static class BasisSettingsSystem
 {
     public const string SettingsJson = "settingsConfig.json";
     private static readonly string filePath = Path.Combine(Application.persistentDataPath, SettingsJson);
-    private static readonly string currentVersion = "2.0.5";
+    // private static readonly string currentVersion = "2.0.5";
     private static SettingsData settingsData = new SettingsData();
 
     /// <summary>
@@ -63,10 +69,11 @@ public static class BasisSettingsSystem
     /// </summary>
     public static event Action<string, string> OnSettingChanged;
     public static event Action OnSettingsFinishedChanges;
-    static BasisSettingsSystem()
+    public static void Initalize()
     {
-        LoadAllSettings();
+        BasisSettingsSystem.LoadAllSettings();
         SceneManager.sceneLoaded += OnSceneLoaded;
+
     }
 
     private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -96,15 +103,12 @@ public static class BasisSettingsSystem
     {
         QualitySettings.SetQualityLevel(QualitySettings.GetQualityLevel(), true);
     }
+    public static bool HasSaveData(string uniqueSettingsName)
+    {
+        return settingsData.settings.TryGetValue(uniqueSettingsName, out var existing);
+    }
     public static void SaveString(string uniqueSettingsName, string value)
     {
-        settingsData ??= new SettingsData
-        {
-            version = currentVersion
-        };
-
-        settingsData.settings ??= new Dictionary<string, string>();
-
         bool changed = false;
 
         if (settingsData.settings.TryGetValue(uniqueSettingsName, out var existing))
@@ -133,15 +137,6 @@ public static class BasisSettingsSystem
 
     public static string LoadString(string uniqueSettingsName, string defaultValue)
     {
-        if (settingsData == null)
-        {
-            settingsData = new SettingsData { version = currentVersion };
-        }
-
-        if (settingsData.settings == null)
-        {
-            settingsData.settings = new Dictionary<string, string>();
-        }
 
         if (settingsData.settings.TryGetValue(uniqueSettingsName, out string value))
         {
@@ -158,22 +153,14 @@ public static class BasisSettingsSystem
     public static void LoadAllSettings()
     {
         // Default blank (will fill from file or remain empty)
-        settingsData = new SettingsData
-        {
-            version = currentVersion
-        };
         settingsData.RebuildDictionary();
 
         if (!File.Exists(filePath))
         {
             // First run: no file yet. Just create an empty file at current version.
             BasisDebug.LogError("Settings file not found, creating new settings file.");
+            //create the file and then just load it once done
             SaveAllSettings();
-
-            // Fire notifications (none yet unless defaults were created through LoadString later)
-            OnSettingsFinishedChanges?.Invoke();
-            ForceQualityRefresh();
-            return;
         }
 
         string json = null;
@@ -198,10 +185,13 @@ public static class BasisSettingsSystem
                 string backupPath = filePath + ".corrupt_backup";
                 File.Copy(filePath, backupPath, true);
             }
-            catch { /* ignore backup failures */ }
+            catch
+            {
+
+            }
 
             BasisDebug.LogError("Settings file corrupt/unreadable. Rebuilding empty settings.");
-            settingsData = new SettingsData { version = currentVersion };
+            settingsData = new SettingsData { };// version = currentVersion
             settingsData.RebuildDictionary();
 
             SaveAllSettings();
@@ -212,25 +202,13 @@ public static class BasisSettingsSystem
 
         // Rebuild dictionary WITH normalization
         loaded.RebuildDictionary();
-
-        // Ensure we never carry non-normalized data
-        if (loaded.settings == null)
-        {
-            loaded.settings = new Dictionary<string, string>();
-        }
-
         // Assign and bump version
         settingsData = loaded;
-        settingsData.version = currentVersion;
-
         var settings = settingsData.settings;
-        if (settings != null)
+        KeyValuePair<string, string>[] array = settings.ToArray();
+        foreach (KeyValuePair<string, string> kv in array)
         {
-            KeyValuePair<string, string>[] array = settings.ToArray();
-            foreach (KeyValuePair<string, string> kv in array)
-            {
-                OnSettingChanged?.Invoke(kv.Key, kv.Value);
-            }
+            OnSettingChanged?.Invoke(kv.Key, kv.Value);
         }
 
         OnSettingsFinishedChanges?.Invoke();
@@ -241,16 +219,6 @@ public static class BasisSettingsSystem
 
     public static void SaveAllSettings()
     {
-        if (settingsData == null)
-        {
-            settingsData = new SettingsData();
-        }
-
-        if (settingsData.settings == null)
-        {
-            settingsData.settings = new Dictionary<string, string>();
-        }
-
         // Hard-normalize entire dictionary before writing (belt + suspenders)
         var normalized = new Dictionary<string, string>();
         foreach (var pair in settingsData.settings)
@@ -266,7 +234,7 @@ public static class BasisSettingsSystem
         }
         settingsData.settings = normalized;
 
-        settingsData.version = currentVersion;
+        //  settingsData.version = currentVersion;
         settingsData.RebuildList();
 
         string json = JsonUtility.ToJson(settingsData, true);
@@ -306,14 +274,11 @@ public static class BasisSettingsSystem
             return (float)defaultValue;
         }
     }
-
     public static bool LoadBool(string key, bool defaultValue)
     {
         // stored as "true"/"false" (lowercase) always
-        string val = LoadString(key, defaultValue ? "true" : "false");
-        return val == "true";
+        return LoadString(key, defaultValue ? "true" : "false") == "true";
     }
-
     public static void SaveInt(string key, int value) => SaveString(key, value.ToString(CultureInfo.InvariantCulture));
 
     public static void SaveFloat(string key, float value) => SaveString(key, value.ToString(CultureInfo.InvariantCulture));

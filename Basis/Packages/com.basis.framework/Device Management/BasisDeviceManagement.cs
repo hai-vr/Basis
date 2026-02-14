@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Command_Line_Args;
 using Basis.Scripts.Device_Management.Devices;
@@ -169,11 +170,15 @@ namespace Basis.Scripts.Device_Management
         /// </summary>
         private async void Start()
         {
-            if (BasisHelpers.CheckInstance(Instance)) Instance = this;
+            if (BasisHelpers.CheckInstance(Instance))
+            {
+                Instance = this;
+            }
 
             StaticCurrentMode = BasisConstants.None;
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-
+            BasisSettingsSystem.Initalize();
+            BasisSettingsDefaults.LoadAll();
             try
             {
                 await Initialize();

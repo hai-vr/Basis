@@ -17,6 +17,10 @@ public abstract class BasisSettingsBase : MonoBehaviour
     {
         return float.TryParse(String, NumberStyles.Any, CultureInfo.InvariantCulture, out Value);
     }
+    public static bool StaticSliderReadOption(string String, out float Value)
+    {
+        return float.TryParse(String, NumberStyles.Any, CultureInfo.InvariantCulture, out Value);
+    }
     public void TOLowerValidSettingsChange(string matchedSettingName, string optionValue)
     {
         ValidSettingsChange(matchedSettingName.ToLower(), optionValue.ToLower());

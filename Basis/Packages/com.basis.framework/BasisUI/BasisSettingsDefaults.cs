@@ -381,5 +381,174 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> AgcAttack => new("agcattack", new BasisPlatformDefault<float>(0.10f)); // 0..1
 
         public static BasisSettingsBinding<float> AgcRelease => new("agcrelease", new BasisPlatformDefault<float>(0.01f)); // 0..1
+
+        public static void LoadAll()
+        {
+            // Audio
+            MainVolume.LoadBindingValue();
+            MenuVolume.LoadBindingValue();
+            WorldVolume.LoadBindingValue();
+            PlayerVolume.LoadBindingValue();
+            MicrophoneVolume.LoadBindingValue();
+            MicrophoneRange.LoadBindingValue();
+            HearingRange.LoadBindingValue();
+            MicrophoneDenoiser.LoadBindingValue();
+            MicrophoneMode.LoadBindingValue();
+            UseAutomaticGain.LoadBindingValue();
+            DenoiseMakeupDb.LoadBindingValue();
+            DenoiseWet.LoadBindingValue();
+            AgcTargetRms.LoadBindingValue();
+            AgcMaxGainDb.LoadBindingValue();
+            AgcAttack.LoadBindingValue();
+            AgcRelease.LoadBindingValue();
+
+            // Input / Movement
+            ControllerDeadZone.LoadBindingValue();
+            Basexdeadzone.LoadBindingValue();
+            Extraxdeadzoneatfully.LoadBindingValue();
+            Ydeadzone.LoadBindingValue();
+            Wingexponent.LoadBindingValue();
+            SnapTurnAngle.LoadBindingValue();
+            mousesensitivty.LoadBindingValue();
+            InvertMouse.LoadBindingValue();
+            usesnapturn.LoadBindingValue();
+
+            // Avatar / IK / Body
+            SelectedHeight.LoadBindingValue();
+            SelectedScale.LoadBindingValue();
+            realworldeyeheight.LoadBindingValue();
+            CustomScale.LoadBindingValue();
+            AvatarRange.LoadBindingValue();
+            SelectedBone.LoadBindingValue();
+            IKMode.LoadBindingValue();
+            SitStand.LoadBindingValue();
+
+            // Rendering / Graphics
+            QualityLevel.LoadBindingValue();
+            ShadowQuality.LoadBindingValue();
+            HDRSupport.LoadBindingValue();
+            Antialiasing.LoadBindingValue();
+            DebugVisuals.LoadBindingValue();
+            MemoryAllocation.LoadBindingValue();
+            VisualState.LoadBindingValue();
+            FoveatedRendering.LoadBindingValue();
+            FieldOfView.LoadBindingValue();
+            RenderResolution.LoadBindingValue();
+            VSync.LoadBindingValue();
+            VSyncCapFps.LoadBindingValue();
+
+            // LOD / Download limits
+            AvatarDownloadSize.LoadBindingValue();
+            AvatarMeshLOD.LoadBindingValue();
+            GlobalMeshLOD.LoadBindingValue();
+
+            // UI
+            MicrophoneIcon.LoadBindingValue();
+
+            // Misc
+            FalseBinding.LoadBindingValue();
+            TrueBinding.LoadBindingValue();
+            LimitThreshold.LoadBindingValue();
+            LimitKnee.LoadBindingValue();
+
+            // Global FBIK parameters
+            FBIKMinCutoff.LoadBindingValue();
+            FBIKBeta.LoadBindingValue();
+            FBIKDerivativeCutoff.LoadBindingValue();
+            FBIKPositionSmoothingHz.LoadBindingValue();
+            FBIKRotationSmoothingHz.LoadBindingValue();
+
+            // Hips
+            FBIKHipsSmoothPos.LoadBindingValue();
+            FBIKHipsSmoothRot.LoadBindingValue();
+            FBIKHipsEuroPos.LoadBindingValue();
+            FBIKHipsEuroRot.LoadBindingValue();
+
+            // Head
+            FBIKHeadSmoothPos.LoadBindingValue();
+            FBIKHeadSmoothRot.LoadBindingValue();
+            FBIKHeadEuroPos.LoadBindingValue();
+            FBIKHeadEuroRot.LoadBindingValue();
+
+            // Left Foot
+            FBIKLeftFootSmoothPos.LoadBindingValue();
+            FBIKLeftFootSmoothRot.LoadBindingValue();
+            FBIKLeftFootEuroPos.LoadBindingValue();
+            FBIKLeftFootEuroRot.LoadBindingValue();
+
+            // Right Foot
+            FBIKRightFootSmoothPos.LoadBindingValue();
+            FBIKRightFootSmoothRot.LoadBindingValue();
+            FBIKRightFootEuroPos.LoadBindingValue();
+            FBIKRightFootEuroRot.LoadBindingValue();
+
+            // Chest
+            FBIKChestSmoothPos.LoadBindingValue();
+            FBIKChestSmoothRot.LoadBindingValue();
+            FBIKChestEuroPos.LoadBindingValue();
+            FBIKChestEuroRot.LoadBindingValue();
+
+            // Left Lower Leg
+            FBIKLeftLowerLegSmoothPos.LoadBindingValue();
+            FBIKLeftLowerLegSmoothRot.LoadBindingValue();
+            FBIKLeftLowerLegEuroPos.LoadBindingValue();
+            FBIKLeftLowerLegEuroRot.LoadBindingValue();
+
+            // Right Lower Leg
+            FBIKRightLowerLegSmoothPos.LoadBindingValue();
+            FBIKRightLowerLegSmoothRot.LoadBindingValue();
+            FBIKRightLowerLegEuroPos.LoadBindingValue();
+            FBIKRightLowerLegEuroRot.LoadBindingValue();
+
+            // Left Hand
+            FBIKLeftHandSmoothPos.LoadBindingValue();
+            FBIKLeftHandSmoothRot.LoadBindingValue();
+            FBIKLeftHandEuroPos.LoadBindingValue();
+            FBIKLeftHandEuroRot.LoadBindingValue();
+
+            // Right Hand
+            FBIKRightHandSmoothPos.LoadBindingValue();
+            FBIKRightHandSmoothRot.LoadBindingValue();
+            FBIKRightHandEuroPos.LoadBindingValue();
+            FBIKRightHandEuroRot.LoadBindingValue();
+
+            // Left Lower Arm
+            FBIKLeftLowerArmSmoothPos.LoadBindingValue();
+            FBIKLeftLowerArmSmoothRot.LoadBindingValue();
+            FBIKLeftLowerArmEuroPos.LoadBindingValue();
+            FBIKLeftLowerArmEuroRot.LoadBindingValue();
+
+            // Right Lower Arm
+            FBIKRightLowerArmSmoothPos.LoadBindingValue();
+            FBIKRightLowerArmSmoothRot.LoadBindingValue();
+            FBIKRightLowerArmEuroPos.LoadBindingValue();
+            FBIKRightLowerArmEuroRot.LoadBindingValue();
+
+            // Left Toe
+            FBIKLeftToeSmoothPos.LoadBindingValue();
+            FBIKLeftToeSmoothRot.LoadBindingValue();
+            FBIKLeftToeEuroPos.LoadBindingValue();
+            FBIKLeftToeEuroRot.LoadBindingValue();
+
+            // Right Toe
+            FBIKRightToeSmoothPos.LoadBindingValue();
+            FBIKRightToeSmoothRot.LoadBindingValue();
+            FBIKRightToeEuroPos.LoadBindingValue();
+            FBIKRightToeEuroRot.LoadBindingValue();
+
+            // Shoulders
+            FBIKLeftShoulderSmoothPos.LoadBindingValue();
+            FBIKLeftShoulderSmoothRot.LoadBindingValue();
+            FBIKLeftShoulderEuroPos.LoadBindingValue();
+            FBIKLeftShoulderEuroRot.LoadBindingValue();
+
+            FBIKRightShoulderSmoothPos.LoadBindingValue();
+            FBIKRightShoulderSmoothRot.LoadBindingValue();
+            FBIKRightShoulderEuroPos.LoadBindingValue();
+            FBIKRightShoulderEuroRot.LoadBindingValue();
+
+            // Global toggle
+            FBIKEuroAll.LoadBindingValue();
+        }
     }
 }
