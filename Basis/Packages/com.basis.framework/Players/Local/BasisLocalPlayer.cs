@@ -317,7 +317,6 @@ namespace Basis.Scripts.BasisSdk.Players
                 BasisSceneFactory.SpawnPlayer(this);
             }
         }
-
         /// <summary>
         /// Creates or replaces the local avatar using the specified load mode and bundle, then persists the selection.
         /// </summary>
@@ -397,10 +396,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </summary>
         public void DriveAudioToViseme()
         {
-            LocalVisemeDriver.ProcessAudioSamples(
-                BasisLocalMicrophoneDriver.processBufferArray,
-                1,
-                BasisLocalMicrophoneDriver.processBufferArray.Length);
+            LocalVisemeDriver.ProcessAudioSamples(BasisLocalMicrophoneDriver.processBufferArray,1,BasisLocalMicrophoneDriver.processBufferArray.Length);
         }
         public void Simulate(float DeltaTime)
         {
