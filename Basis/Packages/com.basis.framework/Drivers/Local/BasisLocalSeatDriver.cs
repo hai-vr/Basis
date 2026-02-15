@@ -126,9 +126,13 @@ namespace Basis.Scripts.Drivers
 
                 if (BasisDeviceManagement.IsCurrentModeVR())
                 {
-                  //  BasisInput.OffsetCoords.position = -input.ScaledDeviceCoord.position;
-                    BasisInput.OffsetCoords.position.y = 0;
-                    //  BasisInput.OffsetCoords.position.y = (BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position.y - BasisLocalBoneDriver.HipsControl.TposeLocalScaled.position.y);
+                    // Rotate negated device position by the calculated rotation offset to bring it into the correct space
+                    BasisInput.OffsetCoords.position = BasisInput.OffsetCoords.rotation * -input.ScaledDeviceCoord.position;
+
+                    // The need for spine height here is confusing
+                    // Avatar height changes and playspace movement seem to interact in negative ways that will require further investigation
+                    var spineHeight = BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position.y - BasisLocalBoneDriver.HipsControl.TposeLocalScaled.position.y;
+                    BasisInput.OffsetCoords.position.y = BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position.y - input.UnscaledDeviceCoord.position.y + spineHeight;
                 }
                 else
                 {
