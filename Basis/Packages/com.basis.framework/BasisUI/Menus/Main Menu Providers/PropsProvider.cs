@@ -13,6 +13,9 @@ public class PropsProvider : BasisMenuActionProvider<BasisMainMenu>
     public override string Title => "Props";
     public override string IconAddress => AddressableAssets.Sprites.Settings;
     public override int Order => 3;
+
+    public override bool Hidden => false;
+
     public override void RunAction()
     {
         if (BasisMainMenu.ActiveMenuTitle == Title)

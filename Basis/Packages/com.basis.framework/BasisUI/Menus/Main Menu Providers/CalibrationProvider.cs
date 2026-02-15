@@ -23,6 +23,8 @@ namespace Basis.BasisUI
         public override string IconAddress => AddressableAssets.Sprites.Calibrate;
         public override int Order => 50;
 
+        public override bool Hidden => false;
+
         private readonly Dictionary<BasisInput, Action> _triggerDelegates = new();
 
         private BasisInput _leftHand;

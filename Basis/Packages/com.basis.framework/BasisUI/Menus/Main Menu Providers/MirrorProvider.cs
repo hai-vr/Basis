@@ -16,6 +16,7 @@ namespace Basis.BasisUI
         public override string IconAddress => AddressableAssets.Sprites.Mirror;
         public override int Order => 13;
 
+        public override bool Hidden => false;
 
         public static bool HasMirror;
         public static BasisPersonalMirror PersonalMirrorInstance;

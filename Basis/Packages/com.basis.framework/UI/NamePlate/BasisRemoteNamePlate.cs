@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
@@ -274,8 +275,22 @@ namespace Basis.Scripts.UI.NamePlate
         {
             if (BasisRemotePlayer != null && BasisIndividualPlayerSettings.Instance == null)
             {
-                input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume);
-                BasisIndividualPlayerSettings.OpenPlayerSettings(BasisRemotePlayer);
+                if (BasisMainMenu.Instance == null)
+                {
+                    input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume);
+                    IndividualPlayerProvider.remotePlayer = BasisRemotePlayer;
+                    BasisMainMenu.Open();
+                    int count = BasisMainMenu.Providers.Count;
+                    for (int Index = 0; Index < count; Index++)
+                    {
+                        BasisMenuActionProvider<BasisMainMenu> provider = BasisMainMenu.Providers[Index];
+                        if (provider.Title == IndividualPlayerProvider.StaticTitle)
+                        {
+                            provider.RunAction();
+                            return;
+                        }
+                    }
+                }
             }
         }
         public override bool IsInteractingWith(BasisInput input)

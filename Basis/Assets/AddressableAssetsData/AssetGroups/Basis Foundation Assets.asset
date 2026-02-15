@@ -56,6 +56,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3629a31210b28684491d8f47db512ab1
+    m_Address: Packages/com.basis.sdk/Sprites/HalfCircle 512 Right.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 39dccb64fd465d0438a825b8ce81f738
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Close Button - Modal.prefab
     m_ReadOnly: 0

@@ -51,21 +51,26 @@ namespace Basis.BasisUI
         public void BindProvidersToButtons()
         {
             foreach (PanelButton button in ProviderButtons)
+            {
                 button.ReleaseInstance();
+            }
 
             ProviderButtons.Clear();
 
             foreach (BasisMenuActionProvider<TMenu> provider in Providers)
             {
-                PanelButton button = PanelButton.CreateNew(
-                    PanelButton.ButtonStyles.Hotbar,
-                    ProviderButtonParent);
+                if (provider.Hidden == false)
+                {
+                    PanelButton button = PanelButton.CreateNew(
+                        PanelButton.ButtonStyles.Hotbar,
+                        ProviderButtonParent);
 
-                button.Descriptor.SetTitle(provider.Title);
-                button.SetIcon(provider.IconAddress);
-                provider.BindToButton(this, button);
-                ProviderButtons.Add(button);
-                provider.OnButtonCreated(button);
+                    button.Descriptor.SetTitle(provider.Title);
+                    button.SetIcon(provider.IconAddress);
+                    provider.BindToButton(this, button);
+                    ProviderButtons.Add(button);
+                    provider.OnButtonCreated(button);
+                }
             }
         }
 

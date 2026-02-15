@@ -2,10 +2,8 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
-using System;
 using System.Threading.Tasks;
 using UnityEngine;
-using static uLipSync.BasisLipSyncJob;
 
 namespace Basis.BasisUI
 {
@@ -20,6 +18,8 @@ namespace Basis.BasisUI
         public override string Title => TitleStatic;
         public override string IconAddress => AddressableAssets.Sprites.Servers;
         public override int Order => 1;
+
+        public override bool Hidden => false;
 
         public override void RunAction()
         {

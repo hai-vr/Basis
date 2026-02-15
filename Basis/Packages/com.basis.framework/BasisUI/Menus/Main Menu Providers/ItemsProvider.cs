@@ -25,6 +25,8 @@ namespace Basis.BasisUI
         public override string IconAddress => AddressableAssets.Sprites.Items;
         public override int Order => 1; // after Settings
 
+        public override bool Hidden => false;
+
         public static BasisMenuPanel panel;
         public override async void RunAction()
         {

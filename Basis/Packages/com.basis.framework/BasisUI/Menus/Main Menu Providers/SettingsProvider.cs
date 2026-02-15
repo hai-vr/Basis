@@ -18,6 +18,8 @@ namespace Basis.BasisUI
         public override string IconAddress => AddressableAssets.Sprites.Settings;
         public override int Order => 0;
 
+        public override bool Hidden => false;
+
         public override void RunAction()
         {
             if (BasisMainMenu.ActiveMenuTitle == Title) return;
