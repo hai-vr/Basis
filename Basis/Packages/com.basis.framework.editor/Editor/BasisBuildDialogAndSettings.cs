@@ -15,7 +15,7 @@ public class BasisBuildDialogAndSettings : IPreprocessBuildWithReport
     private const bool AutoIncrementAndroidVersionCode = true; // PlayerSettings.Android.bundleVersionCode
 
     // If true, forces bundleVersion into X.Y.Z format (best practice).
-    private const bool ForceSemanticVersionFormat = true;
+    private static bool ForceSemanticVersionFormat = true;
 
     // Platforms that effectively require IL2CPP (commonly true in modern Unity).
     private static readonly HashSet<BuildTarget> Il2CppOnlyTargets = new HashSet<BuildTarget>
@@ -95,11 +95,13 @@ public class BasisBuildDialogAndSettings : IPreprocessBuildWithReport
         if (AutoIncrementBundleVersion)
         {
             var before = PlayerSettings.bundleVersion;
-            var after = IncrementBundleVersion(before);
-            if (after != before)
+            if (IncrementBundleVersion(before, out var after))
             {
-                PlayerSettings.bundleVersion = after;
-                Debug.Log($"[Build] bundleVersion: {before} -> {after}");
+                if (after != before)
+                {
+                    PlayerSettings.bundleVersion = after;
+                    BasisDebug.Log($"[Build] bundleVersion: {before} -> {after}");
+                }
             }
         }
 
@@ -110,55 +112,40 @@ public class BasisBuildDialogAndSettings : IPreprocessBuildWithReport
             int before = PlayerSettings.Android.bundleVersionCode;
             int after = Mathf.Max(1, before + 1);
             PlayerSettings.Android.bundleVersionCode = after;
-            Debug.Log($"[Build] Android versionCode: {before} -> {after}");
+            BasisDebug.Log($"[Build] Android versionCode: {before} -> {after}");
 
             // Android versionName comes from PlayerSettings.bundleVersion by default.
             // If you want it explicitly logged:
-            Debug.Log($"[Build] Android versionName: {PlayerSettings.bundleVersion}");
+            BasisDebug.Log($"[Build] Android versionName: {PlayerSettings.bundleVersion}");
         }
 
         // If you want the changes to definitely persist to ProjectSettings on disk:
         // AssetDatabase.SaveAssets();
     }
 
-    private static string IncrementBundleVersion(string version)
+    private static bool IncrementBundleVersion(string version,out string ComputedVersion)
     {
-        // Prefer X.Y.Z
-        if (ForceSemanticVersionFormat)
+        // Match "major.minor.patch" with optional extra junk ignored
+        var m = Regex.Match(version ?? "", @"^\s*(\d+)\.(\d+)\.(\d+)\s*$");
+        if (m.Success)
         {
-            // Match "major.minor.patch" with optional extra junk ignored
-            var m = Regex.Match(version ?? "", @"^\s*(\d+)\.(\d+)\.(\d+)\s*$");
-            if (m.Success)
-            {
-                int major = int.Parse(m.Groups[1].Value);
-                int minor = int.Parse(m.Groups[2].Value);
-                int patch = int.Parse(m.Groups[3].Value) + 1;
-                return $"{major}.{minor}.{patch}";
-            }
-
-            // If it isn't semver, coerce it into semver and start at .0.1
-            // Examples:
-            // "1" -> "1.0.1"
-            // "1.2" -> "1.2.1"
-            // "v1.2" -> "1.2.1" (extracts digits)
-            var nums = Regex.Matches(version ?? "", @"\d+");
-            int majorC = nums.Count > 0 ? int.Parse(nums[0].Value) : 0;
-            int minorC = nums.Count > 1 ? int.Parse(nums[1].Value) : 0;
-            int patchC = 1;
-            return $"{majorC}.{minorC}.{patchC}";
+            int major = int.Parse(m.Groups[1].Value);
+            int minor = int.Parse(m.Groups[2].Value);
+            int patch = int.Parse(m.Groups[3].Value) + 1;
+            ComputedVersion = $"{major}.{minor}.{patch}";
         }
 
-        // Otherwise, try to increment a trailing number, else append ".1"
-        var match = Regex.Match(version ?? "", @"^(.*?)(\d+)\s*$");
-        if (match.Success)
-        {
-            string prefix = match.Groups[1].Value;
-            int n = int.Parse(match.Groups[2].Value) + 1;
-            return $"{prefix}{n}";
-        }
-
-        if (string.IsNullOrWhiteSpace(version)) return "0.0.1";
-        return version.Trim() + ".1";
+        // If it isn't semver, coerce it into semver and start at .0.1
+        // Examples:
+        // "1" -> "1.0.1"
+        // "1.2" -> "1.2.1"
+        // "v1.2" -> "1.2.1" (extracts digits)
+        var nums = Regex.Matches(version ?? "", @"\d+");
+        int majorC = nums.Count > 0 ? int.Parse(nums[0].Value) : 0;
+        int minorC = nums.Count > 1 ? int.Parse(nums[1].Value) : 0;
+        int patchC = 1;
+        ComputedVersion = $"{majorC}.{minorC}.{patchC}";
+        return ForceSemanticVersionFormat;
     }
 
     private static void SetBackendIfNeeded(
