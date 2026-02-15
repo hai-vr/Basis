@@ -74,6 +74,10 @@ public partial class BasisTransmissionResults
     private NativeArray<int> changeMask;   // length 1
 
    public static float HysteresisPercent = 1.10f * 1.10f; // 10% hysteresis
+
+    public static float LastHearingRange = -1;
+    public static bool RevaluteAudioRanges = false;
+    public static float  ConvertedVoiceDistance;
     /// <summary>
     /// Called each frame; drives scheduling of distance job and network sync.
     /// </summary>
@@ -125,7 +129,17 @@ public partial class BasisTransmissionResults
             }
 
         }
-
+        var CurrentHearingRange = SMModuleDistanceBasedReductions.HearingRange;
+        if (LastHearingRange != CurrentHearingRange)
+        {
+            LastHearingRange = CurrentHearingRange;
+            ConvertedVoiceDistance = Mathf.Sqrt(LastHearingRange);
+            RevaluteAudioRanges = true;
+        }
+        else
+        {
+            RevaluteAudioRanges = false;
+        }
         // Configure job inputs (only what changes per tick)
         distanceJob.SquaredAvatarDistance = SMModuleDistanceBasedReductions.AvatarRange;
         distanceJob.SquaredHearingDistance = SMModuleDistanceBasedReductions.HearingRange;
@@ -176,7 +190,7 @@ public partial class BasisTransmissionResults
                 {
                     if (canHear)
                     {
-                        receiver.AudioReceiverModule.StartAudio();
+                        receiver.AudioReceiverModule.StartAudio(ConvertedVoiceDistance);
                         receiver.RemotePlayer.OutOfRangeFromLocal = false;
                     }
                     else
@@ -185,6 +199,14 @@ public partial class BasisTransmissionResults
                         receiver.RemotePlayer.OutOfRangeFromLocal = true;
                     }
                 }
+            }
+        }
+        if (RevaluteAudioRanges)
+        {
+            for (int i = 0; i < receiverCount; i++)
+            {
+                var receiver = snapshot[i];
+                receiver.AudioReceiverModule.ApplyRangeData(ConvertedVoiceDistance);
             }
         }
 
