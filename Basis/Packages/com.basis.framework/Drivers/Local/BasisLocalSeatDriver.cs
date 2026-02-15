@@ -5,8 +5,6 @@ using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Device_Management.Devices.Desktop;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Animations.Rigging;
-
 namespace Basis.Scripts.Drivers
 {
     /// <summary>
@@ -132,7 +130,8 @@ namespace Basis.Scripts.Drivers
                     // The need for spine height here is confusing
                     // Avatar height changes and playspace movement seem to interact in negative ways that will require further investigation
                     var spineHeight = BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position.y - BasisLocalBoneDriver.HipsControl.TposeLocalScaled.position.y;
-                    BasisInput.OffsetCoords.position.y = BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position.y - input.UnscaledDeviceCoord.position.y + spineHeight;
+                    //    BasisInput.OffsetCoords.position.y = BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position.y - input.UnscaledDeviceCoord.position.y + spineHeight;
+                    BasisInput.OffsetCoords.position.y = 0;//revist later
                 }
                 else
                 {
