@@ -1,7 +1,6 @@
 using Basis.BasisUI;
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
-using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using System;
@@ -155,10 +154,10 @@ public static class BasisNetworkModeration
     {
         if (ValidateString(message, nameof(message)))
         {
+            BasisMainMenu.Close();
             BasisMainMenu.Open();
-            BasisMainMenu.Instance.OpenDialogue("admin", message, "ok", value =>
-            {
-            });
+            BasisMainMenu.Instance.OpenDialogue("admin", message, "ok", value => { });
+            BasisDebug.LogError(message);
         }
     }
     public static void AdminMessage(NetDataReader reader)

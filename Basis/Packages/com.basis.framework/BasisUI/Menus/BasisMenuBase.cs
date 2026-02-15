@@ -96,9 +96,7 @@ namespace Basis.BasisUI
         {
             if (Dialogue)
             {
-                //TODO: This seems to be firing during the Close Game modal.
-                // It is possibly firing multiple times at once. Look into this.
-                Debug.LogWarning("An existing Dialogue window is already active.");
+                BasisDebug.LogWarning("An existing Dialogue window is already active.");
                 return;
             }
 
@@ -117,7 +115,7 @@ namespace Basis.BasisUI
         {
             if (Dialogue)
             {
-                Debug.LogWarning("An existing Dialogue window is already active.");
+                BasisDebug.LogWarning("An existing Dialogue window is already active.");
                 return;
             }
 
