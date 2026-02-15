@@ -316,20 +316,23 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
         public void OnLookActionPerformed(InputAction.CallbackContext ctx)
         {
-            float sensitivity;
-            if (ctx.control.device is Mouse)
+            if (BasisInputModuleHandler.Instance.IsTyping() == false)
             {
-                sensitivity = MouseSensitivity;
+                float sensitivity;
+                if (ctx.control.device is Mouse)
+                {
+                    sensitivity = MouseSensitivity;
+                }
+                else if (IsMonoStableInput(ctx.control.device))
+                {
+                    sensitivity = JoystickSensitivity;
+                }
+                else
+                {
+                    sensitivity = KeyboardSensitivity;
+                }
+                OnLookAction(ctx.ReadValue<Vector2>(), sensitivity);
             }
-            else if (IsMonoStableInput(ctx.control.device))
-            {
-                sensitivity = JoystickSensitivity;
-            }
-            else
-            {
-                sensitivity = KeyboardSensitivity;
-            }
-            OnLookAction(ctx.ReadValue<Vector2>(), sensitivity);
         }
         public void OnLookAction(Vector2 delta, float sensitivity)
         {

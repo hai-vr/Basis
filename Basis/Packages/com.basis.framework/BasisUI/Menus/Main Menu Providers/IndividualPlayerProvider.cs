@@ -204,10 +204,6 @@ namespace Basis.BasisUI
             if (titleLabel != null) titleLabel.text = "Player Settings";
 
             var root = tab.Descriptor.ContentParent;
-
-            // ---------------------------
-            // PLAYER INFO GROUP
-            // ---------------------------
             var infoGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             infoGroup.SetTitle("Player");
             infoGroup.SetDescription("Per-player overrides (volume, avatar visibility, interactions).");
@@ -219,15 +215,7 @@ namespace Basis.BasisUI
             var uuidField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, infoGroup.ContentParent);
             uuidField.SetTitle("UUID");
             uuidField.SetDescription(remotePlayer.UUID);
-
-            // ---------------------------
-            // LOAD SETTINGS (async)
-            // ---------------------------
             var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
-
-            // ---------------------------
-            // AUDIO GROUP
-            // ---------------------------
             var audioGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             audioGroup.SetTitle("Audio");
             audioGroup.SetDescription("Override this player’s voice volume just for you.");
@@ -323,10 +311,6 @@ namespace Basis.BasisUI
                     remotePlayer.NetworkReceiver.AudioReceiverModule.ChangeRemotePlayersVolumeSettings(snapped);
                 }
             };
-
-            // ---------------------------
-            // AVATAR GROUP
-            // ---------------------------
             var avatarGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             avatarGroup.SetTitle("Avatar");
             avatarGroup.SetDescription("Visibility and interaction toggles.");
@@ -360,10 +344,6 @@ namespace Basis.BasisUI
 
                 if (remotePlayer != null) remotePlayer.ReloadAvatar();
             };
-
-            // ---------------------------
-            // DEBUG GROUP
-            // ---------------------------
             var debugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             debugGroup.SetTitle("Debug");
             debugGroup.SetDescription("Live diagnostics for voice/range checks (optional).");
