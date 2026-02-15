@@ -127,7 +127,7 @@ namespace Basis.BasisUI
             };
 
             // Add does the async work, then closes.
-            yesPanel.OnClicked += async () =>
+            yesPanel.OnClicked += () =>
             {
                 if (_isSubmitting) return;
                 _isSubmitting = true;
@@ -475,7 +475,7 @@ namespace Basis.BasisUI
                 CloseOverlay();
             };
 
-            loadBtn.OnClicked += async () =>
+            loadBtn.OnClicked += () =>
             {
                 if (_isSubmitting) return;
                 _isSubmitting = true;
