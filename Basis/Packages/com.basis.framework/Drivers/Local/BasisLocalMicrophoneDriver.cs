@@ -49,10 +49,7 @@ public static class BasisLocalMicrophoneDriver
     public static int rmsIndex = 0;
     public static float averageRms;
 
-#if !UNITY_ANDROID && !UNITY_IOS && !UNITY_STANDALONE_LINUX
     public static RNNoise.NET.Denoiser Denoiser = new RNNoise.NET.Denoiser();
-#endif
-
     public static int minFreq = 48000;
     public static int maxFreq = 48000;
 
@@ -108,9 +105,7 @@ public static class BasisLocalMicrophoneDriver
 
     // Temp buffers for denoiser wet/dry and chunking
     private static float[] _denoiseDry; // copy of pre-denoise frame
-#if !UNITY_ANDROID && !UNITY_IOS && !UNITY_STANDALONE_LINUX
     private static float[] _tmp480;     // 480-sample scratch (allocated on demand)
-#endif
     // ---------------------------------------------------------
 
     public static bool Initialize()
@@ -150,11 +145,9 @@ public static class BasisLocalMicrophoneDriver
         {
             VAJ.processBufferArray.Dispose();
         }
-#if !UNITY_ANDROID && !UNITY_IOS && !UNITY_STANDALONE_LINUX
         Denoiser?.Dispose();
         Denoiser = null;
         _tmp480 = null;
-#endif
         clip = null;
         microphoneBufferArray = null;
         processBufferArray = null;
@@ -328,49 +321,38 @@ public static class BasisLocalMicrophoneDriver
             Array.Clear(rmsValues, 0, rmsValues.Length);
             rmsIndex = 0;
             averageRms = 0f;
-
             warmupSamples = SampleRate * 2;
             inWarmup = true;
-
             Array.Clear(microphoneBufferArray, 0, microphoneBufferArray.Length);
             Array.Clear(processBufferArray, 0, processBufferArray.Length);
             Array.Clear(_denoiseDry, 0, _denoiseDry.Length);
-
-#if !UNITY_ANDROID && !UNITY_IOS && !UNITY_STANDALONE_LINUX
-            if (Denoiser == null) Denoiser = new RNNoise.NET.Denoiser();
-#endif
-
+            Denoiser ??= new RNNoise.NET.Denoiser();
             MicrophoneIsStarted = true;
-
             PacketSize = SampleRate * 4;
-
             // Re-apply current UI volume with dB mapping
             ChangeMicrophoneVolume(SMDMicrophone.SelectedVolumeMicrophone);
-
             MicrophoneDevice = newMicrophone;
         }
     }
-
     private static void StopSelectedMicrophone_Internal()
     {
         if (string.IsNullOrEmpty(MicrophoneDevice))
+        {
             return;
+        }
 
         if (Microphone.IsRecording(MicrophoneDevice))
         {
             Microphone.End(MicrophoneDevice);
             BasisDebug.Log("Stopped Microphone " + MicrophoneDevice);
         }
-
         MicrophoneDevice = null;
         MicrophoneIsStarted = false;
-
         if (clip != null)
         {
             clip = null;
         }
     }
-
     private static void ClearStateAfterStop()
     {
         head = 0;
@@ -385,9 +367,11 @@ public static class BasisLocalMicrophoneDriver
             rmsIndex = 0;
             averageRms = 0f;
         }
-        if (_denoiseDry != null) Array.Clear(_denoiseDry, 0, _denoiseDry.Length);
+        if (_denoiseDry != null)
+        {
+            Array.Clear(_denoiseDry, 0, _denoiseDry.Length);
+        }
     }
-
     private static void StopSelectedMicrophone()
     {
         lock (processingLock)
@@ -397,14 +381,12 @@ public static class BasisLocalMicrophoneDriver
             ClearStateAfterStop();
         }
     }
-
     public static void HandleBasisVolumeAdjustmentJob()
     {
         if (handle.IsCompleted == false)
         {
             handle.Complete();
         }
-
         if (VAJ.processBufferArray.IsCreated)
         {
             if (VAJ.processBufferArray.Length != processBufferArray.Length)
@@ -417,17 +399,14 @@ public static class BasisLocalMicrophoneDriver
         {
             VAJ.processBufferArray = new NativeArray<float>(processBufferArray, Allocator.Persistent);
         }
-
         VAJ.Volume = Volume;
         VAJ.LimitThreshold = LimitThreshold;
         VAJ.LimitKnee = LimitKnee;
     }
-
     public static void ToggleIsPaused()
     {
         IsPaused = !IsPaused;
     }
-
     public static void MicrophoneUpdate()
     {
         if (!MicrophoneIsStarted || string.IsNullOrEmpty(MicrophoneDevice) || clip == null)
@@ -461,7 +440,6 @@ public static class BasisLocalMicrophoneDriver
             MainThreadOnHasSilence?.Invoke();
         }
     }
-
     private static void StartProcessingThread()
     {
         processingTokenSource = new CancellationTokenSource();
@@ -486,7 +464,6 @@ public static class BasisLocalMicrophoneDriver
         processingThread.IsBackground = true;
         processingThread.Start();
     }
-
     public static void StopProcessingThread()
     {
         processingTokenSource?.Cancel();
@@ -500,7 +477,6 @@ public static class BasisLocalMicrophoneDriver
         processingTokenSource?.Dispose();
         processingTokenSource = null;
     }
-
     public static void ProcessAudioData(int posSnapshot)
     {
         if (inWarmup)
@@ -546,18 +522,13 @@ public static class BasisLocalMicrophoneDriver
                     }
                 }
             }
-
             // --- User gain + limiter in Burst job ---
-            AdjustVolume(); // uses VAJ.Volume (linear) and limiter
-
-            // --- Optional denoise with wet/dry + makeup ---
+            AdjustVolume();
             if (UseDenoiser)
             {
                 ApplyDeNoise();
             }
-
             RollingRMS();
-
             if (IsTransmitWorthy())
             {
                 OnHasAudio?.Invoke();
@@ -574,7 +545,6 @@ public static class BasisLocalMicrophoneDriver
             dataLength -= SampleRate;
         }
     }
-
     public static void AdjustVolume()
     {
         // keep VAJ fields up to date (in case UI changed them at runtime)
@@ -587,7 +557,6 @@ public static class BasisLocalMicrophoneDriver
         handle.Complete();
         VAJ.processBufferArray.CopyTo(processBufferArray);
     }
-
     public static float GetRMS()
     {
         double sum = 0.0;
@@ -598,12 +567,10 @@ public static class BasisLocalMicrophoneDriver
         }
         return Mathf.Sqrt((float)(sum / SampleRate));
     }
-
     public static int GetDataLength(int len, int h, int pos)
     {
         return (pos < h) ? (len - h + pos) : (pos - h);
     }
-
     /// <summary>
     /// UI volume in [0..1] is mapped to dB, then converted to linear. Range: −60 dB … +18 dB.
     /// </summary>
@@ -619,9 +586,10 @@ public static class BasisLocalMicrophoneDriver
     }
     public static void ApplyDeNoise()
     {
-#if !UNITY_ANDROID && !UNITY_IOS && !UNITY_STANDALONE_LINUX
         if (_denoiseDry == null || _denoiseDry.Length != processBufferArray.Length)
+        {
             CreateOrResizeArray(processBufferArray.Length, ref _denoiseDry);
+        }
 
         // copy dry
         Array.Copy(processBufferArray, _denoiseDry, SampleRate);
@@ -643,14 +611,11 @@ public static class BasisLocalMicrophoneDriver
                 // copy chunk to temp, zero-pad if last chunk shorter
                 Array.Clear(_tmp480, 0, hop);
                 Array.Copy(processBufferArray, o, _tmp480, 0, n);
-
                 Denoiser?.Denoise(_tmp480);
-
                 Array.Copy(_tmp480, 0, processBufferArray, o, n);
                 o += n;
             }
         }
-
         // wet/dry + makeup
         float makeup = DbToAmp(DenoiseMakeupDb);
         float wet = Mathf.Clamp01(DenoiseWet);
@@ -662,9 +627,7 @@ public static class BasisLocalMicrophoneDriver
                 processBufferArray[Index] = Mathf.Lerp(_denoiseDry[Index], den, wet);
             }
         }
-#endif
     }
-
     public static void RollingRMS()
     {
         float rms = GetRMS();
@@ -672,16 +635,11 @@ public static class BasisLocalMicrophoneDriver
         rmsIndex = (rmsIndex + 1) % LocalOpusSettings.rmsWindowSize;
         averageRms = rmsValues.Average();
     }
-
     public static bool IsTransmitWorthy()
     {
         return averageRms > LocalOpusSettings.silenceThreshold;
     }
-
-    // ---------- Helpers ----------
-
     private static float DbToAmp(float db) => Mathf.Pow(10f, db / 20f);
-
     private static void UpdateAgc(float frameRms)
     {
         if (frameRms <= 1e-6f)
