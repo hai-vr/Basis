@@ -63,8 +63,6 @@ public static class BasisLocalMicrophoneDriver
 
     private static int warmupSamples = 0;
     private static bool inWarmup = false;
-
-    // Runtime/internal-only state (keep these)
     private static float agcGainDb = 0f;
     private static float[] _denoiseDry;
     private static float[] _tmp480;

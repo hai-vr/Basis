@@ -72,7 +72,7 @@ public class SMDMicrophone : BasisSettingsBase
             DenoiseWet = 1f,
             UseAGC = false,
             AgcTargetRms = 0.06f,
-            AgcMaxGainDb = 18f,
+            AgcMaxGainDb = 8f,
             AgcAttack = 0.10f,
             AgcRelease = 0.01f,
             TalkMode = BasisMicrophoneMode.OnActivation
