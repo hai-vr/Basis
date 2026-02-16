@@ -36,7 +36,6 @@ namespace Basis.BasisUI
 
         public PanelButton Button;
         public PanelElementDescriptor HeightDescription;
-        public string AdditionalHeight = $"{BasisHeightDriver.AdditionalPlayerHeight:F2}";
         public override void RunAction()
         {
             if (BasisMainMenu.ActiveMenuTitle == Title)
@@ -66,7 +65,7 @@ namespace Basis.BasisUI
 
             HeightDescription = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             HeightDescription.SetTitle("Additional Player Height");
-            HeightDescription.SetDescription(AdditionalHeight);
+            HeightDescription.SetDescription($"{BasisHeightDriver.AdditionalPlayerHeight:F2}");
 
             var Description = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             Description.SetTitle("Pull Triggers to Calibrate");
@@ -94,7 +93,7 @@ namespace Basis.BasisUI
         }
         public void ApplyAndUpdateUI()
         {
-            HeightDescription.SetDescription(AdditionalHeight);
+            HeightDescription.SetDescription($"{BasisHeightDriver.AdditionalPlayerHeight:F2}");
             BasisHeightDriver.ApplyScaleAndHeight();
         }
         public void Calibrate()
