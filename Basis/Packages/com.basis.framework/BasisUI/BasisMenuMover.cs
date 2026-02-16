@@ -111,8 +111,12 @@ namespace Basis.BasisUI
         {
             SetRootMode(GetFindCurrentMode());
         }
-
         public void OnAvatarHeightChange()
+        {
+            SetRootMode(GetFindCurrentMode());
+        }
+
+        public void OnAvatarHeightChange(BasisHeightDriver.HeightModeChange HeightModeChange)
         {
             SetRootMode(GetFindCurrentMode());
         }

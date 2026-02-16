@@ -4,6 +4,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Collections;
 using UnityEngine;
+using static BasisHeightDriver;
 namespace Basis.Scripts.UI.UI_Panels
 {
     public class BasisMenuMovementDriver : MonoBehaviour
@@ -65,6 +66,10 @@ namespace Basis.Scripts.UI.UI_Panels
             }
         }
         private void UpdateDelayedSetUI()
+        {
+            StartCoroutine(DelaySetUI());
+        }
+        private void UpdateDelayedSetUI(HeightModeChange Mode)
         {
             StartCoroutine(DelaySetUI());
         }

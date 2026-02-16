@@ -9,6 +9,7 @@ using UnityEngine;
 using UnityEngine.Animations.Rigging;
 using UnityEngine.Playables;
 using static Basis.Scripts.Avatar.BasisAvatarIKStageCalibration;
+using static BasisHeightDriver;
 
 namespace Basis.Scripts.Drivers
 {
@@ -640,7 +641,7 @@ namespace Basis.Scripts.Drivers
             fRotLeftShoulder.minCutoff = MinCutoff; fRotLeftShoulder.beta = Beta; fRotLeftShoulder.dCutoff = DerivativeCutoff;
             fRotRightShoulder.minCutoff = MinCutoff; fRotRightShoulder.beta = Beta; fRotRightShoulder.dCutoff = DerivativeCutoff;
         }
-        private void OnPlayersHeightChangedNextFrame()
+        private void OnPlayersHeightChangedNextFrame(HeightModeChange HeightModeChange)
         {
             var Data = BasisFullIKConstraint.data;
             SetHandCollisionScale(ref Data, BasisHeightDriver.AvatarToDefaultRatioScaled);
@@ -680,7 +681,7 @@ namespace Basis.Scripts.Drivers
             BasisAnimationRiggingHelper.CreateBasisFullBodyRIG(localPlayer,  mainRig, basisTransformMapping, out BasisFullIKConstraint);
 
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnPlayersHeightChangedNextFrame;
-            OnPlayersHeightChangedNextFrame();
+            OnPlayersHeightChangedNextFrame( HeightModeChange.ScaleAndMode);
 
             var data = BasisFullIKConstraint.data;
 

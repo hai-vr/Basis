@@ -89,10 +89,14 @@ public static class BasisHeightDriver
         // Notify next frame so listeners read consistent updated values.
         BasisLocalPlayer.Instance.ExecuteNextFrame(() =>
         {
-            BasisLocalPlayer.OnPlayersHeightChangedNextFrame?.Invoke();
+            BasisLocalPlayer.OnPlayersHeightChangedNextFrame?.Invoke(HeightModeChange.ScaleOnly);
         });
     }
-
+    public enum HeightModeChange
+    {
+        ScaleOnly,
+        ScaleAndMode
+    }
     /// <summary>
     /// Applies a scale factor to the local avatar and updates any cached bone offsets
     /// that must remain consistent with the avatar's scale.
@@ -195,7 +199,7 @@ public static class BasisHeightDriver
         // Notify next frame so listeners read consistent updated values.
         BasisLocalPlayer.Instance.ExecuteNextFrame(() =>
         {
-            BasisLocalPlayer.OnPlayersHeightChangedNextFrame?.Invoke();
+            BasisLocalPlayer.OnPlayersHeightChangedNextFrame?.Invoke(HeightModeChange.ScaleAndMode);
         });
     }
 

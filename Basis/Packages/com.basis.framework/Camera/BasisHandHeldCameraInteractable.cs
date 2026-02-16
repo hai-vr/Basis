@@ -192,7 +192,7 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     }
 
     /// <summary>Rescales the camera when the local player’s avatar height changes.</summary>
-    private void OnHeightChanged()
+    private void OnHeightChanged(BasisHeightDriver.HeightModeChange HeightModeChange)
     {
         transform.localScale = new Vector3(cameraDefaultScale, cameraDefaultScale, cameraDefaultScale) *  BasisHeightDriver.ScaledToMatchValue;
     }

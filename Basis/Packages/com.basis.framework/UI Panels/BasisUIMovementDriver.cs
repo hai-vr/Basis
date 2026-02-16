@@ -2,6 +2,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using UnityEngine;
+using static BasisHeightDriver;
 namespace Basis.Scripts.UI.UI_Panels
 {
     public class BasisUIMovementDriver : MonoBehaviour
@@ -80,8 +81,11 @@ namespace Basis.Scripts.UI.UI_Panels
                 SetUILocation();
             }
         }
-
         public void SetUILocation()
+        {
+            SetUILocation(HeightModeChange.ScaleAndMode);
+        }
+        public void SetUILocation(HeightModeChange Mode)
         {
             BasisLocalCameraDriver.GetPositionAndRotation(out Position, out Rotation);
 

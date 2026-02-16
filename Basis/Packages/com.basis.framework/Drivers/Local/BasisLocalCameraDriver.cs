@@ -256,7 +256,7 @@ namespace Basis.Scripts.Drivers
             {
                 Camera.fieldOfView = DefaultCameraFov;
             }
-            UpdateCameraScale();
+            UpdateCameraScale(BasisHeightDriver.HeightModeChange.ScaleAndMode);
         }
 
         /// <summary>
@@ -281,13 +281,16 @@ namespace Basis.Scripts.Drivers
         {
             DesiredClipFar = clipFar;
             DesiredClipNear = clipNear;
-            UpdateCameraScale();
+            UpdateCameraScale(BasisHeightDriver.HeightModeChange.ScaleAndMode);
         }
-
+        private void UpdateCameraScale()
+        {
+            UpdateCameraScale(BasisHeightDriver.HeightModeChange.ScaleAndMode);
+        }
         /// <summary>
         /// Applies scale from the player's height so the camera’s local scale matches avatar scale.
         /// </summary>
-        public void UpdateCameraScale()
+        public void UpdateCameraScale(BasisHeightDriver.HeightModeChange HeightModeChange)
         {
             this.transform.localScale = Vector3.one * BasisHeightDriver.DeviceScale;
             // Ensure that the near clip plane is never far enough away that the avatar body clips through it.

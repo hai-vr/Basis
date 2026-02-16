@@ -11,6 +11,7 @@ using System.Collections;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using static BasisHeightDriver;
 
 namespace Basis.Scripts.BasisSdk.Players
 {
@@ -73,7 +74,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <summary>
         /// Fired on the frame after a player height change is requested.
         /// </summary>
-        public static Action OnPlayersHeightChangedNextFrame;
+        public static Action<HeightModeChange> OnPlayersHeightChangedNextFrame;
 
         /// <summary>
         /// Fires Just Before the Apply of the remote player, good for chair movement

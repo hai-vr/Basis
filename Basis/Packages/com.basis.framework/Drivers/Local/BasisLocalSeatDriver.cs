@@ -57,7 +57,7 @@ namespace Basis.Scripts.Drivers
 
         private bool hasEvent = false;
 
-        private void GrabLatestTposeLocalScaleData()
+        private void GrabLatestTposeLocalScaleData(BasisHeightDriver.HeightModeChange HeightModeChange)
         {
             leftLowerLegOffset =
                 BasisLocalBoneDriver.LeftFootControl.TposeLocalScaled.position -
@@ -149,7 +149,7 @@ namespace Basis.Scripts.Drivers
             SetAllOverrideUsages(true);
             LocalPlayer.OnVirtualData += OnSimulate;
 
-            GrabLatestTposeLocalScaleData();
+            GrabLatestTposeLocalScaleData( BasisHeightDriver.HeightModeChange.ScaleAndMode);
 
             if (!hasEvent)
             {
@@ -691,7 +691,7 @@ namespace Basis.Scripts.Drivers
             if (LocalPlayer == null) return;
             if (_seat == null) return;
 
-            GrabLatestTposeLocalScaleData();
+            GrabLatestTposeLocalScaleData( BasisHeightDriver.HeightModeChange.ScaleAndMode);
 
             const float kMinDot = 0.05f;
             const float kMaxBackShift = 0.25f;

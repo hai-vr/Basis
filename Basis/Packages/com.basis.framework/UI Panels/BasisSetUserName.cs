@@ -1,12 +1,13 @@
-using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
+using Basis.Scripts.Device_Management;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using System.Threading.Tasks;
-using Basis.Scripts.Drivers;
-using Basis.Scripts.Device_Management;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+using static BasisHeightDriver;
 
 namespace Basis.Scripts.UI.UI_Panels
 {
@@ -92,7 +93,10 @@ namespace Basis.Scripts.UI.UI_Panels
             BasisLocalPlayer.OnLocalAvatarChanged += ApplySizeAndPosition;
             BasisLocalCameraDriver.InstanceExists += ApplySizeAndPosition;
         }
-
+        public void ApplySizeAndPosition(HeightModeChange Mode)
+        {
+            ApplySizeAndPosition();
+        }
         /// <summary>
         /// Rescales the UI panel based on the local player's avatar height.
         /// </summary>

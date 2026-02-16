@@ -13,9 +13,12 @@ public class SMModuleShadowQualityURP : BasisSettingsBase
         if (matchedSettingName != K_SHADOW_QUALITY)
             return;
 
-        UniversalRenderPipelineAsset Asset =
-            (UniversalRenderPipelineAsset)QualitySettings.renderPipeline;
-
+        UniversalRenderPipelineAsset Asset = (UniversalRenderPipelineAsset)QualitySettings.renderPipeline;
+        if(Asset == null)
+        {
+            BasisDebug.LogError("Missing Asset Pipeline!");
+            return;
+        }
         // Cascade setup (unchanged behavior)
         Asset.shadowCascadeCount = 4;                         // Four cascades for shadow quality
         Asset.cascade2Split = 0.12f;                          // 12% for 2-cascade setting

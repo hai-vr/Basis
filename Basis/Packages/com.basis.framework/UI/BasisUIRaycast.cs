@@ -12,6 +12,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
+using static BasisHeightDriver;
 
 namespace Basis.Scripts.UI
 {
@@ -148,8 +149,12 @@ namespace Basis.Scripts.UI
                 BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnPlayersHeightChanged;
             }
         }
-
         public void OnPlayersHeightChanged()
+        {
+            OnPlayersHeightChanged(HeightModeChange.ScaleAndMode);
+        }
+
+        public void OnPlayersHeightChanged(HeightModeChange Mode)
         {
             float uiScale = BasisHeightDriver.PlayerToDefaultRatioScaled;
             if (LineRenderer != null)
