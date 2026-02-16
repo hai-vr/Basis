@@ -5,6 +5,7 @@ using Basis.Scripts.Device_Management;
 using System.Threading;
 using Unity.Collections;
 using Unity.Jobs;
+
 public static class BasisLocalMicrophoneDriver
 {
     private static int head = 0;
@@ -12,13 +13,11 @@ public static class BasisLocalMicrophoneDriver
 
     public static bool HasEvents = false;
     public static int PacketSize;
-    public static bool UseDenoiser = false;
 
     public static Action<bool> OnPausedAction;
 
     private static bool MicrophoneIsStarted = false;
     private static Thread processingThread;
-    public static bool isRunning = true;
     private static ManualResetEvent processingEvent = new ManualResetEvent(false);
     private static readonly object processingLock = new object();
 
@@ -36,10 +35,7 @@ public static class BasisLocalMicrophoneDriver
     public static bool IsInitialize = false;
     public static string MicrophoneDevice = null;
 
-    /// <summary>
-    /// Linear amplitude multiplier (derived from dB mapping in ChangeMicrophoneVolume).
-    /// May be > 1.0 to boost quiet mics.
-    /// </summary>
+    /// <summary>Linear amplitude multiplier (from dB mapping in ChangeMicrophoneVolume).</summary>
     public static float Volume = 1f;
 
     [HideInInspector] public static float[] microphoneBufferArray;
@@ -63,6 +59,18 @@ public static class BasisLocalMicrophoneDriver
 
     public static bool isPaused = false;
 
+    private static CancellationTokenSource processingTokenSource;
+
+    private static int warmupSamples = 0;
+    private static bool inWarmup = false;
+
+    // Runtime/internal-only state (keep these)
+    private static float agcGainDb = 0f;
+    private static float[] _denoiseDry;
+    private static float[] _tmp480;
+
+    private static string _pendingDeviceWhenPaused = null;
+
     private static bool IsPaused
     {
         get => isPaused;
@@ -70,43 +78,31 @@ public static class BasisLocalMicrophoneDriver
         {
             isPaused = value;
             PlayerPrefs.SetInt(MicrophoneState, isPaused ? 1 : 0);
-            ResetMicrophones(SMDMicrophone.SelectedMicrophone);
+
+            if (isPaused)
+            {
+                StopSelectedMicrophone();
+            }
+            else
+            {
+                // Prefer snapshot device
+                string desired = SMDMicrophone.Current.Microphone;
+                if (string.IsNullOrEmpty(desired)) desired = _pendingDeviceWhenPaused;
+                if (string.IsNullOrEmpty(desired)) desired = MicrophoneDevice;
+
+                if (!string.IsNullOrEmpty(desired))
+                    ResetMicrophones(desired);
+
+                _pendingDeviceWhenPaused = null;
+            }
+
             OnPausedAction?.Invoke(isPaused);
 
 #if UNITY_IOS && !UNITY_EDITOR
-            // Reapply iOS audio session after microphone state change to maintain speaker output
             Basis.Scripts.Platform.BasisIOSAudioSession.ReapplySettings();
 #endif
         }
     }
-
-    private static CancellationTokenSource processingTokenSource;
-
-    private static int warmupSamples = 0;
-    private static bool inWarmup = false;
-
-    // ---------- New knobs (tweak safely at runtime) ----------
-
-    /// <summary>Limiter threshold and knee for safety when Volume/AGC > 1.0.</summary>
-    public static float LimitThreshold = 0.95f; // start compressing before clip
-    public static float LimitKnee = 0.05f;      // soft knee width
-
-    /// <summary>Denoiser makeup and wet/dry.</summary>
-    public static float DenoiseMakeupDb = 3f;   // +3 dB after denoise
-    public static float DenoiseWet = 1f;        // 0..1 (1 = fully denoised)
-
-    /// <summary>Optional AGC.</summary>
-    public static bool UseAGC = false;
-    public static float AgcTargetRms = 0.06f;   // ≈ −24 dBFS
-    public static float AgcMaxGainDb = 10f;
-    public static float AgcAttack = 0.10f;      // towards needed gain when too quiet
-    public static float AgcRelease = 0.01f;     // when too loud (reduce gain slowly)
-    private static float agcGainDb = 0f;
-
-    // Temp buffers for denoiser wet/dry and chunking
-    private static float[] _denoiseDry; // copy of pre-denoise frame
-    private static float[] _tmp480;     // 480-sample scratch (allocated on demand)
-    // ---------------------------------------------------------
 
     public static bool Initialize()
     {
@@ -114,9 +110,9 @@ public static class BasisLocalMicrophoneDriver
         try
         {
             RegisterEvents();
+
+            // Load emits one change event; ApplyMicSettings reacts.
             SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
-            ResetMicrophones(SMDMicrophone.SelectedMicrophone);
-            ConfigureDenoiser(SMDMicrophone.SelectedDenoiserMicrophone);
 
             StartProcessingThread();
             IsInitialize = true;
@@ -137,16 +133,13 @@ public static class BasisLocalMicrophoneDriver
         StopProcessingThread();
         UnregisterEvents();
         StopSelectedMicrophone();
-        if (handle.IsCompleted == false)
-        {
-            handle.Complete();
-        }
-        if (VAJ.processBufferArray.IsCreated)
-        {
-            VAJ.processBufferArray.Dispose();
-        }
+
+        if (!handle.IsCompleted) handle.Complete();
+        if (VAJ.processBufferArray.IsCreated) VAJ.processBufferArray.Dispose();
+
         Denoiser?.Dispose();
         Denoiser = null;
+
         _tmp480 = null;
         clip = null;
         microphoneBufferArray = null;
@@ -162,16 +155,9 @@ public static class BasisLocalMicrophoneDriver
     {
         if (HasEvents) return;
 
-        SMDMicrophone.OnMicrophoneChanged += ResetMicrophones;
-        SMDMicrophone.OnMicrophoneVolumeChanged += ChangeMicrophoneVolume;
-        SMDMicrophone.OnMicrophoneUseDenoiserChanged += ConfigureDenoiser;
+        SMDMicrophone.OnMicrophoneSettingsChanged += ApplyMicSettings;
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
 
-        SMDMicrophone.OnLimiterChanged += OnLimiterSettingsChanged;
-        SMDMicrophone.OnDenoiseParamsChanged += OnDenoiseParamsChanged;
-        SMDMicrophone.OnAgcEnabledChanged += OnAgcEnabledChanged;
-        SMDMicrophone.OnAgcParamsChanged += OnAgcParamsChanged;
-        SMDMicrophone.MicrophoneTalkmodeChanged += OnTalkModeChanged; // optional but usually needed
         HasEvents = true;
     }
 
@@ -179,86 +165,53 @@ public static class BasisLocalMicrophoneDriver
     {
         if (!HasEvents) return;
 
-        SMDMicrophone.OnMicrophoneChanged -= ResetMicrophones;
-        SMDMicrophone.OnMicrophoneVolumeChanged -= ChangeMicrophoneVolume;
-        SMDMicrophone.OnMicrophoneUseDenoiserChanged -= ConfigureDenoiser;
-
-        SMDMicrophone.OnLimiterChanged -= OnLimiterSettingsChanged;
-        SMDMicrophone.OnDenoiseParamsChanged -= OnDenoiseParamsChanged;
-        SMDMicrophone.OnAgcEnabledChanged -= OnAgcEnabledChanged;
-        SMDMicrophone.OnAgcParamsChanged -= OnAgcParamsChanged;
-        SMDMicrophone.MicrophoneTalkmodeChanged -= OnTalkModeChanged;
-
+        SMDMicrophone.OnMicrophoneSettingsChanged -= ApplyMicSettings;
         BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
+
         HasEvents = false;
-    }
-    private static void OnLimiterSettingsChanged(float threshold, float knee)
-    {
-        threshold = Mathf.Clamp(threshold, 0f, 1f);
-        knee = Mathf.Clamp(knee, 0f, 1f);
-
-        lock (processingLock)
-        {
-            LimitThreshold = threshold;
-            LimitKnee = knee;
-
-            // Keep job fields in sync (safe even if mic isn't started yet)
-            VAJ.LimitThreshold = LimitThreshold;
-            VAJ.LimitKnee = LimitKnee;
-        }
-    }
-
-    private static void OnDenoiseParamsChanged(float makeupDb, float wet)
-    {
-        wet = Mathf.Clamp01(wet);
-
-        lock (processingLock)
-        {
-            DenoiseMakeupDb = makeupDb;
-            DenoiseWet = wet;
-        }
-    }
-
-    private static void OnAgcEnabledChanged(bool enabled)
-    {
-        lock (processingLock)
-        {
-            UseAGC = enabled;
-            if (!enabled) agcGainDb = 0f; // reset so you don't "stick" boosted gain
-        }
-    }
-
-    private static void OnAgcParamsChanged(float targetRms, float maxGainDb, float attack, float release)
-    {
-        targetRms = Mathf.Max(1e-6f, targetRms);
-        attack = Mathf.Clamp01(attack);
-        release = Mathf.Clamp01(release);
-
-        lock (processingLock)
-        {
-            AgcTargetRms = targetRms;
-            AgcMaxGainDb = maxGainDb;
-            AgcAttack = attack;
-            AgcRelease = release;
-        }
-    }
-
-    // Optional: only if you actually use talkmode in your transmit gating / input system
-    private static void OnTalkModeChanged(SMDMicrophone.BasisMicrophoneMode mode)
-    {
-        // Store it here if needed; or forward to some input system.
-        // Example stub:
-        // BasisDebug.Log($"Mic talk mode changed: {mode}", BasisDebug.LogTag.Voice);
-    }
-    private static void ConfigureDenoiser(bool useDenoiser)
-    {
-        UseDenoiser = useDenoiser;
-        BasisDebug.Log("Setting Denoiser To " + UseDenoiser);
     }
 
     private static void OnBootModeChanged(string mode)
     {
-        ResetMicrophones(SMDMicrophone.SelectedMicrophone);
+        // Emits new snapshot
+        SMDMicrophone.LoadInMicrophoneData(mode);
+    }
+
+    /// <summary>
+    /// “Poke” handler: update job params + restart mic if device changed.
+    /// No copying of settings into driver fields.
+    /// </summary>
+    private static void ApplyMicSettings(SMDMicrophone.MicSettings s)
+    {
+        // 1) Update Volume mapping (affects VAJ.Volume too)
+        ChangeMicrophoneVolume(s.Volume01);
+
+        // 2) Update job params that are consumed during AdjustVolume()
+        lock (processingLock)
+        {
+            VAJ.LimitThreshold = Mathf.Clamp01(s.LimitThreshold);
+            VAJ.LimitKnee = Mathf.Clamp01(s.LimitKnee);
+
+            // AGC internal state reset when disabled
+            if (!s.UseAGC) agcGainDb = 0f;
+        }
+
+        // 3) Device switch
+        if (IsPaused)
+        {
+            _pendingDeviceWhenPaused = s.Microphone;
+            return;
+        }
+
+        if (!string.Equals(MicrophoneDevice, s.Microphone, StringComparison.Ordinal))
+        {
+            ResetMicrophones(s.Microphone);
+        }
+    }
+
+    public static void ToggleIsPaused()
+    {
+        IsPaused = !IsPaused;
     }
 
     public static void ResetMicrophones(string newMicrophone)
@@ -266,6 +219,7 @@ public static class BasisLocalMicrophoneDriver
         lock (processingLock)
         {
             processingEvent.Reset();
+
             if (string.IsNullOrEmpty(newMicrophone))
             {
                 BasisDebug.LogError("Microphone was empty or null");
@@ -280,11 +234,14 @@ public static class BasisLocalMicrophoneDriver
             {
                 newMicrophone = Microphone.devices[0];
             }
+
             if (Microphone.IsRecording(newMicrophone))
             {
                 Microphone.End(newMicrophone);
             }
+
             StopSelectedMicrophone_Internal();
+
             if (IsPaused)
             {
                 BasisDebug.Log("Microphone Is Paused");
@@ -294,6 +251,7 @@ public static class BasisLocalMicrophoneDriver
             }
 
             BasisDebug.Log("Starting Microphone: " + newMicrophone);
+
             Microphone.GetDeviceCaps(newMicrophone, out minFreq, out maxFreq);
             if (minFreq == 0 && maxFreq == 0)
             {
@@ -312,7 +270,6 @@ public static class BasisLocalMicrophoneDriver
 
             LocalOpusSettings.EnsureProcessBuffer(ref processBufferArray, out SampleRate);
 
-            // allocate denoise helpers
             CreateOrResizeArray(SampleRate, ref _denoiseDry);
 
             HandleBasisVolumeAdjustmentJob();
@@ -321,57 +278,62 @@ public static class BasisLocalMicrophoneDriver
             Array.Clear(rmsValues, 0, rmsValues.Length);
             rmsIndex = 0;
             averageRms = 0f;
+
             warmupSamples = SampleRate * 2;
             inWarmup = true;
+
             Array.Clear(microphoneBufferArray, 0, microphoneBufferArray.Length);
             Array.Clear(processBufferArray, 0, processBufferArray.Length);
             Array.Clear(_denoiseDry, 0, _denoiseDry.Length);
+
             Denoiser ??= new RNNoise.NET.Denoiser();
+
             MicrophoneIsStarted = true;
             PacketSize = SampleRate * 4;
-            // Re-apply current UI volume with dB mapping
-            ChangeMicrophoneVolume(SMDMicrophone.SelectedVolumeMicrophone);
+
+            // Reapply snapshot volume after start
+            ChangeMicrophoneVolume(SMDMicrophone.Current.Volume01);
+
             MicrophoneDevice = newMicrophone;
         }
     }
+
     private static void StopSelectedMicrophone_Internal()
     {
-        if (string.IsNullOrEmpty(MicrophoneDevice))
-        {
-            return;
-        }
+        if (string.IsNullOrEmpty(MicrophoneDevice)) return;
 
         if (Microphone.IsRecording(MicrophoneDevice))
         {
             Microphone.End(MicrophoneDevice);
             BasisDebug.Log("Stopped Microphone " + MicrophoneDevice);
         }
+
         MicrophoneDevice = null;
         MicrophoneIsStarted = false;
-        if (clip != null)
-        {
-            clip = null;
-        }
+
+        if (clip != null) clip = null;
     }
+
     private static void ClearStateAfterStop()
     {
         head = 0;
         position = 0;
         inWarmup = false;
         warmupSamples = 0;
+
         if (microphoneBufferArray != null) Array.Clear(microphoneBufferArray, 0, microphoneBufferArray.Length);
         if (processBufferArray != null) Array.Clear(processBufferArray, 0, processBufferArray.Length);
+
         if (rmsValues != null)
         {
             Array.Clear(rmsValues, 0, rmsValues.Length);
             rmsIndex = 0;
             averageRms = 0f;
         }
-        if (_denoiseDry != null)
-        {
-            Array.Clear(_denoiseDry, 0, _denoiseDry.Length);
-        }
+
+        if (_denoiseDry != null) Array.Clear(_denoiseDry, 0, _denoiseDry.Length);
     }
+
     private static void StopSelectedMicrophone()
     {
         lock (processingLock)
@@ -381,12 +343,11 @@ public static class BasisLocalMicrophoneDriver
             ClearStateAfterStop();
         }
     }
+
     public static void HandleBasisVolumeAdjustmentJob()
     {
-        if (handle.IsCompleted == false)
-        {
-            handle.Complete();
-        }
+        if (!handle.IsCompleted) handle.Complete();
+
         if (VAJ.processBufferArray.IsCreated)
         {
             if (VAJ.processBufferArray.Length != processBufferArray.Length)
@@ -399,47 +360,36 @@ public static class BasisLocalMicrophoneDriver
         {
             VAJ.processBufferArray = new NativeArray<float>(processBufferArray, Allocator.Persistent);
         }
+
         VAJ.Volume = Volume;
-        VAJ.LimitThreshold = LimitThreshold;
-        VAJ.LimitKnee = LimitKnee;
+
+        // Pull limiter settings from snapshot (authoritative)
+        var s = SMDMicrophone.Current;
+        VAJ.LimitThreshold = Mathf.Clamp01(s.LimitThreshold);
+        VAJ.LimitKnee = Mathf.Clamp01(s.LimitKnee);
     }
-    public static void ToggleIsPaused()
-    {
-        IsPaused = !IsPaused;
-    }
+
     public static void MicrophoneUpdate()
     {
-        if (!MicrophoneIsStarted || string.IsNullOrEmpty(MicrophoneDevice) || clip == null)
-        {
-            return;
-        }
+        if (!MicrophoneIsStarted || string.IsNullOrEmpty(MicrophoneDevice) || clip == null) return;
 
         int currentPosition = Microphone.GetPosition(MicrophoneDevice);
         position = currentPosition;
-        if (position <= 0)
-        {
-            return;
-        }
+        if (position <= 0) return;
 
         clip.GetData(microphoneBufferArray, 0);
 
         int dataLength = GetDataLength(bufferLength, head, position);
-        if (dataLength < SampleRate)
-        {
-            return;
-        }
+        if (dataLength < SampleRate) return;
 
         processingEvent.Set();
 
         if (Interlocked.Exchange(ref _scheduleMainHasAudio, 0) == 1)
-        {
             MainThreadOnHasAudio?.Invoke();
-        }
         else if (Interlocked.Exchange(ref _scheduleMainHasSilence, 0) == 1)
-        {
             MainThreadOnHasSilence?.Invoke();
-        }
     }
+
     private static void StartProcessingThread()
     {
         processingTokenSource = new CancellationTokenSource();
@@ -453,32 +403,36 @@ public static class BasisLocalMicrophoneDriver
                 lock (processingLock)
                 {
                     if (MicrophoneIsStarted && clip != null)
-                    {
                         ProcessAudioData(position);
-                    }
                 }
 
                 processingEvent.Reset();
             }
         });
+
         processingThread.IsBackground = true;
         processingThread.Start();
     }
+
     public static void StopProcessingThread()
     {
         processingTokenSource?.Cancel();
         processingEvent?.Set();
 
         if (processingThread != null && processingThread.IsAlive)
-        {
             processingThread.Join();
-        }
+
         processingThread = null;
         processingTokenSource?.Dispose();
         processingTokenSource = null;
     }
+
     public static void ProcessAudioData(int posSnapshot)
     {
+        // Read snapshot ONCE per processing call so settings are consistent for the frame.
+        // This assumes SMDMicrophone.Current changes on main thread; the lock makes it coherent with ApplyMicSettings.
+        var s = SMDMicrophone.Current;
+
         if (inWarmup)
         {
             int available = GetDataLength(bufferLength, head, posSnapshot);
@@ -507,28 +461,30 @@ public static class BasisLocalMicrophoneDriver
                 Array.Copy(microphoneBufferArray, head, processBufferArray, 0, SampleRate);
             }
 
-            // --- Optional AGC (pre-fader, before explicit Volume & limiter) ---
-            if (UseAGC)
+            // --- Optional AGC ---
+            if (s.UseAGC)
             {
                 float thisRms = GetRMS();
-                UpdateAgc(thisRms);
+                UpdateAgc(thisRms, s.AgcTargetRms, s.AgcMaxGainDb, s.AgcAttack, s.AgcRelease);
+
                 float agcAmp = DbToAmp(agcGainDb);
                 if (!Mathf.Approximately(agcAmp, 1f))
                 {
-                    // simple scalar multiply
                     for (int i = 0; i < SampleRate; i++)
-                    {
                         processBufferArray[i] *= agcAmp;
-                    }
                 }
             }
+
             // --- User gain + limiter in Burst job ---
-            AdjustVolume();
-            if (UseDenoiser)
+            AdjustVolume(s);
+
+            if (s.UseDenoiser)
             {
-                ApplyDeNoise();
+                ApplyDeNoise(s);
             }
+
             RollingRMS();
+
             if (IsTransmitWorthy())
             {
                 OnHasAudio?.Invoke();
@@ -541,22 +497,24 @@ public static class BasisLocalMicrophoneDriver
                 Interlocked.Exchange(ref _scheduleMainHasSilence, 1);
                 Interlocked.Exchange(ref _scheduleMainHasAudio, 0);
             }
+
             head = (head + SampleRate) % bufferLength;
             dataLength -= SampleRate;
         }
     }
-    public static void AdjustVolume()
+
+    public static void AdjustVolume(SMDMicrophone.MicSettings s)
     {
-        // keep VAJ fields up to date (in case UI changed them at runtime)
         VAJ.Volume = Volume;
-        VAJ.LimitThreshold = LimitThreshold;
-        VAJ.LimitKnee = LimitKnee;
+        VAJ.LimitThreshold = Mathf.Clamp01(s.LimitThreshold);
+        VAJ.LimitKnee = Mathf.Clamp01(s.LimitKnee);
 
         VAJ.processBufferArray.CopyFrom(processBufferArray);
         handle = VAJ.Schedule(processBufferArray.Length, 64);
         handle.Complete();
         VAJ.processBufferArray.CopyTo(processBufferArray);
     }
+
     public static float GetRMS()
     {
         double sum = 0.0;
@@ -567,34 +525,33 @@ public static class BasisLocalMicrophoneDriver
         }
         return Mathf.Sqrt((float)(sum / SampleRate));
     }
+
     public static int GetDataLength(int len, int h, int pos)
     {
         return (pos < h) ? (len - h + pos) : (pos - h);
     }
-    /// <summary>
-    /// UI volume in [0..1] is mapped to dB, then converted to linear. Range: −60 dB … +18 dB.
-    /// </summary>
+
+    /// <summary>UI volume [0..1] mapped to dB then linear amp.</summary>
     public static void ChangeMicrophoneVolume(float ui)
     {
         ui = Mathf.Clamp01(ui);
         const float minDb = -60f;
         const float maxDb = 0f;
         float db = Mathf.Lerp(minDb, maxDb, ui);
+
         Volume = DbToAmp(db);
         VAJ.Volume = Volume;
+
         BasisDebug.Log($"Set Microphone Gain To {db:F1} dB (amp {Volume:F3})", BasisDebug.LogTag.Voice);
     }
-    public static void ApplyDeNoise()
+
+    public static void ApplyDeNoise(SMDMicrophone.MicSettings s)
     {
         if (_denoiseDry == null || _denoiseDry.Length != processBufferArray.Length)
-        {
             CreateOrResizeArray(processBufferArray.Length, ref _denoiseDry);
-        }
 
-        // copy dry
         Array.Copy(processBufferArray, _denoiseDry, SampleRate);
 
-        // RNNoise is 48k/10ms friendly. If frame != 480, chunk in 480-sample hops.
         const int hop = 480;
         if (SampleRate == hop)
         {
@@ -608,7 +565,6 @@ public static class BasisLocalMicrophoneDriver
             while (o < SampleRate)
             {
                 int n = Math.Min(hop, SampleRate - o);
-                // copy chunk to temp, zero-pad if last chunk shorter
                 Array.Clear(_tmp480, 0, hop);
                 Array.Copy(processBufferArray, o, _tmp480, 0, n);
                 Denoiser?.Denoise(_tmp480);
@@ -616,18 +572,20 @@ public static class BasisLocalMicrophoneDriver
                 o += n;
             }
         }
-        // wet/dry + makeup
-        float makeup = DbToAmp(DenoiseMakeupDb);
-        float wet = Mathf.Clamp01(DenoiseWet);
-        if (!Mathf.Approximately(wet, 1f) || !Mathf.Approximately(DenoiseMakeupDb, 0f))
+
+        float makeup = DbToAmp(s.DenoiseMakeupDb);
+        float wet = Mathf.Clamp01(s.DenoiseWet);
+
+        if (!Mathf.Approximately(wet, 1f) || !Mathf.Approximately(s.DenoiseMakeupDb, 0f))
         {
-            for (int Index = 0; Index < SampleRate; Index++)
+            for (int i = 0; i < SampleRate; i++)
             {
-                float den = processBufferArray[Index] * makeup;
-                processBufferArray[Index] = Mathf.Lerp(_denoiseDry[Index], den, wet);
+                float den = processBufferArray[i] * makeup;
+                processBufferArray[i] = Mathf.Lerp(_denoiseDry[i], den, wet);
             }
         }
     }
+
     public static void RollingRMS()
     {
         float rms = GetRMS();
@@ -635,21 +593,22 @@ public static class BasisLocalMicrophoneDriver
         rmsIndex = (rmsIndex + 1) % LocalOpusSettings.rmsWindowSize;
         averageRms = rmsValues.Average();
     }
+
     public static bool IsTransmitWorthy()
     {
         return averageRms > LocalOpusSettings.silenceThreshold;
     }
-    private static float DbToAmp(float db) => Mathf.Pow(10f, db / 20f);
-    private static void UpdateAgc(float frameRms)
-    {
-        if (frameRms <= 1e-6f)
-        {
-            frameRms = 1e-6f;
-        }
 
-        float neededDb = 20f * Mathf.Log10(AgcTargetRms / frameRms);
-        neededDb = Mathf.Clamp(neededDb, -AgcMaxGainDb, AgcMaxGainDb);
-        float k = (neededDb > agcGainDb) ? AgcAttack : AgcRelease;
+    private static float DbToAmp(float db) => Mathf.Pow(10f, db / 20f);
+
+    private static void UpdateAgc(float frameRms, float targetRms, float maxGainDb, float attack, float release)
+    {
+        if (frameRms <= 1e-6f) frameRms = 1e-6f;
+
+        float neededDb = 20f * Mathf.Log10(Mathf.Max(1e-6f, targetRms) / frameRms);
+        neededDb = Mathf.Clamp(neededDb, -maxGainDb, maxGainDb);
+
+        float k = (neededDb > agcGainDb) ? Mathf.Clamp01(attack) : Mathf.Clamp01(release);
         agcGainDb = Mathf.Lerp(agcGainDb, neededDb, k);
     }
 

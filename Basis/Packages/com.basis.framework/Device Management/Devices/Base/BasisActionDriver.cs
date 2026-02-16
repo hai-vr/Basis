@@ -395,7 +395,7 @@ public static class BasisActionDriver
     {
         if (BasisInputModuleHandler.Instance.HasHoverONInput == false)
         {
-            switch (SMDMicrophone.SelectedTalkmode)
+            switch (SMDMicrophone.Current.TalkMode)
             {
                 case SMDMicrophone.BasisMicrophoneMode.OnActivation:
                     if (current.PrimaryButtonGetState == false && last.PrimaryButtonGetState)

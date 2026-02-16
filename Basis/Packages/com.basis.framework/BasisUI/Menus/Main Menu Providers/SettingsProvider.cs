@@ -1,4 +1,5 @@
 using Basis.Scripts.Device_Management;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -17,7 +18,6 @@ namespace Basis.BasisUI
         public override string Title => "Settings";
         public override string IconAddress => AddressableAssets.Sprites.Settings;
         public override int Order => 0;
-
         public override bool Hidden => false;
 
         public override void RunAction()
@@ -53,6 +53,7 @@ namespace Basis.BasisUI
 
             panel.Descriptor.ForceRebuild();
         }
+
         public void SwitchToOpenVR()
         {
             BasisMainMenu.Instance.OpenDialogue("Switch To OpenVR",
@@ -62,7 +63,6 @@ namespace Basis.BasisUI
                 async value =>
                 {
                     if (!value) return;
-
                     await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
                 });
         }
@@ -76,7 +76,6 @@ namespace Basis.BasisUI
                 async value =>
                 {
                     if (!value) return;
-
                     await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenXRLoader);
                 });
         }
@@ -90,7 +89,6 @@ namespace Basis.BasisUI
                 async value =>
                 {
                     if (!value) return;
-
                     await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.Desktop);
                 });
         }
@@ -107,63 +105,50 @@ namespace Basis.BasisUI
 
             RectTransform container = descriptor.ContentParent;
 
-            // GENERAL INPUT / GAMEPLAY GROUP
             PanelElementDescriptor generalGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             generalGroup.SetIcon(AddressableAssets.Sprites.Settings);
             generalGroup.SetTitle("Gameplay & Input");
             generalGroup.SetDescription("General controls and comfort settings.");
 
-            // Invert Mouse
             PanelToggle toggleInvertMouse = PanelToggle.CreateNewEntry(generalGroup);
             toggleInvertMouse.Descriptor.SetTitle("Invert Mouse");
             toggleInvertMouse.AssignBinding(BasisSettingsDefaults.InvertMouse);
 
             PanelSlider mousesensitivty = PanelSlider.CreateEntryAndBind(
-generalGroup,
-PanelSlider.SliderSettings.Advanced("Mouse Sensitivity", 0, 2f, false, 2, ValueDisplayMode.Percentage),
-BasisSettingsDefaults.mousesensitivty);
-
+                generalGroup,
+                PanelSlider.SliderSettings.Advanced("Mouse Sensitivity", 0, 2f, false, 2, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.mousesensitivty);
 
             PanelToggle smoothlocomotion = PanelToggle.CreateNewEntry(generalGroup);
             smoothlocomotion.Descriptor.SetTitle("Use SnapTurn locomotion");
             smoothlocomotion.AssignBinding(BasisSettingsDefaults.usesnapturn);
 
-
-
-            // Snap Turn Angle
             PanelSlider sliderSnapTurnAngle = PanelSlider.CreateEntryAndBind(
                 generalGroup,
                 PanelSlider.SliderSettings.Advanced("Snap Turn Angle", 0, 120, true, 0, ValueDisplayMode.Degrees),
                 BasisSettingsDefaults.SnapTurnAngle);
 
-            // RANGE SETTINGS GROUP
             PanelElementDescriptor rangeGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             rangeGroup.SetTitle("Ranges");
             rangeGroup.SetDescription("Visibility and hearing ranges.");
 
-            // Avatar Visibility Range
             PanelSlider sliderAvatarRange = PanelSlider.CreateEntryAndBind(
                 rangeGroup,
                 PanelSlider.SliderSettings.Distance("Avatar Visibility Range", 100),
                 BasisSettingsDefaults.AvatarRange);
 
-            // Hearing Range
             PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
                 rangeGroup,
                 PanelSlider.SliderSettings.Distance("Hearing Range", 25),
                 BasisSettingsDefaults.HearingRange);
 
-            // Microphone Range
             PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
                 rangeGroup,
                 PanelSlider.SliderSettings.Distance("Microphone Range", 25),
                 BasisSettingsDefaults.MicrophoneRange);
 
-            // =======================
-            // GENERAL
-            // =======================
             PanelElementDescriptor generalGroupDeadZone =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
 
@@ -172,15 +157,9 @@ BasisSettingsDefaults.mousesensitivty);
 
             PanelSlider controllerDeadZoneSlider = PanelSlider.CreateEntryAndBind(
                 generalGroupDeadZone,
-                PanelSlider.SliderSettings.Advanced(
-                    "Radial Dead Zone",
-                    0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                PanelSlider.SliderSettings.Advanced("Radial Dead Zone", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.ControllerDeadZone);
 
-
-            // =======================
-            // HORIZONTAL (YAW) COMFORT
-            // =======================
             PanelElementDescriptor horizontalGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
 
@@ -189,29 +168,19 @@ BasisSettingsDefaults.mousesensitivty);
 
             PanelSlider minHorizontalDeadZoneSlider = PanelSlider.CreateEntryAndBind(
                 horizontalGroup,
-                PanelSlider.SliderSettings.Advanced(
-                    "X Dead Zone (Min)",
-                    0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                PanelSlider.SliderSettings.Advanced("X Dead Zone (Min)", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.Basexdeadzone);
 
             PanelSlider horizontalGateStrengthSlider = PanelSlider.CreateEntryAndBind(
                 horizontalGroup,
-                PanelSlider.SliderSettings.Advanced(
-                    "X Gate (At Full Y)",
-                    0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                PanelSlider.SliderSettings.Advanced("X Gate (At Full Y)", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.Extraxdeadzoneatfully);
 
             PanelSlider wingCurveSlider = PanelSlider.CreateEntryAndBind(
                 horizontalGroup,
-                PanelSlider.SliderSettings.Advanced(
-                    "Gate Curve",
-                    0f, 3f, false, 3, ValueDisplayMode.Percentage),
+                PanelSlider.SliderSettings.Advanced("Gate Curve", 0f, 3f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.Wingexponent);
 
-
-            // =======================
-            // VERTICAL (PITCH / OTHER)
-            // =======================
             PanelElementDescriptor verticalGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
 
@@ -220,9 +189,7 @@ BasisSettingsDefaults.mousesensitivty);
 
             PanelSlider verticalDeadZoneSlider = PanelSlider.CreateEntryAndBind(
                 verticalGroup,
-                PanelSlider.SliderSettings.Advanced(
-                    "Look Y Dead Zone",
-                    0f, 1f, false, 3, ValueDisplayMode.Percentage),
+                PanelSlider.SliderSettings.Advanced("Look Y Dead Zone", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.Ydeadzone);
 
             controllerDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
@@ -234,15 +201,18 @@ BasisSettingsDefaults.mousesensitivty);
             descriptor.ForceRebuild();
             return tab;
         }
+
         private static void UpdatePreview()
         {
-            //wire up to butterflygatepreview one day
+            // wire up to butterflygatepreview one day
         }
+
         // ------------------
         // AUDIO TAB
         // ------------------
         public static PanelTabPage AudioTab(PanelTabGroup tabGroup)
         {
+            // Ensure current mode snapshot is loaded (and keeps SMDMicrophone.Current accurate)
             SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
 
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
@@ -285,16 +255,24 @@ BasisSettingsDefaults.mousesensitivty);
             microphoneGroup.SetTitle("Microphone");
             microphoneGroup.SetDescription("Microphone Related Settings");
 
+            // Snapshot
+            SMDMicrophone.MicSettings snap = SMDMicrophone.Current;
+
             // Microphone Volume (0..1)
             PanelSlider sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
                 microphoneGroup,
                 PanelSlider.SliderSettings.Advanced("Microphone Volume", 0, 1, false, 4, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.MicrophoneVolume);
-            sliderMicrophoneVolume.SetValueWithoutNotify(SMDMicrophone.SelectedVolumeMicrophone);
+            sliderMicrophoneVolume.SetValueWithoutNotify(snap.Volume01);
 
+            // IMPORTANT: Use new setters (single-source-of-truth), not Save* and not Selected*
             void MicrophoneVolumeChanged(float value)
             {
-                SMDMicrophone.SaveVolumeSettings(BasisDeviceManagement.StaticCurrentMode, value);
+                // If mode changes while tab open, keep in sync:
+                if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                    SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+
+                SMDMicrophone.SetVolume(value);
             }
             sliderMicrophoneVolume.SliderComponent.onValueChanged.AddListener(MicrophoneVolumeChanged);
 
@@ -306,47 +284,51 @@ BasisSettingsDefaults.mousesensitivty);
             // Microphone Selection (device list)
             PanelDropdown dropdownMicrophoneSelection = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneSelection.Descriptor.SetTitle("Microphone Selection");
-            dropdownMicrophoneSelection.AssignEntries(SMDMicrophone.MicrophoneDevices.ToList());
-            dropdownMicrophoneSelection.SetValueWithoutNotify(SMDMicrophone.SelectedMicrophone);
+            dropdownMicrophoneSelection.AssignEntries(SMDMicrophone.MicrophoneDevices?.ToList() ?? new List<string>());
+            dropdownMicrophoneSelection.SetValueWithoutNotify(snap.Microphone);
 
             void MicrophoneSelectionChanged(string name)
             {
-                SMDMicrophone.SaveMicrophoneData(BasisDeviceManagement.StaticCurrentMode, name);
+                if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                    SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+
+                SMDMicrophone.SetMicrophone(name);
             }
             dropdownMicrophoneSelection.OnValueChanged += MicrophoneSelectionChanged;
 
-            // Microphone Denoiser
+            // Microphone Denoiser (binding can remain; it will call ValidSettingsChange which calls SetDenoiser)
             PanelToggle toggleMicrophoneDenoiser = PanelToggle.CreateNewEntry(microphoneGroup);
             toggleMicrophoneDenoiser.Descriptor.SetTitle("Microphone Denoiser");
             toggleMicrophoneDenoiser.AssignBinding(BasisSettingsDefaults.MicrophoneDenoiser);
 
-            // Automatic Gain Control
+            // Automatic Gain Control (binding remains)
             PanelToggle toggleAGC = PanelToggle.CreateNewEntry(microphoneGroup);
             toggleAGC.Descriptor.SetTitle("Automatic Gain (AGC)");
             toggleAGC.AssignBinding(BasisSettingsDefaults.UseAutomaticGain);
 
-            // Microphone Mode
+            // Microphone Mode (binding remains)
             PanelDropdown dropdownMicrophoneMode = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneMode.Descriptor.SetTitle("Microphone Mode");
             dropdownMicrophoneMode.AssignEntries(new List<string>
-    {
-        "On Activation",
-        "Push To Talk"
-    });
+            {
+                "On Activation",
+                "Push To Talk"
+            });
             dropdownMicrophoneMode.AssignBinding(BasisSettingsDefaults.MicrophoneMode);
 
-            // Microphone Icon
+            // Microphone Icon (binding remains)
             PanelDropdown dropdownMicrophoneIcon = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneIcon.Descriptor.SetTitle("Microphone Icon");
             dropdownMicrophoneIcon.AssignEntries(new List<string>
-    {
-        "AlwaysVisible",
-        "ActivityDetection",
-        "Hidden"
-    });
+            {
+                "AlwaysVisible",
+                "ActivityDetection",
+                "Hidden"
+            });
             dropdownMicrophoneIcon.AssignBinding(BasisSettingsDefaults.MicrophoneIcon);
 
-            // -------------------- MISSING MIC DSP SETTINGS --------------------
+            // -------------------- DSP SETTINGS --------------------
+
             // Limiter
             PanelElementDescriptor limiterGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -357,21 +339,29 @@ BasisSettingsDefaults.mousesensitivty);
                 limiterGroup,
                 PanelSlider.SliderSettings.Advanced("Limit Threshold", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.LimitThreshold);
-            sliderLimitThreshold.SetValueWithoutNotify(SMDMicrophone.SelectedLimitThreshold);
+            sliderLimitThreshold.SetValueWithoutNotify(snap.LimitThreshold);
 
             PanelSlider sliderLimitKnee = PanelSlider.CreateEntryAndBind(
                 limiterGroup,
                 PanelSlider.SliderSettings.Advanced("Limit Knee", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.LimitKnee);
-            sliderLimitKnee.SetValueWithoutNotify(SMDMicrophone.SelectedLimitKnee);
+            sliderLimitKnee.SetValueWithoutNotify(snap.LimitKnee);
 
             void LimitThresholdChanged(float v)
             {
-                SMDMicrophone.SaveLimiterSettings(BasisDeviceManagement.StaticCurrentMode, v, SMDMicrophone.SelectedLimitKnee);
+                if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                    SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+
+                var s = SMDMicrophone.Current;
+                SMDMicrophone.SetLimiter(v, s.LimitKnee);
             }
             void LimitKneeChanged(float v)
             {
-                SMDMicrophone.SaveLimiterSettings(BasisDeviceManagement.StaticCurrentMode, SMDMicrophone.SelectedLimitThreshold, v);
+                if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                    SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+
+                var s = SMDMicrophone.Current;
+                SMDMicrophone.SetLimiter(s.LimitThreshold, v);
             }
             sliderLimitThreshold.SliderComponent.onValueChanged.AddListener(LimitThresholdChanged);
             sliderLimitKnee.SliderComponent.onValueChanged.AddListener(LimitKneeChanged);
@@ -386,22 +376,29 @@ BasisSettingsDefaults.mousesensitivty);
                 denoiseGroup,
                 PanelSlider.SliderSettings.Advanced("Denoise Wet", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.DenoiseWet);
-            sliderDenoiseWet.SetValueWithoutNotify(SMDMicrophone.SelectedDenoiseWet);
+            sliderDenoiseWet.SetValueWithoutNotify(snap.DenoiseWet);
 
-            // Makeup gain in dB: typical range -12..+24 (tweak to taste)
             PanelSlider sliderDenoiseMakeup = PanelSlider.CreateEntryAndBind(
                 denoiseGroup,
                 PanelSlider.SliderSettings.Advanced("Denoise Makeup (dB)", -12f, 24f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.DenoiseMakeupDb);
-            sliderDenoiseMakeup.SetValueWithoutNotify(SMDMicrophone.SelectedDenoiseMakeupDb);
+            sliderDenoiseMakeup.SetValueWithoutNotify(snap.DenoiseMakeupDb);
 
             void DenoiseWetChanged(float v)
             {
-                SMDMicrophone.SaveDenoiseParams(BasisDeviceManagement.StaticCurrentMode, SMDMicrophone.SelectedDenoiseMakeupDb, v);
+                if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                    SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+
+                var s = SMDMicrophone.Current;
+                SMDMicrophone.SetDenoiseParams(s.DenoiseMakeupDb, v);
             }
             void DenoiseMakeupChanged(float v)
             {
-                SMDMicrophone.SaveDenoiseParams(BasisDeviceManagement.StaticCurrentMode, v, SMDMicrophone.SelectedDenoiseWet);
+                if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                    SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+
+                var s = SMDMicrophone.Current;
+                SMDMicrophone.SetDenoiseParams(v, s.DenoiseWet);
             }
             sliderDenoiseWet.SliderComponent.onValueChanged.AddListener(DenoiseWetChanged);
             sliderDenoiseMakeup.SliderComponent.onValueChanged.AddListener(DenoiseMakeupChanged);
@@ -412,68 +409,61 @@ BasisSettingsDefaults.mousesensitivty);
             agcGroup.SetTitle("AGC Tuning");
             agcGroup.SetDescription("Target loudness and responsiveness (only applies when AGC is enabled).");
 
-            // Target RMS: 0..0.25 is a sane UI range; default ~0.06
             PanelSlider sliderAgcTarget = PanelSlider.CreateEntryAndBind(
                 agcGroup,
                 PanelSlider.SliderSettings.Advanced("AGC Target RMS", 0.001f, 0.25f, false, 4, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.AgcTargetRms);
-            sliderAgcTarget.SetValueWithoutNotify(SMDMicrophone.SelectedAgcTargetRms);
+            sliderAgcTarget.SetValueWithoutNotify(snap.AgcTargetRms);
 
-            // Max gain dB: 0..36 typical
             PanelSlider sliderAgcMaxGain = PanelSlider.CreateEntryAndBind(
                 agcGroup,
                 PanelSlider.SliderSettings.Advanced("AGC Max Gain (dB)", 0f, 36f, false, 1, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.AgcMaxGainDb);
-            sliderAgcMaxGain.SetValueWithoutNotify(SMDMicrophone.SelectAgcMaxGainDb);
+            sliderAgcMaxGain.SetValueWithoutNotify(snap.AgcMaxGainDb);
 
-            // Attack/Release: 0..1 as your code expects
             PanelSlider sliderAgcAttack = PanelSlider.CreateEntryAndBind(
                 agcGroup,
                 PanelSlider.SliderSettings.Advanced("AGC Attack", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.AgcAttack);
-            sliderAgcAttack.SetValueWithoutNotify(SMDMicrophone.SelectedAgcAttack);
+            sliderAgcAttack.SetValueWithoutNotify(snap.AgcAttack);
 
             PanelSlider sliderAgcRelease = PanelSlider.CreateEntryAndBind(
                 agcGroup,
                 PanelSlider.SliderSettings.Advanced("AGC Release", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.AgcRelease);
-            sliderAgcRelease.SetValueWithoutNotify(SMDMicrophone.SelectedAgcRelease);
+            sliderAgcRelease.SetValueWithoutNotify(snap.AgcRelease);
 
             void AgcTargetChanged(float v)
             {
-                SMDMicrophone.SaveAgcParams(
-                    BasisDeviceManagement.StaticCurrentMode,
-                    v,
-                    SMDMicrophone.SelectAgcMaxGainDb,
-                    SMDMicrophone.SelectedAgcAttack,
-                    SMDMicrophone.SelectedAgcRelease);
+                if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                    SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+
+                var s = SMDMicrophone.Current;
+                SMDMicrophone.SetAgcParams(v, s.AgcMaxGainDb, s.AgcAttack, s.AgcRelease);
             }
             void AgcMaxGainChanged(float v)
             {
-                SMDMicrophone.SaveAgcParams(
-                    BasisDeviceManagement.StaticCurrentMode,
-                    SMDMicrophone.SelectedAgcTargetRms,
-                    v,
-                    SMDMicrophone.SelectedAgcAttack,
-                    SMDMicrophone.SelectedAgcRelease);
+                if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                    SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+
+                var s = SMDMicrophone.Current;
+                SMDMicrophone.SetAgcParams(s.AgcTargetRms, v, s.AgcAttack, s.AgcRelease);
             }
             void AgcAttackChanged(float v)
             {
-                SMDMicrophone.SaveAgcParams(
-                    BasisDeviceManagement.StaticCurrentMode,
-                    SMDMicrophone.SelectedAgcTargetRms,
-                    SMDMicrophone.SelectAgcMaxGainDb,
-                    v,
-                    SMDMicrophone.SelectedAgcRelease);
+                if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                    SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+
+                var s = SMDMicrophone.Current;
+                SMDMicrophone.SetAgcParams(s.AgcTargetRms, s.AgcMaxGainDb, v, s.AgcRelease);
             }
             void AgcReleaseChanged(float v)
             {
-                SMDMicrophone.SaveAgcParams(
-                    BasisDeviceManagement.StaticCurrentMode,
-                    SMDMicrophone.SelectedAgcTargetRms,
-                    SMDMicrophone.SelectAgcMaxGainDb,
-                    SMDMicrophone.SelectedAgcAttack,
-                    v);
+                if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                    SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+
+                var s = SMDMicrophone.Current;
+                SMDMicrophone.SetAgcParams(s.AgcTargetRms, s.AgcMaxGainDb, s.AgcAttack, v);
             }
 
             sliderAgcTarget.SliderComponent.onValueChanged.AddListener(AgcTargetChanged);
@@ -481,12 +471,34 @@ BasisSettingsDefaults.mousesensitivty);
             sliderAgcAttack.SliderComponent.onValueChanged.AddListener(AgcAttackChanged);
             sliderAgcRelease.SliderComponent.onValueChanged.AddListener(AgcReleaseChanged);
 
-            // -----------------------------------------------------------------
+            // ---- OPTIONAL: keep UI synced if settings change while tab is open ----
+            // If bindings already update the UI controls, you can delete this block.
+            // This is mainly for the controls you set manually / that aren't fully bound.
+            void SyncUiFromSnapshot(SMDMicrophone.MicSettings s)
+            {
+                // Avoid feedback loops: SetValueWithoutNotify only.
+                sliderMicrophoneVolume.SetValueWithoutNotify(s.Volume01);
+                dropdownMicrophoneSelection.SetValueWithoutNotify(s.Microphone);
+
+                sliderLimitThreshold.SetValueWithoutNotify(s.LimitThreshold);
+                sliderLimitKnee.SetValueWithoutNotify(s.LimitKnee);
+
+                sliderDenoiseWet.SetValueWithoutNotify(s.DenoiseWet);
+                sliderDenoiseMakeup.SetValueWithoutNotify(s.DenoiseMakeupDb);
+
+                sliderAgcTarget.SetValueWithoutNotify(s.AgcTargetRms);
+                sliderAgcMaxGain.SetValueWithoutNotify(s.AgcMaxGainDb);
+                sliderAgcAttack.SetValueWithoutNotify(s.AgcAttack);
+                sliderAgcRelease.SetValueWithoutNotify(s.AgcRelease);
+            }
+
+            SMDMicrophone.OnMicrophoneSettingsChanged += SyncUiFromSnapshot;
+            // If your PanelTabPage has an OnDestroyed/OnClosed hook, unsubscribe there.
+            // If not, consider adding one (otherwise this can leak handlers when opening settings repeatedly).
 
             descriptor.ForceRebuild();
             return tab;
         }
-
 
         // ------------------
         // GRAPHICS TAB
@@ -499,47 +511,29 @@ BasisSettingsDefaults.mousesensitivty);
 
             RectTransform container = descriptor.ContentParent;
 
-            // QUALITY GROUP
             PanelElementDescriptor qualityGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             qualityGroup.SetTitle("Quality");
             qualityGroup.SetDescription("Overall render quality and post-processing.");
 
-            // Quality Level
             PanelDropdown dropdownQualityLevel = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownQualityLevel.Descriptor.SetTitle("Quality Level");
-            dropdownQualityLevel.AssignEntries(new List<string>
-            {
-                "Very Low", "Low", "Medium", "High", "Ultra"
-            });
+            dropdownQualityLevel.AssignEntries(new List<string> { "Very Low", "Low", "Medium", "High", "Ultra" });
             dropdownQualityLevel.AssignBinding(BasisSettingsDefaults.QualityLevel);
 
-            // Shadow Quality
             PanelDropdown dropdownShadowQuality = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownShadowQuality.Descriptor.SetTitle("Shadow Quality");
-            dropdownShadowQuality.AssignEntries(new List<string>
-            {
-                 "Very Low", "Low", "Medium", "High", "Ultra"
-            });
+            dropdownShadowQuality.AssignEntries(new List<string> { "Very Low", "Low", "Medium", "High", "Ultra" });
             dropdownShadowQuality.AssignBinding(BasisSettingsDefaults.ShadowQuality);
 
-            // Antialiasing
             PanelDropdown dropdownAntialiasing = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownAntialiasing.Descriptor.SetTitle("Antialiasing");
             dropdownAntialiasing.AssignEntries(new List<string>
             {
-                "Off",
-                "MSAA 2X",
-                "MSAA 4X",
-                "MSAA 8X",
-                "Linear",
-                "Point",
-                "FSR",
-                "STP"
+                "Off","MSAA 2X","MSAA 4X","MSAA 8X","Linear","Point","FSR","STP"
             });
             dropdownAntialiasing.AssignBinding(BasisSettingsDefaults.Antialiasing);
 
-            // VSync
             PanelDropdown dropdownVSync = PanelDropdown.CreateNewEntry(qualityGroup.ContentParent);
             dropdownVSync.Descriptor.SetTitle("Vertical Sync");
             dropdownVSync.Descriptor.SetDescription("VR uses headset refreshrate");
@@ -550,7 +544,7 @@ BasisSettingsDefaults.mousesensitivty);
             fpsCapField.Descriptor.SetTitle("Frame Rate Cap (FPS)");
             fpsCapField.Descriptor.SetDescription("Used only when Vertical Sync is set to Capped.");
             fpsCapField.AssignBinding(BasisSettingsDefaults.VSyncCapFps);
-            // Force numeric entry
+
             TMP_InputField fpsInput = fpsCapField._inputField;
             if (fpsInput != null)
             {
@@ -558,45 +552,26 @@ BasisSettingsDefaults.mousesensitivty);
                 fpsInput.lineType = TMP_InputField.LineType.SingleLine;
             }
 
-            // RENDERING GROUP
             PanelElementDescriptor renderingGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             renderingGroup.SetTitle("Rendering");
             renderingGroup.SetDescription("Resolution, HDR and performance-related options.");
 
-            // HDR Support
             PanelDropdown dropdownHDR = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             dropdownHDR.Descriptor.SetTitle("HDR Support");
-            dropdownHDR.AssignEntries(new List<string>
-            {
-                "Off",
-                "32bit",
-                "64bit"
-            });
+            dropdownHDR.AssignEntries(new List<string> { "Off", "32bit", "64bit" });
             dropdownHDR.AssignBinding(BasisSettingsDefaults.HDRSupport);
 
-            // Memory Allocation
             PanelDropdown dropdownMemoryAllocation = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             dropdownMemoryAllocation.Descriptor.SetTitle("Memory Allocation");
-            dropdownMemoryAllocation.AssignEntries(new List<string>
-            {
-                "Dynamic",
-                "256",
-                "512",
-                "1024",
-                "2048",
-                "4096",
-                "8192",
-            });
+            dropdownMemoryAllocation.AssignEntries(new List<string> { "Dynamic", "256", "512", "1024", "2048", "4096", "8192" });
             dropdownMemoryAllocation.AssignBinding(BasisSettingsDefaults.MemoryAllocation);
 
-            // Render Scale
             PanelSlider sliderRenderResolution = PanelSlider.CreateEntryAndBind(
                 renderingGroup.ContentParent,
                 new PanelSlider.SliderSettings("Render Scale", "", 0, 1.5f, false, 3, ValueDisplayMode.percentageFromZero),
                 BasisSettingsDefaults.RenderResolution);
 
-            // Resolution (logical / display resolution)
             dropdownResolution = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             dropdownResolution.Descriptor.SetTitle("Resolution");
             uniqueResolutions = new List<Vector2Int>();
@@ -605,8 +580,6 @@ BasisSettingsDefaults.mousesensitivty);
             foreach (Resolution res in Screen.resolutions)
             {
                 Vector2Int size = new Vector2Int(res.width, res.height);
-
-                // Only add if not already in the list (removes duplicates with different refresh rates)
                 if (!uniqueResolutions.Contains(size))
                 {
                     uniqueResolutions.Add(size);
@@ -614,54 +587,40 @@ BasisSettingsDefaults.mousesensitivty);
                 }
             }
 
-            // NOTE: in many systems this will be populated by platform code – tweak/remove entries as needed
             dropdownResolution.AssignEntries(resolutionOptions);
             dropdownResolution.DropdownComponent.onValueChanged.AddListener(ResolutionChanged);
 
-            // After building uniqueResolutions + AssignEntries
             int currentIndex = Mathf.Max(0, uniqueResolutions.FindIndex(r => r.x == Screen.width && r.y == Screen.height));
             dropdownResolution.DropdownComponent.SetValueWithoutNotify(currentIndex);
 
-            // Monitor
             dropdownScreenMode = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
-            List<string> screenModeOptions = new List<string>
-            {
-                "Fullscreen",
-                "Borderless Window",
-                "Windowed"
-            };
+            List<string> screenModeOptions = new List<string> { "Fullscreen", "Borderless Window", "Windowed" };
 
             dropdownScreenMode.Descriptor.SetTitle("ScreenMode");
             dropdownScreenMode.AssignEntries(screenModeOptions);
             dropdownScreenMode.DropdownComponent.onValueChanged.AddListener(ScreenMode);
             dropdownScreenMode.DropdownComponent.SetValueWithoutNotify(GetIndexFromScreenMode(Screen.fullScreenMode));
-            ;
 
-            // ADVANCED / FOVEATION GROUP
             PanelElementDescriptor advancedGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             advancedGroup.SetTitle("Advanced Rendering");
             advancedGroup.SetDescription("Foveation, FOV and LOD controls.");
 
-            // Foveated Rendering
             PanelSlider sliderFoveatedRendering = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
                 PanelSlider.SliderSettings.Advanced("Foveated Rendering", 0, 1, false, 1, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.FoveatedRendering);
 
-            // Field Of View
             PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
                 PanelSlider.SliderSettings.Degrees("Field Of View", BasisSettingsDefaults.FOV_MIN, BasisSettingsDefaults.FOV_MAX, true, 0),
                 BasisSettingsDefaults.FieldOfView);
 
-            // Mesh LOD
             PanelSlider sliderMeshLOD = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
                 new PanelSlider.SliderSettings("Avatar LOD Multiplier", "", 0, 1, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.AvatarMeshLOD);
 
-            // Global Mesh LOD
             PanelSlider sliderGlobalMeshLOD = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
                 PanelSlider.SliderSettings.Percentage("World LOD Multiplier"),
@@ -670,6 +629,7 @@ BasisSettingsDefaults.mousesensitivty);
             descriptor.ForceRebuild();
             return tab;
         }
+
         public static PanelDropdown dropdownResolution;
         public static List<Vector2Int> uniqueResolutions;
         private static List<string> resolutionOptions;
@@ -683,6 +643,7 @@ BasisSettingsDefaults.mousesensitivty);
             Screen.SetResolution(currentResolution.x, currentResolution.y, mode);
             BasisDebug.Log("Changed Screen Mode: " + mode);
         }
+
         private static FullScreenMode GetScreenModeFromIndex(int index)
         {
             switch (index)
@@ -693,6 +654,7 @@ BasisSettingsDefaults.mousesensitivty);
                 default: return FullScreenMode.FullScreenWindow;
             }
         }
+
         private static int GetIndexFromScreenMode(FullScreenMode FullScreenMode)
         {
             switch (FullScreenMode)
@@ -703,6 +665,7 @@ BasisSettingsDefaults.mousesensitivty);
                 default: return 2;
             }
         }
+
         private static void ResolutionChanged(int resolutionIndex)
         {
             Vector2Int selectedResolution = uniqueResolutions[resolutionIndex];
@@ -723,36 +686,26 @@ BasisSettingsDefaults.mousesensitivty);
             descriptor.SetTitle("Developer & Debug");
             RectTransform container = descriptor.ContentParent;
 
-            // DEBUG VISUALS GROUP
             PanelElementDescriptor debugGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             debugGroup.SetTitle("Debug Visuals");
             debugGroup.SetDescription("Debug Systems running through visuals in 3D space");
 
-            // Debug Visuals Toggle
             PanelToggle toggleDebugVisuals = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
             toggleDebugVisuals.Descriptor.SetTitle("Debug Visuals Enabled");
             toggleDebugVisuals.AssignBinding(BasisSettingsDefaults.DebugVisuals);
 
-            // Visual State Mode
             PanelDropdown Visual = PanelDropdown.CreateNewEntry(debugGroup.ContentParent);
             Visual.Descriptor.SetTitle("Visual Helpers");
-            Visual.AssignEntries(new List<string>
-            {
-                "Off",
-                "All Visuals",
-                "Only Avatar Distance" 
-            });
+            Visual.AssignEntries(new List<string> { "Off", "All Visuals", "Only Avatar Distance" });
             Visual.AssignBinding(BasisSettingsDefaults.VisualState);
 
-            // ---- Header / info group ----
             PanelElementDescriptor infoGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             infoGroup.SetTitle("Build & Environment");
             infoGroup.SetDescription("Useful identifiers for debugging builds.");
 
             CreateBuildInfoSection(infoGroup.ContentParent);
-
 
             descriptor.ForceRebuild();
             return tab;
@@ -771,7 +724,6 @@ BasisSettingsDefaults.mousesensitivty);
             debugGroup.SetTitle("Avatar Settings");
             debugGroup.SetDescription("Configuration settings for avatars.");
 
-            // Avatar Download Size.
             PanelSlider AvatarDownloadSize = PanelSlider.CreateEntryAndBind(
                 debugGroup.ContentParent,
                 PanelSlider.SliderSettings.Advanced("Avatar Download Size", 5, 1024, false, 0, ValueDisplayMode.MemorySize),
@@ -780,9 +732,9 @@ BasisSettingsDefaults.mousesensitivty);
             descriptor.ForceRebuild();
             return tab;
         }
+
         private static void CreateBuildInfoSection(RectTransform parent)
         {
-            // Add a "Copy All" action button at the top (optional but handy)
             PanelButton copyAll = PanelButton.CreateNew(parent);
             copyAll.Descriptor.SetTitle("Copy Build Info");
             copyAll.Descriptor.SetDescription("Copies all fields to clipboard.");
@@ -792,20 +744,16 @@ BasisSettingsDefaults.mousesensitivty);
                 BasisDebug.Log("Copied build info to clipboard.");
             };
 
-            // Individual rows (selectable + copyable)
             AddInfoRow(parent, "Version", Application.version);
             AddInfoRow(parent, "Unity", Application.unityVersion);
             AddInfoRow(parent, "Platform", Application.platform.ToString());
-
-            // Your own runtime value (keep as-is)
-            AddInfoRow(parent, "Mode", Basis.Scripts.Device_Management.BasisDeviceManagement.StaticCurrentMode.ToString());
-
+            AddInfoRow(parent, "Mode", BasisDeviceManagement.StaticCurrentMode.ToString());
             AddInfoRow(parent, "Build GUID", Application.buildGUID);
             AddInfoRow(parent, "Log Path", Application.consoleLogPath, false);
-            AddInfoRow(parent, "Data Path", Application.dataPath,false);
+            AddInfoRow(parent, "Data Path", Application.dataPath, false);
         }
 
-        private static PanelPasswordField AddInfoRow(RectTransform parent, string title, string value,bool ShownByDefault = true)
+        private static PanelPasswordField AddInfoRow(RectTransform parent, string title, string value, bool ShownByDefault = true)
         {
             PanelPasswordField Password = PanelPasswordField.CreateNew(parent);
             Password.SetPassword(value);
@@ -814,16 +762,15 @@ BasisSettingsDefaults.mousesensitivty);
             Password.Descriptor.SetDescription(string.Empty);
             return Password;
         }
+
         private static string BuildInfoString()
         {
             return
                 $"Version: {Application.version}\n" +
                 $"Unity: {Application.unityVersion}\n" +
                 $"Platform: {Application.platform}\n" +
-                $"Mode: {Basis.Scripts.Device_Management.BasisDeviceManagement.StaticCurrentMode}\n" +
-                $"Build GUID: {Application.buildGUID}\n";// +
-             //   $"Log Path: {Application.consoleLogPath}\n" +
-             //   $"Data Path: {Application.dataPath}";
+                $"Mode: {BasisDeviceManagement.StaticCurrentMode}\n" +
+                $"Build GUID: {Application.buildGUID}\n";
         }
     }
 }
