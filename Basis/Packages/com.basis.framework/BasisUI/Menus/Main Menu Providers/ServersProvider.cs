@@ -142,7 +142,8 @@ namespace Basis.BasisUI
             connectButton.ButtonComponent.interactable = false;
             Info.SetTitle("Connecting");
             Info.SetDescription("Initalizing...");
-            if (!string.IsNullOrEmpty(usernameField.Value))
+            string UserName = usernameField._inputField.text;
+            if (!string.IsNullOrEmpty(UserName))
             {
                 if (BasisNetworkConnection.LocalPlayerIsConnected)
                 {
@@ -153,7 +154,7 @@ namespace Basis.BasisUI
                 }
                 Info.SetTitle("Connecting");
                 Info.SetDescription("Preparing...");
-                BasisLocalPlayer.Instance.DisplayName = usernameField.Value;
+                BasisLocalPlayer.Instance.DisplayName = UserName;
                 BasisLocalPlayer.Instance.SetSafeDisplayname();
                 BasisDataStore.SaveString(BasisLocalPlayer.Instance.DisplayName, LoadFileName);
                 if (BasisNetworkManagement.Instance)
