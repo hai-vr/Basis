@@ -273,22 +273,20 @@ namespace Basis.Scripts.UI.NamePlate
         }
         public void WasPressed(BasisInput input)
         {
-            if (BasisRemotePlayer != null && BasisIndividualPlayerSettings.Instance == null)
+            if (BasisRemotePlayer != null && BasisIndividualPlayerSettings.Instance == null && BasisMainMenu.ActiveMenuTitle != IndividualPlayerProvider.StaticTitle)
             {
-                if (BasisMainMenu.Instance == null)
+                BasisMainMenu.Close();
+                input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume);
+                IndividualPlayerProvider.remotePlayer = BasisRemotePlayer;
+                BasisMainMenu.Open();
+                int count = BasisMainMenu.Providers.Count;
+                for (int Index = 0; Index < count; Index++)
                 {
-                    input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume);
-                    IndividualPlayerProvider.remotePlayer = BasisRemotePlayer;
-                    BasisMainMenu.Open();
-                    int count = BasisMainMenu.Providers.Count;
-                    for (int Index = 0; Index < count; Index++)
+                    BasisMenuActionProvider<BasisMainMenu> provider = BasisMainMenu.Providers[Index];
+                    if (provider.Title == IndividualPlayerProvider.StaticTitle)
                     {
-                        BasisMenuActionProvider<BasisMainMenu> provider = BasisMainMenu.Providers[Index];
-                        if (provider.Title == IndividualPlayerProvider.StaticTitle)
-                        {
-                            provider.RunAction();
-                            return;
-                        }
+                        provider.RunAction();
+                        return;
                     }
                 }
             }
