@@ -1,4 +1,3 @@
-using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 
 namespace Basis.BasisUI
