@@ -491,23 +491,63 @@ namespace Basis.BasisUI
         public static PanelSlider sliderAgcMaxGain;
         public static PanelSlider sliderAgcAttack;
         public static PanelSlider sliderAgcRelease;
+        /// <summary>
+        /// allows us to get up to date information directly from the microphone
+        /// </summary>
+        /// <param name="s"></param>
         public static void SyncUiFromSnapshot(SMDMicrophone.MicSettings s)
         {
             if (BasisMainMenu.ActiveMenuTitle == SettingsProvider.StaticTitle)
             {
-                sliderMicrophoneVolume.SetValueWithoutNotify(s.Volume01);
-                dropdownMicrophoneSelection.SetValueWithoutNotify(s.Microphone);
+                if (sliderMicrophoneVolume != null)
+                {
+                    sliderMicrophoneVolume.SetValueWithoutNotify(s.Volume01);
+                }
 
-                sliderLimitThreshold.SetValueWithoutNotify(s.LimitThreshold);
-                sliderLimitKnee.SetValueWithoutNotify(s.LimitKnee);
+                if (dropdownMicrophoneSelection != null)
+                {
+                    dropdownMicrophoneSelection.SetValueWithoutNotify(s.Microphone);
+                }
 
-                sliderDenoiseWet.SetValueWithoutNotify(s.DenoiseWet);
-                sliderDenoiseMakeup.SetValueWithoutNotify(s.DenoiseMakeupDb);
+                if (sliderLimitThreshold != null)
+                {
+                    sliderLimitThreshold.SetValueWithoutNotify(s.LimitThreshold);
+                }
 
-                sliderAgcTarget.SetValueWithoutNotify(s.AgcTargetRms);
-                sliderAgcMaxGain.SetValueWithoutNotify(s.AgcMaxGainDb);
-                sliderAgcAttack.SetValueWithoutNotify(s.AgcAttack);
-                sliderAgcRelease.SetValueWithoutNotify(s.AgcRelease);
+                if (sliderLimitKnee != null)
+                {
+                    sliderLimitKnee.SetValueWithoutNotify(s.LimitKnee);
+                }
+
+                if (sliderDenoiseWet != null)
+                {
+                    sliderDenoiseWet.SetValueWithoutNotify(s.DenoiseWet);
+                }
+
+                if (sliderDenoiseMakeup != null)
+                {
+                    sliderDenoiseMakeup.SetValueWithoutNotify(s.DenoiseMakeupDb);
+                }
+
+                if (sliderAgcTarget != null)
+                {
+                    sliderAgcTarget.SetValueWithoutNotify(s.AgcTargetRms);
+                }
+
+                if (sliderAgcMaxGain != null)
+                {
+                    sliderAgcMaxGain.SetValueWithoutNotify(s.AgcMaxGainDb);
+                }
+
+                if (sliderAgcAttack != null)
+                {
+                    sliderAgcAttack.SetValueWithoutNotify(s.AgcAttack);
+                }
+
+                if (sliderAgcRelease != null)
+                {
+                    sliderAgcRelease.SetValueWithoutNotify(s.AgcRelease);
+                }
             }
         }
         // ------------------
