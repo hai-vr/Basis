@@ -104,7 +104,7 @@ namespace Basis.Scripts.UI.UI_Panels
         {
             if (BasisLocalPlayer.Instance != null)
             {
-                this.transform.localScale = InitalScale * BasisHeightDriver.PlayerToDefaultRatioScaled;
+                this.transform.localScale = InitalScale * BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
                 this.transform.position  = new Vector3(this.transform.position.x, -1.4f + BasisHeightDriver.SelectedScaledPlayerHeight, this.transform.position.z);
             }
         }

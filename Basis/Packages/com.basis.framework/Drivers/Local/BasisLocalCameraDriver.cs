@@ -256,7 +256,7 @@ namespace Basis.Scripts.Drivers
             {
                 Camera.fieldOfView = DefaultCameraFov;
             }
-            UpdateCameraScale(BasisHeightDriver.HeightModeChange.ScaleAndMode);
+            UpdateCameraScale(BasisHeightDriver.HeightModeChange.OnTpose);
         }
 
         /// <summary>
@@ -281,11 +281,11 @@ namespace Basis.Scripts.Drivers
         {
             DesiredClipFar = clipFar;
             DesiredClipNear = clipNear;
-            UpdateCameraScale(BasisHeightDriver.HeightModeChange.ScaleAndMode);
+            UpdateCameraScale(BasisHeightDriver.HeightModeChange.OnTpose);
         }
         private void UpdateCameraScale()
         {
-            UpdateCameraScale(BasisHeightDriver.HeightModeChange.ScaleAndMode);
+            UpdateCameraScale(BasisHeightDriver.HeightModeChange.OnTpose);
         }
         /// <summary>
         /// Applies scale from the player's height so the camera’s local scale matches avatar scale.
@@ -353,14 +353,14 @@ namespace Basis.Scripts.Drivers
                         Vector3 worldPoint = Camera.ViewportToWorldPoint(MobileMicrophoneViewportPosition);
                         // assume this transform is the camera parent
                         Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
-                        ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaled;
+                        ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
                     }
                     else
                     {
                         Vector3 worldPoint = Camera.ViewportToWorldPoint(DesktopMicrophoneViewportPosition);
                         // assume this transform is the camera parent
                         Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
-                        ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaled;
+                        ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
                     }
                 }
             }

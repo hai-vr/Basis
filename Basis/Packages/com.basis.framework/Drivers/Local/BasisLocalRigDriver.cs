@@ -644,7 +644,7 @@ namespace Basis.Scripts.Drivers
         private void OnPlayersHeightChangedNextFrame(HeightModeChange HeightModeChange)
         {
             var Data = BasisFullIKConstraint.data;
-            SetHandCollisionScale(ref Data, BasisHeightDriver.AvatarToDefaultRatioScaled);
+            SetHandCollisionScale(ref Data, BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale);
             BasisFullIKConstraint.data = Data;
         }
         public static void SetHandCollisionScale(ref BasisFullBodyData BodyData, float Scale)
@@ -681,7 +681,7 @@ namespace Basis.Scripts.Drivers
             BasisAnimationRiggingHelper.CreateBasisFullBodyRIG(localPlayer,  mainRig, basisTransformMapping, out BasisFullIKConstraint);
 
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnPlayersHeightChangedNextFrame;
-            OnPlayersHeightChangedNextFrame( HeightModeChange.ScaleAndMode);
+            OnPlayersHeightChangedNextFrame( HeightModeChange.OnTpose);
 
             var data = BasisFullIKConstraint.data;
 

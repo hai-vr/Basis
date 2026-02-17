@@ -57,7 +57,7 @@ public class BasisOnScreenControls : MonoBehaviour
         float avatarScale = 1f;
         if (driver.LocalPlayer != null)
         {
-            avatarScale = BasisHeightDriver.AvatarToDefaultRatioScaled;
+            avatarScale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
         }
 
         PlaceWorldCanvasAtViewport(driver, cam, LeftUIJoystickCanvas, -0.5f, 0.2f, avatarScale);

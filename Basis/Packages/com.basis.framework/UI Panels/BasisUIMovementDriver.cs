@@ -83,7 +83,7 @@ namespace Basis.Scripts.UI.UI_Panels
         }
         public void SetUILocation()
         {
-            SetUILocation(HeightModeChange.ScaleAndMode);
+            SetUILocation(HeightModeChange.OnTpose);
         }
         public void SetUILocation(HeightModeChange Mode)
         {
@@ -97,7 +97,7 @@ namespace Basis.Scripts.UI.UI_Panels
             Vector3 eulerRotation = Rotation.eulerAngles;
             eulerRotation.z = 0f;
 
-            float Scale = BasisHeightDriver.PlayerToDefaultRatioScaled;
+            float Scale = BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
             Quaternion horizontalRotation = Quaternion.Euler(eulerRotation);
             Vector3 adjustedOffset = new Vector3(WorldOffset.x, 0, WorldOffset.z) * Scale;
             targetPosition = Position + (horizontalRotation * adjustedOffset);

@@ -149,7 +149,7 @@ namespace Basis.Scripts.Drivers
             SetAllOverrideUsages(true);
             LocalPlayer.OnVirtualData += OnSimulate;
 
-            GrabLatestTposeLocalScaleData( BasisHeightDriver.HeightModeChange.ScaleAndMode);
+            GrabLatestTposeLocalScaleData( BasisHeightDriver.HeightModeChange.OnTpose);
 
             if (!hasEvent)
             {
@@ -691,7 +691,7 @@ namespace Basis.Scripts.Drivers
             if (LocalPlayer == null) return;
             if (_seat == null) return;
 
-            GrabLatestTposeLocalScaleData( BasisHeightDriver.HeightModeChange.ScaleAndMode);
+            GrabLatestTposeLocalScaleData( BasisHeightDriver.HeightModeChange.OnTpose);
 
             const float kMinDot = 0.05f;
             const float kMaxBackShift = 0.25f;

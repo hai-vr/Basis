@@ -114,7 +114,7 @@ namespace Basis.Scripts.UI.UI_Panels
                     Vector3 projectedPos = Vector3.ProjectOnPlane(newPos, LocalPlayer.transform.up).normalized;
 
                     // Calculate the base new position by considering the player's position, scale, and offset
-                    float d = 0.5f * BasisHeightDriver.PlayerToDefaultRatioScaled;
+                    float d = 0.5f * BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
                     newPos = LocalPlayer.transform.position + projectedPos * d;
 
                     // Transform the relative offsets by the rotation to apply them correctly in world space
@@ -132,7 +132,7 @@ namespace Basis.Scripts.UI.UI_Panels
                     {
                         position = hand.OutgoingWorldData.position;
                         rotation = hand.OutgoingWorldData.rotation;
-                        transform.SetPositionAndRotation(position + (menuPosOffset * BasisHeightDriver.AvatarToDefaultRatioScaled), rotation * Quaternion.Euler(menuRotOffset));
+                        transform.SetPositionAndRotation(position + (menuPosOffset * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale), rotation * Quaternion.Euler(menuRotOffset));
                     }
                     else
                     {

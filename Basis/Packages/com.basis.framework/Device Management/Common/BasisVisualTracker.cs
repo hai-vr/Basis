@@ -77,6 +77,7 @@ namespace Basis.Scripts.Device_Management
         }
         public void OnPlayersHeightChangedNextFrame()
         {
+            OnPlayersHeightChangedNextFrame(HeightModeChange.OnApplyHeightAndScale);
         }
         /// <summary>
         /// Applies avatar-relative scale and local offset/rotation to the visual.
@@ -84,7 +85,7 @@ namespace Basis.Scripts.Device_Management
         /// </summary>
         public void OnPlayersHeightChangedNextFrame(HeightModeChange Mode)
         {
-            this.transform.localScale = ScaleOfModel * BasisHeightDriver.AvatarToDefaultRatioScaled;
+            this.transform.localScale = ScaleOfModel * BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
             this.transform.SetLocalPositionAndRotation(Vector3.zero, ModelRotationOffset);
         }
     }
