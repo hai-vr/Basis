@@ -10,7 +10,7 @@ public class SMModuleSitStand : BasisSettingsBase
         {
             return;
         }
-        if (optionValue == SettingsProviderIK.SeatedMode_Standing)
+        if (optionValue == SettingsProviderIK.SeatedMode_Standing.ToLower())
         {
             BasisDebug.Log($"Mode Set To Standing Mode");
             MissingHeightDelta = 0;
@@ -18,12 +18,15 @@ public class SMModuleSitStand : BasisSettingsBase
         }
         else
         {
-            BasisDebug.Log($"Mode Set To Seated Mode");
-            if (!IsSteatedMode)
+            if (optionValue == SettingsProviderIK.SeatedMode_Seated.ToLower())
             {
-                BasisHeightDriver.CapturePlayerHeight();
-                MissingHeightDelta = BasisHeightDriver.FallbackHeightInMeters - BasisHeightDriver.PlayerEyeHeight;
-                IsSteatedMode = true;
+                if (!IsSteatedMode)
+                {
+                    BasisHeightDriver.CapturePlayerHeight();
+                    MissingHeightDelta = BasisHeightDriver.FallbackHeightInMeters - BasisHeightDriver.PlayerEyeHeight;
+                    IsSteatedMode = true;
+                    BasisDebug.Log($"Mode Set To Seated Mode {MissingHeightDelta}");
+                }
             }
         }
     }
