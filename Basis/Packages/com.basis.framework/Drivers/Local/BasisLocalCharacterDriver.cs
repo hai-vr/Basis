@@ -333,35 +333,41 @@ namespace Basis.Scripts.BasisCharacterController
         {
             float rawEyeHeight = BasisLocalBoneDriver.HasEye ? BasisLocalBoneDriver.EyeControl.OutGoingData.position.y : BasisHeightDriver.FallbackHeightInMeters;
 
-            // If tracking data is invalid for a frame, fall back safely
+            // Validate tracking data
             if (float.IsNaN(rawEyeHeight) || float.IsInfinity(rawEyeHeight) || rawEyeHeight <= 0f)
             {
                 rawEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
             }
-            if (MinimumColliderSize > rawEyeHeight)
+
+            // Enforce minimum collider size
+            if (rawEyeHeight < MinimumColliderSize)
             {
                 rawEyeHeight = MinimumColliderSize;
             }
-            characterController.height = rawEyeHeight;
 
-            float half = rawEyeHeight * 0.5f;
+            // Ensure height is valid relative to radius
+            float minHeight = 2f * radius + 0.001f;
+            float finalHeight = Mathf.Max(rawEyeHeight, minHeight);
 
+            characterController.height = finalHeight;
+
+            float halfHeight = finalHeight * 0.5f;
+
+            // Keep capsule bottom aligned with floor
             if (BasisLocalBoneDriver.HasEye)
             {
                 var outgoing = BasisLocalBoneDriver.EyeControl.OutGoingData.position;
-                characterController.center = new Vector3(outgoing.x, half, outgoing.z);
+                characterController.center = new Vector3(outgoing.x, halfHeight, outgoing.z);
             }
             else
             {
-                characterController.center = new Vector3(0, half, 0);
+                characterController.center = new Vector3(0f, halfHeight, 0f);
             }
 
             // Clamp stepOffset to something sane relative to height
-            float maxStep = (rawEyeHeight + 2f * radius) - 0.001f;
+            float maxStep = (finalHeight + 2f * characterController.radius) - 0.001f;
             maxStep = Mathf.Max(0f, maxStep);
-
-            // cap to a fraction of height
-            maxStep = Mathf.Min(maxStep, rawEyeHeight * 0.25f);
+            maxStep = Mathf.Min(maxStep, finalHeight * 0.25f);
 
             characterController.stepOffset = Mathf.Min(characterController.stepOffset, maxStep);
         }
