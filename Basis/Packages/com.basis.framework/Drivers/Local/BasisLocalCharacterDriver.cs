@@ -27,7 +27,6 @@ namespace Basis.Scripts.BasisCharacterController
         [SerializeField] public float RaycastDistance = 0.2f;
         [SerializeField] public float MinimumColliderSize = 0.01f;
         private Quaternion currentRotation;
-        private float eyeHeight;
         public SimulationHandler JustJumped;
         public SimulationHandler JustLanded;
         public bool LastWasGrounded = true;
@@ -46,6 +45,7 @@ namespace Basis.Scripts.BasisCharacterController
         public Vector3 CurrentPosition;
         public Quaternion CurrentRotation;
         public CollisionFlags Flags;
+        public float radius;
         public Vector2 MovementVector { get; private set; }
         /// <summary>
         /// A value between 0 and 1 representing the relative speed of player movement.
@@ -80,6 +80,8 @@ namespace Basis.Scripts.BasisCharacterController
             set
             {
                 isEnabled = value;
+                Validate();
+                CalculateCharacterSize();
                 characterController.enabled = value;
             }
         }
@@ -109,6 +111,8 @@ namespace Basis.Scripts.BasisCharacterController
             }
             MaximumMovementSpeedBoost = MaximumMovementSpeed / DefaultMovementSpeed;
             SetMovementSpeedMultiplier(GetMultiplierForMovementSpeed(DefaultMovementSpeed));
+            Validate();
+            CalculateCharacterSize();
         }
 
         public void OnControllerColliderHit(ControllerColliderHit hit)
@@ -136,7 +140,7 @@ namespace Basis.Scripts.BasisCharacterController
             {
 
                 // If you want basis localToWorld using the *new* pose:
-                BasisLocalPlayerTransform.GetPositionAndRotation(out Vector3 Position,out Quaternion Rotation);
+                BasisLocalPlayerTransform.GetPositionAndRotation(out Vector3 Position, out Quaternion Rotation);
                 BasisLocalPlayer.localToWorldMatrix = Matrix4x4.TRS(Position, Rotation, BasisLocalPlayerTransform.lossyScale);
                 return;
             }
@@ -315,33 +319,51 @@ namespace Basis.Scripts.BasisCharacterController
             Flags = characterController.Move(totalMoveDirection);
             BasisLocalPlayerTransform.GetPositionAndRotation(out CurrentPosition, out CurrentRotation);
         }
+        public void Validate()
+        {
+            radius = characterController.radius;
+            if (float.IsNaN(radius) || float.IsInfinity(radius) || radius <= 0f)
+            {
+                radius = 0.1f;
+            }
+
+            characterController.radius = radius;
+        }
         public void CalculateCharacterSize()
         {
-            if (BasisLocalBoneDriver.HasEye)
+            float rawEyeHeight = BasisLocalBoneDriver.HasEye ? BasisLocalBoneDriver.EyeControl.OutGoingData.position.y : BasisHeightDriver.FallbackHeightInMeters;
+
+            // If tracking data is invalid for a frame, fall back safely
+            if (float.IsNaN(rawEyeHeight) || float.IsInfinity(rawEyeHeight) || rawEyeHeight <= 0f)
             {
-                eyeHeight = BasisLocalBoneDriver.EyeControl.OutGoingData.position.y;
+                rawEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
             }
-            else
+            if (MinimumColliderSize > rawEyeHeight)
             {
-                eyeHeight = BasisHeightDriver.FallbackHeightInMeters;
+                rawEyeHeight = MinimumColliderSize;
             }
-            float adjustedHeight = eyeHeight;
-            if (MinimumColliderSize > adjustedHeight)
-            {
-                adjustedHeight = MinimumColliderSize;
-            }
-            characterController.height = adjustedHeight;
-            float SkinModifiedHeight = adjustedHeight / 2;
+            characterController.height = rawEyeHeight;
+
+            float half = rawEyeHeight * 0.5f;
 
             if (BasisLocalBoneDriver.HasEye)
             {
                 var outgoing = BasisLocalBoneDriver.EyeControl.OutGoingData.position;
-                characterController.center = new Vector3(outgoing.x, SkinModifiedHeight, outgoing.z);
+                characterController.center = new Vector3(outgoing.x, half, outgoing.z);
             }
             else
             {
-                characterController.center = new Vector3(0, SkinModifiedHeight, 0);
+                characterController.center = new Vector3(0, half, 0);
             }
+
+            // Clamp stepOffset to something sane relative to height
+            float maxStep = (rawEyeHeight + 2f * radius) - 0.001f;
+            maxStep = Mathf.Max(0f, maxStep);
+
+            // cap to a fraction of height
+            maxStep = Mathf.Min(maxStep, rawEyeHeight * 0.25f);
+
+            characterController.stepOffset = Mathf.Min(characterController.stepOffset, maxStep);
         }
     }
 }
