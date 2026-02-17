@@ -13,9 +13,10 @@ namespace Basis.BasisUI
         public static void AddToMenu()
         {
             BasisMenuBase<BasisMainMenu>.AddProvider(new SettingsProvider());
+            SMDMicrophone.OnMicrophoneSettingsChanged += SyncUiFromSnapshot;
         }
-
-        public override string Title => "Settings";
+        public static string StaticTitle => "Settings";
+        public override string Title => StaticTitle;
         public override string IconAddress => AddressableAssets.Sprites.Settings;
         public override int Order => 0;
         public override bool Hidden => false;
@@ -259,7 +260,7 @@ namespace Basis.BasisUI
             SMDMicrophone.MicSettings snap = SMDMicrophone.Current;
 
             // Microphone Volume (0..1)
-            PanelSlider sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
+             sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
                 microphoneGroup,
                 PanelSlider.SliderSettings.Advanced("Microphone Volume", 0, 1, false, 4, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.MicrophoneVolume);
@@ -282,7 +283,7 @@ namespace Basis.BasisUI
                     microphoneGroup.ContentParent);
 
             // Microphone Selection (device list)
-            PanelDropdown dropdownMicrophoneSelection = PanelDropdown.CreateNewEntry(microphoneGroup);
+            dropdownMicrophoneSelection = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicrophoneSelection.Descriptor.SetTitle("Microphone Selection");
             dropdownMicrophoneSelection.AssignEntries(SMDMicrophone.MicrophoneDevices?.ToList() ?? new List<string>());
             dropdownMicrophoneSelection.SetValueWithoutNotify(snap.Microphone);
@@ -335,13 +336,13 @@ namespace Basis.BasisUI
             limiterGroup.SetTitle("Limiter");
             limiterGroup.SetDescription("Prevents clipping by soft-limiting peaks.");
 
-            PanelSlider sliderLimitThreshold = PanelSlider.CreateEntryAndBind(
+             sliderLimitThreshold = PanelSlider.CreateEntryAndBind(
                 limiterGroup,
                 PanelSlider.SliderSettings.Advanced("Limit Threshold", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.LimitThreshold);
             sliderLimitThreshold.SetValueWithoutNotify(snap.LimitThreshold);
 
-            PanelSlider sliderLimitKnee = PanelSlider.CreateEntryAndBind(
+             sliderLimitKnee = PanelSlider.CreateEntryAndBind(
                 limiterGroup,
                 PanelSlider.SliderSettings.Advanced("Limit Knee", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.LimitKnee);
@@ -350,7 +351,9 @@ namespace Basis.BasisUI
             void LimitThresholdChanged(float v)
             {
                 if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                {
                     SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+                }
 
                 var s = SMDMicrophone.Current;
                 SMDMicrophone.SetLimiter(v, s.LimitKnee);
@@ -358,7 +361,9 @@ namespace Basis.BasisUI
             void LimitKneeChanged(float v)
             {
                 if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
+                {
                     SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+                }
 
                 var s = SMDMicrophone.Current;
                 SMDMicrophone.SetLimiter(s.LimitThreshold, v);
@@ -372,13 +377,13 @@ namespace Basis.BasisUI
             denoiseGroup.SetTitle("Denoiser Tuning");
             denoiseGroup.SetDescription("Adjust denoiser blend and makeup gain.");
 
-            PanelSlider sliderDenoiseWet = PanelSlider.CreateEntryAndBind(
+             sliderDenoiseWet = PanelSlider.CreateEntryAndBind(
                 denoiseGroup,
                 PanelSlider.SliderSettings.Advanced("Denoise Wet", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.DenoiseWet);
             sliderDenoiseWet.SetValueWithoutNotify(snap.DenoiseWet);
 
-            PanelSlider sliderDenoiseMakeup = PanelSlider.CreateEntryAndBind(
+             sliderDenoiseMakeup = PanelSlider.CreateEntryAndBind(
                 denoiseGroup,
                 PanelSlider.SliderSettings.Advanced("Denoise Makeup (dB)", -12f, 24f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.DenoiseMakeupDb);
@@ -409,25 +414,25 @@ namespace Basis.BasisUI
             agcGroup.SetTitle("AGC Tuning");
             agcGroup.SetDescription("Target loudness and responsiveness (only applies when AGC is enabled).");
 
-            PanelSlider sliderAgcTarget = PanelSlider.CreateEntryAndBind(
+             sliderAgcTarget = PanelSlider.CreateEntryAndBind(
                 agcGroup,
                 PanelSlider.SliderSettings.Advanced("AGC Target RMS", 0.001f, 0.25f, false, 4, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.AgcTargetRms);
             sliderAgcTarget.SetValueWithoutNotify(snap.AgcTargetRms);
 
-            PanelSlider sliderAgcMaxGain = PanelSlider.CreateEntryAndBind(
+             sliderAgcMaxGain = PanelSlider.CreateEntryAndBind(
                 agcGroup,
                 PanelSlider.SliderSettings.Advanced("AGC Max Gain (dB)", 0f, 36f, false, 1, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.AgcMaxGainDb);
             sliderAgcMaxGain.SetValueWithoutNotify(snap.AgcMaxGainDb);
 
-            PanelSlider sliderAgcAttack = PanelSlider.CreateEntryAndBind(
+             sliderAgcAttack = PanelSlider.CreateEntryAndBind(
                 agcGroup,
                 PanelSlider.SliderSettings.Advanced("AGC Attack", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.AgcAttack);
             sliderAgcAttack.SetValueWithoutNotify(snap.AgcAttack);
 
-            PanelSlider sliderAgcRelease = PanelSlider.CreateEntryAndBind(
+             sliderAgcRelease = PanelSlider.CreateEntryAndBind(
                 agcGroup,
                 PanelSlider.SliderSettings.Advanced("AGC Release", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.AgcRelease);
@@ -466,17 +471,30 @@ namespace Basis.BasisUI
                 SMDMicrophone.SetAgcParams(s.AgcTargetRms, s.AgcMaxGainDb, s.AgcAttack, v);
             }
 
-            sliderAgcTarget.SliderComponent.onValueChanged.AddListener(AgcTargetChanged);
-            sliderAgcMaxGain.SliderComponent.onValueChanged.AddListener(AgcMaxGainChanged);
-            sliderAgcAttack.SliderComponent.onValueChanged.AddListener(AgcAttackChanged);
-            sliderAgcRelease.SliderComponent.onValueChanged.AddListener(AgcReleaseChanged);
+            sliderAgcTarget.OnValueChanged += AgcTargetChanged;
+            sliderAgcMaxGain.OnValueChanged += AgcMaxGainChanged;
+            sliderAgcAttack.OnValueChanged += AgcAttackChanged;
+            sliderAgcRelease.OnValueChanged += AgcReleaseChanged;
 
-            // ---- OPTIONAL: keep UI synced if settings change while tab is open ----
-            // If bindings already update the UI controls, you can delete this block.
-            // This is mainly for the controls you set manually / that aren't fully bound.
-            void SyncUiFromSnapshot(SMDMicrophone.MicSettings s)
+
+
+            descriptor.ForceRebuild();
+            return tab;
+        }
+        public static PanelSlider sliderMicrophoneVolume;
+        public static PanelDropdown dropdownMicrophoneSelection;
+        public static PanelSlider sliderLimitThreshold;
+        public static PanelSlider sliderLimitKnee;
+        public static PanelSlider sliderDenoiseWet;
+        public static PanelSlider sliderDenoiseMakeup;
+        public static PanelSlider sliderAgcTarget;
+        public static PanelSlider sliderAgcMaxGain;
+        public static PanelSlider sliderAgcAttack;
+        public static PanelSlider sliderAgcRelease;
+        public static void SyncUiFromSnapshot(SMDMicrophone.MicSettings s)
+        {
+            if (BasisMainMenu.ActiveMenuTitle == SettingsProvider.StaticTitle)
             {
-                // Avoid feedback loops: SetValueWithoutNotify only.
                 sliderMicrophoneVolume.SetValueWithoutNotify(s.Volume01);
                 dropdownMicrophoneSelection.SetValueWithoutNotify(s.Microphone);
 
@@ -491,15 +509,7 @@ namespace Basis.BasisUI
                 sliderAgcAttack.SetValueWithoutNotify(s.AgcAttack);
                 sliderAgcRelease.SetValueWithoutNotify(s.AgcRelease);
             }
-
-            SMDMicrophone.OnMicrophoneSettingsChanged += SyncUiFromSnapshot;
-            // If your PanelTabPage has an OnDestroyed/OnClosed hook, unsubscribe there.
-            // If not, consider adding one (otherwise this can leak handlers when opening settings repeatedly).
-
-            descriptor.ForceRebuild();
-            return tab;
         }
-
         // ------------------
         // GRAPHICS TAB
         // ------------------
