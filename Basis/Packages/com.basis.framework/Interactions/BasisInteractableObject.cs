@@ -283,17 +283,30 @@ namespace Basis.Scripts.BasisSdk.Interactions
         {
             float closestDistanceSqr = float.MaxValue;
             Vector3 closestPoint = transform.position;
+
             for (int i = 0; i < _colliderRefs.Length; i++)
             {
-                Collider childCollider = _colliderRefs[i];
-                Vector3 point = childCollider.ClosestPoint(source);
+                Collider col = _colliderRefs[i];
+                Vector3 point;
+
+                if (col is MeshCollider meshCol && !meshCol.convex)
+                {
+                    point = meshCol.bounds.ClosestPoint(source);
+                }
+                else
+                {
+                    point = col.ClosestPoint(source);
+                }
+
                 float distanceSqr = (point - source).sqrMagnitude;
+
                 if (distanceSqr < closestDistanceSqr)
                 {
                     closestDistanceSqr = distanceSqr;
                     closestPoint = point;
                 }
             }
+
             return closestPoint;
         }
 
