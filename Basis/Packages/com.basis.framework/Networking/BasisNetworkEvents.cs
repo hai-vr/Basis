@@ -4,11 +4,9 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Profiler;
-using Basis.Scripts.UI.UI_Panels;
 using BasisNetworkClient;
 using BasisNetworkServer.BasisNetworking;
 using System;
-using UnityEngine;
 using static SerializableBasis;
 public static class BasisNetworkEvents
 {
@@ -276,7 +274,7 @@ public static class BasisNetworkEvents
     {
         NetDataWriter Writer = new NetDataWriter();
         Writer.Put(true);
-        BasisNetworkConnection.LocalPlayerPeer.Send(Writer, BasisNetworkCommons.ServerStatisticsChannel, DeliveryMethod.ReliableOrdered);
+        BasisNetworkConnection.LocalPlayerPeer.Send(Writer, BasisNetworkCommons.ServerStatisticsChannel, Basis.Network.Core.DeliveryMethod.ReliableOrdered);
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAvatarData, Writer.Length);
         BasisDebug.Log("RequestStatFrames");
     }
@@ -285,11 +283,11 @@ public static class BasisNetworkEvents
     {
         NetDataWriter Writer = new NetDataWriter();
         Writer.Put(false);
-        BasisNetworkConnection.LocalPlayerPeer?.Send(Writer, BasisNetworkCommons.ServerStatisticsChannel, DeliveryMethod.ReliableOrdered);
+        BasisNetworkConnection.LocalPlayerPeer?.Send(Writer, BasisNetworkCommons.ServerStatisticsChannel, Basis.Network.Core.DeliveryMethod.ReliableOrdered);
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAvatarData, Writer.Length);
         BasisDebug.Log("StopStatFrames");
     }
-    public static void AuthIdentityMessage(NetPeer peer, NetPacketReader Reader, byte channel)
+    public static void AuthIdentityMessage(Basis.Network.Core.NetPeer peer, Basis.Network.Core.NetPacketReader Reader, byte channel)
     {
         BasisDebug.Log("Auth is being requested by server!");
         if (ValidateSize(Reader, peer, channel) == false)
@@ -309,13 +307,13 @@ public static class BasisNetworkEvents
         {
             BasisDebug.LogError("Failed Identity Message!");
             Reader.Recycle();
-            DisconnectInfo info = new DisconnectInfo
+            var info = new DisconnectInfo
             {
                 Reason = DisconnectReason.ConnectionRejected,
                 SocketErrorCode = System.Net.Sockets.SocketError.AccessDenied,
                 AdditionalData = null
             };
-            PeerDisconnectedEvent(peer, info);
+            BasisNetworkConnection.HandleDisconnection(peer, info);
         }
         BasisDebug.Log("Completed");
     }
@@ -353,24 +351,6 @@ public static class BasisNetworkEvents
               });
 
             BasisDebug.LogError(disconnectInfo.Reason.ToString());
-        }
-        if (BasisSetUserName.Instance != null && BasisSetUserName.Instance.Ready != null)
-        {
-            BasisSetUserName.Instance.Ready.interactable = true;
-        }
-    }
-    public static void PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
-    {
-        BasisNetworkConnection.HandleDisconnection(peer, disconnectInfo);
-        if (BasisSetUserName.Instance != null && BasisSetUserName.Instance.Ready != null)
-        {
-            BasisDeviceManagement.EnqueueOnMainThread(() =>
-            {
-                if (BasisSetUserName.Instance != null && BasisSetUserName.Instance.Ready != null)
-                {
-                    BasisSetUserName.Instance.Ready.interactable = true;
-                }
-            });
         }
     }
 }
