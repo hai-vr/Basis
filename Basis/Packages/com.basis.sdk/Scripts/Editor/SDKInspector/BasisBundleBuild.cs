@@ -24,7 +24,31 @@ public static class BasisBundleBuild
                 return new(false, "Please Install build Target for " + Targets[Index].ToString());
             }
         }
-        return await BuildBundle(BasisContentBase,Image, Targets, useProvidedPassword, OverridenPassword, (content, obj, hex, target) => BasisAssetBundlePipeline.BuildAssetBundle(content.gameObject, obj, hex, target));
+       Bounds unitybounds = CalculateGameObjectBounds(BasisContentBase.gameObject);
+        BasisBounds BasisBounds = new BasisBounds(unitybounds.center, unitybounds.size);
+        BasisDebug.Log($"Testing Bounds {BasisBounds.center} {BasisBounds.extents}");
+        return await BuildBundle(BasisContentBase, BasisBounds, Image, Targets, useProvidedPassword, OverridenPassword, (content, obj, hex, target) => BasisAssetBundlePipeline.BuildAssetBundle(content.gameObject, obj, hex, target));
+    }
+    public static Bounds CalculateGameObjectBounds(GameObject parent)
+    {
+        var renderers = parent.GetComponentsInChildren<Renderer>(true);
+
+        if (renderers.Length == 0)
+        {
+            return new Bounds(parent.transform.position, Vector3.zero);
+        }
+
+        Bounds bounds = renderers[0].bounds;
+
+        for (int Index = 1; Index < renderers.Length; Index++)
+        {
+            bounds.Encapsulate(renderers[Index].bounds);
+        }
+        if (bounds.extents == Vector3.zero)
+        {
+            bounds = new Bounds(Vector3.zero, new Vector3(0.1f, 0.1f, 0.1f));
+        }
+        return bounds;
     }
 
     public static bool CheckTarget(BuildTarget target)
@@ -35,7 +59,7 @@ public static class BasisBundleBuild
         Debug.Log($"{target.ToString()} Build Target Installed: {isSupported}");
         return isSupported;
     }
-    public static async Task<(bool, string)> SceneBundleBuild(string Image,BasisContentBase BasisContentBase, List<BuildTarget> Targets,bool useProvidedPassword = false, string OverridenPassword = "")
+    public static async Task<(bool, string)> SceneBundleBuild(string Image, BasisContentBase BasisContentBase, List<BuildTarget> Targets, bool useProvidedPassword = false, string OverridenPassword = "")
     {
         int TargetCount = Targets.Count;
         for (int Index = 0; Index < TargetCount; Index++)
@@ -46,9 +70,37 @@ public static class BasisBundleBuild
             }
         }
         UnityEngine.SceneManagement.Scene Scene = BasisContentBase.gameObject.scene;
-        return await BuildBundle(BasisContentBase, Image, Targets, useProvidedPassword, OverridenPassword, (content, obj, hex, target) => BasisAssetBundlePipeline.BuildAssetBundle(Scene, obj, hex, target));
+        var unitybounds = CalculateSceneBounds(Scene);
+        BasisBounds BasisBounds = new BasisBounds(unitybounds.center, unitybounds.size);
+        return await BuildBundle(BasisContentBase, BasisBounds, Image, Targets, useProvidedPassword, OverridenPassword, (content, obj, hex, target) => BasisAssetBundlePipeline.BuildAssetBundle(Scene, obj, hex, target));
     }
-    public static async Task<(bool, string)> BuildBundle(BasisContentBase basisContentBase, string Images, List<BuildTarget> targets, bool useProvidedPassword, string OverridenPassword, Func<BasisContentBase, BasisAssetBundleObject, string, BuildTarget, Task<(bool, (BasisBundleGenerated, AssetBundleBuilder.InformationHash))>> buildFunction)
+    public static Bounds CalculateSceneBounds(Scene scene)
+    {
+        var rootObjects = scene.GetRootGameObjects();
+
+        bool hasBounds = false;
+        Bounds sceneBounds = new Bounds(Vector3.zero, new Vector3(0.1f, 0.1f, 0.1f));
+
+        foreach (var root in rootObjects)
+        {
+            var renderers = root.GetComponentsInChildren<Renderer>(true);
+
+            foreach (var renderer in renderers)
+            {
+                if (!hasBounds)
+                {
+                    sceneBounds = renderer.bounds;
+                    hasBounds = true;
+                }
+                else
+                {
+                    sceneBounds.Encapsulate(renderer.bounds);
+                }
+            }
+        }
+        return sceneBounds;
+    }
+    public static async Task<(bool, string)> BuildBundle(BasisContentBase basisContentBase, BasisBounds BasisBounds, string Images, List<BuildTarget> targets, bool useProvidedPassword, string OverridenPassword, Func<BasisContentBase, BasisAssetBundleObject, string, BuildTarget, Task<(bool, (BasisBundleGenerated, AssetBundleBuilder.InformationHash))>> buildFunction)
     {
         try
         {
@@ -116,7 +168,7 @@ public static class BasisBundleBuild
             EditorUtility.DisplayProgressBar("Starting Bundle Build", "Starting Bundle Build", 10);
 
             string generatedID = BasisGenerateUniqueID.GenerateUniqueID();
-            BasisBundleConnector basisBundleConnector = new BasisBundleConnector(generatedID, basisContentBase.BasisBundleDescription, bundles,Images);
+            BasisBundleConnector basisBundleConnector = new BasisBundleConnector(generatedID, basisContentBase.BasisBundleDescription, bundles,Images,BasisBounds);
 
             byte[] BasisbundleconnectorUnEncrypted = BasisSerialization.SerializeValue<BasisBundleConnector>(basisBundleConnector);
             var BasisPassword = new BasisEncryptionWrapper.BasisPassword

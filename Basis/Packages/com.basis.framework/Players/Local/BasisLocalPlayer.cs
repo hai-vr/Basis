@@ -262,7 +262,7 @@ namespace Basis.Scripts.BasisSdk.Players
                                 "1",
                                 new BasisBundleDescription("Loading Avatar", "Loading Avatar"),
                                 new BasisBundleGenerated[] { new BasisBundleGenerated() },
-                                null),
+                                null,new BasisBounds(Vector3.zero,Vector3.one)),
                             BasisLocalEncryptedBundle = info.StoredLocal,
                             UnlockPassword = Key.Pass
                         };

@@ -13,16 +13,23 @@ public class BasisBundleConnector
     public BasisBundleGenerated[] BasisBundleGenerated;
     public string ImageBase64;
     public string DateOfCreation;
-    public BasisBundleConnector(string version, BasisBundleDescription basisBundleDescription, BasisBundleGenerated[] basisBundleGenerated, string imageBytes)
+    [SerializeField]
+    public BasisBounds Bounds;
+    public BasisBundleConnector(string version, BasisBundleDescription basisBundleDescription, BasisBundleGenerated[] basisBundleGenerated, string imageBytes, BasisBounds basisBounds)
     {
         UniqueVersion = version ?? throw new ArgumentNullException(nameof(version));
         BasisBundleDescription = basisBundleDescription ?? throw new ArgumentNullException(nameof(basisBundleDescription));
         BasisBundleGenerated = basisBundleGenerated ?? throw new ArgumentNullException(nameof(basisBundleGenerated));
         ImageBase64 = imageBytes;
         DateOfCreation = DateTime.UtcNow.ToString("o");
+        Bounds = basisBounds;
     }
     public BasisBundleConnector()
     {
+        if(Bounds.extents == Vector3.zero)
+        {
+            Bounds.extents = new Vector3(0.1f, 0.1f, 0.1f);
+        }
     }
     public bool CheckVersion(string version)
     {
