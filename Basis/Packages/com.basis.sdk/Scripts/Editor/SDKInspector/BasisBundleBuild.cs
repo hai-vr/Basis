@@ -2,19 +2,19 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 public static class BasisBundleBuild
 {
     public static event Func<BasisContentBase, List<BuildTarget>, Task> PreBuildBundleEvents;
 
-    public static async Task<(bool, string)> GameObjectBundleBuild(string Image, BasisContentBase BasisContentBase, List<BuildTarget> Targets,bool useProvidedPassword = false, string OverridenPassword = "")
+    public static async Task<(bool, string)> GameObjectBundleBuild(string Image, BasisContentBase BasisContentBase, List<BuildTarget> Targets, bool useProvidedPassword = false, string OverridenPassword = "")
     {
         int TargetCount = Targets.Count;
         for (int Index = 0; Index < TargetCount; Index++)
@@ -24,10 +24,10 @@ public static class BasisBundleBuild
                 return new(false, "Please Install build Target for " + Targets[Index].ToString());
             }
         }
-       Bounds unitybounds = CalculateGameObjectBounds(BasisContentBase.gameObject);
+        Bounds unitybounds = CalculateGameObjectBounds(BasisContentBase.gameObject);
         BasisBounds BasisBounds = new BasisBounds(unitybounds.center, unitybounds.size);
-        BasisDebug.Log($"Testing Bounds {BasisBounds.center} {BasisBounds.extents}");
-        return await BuildBundle(BasisContentBase, BasisBounds, Image, Targets, useProvidedPassword, OverridenPassword, (content, obj, hex, target) => BasisAssetBundlePipeline.BuildAssetBundle(content.gameObject, obj, hex, target));
+        var meta = GenerateMetaData(BasisContentBase.gameObject);
+        return await BuildBundle(BasisContentBase, meta, BasisBounds, Image, Targets, useProvidedPassword, OverridenPassword, (content, obj, hex, target) => BasisAssetBundlePipeline.BuildAssetBundle(content.gameObject, obj, hex, target));
     }
     public static Bounds CalculateGameObjectBounds(GameObject parent)
     {
@@ -72,7 +72,8 @@ public static class BasisBundleBuild
         UnityEngine.SceneManagement.Scene Scene = BasisContentBase.gameObject.scene;
         var unitybounds = CalculateSceneBounds(Scene);
         BasisBounds BasisBounds = new BasisBounds(unitybounds.center, unitybounds.size);
-        return await BuildBundle(BasisContentBase, BasisBounds, Image, Targets, useProvidedPassword, OverridenPassword, (content, obj, hex, target) => BasisAssetBundlePipeline.BuildAssetBundle(Scene, obj, hex, target));
+        var meta = GenerateSceneMetaData(Scene);
+        return await BuildBundle(BasisContentBase, meta, BasisBounds, Image, Targets, useProvidedPassword, OverridenPassword, (content, obj, hex, target) => BasisAssetBundlePipeline.BuildAssetBundle(Scene, obj, hex, target));
     }
     public static Bounds CalculateSceneBounds(Scene scene)
     {
@@ -100,7 +101,127 @@ public static class BasisBundleBuild
         }
         return sceneBounds;
     }
-    public static async Task<(bool, string)> BuildBundle(BasisContentBase basisContentBase, BasisBounds BasisBounds, string Images, List<BuildTarget> targets, bool useProvidedPassword, string OverridenPassword, Func<BasisContentBase, BasisAssetBundleObject, string, BuildTarget, Task<(bool, (BasisBundleGenerated, AssetBundleBuilder.InformationHash))>> buildFunction)
+    public static BasisBundleConnector.BasisMetaData GenerateMetaData(GameObject root)
+    {
+        BasisBundleConnector.BasisMetaData meta = new BasisBundleConnector.BasisMetaData();
+        long triangleCount = 0;
+        long materialCount = 0;
+        long bonesCount = 0;
+        Dictionary<string, int> componentCounts = new Dictionary<string, int>();
+        var meshFilters = root.GetComponentsInChildren<MeshFilter>(true);
+        foreach (var mf in meshFilters)
+        {
+            if (mf.sharedMesh != null)
+            {
+                triangleCount += mf.sharedMesh.triangles.Length / 3;
+            }
+        }
+        var skinnedMeshes = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        foreach (var smr in skinnedMeshes)
+        {
+            if (smr.sharedMesh != null)
+            {
+                triangleCount += smr.sharedMesh.triangles.Length / 3;
+            }
+
+            if (smr.bones != null)
+            {
+                bonesCount += smr.bones.Length;
+            }
+        }
+        var renderers = root.GetComponentsInChildren<Renderer>(true);
+        HashSet<Material> uniqueMaterials = new HashSet<Material>();
+
+        foreach (var r in renderers)
+        {
+            foreach (var mat in r.sharedMaterials)
+            {
+                if (mat != null)
+                {
+                    uniqueMaterials.Add(mat);
+                }
+            }
+        }
+        materialCount = uniqueMaterials.Count;
+        var components = root.GetComponentsInChildren<Component>(true);
+        foreach (var comp in components)
+        {
+            if (comp == null)
+            {
+                continue;
+            }
+
+            string typeName = comp.GetType().Name;
+
+            if (componentCounts.ContainsKey(typeName))
+            {
+                componentCounts[typeName]++;
+            }
+            else
+            {
+                componentCounts[typeName] = 1;
+            }
+        }
+
+        meta.TrianglesCount = triangleCount;
+        meta.MaterialCount = materialCount;
+        meta.BonesCount = bonesCount;
+        meta.ComponentNames = componentCounts
+            .Select(kvp => new BasisBundleConnector.BasisComponentName
+            {
+                Name = kvp.Key,
+                count = kvp.Value
+            })
+            .ToArray();
+
+        return meta;
+    }
+    public static BasisBundleConnector.BasisMetaData GenerateSceneMetaData(Scene scene)
+    {
+        var roots = scene.GetRootGameObjects();
+
+        BasisBundleConnector.BasisMetaData combined = new BasisBundleConnector.BasisMetaData();
+
+        long triangles = 0;
+        long materials = 0;
+        long bones = 0;
+        Dictionary<string, int> componentCounts = new Dictionary<string, int>();
+
+        foreach (var root in roots)
+        {
+            var meta = GenerateMetaData(root);
+
+            triangles += meta.TrianglesCount;
+            materials += meta.MaterialCount;
+            bones += meta.BonesCount;
+
+            if (meta.ComponentNames != null)
+            {
+                foreach (var c in meta.ComponentNames)
+                {
+                    if (componentCounts.ContainsKey(c.Name))
+                        componentCounts[c.Name] += c.count;
+                    else
+                        componentCounts[c.Name] = c.count;
+                }
+            }
+        }
+
+        combined.TrianglesCount = triangles;
+        combined.MaterialCount = materials;
+        combined.BonesCount = bones;
+
+        combined.ComponentNames = componentCounts
+            .Select(kvp => new BasisBundleConnector.BasisComponentName
+            {
+                Name = kvp.Key,
+                count = kvp.Value
+            })
+            .ToArray();
+
+        return combined;
+    }
+    public static async Task<(bool, string)> BuildBundle(BasisContentBase basisContentBase, BasisBundleConnector.BasisMetaData MetaData, BasisBounds BasisBounds, string Images, List<BuildTarget> targets, bool useProvidedPassword, string OverridenPassword, Func<BasisContentBase, BasisAssetBundleObject, string, BuildTarget, Task<(bool, (BasisBundleGenerated, AssetBundleBuilder.InformationHash))>> buildFunction)
     {
         try
         {
@@ -168,7 +289,7 @@ public static class BasisBundleBuild
             EditorUtility.DisplayProgressBar("Starting Bundle Build", "Starting Bundle Build", 10);
 
             string generatedID = BasisGenerateUniqueID.GenerateUniqueID();
-            BasisBundleConnector basisBundleConnector = new BasisBundleConnector(generatedID, basisContentBase.BasisBundleDescription, bundles,Images,BasisBounds);
+            BasisBundleConnector basisBundleConnector = new BasisBundleConnector(generatedID, basisContentBase.BasisBundleDescription, bundles, Images, BasisBounds, MetaData);
 
             byte[] BasisbundleconnectorUnEncrypted = BasisSerialization.SerializeValue<BasisBundleConnector>(basisBundleConnector);
             var BasisPassword = new BasisEncryptionWrapper.BasisPassword
@@ -210,7 +331,6 @@ public static class BasisBundleBuild
             return (false, $"BuildBundle Exception: {ex.Message}");
         }
     }
-
     private static void AdjustBuildTargetOrder(List<BuildTarget> targets)
     {
         BuildTarget activeTarget = EditorUserBuildSettings.activeBuildTarget;
@@ -244,44 +364,7 @@ public static class BasisBundleBuild
             Debug.Log($"Switched back to original build target: {originalTarget}");
         }
     }
-
-    private static int GetAdaptiveBufferSize(long fileSize)
-    {
-        const int minBufferSize = 4 * 1024 * 1024;       // 8MB minimum
-        const int maxBufferSize = 64 * 1024 * 1024;      // 32MB maximum
-
-        if (fileSize <= 0)
-            return minBufferSize;
-
-        // Scale with file size, using a power-of-two approach
-        int bufferSize = (int)Math.Min(
-            maxBufferSize,
-            Math.Max(
-                minBufferSize,
-                NextPowerOfTwo(fileSize / 64) // Less aggressive divisor for bigger buffers
-            )
-        );
-
-        return bufferSize;
-    }
-
-    private static long NextPowerOfTwo(long value)
-    {
-        if (value < 1)
-            return 1;
-
-        value--;
-        value |= value >> 1;
-        value |= value >> 2;
-        value |= value >> 4;
-        value |= value >> 8;
-        value |= value >> 16;
-        value |= value >> 32;
-
-        return value + 1;
-    }
-
-    public static async Task CombineFiles(string outputPath,List<string> bundlePaths,byte[] encryptedConnector, CancellationToken ct = default(CancellationToken))
+    public static async Task CombineFiles(string outputPath, List<string> bundlePaths, byte[] encryptedConnector, CancellationToken ct = default(CancellationToken))
     {
         // --- prep: total lengths for preallocation + progress ---
         long headerLen = encryptedConnector != null ? encryptedConnector.Length : 0L;
@@ -307,7 +390,7 @@ public static class BasisBundleBuild
 
         try
         {
-            using (var output = new FileStream(outputPath,FileMode.Create,FileAccess.Write,FileShare.Read, BufferSize, useAsync: true))
+            using (var output = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.Read, BufferSize, useAsync: true))
             {
                 // pre-size once — reduces fragmentation and page faults
                 output.SetLength(totalLen);
@@ -326,7 +409,7 @@ public static class BasisBundleBuild
                 for (int i = 0; i < bundlePaths.Count; i++)
                 {
                     string path = bundlePaths[i];
-                    using (var input = new FileStream(path,FileMode.Open,FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan))
+                    using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan))
                     {
                         int read;
                         while ((read = await input.ReadAsync(buffer, 0, BufferSize, ct)) > 0)
@@ -338,7 +421,7 @@ public static class BasisBundleBuild
                             if (sw.ElapsedMilliseconds >= nextUiMs)
                             {
                                 float progress = (float)((double)bytesDone / (double)totalLen);
-                                EditorUtility.DisplayProgressBar("Combining Files","Processing: " + Path.GetFileName(path),progress);
+                                EditorUtility.DisplayProgressBar("Combining Files", "Processing: " + Path.GetFileName(path), progress);
                                 nextUiMs = sw.ElapsedMilliseconds + 200;
                             }
                         }
@@ -362,7 +445,8 @@ public static class BasisBundleBuild
     {
         // Get the root path of the project (up to the Assets folder)
         string projectRoot = Application.dataPath.Replace("/Assets", "");
-        if (string.IsNullOrEmpty(relativePath)) {
+        if (string.IsNullOrEmpty(relativePath))
+        {
             return projectRoot;
         }
 
@@ -470,14 +554,6 @@ public static class BasisBundleBuild
         Debug.Log("Random bytes generated successfully.");
         return randomBytes;
     }
-
-    // Converts a byte array to a Base64 encoded string
-    public static string ByteArrayToBase64String(byte[] byteArray)
-    {
-        Debug.Log("Converting byte array to Base64 string...");
-        return Convert.ToBase64String(byteArray);
-    }
-
     // Converts a byte array to a hexadecimal string
     public static string ByteArrayToHexString(byte[] byteArray)
     {
@@ -489,79 +565,5 @@ public static class BasisBundleBuild
         }
         Debug.Log("Hexadecimal string conversion successful.");
         return hex.ToString();
-    }
-public static class OcclusionCullingTools
-{
-    public static void ClearOcclusion(Scene scene)
-    {
-        if (!scene.IsValid() || !scene.isLoaded) return;
-
-        // Ensure scene is active so APIs behave consistently
-        Scene prev = SceneManager.GetActiveScene();
-        SceneManager.SetActiveScene(scene);
-
-        // Unity editor API for clearing occlusion data
-        StaticOcclusionCulling.Clear();
-
-        // Mark dirty so it can be saved if you choose to
-        EditorSceneManager.MarkSceneDirty(scene);
-
-        SceneManager.SetActiveScene(prev);
-        Debug.Log($"Cleared occlusion data for scene: {scene.path}");
-    }
-
-    public static void BakeOcclusion(Scene scene)
-    {
-        if (!scene.IsValid() || !scene.isLoaded) return;
-
-        Scene prev = SceneManager.GetActiveScene();
-        SceneManager.SetActiveScene(scene);
-
-        // Bake (can take time; runs in editor)
-        StaticOcclusionCulling.GenerateInBackground();
-
-        // Optionally wait until it's done if you need deterministic output:
-        // while (StaticOcclusionCulling.isRunning) { /* pump editor? */ }
-
-        EditorSceneManager.MarkSceneDirty(scene);
-
-        SceneManager.SetActiveScene(prev);
-        Debug.Log($"Started occlusion bake for scene: {scene.path}");
-    }
-}
-public static class OcclusionPolicyConfig
-    {
-        // Decide what you want per platform.
-        public static OcclusionPolicy ForTarget(BuildTarget t)
-        {
-            // Mobile currently unsupported: do nothing (or clear, if you prefer)
-            if (t == BuildTarget.Android || t == BuildTarget.iOS)
-                return OcclusionPolicy.LeaveAsIs;
-
-            // Example:
-            // - Windows/Mac/Linux: bake
-            // - WebGL: clear (often not worth it / can be problematic depending on your pipeline)
-            switch (t)
-            {
-                case BuildTarget.StandaloneWindows:
-                case BuildTarget.StandaloneWindows64:
-                case BuildTarget.StandaloneOSX:
-                case BuildTarget.StandaloneLinux64:
-                    return OcclusionPolicy.Bake;
-
-                case BuildTarget.WebGL:
-                    return OcclusionPolicy.Clear;
-
-                default:
-                    return OcclusionPolicy.LeaveAsIs;
-            }
-        }
-    }
-
-    public enum OcclusionPolicy
-    {
-        LeaveAsIs,
-        Clear,
-        Bake
     }
 }

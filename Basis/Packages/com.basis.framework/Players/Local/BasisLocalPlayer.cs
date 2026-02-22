@@ -258,11 +258,7 @@ namespace Basis.Scripts.BasisSdk.Players
                         BasisLoadableBundle bundle = new BasisLoadableBundle
                         {
                             BasisRemoteBundleEncrypted = info.StoredRemote,
-                            BasisBundleConnector = new BasisBundleConnector(
-                                "1",
-                                new BasisBundleDescription("Loading Avatar", "Loading Avatar"),
-                                new BasisBundleGenerated[] { new BasisBundleGenerated() },
-                                null,new BasisBounds(Vector3.zero,Vector3.one)),
+                            BasisBundleConnector = new BasisBundleConnector("1", new BasisBundleDescription("Loading Avatar", "Loading Avatar"), new BasisBundleGenerated[] { new BasisBundleGenerated() }, null, new BasisBounds(Vector3.zero, Vector3.one), new BasisBundleConnector.BasisMetaData()),
                             BasisLocalEncryptedBundle = info.StoredLocal,
                             UnlockPassword = Key.Pass
                         };

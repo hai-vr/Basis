@@ -15,7 +15,22 @@ public class BasisBundleConnector
     public string DateOfCreation;
     [SerializeField]
     public BasisBounds Bounds;
-    public BasisBundleConnector(string version, BasisBundleDescription basisBundleDescription, BasisBundleGenerated[] basisBundleGenerated, string imageBytes, BasisBounds basisBounds)
+    [SerializeField]
+    public BasisMetaData MetaData;
+    public struct BasisMetaData
+    {
+        public long TrianglesCount;
+        public long MaterialCount;
+        public long BonesCount;
+        [SerializeField]
+        public BasisComponentName[] ComponentNames;
+    }
+    public struct BasisComponentName
+    {
+        public string Name;
+        public int count;
+    }
+    public BasisBundleConnector(string version, BasisBundleDescription basisBundleDescription, BasisBundleGenerated[] basisBundleGenerated, string imageBytes, BasisBounds basisBounds, BasisMetaData basisMetaData)
     {
         UniqueVersion = version ?? throw new ArgumentNullException(nameof(version));
         BasisBundleDescription = basisBundleDescription ?? throw new ArgumentNullException(nameof(basisBundleDescription));
@@ -23,6 +38,7 @@ public class BasisBundleConnector
         ImageBase64 = imageBytes;
         DateOfCreation = DateTime.UtcNow.ToString("o");
         Bounds = basisBounds;
+        MetaData = basisMetaData;
     }
     public BasisBundleConnector()
     {
