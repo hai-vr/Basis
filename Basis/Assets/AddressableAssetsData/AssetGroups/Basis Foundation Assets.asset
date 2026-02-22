@@ -26,6 +26,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 06748086c45b96944a4d4803ffc8a0d0
+    m_Address: Packages/com.basis.sdk/Prefabs/SpawnOutline.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 06b1965d0565c4444b4ce3ea5aa8e690
     m_Address: Packages/com.basis.tests/Mirror/BasisSDKMIrror.prefab
     m_ReadOnly: 0
