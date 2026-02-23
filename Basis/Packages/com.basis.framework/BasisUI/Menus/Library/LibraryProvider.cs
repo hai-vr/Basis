@@ -603,6 +603,18 @@ namespace Basis.BasisUI
                 };
 
                 await BasisDataStoreItemKeys.AddNewKey(key);
+                if(mode == BundledContentHolder.Mode.Avatar)
+                {
+                    BasisLoadableBundle loadableBundle = new()
+                    {
+                        UnlockPassword = Password,
+                        BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle { RemoteBeeFileLocation = URL },
+                        BasisBundleConnector = new BasisBundleConnector(),
+                        BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle()
+                    };
+
+                  await BasisLocalPlayer.Instance.CreateAvatar(BasisLocalPlayer.LoadModeNetworkDownloadable, loadableBundle);
+                }
             }
             else
             {

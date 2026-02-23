@@ -241,11 +241,13 @@ namespace Basis.Scripts.Device_Management
                 AvatarKey[] activeKeys = BasisDataStoreAvatarKeys.DisplayKeys();
                 foreach (AvatarKey Key in activeKeys)
                 {
-                    ItemKey ItemKey = new ItemKey();
-                    ItemKey.Url = Key.Url;
-                    ItemKey.ISEmbedded = false;
-                    ItemKey.Pass = Key.Pass;
-                    ItemKey.Mode = BundledContentHolder.Mode.Avatar;
+                    ItemKey ItemKey = new ItemKey
+                    {
+                        Url = Key.Url,
+                        ISEmbedded = false,
+                        Pass = Key.Pass,
+                        Mode = BundledContentHolder.Mode.Avatar
+                    };
 
                     await BasisDataStoreItemKeys.AddNewKey(ItemKey);
                 }
