@@ -14,6 +14,7 @@ namespace Basis.Scripts.UI.UI_Panels
         public class ItemKey
         {
             public BundledContentHolder.Mode Mode;
+            //public BundledContentHolder.NetworkType NetworkType;
             public string Url;
             public string Pass;
             public bool ISEmbedded = false;

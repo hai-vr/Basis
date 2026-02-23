@@ -27,7 +27,9 @@ namespace Basis.BasisUI
             public static string Overlay => "Panel Elements/Overlay Panel.prefab";
 
             public static string BaseOverlay => "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base - Overlay.prefab";
+            public static string LibraryEntryOverlay => "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base - Overlay For Library Variant.prefab";
             public static string GroupLargeIcon => "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base Icon.prefab";
+            public static string GroupLargeIconVertical => "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base Icon Vertical Stacked Content Variant.prefab";
         }
 
         public static PanelElementDescriptor CreateNew(string style, Component parent) =>
@@ -237,7 +239,9 @@ namespace Basis.BasisUI
             }
         }
         public void SetHeight(float height) => SetSize(new Vector2(rectTransform.sizeDelta.x, height));
-        public void SetWidth(float width) => SetSize(new Vector2(rectTransform.sizeDelta.x, width));
+        
+        // dang this might of caused you guys some headache, fixed it.
+        public void SetWidth(float width) => SetSize(new Vector2(width, rectTransform.sizeDelta.y)); 
 
         public void ForceRebuild()
         {
