@@ -8,331 +8,18 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Text.RegularExpressions;
 using TMPro;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using static Basis.BasisUI.PanelButton;
 using static Basis.BasisUI.PanelTextField;
 using static SerializableBasis;
-using System.Text;
 using static Basis.BasisUI.PanelPasswordField;
 using Basis.BasisUI.Styling;
-using static Basis.BasisUI.LibraryProvider;
+using UnityEngine.UIElements;
 
 namespace Basis.BasisUI
 {
-
-    /// <summary>
-    /// this class handles cached metadata for items in the library, such as the name, thumbnail, and other info that can be retrieved from the BEE file without fully loading the content. 
-    /// This allows for faster filtering and sorting in the library UI without needing to load each item first.
-    /// </summary>
-    public static class CachedMetaData
-    {
-        // Represents a cached metadata entry for an item
-        public class CachedContent
-        {
-            public string Name;
-            public DateTime? Created;
-
-            public string AssetBundleDescription;
-            public string ImageBase64;
-            public Sprite CachedSprite;
-            public string DateOfCreation;
-            public string UniqueVersion;
-
-            public BasisLoadableBundle BasisLoadableBundle;
-            public BasisBundleConnector BasisBundleConnector;
-        }
-
-        private static readonly Dictionary<string, CachedContent> _metaCache = new();
-
-        public static bool TryGetMeta(string url, out CachedContent meta)
-        {
-            return _metaCache.TryGetValue(url ?? string.Empty, out meta);
-        }
-
-        public static void SetMetaData(string url, CachedContent meta)
-        {
-            if (string.IsNullOrEmpty(url) || meta == null) return;
-            _metaCache[url] = meta;
-        }
-
-        public static bool ContainsMetaData(string url)
-        {
-            if (string.IsNullOrEmpty(url)) return false;
-            return _metaCache.ContainsKey(url);
-        }
-
-        public static void ClearMetaDataCache()
-        {
-            _metaCache.Clear();
-        }
-
-        public static Sprite CreateSpriteFromMetaData(CachedContent meta)
-        {
-            if (meta == null) return null;
-
-            if (meta.CachedSprite != null)
-                return meta.CachedSprite;
-
-            if (string.IsNullOrEmpty(meta.ImageBase64))
-                return null;
-
-            var tex = BasisTextureCompression.FromPngBytes(meta.ImageBase64);
-            if (tex == null)
-                return null;
-
-            meta.CachedSprite = Sprite.Create(
-                tex,
-                new Rect(0, 0, tex.width, tex.height),
-                new Vector2(0.5f, 0.5f)
-            );
-
-            return meta.CachedSprite;
-        }
-
-        public static async Task PreloadMetaDataForItem(BasisDataStoreItemKeys.ItemKey item)
-        {
-            if (item == null) return;
-
-            var urlKey = item.Url ?? string.Empty;
-            if (ContainsMetaData(urlKey)) return;
-
-            try
-            {
-                BasisLoadableBundleWrapper wrapper = await LoadWrapperFromDisc(item);//on disc call? 
-                if(wrapper == null)
-                {
-                    BasisDebug.LogError("Missing Wrapper!, was the data provided correct?");
-                    return;
-                }
-                var Report = new BasisProgressReport();
-                var CancellationSource = new CancellationTokenSource();
-
-                await BasisBeeManagement.HandleMetaOnlyLoad(wrapper.basisTrackedBundleWrapper, Report, CancellationSource.Token);
-                var connector = wrapper.BasisLoadableBundle.BasisBundleConnector; //wrapper.LoadableBundle.BasisBundleConnector;
-
-                var cached = new CachedContent
-                {
-                    Name = connector?.BasisBundleDescription?.AssetBundleName ?? string.Empty,
-                    AssetBundleDescription = connector?.BasisBundleDescription?.AssetBundleDescription,
-                    ImageBase64 = connector?.ImageBase64,
-                    DateOfCreation = connector?.DateOfCreation,
-                    UniqueVersion = connector?.UniqueVersion,
-                    BasisBundleConnector = connector,
-                    BasisLoadableBundle = wrapper.BasisLoadableBundle,
-                };
-
-                string dateStrCache = connector?.DateOfCreation;
-                if (!string.IsNullOrEmpty(dateStrCache) && DateTime.TryParse(dateStrCache, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsedDate))
-                {
-                    cached.Created = parsedDate;
-                }
-
-                SetMetaData(urlKey, cached);
-            }
-            catch (Exception ex)
-            {
-                LogError(ex);
-            }
-        }
-        [HideInCallstack]
-        public static void LogError(Exception ex)
-        {
-            BasisDebug.LogError(ex);
-        }
-        public static async Task PreloadMetaForItems(IEnumerable<BasisDataStoreItemKeys.ItemKey> items)
-        {
-            if (items == null) return;
-
-            try
-            {
-                await Task.WhenAll(items.Select(PreloadMetaDataForItem));
-            }
-            catch (Exception ex)
-            {
-                BasisDebug.LogError(ex);
-            }
-        }
-    }
-    
-    /// <summary>
-    /// This static class provides utility methods for validating user input in the library provider, such as validating URLs and applying platform-specific conversions to shared links.
-    /// </summary>
-    public static class InputValidation
-    {
-
-        /// <summary>
-        /// enum to represent the result of validating a library entry
-        /// can be expanded with more specific error types as needed
-        /// </summary>
-        public enum EntryValidationResult
-        {
-            None = 0,
-
-            EmptyUrl,
-            InvalidUrlFormat,
-            InvalidUrlScheme,
-            EmptyPassword,
-            DuplicateEntry,
-
-            Success
-        }
-
-        /// <summary>
-        /// struct to represent the response from validating a library entry, including the validation result and any processed data such as a converted URL or extracted password.
-        /// </summary>
-        public struct EntryValidationResponse
-        {
-            public EntryValidationResult Result;
-            public string ProcessedUrl;
-            public string Password;
-
-            //public bool IsValid => Result == EntryValidationResult.Success;
-        }
-
-        /// <summary>
-        /// Applies platform-specific conversions to shared links, such as converting Google Drive links to direct download URLs.
-        /// </summary>
-        public static bool ApplyPlatformConversionOfUrl(string sharedLink, out string convertedLink)
-        {
-            if (IsGoogleDriveLink(sharedLink))
-            {
-                BasisDebug.Log("Was a Google Drive Link Converting!");
-                string fileId = ExtractFileId(sharedLink);
-                if (!string.IsNullOrEmpty(fileId))
-                {
-                    convertedLink = $"https://drive.google.com/uc?export=download&id={fileId}";
-                    return true;
-                }
-                else
-                {
-                    BasisDebug.LogError("Could not extract File ID from the shared link. Was detected as a google drive", BasisDebug.LogTag.System);
-                }
-            }
-
-            convertedLink = string.Empty;
-            return false;
-        }
-
-        /// <summary>
-        /// Determines if a URL is a Google Drive link. using Regex
-        /// </summary>
-        private static bool IsGoogleDriveLink(string url)
-        {
-            return Regex.IsMatch(url ?? string.Empty, @"^https:\/\/drive\.google\.com\/file\/d\/[a-zA-Z0-9_-]+\/");
-        }
-
-        /// <summary>
-        /// Extracts the Google Drive file ID from a shared link.
-        /// </summary>
-        private static string ExtractFileId(string url)
-        {
-            Match match = Regex.Match(url ?? string.Empty, @"\/file\/d\/([a-zA-Z0-9_-]+)");
-            return match.Success ? match.Groups[1].Value : null;
-        }
-
-        /// <summary>
-        /// Creates an EntryValidationResponse with a failure result and no processed data.
-        /// </summary>
-        private static EntryValidationResponse Fail(EntryValidationResult result)
-        {
-            return new EntryValidationResponse
-            {
-                Result = result,
-                ProcessedUrl = null,
-                Password = null
-            };
-        }
-        
-        /// <summary>
-        /// Validates a library entry and returns an EntryValidationResponse.
-        /// </summary>
-        /// <param name="rawUrl">raw url from user</param>
-        /// <param name="rawPassword">raw password from user</param>
-        /// <param name="activeKeys">basis items key store used for determining if the item we are adding already exists</param>
-        /// <returns></returns>
-        public static EntryValidationResponse ValidateEntry(
-            string rawUrl,
-            string rawPassword,
-            BasisDataStoreItemKeys.ItemKey[] activeKeys)
-        {
-            string url = (rawUrl ?? string.Empty).Trim();
-            string password = (rawPassword ?? string.Empty).Trim();
-
-            //BasisDebug.Log($"started as password = {password}");
-
-            if (string.IsNullOrEmpty(url))
-                return Fail(EntryValidationResult.EmptyUrl);
-
-            // Extract fragment password
-            int hashIndex = url.IndexOf('#');
-            if (hashIndex >= 0)
-            {
-                string fragment = url.Substring(hashIndex + 1);
-                url = url.Substring(0, hashIndex);
-
-                //BasisDebug.Log("found # processing password");
-                if (!string.IsNullOrEmpty(fragment))
-                {
-                    BasisDebug.Log($"fragment = {fragment}");
-                    try
-                    {
-                        // TODO: need some example test cases for this
-                        password = Encoding.UTF8.GetString(Convert.FromBase64String(fragment));
-
-                        //BasisDebug.Log($"setting password = {password}");
-                    }
-                    catch
-                    {
-                        // ignore invalid base64
-                        BasisDebug.LogWarning("InputValidation failure, failed to parse base64string fragment from url#pass entry.");
-                    }
-                }
-            }
-
-            //BasisDebug.Log($"password is now = {password}");
-
-            // Platform conversion
-            if (ApplyPlatformConversionOfUrl(url, out string converted))
-                url = converted;
-
-            // Normalize URL
-            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri uri))
-                return Fail(EntryValidationResult.InvalidUrlFormat);
-
-            if (uri.Scheme != Uri.UriSchemeHttp &&
-                uri.Scheme != Uri.UriSchemeHttps)
-                return Fail(EntryValidationResult.InvalidUrlScheme);
-
-            var builder = new UriBuilder(uri)
-            {
-                Host = uri.Host.ToLowerInvariant()
-            };
-
-            url = builder.Uri.ToString().TrimEnd('/');
-
-            if (string.IsNullOrEmpty(password))
-                return Fail(EntryValidationResult.EmptyPassword);
-
-            // Duplicate check
-            for (int i = 0; i < activeKeys.Length; i++)
-            {
-                var cur = activeKeys[i];
-                if (cur != null && cur.Url == url)
-                    return Fail(EntryValidationResult.DuplicateEntry);
-            }
-
-            return new EntryValidationResponse
-            {
-                Result = EntryValidationResult.Success,
-                ProcessedUrl = url,
-                Password = password
-            };
-        }
-    }
-
     public partial class LibraryProvider : BasisMenuActionProvider<BasisMainMenu>
     {
         #region Provider Setup
@@ -347,34 +34,12 @@ namespace Basis.BasisUI
         public override int Order => 1; // after Settings
         public override bool Hidden => false;
         public static BasisMenuPanel panel;
-
-        // reference to the search field
-        public static PanelTextField searchField;
-        
-        // current sort mode for the library, default to name sorting
-        private enum LibraryDateSortMode
-        {
-            Name,
-            DateOldestToNewest,
-            DateNewestToOldest
-        }
-        private static LibraryDateSortMode _currentSort = LibraryDateSortMode.Name;
-
-        // // Network filter state for items
-        // private enum LibraryNetworkFilter
-        // {
-        //     All,
-        //     NetworkedOnly,
-        //     LocalOnly
-        // }
-
+        public static PanelTextField searchField; // reference to the search field
+        private static LibraryDateSortMode _currentSort = LibraryDateSortMode.Name; // current sort mode for the library, default to name sorting
         // private static LibraryNetworkFilter _currentNetworkFilter = LibraryNetworkFilter.All;
-
         private static string _currentSearchQuery = string.Empty;
         private static BundledContentHolder.Mode _currentMode = BundledContentHolder.Mode.Prop;
         private static PanelTabPage _currentTab;
-        
-        // moved metadata cache implementation to top-level CachedMetaData class
 
         public override async void RunAction()
         {
@@ -412,13 +77,7 @@ namespace Basis.BasisUI
             // create a search text field in the tab group extras area
             searchField = PanelTextField.CreateNew(TextFieldStyles.EntryWithNoTitle, tabGroup.ExtrasContainer);
             searchField._placeholderLabel.text = "Search...";
-            //searchField.Descriptor.SetTitle("Search:");
-            //searchField.Descriptor.SetIcon(AddressableAssets.Sprites.Search);
-            //searchField.Descriptor.SetDescription("Description Test 123");
-            //searchField.Descriptor.SetPlaceholder("Search...");
             searchField.Descriptor.SetSize(new Vector2(60, 80));
-            // wire search field to refresh the current tab on change
-            //searchField._inputField.placeholder
             searchField.OnValueChanged = async (val) =>
             {
                 _currentSearchQuery = val ?? string.Empty;
@@ -431,10 +90,6 @@ namespace Basis.BasisUI
             var dateSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
             string[] dateSortNames = Enum.GetNames(typeof(LibraryDateSortMode));
 
-            // modify the names of the dropdown entries to be more user-friendly
-            //var displayNames = sortNames.Select(n => $"{n}").ToList();
-
-            //sorting.Descriptor.SetTitle("Sort");
             dateSorting.Descriptor.SetSize(new Vector2(60, 80));
             dateSorting.AssignEntries(dateSortNames.ToList());
             dateSorting.SetValueWithoutNotify(_currentSort.ToString());
@@ -450,6 +105,8 @@ namespace Basis.BasisUI
                     await RefreshCurrentTab();
                 }
             };
+
+            // TODO this will be reused for the instantiated tab
 
             // // create a sorting dropdown in the tab group extras area
             // var networkSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
@@ -475,8 +132,8 @@ namespace Basis.BasisUI
             //     }
             // };
 
+
             // add our extra menu button items, this is the buttons below the panel content
-            // function overloading for one with size
             tabGroup.AddExtraAction("Add New Content", PromptUserForNewContent, new Vector2( 70, 80 ));
 
             await RefreshTabAsync(BundledContentHolder.Mode.Prop, propsTab); // default to props tab on first open
@@ -496,31 +153,81 @@ namespace Basis.BasisUI
             public BasisTrackedBundleWrapper basisTrackedBundleWrapper;
         }
 
-        public static async Task<BasisLoadableBundleWrapper> LoadWrapperFromDisc(BasisDataStoreItemKeys.ItemKey item)
+        /// <summary>
+        /// used to create a new BasisLoadableBundleWrapper for an item
+        /// do not use for accessing data its only to init
+        /// </summary>
+        public static async Task<BasisLoadableBundleWrapper> CreateNewWrapperFromItem( BasisDataStoreItemKeys.ItemKey item )
         {
+            // create a new wrapper
+            BasisLoadableBundleWrapper wrapper = new BasisLoadableBundleWrapper();
+
+            // create a new bundle for the wrapper
+            BasisLoadableBundle bundle = new()
+            {
+                BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle()
+                {
+                    RemoteBeeFileLocation = item.Url
+                },
+                BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle()
+                {
+                    DownloadedBeeFileLocation = item.Pass
+                },
+                UnlockPassword = item.Pass,
+                BasisBundleConnector = new BasisBundleConnector()
+                {
+                    BasisBundleDescription = new BasisBundleDescription(),
+                    BasisBundleGenerated = new BasisBundleGenerated[] { new() },
+                    UniqueVersion = string.Empty,
+                },
+            };
+            BasisTrackedBundleWrapper trackedWrapper = new()
+            {
+                LoadableBundle = bundle,
+            };
+            wrapper.BasisLoadableBundle = bundle;
+            wrapper.basisTrackedBundleWrapper = trackedWrapper;
+            wrapper.ISEmbedded = false;
+
+            return wrapper;
+        }
+
+        public static async Task<BasisLoadableBundleWrapper> LoadWrapperFromDisc(BasisDataStoreItemKeys.ItemKey item, BasisLoadableBundleWrapper wrapper = null)
+        {
+            if(wrapper == null) // generate a new wrapper if its null
+            {
+                BasisDebug.LogWarning( "wrapper was not provided for LoadWrapperFromDisc, creating." );
+                wrapper = await CreateNewWrapperFromItem( item );
+            }
+
             // If the metadata is missing on disk, remove the key and DO NOT attempt to create a bundle from it.
             if (BasisLoadHandler.IsMetaDataOnDisc(item.Url, out BasisBEEExtensionMeta info))
             {
-                BasisLoadableBundle bundle = new()
-                {
-                    BasisRemoteBundleEncrypted = info.StoredRemote,
-                    BasisLocalEncryptedBundle = info.StoredLocal,
-                    UnlockPassword = item.Pass,
-                    BasisBundleConnector = new BasisBundleConnector()
-                    {
-                        BasisBundleDescription = new BasisBundleDescription(),
-                        BasisBundleGenerated = new BasisBundleGenerated[] { new() },
-                        UniqueVersion = info.UniqueVersion,
-                    },
-                };
-                BasisTrackedBundleWrapper trackedWrapper = new()
-                {
-                    LoadableBundle = bundle,
-                };
-                BasisLoadableBundleWrapper wrapper = new BasisLoadableBundleWrapper();
-                wrapper.BasisLoadableBundle = bundle;
-                wrapper.ISEmbedded = false;
-                wrapper.basisTrackedBundleWrapper = trackedWrapper;
+                // BasisLoadableBundle bundle = new()
+                // {
+                //     BasisRemoteBundleEncrypted = info.StoredRemote,
+                //     BasisLocalEncryptedBundle = info.StoredLocal,
+                //     UnlockPassword = item.Pass,
+                //     BasisBundleConnector = new BasisBundleConnector()
+                //     {
+                //         BasisBundleDescription = new BasisBundleDescription(),
+                //         BasisBundleGenerated = new BasisBundleGenerated[] { new() },
+                //         UniqueVersion = info.UniqueVersion,
+                //     },
+                // };
+                // BasisTrackedBundleWrapper trackedWrapper = new()
+                // {
+                //     LoadableBundle = bundle,
+                // };
+
+                // CreateNewWrapperFromItem does not populate these fields so we update them
+                wrapper.BasisLoadableBundle.BasisRemoteBundleEncrypted = info.StoredRemote;
+                wrapper.BasisLoadableBundle.BasisLocalEncryptedBundle = info.StoredLocal;
+                wrapper.BasisLoadableBundle.BasisBundleConnector.UniqueVersion = info.UniqueVersion;
+                
+                //wrapper.BasisLoadableBundle = bundle;
+                //wrapper.ISEmbedded = false;
+                //wrapper.basisTrackedBundleWrapper = trackedWrapper;
 
                 return wrapper;
             }
@@ -673,17 +380,6 @@ namespace Basis.BasisUI
                         break;
                 }
 
-                // // Apply network filter if present
-                // switch (_currentNetworkFilter)
-                // {
-                //     case LibraryNetworkFilter.NetworkedOnly:
-                //         data = data.Where(k => k.NetworkType == BundledContentHolder.NetworkType.Networked).ToList();
-                //         break;
-                //     case LibraryNetworkFilter.LocalOnly:
-                //         data = data.Where(k => k.NetworkType == BundledContentHolder.NetworkType.Local).ToList();
-                //         break;
-                // }
-
                 // Clear and rebuild the tab content
                 ClearTabContent(tab.Descriptor.ContentParent);
                 BuildItemsList(data, tab);
@@ -732,8 +428,6 @@ namespace Basis.BasisUI
                 "Please specify the type of content you are adding and then provide the URL and password for your BEE file. Once everything is set, confirm your choices to include the item in your library.",
                 AddressableAssets.Sprites.Add);
 
-            //BundledContentHolder.NetworkType desiredNetType = BundledContentHolder.NetworkType.Local;
-
             // the item type dropdown determines which library tab the new item will appear in.
             PanelDropdown contentTypeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.OverlayEntry, newItemDialogBox.Descriptor);
             string[] modeNames = Enum.GetNames(typeof(BundledContentHolder.Mode));
@@ -744,21 +438,15 @@ namespace Basis.BasisUI
             
             // derive the default selected mode from the currently active tab, so if the user is browsing avatars and clicks "Add New CachedContent"
             contentTypeDropDown.SetValueWithoutNotify(_currentMode.ToString());
-
             contentTypeDropDown.Descriptor.SetHeight(50);
             contentTypeDropDown.Descriptor.SetWidth(900);
 
             // BEE file URL field
-            //CreateText("Add your BEE File URL:", _descriptor);
             PanelTextField URL = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, newItemDialogBox.Descriptor);
-            //URL = PanelPasswordField.CreateNew(_descriptor);
             URL._placeholderLabel.text = "URL";
             URL._inputField.contentType = TMP_InputField.ContentType.Standard;
-            //URL.DisableIcons();
-
             URL.Descriptor.SetHeight(115);
             URL.Descriptor.SetWidth(900);
-
             URL.Descriptor.SetTitle("BEE File URL:");
             URL.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
             URL.Descriptor.SetDescription("This should be a direct link to your BEE file.");
@@ -823,17 +511,8 @@ namespace Basis.BasisUI
                     BasisDebug.Log( $"given url {URL.Value}, given password {Password.Password}" );
                     BasisDebug.Log( $"processed url {validationResponse.ProcessedUrl} processed password {validationResponse.Password}" );
 
-                    // if(validationResponse.IsValid)
-                    // {
+                    // get the result of the validationResponse
                     InputValidation.EntryValidationResult validationResult = validationResponse.Result;
-
-                    // EmptyUrl,
-                    // InvalidUrlFormat,
-                    // InvalidUrlScheme,
-                    // EmptyPassword,
-                    // DuplicateEntry,
-
-                    // Success
 
                     // we now use the validation result to determine whether to proceed with adding the item or show an error message
                     switch(validationResult)
@@ -934,7 +613,7 @@ namespace Basis.BasisUI
 
         #endregion
 
-        #region CreateItemCard, ShowItemOverlay
+        #region CreateItemCard, ShowItemOverlay, ApplyMetaDataToButton
 
         /// <summary>
         /// The item card displayed all around the library menu
@@ -943,6 +622,7 @@ namespace Basis.BasisUI
         {
             PanelButton buttonPanel = PanelButton.CreateNew(ButtonStyles.Prop, container);
 
+            // TODO: reuse for platform icons?
             // if(item.NetworkType == BundledContentHolder.NetworkType.Networked)
             // {
             //     // create an image for the button network icon in the top right with an offset of -35, -35
@@ -979,8 +659,6 @@ namespace Basis.BasisUI
             {
                 try
                 {
-                    // // Ensure meta exists (only loads if not cached)
-                    // await CachedMetaData.PreloadMetaDataForItem(item);
                     await ShowItemOverlay(cachedMeta, item);
                 }
                 catch (Exception ex)
@@ -1010,10 +688,7 @@ namespace Basis.BasisUI
 
         public static async Task ShowItemOverlay(CachedMetaData.CachedContent metadata, BasisDataStoreItemKeys.ItemKey item)
         {
-            //BasisLoadableBundle bundle = Wrapper.LoadableBundle;
-
-            //BasisDebug.Log($"{metadata}");
-
+ 
             // TODO: actually validate the BEE file upon adding it rather than checking description for it to actually exists?
             BasisBundleDescription description = metadata.BasisBundleConnector.BasisBundleDescription;
 
@@ -1076,17 +751,12 @@ namespace Basis.BasisUI
                 creationDate += " UTC";
             }
 
-            
-
             // creation date and time
             PanelTextField createdInformationTextField = PanelTextField.CreateNew(TextFieldStyles.Entry, itemMetaDataPanel.TabButtonParent);
-            //validationMessageField.Descriptor.gameObject.SetActive(false);
             createdInformationTextField._inputField.gameObject.SetActive(false); // disable the text input field box
             createdInformationTextField.Descriptor.SetTitle("Creation Date");
             createdInformationTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Clock);
             createdInformationTextField.Descriptor.SetDescription($"{creationDate}");
-            // validationMessageField.Descriptor.TitleLabel.color = Color.yellow;
-            // validationMessageField.Descriptor.DescriptionLabel.color = Color.yellow;
 
             createdInformationTextField.Descriptor.SetHeight(50);
             createdInformationTextField.Descriptor.SetWidth(400);
@@ -1361,8 +1031,6 @@ namespace Basis.BasisUI
             // };
         }
 
-        #endregion
-
         private static void ApplyMetaDataToButton(PanelButton buttonPanel, CachedMetaData.CachedContent cachedMeta, string urlKey)
         {
             Sprite iconSprite = CachedMetaData.CreateSpriteFromMetaData(cachedMeta);
@@ -1375,78 +1043,7 @@ namespace Basis.BasisUI
             desc.ForceRebuild();
         }
 
-        // texture decode happens once per item here
-        // now delegated to CachedMetaData
-        
-        // private static async Task<Sprite> LoadItemMetaIntoGroup(BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken, PanelButton Buttonpanel)
-        // {
-        //     var descripter = Buttonpanel.Descriptor;
-        //     try
-        //     {
-        //         cancellationToken.ThrowIfCancellationRequested();
-
-        //         // Only read from the metadata cache here. CachedContent loading should occur in the
-        //         // data/preload phase (PreloadMetaDataForItem / PreloadMetaForItems).
-        //         var urlKey = wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation ?? string.Empty;
-        //         if (_metaCache.TryGetValue(urlKey, out var cached))
-        //         {
-        //             Sprite iconSprite = null;
-        //             if (!string.IsNullOrEmpty(cached.ImageBase64))
-        //             {
-        //                 var tex = BasisTextureCompression.FromPngBytes(cached.ImageBase64);
-        //                 if (tex != null)
-        //                 {
-        //                     iconSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f));
-        //                 }
-        //             }
-
-        //             Buttonpanel.SetIcon(iconSprite, false);
-        //             descripter.SetTitle(!string.IsNullOrEmpty(cached.Name) ? cached.Name : urlKey);
-        //             descripter.SetDescription(urlKey);
-        //             descripter.ForceRebuild();
-
-        //             // Attach cached connector if present so callers (e.g., ShowItemOverlay)
-        //             // can rely on wrapper having connector data.
-        //             if (cached.BasisBundleConnector != null)
-        //             {
-        //                 wrapper.LoadableBundle.BasisBundleConnector = cached.BasisBundleConnector;
-        //             }
-
-        //             return iconSprite;
-        //         }
-
-        //         // Nothing cached yet — leave UI in a loading state and return null.
-        //         descripter.SetTitle("Loading meta...");
-        //         descripter.SetDescription(urlKey);
-        //         descripter.ForceRebuild();
-        //         return null;
-        //     }
-        //     catch (Exception e)
-        //     {
-        //         BasisDebug.LogError(e);
-        //         BasisLoadHandler.RemoveDiscInfo(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
-
-        //         descripter.SetTitle("Failed to load meta");
-        //         descripter.SetDescription(e.Message);
-        //         descripter.ForceRebuild();
-        //         return null;
-        //     }
-        // }
-
-        
-        // public static PanelElementDescriptor CreateBaseOverlay(Vector2 Anchor, Vector2 Scale,string Name)//= new Vector2(0.5f, 0.5f) new Vector2(800, 720)
-        // {
-        //     PanelElementDescriptor _descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.BaseOverlay, _background);
-
-        //     _descriptor.rectTransform.localPosition = Vector3.zero;
-        //     _descriptor.rectTransform.anchorMin = Anchor;
-        //     _descriptor.rectTransform.anchorMax = Anchor;
-        //     _descriptor.rectTransform.anchoredPosition = Vector2.zero;
-        //     _descriptor.SetSize(Scale);
-        //     _descriptor.SetTitle(Name);
-        //     return _descriptor;
-        // }
-
+        #endregion
 
         #region Spawn / Load Selected Item Functions
 
@@ -1478,9 +1075,7 @@ namespace Basis.BasisUI
                 CachedMetaData.CachedContent cachedMeta;
                 if(CachedMetaData.TryGetMeta(item.Url, out cachedMeta))
                 {
-                    //BasisLoadableBundleWrapper wrapper = await BuildWrapper(item);
                     BasisLoadableBundle bundle = cachedMeta.BasisLoadableBundle;
-                    //BasisLoadableBundle bundle = wrapper.basisTrackedBundleWrapper.LoadableBundle;
 
                     BasisDebug.Log($"LoadAvatar({item.Url}) -> bundle = {bundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}");
 
@@ -1535,15 +1130,6 @@ namespace Basis.BasisUI
             Quaternion spawnRot = GetSpawnRotation();
             Vector3 spawnScale = GetSpawnScale();
 
-            // this basically determines when the object should stay in the world for new joiners
-            // if a player joins an instance and this is true, they will load this into the instance
-            // if false only people in the instance will only see the object at the current time, not before or after
-            //bool persistent = false; // should be on by default
-            //bool modifyScale = false;
-
-            // spawn everything locally for now
-            //BundledContentHolder.NetworkType desiredNetworkType = BundledContentHolder.NetworkType.Local;
-
             switch(desiredNetworkType)
             {
                 case BundledContentHolder.NetworkType.Local:
@@ -1554,10 +1140,7 @@ namespace Basis.BasisUI
                         // can rely on wrapper having connector data.
                         if (cached.BasisBundleConnector != null)
                         {
-                            //wrapper.LoadableBundle.BasisBundleConnector = cached.BasisBundleConnector;
-
-                            //BasisLoadableBundleWrapper wrapper = await BuildWrapper(item);
-                            BasisLoadableBundle bundle = cached.BasisLoadableBundle;//wrapper.BasisLoadableBundle;
+                            BasisLoadableBundle bundle = cached.BasisLoadableBundle;
 
                             BasisProgressReport Report = new BasisProgressReport();
                             CancellationToken Cancel = new CancellationToken();
@@ -1675,6 +1258,5 @@ namespace Basis.BasisUI
         }
 
         #endregion
-
     }
 }
