@@ -104,8 +104,14 @@ namespace Basis.BasisUI
 
             try
             {
-                BasisLoadableBundleWrapper wrapper = await BuildWrapper(item);
-                //var report = new BasisProgressReport();
+                BasisLoadableBundleWrapper wrapper = await BuildWrapper(item);//on disc call? 
+                if(wrapper == null)
+                {
+                    BasisDebug.LogError("Missing Wrapper!, was the data provided correct?");
+                    return;
+                }
+                var Report = new BasisProgressReport();
+                var CancellationSource = new CancellationTokenSource();
 
                 await BasisBeeManagement.HandleMetaOnlyLoad(wrapper.basisTrackedBundleWrapper, Report, CancellationSource.Token);
                 var connector = wrapper.BasisLoadableBundle.BasisBundleConnector; //wrapper.LoadableBundle.BasisBundleConnector;
@@ -131,10 +137,14 @@ namespace Basis.BasisUI
             }
             catch (Exception ex)
             {
-                BasisDebug.LogError(ex);
+                LogError(ex);
             }
         }
-
+        [HideInCallstack]
+        public static void LogError(Exception ex)
+        {
+            BasisDebug.LogError(ex);
+        }
         public static async Task PreloadMetaForItems(IEnumerable<BasisDataStoreItemKeys.ItemKey> items)
         {
             if (items == null) return;
@@ -329,10 +339,6 @@ namespace Basis.BasisUI
     public partial class LibraryProvider : BasisMenuActionProvider<BasisMainMenu>
     {
         #region Provider Setup
-
-        public static BasisProgressReport Report = new();
-        public static CancellationTokenSource CancellationSource = new();
-
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
         {
@@ -496,35 +502,37 @@ namespace Basis.BasisUI
         public static async Task<BasisLoadableBundleWrapper> BuildWrapper(BasisDataStoreItemKeys.ItemKey item)
         {
             // If the metadata is missing on disk, remove the key and DO NOT attempt to create a bundle from it.
-            if (!BasisLoadHandler.IsMetaDataOnDisc(item.Url, out BasisBEEExtensionMeta info))
+            if (BasisLoadHandler.IsMetaDataOnDisc(item.Url, out BasisBEEExtensionMeta info))
             {
-                BasisDebug.Log($"Attempted to BuildWrapper({item.Url}) but IsMetaDataOnDisc returned false, removing item {item.Url}");
-                await BasisDataStoreItemKeys.RemoveKey(item); 
+                BasisLoadableBundle bundle = new()
+                {
+                    BasisRemoteBundleEncrypted = info.StoredRemote,
+                    BasisLocalEncryptedBundle = info.StoredLocal,
+                    UnlockPassword = item.Pass,
+                    BasisBundleConnector = new BasisBundleConnector()
+                    {
+                        BasisBundleDescription = new BasisBundleDescription(),
+                        BasisBundleGenerated = new BasisBundleGenerated[] { new() },
+                        UniqueVersion = info.UniqueVersion,
+                    },
+                };
+                BasisTrackedBundleWrapper trackedWrapper = new()
+                {
+                    LoadableBundle = bundle,
+                };
+                BasisLoadableBundleWrapper wrapper = new BasisLoadableBundleWrapper();
+                wrapper.BasisLoadableBundle = bundle;
+                wrapper.ISEmbedded = false;
+                wrapper.basisTrackedBundleWrapper = trackedWrapper;
+
+                return wrapper;
+            }
+            else
+            {
+                BasisDebug.LogError($"Attempted to BuildWrapper({item.Url}) but IsMetaDataOnDisc returned false, removing item {item.Url}");
+                await BasisDataStoreItemKeys.RemoveKey(item);
                 return null;
             }
-
-            BasisLoadableBundleWrapper wrapper = new BasisLoadableBundleWrapper();
-            BasisLoadableBundle bundle = new()
-            {
-                BasisRemoteBundleEncrypted = info.StoredRemote,
-                BasisLocalEncryptedBundle = info.StoredLocal,
-                UnlockPassword = item.Pass,
-                BasisBundleConnector = new BasisBundleConnector()
-                {
-                    BasisBundleDescription = new BasisBundleDescription(),
-                    BasisBundleGenerated = new BasisBundleGenerated[]  {new() },
-                    UniqueVersion = info.UniqueVersion,
-                },
-            };
-            BasisTrackedBundleWrapper trackedWrapper = new()
-            {
-                LoadableBundle = bundle,
-            };
-            wrapper.BasisLoadableBundle = bundle;
-            wrapper.ISEmbedded = false;
-            wrapper.basisTrackedBundleWrapper = trackedWrapper;
-
-            return wrapper;
         }
 
         #endregion
@@ -1554,7 +1562,7 @@ namespace Basis.BasisUI
                             //BasisLoadableBundleWrapper wrapper = await BuildWrapper(item);
                             BasisLoadableBundle bundle = cached.BasisLoadableBundle;//wrapper.BasisLoadableBundle;
 
-                            //BasisProgressReport Report = new BasisProgressReport();
+                            BasisProgressReport Report = new BasisProgressReport();
                             CancellationToken Cancel = new CancellationToken();
 
                             // oh dear
