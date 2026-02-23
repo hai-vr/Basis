@@ -12,15 +12,12 @@ using System.Text.RegularExpressions;
 using TMPro;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
-using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
 using static Basis.BasisUI.PanelTextField;
 using static SerializableBasis;
 using System.Text;
 using static Basis.BasisUI.PanelPasswordField;
 using Basis.BasisUI.Styling;
-using UnityEngine.Events;
-using UnityEngine.InputSystem;
 using static Basis.BasisUI.LibraryProvider;
 
 namespace Basis.BasisUI
