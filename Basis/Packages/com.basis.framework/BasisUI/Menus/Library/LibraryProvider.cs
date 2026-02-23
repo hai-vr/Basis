@@ -40,6 +40,7 @@ namespace Basis.BasisUI
         private static BundledContentHolder.Mode _currentMode = BundledContentHolder.Mode.Prop;
         private static PanelTabPage _currentTab;
 
+
         public override async void RunAction()
         {
             if (BasisMainMenu.ActiveMenuTitle == Title) return;
@@ -55,7 +56,6 @@ namespace Basis.BasisUI
             var titleLabel = panel.Descriptor.TitleLabel;
             titleLabel.text = Title;
 
-            
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
             
             // create a tab group to hold our content categories

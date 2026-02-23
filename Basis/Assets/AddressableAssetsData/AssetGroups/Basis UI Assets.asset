@@ -43,11 +43,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: 1176a1853ad8f87448d1b6d2965b5dea
-    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Avatar List Page.prefab
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 161903a8b4937bc4db9393d6c554ef3d
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Dropdown - Entry
       No Title Variant.prefab

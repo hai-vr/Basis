@@ -11,6 +11,7 @@ using System.Collections;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using static Basis.Scripts.UI.UI_Panels.BasisDataStoreItemKeys;
 using static BasisHeightDriver;
 
 namespace Basis.Scripts.BasisSdk.Players
@@ -249,11 +250,11 @@ namespace Basis.Scripts.BasisSdk.Players
         {
             if (BasisLoadHandler.IsMetaDataOnDisc(LastUsedAvatar.UniqueID, out BasisBEEExtensionMeta info))
             {
-                await BasisDataStoreAvatarKeys.LoadKeys();
-                BasisDataStoreAvatarKeys.AvatarKey[] activeKeys = BasisDataStoreAvatarKeys.DisplayKeys();
-                foreach (BasisDataStoreAvatarKeys.AvatarKey Key in activeKeys)
+                await BasisDataStoreItemKeys.LoadKeys();
+                ItemKey[] activeKeys = BasisDataStoreItemKeys.DisplayKeys();
+                foreach (ItemKey Key in activeKeys)
                 {
-                    if (Key.Url == LastUsedAvatar.UniqueID)
+                    if (Key.Mode == BundledContentHolder.Mode.Avatar && Key.Url == LastUsedAvatar.UniqueID)
                     {
                         BasisLoadableBundle bundle = new BasisLoadableBundle
                         {
