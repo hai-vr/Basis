@@ -101,7 +101,7 @@ namespace Basis.BasisUI
 
             try
             {
-                BasisLoadableBundleWrapper wrapper = await BuildWrapper(item);//on disc call? 
+                BasisLoadableBundleWrapper wrapper = await LoadWrapperFromDisc(item);//on disc call? 
                 if(wrapper == null)
                 {
                     BasisDebug.LogError("Missing Wrapper!, was the data provided correct?");
@@ -496,7 +496,7 @@ namespace Basis.BasisUI
             public BasisTrackedBundleWrapper basisTrackedBundleWrapper;
         }
 
-        public static async Task<BasisLoadableBundleWrapper> BuildWrapper(BasisDataStoreItemKeys.ItemKey item)
+        public static async Task<BasisLoadableBundleWrapper> LoadWrapperFromDisc(BasisDataStoreItemKeys.ItemKey item)
         {
             // If the metadata is missing on disk, remove the key and DO NOT attempt to create a bundle from it.
             if (BasisLoadHandler.IsMetaDataOnDisc(item.Url, out BasisBEEExtensionMeta info))
