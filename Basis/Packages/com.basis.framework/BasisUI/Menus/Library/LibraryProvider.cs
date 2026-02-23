@@ -1,6 +1,10 @@
+using Basis.BasisUI.Styling;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
+using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
@@ -11,11 +15,12 @@ using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.InputSystem;
 using static Basis.BasisUI.PanelButton;
-using static Basis.BasisUI.PanelTextField;
-using static SerializableBasis;
 using static Basis.BasisUI.PanelPasswordField;
-using Basis.BasisUI.Styling;
+using static Basis.BasisUI.PanelTextField;
+using static Basis.Scripts.UI.BasisPointRaycaster;
+using static SerializableBasis;
 
 namespace Basis.BasisUI
 {
@@ -1058,23 +1063,6 @@ namespace Basis.BasisUI
 
         #region Spawn / Load Selected Item Functions
 
-        public static Vector3 GetSpawnPosition()
-        {
-            Vector3 playerPosReference = BasisLocalPlayer.Instance.gameObject.transform.position;
-            Vector3 forward = BasisLocalCameraDriver.Instance.gameObject.transform.forward;
-            return playerPosReference + new Vector3(0, 1.5f, 0) + forward * 2; // spawn 2 units in front of player
-        }
-
-        public static Quaternion GetSpawnRotation()
-        {
-            return Quaternion.identity;
-        }
-
-        public static Vector3 GetSpawnScale()
-        {
-            return Vector3.one;
-        }
-
         /// <summary>
         /// Apply the current avatar onto the player.
         /// </summary>
@@ -1120,43 +1108,127 @@ namespace Basis.BasisUI
                 BasisDebug.LogError("Attempted to LoadAvatar without a BasisLocalPlayer.Instance.");
             }
         }
-
+        
+            // Wait until trigger crosses a threshold (debounced).
+            const float triggerDownThreshold = 0.75f;
+            const float triggerUpThreshold = 0.20f;
         /// <summary>
         /// Spawn the selected prop into the world with the specified networking type.
+        /// Uses placement mode + trigger pull to confirm.
         /// </summary>
-        public static async Task LoadProp( 
-            BasisDataStoreItemKeys.ItemKey item, 
-            BundledContentHolder.NetworkType desiredNetworkType,
-            bool persistent = false,
-            bool modifyScale = false
-        )
+        public static async Task LoadProp(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType desiredNetworkType, bool persistent = false, bool modifyScale = false)
         {
+            var deviceinstance = BasisDeviceManagement.Instance;
+            // Pick an input device: LeftHand -> RightHand -> CenterEye
+            if (!deviceinstance.FindDevice(out PlacementInput, BasisBoneTrackedRole.LeftHand) &&
+                !deviceinstance.FindDevice(out PlacementInput, BasisBoneTrackedRole.RightHand) &&
+                !deviceinstance.FindDevice(out PlacementInput, BasisBoneTrackedRole.CenterEye))
+            {
+                BasisDebug.LogError("LoadProp failed: no suitable device found (LeftHand/RightHand/CenterEye).");
+                return;
+            }
+            if (CachedMetaData.TryGetMeta(item.Url, out var cached))
+            {
+            }
+            else
+            {
+                BasisDebug.LogError($"LoadSelectedItem failed to find cached meta for url {item.Url}, cannot load bundle without it!");
+            }
+            BasisDebug.Log("Forcefully closing the main menu");
+            BasisMainMenu.Close();
+            BasisBounds FinalBounds = cached.BasisBundleConnector.Bounds;
+            PlacementInput.BasisPointRaycaster.EnterPlacementMode(FinalBounds.extents);
+            BasisLocalPlayer.AfterSimulateOnLate.AddAction(122, VisualDrive);
 
-            // grab the item url and pass
-            string url = item.Url;
-            string pass = item.Pass ?? string.Empty;
+            var tcs = new TaskCompletionSource<(Vector3 pos, Quaternion rot, Vector3 scale)>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-            // get spawn information
-            Vector3 spawnPos = GetSpawnPosition();
-            Quaternion spawnRot = GetSpawnRotation();
-            Vector3 spawnScale = GetSpawnScale();
+            bool wasDown = false;
 
-            switch(desiredNetworkType)
+            void CleanupPlacement()
+            {
+                try { PlacementInput.CurrentInputState.OnTriggerChanged -= OnTriggerChanged; } catch { }
+                try { PlacementInput.BasisPointRaycaster.ExitPlacementMode(); } catch { }
+                try { BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(122, VisualDrive); } catch { }
+                try { Addressables.ReleaseInstance(PlacementCube); } catch { }
+                if (PlacementCube != null)
+                {
+                    GameObject.Destroy(PlacementCube);
+                }
+            }
+
+            void OnTriggerChanged()
+            {
+                try
+                {
+                    float t = PlacementInput.CurrentInputState.Trigger;
+
+                    // simple debounce: detect "up -> down" transition
+                    if (!wasDown && t >= triggerDownThreshold)
+                    {
+                        wasDown = true;
+
+                        // Ask raycaster for placement pose
+                        if (PlacementInput.BasisPointRaycaster.TryGetPlacement(out var placement))
+                        {
+                            Vector3 spawnPos = placement.Center;
+                            Quaternion spawnRot = placement.Rotation;
+
+                            // You can derive scale from item if you have it; defaulting to 1.
+                            Vector3 spawnScale = Vector3.one;
+
+                            tcs.TrySetResult((spawnPos, spawnRot, spawnScale));
+                            CleanupPlacement();
+                            return;
+                        }
+
+                        // Fallback if no placement hit: spawn in front of device
+                        Transform tr = PlacementInput.transform;
+                        Vector3 fallbackPos = tr.position + tr.forward * 0.75f;
+                        Quaternion fallbackRot = Quaternion.LookRotation(tr.forward, Vector3.up);
+                        tcs.TrySetResult((fallbackPos, fallbackRot, Vector3.one));
+                        CleanupPlacement();
+                        return;
+                    }
+                    if (wasDown && t <= triggerUpThreshold)
+                    {
+                        wasDown = false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    BasisDebug.LogError(ex);
+                    tcs.TrySetException(ex);
+                    CleanupPlacement();
+                }
+            }
+
+            PlacementInput.CurrentInputState.OnTriggerChanged += OnTriggerChanged;
+
+            (Vector3 spawnPos, Quaternion spawnRot, Vector3 spawnScale) placementResult;
+            try
+            {
+                placementResult = await tcs.Task;
+            }
+            finally
+            {
+                CleanupPlacement();
+            }
+
+            Vector3 finalPos = placementResult.spawnPos;
+            Quaternion finalRot = placementResult.spawnRot;
+            Vector3 finalScale = placementResult.spawnScale;
+            switch (desiredNetworkType)
             {
                 case BundledContentHolder.NetworkType.Local:
-
-                    if (CachedMetaData.TryGetMeta(url, out var cached))
                     {
-                        // Attach cached connector if present so callers (e.g., ShowItemOverlay)
-                        // can rely on wrapper having connector data.
+
                         if (cached.BasisBundleConnector != null)
                         {
                             BasisLoadableBundle bundle = cached.BasisLoadableBundle;
 
-                            BasisProgressReport Report = new BasisProgressReport();
-                            CancellationToken Cancel = new CancellationToken();
+                            BasisProgressReport report = new BasisProgressReport();
+                            CancellationToken cancel = default;
 
-                            // oh dear
                             var selector = item.Mode switch
                             {
                                 BundledContentHolder.Mode.Avatar => BundledContentHolder.Selector.Avatar,
@@ -1165,52 +1237,85 @@ namespace Basis.BasisUI
                                 _ => BundledContentHolder.Selector.Prop
                             };
 
-                            GameObject CreatedObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, Report, Cancel, spawnPos, spawnRot, spawnScale, modifyScale, selector, BasisNetworkManagement.Instance.transform);
+                            GameObject createdObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, report, cancel, finalPos, finalRot, finalScale, modifyScale, selector, BasisNetworkManagement.Instance.transform
+                            );
 
-                            if(CreatedObject != null)
+                            if (createdObject != null)
                             {
-                                Debug.Log($"Library provider successfully created item {url} with networking: {desiredNetworkType} at {CreatedObject.transform.position}.");
+                                Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}.");
                             }
                             else
                             {
-                                Debug.LogError($"Library provider failed to create desired with networking: {desiredNetworkType} with LoadSelectedItem of url {url} ");
+                                Debug.LogError($"Library provider failed to create desired with networking: {desiredNetworkType} with LoadSelectedItem of url {item.Url}");
                             }
-                        }
-                    }
-                    else
-                    {
-                        BasisDebug.LogError("LoadSelectedItem failed to find cached meta for url {url}, cannot load bundle without it!");
-                    }
-
-                    break;
-                case BundledContentHolder.NetworkType.Networked:
-                    // For networked loads, request the network spawn and register the instance
-                    try
-                    {
-                        LocalLoadResource loadedProp;
-                        bool ok = BasisNetworkSpawnItem.RequestGameObjectLoad(pass, url, spawnPos, spawnRot, spawnScale, persistent, modifyScale, out loadedProp);
-                        if (ok && !string.IsNullOrEmpty(loadedProp.LoadedNetID))
-                        {
-                            Basis.BasisRuntimeSpawnRegistry.Add(url, loadedProp.LoadedNetID, persistent, out _);
-                            BasisDebug.Log($"Requested networked load for {url}, NetID={loadedProp.LoadedNetID}", BasisDebug.LogTag.Networking);
                         }
                         else
                         {
-                            BasisDebug.LogError($"Failed to request networked load for {url}");
+                            BasisDebug.LogError($"LoadSelectedItem found cached meta for {item.Url} but BasisBundleConnector was null.");
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        BasisDebug.LogError(ex);
+
+                        break;
                     }
 
-                    break;
+                case BundledContentHolder.NetworkType.Networked:
+                    {
+                        try
+                        {
+                            LocalLoadResource loadedProp;
+                            bool ok = BasisNetworkSpawnItem.RequestGameObjectLoad(item.Pass, item.Url, finalPos, finalRot, finalScale, persistent, modifyScale, out loadedProp
+                            );
+
+                            if (ok && !string.IsNullOrEmpty(loadedProp.LoadedNetID))
+                            {
+                                Basis.BasisRuntimeSpawnRegistry.Add(item.Url, loadedProp.LoadedNetID, persistent, out _);
+                                BasisDebug.Log($"Requested networked load for {item.Url}, NetID={loadedProp.LoadedNetID}", BasisDebug.LogTag.Networking);
+                            }
+                            else
+                            {
+                                BasisDebug.LogError($"Failed to request networked load for {item.Url}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            BasisDebug.LogError(ex);
+                        }
+
+                        break;
+                    }
+
                 default:
                     BasisDebug.LogError($"Load selected item {item.Url} was loaded with an unknown network of {desiredNetworkType}! Nothing will happen.");
                     break;
             }
         }
-
+        public static BasisInput PlacementInput;
+        public static GameObject PlacementCube;
+        public static string PlacementAddress = "Packages/com.basis.sdk/Prefabs/SpawnOutline.prefab";
+        public static void VisualDrive()
+        {
+            if (PlacementCube == null)
+            {
+                UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(PlacementAddress);
+                GameObject go = op.WaitForCompletion();
+                PlacementCube = GameObject.Instantiate(go, BasisDeviceManagement.Instance.transform);
+                PlacementCube.name = "Placement";
+            }
+            if (PlacementInput != null && PlacementInput.BasisPointRaycaster.TryGetPlacement(out var placement))
+            {
+                if (placement.HasHit)
+                {
+                    PlacementCube.gameObject.SetActive(true);
+                    PlacementCube.transform.SetPositionAndRotation(placement.Center, placement.Rotation);
+                    PlacementCube.transform.localScale = placement.Extents;
+                }
+                else
+                {
+                    PlacementCube.gameObject.SetActive(false);
+                  ////  PlacementCube.transform.SetPositionAndRotation(placement.Center, placement.Rotation);
+                  //  PlacementCube.transform.localScale = placement.Extents;
+                }
+            }
+        }
         /// <summary>
         /// used to load a target item from a BasisDataStoreItemKeys.ItemKey
         /// items are branched with a switch statement depending on item mode

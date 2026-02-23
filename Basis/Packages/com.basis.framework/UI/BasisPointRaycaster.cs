@@ -70,7 +70,7 @@ namespace Basis.Scripts.UI
             public Quaternion Rotation;
 
             // Half size of the placement box in *local* space where local Y is "up"
-            public Vector3 HalfExtents;
+            public Vector3 Extents;
 
             public float Distance => HasHit ? Hit.distance : float.PositiveInfinity;
         }
@@ -88,7 +88,7 @@ namespace Basis.Scripts.UI
             {
                 HasHit = false,
                 Ray = ray,
-                HalfExtents = halfExtents
+                Extents = halfExtents
             };
         }
         public void ExitPlacementMode()
@@ -297,13 +297,13 @@ namespace Basis.Scripts.UI
                 {
                     HasHit = false,
                     Ray = ray,
-                    HalfExtents = CurrentPlacement.HalfExtents // preserve configured extents
+                    Extents = CurrentPlacement.Extents // preserve configured extents
                 };
                 return;
             }
 
             // Compute placement OBB pose (center + rotation)
-            ComputePlacementOBB(best, ray, CurrentPlacement.HalfExtents, out var center, out var rot);
+            ComputePlacementOBB(best, ray, CurrentPlacement.Extents, out var center, out var rot);
 
             CurrentPlacement = new PlacementResult
             {
@@ -312,7 +312,7 @@ namespace Basis.Scripts.UI
                 Hit = best,
                 Center = center,
                 Rotation = rot,
-                HalfExtents = CurrentPlacement.HalfExtents
+                Extents = CurrentPlacement.Extents
             };
         }
 
@@ -431,7 +431,7 @@ namespace Basis.Scripts.UI
 
                 Matrix4x4 old = Gizmos.matrix;
                 Gizmos.matrix = Matrix4x4.TRS(CurrentPlacement.Center, CurrentPlacement.Rotation, Vector3.one);
-                Gizmos.DrawWireCube(Vector3.zero, CurrentPlacement.HalfExtents * 2f);
+                Gizmos.DrawWireCube(Vector3.zero, CurrentPlacement.Extents);
                 Gizmos.matrix = old; 
             }
         }
