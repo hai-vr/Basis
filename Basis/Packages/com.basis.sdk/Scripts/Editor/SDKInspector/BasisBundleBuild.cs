@@ -30,7 +30,7 @@ public static class BasisBundleBuild
             }
         }
 
-        Bounds unitybounds = CalculateGameObjectBounds(BasisContentBase.gameObject);
+        Bounds unitybounds = CalculateLocalRenderBounds(BasisContentBase.gameObject);
         BasisBounds BasisBounds = new BasisBounds(unitybounds.center, unitybounds.size);
 
         var meta = GenerateMetaData(BasisContentBase.gameObject);
@@ -47,28 +47,89 @@ public static class BasisBundleBuild
                 BasisAssetBundlePipeline.BuildAssetBundle(content.gameObject, obj, hex, target, buildId)
         );
     }
-    public static Bounds CalculateGameObjectBounds(GameObject parent)
+    /// <summary>
+    /// Calculates bounds of all child renderers in PARENT LOCAL SPACE (pivot-relative).
+    /// This is stable even if the object is moved/rotated in the world before measuring.
+    /// </summary>
+    public static Bounds CalculateLocalRenderBounds(GameObject parent)
     {
         var renderers = parent.GetComponentsInChildren<Renderer>(true);
+        if (renderers == null || renderers.Length == 0)
+            return new Bounds(Vector3.zero, Vector3.zero);
 
-        if (renderers.Length == 0)
+        Matrix4x4 parentWorldToLocal = parent.transform.worldToLocalMatrix;
+
+        bool hasAny = false;
+        Bounds accum = default;
+
+        foreach (var r in renderers)
         {
-            return new Bounds(parent.transform.position, Vector3.zero);
+            if (r == null) continue;
+
+            Bounds srcLocal;
+
+            if (r is SkinnedMeshRenderer smr)
+            {
+                // In smr local space
+                srcLocal = smr.localBounds;
+            }
+            else if (r is MeshRenderer mr)
+            {
+                var mf = mr.GetComponent<MeshFilter>();
+                if (mf == null || mf.sharedMesh == null) continue;
+
+                // In mesh local space (same as MeshFilter transform local space)
+                srcLocal = mf.sharedMesh.bounds;
+            }
+            else
+            {
+                continue; // ignore other renderer types for now
+            }
+
+            // Map from renderer local -> world -> parent local
+            Matrix4x4 toParentLocal = parentWorldToLocal * r.transform.localToWorldMatrix;
+
+            // Transform bounds center and extents to new AABB in parent local space
+            Bounds transformed = TransformBoundsAABB(srcLocal, toParentLocal);
+
+            if (!hasAny)
+            {
+                accum = transformed;
+                hasAny = true;
+            }
+            else
+            {
+                accum.Encapsulate(transformed.min);
+                accum.Encapsulate(transformed.max);
+            }
         }
 
-        Bounds bounds = renderers[0].bounds;
+        if (!hasAny)
+            return new Bounds(Vector3.zero, Vector3.zero);
 
-        for (int Index = 1; Index < renderers.Length; Index++)
-        {
-            bounds.Encapsulate(renderers[Index].bounds);
-        }
-        if (bounds.extents == Vector3.zero)
-        {
-            bounds = new Bounds(Vector3.zero, new Vector3(0.1f, 0.1f, 0.1f));
-        }
-        return bounds;
+        if (accum.extents == Vector3.zero)
+            accum = new Bounds(accum.center, new Vector3(0.1f, 0.1f, 0.1f));
+
+        return accum;
     }
 
+    private static Bounds TransformBoundsAABB(Bounds b, Matrix4x4 m)
+    {
+        // Standard affine bounds transform:
+        Vector3 c = m.MultiplyPoint3x4(b.center);
+
+        Vector3 ex = m.MultiplyVector(new Vector3(b.extents.x, 0f, 0f));
+        Vector3 ey = m.MultiplyVector(new Vector3(0f, b.extents.y, 0f));
+        Vector3 ez = m.MultiplyVector(new Vector3(0f, 0f, b.extents.z));
+
+        Vector3 e = new Vector3(
+            Mathf.Abs(ex.x) + Mathf.Abs(ey.x) + Mathf.Abs(ez.x),
+            Mathf.Abs(ex.y) + Mathf.Abs(ey.y) + Mathf.Abs(ez.y),
+            Mathf.Abs(ex.z) + Mathf.Abs(ey.z) + Mathf.Abs(ez.z)
+        );
+
+        return new Bounds(c, e * 2f);
+    }
     public static bool CheckTarget(BuildTarget target)
     {
         bool isSupported = BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, target) ||
