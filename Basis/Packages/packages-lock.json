@@ -153,7 +153,7 @@
       "dependencies": {}
     },
     "com.llealloo.audiolink": {
-      "version": "file:AudioLink",
+      "version": "file:com.llealloo.audiolink",
       "depth": 0,
       "source": "embedded",
       "dependencies": {}
