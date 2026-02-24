@@ -97,7 +97,7 @@ namespace Basis.BasisUI
                         (Vector3 spawnPos, Quaternion spawnRot, Vector3 spawnScale) placementResult;
                         try
                         {
-                            placementResult = await PlacementManager.BeginPlacement(input, FinalBounds.extents);
+                            placementResult = await PlacementManager.BeginPlacement(input, FinalBounds.extents,FinalBounds.center);
                         }
                         catch (TaskCanceledException)
                         {
@@ -115,8 +115,8 @@ namespace Basis.BasisUI
                         finalScale = placementResult.spawnScale;
                         break;
                     case BundledContentHolder.PlacementType.SpawnInFrontOfPlayer:
-                        Vector3 playerPosReference = BasisLocalCameraDriver.Instance.gameObject.transform.position;
-                        Vector3 forward = BasisLocalCameraDriver.Instance.gameObject.transform.forward;
+                        Vector3 playerPosReference = BasisLocalCameraDriver.Position;
+                        Vector3 forward = BasisLocalCameraDriver.Forward();
 
                         finalPos = EmbeddedItems.GetOffsetForEmbeddedItem(item, playerPosReference, forward);
                         finalRot = Quaternion.LookRotation(forward, Vector3.up);
@@ -124,7 +124,7 @@ namespace Basis.BasisUI
                         BasisMainMenu.Close();
                         break;
                     case BundledContentHolder.PlacementType.SpawnAtPlayerOrigin:
-                        finalPos = BasisLocalPlayer.Instance.gameObject.transform.position;
+                        finalPos = BasisLocalPlayer.Instance.PlayerSelf.position;
                         BasisMainMenu.Close();
                         break;
                     default:
@@ -140,10 +140,10 @@ namespace Basis.BasisUI
 
                             if (item.IsEmbedded)
                             {
-                                    AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
-                                    GameObject CreatedObject = op.WaitForCompletion();
-                                    GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
-                                    ContentLoaderStore.Add(item, instance);
+                                AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
+                                GameObject CreatedObject = op.WaitForCompletion();
+                                GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
+                                await ContentLoaderStore.Add(item, instance);
                             }
                             else
                             {
@@ -167,7 +167,7 @@ namespace Basis.BasisUI
                                     if (createdObject != null)
                                     {
                                         Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}.");
-                                        ContentLoaderStore.Add(item, createdObject);
+                                        await ContentLoaderStore.Add(item, createdObject);
                                     }
                                     else
                                     {

@@ -13,7 +13,6 @@ namespace Basis.BasisUI
     /// </summary>
     public static class PlacementManager
     {
-        // Wait until trigger crosses a threshold (debounced).
         private const float triggerDownThreshold = 0.75f;
         private const float triggerUpThreshold = 0.20f;
 
@@ -25,25 +24,26 @@ namespace Basis.BasisUI
         private static TaskCompletionSource<(Vector3 pos, Quaternion rot, Vector3 scale)> _tcs;
         private static bool _wasDown = false;
 
-        /// <summary>
-        /// BeginPlacement is used to start a TaskCompletionSource that runs until a user is finished placing or cancelled the request
-        /// Request is done by opening the basis main menu
-        /// </summary>
-        /// <param name="pos">pos of where the raycast is</param>
-        /// <param name="rot">rotation of the item</param>
-        /// <param name="input">BasisInput for desktop/vr controls detection</param>
-        /// <param name="extents">The Vector3 bounds of the item being spawned</param>
-        /// <returns></returns>
-        public static async Task<(Vector3 pos, Quaternion rot, Vector3 scale)> BeginPlacement(BasisInput input, Vector3 extents)
+        // NEW: store placement metadata for finalize step
+        private static Vector3 _localBoundsCenter;
+        private static Vector3 _halfExtents;
+
+        public static async Task<(Vector3 pos, Quaternion rot, Vector3 scale)> BeginPlacement(
+            BasisInput input,
+            Vector3 halfExtents,
+            Vector3 localBoundsCenter)
         {
             if (input == null) throw new ArgumentNullException(nameof(input));
 
             PlacementInput = input;
 
-            // Enter placement mode on the raycaster
-            PlacementInput.BasisPointRaycaster.EnterPlacementMode(extents);
+            // Store for finalize step
+            _localBoundsCenter = localBoundsCenter;
+            _halfExtents = halfExtents;
 
-            // Add update loop
+            // Enter placement mode on the raycaster (expects HALF-extents)
+            PlacementInput.BasisPointRaycaster.EnterPlacementMode(halfExtents);
+
             BasisLocalPlayer.AfterSimulateOnLate.AddAction(122, VisualDrive);
 
             _tcs = new TaskCompletionSource<(Vector3, Quaternion, Vector3)>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -52,14 +52,8 @@ namespace Basis.BasisUI
             _triggerHandler = PlacementOnTriggerChanged;
             try { PlacementInput.CurrentInputState.OnTriggerChanged += _triggerHandler; } catch { }
 
-            try
-            {
-                return await _tcs.Task;
-            }
-            finally
-            {
-                CancelPlacement();
-            }
+            try { return await _tcs.Task; }
+            finally { CancelPlacement(); }
         }
 
         public static void CancelPlacement()
@@ -73,15 +67,18 @@ namespace Basis.BasisUI
             try
             {
                 if (_tcs != null && !_tcs.Task.IsCompleted)
-                {
                     _tcs.TrySetCanceled();
-                }
             }
             catch { }
 
             _tcs = null;
             _triggerHandler = null;
             _wasDown = false;
+
+            // NEW: clear stored data
+            _localBoundsCenter = default;
+            _halfExtents = default;
+
             PlacementInput = null;
         }
 
@@ -95,7 +92,7 @@ namespace Basis.BasisUI
 
             if (PlacementCube == null)
             {
-                UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(PlacementAddress);
+                var op = Addressables.LoadAssetAsync<GameObject>(PlacementAddress);
                 GameObject go = op.WaitForCompletion();
                 PlacementCube = GameObject.Instantiate(go, BasisDeviceManagement.Instance.transform);
                 PlacementCube.name = "Placement";
@@ -107,7 +104,9 @@ namespace Basis.BasisUI
                 {
                     PlacementCube.gameObject.SetActive(true);
                     PlacementCube.transform.SetPositionAndRotation(placement.Center, placement.Rotation);
-                    PlacementCube.transform.localScale = placement.Extents;
+
+                    // placement.Extents is HALF-size; preview cube scale expects FULL size
+                    PlacementCube.transform.localScale = placement.Extents * 2f;
                 }
                 else
                 {
@@ -130,7 +129,14 @@ namespace Basis.BasisUI
 
                     if (PlacementInput.BasisPointRaycaster.TryGetPlacement(out var placement))
                     {
-                        _tcs.TrySetResult((placement.Center, placement.Rotation, Vector3.one));
+                        // Place the object so the BOTTOM of its bounds touches the hit point.
+                        // local bottom = localCenter - up * halfHeight
+                        Vector3 localBottom = _localBoundsCenter - Vector3.up * _halfExtents.y;
+
+                        // Solve for pivot position such that pivot + rot*localBottom == hit.point
+                        Vector3 spawnPos = placement.Hit.point - (placement.Rotation * localBottom);
+
+                        _tcs.TrySetResult((spawnPos, placement.Rotation, Vector3.one));
                         CancelPlacement();
                         return;
                     }
@@ -144,9 +150,7 @@ namespace Basis.BasisUI
                 }
 
                 if (_wasDown && t <= triggerUpThreshold)
-                {
                     _wasDown = false;
-                }
             }
             catch (Exception ex)
             {

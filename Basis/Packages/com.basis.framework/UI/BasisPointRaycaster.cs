@@ -416,23 +416,22 @@ namespace Basis.Scripts.UI
         private void OnDrawGizmosSelected()
         {
             if (!SMModuleDebugOptions.UseGizmos)
-            {
                 return;
-            }
 
-            // Draw the ray
             Gizmos.color = Color.cyan;
             Gizmos.DrawLine(ray.origin, ray.origin + ray.direction * MaxDistance);
 
-            // Draw placement OBB if active
             if (_mode == ControlMode.Placement && CurrentPlacement.HasHit)
             {
                 Gizmos.color = Color.yellow;
 
                 Matrix4x4 old = Gizmos.matrix;
                 Gizmos.matrix = Matrix4x4.TRS(CurrentPlacement.Center, CurrentPlacement.Rotation, Vector3.one);
-                Gizmos.DrawWireCube(Vector3.zero, CurrentPlacement.Extents);
-                Gizmos.matrix = old; 
+
+                // DrawWireCube expects FULL size; CurrentPlacement.Extents is HALF size
+                Gizmos.DrawWireCube(Vector3.zero, CurrentPlacement.Extents * 2f);
+
+                Gizmos.matrix = old;
             }
         }
     }
