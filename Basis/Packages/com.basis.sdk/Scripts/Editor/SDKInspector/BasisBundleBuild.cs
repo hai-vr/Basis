@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
@@ -44,8 +45,7 @@ public static class BasisBundleBuild
             useProvidedPassword: useProvidedPassword,
             OverridenPassword: OverridenPassword,
             buildFunction: (content, obj, hex, target, buildId) =>
-                BasisAssetBundlePipeline.BuildAssetBundle(content.gameObject, obj, hex, target, buildId)
-        );
+                BasisAssetBundlePipeline.BuildAssetBundle(content.gameObject, obj, hex, target, MakeSafeFolderName(BasisContentBase.BasisBundleDescription.AssetBundleName)));
     }
     /// <summary>
     /// Calculates bounds of all child renderers in PARENT LOCAL SPACE (pivot-relative).
@@ -169,9 +169,60 @@ public static class BasisBundleBuild
             targets: Targets,
             useProvidedPassword: useProvidedPassword,
             OverridenPassword: OverridenPassword,
-            buildFunction: (content, obj, hex, target, buildId) =>
-                BasisAssetBundlePipeline.BuildAssetBundle(scene, obj, hex, target, buildId)
-        );
+            buildFunction: (content, obj, hex, target, buildId) => BasisAssetBundlePipeline.BuildAssetBundle(scene, obj, hex, target, MakeSafeFolderName(BasisContentBase.BasisBundleDescription.AssetBundleName)));
+    }
+    // Windows reserved device names (case-insensitive)
+    private static readonly string[] ReservedNames =
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9",
+        "LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"
+    };
+
+    public static string MakeSafeFolderName(string input, int maxLength = 64)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return "Folder";
+
+        // Normalize to avoid weird unicode combining issues
+        input = input.Normalize(NormalizationForm.FormKC);
+
+        // Remove invalid path chars (cross-platform safe)
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder(input.Length);
+
+        foreach (char c in input)
+        {
+            if (invalidChars.Contains(c) || char.IsControl(c))
+                builder.Append('_');
+            else
+                builder.Append(c);
+        }
+
+        string result = builder.ToString();
+
+        // Remove trailing dots/spaces (Windows hates these)
+        result = result.Trim().TrimEnd('.', ' ');
+
+        // Collapse repeated underscores
+        result = Regex.Replace(result, "_{2,}", "_");
+
+        // Prevent empty
+        if (string.IsNullOrWhiteSpace(result))
+            result = "Folder";
+
+        // Prevent reserved names (Windows)
+        if (ReservedNames.Any(r =>
+            string.Equals(r, result, StringComparison.OrdinalIgnoreCase)))
+        {
+            result = "_" + result;
+        }
+
+        // Enforce max length
+        if (result.Length > maxLength)
+            result = result.Substring(0, maxLength);
+
+        return result;
     }
     public static Bounds CalculateSceneBounds(Scene scene)
     {

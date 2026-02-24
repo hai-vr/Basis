@@ -44,17 +44,14 @@ public static class BasisAssetBundlePipeline
       BasisAssetBundleObject settings,
       string Password,
       BuildTarget Target,
-      string buildId)
+      string Folder)
     {
         if (EditorUserBuildSettings.activeBuildTarget != Target)
         {
             EditorUserBuildSettings.SwitchActiveBuildTarget(BuildPipeline.GetBuildTargetGroup(Target), Target);
         }
-
-        // CHANGED: write Unity BuildPipeline outputs into the "uncombined" staging folder,
-        // isolated per build-id and per target.
         string uncombinedRoot = BasisBundleBuild.PathConversion(settings.AssetBundleUnCombined);
-        string targetDirectory = Path.Combine(uncombinedRoot, buildId, Target.ToString());
+        string targetDirectory = Path.Combine(uncombinedRoot, Folder, Target.ToString());
 
         TemporaryStorageHandler.ClearTemporaryStorage(targetDirectory);
         TemporaryStorageHandler.EnsureDirectoryExists(targetDirectory);
