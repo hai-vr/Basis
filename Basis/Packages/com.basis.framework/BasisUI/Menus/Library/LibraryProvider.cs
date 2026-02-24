@@ -1,6 +1,7 @@
 using Basis.BasisUI.Styling;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.UI.UI_Panels;
+using Mono.Cecil.Cil;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -8,6 +9,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
+using Unity.Android.Gradle.Manifest;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.UI;
@@ -40,7 +43,7 @@ namespace Basis.BasisUI
         public enum Page
         {
             Prop = 0,
-            Worlds = 1,
+            World = 1,
             Avatar = 2,
             Instantiated = 3
         }
@@ -78,14 +81,14 @@ namespace Basis.BasisUI
             tabMap = new Dictionary<Page, PanelTabPage>
             {
                 [Page.Avatar] = avatarsTab,
-                [Page.Worlds] = worldsTab,
+                [Page.World] = worldsTab,
                 [Page.Prop] = propsTab,
                 [Page.Instantiated] = instantiatedTab
             };
 
             // Attach per-tab refresh callbacks that only fetch and rebuild the associated tab when selected
             tabGroup.AddTab("Props", AddressableAssets.Sprites.Items, async () => await RefreshTabAsync(Page.Prop), propsTab);
-            tabGroup.AddTab("Worlds", AddressableAssets.Sprites.World, async () => await RefreshTabAsync(Page.Worlds), worldsTab);
+            tabGroup.AddTab("Worlds", AddressableAssets.Sprites.World, async () => await RefreshTabAsync(Page.World), worldsTab);
             tabGroup.AddTab("Avatars",AddressableAssets.Sprites.Avatars, async () => await RefreshTabAsync(Page.Avatar), avatarsTab);
             tabGroup.AddTab("Instantiated", AddressableAssets.Sprites.List, async () => await RefreshTabAsync(Page.Instantiated), instantiatedTab);
 
@@ -268,16 +271,11 @@ namespace Basis.BasisUI
 
         public static PanelTabPage InstantiatedTab(PanelTabGroup tabGroup)
         {
-            PanelTabPage tab = PanelTabPage.CreateGrid(tabGroup.Descriptor.ContentParent);
+            PanelTabPage tab = PanelTabPage.CreateVerticalAlternate(tabGroup.Descriptor.ContentParent);
             tab.rectTransform.offsetMin = new Vector2(0, 0);
             var d = tab.Descriptor;
             d.SetTitle("Instantiated");
-            // d.SetDescription( "TO_BE_IMPLEMENTED" );
-            // d.SetIcon( AddressableAssets.Sprites.Calibrate );
             d.ForceRebuild();
-
-            // now fow we put a text field saying to be implemented
-
             return tab;
         }
 
@@ -291,6 +289,24 @@ namespace Basis.BasisUI
                 CreateItemCard(item, container);
             }
         }
+
+        private static async Task BuildItemsListForInstantiatedObjects(ContentLoaderStore.LoadedItem[] loadedItems, PanelTabPage tab)
+        {
+            RectTransform container = tab.Descriptor.ContentParent;
+        
+            foreach (var entry in loadedItems)
+            {
+                int instanceId = entry.InstanceId;
+                BasisDataStoreItemKeys.ItemKey itemKey = entry.ItemKey;
+                GameObject go = entry.GameObject;
+
+                if (go == null)
+                    continue;
+
+                CreateListEntry(itemKey, container, instanceId, go);
+            }
+        }
+
         private static void ClearTabContent(RectTransform container)
         {
             if (container == null) return;
@@ -313,7 +329,11 @@ namespace Basis.BasisUI
         private static async Task RefreshTabAsync(Page page)
         {
             PanelTabPage tab = tabMap[page];
+            BasisDebug.Log($"RefreshTabAsync() was invoked -> for page = {page}, tab = {tab} _currentTab = {_currentTab}, ");
             if (tab == null) return;
+            
+            // Ensure keys are loaded
+            await BasisDataStoreItemKeys.LoadKeys();
 
             // If a different tab was previously active, clear its content when switching
             if (_currentTab != null && _currentTab != tab)
@@ -339,27 +359,12 @@ namespace Basis.BasisUI
                 try
                 {
 
-                    // Ensure keys are loaded
-                    await BasisDataStoreItemKeys.LoadKeys();
-
                     // // // Only fetch keys matching the requested mode, so if we only want props only grab props returned in data
                     // // var data = BasisDataStoreItemKeys.DisplayKeys()
                     // //     .Where(k => k.Mode == mode)
                     // //     .ToList();
                     
-                    // // grab all the keys
-                    // var data = BasisDataStoreItemKeys.DisplayKeys().ToList();
-
-                    // // grab the hard coded keys for EmbbedItems
-                    // BasisDataStoreItemKeys.ItemKey[] hardcodedKeys = EmbeddedItems.HardcodedKeys;
-
-                    // // add the embedded items to the data
-                    // data.AddRange(hardcodedKeys);
-                    
-                    // // filter for the correct item
-                    // data = data.Where(k => k.Mode == mode).ToList();
-                    
-                    // load the data store keys, add the hardcoded keys, filter for tab return as list
+                    // build data to be used
                     var data = BasisDataStoreItemKeys.DisplayKeys()
                         .Concat(EmbeddedItems.HardcodedKeys)
                         .Where(k => k.Mode == mode)
@@ -430,14 +435,20 @@ namespace Basis.BasisUI
                 {
                     BasisDebug.LogError(e);
                 }
+
+                BasisDebug.LogWarning("Normal Tab Stuff");
             }
             else
             {
+                BasisDebug.LogWarning("Doing Instantiated Tab Stuff");
+
+                // grab the data?
+                ContentLoaderStore.LoadedItem[] loadedItems = await ContentLoaderStore.GetAll();
+
                 // this is most likely to be the instantiated tab so
                 ClearTabContent(tab.Descriptor.ContentParent);
-
                 // TODO build list of instantiated objects
-
+                await BuildItemsListForInstantiatedObjects(loadedItems, tab);
                 tab.Descriptor.ForceRebuild();
             }
 
@@ -1327,6 +1338,59 @@ namespace Basis.BasisUI
             {
                 BasisDebug.LogError(ex);
             }
+        }
+
+        #endregion
+
+        #region InstiatedListElement
+
+        // TODO use items key
+        // 
+        private static async void CreateListEntry(BasisDataStoreItemKeys.ItemKey itemKey, RectTransform parentTabGroup, int instanceID, GameObject gameObject)
+        {
+            // // icon for the selected item
+            // var itemIcon = PanelElementDescriptor.CreateNew(
+            //     PanelElementDescriptor.ElementStyles.GroupLargeIconVertical, parentTabGroup);
+
+            // createdInformationTextField.Descriptor.SetTitle(item.Url);
+            // createdInformationTextField.Descriptor.SetDescription($"Embedded item");
+            // itemIcon.SetIcon(EmbeddedItems.GetSpriteForEmbeddedItem(item));
+
+            BasisDebug.Log($"creating list entry for item url = {itemKey.Url} with instanceID = {instanceID}");
+
+            PanelTabGroup itemListPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, parentTabGroup);
+            itemListPanel.Descriptor.SetWidth( 1400 );
+            itemListPanel.Descriptor.SetHeight( 80 );
+
+            // simple info
+            PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
+            itemTextInfo._inputField.gameObject.SetActive(false); // disable the text input field box
+            itemTextInfo.Descriptor.SetTitle(itemKey.Url);
+            //createdInformationTextField.Descriptor.SetIcon(EmbeddedItems.GetSpriteForEmbeddedItem(item));
+            itemTextInfo.Descriptor.SetDescription($"Embedded item");
+
+            itemTextInfo.Descriptor.SetHeight(50);
+            itemTextInfo.Descriptor.SetWidth(400);
+
+
+            PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);
+            removeItem.Descriptor.SetTitle("Remove");
+            removeItem.SetSize(new Vector2(200, 60));
+            removeItem.OnClicked += async () =>
+            {
+                if(gameObject != null)
+                {
+                    GameObject.Destroy(gameObject);
+                }
+
+                // remove the item from the list
+                await ContentLoaderStore.Remove(instanceID);
+
+                await RefreshCurrentTab();
+            };
+            
+
+            
         }
 
         #endregion

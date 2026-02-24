@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
@@ -139,9 +140,10 @@ namespace Basis.BasisUI
 
                             if (item.IsEmbedded)
                             {
-                                AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
-                                GameObject CreatedObject = op.WaitForCompletion();
-                                GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
+                                    AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
+                                    GameObject CreatedObject = op.WaitForCompletion();
+                                    GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
+                                    ContentLoaderStore.Add(item, instance);
                             }
                             else
                             {
@@ -165,6 +167,7 @@ namespace Basis.BasisUI
                                     if (createdObject != null)
                                     {
                                         Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}.");
+                                        ContentLoaderStore.Add(item, createdObject);
                                     }
                                     else
                                     {
