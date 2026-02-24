@@ -1,7 +1,6 @@
 using Basis.BasisUI.Styling;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.UI.UI_Panels;
-using Mono.Cecil.Cil;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -9,7 +8,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
-using Unity.Android.Gradle.Manifest;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
