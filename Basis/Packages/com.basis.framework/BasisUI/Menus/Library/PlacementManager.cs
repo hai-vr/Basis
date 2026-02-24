@@ -8,6 +8,9 @@ using UnityEngine.AddressableAssets;
 
 namespace Basis.BasisUI
 {
+    /// <summary>
+    /// Used by the LibraryProvider.cs when a item is desired to spawn with a raycast placement
+    /// </summary>
     public static class PlacementManager
     {
         // Wait until trigger crosses a threshold (debounced).
@@ -22,6 +25,15 @@ namespace Basis.BasisUI
         private static TaskCompletionSource<(Vector3 pos, Quaternion rot, Vector3 scale)> _tcs;
         private static bool _wasDown = false;
 
+        /// <summary>
+        /// BeginPlacement is used to start a TaskCompletionSource that runs until a user is finished placing or cancelled the request
+        /// Request is done by opening the basis main menu
+        /// </summary>
+        /// <param name="pos">pos of where the raycast is</param>
+        /// <param name="rot">rotation of the item</param>
+        /// <param name="input">BasisInput for desktop/vr controls detection</param>
+        /// <param name="extents">The Vector3 bounds of the item being spawned</param>
+        /// <returns></returns>
         public static async Task<(Vector3 pos, Quaternion rot, Vector3 scale)> BeginPlacement(BasisInput input, Vector3 extents)
         {
             if (input == null) throw new ArgumentNullException(nameof(input));

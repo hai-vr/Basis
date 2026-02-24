@@ -36,7 +36,16 @@ namespace Basis.BasisUI
         private static LibraryDateSortMode _currentSort = LibraryDateSortMode.Name; // current sort mode for the library, default to name sorting
         // private static LibraryNetworkFilter _currentNetworkFilter = LibraryNetworkFilter.All;
         private static string _currentSearchQuery = string.Empty;
-        private static BundledContentHolder.Mode _currentMode = BundledContentHolder.Mode.Prop;
+
+        public enum Page
+        {
+            Prop = 0,
+            Worlds = 1,
+            Avatar = 2,
+            Instantiated = 3
+        }
+        private static Page _currentPage = Page.Avatar;
+        private static Dictionary<Page, PanelTabPage> tabMap;
         private static PanelTabPage _currentTab;
 
         public override async void RunAction()
@@ -65,11 +74,20 @@ namespace Basis.BasisUI
             var avatarsTab = AvatarsTab(tabGroup);
             var instantiatedTab = InstantiatedTab(tabGroup);
 
+            // map of the pages to enums
+            tabMap = new Dictionary<Page, PanelTabPage>
+            {
+                [Page.Avatar] = avatarsTab,
+                [Page.Worlds] = worldsTab,
+                [Page.Prop] = propsTab,
+                [Page.Instantiated] = instantiatedTab
+            };
+
             // Attach per-tab refresh callbacks that only fetch and rebuild the associated tab when selected
-            tabGroup.AddTab("Props", AddressableAssets.Sprites.Items, async () => await RefreshTabAsync(BundledContentHolder.Mode.Prop, propsTab), propsTab);
-            tabGroup.AddTab("Worlds", AddressableAssets.Sprites.World, async () => await RefreshTabAsync(BundledContentHolder.Mode.World, worldsTab), worldsTab);
-            tabGroup.AddTab("Avatars",AddressableAssets.Sprites.Avatars, async () => await RefreshTabAsync(BundledContentHolder.Mode.Avatar, avatarsTab), avatarsTab);
-            tabGroup.AddTab("Instantiated", AddressableAssets.Sprites.List, null, instantiatedTab);
+            tabGroup.AddTab("Props", AddressableAssets.Sprites.Items, async () => await RefreshTabAsync(Page.Prop), propsTab);
+            tabGroup.AddTab("Worlds", AddressableAssets.Sprites.World, async () => await RefreshTabAsync(Page.Worlds), worldsTab);
+            tabGroup.AddTab("Avatars",AddressableAssets.Sprites.Avatars, async () => await RefreshTabAsync(Page.Avatar), avatarsTab);
+            tabGroup.AddTab("Instantiated", AddressableAssets.Sprites.List, async () => await RefreshTabAsync(Page.Instantiated), instantiatedTab);
 
             // create a search text field in the tab group extras area
             searchField = PanelTextField.CreateNew(TextFieldStyles.EntryWithNoTitle, tabGroup.ExtrasContainer);
@@ -133,8 +151,11 @@ namespace Basis.BasisUI
             // add our extra menu button items, this is the buttons below the panel content
             tabGroup.AddExtraAction("Add New Content", PromptUserForNewContent, new Vector2( 70, 80 ));
 
-            await RefreshTabAsync(BundledContentHolder.Mode.Prop, propsTab); // default to props tab on first open
+            // set the current tab to the current page
+            tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
 
+            await RefreshCurrentTab(); // refresh the current active tab i.e what is defined by default above _currentPage
+            
             panel.Descriptor.ForceRebuild();
         }
 
@@ -214,7 +235,7 @@ namespace Basis.BasisUI
 
         #endregion
 
-        #region PropsTab, WorldsTab, AvatarsTab, BuildItemsList, ClearTabContent, RefreshTabAsync, RefreshCurrentTab
+        #region PropsTab, WorldsTab, AvatarsTab, InstantiatedTab, BuildItemsList, ClearTabContent, RefreshTabAsync, RefreshCurrentTab
         public static PanelTabPage PropsTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateGrid(tabGroup.Descriptor.ContentParent);
@@ -224,6 +245,7 @@ namespace Basis.BasisUI
             d.ForceRebuild();
             return tab;
         }
+
         public static PanelTabPage WorldsTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateGrid(tabGroup.Descriptor.ContentParent);
@@ -233,6 +255,7 @@ namespace Basis.BasisUI
             d.ForceRebuild();
             return tab;
         }
+
         public static PanelTabPage AvatarsTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateGrid(tabGroup.Descriptor.ContentParent);
@@ -242,6 +265,22 @@ namespace Basis.BasisUI
             d.ForceRebuild();
             return tab;
         }
+
+        public static PanelTabPage InstantiatedTab(PanelTabGroup tabGroup)
+        {
+            PanelTabPage tab = PanelTabPage.CreateGrid(tabGroup.Descriptor.ContentParent);
+            tab.rectTransform.offsetMin = new Vector2(0, 0);
+            var d = tab.Descriptor;
+            d.SetTitle("Instantiated");
+            // d.SetDescription( "TO_BE_IMPLEMENTED" );
+            // d.SetIcon( AddressableAssets.Sprites.Calibrate );
+            d.ForceRebuild();
+
+            // now fow we put a text field saying to be implemented
+
+            return tab;
+        }
+
         private static void BuildItemsList(List<BasisDataStoreItemKeys.ItemKey> items, PanelTabPage tab)
         {
             RectTransform container = tab.Descriptor.ContentParent;
@@ -265,8 +304,15 @@ namespace Basis.BasisUI
                 }
             }
         }
-        private static async Task RefreshTabAsync(BundledContentHolder.Mode mode, PanelTabPage tab)
+
+        public static bool TryConvert(Page page, out BundledContentHolder.Mode mode)
         {
+            return Enum.TryParse(page.ToString(), out mode);
+        }
+
+        private static async Task RefreshTabAsync(Page page)
+        {
+            PanelTabPage tab = tabMap[page];
             if (tab == null) return;
 
             // If a different tab was previously active, clear its content when switching
@@ -284,111 +330,123 @@ namespace Basis.BasisUI
             }
 
             // remember currently active tab/mode
-            _currentMode = mode;
+            _currentPage = page;
             _currentTab = tab;
 
-            try
+            // try convert the mode and page we are on to match
+            if(TryConvert(page, out BundledContentHolder.Mode mode))
             {
-
-                // Ensure keys are loaded
-                await BasisDataStoreItemKeys.LoadKeys();
-
-                // // // Only fetch keys matching the requested mode, so if we only want props only grab props returned in data
-                // // var data = BasisDataStoreItemKeys.DisplayKeys()
-                // //     .Where(k => k.Mode == mode)
-                // //     .ToList();
-                
-                // // grab all the keys
-                // var data = BasisDataStoreItemKeys.DisplayKeys().ToList();
-
-                // // grab the hard coded keys for EmbbedItems
-                // BasisDataStoreItemKeys.ItemKey[] hardcodedKeys = EmbeddedItems.HardcodedKeys;
-
-                // // add the embedded items to the data
-                // data.AddRange(hardcodedKeys);
-                
-                // // filter for the correct item
-                // data = data.Where(k => k.Mode == mode).ToList();
-                
-                // load the data store keys, add the hardcoded keys, filter for tab return as list
-                var data = BasisDataStoreItemKeys.DisplayKeys()
-                    .Concat(EmbeddedItems.HardcodedKeys)
-                    .Where(k => k.Mode == mode)
-                    .ToList();
-
-                // Preload metadata for items in this tab so that filtering/sorting
-                // can use cached meta synchronously.
                 try
                 {
-                    await CachedMetaData.PreloadMetaForItems(data);
-                }
-                catch (Exception ex)
-                {
-                    BasisDebug.LogError(ex);
-                }
-            
-                // Apply search filter if present
-                if (!string.IsNullOrWhiteSpace(_currentSearchQuery))
-                {
-                    data = data.Where(k =>
+
+                    // Ensure keys are loaded
+                    await BasisDataStoreItemKeys.LoadKeys();
+
+                    // // // Only fetch keys matching the requested mode, so if we only want props only grab props returned in data
+                    // // var data = BasisDataStoreItemKeys.DisplayKeys()
+                    // //     .Where(k => k.Mode == mode)
+                    // //     .ToList();
+                    
+                    // // grab all the keys
+                    // var data = BasisDataStoreItemKeys.DisplayKeys().ToList();
+
+                    // // grab the hard coded keys for EmbbedItems
+                    // BasisDataStoreItemKeys.ItemKey[] hardcodedKeys = EmbeddedItems.HardcodedKeys;
+
+                    // // add the embedded items to the data
+                    // data.AddRange(hardcodedKeys);
+                    
+                    // // filter for the correct item
+                    // data = data.Where(k => k.Mode == mode).ToList();
+                    
+                    // load the data store keys, add the hardcoded keys, filter for tab return as list
+                    var data = BasisDataStoreItemKeys.DisplayKeys()
+                        .Concat(EmbeddedItems.HardcodedKeys)
+                        .Where(k => k.Mode == mode)
+                        .ToList();
+
+                    // Preload metadata for items in this tab so that filtering/sorting
+                    // can use cached meta synchronously.
+                    try
                     {
-                        var url = k.Url ?? string.Empty;
-                        if (CachedMetaData.TryGetMeta(url, out var mm) && !string.IsNullOrEmpty(mm.Name) && mm.Name.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) >= 0)
-                            return true;
+                        await CachedMetaData.PreloadMetaForItems(data);
+                    }
+                    catch (Exception ex)
+                    {
+                        BasisDebug.LogError(ex);
+                    }
+                
+                    // Apply search filter if present
+                    if (!string.IsNullOrWhiteSpace(_currentSearchQuery))
+                    {
+                        data = data.Where(k =>
+                        {
+                            var url = k.Url ?? string.Empty;
+                            if (CachedMetaData.TryGetMeta(url, out var mm) && !string.IsNullOrEmpty(mm.Name) && mm.Name.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) >= 0)
+                                return true;
 
-                        return false;
-                    }).ToList();
+                            return false;
+                        }).ToList();
+                    }
+
+                    // Sorting must be synchronous and use cached metadata only.
+                    switch (_currentSort)
+                    {
+                        case LibraryDateSortMode.Name:
+                            data = data.OrderBy(k =>
+                            {
+                                var url = k.Url ?? string.Empty;
+                                if (CachedMetaData.TryGetMeta(url, out var mm) && !string.IsNullOrEmpty(mm.Name))
+                                    return mm.Name;
+                                return url;
+                            }).ToList();
+                            break;
+                        case LibraryDateSortMode.DateOldestToNewest:
+                            data = data.OrderBy(k =>
+                            {
+                                var url = k.Url ?? string.Empty;
+                                if (CachedMetaData.TryGetMeta(url, out var mm) && mm.Created.HasValue)
+                                    return mm.Created.Value;
+                                return DateTime.MaxValue;
+                            }).ToList();
+                            break;
+                        case LibraryDateSortMode.DateNewestToOldest:
+                            data = data.OrderByDescending(k =>
+                            {
+                                var url = k.Url ?? string.Empty;
+                                if (CachedMetaData.TryGetMeta(url, out var mm) && mm.Created.HasValue)
+                                    return mm.Created.Value;
+                                return DateTime.MinValue;
+                            }).ToList();
+                            break;
+                    }
+
+                    // Clear and rebuild the tab content
+                    ClearTabContent(tab.Descriptor.ContentParent);
+                    BuildItemsList(data, tab);
+                    tab.Descriptor.ForceRebuild();
                 }
-
-                // Sorting must be synchronous and use cached metadata only.
-                switch (_currentSort)
+                catch (Exception e)
                 {
-                    case LibraryDateSortMode.Name:
-                        data = data.OrderBy(k =>
-                        {
-                            var url = k.Url ?? string.Empty;
-                            if (CachedMetaData.TryGetMeta(url, out var mm) && !string.IsNullOrEmpty(mm.Name))
-                                return mm.Name;
-                            return url;
-                        }).ToList();
-                        break;
-                    case LibraryDateSortMode.DateOldestToNewest:
-                        data = data.OrderBy(k =>
-                        {
-                            var url = k.Url ?? string.Empty;
-                            if (CachedMetaData.TryGetMeta(url, out var mm) && mm.Created.HasValue)
-                                return mm.Created.Value;
-                            return DateTime.MaxValue;
-                        }).ToList();
-                        break;
-                    case LibraryDateSortMode.DateNewestToOldest:
-                        data = data.OrderByDescending(k =>
-                        {
-                            var url = k.Url ?? string.Empty;
-                            if (CachedMetaData.TryGetMeta(url, out var mm) && mm.Created.HasValue)
-                                return mm.Created.Value;
-                            return DateTime.MinValue;
-                        }).ToList();
-                        break;
+                    BasisDebug.LogError(e);
                 }
-
-                // Clear and rebuild the tab content
+            }
+            else
+            {
+                // this is most likely to be the instantiated tab so
                 ClearTabContent(tab.Descriptor.ContentParent);
-                BuildItemsList(data, tab);
+
+                // TODO build list of instantiated objects
+
                 tab.Descriptor.ForceRebuild();
             }
-            catch (Exception e)
-            {
-                BasisDebug.LogError(e);
-            }
+
         }
+        
         // used to refresh the current tab
         private static async Task RefreshCurrentTab()
         {
-            if (_currentTab != null)
-            {
-                await RefreshTabAsync(_currentMode, _currentTab);
-            }
+            await RefreshTabAsync(_currentPage);
         }
         #endregion
 
@@ -436,7 +494,7 @@ namespace Basis.BasisUI
             contentTypeDropDown.AssignEntries(modeNames.ToList());
             
             // derive the default selected mode from the currently active tab, so if the user is browsing avatars and clicks "Add New CachedContent"
-            contentTypeDropDown.SetValueWithoutNotify(_currentMode.ToString());
+            contentTypeDropDown.SetValueWithoutNotify(_currentPage.ToString());
             contentTypeDropDown.Descriptor.SetHeight(50);
             contentTypeDropDown.Descriptor.SetWidth(900);
 
@@ -1273,23 +1331,5 @@ namespace Basis.BasisUI
 
         #endregion
 
-        #region Instantiated Tab
-
-        public static PanelTabPage InstantiatedTab(PanelTabGroup tabGroup)
-        {
-            PanelTabPage tab = PanelTabPage.CreateGrid(tabGroup.Descriptor.ContentParent);
-            tab.rectTransform.offsetMin = new Vector2(0, 0);
-            var d = tab.Descriptor;
-            d.SetTitle("Instantiated");
-            // d.SetDescription( "TO_BE_IMPLEMENTED" );
-            // d.SetIcon( AddressableAssets.Sprites.Calibrate );
-            d.ForceRebuild();
-
-            // now fow we put a text field saying to be implemented
-
-            return tab;
-        }
-
-        #endregion
     }
 }
