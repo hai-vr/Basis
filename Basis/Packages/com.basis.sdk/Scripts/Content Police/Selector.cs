@@ -25,7 +25,7 @@ public partial class BundledContentHolder
     public enum PlacementType
     {
         SpawnAtRaycast = 0, // will spawn the item using the players desired location using raycast placement
-        SpawnInFrontOfPlayer = 1, // will spawn the item at the players eye height and in front of them
+        SpawnInFrontOfPlayer = 1, // will spawn the item at the players eye height and in front of them, and face towards them
         SpawnAtPlayerOrigin = 2, // will spawn the item at the players origin
     }
 }
