@@ -385,8 +385,18 @@ namespace Basis.BasisUI
                         data = data.Where(k =>
                         {
                             var url = k.Url ?? string.Empty;
-                            if (CachedMetaData.TryGetMeta(url, out var mm) && !string.IsNullOrEmpty(mm.Name) && mm.Name.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) >= 0)
-                                return true;
+                            if(k.IsEmbedded)
+                            {
+                                if(!string.IsNullOrEmpty(url) && url.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) >= 0)
+                                {
+                                    return true;
+                                }
+                            }
+                            else
+                            {
+                                if (CachedMetaData.TryGetMeta(url, out var mm) && !string.IsNullOrEmpty(mm.Name) && mm.Name.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) >= 0)
+                                    return true;
+                            }
 
                             return false;
                         }).ToList();
@@ -399,26 +409,40 @@ namespace Basis.BasisUI
                             data = data.OrderBy(k =>
                             {
                                 var url = k.Url ?? string.Empty;
+                                // if (k.IsEmbedded)
+                                //     return k.Url;
                                 if (CachedMetaData.TryGetMeta(url, out var mm) && !string.IsNullOrEmpty(mm.Name))
                                     return mm.Name;
                                 return url;
                             }).ToList();
                             break;
+
                         case LibraryDateSortMode.DateOldestToNewest:
                             data = data.OrderBy(k =>
                             {
+                                // Embedded items always treated as the oldest possible date
+                                if (k.IsEmbedded)
+                                    return DateTime.MinValue;
+
                                 var url = k.Url ?? string.Empty;
                                 if (CachedMetaData.TryGetMeta(url, out var mm) && mm.Created.HasValue)
                                     return mm.Created.Value;
+
                                 return DateTime.MaxValue;
                             }).ToList();
                             break;
+
                         case LibraryDateSortMode.DateNewestToOldest:
                             data = data.OrderByDescending(k =>
                             {
+                                // Embedded items always treated as the oldest possible date
+                                if (k.IsEmbedded)
+                                    return DateTime.MinValue;
+
                                 var url = k.Url ?? string.Empty;
                                 if (CachedMetaData.TryGetMeta(url, out var mm) && mm.Created.HasValue)
                                     return mm.Created.Value;
+
                                 return DateTime.MinValue;
                             }).ToList();
                             break;
