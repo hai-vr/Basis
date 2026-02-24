@@ -110,6 +110,11 @@ public static class BasisNetworkMessageProcessor
                     BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.RequestStoreDatabaseChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.HandleRequestStoreDatabase(reader, peer);//recycles inside
                     break;
+                case BasisNetworkCommons.ServerIsAdminChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AdminChannel, reader.AvailableBytes);
+                    BasisPlayerModeration.CheckIsAdmin(peer);
+                    reader.Recycle();//recycles here
+                    break;
 
 
                 case BasisNetworkCommons.ServerStatisticsChannel:

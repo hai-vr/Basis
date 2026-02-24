@@ -255,12 +255,32 @@ public static class BasisNetworkEvents
                 IncomingData(Reader);
                 Reader.Recycle();
                 break;
+                case BasisNetworkCommons.ServerIsAdminChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                Reader.Get(out bool IsAdmin);
+                IsLocalAdmin?.Invoke(IsAdmin);
+                //
+                Reader.Recycle();
+                break;
             default:
                 BNL.LogError($"this Channel was not been implemented {channel}");
                 Reader.Recycle();
                 break;
         }
     }
+    /// <summary>
+    /// Requests Is Admin
+    /// </summary>
+    public static void RequestIsAdminCheck()
+    {
+        BasisNetworkConnection.LocalPlayerPeer.Send(new byte[] { } , BasisNetworkCommons.ServerIsAdminChannel, DeliveryMethod.ReliableOrdered);
+    }
+    public static Action<bool> IsLocalAdmin;
+
     public static Action<BasisNetworkStatistics.Snapshot> Snapshotdata;
     public static void IncomingData(NetPacketReader Reader)
     {
