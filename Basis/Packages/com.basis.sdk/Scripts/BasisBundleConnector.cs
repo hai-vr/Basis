@@ -17,6 +17,7 @@ public class BasisBundleConnector
     public BasisBounds Bounds;
     [SerializeField]
     public BasisMetaData MetaData;
+    [System.Serializable]
     public struct BasisMetaData
     {
         public long TrianglesCount;
@@ -25,6 +26,7 @@ public class BasisBundleConnector
         [SerializeField]
         public BasisComponentName[] ComponentNames;
     }
+    [System.Serializable]
     public struct BasisComponentName
     {
         public string Name;
