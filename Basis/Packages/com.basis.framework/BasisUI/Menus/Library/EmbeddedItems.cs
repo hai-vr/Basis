@@ -66,5 +66,21 @@ namespace Basis.BasisUI
 
             return new BasisBounds(Vector3.one, Vector3.zero);
         }
+
+        internal static Vector3 GetOffsetForEmbeddedItem(ItemKey item, Vector3 playerPosReference, Vector3 playerPosForwardReference)
+        {
+            switch(item.Url)
+            {
+                case "Photo Camera":
+                    return playerPosReference + playerPosForwardReference * 0.5f;
+                case "Personal Mirror":
+                    return playerPosReference + playerPosForwardReference * 0.5f;
+                default:
+                    BasisDebug.Log($"GetOffsetForEmbeddedItem() item = {item.Url} does not have specified offset defined. please define it, here.");
+                    break;
+            }
+
+            return playerPosReference;
+        }
     }
 }
