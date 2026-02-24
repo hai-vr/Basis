@@ -7030,7 +7030,7 @@ MonoBehaviour:
   m_RequiresOpaqueTextureOption: 2
   m_CameraType: 0
   m_Cameras: []
-  m_RendererIndex: -1
+  m_RendererIndex: 1
   m_VolumeLayerMask:
     serializedVersion: 2
     m_Bits: 256
@@ -8649,7 +8649,7 @@ MonoBehaviour:
     DepthModeAutoButton: {fileID: 3423059600360925727}
     DepthModeManualButton: {fileID: 1308268193596370111}
     DynamicButtonRoot: {fileID: 924291105890518512}
-    ButtonPrefab: {fileID: 3207225638938562739, guid: d94b3bb0951db09469540b35dcf16384, type: 3}
+    ButtonPrefab: {fileID: 0}
     ScriptableButtons: []
     currentDepthMode: 0
     Resolution: {fileID: 5499548759139930196}
