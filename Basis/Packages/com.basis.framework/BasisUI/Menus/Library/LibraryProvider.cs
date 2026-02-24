@@ -1432,13 +1432,13 @@ namespace Basis.BasisUI
                         Vector3 playerPosReference = BasisLocalPlayer.Instance.gameObject.transform.position;
                         Vector3 forward = BasisLocalCameraDriver.Instance.gameObject.transform.forward;
                         finalPos = playerPosReference + new Vector3(0, 1.5f, 0) + forward * 2; // spawn 2 units in front of player
-
+                        BasisMainMenu.Close();
                         break;
                     case BundledContentHolder.PlacementType.SpawnAtPlayerOrigin:
 
                         // spawn on the player pos
                         finalPos = BasisLocalPlayer.Instance.gameObject.transform.position;
-
+                        BasisMainMenu.Close();
                         break;
                     default:
                         BasisDebug.LogError($"LoadProp was invoked for item = {item.Url} but has placementType = {item.PlacementType} which is not defined. Unable to spawn item");
