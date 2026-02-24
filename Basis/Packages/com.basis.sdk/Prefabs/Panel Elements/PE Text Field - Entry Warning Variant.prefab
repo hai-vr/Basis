@@ -661,6 +661,10 @@ PrefabInstance:
       propertyPath: m_PixelsPerUnitMultiplier
       value: 4
       objectReference: {fileID: 0}
+    - target: {fileID: 2582961933184960890, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
+      propertyPath: m_TextWrappingMode
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 2702074470844678885, guid: 00eaf66b466c4644eb2568c728a1dac8, type: 3}
       propertyPath: m_Enabled
       value: 0

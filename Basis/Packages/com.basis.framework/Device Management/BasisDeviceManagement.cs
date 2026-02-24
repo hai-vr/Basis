@@ -244,7 +244,7 @@ namespace Basis.Scripts.Device_Management
                     ItemKey ItemKey = new ItemKey
                     {
                         Url = Key.Url,
-                        ISEmbedded = false,
+                        IsEmbedded = false,
                         Pass = Key.Pass,
                         Mode = BundledContentHolder.Mode.Avatar
                     };

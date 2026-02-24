@@ -17,7 +17,9 @@ namespace Basis.Scripts.UI.UI_Panels
             //public BundledContentHolder.NetworkType NetworkType;
             public string Url;
             public string Pass;
-            public bool ISEmbedded = false;
+            public bool IsEmbedded = false;
+
+            public BundledContentHolder.PlacementType PlacementType;
         }
 
 

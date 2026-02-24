@@ -84,6 +84,7 @@ namespace Basis.BasisUI
         public static async Task PreloadMetaDataForItem(BasisDataStoreItemKeys.ItemKey item)
         {
             if (item == null) return;
+            if (item.IsEmbedded) return; // skip preloading metadata for embedded items
 
             var urlKey = item.Url ?? string.Empty;
             if (ContainsMetaData(urlKey)) return;

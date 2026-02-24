@@ -155,7 +155,7 @@ namespace Basis.BasisUI
                 {
                     Url = processedUrl,
                     Pass = password,
-                    ISEmbedded = false,
+                    IsEmbedded = false,
                 };
 
                 await BasisDataStoreItemKeys.AddNewKey(propKey);

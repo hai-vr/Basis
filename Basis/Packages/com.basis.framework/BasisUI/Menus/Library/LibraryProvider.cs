@@ -16,6 +16,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.InputSystem;
+using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
 using static Basis.BasisUI.PanelPasswordField;
 using static Basis.BasisUI.PanelTextField;
@@ -26,6 +28,7 @@ namespace Basis.BasisUI
 {
     public partial class LibraryProvider : BasisMenuActionProvider<BasisMainMenu>
     {
+
         #region Provider Setup
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
@@ -44,7 +47,6 @@ namespace Basis.BasisUI
         private static string _currentSearchQuery = string.Empty;
         private static BundledContentHolder.Mode _currentMode = BundledContentHolder.Mode.Prop;
         private static PanelTabPage _currentTab;
-
 
         public override async void RunAction()
         {
@@ -152,7 +154,6 @@ namespace Basis.BasisUI
         [System.Serializable]
         public class BasisLoadableBundleWrapper
         {
-            public bool ISEmbedded = false;
             public BasisLoadableBundle BasisLoadableBundle;
             public BasisTrackedBundleWrapper basisTrackedBundleWrapper;
         }
@@ -191,7 +192,6 @@ namespace Basis.BasisUI
             };
             wrapper.BasisLoadableBundle = bundle;
             wrapper.basisTrackedBundleWrapper = trackedWrapper;
-            wrapper.ISEmbedded = false;
 
             return wrapper;
         }
@@ -207,32 +207,10 @@ namespace Basis.BasisUI
             // If the metadata is missing on disk, remove the key and DO NOT attempt to create a bundle from it.
             if (BasisLoadHandler.IsMetaDataOnDisc(item.Url, out BasisBEEExtensionMeta info))
             {
-                // BasisLoadableBundle bundle = new()
-                // {
-                //     BasisRemoteBundleEncrypted = info.StoredRemote,
-                //     BasisLocalEncryptedBundle = info.StoredLocal,
-                //     UnlockPassword = item.Pass,
-                //     BasisBundleConnector = new BasisBundleConnector()
-                //     {
-                //         BasisBundleDescription = new BasisBundleDescription(),
-                //         BasisBundleGenerated = new BasisBundleGenerated[] { new() },
-                //         UniqueVersion = info.UniqueVersion,
-                //     },
-                // };
-                // BasisTrackedBundleWrapper trackedWrapper = new()
-                // {
-                //     LoadableBundle = bundle,
-                // };
-
                 // CreateNewWrapperFromItem does not populate these fields so we update them
                 wrapper.BasisLoadableBundle.BasisRemoteBundleEncrypted = info.StoredRemote;
                 wrapper.BasisLoadableBundle.BasisLocalEncryptedBundle = info.StoredLocal;
                 wrapper.BasisLoadableBundle.BasisBundleConnector.UniqueVersion = info.UniqueVersion;
-                
-                //wrapper.BasisLoadableBundle = bundle;
-                //wrapper.ISEmbedded = false;
-                //wrapper.basisTrackedBundleWrapper = trackedWrapper;
-
                 return wrapper;
             }
             else
@@ -320,11 +298,30 @@ namespace Basis.BasisUI
 
             try
             {
+
                 // Ensure keys are loaded
                 await BasisDataStoreItemKeys.LoadKeys();
 
-                // Only fetch keys matching the requested mode, so if we only want props only grab props returned in data
+                // // // Only fetch keys matching the requested mode, so if we only want props only grab props returned in data
+                // // var data = BasisDataStoreItemKeys.DisplayKeys()
+                // //     .Where(k => k.Mode == mode)
+                // //     .ToList();
+                
+                // // grab all the keys
+                // var data = BasisDataStoreItemKeys.DisplayKeys().ToList();
+
+                // // grab the hard coded keys for EmbbedItems
+                // BasisDataStoreItemKeys.ItemKey[] hardcodedKeys = EmbeddedItems.HardcodedKeys;
+
+                // // add the embedded items to the data
+                // data.AddRange(hardcodedKeys);
+                
+                // // filter for the correct item
+                // data = data.Where(k => k.Mode == mode).ToList();
+                
+                // load the data store keys, add the hardcoded keys, filter for tab return as list
                 var data = BasisDataStoreItemKeys.DisplayKeys()
+                    .Concat(EmbeddedItems.HardcodedKeys)
                     .Where(k => k.Mode == mode)
                     .ToList();
 
@@ -421,6 +418,13 @@ namespace Basis.BasisUI
             styleImage.SetStyle(newStyle);
         }
 
+        // not super clean but will do for now, used to update interactable input fields
+        private static void UpdateInputFieldInteractability( PanelTextField URLTextField, PanelPasswordField PasswordTextField, DialogBox activeDialog )
+        {
+            URLTextField._inputField.interactable = !activeDialog.IsBusy;
+            PasswordTextField._inputField.interactable = !activeDialog.IsBusy;
+        }
+
         /// <summary>
         /// Invoked on the add new content is pressed in the library provider menu, to prompt the user to enter new content with a dialog box
         /// </summary>
@@ -506,6 +510,9 @@ namespace Basis.BasisUI
                 if (newItemDialogBox.IsBusy) return;
                 newItemDialogBox.IsBusy = true;
 
+                // update interactability for fields based on dialog busy
+                UpdateInputFieldInteractability(URL, Password, newItemDialogBox);
+
                 try
                 {
 
@@ -529,15 +536,94 @@ namespace Basis.BasisUI
                                 validationMessageField.enabled = false; // hide any previous error message
                             }
 
+                            // reset the fields
                             ChangeInputFieldStyle(URL._inputField.gameObject, false);
                             ChangeInputFieldStyle(Password._inputField.gameObject, false);
 
-                            // add the item to the basis key store
-                            await AddNewNewItemKey(contentTypeDropDown.SelectedString, validationResponse.ProcessedUrl, validationResponse.Password);
-                            // just close the overlay
-                            await newItemDialogBox.CloseAsync();
-                            // refresh the current tab
-                            await RefreshCurrentTab();
+                            // perform a meta-only validation of the provided BEE file before adding the key
+                            try
+                            {
+                                if(!validationMessageField.Descriptor.gameObject.activeSelf)
+                                    validationMessageField.Descriptor.gameObject.SetActive(true);
+
+                                validationMessageField.Descriptor.SetTitle("Validating BEE file");
+                                validationMessageField.Descriptor.SetDescription("Checking BEE metadata...");
+
+                                // temp item do not use to add new item with!
+                                BasisDataStoreItemKeys.ItemKey tempItem = new BasisDataStoreItemKeys.ItemKey
+                                {
+                                    Pass = validationResponse.Password,
+                                    Url = validationResponse.ProcessedUrl,
+                                    Mode = 0, // we are going to infer from the type of data the item is
+                                };
+
+                                var tempWrapper = await CreateNewWrapperFromItem(tempItem);
+
+                                BasisProgressReport Report = new BasisProgressReport();
+                                CancellationTokenSource CancellationSource = new CancellationTokenSource();
+
+                                // Attempt a meta-only load (this will download or read connector info and cache meta on disk)
+                                bool isValid = await BasisBeeManagement.HandleMetaOnlyLoad(tempWrapper.basisTrackedBundleWrapper, Report, CancellationSource.Token);
+
+                                if(isValid)
+                                {
+                                    // Attempt to read the metadata back from disk into the wrapper
+                                    BasisLoadableBundleWrapper loaded = await LoadWrapperFromDisc(tempItem, tempWrapper);
+
+                                    if(loaded.BasisLoadableBundle?.BasisBundleConnector?.MetaData != null)
+                                    {
+                                        if(loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames != null)
+                                        {
+                                            BasisDebug.Log($"BasisComponentNames = {loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames}");
+                                            BasisDebug.Log($"BasisComponentNamesLength = {loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames.Length}");
+
+                                            // grab components
+                                            foreach(BasisBundleConnector.BasisComponentName comp in loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames)
+                                            {
+                                                BasisDebug.Log($"BasisComponentName = {comp.Name} count = {comp.count}");
+                                            }
+                                        }
+                                        else
+                                        {
+                                            BasisDebug.LogError($"Warning BEE file from url = {tempItem.Url} does not contain metadata ComponentNames, consider updating it!");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        BasisDebug.LogError($"Warning BEE file from url = {tempItem.Url} does not contain metadata, consider updating it!");
+                                    }
+
+                                    // add the item to the basis key store
+                                    await AddNewNewItemKey(contentTypeDropDown.SelectedString, validationResponse.ProcessedUrl, validationResponse.Password);
+                                    // just close the overlay
+                                    await newItemDialogBox.CloseAsync();
+                                    // refresh the current tab
+                                    await RefreshCurrentTab();
+                                }
+                                else
+                                {
+                                    throw new Exception("The provided BEE file url could not provide the bundle array.");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                BasisDebug.LogError(ex);
+                                ChangeInputFieldStyle(URL._inputField.gameObject, true);
+                                ChangeInputFieldStyle(Password._inputField.gameObject, true);
+
+                                if(!validationMessageField.Descriptor.gameObject.activeSelf)
+                                    validationMessageField.Descriptor.gameObject.SetActive(true);
+
+                                validationMessageField.Descriptor.SetTitle("BEE Validation Error");
+                                validationMessageField.Descriptor.SetDescription($"Failed to validate BEE file: {ex.Message}");
+
+                                newItemDialogBox.IsBusy = false;
+
+                                // update interactability for fields based on dialog busy
+                                UpdateInputFieldInteractability(URL, Password, newItemDialogBox);
+                                
+                                return;
+                            }
 
                             return;
                         case InputValidation.EntryValidationResult.EmptyUrl:
@@ -562,6 +648,10 @@ namespace Basis.BasisUI
                             break;
                     }
 
+                    // re-enable input
+                    URL._inputField.interactable = true;
+                    Password._inputField.interactable = true;
+
                     // if validation failed, show an error message and do not proceed
                     string errorMessage = validationResult switch
                     {
@@ -583,12 +673,16 @@ namespace Basis.BasisUI
                     // For simplicity, using Debug.LogWarning. In a real implementation, you would want to show this in the UI.
                     BasisDebug.LogWarning(errorMessage);
                     newItemDialogBox.IsBusy = false;
-
+                    
+                    // update interactability for fields based on dialog busy
+                    UpdateInputFieldInteractability(URL, Password, newItemDialogBox);
                 }
                 catch(Exception ex)
                 {
                     BasisDebug.LogError(ex);
                     newItemDialogBox.IsBusy = false;
+                    // update interactability for fields based on dialog busy
+                    UpdateInputFieldInteractability(URL, Password, newItemDialogBox);
                 }
             };
         }
@@ -637,6 +731,51 @@ namespace Basis.BasisUI
         private static async void CreateItemCard(BasisDataStoreItemKeys.ItemKey item, RectTransform container)
         {
             PanelButton buttonPanel = PanelButton.CreateNew(ButtonStyles.Prop, container);
+            var urlKey = item.Url ?? string.Empty;
+            var desc = buttonPanel.Descriptor;
+
+            // Try get cached meta once
+            CachedMetaData.CachedContent cachedMeta;
+            CachedMetaData.TryGetMeta(urlKey, out cachedMeta);
+
+            if(item.IsEmbedded)
+            {
+
+                // create an image for this card in top right with an offset of -35, -35
+                PanelImage networkIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
+                networkIcon.SetIcon(AddressableAssets.GetSprite(AddressableAssets.Sprites.Locked), true);
+                networkIcon.rectTransform.anchorMin = new Vector2(1, 1);
+                networkIcon.rectTransform.anchorMax = new Vector2(1, 1);
+                networkIcon.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                networkIcon.rectTransform.anchoredPosition = new Vector2(-35, -35);
+                networkIcon.rectTransform.sizeDelta = new Vector2(40, 40);
+
+                desc.SetTitle(urlKey);
+                desc.SetDescription(urlKey);
+                desc.ForceRebuild();
+
+                if(desc.IconBackground.TryGetComponent<Image>(out Image image))
+                {
+                    image.sprite = EmbeddedItems.GetSpriteForEmbeddedItem(item);
+                }
+            }
+            else
+            {
+
+                if (cachedMeta != null)
+                {
+                    BasisDebug.Log($"ApplyMetaDataToButton -> for item {urlKey}");
+                    ApplyMetaDataToButton(buttonPanel, cachedMeta, urlKey);
+                }
+                else
+                {
+                    desc.SetTitle("Loading...");
+                    desc.SetDescription(urlKey);
+                    desc.ForceRebuild();
+
+                    _ = CachedMetaData.PreloadMetaDataForItem(item);
+                }
+            }
 
             // TODO: reuse for platform icons?
             // if(item.NetworkType == BundledContentHolder.NetworkType.Networked)
@@ -651,31 +790,11 @@ namespace Basis.BasisUI
             //     networkIcon.rectTransform.sizeDelta = new Vector2(40, 40);
             // }
 
-            var urlKey = item.Url ?? string.Empty;
-            var desc = buttonPanel.Descriptor;
-
-            // Try get cached meta once
-            CachedMetaData.CachedContent cachedMeta;
-            CachedMetaData.TryGetMeta(urlKey, out cachedMeta);
-
-            if (cachedMeta != null)
-            {
-                ApplyMetaDataToButton(buttonPanel, cachedMeta, urlKey);
-            }
-            else
-            {
-                desc.SetTitle("Loading...");
-                desc.SetDescription(urlKey);
-                desc.ForceRebuild();
-
-                _ = CachedMetaData.PreloadMetaDataForItem(item);
-            }
-
             buttonPanel.OnClicked += async () =>
             {
                 try
                 {
-                    await ShowItemOverlay(cachedMeta, item);
+                    await ShowItemOverlay(item);
                 }
                 catch (Exception ex)
                 {
@@ -702,24 +821,68 @@ namespace Basis.BasisUI
             }
         }
 
-        public static async Task ShowItemOverlay(CachedMetaData.CachedContent metadata, BasisDataStoreItemKeys.ItemKey item)
+        public static async Task ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item)
         {
- 
-            // TODO: actually validate the BEE file upon adding it rather than checking description for it to actually exists?
-            BasisBundleDescription description = metadata.BasisBundleConnector.BasisBundleDescription;
+            // grab the content from the cache 
+            CachedMetaData.CachedContent metadata;
+            CachedMetaData.TryGetMeta(item.Url, out metadata);
 
-            if (description == null)
+            // the network type of the item
+            BundledContentHolder.NetworkType desiredNetworkType = BundledContentHolder.NetworkType.Local;
+
+            // the persistence behavior of the item 
+            bool ephemeral = true; 
+
+            // grab the meta data
+            BasisBundleConnector.BasisMetaData basisMetaData;
+
+            // grab the description data
+            BasisBundleDescription description;
+
+            // get the creation date of the basis bundle
+            string creationDate = string.Empty;
+
+            // target sprite
+            Sprite targetSprite = null;
+
+            // platforms
+
+            string[] platforms = new string[0];
+
+            if(item.IsEmbedded)
             {
-                BasisDebug.LogError($"Bundle Description on AvatarMenuItem {item} not found, auto removing.");
-                
-                // TODO: Remove this once input validation is in place to prevent invalid entries from being added. This is to ensure a clean user experience in the meantime.
-                // temp will remove invalid entries that failed to get meta data.
-                await BasisDataStoreItemKeys.RemoveKey(item);
+                description = new BasisBundleDescription(){
+                    AssetBundleName = item.Url,
+                    AssetBundleDescription = "Emebbed item",
+                };
 
-                // refresh the current tab for any new changes
-                await RefreshCurrentTab();
-                return;
+                targetSprite = EmbeddedItems.GetSpriteForEmbeddedItem(item);
             }
+            else
+            {
+                // grab BEE file information
+                basisMetaData = metadata.BasisBundleConnector.MetaData;
+                description = metadata.BasisBundleConnector.BasisBundleDescription;
+                creationDate = metadata.BasisBundleConnector.DateOfCreation;
+                targetSprite = CachedMetaData.CreateSpriteFromMetaData(metadata);
+
+                platforms = metadata.BasisBundleConnector.BasisBundleGenerated.Select(pair => pair.Platform).ToArray();
+            }
+
+            // // TODO: actually validate the BEE file upon adding it rather than checking description for it to actually exists?
+
+            // if (description == null)
+            // {
+            //     BasisDebug.LogError($"Bundle Description on AvatarMenuItem {item} not found, auto removing.");
+                
+            //     // TODO: Remove this once input validation is in place to prevent invalid entries from being added. This is to ensure a clean user experience in the meantime.
+            //     // temp will remove invalid entries that failed to get meta data.
+            //     await BasisDataStoreItemKeys.RemoveKey(item);
+
+            //     // refresh the current tab for any new changes
+            //     await RefreshCurrentTab();
+            //     return;
+            // }
 
             // Not sure why we need this so lets to remove.
             _activeItem = item;
@@ -740,7 +903,7 @@ namespace Basis.BasisUI
             var itemIcon = PanelElementDescriptor.CreateNew(
                 PanelElementDescriptor.ElementStyles.GroupLargeIconVertical, existingItemDialog.Descriptor);
 
-            itemIcon.SetIcon(CachedMetaData.CreateSpriteFromMetaData(metadata));
+            itemIcon.SetIcon(targetSprite);
 
             // info about the item
             PanelTabGroup itemMetaDataPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, itemIcon.ContentParent);
@@ -748,9 +911,6 @@ namespace Basis.BasisUI
             // advancedActionsPanel.Descriptor.SetWidth(900);
 
             #region CREATION DATE
-
-            // get the creation date of the basis bundle
-            string creationDate = metadata.BasisBundleConnector.DateOfCreation;
 
             // determine what the creation date text is gonna say
             if (string.IsNullOrEmpty(creationDate))
@@ -792,10 +952,6 @@ namespace Basis.BasisUI
 
             platformIconsPanel.Descriptor.SetHeight(50);
             platformIconsPanel.Descriptor.SetWidth(400);
-
-            string[] platforms = metadata.BasisBundleConnector.BasisBundleGenerated
-                .Select(pair => pair.Platform)
-                .ToArray();
             
             BasisDebug.Log($"item {item.Url} has platforms supported {platforms} {platforms.Length}");
 
@@ -839,8 +995,7 @@ namespace Basis.BasisUI
 
             #endregion
 
-            BundledContentHolder.NetworkType desiredNetworkType = BundledContentHolder.NetworkType.Local;
-            bool ephemeral = false;
+            #region ITEM DISPLAY LOGIC SPECIFIC TO BundledContentHolder.Mode
 
             switch(item.Mode)
             {
@@ -864,6 +1019,16 @@ namespace Basis.BasisUI
                     contentSyncModeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
                     contentSyncModeDropDown.AssignEntries(contentSyncModes.ToList());
                     contentSyncModeDropDown.Descriptor.SetSize(new Vector2(700, 80));
+
+                    // DISABLE THIS DROPDOWN IF EMBEDED ITEM
+                    if(contentSyncModeDropDown.Descriptor.gameObject.TryGetComponent<PanelDropdown>(out PanelDropdown dropdown))
+                    {
+                        if(dropdown.DropdownComponent != null)
+                        {
+                            // if the item is embedded dont interact
+                            dropdown.DropdownComponent.interactable = !item.IsEmbedded;
+                        }
+                    }
                     
                     // set the default network type
                     contentSyncModeDropDown.SetValueWithoutNotify(desiredNetworkType.ToString());
@@ -882,7 +1047,7 @@ namespace Basis.BasisUI
 
                     //content persistence toggle determines weather
                     PanelToggle contentPersistenceToggle = PanelToggle.CreateNew(advancedActionsPanel.TabButtonParent, PanelToggle.Styles.Entry);
-                    contentPersistenceToggle.SetValueWithoutNotify(false);
+                    contentPersistenceToggle.SetValueWithoutNotify(ephemeral);
                     contentPersistenceToggle.Descriptor.SetTitle("Ephemeral Mode");
                     contentPersistenceToggle.Descriptor.SetIcon(AddressableAssets.Sprites.HourGlass);
                     contentPersistenceToggle.Descriptor.SetDescription("If enabled, this item will only be visible to people currently in the instance. Late joiners wont be able to see this.");
@@ -891,6 +1056,13 @@ namespace Basis.BasisUI
                     {
                         ephemeral = val;
                     };
+
+                    // DISABLE THIS TOGGLE IF THE ITEM IS EMBEDDED
+                    if(contentPersistenceToggle.Descriptor.gameObject.TryGetComponent<Toggle>(out Toggle toggle))
+                    {
+                        // if the item is embedded dont interact
+                        toggle.interactable = !item.IsEmbedded;
+                    }
 
                     break;
                 case BundledContentHolder.Mode.World:
@@ -901,6 +1073,8 @@ namespace Basis.BasisUI
 
             }
 
+            #endregion
+
 
             // Delete & Load Buttons
             PanelTabGroup actionsPanel = PanelTabGroup.CreateNew(existingItemDialog.Descriptor, LayoutDirection.HorizontalNoBackground);
@@ -909,15 +1083,9 @@ namespace Basis.BasisUI
             actionsPanel.Descriptor.SetWidth(900);
 
             PanelButton deletePanelButton = PanelButton.CreateNew(ButtonStyles.CancelButton, actionsPanel.TabButtonParent); //ButtonStyles.Cancel
-            PanelButton loadPanelButton = PanelButton.CreateNew(ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
-
             deletePanelButton.Descriptor.SetTitle("Delete");
-            loadPanelButton.Descriptor.SetTitle("Load");
-
             deletePanelButton.Descriptor.SetWidth(220);
             deletePanelButton.Descriptor.SetHeight(60);
-            loadPanelButton.Descriptor.SetWidth(620);
-            loadPanelButton.Descriptor.SetHeight(60);
 
             // upon delete we do these actions
             deletePanelButton.OnClicked += async () =>
@@ -933,6 +1101,17 @@ namespace Basis.BasisUI
                 await RefreshCurrentTab();
             };
 
+            // DISABLE THIS BUTTON IF ITEM IS EMBEDDED
+            if(deletePanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button deleteButtonComponent))
+            {
+                // if the item is embedded dont interact
+                deleteButtonComponent.interactable = !item.IsEmbedded;
+            }
+
+            PanelButton loadPanelButton = PanelButton.CreateNew(ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
+            loadPanelButton.Descriptor.SetTitle("Load");
+            loadPanelButton.Descriptor.SetWidth(620);
+            loadPanelButton.Descriptor.SetHeight(60);
             // on load of a item we do these actions
             loadPanelButton.OnClicked += async () =>
             {
@@ -1061,7 +1240,7 @@ namespace Basis.BasisUI
 
         #endregion
 
-        #region Spawn / Load Selected Item Functions
+        #region LoadAvatar, LoadProp, LoadWorld, LoadSelectedItem
 
         /// <summary>
         /// Apply the current avatar onto the player.
@@ -1118,174 +1297,239 @@ namespace Basis.BasisUI
         /// </summary>
         public static async Task LoadProp(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType desiredNetworkType, bool persistent = false, bool modifyScale = false)
         {
-            var deviceinstance = BasisDeviceManagement.Instance;
-            // Pick an input device: LeftHand -> RightHand -> CenterEye
-            if (!deviceinstance.FindDevice(out PlacementInput, BasisBoneTrackedRole.LeftHand) &&
-                !deviceinstance.FindDevice(out PlacementInput, BasisBoneTrackedRole.RightHand) &&
-                !deviceinstance.FindDevice(out PlacementInput, BasisBoneTrackedRole.CenterEye))
+            // grab the item metadata from the cache
+            // we will allow embededd items for now
+            if (CachedMetaData.TryGetMeta(item.Url, out var cached) || item.IsEmbedded)
             {
-                BasisDebug.LogError("LoadProp failed: no suitable device found (LeftHand/RightHand/CenterEye).");
-                return;
-            }
-            if (CachedMetaData.TryGetMeta(item.Url, out var cached))
-            {
+                // default spawn pos
+                Vector3 finalPos = Vector3.zero;
+                Quaternion finalRot = Quaternion.identity;
+                Vector3 finalScale = Vector3.one;
+
+                switch(item.PlacementType)
+                {
+                    case BundledContentHolder.PlacementType.SpawnAtRaycast:
+
+                        // grab the device instance
+                        BasisDeviceManagement deviceInstance = BasisDeviceManagement.Instance;
+
+                        // Pick an input device: LeftHand -> RightHand -> CenterEye
+                        if (!deviceInstance.FindDevice(out PlacementInput, BasisBoneTrackedRole.LeftHand) &&
+                            !deviceInstance.FindDevice(out PlacementInput, BasisBoneTrackedRole.RightHand) &&
+                            !deviceInstance.FindDevice(out PlacementInput, BasisBoneTrackedRole.CenterEye))
+                        {
+                            BasisDebug.LogError("LoadProp failed: no suitable device found (LeftHand/RightHand/CenterEye).");
+                            return;
+                        }
+
+                        // close the basis menu so we can make room for placing the item
+                        BasisDebug.Log("Forcefully closing the main menu");
+                        BasisMainMenu.Close();
+
+                        // grab the bounds of the item we are going to place from the cache
+                        BasisBounds FinalBounds = cached.BasisBundleConnector.Bounds;
+
+                        if(item.IsEmbedded)
+                        {
+                            FinalBounds = EmbeddedItems.GetBoundsForEmbeddedItem(item);
+                        }
+
+                        BasisDebug.Log($"{item.Url} -> finalbounds = {FinalBounds.extents} max = {FinalBounds.max} center = {FinalBounds.center}");
+
+                        // enter the placement mode for the raycaster
+                        PlacementInput.BasisPointRaycaster.EnterPlacementMode(FinalBounds.extents);
+
+                        // add a new update loop to use for this UI interaction
+                        BasisLocalPlayer.AfterSimulateOnLate.AddAction(122, VisualDrive);
+
+                        // create a task completion source to return the users desired pos rotation and scale of the spawned item
+                        var tcs = new TaskCompletionSource<(Vector3 pos, Quaternion rot, Vector3 scale)>(TaskCreationOptions.RunContinuationsAsynchronously);
+                        bool wasDown = false; // we need this to determine if they placed it down
+
+                        // this will be invoked on when the item has been placed, is there anything we need to remove?
+                        void CleanupPlacement()
+                        {
+                            try { PlacementInput.CurrentInputState.OnTriggerChanged -= OnTriggerChanged; } catch { }
+                            try { PlacementInput.BasisPointRaycaster.ExitPlacementMode(); } catch { }
+                            try { BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(122, VisualDrive); } catch { }
+                            try { Addressables.ReleaseInstance(PlacementCube); } catch { }
+                            if (PlacementCube != null)
+                            {
+                                GameObject.Destroy(PlacementCube);
+                            }
+                        }
+
+                        // on invoke of the user pressing an input for the item
+                        void OnTriggerChanged()
+                        {
+                            try
+                            {
+                                float t = PlacementInput.CurrentInputState.Trigger;
+
+                                // simple debounce: detect "up -> down" transition
+                                if (!wasDown && t >= triggerDownThreshold)
+                                {
+                                    wasDown = true;
+
+                                    // Ask raycaster for placement pose
+                                    if (PlacementInput.BasisPointRaycaster.TryGetPlacement(out var placement))
+                                    {
+                                        Vector3 spawnPos = placement.Center;
+                                        Quaternion spawnRot = placement.Rotation;
+
+                                        // You can derive scale from item if you have it; defaulting to 1.
+                                        Vector3 spawnScale = Vector3.one;
+
+                                        tcs.TrySetResult((spawnPos, spawnRot, spawnScale));
+                                        CleanupPlacement();
+                                        return;
+                                    }
+
+                                    // Fallback if no placement hit: spawn in front of device
+                                    Transform tr = PlacementInput.transform;
+                                    Vector3 fallbackPos = tr.position + tr.forward * 0.75f;
+                                    Quaternion fallbackRot = Quaternion.LookRotation(tr.forward, Vector3.up);
+                                    tcs.TrySetResult((fallbackPos, fallbackRot, Vector3.one));
+                                    CleanupPlacement();
+                                    return;
+                                }
+
+                                if (wasDown && t <= triggerUpThreshold)
+                                {
+                                    wasDown = false;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                BasisDebug.LogError(ex);
+                                tcs.TrySetException(ex);
+                                CleanupPlacement();
+                            }
+                        }
+
+                        PlacementInput.CurrentInputState.OnTriggerChanged += OnTriggerChanged;
+
+                        (Vector3 spawnPos, Quaternion spawnRot, Vector3 spawnScale) placementResult;
+                        try
+                        {
+                            placementResult = await tcs.Task;
+                        }
+                        finally
+                        {
+                            CleanupPlacement();
+                        }
+
+                        // calculate the rotation and scale and pos of the placement we want for this mode
+                        finalPos = placementResult.spawnPos;
+                        finalRot = placementResult.spawnRot;
+                        finalScale = placementResult.spawnScale;
+
+                        break;
+                    case BundledContentHolder.PlacementType.SpawnInFrontOfPlayer:
+
+                        // spawn the item in front of the player
+
+                        Vector3 playerPosReference = BasisLocalPlayer.Instance.gameObject.transform.position;
+                        Vector3 forward = BasisLocalCameraDriver.Instance.gameObject.transform.forward;
+                        finalPos = playerPosReference + new Vector3(0, 1.5f, 0) + forward * 2; // spawn 2 units in front of player
+
+                        break;
+                    case BundledContentHolder.PlacementType.SpawnAtPlayerOrigin:
+
+                        // spawn on the player pos
+                        finalPos = BasisLocalPlayer.Instance.gameObject.transform.position;
+
+                        break;
+                    default:
+                        BasisDebug.LogError($"LoadProp was invoked for item = {item.Url} but has placementType = {item.PlacementType} which is not defined. Unable to spawn item");
+                        break;
+                }
+
+                switch (desiredNetworkType)
+                {
+                    case BundledContentHolder.NetworkType.Local:
+                        {
+                            Transform parentTarget = BasisDeviceManagement.Instance.transform;
+
+                            // if the item is embedded instantiate directly from the addressable, otherwise load from bundle and then instantiate
+                            if(item.IsEmbedded)
+                            {
+                                AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
+                                GameObject CreatedObject = op.WaitForCompletion();
+                                var inSceneLoadingAvatar = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
+                            }
+                            else
+                            {
+                                if (cached.BasisBundleConnector != null)
+                                {
+                                    BasisLoadableBundle bundle = cached.BasisLoadableBundle;
+
+                                    BasisProgressReport report = new BasisProgressReport();
+                                    CancellationToken cancel = default;
+
+                                    var selector = item.Mode switch
+                                    {
+                                        BundledContentHolder.Mode.Avatar => BundledContentHolder.Selector.Avatar,
+                                        BundledContentHolder.Mode.Prop => BundledContentHolder.Selector.Prop,
+                                        BundledContentHolder.Mode.World => BundledContentHolder.Selector.System,
+                                        _ => BundledContentHolder.Selector.Prop
+                                    };
+
+                                    GameObject createdObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, report, cancel, finalPos, finalRot, finalScale, modifyScale, selector, parentTarget
+                                    );
+
+                                    if (createdObject != null)
+                                    {
+                                        Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}.");
+                                    }
+                                    else
+                                    {
+                                        Debug.LogError($"Library provider failed to create desired with networking: {desiredNetworkType} with LoadSelectedItem of url {item.Url}");
+                                    }
+                                }
+                                else
+                                {
+                                    BasisDebug.LogError($"LoadSelectedItem found cached meta for {item.Url} but BasisBundleConnector was null.");
+                                }
+                            }
+
+                            break;
+                        }
+
+                    case BundledContentHolder.NetworkType.Networked:
+                        {
+                            try
+                            {
+                                LocalLoadResource loadedProp;
+                                bool ok = BasisNetworkSpawnItem.RequestGameObjectLoad(item.Pass, item.Url, finalPos, finalRot, finalScale, persistent, modifyScale, out loadedProp
+                                );
+
+                                if (ok && !string.IsNullOrEmpty(loadedProp.LoadedNetID))
+                                {
+                                    Basis.BasisRuntimeSpawnRegistry.Add(item.Url, loadedProp.LoadedNetID, persistent, out _);
+                                    BasisDebug.Log($"Requested networked load for {item.Url}, NetID={loadedProp.LoadedNetID}", BasisDebug.LogTag.Networking);
+                                }
+                                else
+                                {
+                                    BasisDebug.LogError($"Failed to request networked load for {item.Url}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                BasisDebug.LogError(ex);
+                            }
+
+                            break;
+                        }
+
+                    default:
+                        BasisDebug.LogError($"Load selected item {item.Url} was loaded with an unknown network of {desiredNetworkType}! Nothing will happen.");
+                        break;
+                }
             }
             else
             {
                 BasisDebug.LogError($"LoadSelectedItem failed to find cached meta for url {item.Url}, cannot load bundle without it!");
-            }
-            BasisDebug.Log("Forcefully closing the main menu");
-            BasisMainMenu.Close();
-            BasisBounds FinalBounds = cached.BasisBundleConnector.Bounds;
-            PlacementInput.BasisPointRaycaster.EnterPlacementMode(FinalBounds.extents);
-            BasisLocalPlayer.AfterSimulateOnLate.AddAction(122, VisualDrive);
-
-            var tcs = new TaskCompletionSource<(Vector3 pos, Quaternion rot, Vector3 scale)>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-            bool wasDown = false;
-
-            void CleanupPlacement()
-            {
-                try { PlacementInput.CurrentInputState.OnTriggerChanged -= OnTriggerChanged; } catch { }
-                try { PlacementInput.BasisPointRaycaster.ExitPlacementMode(); } catch { }
-                try { BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(122, VisualDrive); } catch { }
-                try { Addressables.ReleaseInstance(PlacementCube); } catch { }
-                if (PlacementCube != null)
-                {
-                    GameObject.Destroy(PlacementCube);
-                }
-            }
-
-            void OnTriggerChanged()
-            {
-                try
-                {
-                    float t = PlacementInput.CurrentInputState.Trigger;
-
-                    // simple debounce: detect "up -> down" transition
-                    if (!wasDown && t >= triggerDownThreshold)
-                    {
-                        wasDown = true;
-
-                        // Ask raycaster for placement pose
-                        if (PlacementInput.BasisPointRaycaster.TryGetPlacement(out var placement))
-                        {
-                            Vector3 spawnPos = placement.Center;
-                            Quaternion spawnRot = placement.Rotation;
-
-                            // You can derive scale from item if you have it; defaulting to 1.
-                            Vector3 spawnScale = Vector3.one;
-
-                            tcs.TrySetResult((spawnPos, spawnRot, spawnScale));
-                            CleanupPlacement();
-                            return;
-                        }
-
-                        // Fallback if no placement hit: spawn in front of device
-                        Transform tr = PlacementInput.transform;
-                        Vector3 fallbackPos = tr.position + tr.forward * 0.75f;
-                        Quaternion fallbackRot = Quaternion.LookRotation(tr.forward, Vector3.up);
-                        tcs.TrySetResult((fallbackPos, fallbackRot, Vector3.one));
-                        CleanupPlacement();
-                        return;
-                    }
-                    if (wasDown && t <= triggerUpThreshold)
-                    {
-                        wasDown = false;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    BasisDebug.LogError(ex);
-                    tcs.TrySetException(ex);
-                    CleanupPlacement();
-                }
-            }
-
-            PlacementInput.CurrentInputState.OnTriggerChanged += OnTriggerChanged;
-
-            (Vector3 spawnPos, Quaternion spawnRot, Vector3 spawnScale) placementResult;
-            try
-            {
-                placementResult = await tcs.Task;
-            }
-            finally
-            {
-                CleanupPlacement();
-            }
-
-            Vector3 finalPos = placementResult.spawnPos;
-            Quaternion finalRot = placementResult.spawnRot;
-            Vector3 finalScale = placementResult.spawnScale;
-            switch (desiredNetworkType)
-            {
-                case BundledContentHolder.NetworkType.Local:
-                    {
-
-                        if (cached.BasisBundleConnector != null)
-                        {
-                            BasisLoadableBundle bundle = cached.BasisLoadableBundle;
-
-                            BasisProgressReport report = new BasisProgressReport();
-                            CancellationToken cancel = default;
-
-                            var selector = item.Mode switch
-                            {
-                                BundledContentHolder.Mode.Avatar => BundledContentHolder.Selector.Avatar,
-                                BundledContentHolder.Mode.Prop => BundledContentHolder.Selector.Prop,
-                                BundledContentHolder.Mode.World => BundledContentHolder.Selector.System,
-                                _ => BundledContentHolder.Selector.Prop
-                            };
-
-                            GameObject createdObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, report, cancel, finalPos, finalRot, finalScale, modifyScale, selector, BasisNetworkManagement.Instance.transform
-                            );
-
-                            if (createdObject != null)
-                            {
-                                Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}.");
-                            }
-                            else
-                            {
-                                Debug.LogError($"Library provider failed to create desired with networking: {desiredNetworkType} with LoadSelectedItem of url {item.Url}");
-                            }
-                        }
-                        else
-                        {
-                            BasisDebug.LogError($"LoadSelectedItem found cached meta for {item.Url} but BasisBundleConnector was null.");
-                        }
-
-                        break;
-                    }
-
-                case BundledContentHolder.NetworkType.Networked:
-                    {
-                        try
-                        {
-                            LocalLoadResource loadedProp;
-                            bool ok = BasisNetworkSpawnItem.RequestGameObjectLoad(item.Pass, item.Url, finalPos, finalRot, finalScale, persistent, modifyScale, out loadedProp
-                            );
-
-                            if (ok && !string.IsNullOrEmpty(loadedProp.LoadedNetID))
-                            {
-                                Basis.BasisRuntimeSpawnRegistry.Add(item.Url, loadedProp.LoadedNetID, persistent, out _);
-                                BasisDebug.Log($"Requested networked load for {item.Url}, NetID={loadedProp.LoadedNetID}", BasisDebug.LogTag.Networking);
-                            }
-                            else
-                            {
-                                BasisDebug.LogError($"Failed to request networked load for {item.Url}");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            BasisDebug.LogError(ex);
-                        }
-
-                        break;
-                    }
-
-                default:
-                    BasisDebug.LogError($"Load selected item {item.Url} was loaded with an unknown network of {desiredNetworkType}! Nothing will happen.");
-                    break;
             }
         }
         public static BasisInput PlacementInput;
@@ -1316,6 +1560,13 @@ namespace Basis.BasisUI
                 }
             }
         }
+
+        public static async Task LoadWorld(BasisDataStoreItemKeys.ItemKey item)
+        {
+            // TODO
+            BasisDebug.LogWarning("World loading not implemented yet, breaking out of load logic to prevent errors. Implement LoadWorld!");
+        }
+
         /// <summary>
         /// used to load a target item from a BasisDataStoreItemKeys.ItemKey
         /// items are branched with a switch statement depending on item mode
@@ -1341,7 +1592,7 @@ namespace Basis.BasisUI
                         await LoadProp(item, networkType, persistence, modifyScale);
                         break;
                     case BundledContentHolder.Mode.World:
-                        BasisDebug.LogWarning("World loading not implemented yet, breaking out of load logic to prevent errors. Implement LoadWorld!");
+                        await LoadWorld(item);
                         break;
                     default:
                         BasisDebug.LogError($"LoadSelectedItem was given an item with an unknown mode of {item.Mode}, cannot determine how to load!");

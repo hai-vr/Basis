@@ -20,4 +20,12 @@ public partial class BundledContentHolder
         Local = 0,
         Networked = 1,
     }
+
+    // used to determine the way an item can be placed into a world
+    public enum PlacementType
+    {
+        SpawnAtRaycast = 0, // will spawn the item using the players desired location using raycast placement
+        SpawnInFrontOfPlayer = 1, // will spawn the item at the players eye height and in front of them
+        SpawnAtPlayerOrigin = 2, // will spawn the item at the players origin
+    }
 }

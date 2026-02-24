@@ -43,7 +43,7 @@ namespace Basis.BasisUI
                 {
                     Pass = Wrapper.BasisLoadableBundle.UnlockPassword,
                     Url = Wrapper.BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation,
-                    ISEmbedded = Wrapper.ISEmbedded,
+                    IsEmbedded = Wrapper.ISEmbedded,
                 };
 
                 BasisDataStoreItemKeys.ItemKey[] keys = BasisDataStoreItemKeys.DisplayKeys();
