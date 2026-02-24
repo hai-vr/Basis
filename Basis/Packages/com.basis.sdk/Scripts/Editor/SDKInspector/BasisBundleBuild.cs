@@ -35,8 +35,8 @@ public static class BasisBundleBuild
         BasisBounds BasisBounds = new BasisBounds(unitybounds.center, unitybounds.size);
 
         var meta = GenerateMetaData(BasisContentBase.gameObject);
-
-        return await BuildBundle(
+        string FolderPath = MakeSafeFolderName(BasisContentBase.BasisBundleDescription.AssetBundleName);
+        return await BuildBundle(FolderPath,
             basisContentBase: BasisContentBase,
             MetaData: meta,
             BasisBounds: BasisBounds,
@@ -45,7 +45,7 @@ public static class BasisBundleBuild
             useProvidedPassword: useProvidedPassword,
             OverridenPassword: OverridenPassword,
             buildFunction: (content, obj, hex, target, buildId) =>
-                BasisAssetBundlePipeline.BuildAssetBundle(content.gameObject, obj, hex, target, MakeSafeFolderName(BasisContentBase.BasisBundleDescription.AssetBundleName)));
+                BasisAssetBundlePipeline.BuildAssetBundle(content.gameObject, obj, hex, target, FolderPath));
     }
     /// <summary>
     /// Calculates bounds of all child renderers in PARENT LOCAL SPACE (pivot-relative).
@@ -160,8 +160,8 @@ public static class BasisBundleBuild
         BasisBounds BasisBounds = new BasisBounds(unitybounds.center, unitybounds.size);
 
         var meta = GenerateSceneMetaData(scene);
-
-        return await BuildBundle(
+        string FolderName = MakeSafeFolderName(BasisContentBase.BasisBundleDescription.AssetBundleName);
+        return await BuildBundle(FolderName,
             basisContentBase: BasisContentBase,
             MetaData: meta,
             BasisBounds: BasisBounds,
@@ -169,7 +169,7 @@ public static class BasisBundleBuild
             targets: Targets,
             useProvidedPassword: useProvidedPassword,
             OverridenPassword: OverridenPassword,
-            buildFunction: (content, obj, hex, target, buildId) => BasisAssetBundlePipeline.BuildAssetBundle(scene, obj, hex, target, MakeSafeFolderName(BasisContentBase.BasisBundleDescription.AssetBundleName)));
+            buildFunction: (content, obj, hex, target, buildId) => BasisAssetBundlePipeline.BuildAssetBundle(scene, obj, hex, target, FolderName));
     }
     // Windows reserved device names (case-insensitive)
     private static readonly string[] ReservedNames =
@@ -393,7 +393,7 @@ public static class BasisBundleBuild
 
         return combined;
     }
-    public static async Task<(bool, string)> BuildBundle(
+    public static async Task<(bool, string)> BuildBundle(string FolderName,
       BasisContentBase basisContentBase,
       BasisBundleConnector.BasisMetaData MetaData,
       BasisBounds BasisBounds,
@@ -448,7 +448,7 @@ public static class BasisBundleBuild
 
             // Staging output folder (uncombined per-target Unity output)
             string uncombinedRoot = PathConversion(assetBundleObject.AssetBundleUnCombined);
-            stagingRoot = Path.Combine(uncombinedRoot, generatedID);
+            stagingRoot = Path.Combine(uncombinedRoot, FolderName);
             Directory.CreateDirectory(stagingRoot);
 
             string Password = useProvidedPassword ? OverridenPassword : GenerateHexString(32);
