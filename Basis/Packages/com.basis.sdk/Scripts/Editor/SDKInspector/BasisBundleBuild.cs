@@ -140,6 +140,7 @@ public static class BasisBundleBuild
     }
     public static BasisBundleConnector.BasisMetaData GenerateMetaData(GameObject root)
     {
+
         BasisBundleConnector.BasisMetaData meta = new BasisBundleConnector.BasisMetaData();
         long triangleCount = 0;
         long materialCount = 0;
@@ -150,6 +151,7 @@ public static class BasisBundleBuild
         {
             if (mf.sharedMesh != null)
             {
+                EnsureReadWriteEnabled(mf.sharedMesh);
                 triangleCount += mf.sharedMesh.triangles.Length / 3;
             }
         }
@@ -158,6 +160,7 @@ public static class BasisBundleBuild
         {
             if (smr.sharedMesh != null)
             {
+                EnsureReadWriteEnabled(smr.sharedMesh);
                 triangleCount += smr.sharedMesh.triangles.Length / 3;
             }
 
@@ -212,6 +215,26 @@ public static class BasisBundleBuild
             .ToArray();
 
         return meta;
+    }
+    public static void EnsureReadWriteEnabled(Mesh mesh)
+    {
+        if (mesh == null)
+        {
+            return;
+        }
+
+        string path = AssetDatabase.GetAssetPath(mesh);
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        ModelImporter importer = AssetImporter.GetAtPath(path) as ModelImporter;
+        if (importer != null && importer.isReadable == false)
+        {
+            importer.isReadable = true;
+            importer.SaveAndReimport();
+        }
     }
     public static BasisBundleConnector.BasisMetaData GenerateSceneMetaData(Scene scene)
     {
