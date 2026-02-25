@@ -1058,7 +1058,7 @@ namespace Basis.BasisUI
             {
                 // create the exit button for the dialog box
                 var pinButton = PanelButton.CreateNew(ButtonStyles.ExitButton, existingItemDialog.Descriptor.Header);
-                pinButton.Descriptor.SetTitle("Pin");
+                pinButton.Descriptor.SetTitle(item.IsPinned ? "Un-Pin" : "Pin");
                 pinButton.Descriptor.SetIcon(AddressableAssets.Sprites.Pin);
                 pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
                 pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
@@ -1075,6 +1075,7 @@ namespace Basis.BasisUI
 
                     await RefreshCurrentTab();
                     //await RefreshPinnedProviders();
+                    pinButton.Descriptor.SetTitle(item.IsPinned ? "UnPin" : "Pin");
 
                     BasisDebug.Log($"Pinned button was pressed on item = {item.Url}, success = {success}, item.IsPinned = {item.IsPinned}");
                 };
