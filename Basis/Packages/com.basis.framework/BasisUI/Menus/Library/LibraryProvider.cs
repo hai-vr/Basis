@@ -669,7 +669,7 @@ namespace Basis.BasisUI
                                                     case "basisprop":
                                                     itemType = BundledContentHolder.Mode.Prop;
                                                     break;
-                                                    case "Basisavatar":
+                                                    case "basisavatar":
                                                     itemType = BundledContentHolder.Mode.Avatar;
                                                     break;
                                                     case "basisccene":
