@@ -15,8 +15,8 @@ namespace Basis.BasisUI
 
         public static class ElementStyles
         {
-            public static string ScrollViewGrid =>
-    "Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical - Grid Variant.prefab";
+            public static string ScrollViewGrid => "Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical - Grid Variant.prefab";
+            public static string ScrollViewGridLibrary => "Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical - Grid Variant For Library.prefab";
             public static string ScrollViewVertical =>
                 "Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical.prefab";
             public static string ScrollViewVerticalLibrary => "Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical For Library Variant.prefab";
@@ -32,6 +32,7 @@ namespace Basis.BasisUI
             public static string LibraryEntryOverlay => "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base - Overlay For Library Variant.prefab";
             public static string GroupLargeIcon => "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base Icon.prefab";
             public static string GroupLargeIconVertical => "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base Icon Vertical Stacked Content Variant.prefab";
+
 
             public static string GroupLargeIconHorizontol => "Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base Icon Horizontal Stacked Content Variant.prefab";
         }

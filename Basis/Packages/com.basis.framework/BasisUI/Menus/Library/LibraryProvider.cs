@@ -800,18 +800,23 @@ namespace Basis.BasisUI
             };
 
             await BasisDataStoreItemKeys.AddNewKey(key);
-            if(mode == BundledContentHolder.Mode.Avatar)
-            {
-                BasisLoadableBundle loadableBundle = new()
-                {
-                    UnlockPassword = Password,
-                    BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle { RemoteBeeFileLocation = URL },
-                    BasisBundleConnector = new BasisBundleConnector(),
-                    BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle()
-                };
 
-                await BasisLocalPlayer.Instance.CreateAvatar(BasisLocalPlayer.LoadModeNetworkDownloadable, loadableBundle);
-            }
+            // this is misleading in user experience expectations
+            // while it saves 2 clicks, it will force a user out of an avatar straight up, when the action is not desired
+            // ideally we should prompt the user if they want to directly load into their most recently loaded asset
+            // TODO: revise
+            // if(mode == BundledContentHolder.Mode.Avatar)
+            // {
+            //     BasisLoadableBundle loadableBundle = new()
+            //     {
+            //         UnlockPassword = Password,
+            //         BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle { RemoteBeeFileLocation = URL },
+            //         BasisBundleConnector = new BasisBundleConnector(),
+            //         BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle()
+            //     };
+
+            //     await BasisLocalPlayer.Instance.CreateAvatar(BasisLocalPlayer.LoadModeNetworkDownloadable, loadableBundle);
+            // }
         }
 
         #endregion
@@ -935,14 +940,13 @@ namespace Basis.BasisUI
             bool ephemeral = true;  // the persistence behavior of the item 
             BasisBundleConnector.BasisMetaData basisMetaData; // grab the meta data
             BasisBundleDescription description; // grab the description data
-            string creationDate = string.Empty; // get the creation date of the basis bundle
             Sprite targetSprite = null;   // target sprite
-            string[] platforms = new string[0]; // platforms
-            string itemID = string.Empty; // item id
+
+            // default string text for embedded item
+            string embedItem = "Emebbed item";
 
             if(item.IsEmbedded)
             {
-                string embedItem = "Emebbed item";
                 description = new BasisBundleDescription(){
                     AssetBundleName = item.Url,
                     AssetBundleDescription = embedItem,
@@ -950,32 +954,14 @@ namespace Basis.BasisUI
 
                 targetSprite = EmbeddedItems.GetSpriteForEmbeddedItem(item);
 
-                itemID = embedItem;
             }
             else
             {
                 // grab BEE file information
                 basisMetaData = metadata.BasisBundleConnector.MetaData;
                 description = metadata.BasisBundleConnector.BasisBundleDescription;
-                creationDate = metadata.BasisBundleConnector.DateOfCreation;
                 targetSprite = CachedMetaData.CreateSpriteFromMetaData(metadata);
-                platforms = metadata.BasisBundleConnector.BasisBundleGenerated.Select(pair => pair.Platform).ToArray();
-                itemID = metadata.BasisBundleConnector.UniqueVersion;
             }
-
-            // TODO: can an item be invalid after wards probably might still need this
-            // if (description == null)
-            // {
-            //     BasisDebug.LogError($"Bundle Description on AvatarMenuItem {item} not found, auto removing.");
-                
-            //     // TODO: Remove this once input validation is in place to prevent invalid entries from being added. This is to ensure a clean user experience in the meantime.
-            //     // temp will remove invalid entries that failed to get meta data.
-            //     await BasisDataStoreItemKeys.RemoveKey(item);
-
-            //     // refresh the current tab for any new changes
-            //     await RefreshCurrentTab();
-            //     return;
-            // }
 
             // Not sure why we need this so lets to remove.
             _activeItem = item;
@@ -1023,47 +1009,44 @@ namespace Basis.BasisUI
                 default:
                     itemIcon.SetHeight(500);
                     break;
-                
             }
 
             itemIcon.SetIcon(targetSprite);
 
             #endregion
 
-
-            // info about the item
-            //PanelTabGroup itemMetaDataPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, itemIcon.ContentParent);
-            // advancedActionsPanel.Descriptor.SetHeight(160);
-            // advancedActionsPanel.Descriptor.SetWidth(900);
-
-            //PanelTabPage scrollablePage = PanelTabPage.CreateVerticalAlternate(itemIcon.ContentParent);
-
+            // create a scrollable page for the information of the selected content item
             PanelTabPage scrollablePage = PanelTabPage.CreateNew(itemIcon.ContentParent);
             PanelElementDescriptor descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewVerticalLibraryParentContentSize, scrollablePage.Descriptor.ContentParent);
             scrollablePage.Descriptor.ContentParent = descriptor.ContentParent;
-            //scrollablePage.Descriptor.ContentParent.sizeDelta = new Vector2( scrollablePage.Descriptor.ContentParent.sizeDelta.x, 900 );
-
-            //scrollablePage.Descriptor.SetHeight(1000);
-            //PanelTabGroup itemMetaDataPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, itemIcon.ContentParent);
-            // itemListPanel.Descriptor.SetWidth( 1400 );
-            // itemListPanel.Descriptor.SetHeight( 80 );
 
             #region CREATION DATE
 
-            // determine what the creation date text is gonna say
-            if (string.IsNullOrEmpty(creationDate))
+            string creationDate = string.Empty; // get the creation date of the basis bundle
+
+            if(!item.IsEmbedded)
             {
-                creationDate = "N/A";
+                creationDate = metadata.BasisBundleConnector.DateOfCreation;
+                // determine what the creation date text is gonna say
+                if (string.IsNullOrEmpty(creationDate))
+                {
+                    creationDate = "N/A";
+                }
+                else
+                {
+                    creationDate = DateTime
+                        .Parse(creationDate, CultureInfo.InvariantCulture,
+                            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal)
+                        .ToString(CultureInfo.InvariantCulture);
+
+                    creationDate += " UTC";
+                }
             }
             else
             {
-                creationDate = DateTime
-                    .Parse(creationDate, CultureInfo.InvariantCulture,
-                           DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal)
-                    .ToString(CultureInfo.InvariantCulture);
-
-                creationDate += " UTC";
+                creationDate = embedItem;
             }
+
 
             // creation date and time
             PanelTextField createdInformationTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);
@@ -1084,7 +1067,7 @@ namespace Basis.BasisUI
             platformIconsTextField._inputField.gameObject.SetActive(false); // disable the text input field box
             platformIconsTextField.Descriptor.SetTitle("Available Platforms");
             platformIconsTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Computer);
-            platformIconsTextField.Descriptor.SetHeight(50);
+            platformIconsTextField.Descriptor.SetHeight(130);
             platformIconsTextField.Descriptor.SetWidth(400);
 
             if(item.IsEmbedded)
@@ -1093,28 +1076,15 @@ namespace Basis.BasisUI
             }
             else
             {
+                string[] platforms = metadata.BasisBundleConnector.BasisBundleGenerated.Select(pair => pair.Platform).ToArray();
                 string supported_platforms = string.Join(" | ", platforms);
                 platformIconsTextField.Descriptor.SetDescription($"{supported_platforms}");
-
-                // // create a text field to show validation error messages, initially empty
-                // PanelTabGroup platformIconsPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, itemMetaDataPanel.TabButtonParent);
-                // //validationMessageField.Descriptor.gameObject.SetActive(false);
-                // //platformIconsPanel._inputField.gameObject.SetActive(false); // disable the text input field box
-                // //platformIconsPanel.Descriptor.SetTitle("PLATFORM ICONS");
-                // //platformIconsPanel.Descriptor.SetDescription("PLATFORM ICONS DESC");
-                // // validationMessageField.Descriptor.TitleLabel.color = Color.yellow;
-                // // validationMessageField.Descriptor.DescriptionLabel.color = Color.yellow;
-
-                // platformIconsPanel.Descriptor.SetHeight(50);
-                // platformIconsPanel.Descriptor.SetWidth(400);
-                
-                // BasisDebug.Log($"item {item.Url} has platforms supported {platforms} {platforms.Length}");
 
                 foreach (string platform in platforms)
                 {
                     PanelImage panelImage = PanelImage.CreateNew( PanelImage.ImageStyles.SimpleSquare, platformIconsTextField.Descriptor.ContentParent );
                     panelImage.SetSize( new Vector2( 80, 80 ) );
-                    
+
                     switch (platform)
                     {
                         case "StandaloneWindows64":
@@ -1138,26 +1108,20 @@ namespace Basis.BasisUI
                             panelImage.SetIcon(AddressableAssets.Sprites.PlatformMobileiOS);
                             break;
                     }
-
-                    // string address = null;
-
-
-                    // if (string.IsNullOrEmpty(address))
-                    // {
-                    //     continue;
-                    // }
-
-                    // var handle = Addressables.LoadAssetAsync<GameObject>(address);
-                    // var prefab = await handle.Task;
-
-                    // GameObject.Instantiate(prefab, platformIconsPanel.TabButtonParent.transform);
                 }
             }
 
 
             #endregion
 
-            #region ITEM META DATA
+            // lets create a grid to put the items below in
+
+            PanelTabPage grid = PanelTabPage.CreateNew(scrollablePage.Descriptor.ContentParent);
+            PanelElementDescriptor scrollViewGridDescriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewGridLibrary, grid.Descriptor.ContentParent);
+            grid.Descriptor.ContentParent = scrollViewGridDescriptor.ContentParent;
+            grid.Descriptor.SetHeight(150);
+
+            #region POLYGON COUNT
 
             long polygonCount = 0;
 
@@ -1171,7 +1135,7 @@ namespace Basis.BasisUI
             }
 
             // creation date and time
-            PanelTextField polygonTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);
+            PanelTextField polygonTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, grid.Descriptor.ContentParent );//scrollablePage.Descriptor.ContentParent);
             polygonTextField._inputField.gameObject.SetActive(false); // disable the text input field box
             polygonTextField.Descriptor.SetTitle("Triangle Count");
             polygonTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Polygons);
@@ -1182,15 +1146,68 @@ namespace Basis.BasisUI
 
             #endregion
 
-            #region ITEM FIELDS
+            #region MATERIAL COUNT
 
-            // // creation date and time
-            // PanelTextField accessibleItemDataTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);
-            // accessibleItemDataTextField._inputField.gameObject.SetActive(false); // disable the text input field box
-            // accessibleItemDataTextField.Descriptor.SetTitle("Accessible Item Data");
-            // accessibleItemDataTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Information);
-            // accessibleItemDataTextField.Descriptor.SetHeight(50);
-            // accessibleItemDataTextField.Descriptor.SetWidth(400);
+            long materialCount = 0;
+
+            if(item.IsEmbedded)
+            {
+                materialCount = 0;
+            }
+            else
+            {
+                materialCount = metadata.BasisBundleConnector.MetaData.MaterialCount;
+            }
+
+            // creation date and time
+            PanelTextField materialTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, grid.Descriptor.ContentParent );//scrollablePage.Descriptor.ContentParent);
+            materialTextField._inputField.gameObject.SetActive(false); // disable the text input field box
+            materialTextField.Descriptor.SetTitle("Material Count");
+            materialTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Materials);
+            materialTextField.Descriptor.SetDescription($"{materialCount}");
+
+            materialTextField.Descriptor.SetHeight(50);
+            materialTextField.Descriptor.SetWidth(400);
+
+            #endregion
+
+            #region BONES COUNT
+
+            long boneCount = 0;
+
+            if(item.IsEmbedded)
+            {
+                boneCount = 0;
+            }
+            else
+            {
+                boneCount = metadata.BasisBundleConnector.MetaData.BonesCount;
+            }
+
+            // creation date and time
+            PanelTextField bonesTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, grid.Descriptor.ContentParent );//scrollablePage.Descriptor.ContentParent);
+            bonesTextField._inputField.gameObject.SetActive(false); // disable the text input field box
+            bonesTextField.Descriptor.SetTitle("Bones Count");
+            bonesTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Bones);
+            bonesTextField.Descriptor.SetDescription($"{boneCount}");
+
+            bonesTextField.Descriptor.SetHeight(50);
+            bonesTextField.Descriptor.SetWidth(400);
+
+            #endregion
+
+            #region ITEM FIELDS
+ 
+            string itemID = string.Empty; // item id
+
+            if(item.IsEmbedded)
+            {
+                itemID = embedItem;
+            }
+            else
+            {
+                itemID = metadata.BasisBundleConnector.UniqueVersion;
+            }
 
             PanelPasswordField IDField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);//accessibleItemDataTextField.Descriptor.ContentParent);
             IDField._placeholderField.text = "";
@@ -1221,7 +1238,7 @@ namespace Basis.BasisUI
 
             #endregion
 
-            #region ITEM DISPLAY LOGIC SPECIFIC TO BundledContentHolder.Mode
+            #region ITEM NETWORK MODE & EPHEMERAL TOGGLE
 
             // // advanced setting button parent
             // PanelTabGroup advanceSettingsPanelGroup = PanelTabGroup.CreateNew(existingItemDialog.Descriptor.ContentParent, LayoutDirection.HorizontalNoBackground);
@@ -1263,81 +1280,65 @@ namespace Basis.BasisUI
 
             // };
 
-            switch(item.Mode)
+            // only do this menu for props
+            if(item.Mode == BundledContentHolder.Mode.Prop)
             {
-                case BundledContentHolder.Mode.Avatar:
-                    break;
-                case BundledContentHolder.Mode.Prop:
+                // Advanced Settings
+                PanelTabGroup advancedActionsPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, existingItemDialog.Descriptor.ContentParent);
+                advancedActionsPanel.Descriptor.SetHeight(160);
 
-                    // Advanced Settings
-                    PanelTabGroup advancedActionsPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, existingItemDialog.Descriptor.ContentParent);
-                    //advancedActionsPanel.Descriptor.gameObject.SetActive(false); // turn advance settings off
-                    advancedActionsPanel.Descriptor.SetHeight(160);
-                    //advancedActionsPanel.Descriptor.SetWidth(900);
+                // content sync mode dropdown determines whether the new item is flagged as networked or local, which affects filtering and how the item is loaded later
+                PanelDropdown contentSyncModeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.Entry, advancedActionsPanel.TabButtonParent);
+                string[] contentSyncModes = Enum.GetNames(typeof(BundledContentHolder.NetworkType));
+                contentSyncModeDropDown.Descriptor.SetTitle("Network Type");
+                contentSyncModeDropDown.Descriptor.SetDescription("If the item is set to local, it will only be visible and interactive for you.");
+                contentSyncModeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
+                contentSyncModeDropDown.AssignEntries(contentSyncModes.ToList());
+                contentSyncModeDropDown.Descriptor.SetSize(new Vector2(700, 80));
 
-                    // PanelTabPage tab = PanelTabPage.CreateGrid(advancedActionsPanel.Descriptor.ContentParent);
-                    // tab.rectTransform.offsetMin = new Vector2(0, 0);
-
-                    // content sync mode dropdown determines whether the new item is flagged as networked or local, which affects filtering and how the item is loaded later
-                    PanelDropdown contentSyncModeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.Entry, advancedActionsPanel.TabButtonParent);
-                    string[] contentSyncModes = Enum.GetNames(typeof(BundledContentHolder.NetworkType));
-                    contentSyncModeDropDown.Descriptor.SetTitle("Network Type");
-                    contentSyncModeDropDown.Descriptor.SetDescription("Determines visibility.");
-                    contentSyncModeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
-                    contentSyncModeDropDown.AssignEntries(contentSyncModes.ToList());
-                    contentSyncModeDropDown.Descriptor.SetSize(new Vector2(700, 80));
-
-                    // DISABLE THIS DROPDOWN IF EMBEDED ITEM
-                    if(contentSyncModeDropDown.Descriptor.gameObject.TryGetComponent<PanelDropdown>(out PanelDropdown dropdown))
-                    {
-                        if(dropdown.DropdownComponent != null)
-                        {
-                            // if the item is embedded dont interact
-                            dropdown.DropdownComponent.interactable = !item.IsEmbedded;
-                        }
-                    }
-                    
-                    // set the default network type
-                    contentSyncModeDropDown.SetValueWithoutNotify(desiredNetworkType.ToString());
-                    contentSyncModeDropDown.OnValueChanged = (val) =>
-                    {
-                        if (Enum.TryParse(contentSyncModeDropDown.SelectedString, out BundledContentHolder.NetworkType selectedNetType))
-                        {
-                            desiredNetworkType = selectedNetType;
-                            BasisDebug.Log($"Selected Network Type: {desiredNetworkType}");
-                        }
-                        else
-                        {
-                            BasisDebug.LogError("Coudnt Parse BundledContentHolder.NetworkType!");
-                        }
-                    };
-
-                    //content persistence toggle determines weather
-                    PanelToggle contentPersistenceToggle = PanelToggle.CreateNew(advancedActionsPanel.TabButtonParent, PanelToggle.Styles.Entry);
-                    contentPersistenceToggle.SetValueWithoutNotify(ephemeral);
-                    contentPersistenceToggle.Descriptor.SetTitle("Ephemeral Mode");
-                    contentPersistenceToggle.Descriptor.SetIcon(AddressableAssets.Sprites.HourGlass);
-                    contentPersistenceToggle.Descriptor.SetDescription("This item will only be visible to people currently in the instance. Late joiners wont be able to see this.");
-                    contentPersistenceToggle.Descriptor.SetSize(new Vector2(700, 80));
-                    contentPersistenceToggle.OnValueChanged = (val) =>
-                    {
-                        ephemeral = val;
-                    };
-
-                    // DISABLE THIS TOGGLE IF THE ITEM IS EMBEDDED
-                    if(contentPersistenceToggle.Descriptor.gameObject.TryGetComponent<Toggle>(out Toggle toggle))
+                // DISABLE THIS DROPDOWN IF EMBEDED ITEM
+                if(contentSyncModeDropDown.Descriptor.gameObject.TryGetComponent<PanelDropdown>(out PanelDropdown dropdown))
+                {
+                    if(dropdown.DropdownComponent != null)
                     {
                         // if the item is embedded dont interact
-                        toggle.interactable = !item.IsEmbedded;
+                        dropdown.DropdownComponent.interactable = !item.IsEmbedded;
                     }
+                }
+                
+                // set the default network type
+                contentSyncModeDropDown.SetValueWithoutNotify(desiredNetworkType.ToString());
+                contentSyncModeDropDown.OnValueChanged = (val) =>
+                {
+                    if (Enum.TryParse(contentSyncModeDropDown.SelectedString, out BundledContentHolder.NetworkType selectedNetType))
+                    {
+                        desiredNetworkType = selectedNetType;
+                        BasisDebug.Log($"Selected Network Type: {desiredNetworkType}");
+                    }
+                    else
+                    {
+                        BasisDebug.LogError("Coudnt Parse BundledContentHolder.NetworkType!");
+                    }
+                };
 
-                    break;
-                case BundledContentHolder.Mode.World:
-                    break;
-                default:
-                    BasisDebug.Log( $"Unknown item.Mode {item.Mode} for item {item.Url}, unable to determine ShowItemOverlay layout" );
-                    break;
+                //content persistence toggle determines weather
+                PanelToggle contentPersistenceToggle = PanelToggle.CreateNew(advancedActionsPanel.TabButtonParent, PanelToggle.Styles.Entry);
+                contentPersistenceToggle.SetValueWithoutNotify(ephemeral);
+                contentPersistenceToggle.Descriptor.SetTitle("Ephemeral Mode");
+                contentPersistenceToggle.Descriptor.SetIcon(AddressableAssets.Sprites.HourGlass);
+                contentPersistenceToggle.Descriptor.SetDescription("This item will only be visible to people currently in the instance. Late joiners wont be able to see this.");
+                contentPersistenceToggle.Descriptor.SetSize(new Vector2(700, 80));
+                contentPersistenceToggle.OnValueChanged = (val) =>
+                {
+                    ephemeral = val;
+                };
 
+                // DISABLE THIS TOGGLE IF THE ITEM IS EMBEDDED
+                if(contentPersistenceToggle.Descriptor.gameObject.TryGetComponent<Toggle>(out Toggle toggle))
+                {
+                    // if the item is embedded dont interact
+                    toggle.interactable = !item.IsEmbedded;
+                }
             }
 
             #endregion
@@ -1398,98 +1399,7 @@ namespace Basis.BasisUI
                     // just close the overlay instead.
                     await existingItemDialog.CloseAsync();
                 }
-
             };
-
-            // string creationDate = bundle.BasisBundleConnector.DateOfCreation;
-            // if (string.IsNullOrEmpty(creationDate))
-            // {
-            //     creationDate = string.Empty;
-            // }
-            // else
-            // {
-            //     creationDate = DateTime
-            //         .Parse(creationDate, CultureInfo.InvariantCulture,
-            //                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal)
-            //         .ToString(CultureInfo.InvariantCulture);
-
-            //     creationDate += " UTC";
-            // }
-
-            // // Wrapper
-            // var Descriptor = PanelElementDescriptor.CreateNew(
-            //     PanelElementDescriptor.ElementStyles.GroupLargeIcon, _descriptor);
-
-            // Descriptor.SetIcon(Sprite);
-            // Descriptor.SetTitle(description.AssetBundleDescription);
-
-            // PanelTabGroup actionsSupportedPlatforms =  PanelTabGroup.CreateNew(_descriptor, LayoutDirection.HorizontalNoBackground);
-            // if (actionsSupportedPlatforms.TryGetComponent<LayoutElement>(out LayoutElement LayoutElement))
-            // {
-            //     LayoutElement.minHeight = 60;
-            // }
-
-            // Descriptor.SetDescription($"\nCreated: {creationDate}");
-
-            // var IDField = PanelPasswordField.CreateNew(PasswordFieldStyles.Entry, _descriptor);
-            // IDField._placeholderField.text = "";//Wrapper
-            // IDField.SetPassword(bundle.BasisBundleConnector.UniqueVersion);
-            // IDField._inputField.interactable = false;
-            // IDField.Descriptor.SetTitle("URL:");
-            // IDField.LayoutElement.minWidth = 500;
-
-            // var urlField = PanelPasswordField.CreateNew(PasswordFieldStyles.Entry, _descriptor);
-            // urlField._placeholderField.text = "";
-            // urlField.SetPassword(item.Url);
-            // urlField._inputField.interactable = false;
-            // urlField.Descriptor.SetTitle("URL:");
-            // urlField.LayoutElement.minWidth = 500;
-
-            // var passField = PanelPasswordField.CreateNew(PasswordFieldStyles.Entry, _descriptor);
-            // passField._placeholderField.text = "";
-            // passField.SetPassword(item.Pass); // if supported
-            // passField._inputField.interactable = false;
-            // passField.Descriptor.SetTitle("Password:");
-            // passField.LayoutElement.minWidth = 500;
-
-            // // Buttons row
-            // PanelTabGroup actions = PanelTabGroup.CreateNew(_descriptor, LayoutDirection.HorizontalNoBackground);
-
-            // PanelButton DeleteBtn = PanelButton.CreateNew(ButtonStyles.CancelButton, actions.TabButtonParent);
-            // PanelButton loadBtn = PanelButton.CreateNew(ButtonStyles.AcceptButton, actions.TabButtonParent);
-
-            // DeleteBtn.Descriptor.SetTitle("Delete");
-            // loadBtn.Descriptor.SetTitle("Load");
-
-            // DeleteBtn.SetSize(new Vector2(200, 60));
-            // loadBtn.SetSize(new Vector2(530, 60));
-
-            // DeleteBtn.OnClicked += async () =>
-            // {
-            //     await BasisDataStoreItemKeys.RemoveKey(item);
-            //     await CloseOverlay();
-            // };
-
-            // loadBtn.OnClicked += async () =>
-            // {
-            //     if (_isSubmitting) return;
-            //     _isSubmitting = true;
-
-            //     try
-            //     {
-            //         BasisDebug.Log($"Load Button Clicked for item: {item.Url}");
-            //         await LoadSelectedItem(item);
-            //     }
-            //     catch (Exception ex)
-            //     {
-            //         BasisDebug.LogError(ex);
-            //     }
-            //     finally
-            //     {
-            //         _isSubmitting = false;
-            //         await CloseOverlay();
-            //     }
-            // };
         }
 
         private static void ApplyMetaDataToButton(PanelButton buttonPanel, CachedMetaData.CachedContent cachedMeta, string urlKey)

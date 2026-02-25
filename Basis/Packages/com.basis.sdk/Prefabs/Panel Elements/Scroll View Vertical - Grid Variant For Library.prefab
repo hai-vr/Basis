@@ -112,6 +112,10 @@ PrefabInstance:
       propertyPath: m_Value
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3647360455821404326, guid: fca2c6fde5234b7499377f69fbde2ff6, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 3824983393588061780, guid: fca2c6fde5234b7499377f69fbde2ff6, type: 3}
       propertyPath: m_SizeDelta.x
       value: 0
@@ -122,11 +126,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4813946235491012095, guid: fca2c6fde5234b7499377f69fbde2ff6, type: 3}
       propertyPath: m_AnchorMax.x
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 4813946235491012095, guid: fca2c6fde5234b7499377f69fbde2ff6, type: 3}
       propertyPath: m_AnchorMax.y
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 4813946235491012095, guid: fca2c6fde5234b7499377f69fbde2ff6, type: 3}
       propertyPath: m_SizeDelta.x
@@ -134,7 +138,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5654081026383085767, guid: fca2c6fde5234b7499377f69fbde2ff6, type: 3}
       propertyPath: m_Name
-      value: Scroll View Vertical - Grid Variant
+      value: Scroll View Vertical - Grid Variant For Library
       objectReference: {fileID: 0}
     - target: {fileID: 5939334970884535491, guid: fca2c6fde5234b7499377f69fbde2ff6, type: 3}
       propertyPath: m_SizeDelta.y
@@ -258,14 +262,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.GridLayoutGroup
   m_Padding:
-    m_Left: 10
-    m_Right: 10
-    m_Top: 10
-    m_Bottom: 10
+    m_Left: 16
+    m_Right: 16
+    m_Top: 16
+    m_Bottom: 0
   m_ChildAlignment: 0
   m_StartCorner: 0
   m_StartAxis: 0
-  m_CellSize: {x: 200, y: 250}
+  m_CellSize: {x: 400, y: 70}
   m_Spacing: {x: 10, y: 15}
   m_Constraint: 0
   m_ConstraintCount: 2
