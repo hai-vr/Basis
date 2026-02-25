@@ -76,6 +76,23 @@ namespace Basis.Scripts.UI.UI_Panels
             BasisDebug.Log($"Item key removed: {keyToRemove.Url}");
         }
 
+        /// <summary>
+        /// Will adjust the pinned boolean and save
+        /// </summary>
+        public static async Task<bool> SetPinned(ItemKey key, bool value)
+        {
+            EnsureInit();
+
+            int index = IndexOfKey(key);
+            if (index < 0)
+                return false;
+
+            keys.Data[index].IsPinned = value;
+
+            await SaveKeysToFile();
+            return true;
+        }
+
         public static async Task LoadKeys()
         {
             BasisDebug.Log($"Loading Item keys from file at path: {FilePath}");
