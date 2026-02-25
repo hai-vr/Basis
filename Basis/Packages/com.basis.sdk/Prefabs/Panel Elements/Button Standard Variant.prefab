@@ -15,22 +15,22 @@ PrefabInstance:
     - target: {fileID: 3530125895167035247, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_Sprite
       value: 
-      objectReference: {fileID: 21300000, guid: a336a8280e1dda94fbef1a59936ed578, type: 3}
+      objectReference: {fileID: 21300000, guid: a2c948f5f5f08b640b12f518adaa9107, type: 3}
     - target: {fileID: 3530125895167035247, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_Color.b
-      value: 0.38993704
+      value: 0.8238993
       objectReference: {fileID: 0}
     - target: {fileID: 3530125895167035247, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_Color.g
-      value: 0.21949284
+      value: 0.49170873
       objectReference: {fileID: 0}
     - target: {fileID: 3530125895167035247, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_Color.r
-      value: 0.23431407
+      value: 0.47413066
       objectReference: {fileID: 0}
     - target: {fileID: 4444872279979505896, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: ColorStyle
-      value: Entry Button
+      value: Button Standard
       objectReference: {fileID: 0}
     - target: {fileID: 4983171500763732307, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_text
@@ -38,27 +38,27 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4983171500763732307, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_fontSize
-      value: 24
+      value: 26
       objectReference: {fileID: 0}
     - target: {fileID: 4983171500763732307, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_fontColor.b
-      value: 0.8862745
+      value: 0.99215686
       objectReference: {fileID: 0}
     - target: {fileID: 4983171500763732307, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_fontColor.g
-      value: 0.8862745
+      value: 0.9843137
       objectReference: {fileID: 0}
     - target: {fileID: 4983171500763732307, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_fontColor.r
-      value: 0.8745098
+      value: 0.98039216
       objectReference: {fileID: 0}
     - target: {fileID: 4983171500763732307, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_fontSizeBase
-      value: 24
+      value: 26
       objectReference: {fileID: 0}
     - target: {fileID: 4983171500763732307, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_fontColor32.rgba
-      value: 4293059295
+      value: 4294835194
       objectReference: {fileID: 0}
     - target: {fileID: 5067617763252449152, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: <DefaultTitle>k__BackingField
@@ -66,11 +66,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5957440252642258589, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: ColorStyle
-      value: Knob
+      value: Icon
       objectReference: {fileID: 0}
     - target: {fileID: 6745060563701692400, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: ColorStyle
-      value: Selection Label
+      value: Button Label
       objectReference: {fileID: 0}
     - target: {fileID: 7697001653075955129, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: m_Pivot.x

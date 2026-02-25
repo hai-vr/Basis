@@ -254,12 +254,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: d28a8b7182261c648a2a465621312be5
-    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical
-      For Library Variant.prefab
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: dd1db054b177db7459cc81633b86e525
     m_Address: Assets/Scenes/initialization.unity
     m_ReadOnly: 0

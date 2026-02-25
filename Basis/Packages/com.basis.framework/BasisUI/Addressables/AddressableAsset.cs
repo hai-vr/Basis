@@ -31,6 +31,16 @@ namespace Basis.BasisUI
             public static string FileTray = "Packages/com.basis.sdk/Textures/Runtime/file-tray.png";
             public static string HourGlass = "Packages/com.basis.sdk/Textures/Runtime/hour-glass.png";
             public static string Clock = "Packages/com.basis.sdk/Textures/Runtime/clock.png";
+            public static string Pin = "Packages/com.basis.sdk/Textures/Runtime/pin.png";
+            public static string Computer = "Packages/com.basis.sdk/Textures/Runtime/computer.png";
+            public static string Information = "Packages/com.basis.sdk/Textures/Runtime/information.png";
+
+            // platform sprites
+            public static string PlatformMobileAndroid = "Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-android.png";
+            public static string PlatformMobileiOS = "Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-ios.png";
+            public static string PlatformStandaloneOSX = "Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-mac.png";
+            public static string PlatformStandaloneLinux64 = "Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-tux.png";
+            public static string PlatformStandaloneWindows64 = "Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-windows.png";
         }
 
         public static Sprite GetSprite(string path)

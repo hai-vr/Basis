@@ -11,6 +11,7 @@ public partial class BundledContentHolder
         Avatar = 0,
         World = 1,
         Prop = 2,
+        Legacy = 3, // this will be used to flag items before new basis metadata for now
     }
     
     // used to determine which item key stores are local or networked

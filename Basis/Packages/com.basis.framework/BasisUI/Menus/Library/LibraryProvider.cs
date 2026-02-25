@@ -11,6 +11,7 @@ using TMPro;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.SocialPlatforms;
 using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
 using static Basis.BasisUI.PanelPasswordField;
@@ -457,16 +458,11 @@ namespace Basis.BasisUI
                 {
                     BasisDebug.LogError(e);
                 }
-
-                BasisDebug.LogWarning("Normal Tab Stuff");
             }
             else
             {
-                BasisDebug.LogWarning("Doing Instantiated Tab Stuff");
-
                 // grab the data?
                 ContentLoaderStore.LoadedItem[] loadedItems = await ContentLoaderStore.GetAll();
-
                 // this is most likely to be the instantiated tab so
                 ClearTabContent(tab.Descriptor.ContentParent);
                 // TODO build list of instantiated objects
@@ -513,45 +509,58 @@ namespace Basis.BasisUI
         public static void PromptUserForNewContent()
         {
             // Build overlay using DialogBox helper
-            DialogBox newItemDialogBox = DialogBox.Create(panel, new Vector2(930, 722),
+            DialogBox newItemDialogBox = DialogBox.Create(panel, new Vector2(930, 600),
                 "Add New Content",
-                "Please specify the type of content you are adding and then provide the URL and password for your BEE file. Once everything is set, confirm your choices to include the item in your library.",
+                "Please provide the URL and password for your BEE file. Ensure your url and pass are correct or the item wont be included in your library.",
                 AddressableAssets.Sprites.Add);
 
-            // the item type dropdown determines which library tab the new item will appear in.
-            PanelDropdown contentTypeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.OverlayEntry, newItemDialogBox.Descriptor);
-            string[] modeNames = Enum.GetNames(typeof(BundledContentHolder.Mode));
-            contentTypeDropDown.Descriptor.SetTitle("Content Type");
-            contentTypeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.FileTray);
-            contentTypeDropDown.Descriptor.SetDescription( "What content are you adding?" );
-            contentTypeDropDown.AssignEntries(modeNames.ToList());
+            // create the exit button for the dialog box
+            var button = PanelButton.CreateNew(ButtonStyles.ExitButton, newItemDialogBox.Descriptor.Header);
+            button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
+            button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
+            button.OnClicked += async () => await newItemDialogBox.CloseAsync();
+
+            // panel group for the fields
+            PanelTabGroup panelGroup = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, newItemDialogBox.Descriptor.ContentParent);
+            panelGroup.Descriptor.SetHeight(400);
+            panelGroup.Descriptor.SetWidth(900);
             
-            // derive the default selected mode from the currently active tab, so if the user is browsing avatars and clicks "Add New CachedContent"
-            contentTypeDropDown.SetValueWithoutNotify(_currentPage.ToString());
-            contentTypeDropDown.Descriptor.SetHeight(50);
-            contentTypeDropDown.Descriptor.SetWidth(900);
+
+            // TODO: to be moved into advanced settings maybe
+            // // the item type dropdown determines which library tab the new item will appear in.
+            // PanelDropdown contentTypeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.OverlayEntry, newItemDialogBox.Descriptor);
+            // string[] modeNames = Enum.GetNames(typeof(BundledContentHolder.Mode));
+            // contentTypeDropDown.Descriptor.SetTitle("Content Type");
+            // contentTypeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.FileTray);
+            // contentTypeDropDown.Descriptor.SetDescription( "What content are you adding?" );
+            // contentTypeDropDown.AssignEntries(modeNames.ToList());
+            
+            // // derive the default selected mode from the currently active tab, so if the user is browsing avatars and clicks "Add New CachedContent"
+            // contentTypeDropDown.SetValueWithoutNotify(_currentPage.ToString());
+            // contentTypeDropDown.Descriptor.SetHeight(50);
+            // contentTypeDropDown.Descriptor.SetWidth(900);
 
             // BEE file URL field
-            PanelTextField URL = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, newItemDialogBox.Descriptor);
+            PanelTextField URL = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, panelGroup.TabButtonParent);
             URL._placeholderLabel.text = "URL";
             URL._inputField.contentType = TMP_InputField.ContentType.Standard;
             URL.Descriptor.SetHeight(115);
-            URL.Descriptor.SetWidth(900);
+            URL.Descriptor.SetWidth(700);
             URL.Descriptor.SetTitle("BEE File URL:");
             URL.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
             URL.Descriptor.SetDescription("This should be a direct link to your BEE file.");
 
-            PanelPasswordField Password = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, newItemDialogBox.Descriptor);
+            PanelPasswordField Password = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, panelGroup.TabButtonParent);
             Password._placeholderField.text = "Enter password";
             Password.Descriptor.SetHeight(115);
-            Password.Descriptor.SetWidth(900);
+            Password.Descriptor.SetWidth(700);
 
             Password.Descriptor.SetTitle("BEE File Password:");
             Password.Descriptor.SetIcon(AddressableAssets.Sprites.Unlocked);
             Password.Descriptor.SetDescription("This is the password that was generated with you BEE file.");
 
             // create a text field to show validation error messages, initially empty
-            PanelTextField validationMessageField = PanelTextField.CreateNew(TextFieldStyles.EntryWarning, newItemDialogBox.Descriptor);
+            PanelTextField validationMessageField = PanelTextField.CreateNew(TextFieldStyles.EntryWarning, panelGroup.TabButtonParent);
             validationMessageField.Descriptor.gameObject.SetActive(false);
             validationMessageField._inputField.gameObject.SetActive(false); // disable the text input field box
             validationMessageField.Descriptor.SetTitle("AWAITING_INPUT");
@@ -560,7 +569,7 @@ namespace Basis.BasisUI
             validationMessageField.Descriptor.DescriptionLabel.color = Color.yellow;
 
             validationMessageField.Descriptor.SetHeight(50);
-            validationMessageField.Descriptor.SetWidth(900);
+            validationMessageField.Descriptor.SetWidth(700);
 
             // Add and Cancel buttons
             PanelTabGroup acceptOrDenyPanel = PanelTabGroup.CreateNew(newItemDialogBox.Descriptor, LayoutDirection.HorizontalNoBackground);
@@ -569,22 +578,9 @@ namespace Basis.BasisUI
             acceptOrDenyPanel.Descriptor.SetWidth(900);
 
             PanelButton yesPanel = PanelButton.CreateNew(ButtonStyles.AcceptButton, acceptOrDenyPanel.TabButtonParent); //ButtonStyles.Cancel
-            PanelButton noPanel = PanelButton.CreateNew(ButtonStyles.StandardButton, acceptOrDenyPanel.TabButtonParent);
-
-            noPanel.Descriptor.SetTitle("Cancel");
             yesPanel.Descriptor.SetTitle("Add");
-
-            noPanel.Descriptor.SetWidth(420);
-            noPanel.Descriptor.SetHeight(60);
-            yesPanel.Descriptor.SetWidth(420);
+            yesPanel.Descriptor.SetWidth(900);
             yesPanel.Descriptor.SetHeight(60);
-
-            // Cancel just closes.
-            noPanel.OnClicked += async () =>
-            {
-                // just close the overlay instead.
-                await newItemDialogBox.CloseAsync();
-            };
 
             // Add does the async work, then closes.
             yesPanel.OnClicked += async () =>
@@ -652,6 +648,9 @@ namespace Basis.BasisUI
                                     // Attempt to read the metadata back from disk into the wrapper
                                     BasisLoadableBundleWrapper loaded = await LoadWrapperFromDisc(tempItem, tempWrapper);
 
+                                    // infered item type
+                                    BundledContentHolder.Mode itemType = BundledContentHolder.Mode.Legacy;
+
                                     if(loaded.BasisLoadableBundle?.BasisBundleConnector?.MetaData != null)
                                     {
                                         if(loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames != null)
@@ -659,10 +658,24 @@ namespace Basis.BasisUI
                                             BasisDebug.Log($"BasisComponentNames = {loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames}");
                                             BasisDebug.Log($"BasisComponentNamesLength = {loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames.Length}");
 
+                                            // lets attempt to find out what type of item it is?
+
                                             // grab components
                                             foreach(BasisBundleConnector.BasisComponentName comp in loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames)
                                             {
                                                 BasisDebug.Log($"BasisComponentName = {comp.Name} count = {comp.count}");
+                                                switch(comp.Name.ToLower())
+                                                {
+                                                    case "basisprop":
+                                                    itemType = BundledContentHolder.Mode.Prop;
+                                                    break;
+                                                    case "basisavatar":
+                                                    itemType = BundledContentHolder.Mode.Prop;
+                                                    break;
+                                                    case "basisccene":
+                                                    itemType = BundledContentHolder.Mode.World;
+                                                    break;
+                                                }
                                             }
                                         }
                                         else
@@ -676,7 +689,7 @@ namespace Basis.BasisUI
                                     }
 
                                     // add the item to the basis key store
-                                    await AddNewNewItemKey(contentTypeDropDown.SelectedString, validationResponse.ProcessedUrl, validationResponse.Password);
+                                    await AddNewNewItemKey(itemType, validationResponse.ProcessedUrl, validationResponse.Password);
                                     // just close the overlay
                                     await newItemDialogBox.CloseAsync();
                                     // refresh the current tab
@@ -772,34 +785,32 @@ namespace Basis.BasisUI
         /// <summary>
         /// Used with the add new item button to add a new item to the basis key store for items
         /// </summary>
-        public static async Task AddNewNewItemKey(string Mode, string URL, string Password)
+        public static async Task AddNewNewItemKey(BundledContentHolder.Mode mode, string URL, string Password)
         {
-            if (Enum.TryParse<BundledContentHolder.Mode>(Mode, out var mode))
+            if(mode == BundledContentHolder.Mode.Legacy)
             {
-                var key = new BasisDataStoreItemKeys.ItemKey
+                BasisDebug.LogWarning( $"AddNewNewItemKey() -> was invoked with mode = {mode}, for item {URL}. Please consider updating your BEE file to include metadata. (Use Advance settings to override auto import type your content will be marked legacy)" );
+            }
+
+            var key = new BasisDataStoreItemKeys.ItemKey
+            {
+                Pass = Password,
+                Url = URL,
+                Mode = mode,
+            };
+
+            await BasisDataStoreItemKeys.AddNewKey(key);
+            if(mode == BundledContentHolder.Mode.Avatar)
+            {
+                BasisLoadableBundle loadableBundle = new()
                 {
-                    Pass = Password,
-                    Url = URL,
-                    Mode = mode,
+                    UnlockPassword = Password,
+                    BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle { RemoteBeeFileLocation = URL },
+                    BasisBundleConnector = new BasisBundleConnector(),
+                    BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle()
                 };
 
-                await BasisDataStoreItemKeys.AddNewKey(key);
-                if(mode == BundledContentHolder.Mode.Avatar)
-                {
-                    BasisLoadableBundle loadableBundle = new()
-                    {
-                        UnlockPassword = Password,
-                        BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle { RemoteBeeFileLocation = URL },
-                        BasisBundleConnector = new BasisBundleConnector(),
-                        BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle()
-                    };
-
-                  await BasisLocalPlayer.Instance.CreateAvatar(BasisLocalPlayer.LoadModeNetworkDownloadable, loadableBundle);
-                }
-            }
-            else
-            {
-                BasisDebug.LogError($"Failed to parse mode to BundledContentHolder.Mode Enum with string {Mode}, unable to add new item to the BasisDataStoreItemsKey.");
+                await BasisLocalPlayer.Instance.CreateAvatar(BasisLocalPlayer.LoadModeNetworkDownloadable, loadableBundle);
             }
         }
 
@@ -836,8 +847,14 @@ namespace Basis.BasisUI
                 desc.SetDescription(urlKey);
                 desc.ForceRebuild();
 
-                if(desc.IconBackground.TryGetComponent<Image>(out Image image))
+                
+                // desc.SetIcon(EmbeddedItems.GetSpriteForEmbeddedItem(item));
+                // desc.IconBackground.transform.localScale = new Vector3( 0.8f, 0.8f, 0.8f );
+
+                // yeah I know dw about temporary
+                if(desc.ContentParent.TryGetComponent<Image>(out Image image))
                 {
+                    image.gameObject.transform.localScale = new Vector3( 0.8f, 0.8f, 0.8f );
                     image.sprite = EmbeddedItems.GetSpriteForEmbeddedItem(item);
                 }
             }
@@ -905,40 +922,35 @@ namespace Basis.BasisUI
 
         public static async Task ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item)
         {
+            #region ITEM OVERLAY SETUP
+
+            Vector2 overlaySize = new Vector2(1200, 960);
+
             // grab the content from the cache 
             CachedMetaData.CachedContent metadata;
             CachedMetaData.TryGetMeta(item.Url, out metadata);
 
             // the network type of the item
             BundledContentHolder.NetworkType desiredNetworkType = BundledContentHolder.NetworkType.Local;
-
-            // the persistence behavior of the item 
-            bool ephemeral = true; 
-
-            // grab the meta data
-            BasisBundleConnector.BasisMetaData basisMetaData;
-
-            // grab the description data
-            BasisBundleDescription description;
-
-            // get the creation date of the basis bundle
-            string creationDate = string.Empty;
-
-            // target sprite
-            Sprite targetSprite = null;
-
-            // platforms
-
-            string[] platforms = new string[0];
+            bool ephemeral = true;  // the persistence behavior of the item 
+            BasisBundleConnector.BasisMetaData basisMetaData; // grab the meta data
+            BasisBundleDescription description; // grab the description data
+            string creationDate = string.Empty; // get the creation date of the basis bundle
+            Sprite targetSprite = null;   // target sprite
+            string[] platforms = new string[0]; // platforms
+            string itemID = string.Empty; // item id
 
             if(item.IsEmbedded)
             {
+                string embedItem = "Emebbed item";
                 description = new BasisBundleDescription(){
                     AssetBundleName = item.Url,
-                    AssetBundleDescription = "Emebbed item",
+                    AssetBundleDescription = embedItem,
                 };
 
                 targetSprite = EmbeddedItems.GetSpriteForEmbeddedItem(item);
+
+                itemID = embedItem;
             }
             else
             {
@@ -947,12 +959,11 @@ namespace Basis.BasisUI
                 description = metadata.BasisBundleConnector.BasisBundleDescription;
                 creationDate = metadata.BasisBundleConnector.DateOfCreation;
                 targetSprite = CachedMetaData.CreateSpriteFromMetaData(metadata);
-
                 platforms = metadata.BasisBundleConnector.BasisBundleGenerated.Select(pair => pair.Platform).ToArray();
+                itemID = metadata.BasisBundleConnector.UniqueVersion;
             }
 
-            // // TODO: actually validate the BEE file upon adding it rather than checking description for it to actually exists?
-
+            // TODO: can an item be invalid after wards probably might still need this
             // if (description == null)
             // {
             //     BasisDebug.LogError($"Bundle Description on AvatarMenuItem {item} not found, auto removing.");
@@ -969,28 +980,73 @@ namespace Basis.BasisUI
             // Not sure why we need this so lets to remove.
             _activeItem = item;
 
+            // grab the current culture info
+            // and title the text
+            TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
+ 
             // Build overlay using DialogBox helper
-            DialogBox existingItemDialog = DialogBox.Create(panel, new Vector2(930, 722),
-                $"{description.AssetBundleName}",
-                $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : "N/A")}",
+            DialogBox existingItemDialog = DialogBox.Create(panel, overlaySize,
+                $"{textInfo.ToTitleCase(description.AssetBundleName)}",
+                $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : "No description was provided.")}",
                 ConvertItemKeyToAddressableSprite(item));
 
+            // only items can be pinned as props
+            // this has to be here to ensure correct placement
+            if(item.Mode == BundledContentHolder.Mode.Prop)
+            {
+                // create the exit button for the dialog box
+                var pinButton = PanelButton.CreateNew(ButtonStyles.ExitButton, existingItemDialog.Descriptor.Header);
+                pinButton.Descriptor.SetTitle("Pin");
+                pinButton.Descriptor.SetIcon(AddressableAssets.Sprites.Pin);
+                pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
+                pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
+                pinButton.OnClicked += async () =>
+                {
+                    BasisDebug.LogWarning($"Pin button was invoked for item = {item.Url}, implement pin toggle!");
+                };
+            }
+
             // create the exit button for the dialog box
-            var button = PanelButton.CreateNew(ButtonStyles.ExitButtonOverlay, existingItemDialog.Descriptor.Header);
+            var button = PanelButton.CreateNew(ButtonStyles.ExitButton, existingItemDialog.Descriptor.Header);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
             button.OnClicked += async () => await existingItemDialog.CloseAsync();
 
             // icon for the selected item
-            var itemIcon = PanelElementDescriptor.CreateNew(
-                PanelElementDescriptor.ElementStyles.GroupLargeIconVertical, existingItemDialog.Descriptor);
+            var itemIcon = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.GroupLargeIconVertical, existingItemDialog.Descriptor.ContentParent);
+            
+            switch(item.Mode)
+            {
+                case BundledContentHolder.Mode.Avatar:
+                    itemIcon.SetHeight(750); // make the display panel bigger because 
+                    break;
+                default:
+                    itemIcon.SetHeight(500);
+                    break;
+                
+            }
 
             itemIcon.SetIcon(targetSprite);
 
+            #endregion
+
+
             // info about the item
-            PanelTabGroup itemMetaDataPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, itemIcon.ContentParent);
+            //PanelTabGroup itemMetaDataPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, itemIcon.ContentParent);
             // advancedActionsPanel.Descriptor.SetHeight(160);
             // advancedActionsPanel.Descriptor.SetWidth(900);
+
+            //PanelTabPage scrollablePage = PanelTabPage.CreateVerticalAlternate(itemIcon.ContentParent);
+
+            PanelTabPage scrollablePage = PanelTabPage.CreateNew(itemIcon.ContentParent);
+            PanelElementDescriptor descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewVerticalLibraryParentContentSize, scrollablePage.Descriptor.ContentParent);
+            scrollablePage.Descriptor.ContentParent = descriptor.ContentParent;
+            //scrollablePage.Descriptor.ContentParent.sizeDelta = new Vector2( scrollablePage.Descriptor.ContentParent.sizeDelta.x, 900 );
+
+            //scrollablePage.Descriptor.SetHeight(1000);
+            //PanelTabGroup itemMetaDataPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, itemIcon.ContentParent);
+            // itemListPanel.Descriptor.SetWidth( 1400 );
+            // itemListPanel.Descriptor.SetHeight( 80 );
 
             #region CREATION DATE
 
@@ -1010,7 +1066,7 @@ namespace Basis.BasisUI
             }
 
             // creation date and time
-            PanelTextField createdInformationTextField = PanelTextField.CreateNew(TextFieldStyles.Entry, itemMetaDataPanel.TabButtonParent);
+            PanelTextField createdInformationTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);
             createdInformationTextField._inputField.gameObject.SetActive(false); // disable the text input field box
             createdInformationTextField.Descriptor.SetTitle("Creation Date");
             createdInformationTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Clock);
@@ -1023,61 +1079,164 @@ namespace Basis.BasisUI
 
             #region PLATFORM ICONS
 
-            // create a text field to show validation error messages, initially empty
-            PanelTabGroup platformIconsPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, itemMetaDataPanel.TabButtonParent);
-            //validationMessageField.Descriptor.gameObject.SetActive(false);
-            //platformIconsPanel._inputField.gameObject.SetActive(false); // disable the text input field box
-            //platformIconsPanel.Descriptor.SetTitle("PLATFORM ICONS");
-            //platformIconsPanel.Descriptor.SetDescription("PLATFORM ICONS DESC");
-            // validationMessageField.Descriptor.TitleLabel.color = Color.yellow;
-            // validationMessageField.Descriptor.DescriptionLabel.color = Color.yellow;
+            // creation date and time
+            PanelTextField platformIconsTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVerticalHorizontalContent, scrollablePage.Descriptor.ContentParent);
+            platformIconsTextField._inputField.gameObject.SetActive(false); // disable the text input field box
+            platformIconsTextField.Descriptor.SetTitle("Available Platforms");
+            platformIconsTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Computer);
+            platformIconsTextField.Descriptor.SetHeight(50);
+            platformIconsTextField.Descriptor.SetWidth(400);
 
-            platformIconsPanel.Descriptor.SetHeight(50);
-            platformIconsPanel.Descriptor.SetWidth(400);
-            
-            BasisDebug.Log($"item {item.Url} has platforms supported {platforms} {platforms.Length}");
-
-            foreach (string platform in platforms)
+            if(item.IsEmbedded)
             {
-                string address = null;
-
-                switch (platform)
-                {
-                    case "StandaloneWindows64":
-                        address = "Packages/com.basis.sdk/Prefabs/Panel Elements/Platform Panel - Windows.prefab";
-                        break;
-
-                    case "StandaloneOSX":
-                        address = "Packages/com.basis.sdk/Prefabs/Panel Elements/Platform Panel - Mac.prefab";
-                        break;
-
-                    case "StandaloneLinux64":
-                        address = "Packages/com.basis.sdk/Prefabs/Panel Elements/Platform Panel - Linux.prefab";
-                        break;
-
-                    case "Android":
-                        address = "Packages/com.basis.sdk/Prefabs/Panel Elements/Platform Panel - Android.prefab";
-                        break;
-
-                    case "iOS":
-                        address = "Packages/com.basis.sdk/Prefabs/Panel Elements/Platform Panel - iOS.prefab";
-                        break;
-                }
-
-                if (string.IsNullOrEmpty(address))
-                {
-                    continue;
-                }
-
-                var handle = Addressables.LoadAssetAsync<GameObject>(address);
-                var prefab = await handle.Task;
-
-                GameObject.Instantiate(prefab, platformIconsPanel.TabButtonParent.transform);
+                platformIconsTextField.Descriptor.SetDescription($"All - Embedded Item");
             }
+            else
+            {
+                string supported_platforms = string.Join(" | ", platforms);
+                platformIconsTextField.Descriptor.SetDescription($"{supported_platforms}");
+
+                // // create a text field to show validation error messages, initially empty
+                // PanelTabGroup platformIconsPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, itemMetaDataPanel.TabButtonParent);
+                // //validationMessageField.Descriptor.gameObject.SetActive(false);
+                // //platformIconsPanel._inputField.gameObject.SetActive(false); // disable the text input field box
+                // //platformIconsPanel.Descriptor.SetTitle("PLATFORM ICONS");
+                // //platformIconsPanel.Descriptor.SetDescription("PLATFORM ICONS DESC");
+                // // validationMessageField.Descriptor.TitleLabel.color = Color.yellow;
+                // // validationMessageField.Descriptor.DescriptionLabel.color = Color.yellow;
+
+                // platformIconsPanel.Descriptor.SetHeight(50);
+                // platformIconsPanel.Descriptor.SetWidth(400);
+                
+                // BasisDebug.Log($"item {item.Url} has platforms supported {platforms} {platforms.Length}");
+
+                foreach (string platform in platforms)
+                {
+                    PanelImage panelImage = PanelImage.CreateNew( PanelImage.ImageStyles.SimpleSquare, platformIconsTextField.Descriptor.ContentParent );
+                    panelImage.SetSize( new Vector2( 80, 80 ) );
+                    
+                    switch (platform)
+                    {
+                        case "StandaloneWindows64":
+                            
+                            panelImage.SetIcon(AddressableAssets.Sprites.PlatformStandaloneWindows64);
+                            break;
+
+                        case "StandaloneOSX":
+                            panelImage.SetIcon(AddressableAssets.Sprites.PlatformStandaloneOSX);
+                            break;
+
+                        case "StandaloneLinux64":
+                            panelImage.SetIcon(AddressableAssets.Sprites.PlatformStandaloneLinux64);
+                            break;
+
+                        case "Android":
+                            panelImage.SetIcon(AddressableAssets.Sprites.PlatformMobileAndroid);
+                            break;
+
+                        case "iOS":
+                            panelImage.SetIcon(AddressableAssets.Sprites.PlatformMobileiOS);
+                            break;
+                    }
+
+                    // string address = null;
+
+
+                    // if (string.IsNullOrEmpty(address))
+                    // {
+                    //     continue;
+                    // }
+
+                    // var handle = Addressables.LoadAssetAsync<GameObject>(address);
+                    // var prefab = await handle.Task;
+
+                    // GameObject.Instantiate(prefab, platformIconsPanel.TabButtonParent.transform);
+                }
+            }
+
+
+            #endregion
+
+            #region ITEM FIELDS
+
+            // creation date and time
+            PanelTextField accessibleItemDataTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);
+            accessibleItemDataTextField._inputField.gameObject.SetActive(false); // disable the text input field box
+            accessibleItemDataTextField.Descriptor.SetTitle("Accessible Item Data");
+            accessibleItemDataTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Information);
+            accessibleItemDataTextField.Descriptor.SetHeight(50);
+            accessibleItemDataTextField.Descriptor.SetWidth(400);
+
+            PanelPasswordField IDField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, accessibleItemDataTextField.Descriptor.ContentParent);
+            IDField._placeholderField.text = "";
+            IDField._inputField.interactable = false;
+            IDField.Descriptor.SetTitle("Unique Version:");
+            IDField.Descriptor.SetDescription("The unique version number of the basis bundle.");
+            IDField.Descriptor.SetIcon(AddressableAssets.Sprites.Information);
+            IDField.SetPassword(itemID);
+            //IDField.LayoutElement.minWidth = 500;
+
+            PanelPasswordField urlField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, accessibleItemDataTextField.Descriptor.ContentParent);
+            urlField._placeholderField.text = "";
+            urlField._inputField.interactable = false;
+            urlField.Descriptor.SetTitle("BEE File Url:");
+            urlField.Descriptor.SetDescription("The direct link to the BEE file.");
+            urlField.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
+            urlField.SetPassword(item.Url);
+            //urlField.LayoutElement.minWidth = 500;
+
+            PanelPasswordField passField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, accessibleItemDataTextField.Descriptor.ContentParent);
+            passField._placeholderField.text = "";
+            passField._inputField.interactable = false;
+            passField.Descriptor.SetTitle("BEE File Password:");
+            passField.Descriptor.SetDescription("This is the password that was generated with you BEE file.");
+            passField.Descriptor.SetIcon(AddressableAssets.Sprites.Unlocked);
+            passField.SetPassword(item.Pass); // if supported
+            //passField.LayoutElement.minWidth = 500;
 
             #endregion
 
             #region ITEM DISPLAY LOGIC SPECIFIC TO BundledContentHolder.Mode
+
+            // // advanced setting button parent
+            // PanelTabGroup advanceSettingsPanelGroup = PanelTabGroup.CreateNew(existingItemDialog.Descriptor.ContentParent, LayoutDirection.HorizontalNoBackground);
+            // advanceSettingsPanelGroup.Descriptor.SetHeight(60);
+            // advanceSettingsPanelGroup.Descriptor.SetWidth(900);
+
+            // reference to the PanelTabGroup advancedActionsPanel
+            // PanelTabGroup advancedActionsPanel = null;
+
+            // PanelButton advancedSettingsButton = PanelButton.CreateNew(ButtonStyles.StandardButton,  advanceSettingsPanelGroup.TabButtonParent ); //actionsPanel.TabButtonParent existingItemDialog.Descripto
+            // advancedSettingsButton.Descriptor.SetTitle("Advanced Settings");
+            // advancedSettingsButton.Descriptor.SetWidth(900);
+            // advancedSettingsButton.Descriptor.SetHeight(60);
+            // // on load of a item we do these actions
+            // advancedSettingsButton.OnClicked += async () =>
+            // {
+            //     if(advancedActionsPanel != null)
+            //     {
+            //         // toggle the advance panel
+            //         advancedActionsPanel.Descriptor.gameObject.SetActive(!advancedActionsPanel.Descriptor.gameObject.activeSelf);
+            //     }
+            //     // if (existingItemDialog.IsBusy) return;
+            //     // existingItemDialog.IsBusy = true;
+
+            //     // try
+            //     // {
+            //     //     BasisDebug.Log($"Load Button Clicked for item: {item.Url}");
+            //     //     await LoadSelectedItem(item, desiredNetworkType, !ephemeral);
+            //     // }
+            //     // catch (Exception ex)
+            //     // {
+            //     //     BasisDebug.LogError(ex);
+            //     // }
+            //     // finally
+            //     // {
+            //     //     // just close the overlay instead.
+            //     //     await existingItemDialog.CloseAsync();
+            //     // }
+
+            // };
 
             switch(item.Mode)
             {
@@ -1086,15 +1245,16 @@ namespace Basis.BasisUI
                 case BundledContentHolder.Mode.Prop:
 
                     // Advanced Settings
-                    PanelTabGroup advancedActionsPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, existingItemDialog.Descriptor);
+                    PanelTabGroup advancedActionsPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, existingItemDialog.Descriptor.ContentParent);
+                    //advancedActionsPanel.Descriptor.gameObject.SetActive(false); // turn advance settings off
                     advancedActionsPanel.Descriptor.SetHeight(160);
-                    advancedActionsPanel.Descriptor.SetWidth(900);
+                    //advancedActionsPanel.Descriptor.SetWidth(900);
 
                     // PanelTabPage tab = PanelTabPage.CreateGrid(advancedActionsPanel.Descriptor.ContentParent);
                     // tab.rectTransform.offsetMin = new Vector2(0, 0);
 
                     // content sync mode dropdown determines whether the new item is flagged as networked or local, which affects filtering and how the item is loaded later
-                    PanelDropdown contentSyncModeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.OverlayEntry, advancedActionsPanel.TabButtonParent);
+                    PanelDropdown contentSyncModeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.Entry, advancedActionsPanel.TabButtonParent);
                     string[] contentSyncModes = Enum.GetNames(typeof(BundledContentHolder.NetworkType));
                     contentSyncModeDropDown.Descriptor.SetTitle("Network Type");
                     contentSyncModeDropDown.Descriptor.SetDescription("Determines visibility.");
@@ -1132,7 +1292,7 @@ namespace Basis.BasisUI
                     contentPersistenceToggle.SetValueWithoutNotify(ephemeral);
                     contentPersistenceToggle.Descriptor.SetTitle("Ephemeral Mode");
                     contentPersistenceToggle.Descriptor.SetIcon(AddressableAssets.Sprites.HourGlass);
-                    contentPersistenceToggle.Descriptor.SetDescription("If enabled, this item will only be visible to people currently in the instance. Late joiners wont be able to see this.");
+                    contentPersistenceToggle.Descriptor.SetDescription("This item will only be visible to people currently in the instance. Late joiners wont be able to see this.");
                     contentPersistenceToggle.Descriptor.SetSize(new Vector2(700, 80));
                     contentPersistenceToggle.OnValueChanged = (val) =>
                     {
@@ -1157,12 +1317,11 @@ namespace Basis.BasisUI
 
             #endregion
 
-
             // Delete & Load Buttons
-            PanelTabGroup actionsPanel = PanelTabGroup.CreateNew(existingItemDialog.Descriptor, LayoutDirection.HorizontalNoBackground);
+            PanelTabGroup actionsPanel = PanelTabGroup.CreateNew(existingItemDialog.Descriptor.ContentParent, LayoutDirection.HorizontalNoBackground);
 
-            actionsPanel.Descriptor.SetHeight(50);
-            actionsPanel.Descriptor.SetWidth(900);
+            actionsPanel.Descriptor.SetHeight(60);
+            //actionsPanel.Descriptor.SetWidth(900);
 
             PanelButton deletePanelButton = PanelButton.CreateNew(ButtonStyles.CancelButton, actionsPanel.TabButtonParent); //ButtonStyles.Cancel
             deletePanelButton.Descriptor.SetTitle("Delete");
@@ -1242,7 +1401,7 @@ namespace Basis.BasisUI
             // PanelTabGroup actionsSupportedPlatforms =  PanelTabGroup.CreateNew(_descriptor, LayoutDirection.HorizontalNoBackground);
             // if (actionsSupportedPlatforms.TryGetComponent<LayoutElement>(out LayoutElement LayoutElement))
             // {
-            //     LayoutElement.minHeight = 50;
+            //     LayoutElement.minHeight = 60;
             // }
 
             // Descriptor.SetDescription($"\nCreated: {creationDate}");

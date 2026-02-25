@@ -201,6 +201,7 @@ GameObject:
   - component: {fileID: 1323559056181125490}
   - component: {fileID: 5800908621019258266}
   - component: {fileID: 7001027634957364780}
+  - component: {fileID: 238577346485291484}
   - component: {fileID: 3150597490002740505}
   - component: {fileID: 6447250162883152912}
   - component: {fileID: 45187570358127941}
@@ -271,6 +272,19 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 3
+--- !u!114 &238577346485291484
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 672694152584669274}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 31a19414c41e5ae4aae2af33fee712f6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Mask
+  m_ShowMaskGraphic: 1
 --- !u!114 &3150597490002740505
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -284,8 +298,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Padding:
-    m_Left: 0
-    m_Right: 0
+    m_Left: 16
+    m_Right: 16
     m_Top: 16
     m_Bottom: 16
   m_ChildAlignment: 0

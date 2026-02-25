@@ -20,6 +20,8 @@ namespace Basis.BasisUI
             public static string EntryWarning => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Text Field - Entry Warning Variant.prefab";
             public static string LargeDefault => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Large Text Field.prefab";
             public static string EntryWithNoTitle => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Text Field - Entry No Title Variant.prefab";
+
+            public static string EntryVerticalHorizontalContent => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Text Field - Vertical Entry Variant With Horizontal Content.prefab";
         }
 
         public static PanelTextField CreateNew(Component parent)

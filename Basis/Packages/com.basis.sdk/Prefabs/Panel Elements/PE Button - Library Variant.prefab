@@ -364,6 +364,10 @@ PrefabInstance:
       value: Press
       objectReference: {fileID: 0}
     - target: {fileID: 5067617763252449152, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
+      propertyPath: _contentParent
+      value: 
+      objectReference: {fileID: 2061544237315432362}
+    - target: {fileID: 5067617763252449152, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
       propertyPath: <IconImage>k__BackingField
       value: 
       objectReference: {fileID: 665644028665693469}
@@ -524,6 +528,11 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 6921186007998647664}
   m_SourcePrefab: {fileID: 100100000, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
+--- !u!224 &2061544237315432362 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 4624881911727874460, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}
+  m_PrefabInstance: {fileID: 6679667381790047798}
+  m_PrefabAsset: {fileID: 0}
 --- !u!224 &3919200602750727055 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 7697001653075955129, guid: 64a436389ec64fc47bfd6d1068f1e3c9, type: 3}

@@ -27,6 +27,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 04ffb03d0dad54043903dc597c1c90bf
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-tux.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 0870e2b67a5121e4ebfeacb2276a0abd
     m_Address: Packages/com.basis.sdk/Textures/Runtime/add.png
     m_ReadOnly: 0
@@ -101,6 +106,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 2f02813bc29de864cb7a5a27364ee32a
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Image Simple Square.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 30ab3bcde2b3a7141b1e16d6add785f3
     m_Address: Packages/com.basis.sdk/Prefabs/Dialogue Panel.prefab
     m_ReadOnly: 0
@@ -111,8 +121,18 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3f4062780b2edc54a884ae82f75e8ed5
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-windows.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 43284126c633608458d1a5b131afba65
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Label Field.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 45ca5988d7f77f24788641f40b2ec6a1
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-android.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -143,6 +163,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 56d49e8c617ee4541be513c3cbb05af6
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-mac.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 6209bf1ff13b00e4ebbdd2722ec1d967
     m_Address: Packages/com.basis.sdk/Textures/Runtime/camera-outline.png
     m_ReadOnly: 0
@@ -162,6 +187,11 @@ MonoBehaviour:
   - m_GUID: 6d36dcb133daa7947963a69194c65b3a
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base Icon
       Horizontal Stacked Content Variant.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6e44cd0bdcd95a247ba30713ad458cd3
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/pin.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -201,8 +231,19 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 80e12a7f98dec434b9779e4817b9164c
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Text Field - Vertical
+      Entry Variant With Horizontal Content.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 85f20012cb01d4d488a327586756f316
     m_Address: Packages/com.basis.sdk/Textures/Runtime/menuWhite.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 866532f73f7a4c3449b3ce212f625487
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/computer.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -228,6 +269,11 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 91276a52d11f1e8439ad3e8d47d22865
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Event Field.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 9208fb3848540344289301a19d5ff01c
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/information.png
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -284,6 +330,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: c5cd143a6f39134408785a8f272909f5
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-ios.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: c8641e85bc7395f4da039ce980f3dafe
     m_Address: StylePalette
     m_ReadOnly: 0
@@ -306,6 +357,12 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: cf96aef0b70b73a4cb7d58b2dad2c18c
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Button - Tab Variant.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d28a8b7182261c648a2a465621312be5
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical
+      For Library Variant.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
@@ -337,6 +394,12 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: e33527f56f5a6c84c91195c63a1816a3
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Dropdown.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e4bf2c7542984b549a9f033b216531a6
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Scroll View Vertical
+      For Library Variant Use Parent For Content Size.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
