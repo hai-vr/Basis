@@ -35,6 +35,11 @@ namespace Basis.BasisUI
             public static string Computer = "Packages/com.basis.sdk/Textures/Runtime/computer.png";
             public static string Information = "Packages/com.basis.sdk/Textures/Runtime/information.png";
 
+            // metadata performance metrics
+            public static string Polygons = "Packages/com.basis.sdk/Textures/Runtime/polygons.png";
+            public static string Materials = "Packages/com.basis.sdk/Textures/Runtime/materials.png";
+            public static string Bones = "Packages/com.basis.sdk/Textures/Runtime/bones.png";
+
             // platform sprites
             public static string PlatformMobileAndroid = "Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-android.png";
             public static string PlatformMobileiOS = "Packages/com.basis.sdk/Textures/Runtime/Platform Icons/logo-ios.png";

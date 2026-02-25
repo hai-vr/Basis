@@ -669,8 +669,8 @@ namespace Basis.BasisUI
                                                     case "basisprop":
                                                     itemType = BundledContentHolder.Mode.Prop;
                                                     break;
-                                                    case "basisavatar":
-                                                    itemType = BundledContentHolder.Mode.Prop;
+                                                    case "Basisavatar":
+                                                    itemType = BundledContentHolder.Mode.Avatar;
                                                     break;
                                                     case "basisccene":
                                                     itemType = BundledContentHolder.Mode.World;
@@ -1157,17 +1157,42 @@ namespace Basis.BasisUI
 
             #endregion
 
-            #region ITEM FIELDS
+            #region ITEM META DATA
+
+            long polygonCount = 0;
+
+            if(item.IsEmbedded)
+            {
+                polygonCount = 0;
+            }
+            else
+            {
+                polygonCount = metadata.BasisBundleConnector.MetaData.TrianglesCount;
+            }
 
             // creation date and time
-            PanelTextField accessibleItemDataTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);
-            accessibleItemDataTextField._inputField.gameObject.SetActive(false); // disable the text input field box
-            accessibleItemDataTextField.Descriptor.SetTitle("Accessible Item Data");
-            accessibleItemDataTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Information);
-            accessibleItemDataTextField.Descriptor.SetHeight(50);
-            accessibleItemDataTextField.Descriptor.SetWidth(400);
+            PanelTextField polygonTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);
+            polygonTextField._inputField.gameObject.SetActive(false); // disable the text input field box
+            polygonTextField.Descriptor.SetTitle("Triangle Count");
+            polygonTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Polygons);
+            polygonTextField.Descriptor.SetDescription($"{polygonCount}");
 
-            PanelPasswordField IDField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, accessibleItemDataTextField.Descriptor.ContentParent);
+            polygonTextField.Descriptor.SetHeight(50);
+            polygonTextField.Descriptor.SetWidth(400);
+
+            #endregion
+
+            #region ITEM FIELDS
+
+            // // creation date and time
+            // PanelTextField accessibleItemDataTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);
+            // accessibleItemDataTextField._inputField.gameObject.SetActive(false); // disable the text input field box
+            // accessibleItemDataTextField.Descriptor.SetTitle("Accessible Item Data");
+            // accessibleItemDataTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Information);
+            // accessibleItemDataTextField.Descriptor.SetHeight(50);
+            // accessibleItemDataTextField.Descriptor.SetWidth(400);
+
+            PanelPasswordField IDField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);//accessibleItemDataTextField.Descriptor.ContentParent);
             IDField._placeholderField.text = "";
             IDField._inputField.interactable = false;
             IDField.Descriptor.SetTitle("Unique Version:");
@@ -1176,7 +1201,7 @@ namespace Basis.BasisUI
             IDField.SetPassword(itemID);
             //IDField.LayoutElement.minWidth = 500;
 
-            PanelPasswordField urlField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, accessibleItemDataTextField.Descriptor.ContentParent);
+            PanelPasswordField urlField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical,  scrollablePage.Descriptor.ContentParent);//accessibleItemDataTextField.Descriptor.ContentParent);
             urlField._placeholderField.text = "";
             urlField._inputField.interactable = false;
             urlField.Descriptor.SetTitle("BEE File Url:");
@@ -1185,7 +1210,7 @@ namespace Basis.BasisUI
             urlField.SetPassword(item.Url);
             //urlField.LayoutElement.minWidth = 500;
 
-            PanelPasswordField passField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, accessibleItemDataTextField.Descriptor.ContentParent);
+            PanelPasswordField passField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical,  scrollablePage.Descriptor.ContentParent);//accessibleItemDataTextField.Descriptor.ContentParent);
             passField._placeholderField.text = "";
             passField._inputField.interactable = false;
             passField.Descriptor.SetTitle("BEE File Password:");
