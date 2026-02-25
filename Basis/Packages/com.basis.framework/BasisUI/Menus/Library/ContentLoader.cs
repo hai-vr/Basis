@@ -143,7 +143,7 @@ namespace Basis.BasisUI
                                 AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
                                 GameObject CreatedObject = op.WaitForCompletion();
                                 GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
-                                await ContentLoaderStore.Add(item, instance);
+                                ContentLoaderStore.Add(item, instance);
                             }
                             else
                             {
@@ -167,7 +167,7 @@ namespace Basis.BasisUI
                                     if (createdObject != null)
                                     {
                                         Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}.");
-                                        await ContentLoaderStore.Add(item, createdObject);
+                                        ContentLoaderStore.Add(item, createdObject);
                                     }
                                     else
                                     {

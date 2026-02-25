@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 
@@ -23,9 +22,12 @@ namespace Basis.BasisUI
         }
 
         [SerializeField]
-        private static LoadedItemsContainer items = new LoadedItemsContainer { Data = Array.Empty<LoadedItem>() };
+        private static LoadedItemsContainer items = new LoadedItemsContainer
+        {
+            Data = Array.Empty<LoadedItem>()
+        };
 
-        public static async Task Add(
+        public static void Add(
             BasisDataStoreItemKeys.ItemKey key,
             GameObject go)
         {
@@ -35,8 +37,8 @@ namespace Basis.BasisUI
                 return;
 
             int id = go.GetInstanceID();
-
             int index = IndexOf(id);
+
             if (index >= 0)
             {
                 items.Data[index].ItemKey = key;
@@ -53,19 +55,17 @@ namespace Basis.BasisUI
                 ItemKey = key,
                 GameObject = go
             };
-
-            await Task.CompletedTask;
         }
 
-        public static async Task Remove(GameObject go)
+        public static void Remove(GameObject go)
         {
             if (go == null)
                 return;
 
-            await Remove(go.GetInstanceID());
+            Remove(go.GetInstanceID());
         }
 
-        public static async Task Remove(int instanceId)
+        public static void Remove(int instanceId)
         {
             EnsureInit();
 
@@ -74,6 +74,13 @@ namespace Basis.BasisUI
                 return;
 
             int oldLen = items.Data.Length;
+
+            if (oldLen == 1)
+            {
+                items.Data = Array.Empty<LoadedItem>();
+                return;
+            }
+
             var newArr = new LoadedItem[oldLen - 1];
 
             if (index > 0)
@@ -83,11 +90,9 @@ namespace Basis.BasisUI
                 Array.Copy(items.Data, index + 1, newArr, index, oldLen - index - 1);
 
             items.Data = newArr;
-
-            await Task.CompletedTask;
         }
 
-        public static async Task<(bool found, BasisDataStoreItemKeys.ItemKey key, GameObject go)> TryGet(int instanceId)
+        public static (bool found, BasisDataStoreItemKeys.ItemKey key, GameObject go) TryGet(int instanceId)
         {
             EnsureInit();
 
@@ -102,7 +107,7 @@ namespace Basis.BasisUI
             return (false, default, null);
         }
 
-        public static async Task<LoadedItem[]> GetAll()
+        public static LoadedItem[] GetAll()
         {
             EnsureInit();
             return items.Data;
@@ -116,11 +121,14 @@ namespace Basis.BasisUI
 
         private static int IndexOf(int instanceId)
         {
-            for (int i = 0; i < items.Data.Length; i++)
+            var data = items.Data;
+
+            for (int i = 0; i < data.Length; i++)
             {
-                if (items.Data[i].InstanceId == instanceId)
+                if (data[i].InstanceId == instanceId)
                     return i;
             }
+
             return -1;
         }
     }

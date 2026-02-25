@@ -181,7 +181,7 @@ namespace Basis.BasisUI
         /// used to create a new BasisLoadableBundleWrapper for an item
         /// do not use for accessing data its only to init
         /// </summary>
-        public static async Task<BasisLoadableBundleWrapper> CreateNewWrapperFromItem( BasisDataStoreItemKeys.ItemKey item )
+        public static BasisLoadableBundleWrapper CreateNewWrapperFromItem( BasisDataStoreItemKeys.ItemKey item )
         {
             // create a new wrapper
             BasisLoadableBundleWrapper wrapper = new BasisLoadableBundleWrapper();
@@ -220,7 +220,7 @@ namespace Basis.BasisUI
             if(wrapper == null) // generate a new wrapper if its null
             {
                 BasisDebug.LogWarning( "wrapper was not provided for LoadWrapperFromDisc, creating." );
-                wrapper = await CreateNewWrapperFromItem( item );
+                wrapper = CreateNewWrapperFromItem( item );
             }
 
             // If the metadata is missing on disk, remove the key and DO NOT attempt to create a bundle from it.
@@ -294,7 +294,7 @@ namespace Basis.BasisUI
             }
         }
 
-        private static async Task BuildItemsListForInstantiatedObjects(ContentLoaderStore.LoadedItem[] loadedItems, PanelTabPage tab)
+        private static void BuildItemsListForInstantiatedObjects(ContentLoaderStore.LoadedItem[] loadedItems, PanelTabPage tab)
         {
             RectTransform container = tab.Descriptor.ContentParent;
         
@@ -467,11 +467,11 @@ namespace Basis.BasisUI
             else
             {
                 // grab the data?
-                ContentLoaderStore.LoadedItem[] loadedItems = await ContentLoaderStore.GetAll();
+                ContentLoaderStore.LoadedItem[] loadedItems = ContentLoaderStore.GetAll();
                 // this is most likely to be the instantiated tab so
                 ClearTabContent(tab.Descriptor.ContentParent);
                 // TODO build list of instantiated objects
-                await BuildItemsListForInstantiatedObjects(loadedItems, tab);
+                BuildItemsListForInstantiatedObjects(loadedItems, tab);
                 tab.Descriptor.ForceRebuild();
             }
 
@@ -523,7 +523,7 @@ namespace Basis.BasisUI
             var button = PanelButton.CreateNew(ButtonStyles.ExitButton, newItemDialogBox.Descriptor.Header);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
-            button.OnClicked += async () => await newItemDialogBox.CloseAsync();
+            button.OnClicked += () => newItemDialogBox.CloseAsync();
 
             // panel group for the fields
             PanelTabGroup panelGroup = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, newItemDialogBox.Descriptor.ContentParent);
@@ -640,7 +640,7 @@ namespace Basis.BasisUI
                                     Mode = 0, // we are going to infer from the type of data the item is
                                 };
 
-                                var tempWrapper = await CreateNewWrapperFromItem(tempItem);
+                                var tempWrapper = CreateNewWrapperFromItem(tempItem);
 
                                 BasisProgressReport Report = new BasisProgressReport();
                                 CancellationTokenSource CancellationSource = new CancellationTokenSource();
@@ -696,7 +696,7 @@ namespace Basis.BasisUI
                                     // add the item to the basis key store
                                     await AddNewNewItemKey(itemType, validationResponse.ProcessedUrl, validationResponse.Password);
                                     // just close the overlay
-                                    await newItemDialogBox.CloseAsync();
+                                    newItemDialogBox.CloseAsync();
                                     // refresh the current tab
                                     await RefreshCurrentTab();
                                 }
@@ -831,7 +831,7 @@ namespace Basis.BasisUI
         /// <summary>
         /// The item card displayed all around the library menu
         /// </summary>
-        private static async void CreateItemCard(BasisDataStoreItemKeys.ItemKey item, RectTransform container)
+        private static void CreateItemCard(BasisDataStoreItemKeys.ItemKey item, RectTransform container)
         {
             PanelButton buttonPanel = PanelButton.CreateNew(ButtonStyles.Prop, container);
             var urlKey = item.Url ?? string.Empty;
@@ -899,11 +899,11 @@ namespace Basis.BasisUI
             //     networkIcon.rectTransform.sizeDelta = new Vector2(40, 40);
             // }
 
-            buttonPanel.OnClicked += async () =>
+            buttonPanel.OnClicked += () =>
             {
                 try
                 {
-                    await ShowItemOverlay(item);
+                    ShowItemOverlay(item);
                 }
                 catch (Exception ex)
                 {
@@ -930,7 +930,7 @@ namespace Basis.BasisUI
             }
         }
 
-        public static async Task ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item)
+        public static void ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item)
         {
             #region ITEM OVERLAY SETUP
 
@@ -987,7 +987,7 @@ namespace Basis.BasisUI
                 pinButton.Descriptor.SetIcon(AddressableAssets.Sprites.Pin);
                 pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
                 pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
-                pinButton.OnClicked += async () =>
+                pinButton.OnClicked += () =>
                 {
                     BasisDebug.LogWarning($"Pin button was invoked for item = {item.Url}, implement pin toggle!");
                 };
@@ -997,7 +997,7 @@ namespace Basis.BasisUI
             var button = PanelButton.CreateNew(ButtonStyles.ExitButton, existingItemDialog.Descriptor.Header);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
-            button.OnClicked += async () => await existingItemDialog.CloseAsync();
+            button.OnClicked += () => existingItemDialog.CloseAsync();
 
             // icon for the selected item
             var itemIcon = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.GroupLargeIconVertical, existingItemDialog.Descriptor.ContentParent);
@@ -1364,7 +1364,7 @@ namespace Basis.BasisUI
                 // remove the item
                 await BasisDataStoreItemKeys.RemoveKey(item);
                 // just close the overlay instead.
-                await existingItemDialog.CloseAsync();
+                existingItemDialog.CloseAsync();
                 // refresh current tab
                 await RefreshCurrentTab();
             };
@@ -1398,7 +1398,7 @@ namespace Basis.BasisUI
                 finally
                 {
                     // just close the overlay instead.
-                    await existingItemDialog.CloseAsync();
+                    existingItemDialog.CloseAsync();
                 }
             };
         }
@@ -1463,7 +1463,7 @@ namespace Basis.BasisUI
 
         // TODO use items key
         // 
-        private static async void CreateListEntry(BasisDataStoreItemKeys.ItemKey itemKey, RectTransform parentTabGroup, int instanceID, GameObject gameObject)
+        private static void CreateListEntry(BasisDataStoreItemKeys.ItemKey itemKey, RectTransform parentTabGroup, int instanceID, GameObject gameObject)
         {
             // // icon for the selected item
             // var itemIcon = PanelElementDescriptor.CreateNew(
@@ -1510,7 +1510,7 @@ namespace Basis.BasisUI
                 }
 
                 // remove the item from the list
-                await ContentLoaderStore.Remove(instanceID);
+                ContentLoaderStore.Remove(instanceID);
 
                 await RefreshCurrentTab();
             };

@@ -94,7 +94,7 @@ namespace Basis.BasisUI
 
 
                 // make a new wrapper to load the metadata into
-                BasisLoadableBundleWrapper newWrapper = await CreateNewWrapperFromItem(item);
+                BasisLoadableBundleWrapper newWrapper = CreateNewWrapperFromItem(item);
 
                 // new report and CancellationSource source
                 BasisProgressReport Report = new BasisProgressReport();

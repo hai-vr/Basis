@@ -14,12 +14,12 @@ namespace Basis.Scripts.UI.UI_Panels
         public class ItemKey
         {
             public BundledContentHolder.Mode Mode;
+            public BundledContentHolder.PlacementType PlacementType;
             //public BundledContentHolder.NetworkType NetworkType;
             public string Url;
             public string Pass;
             public bool IsEmbedded = false;
-
-            public BundledContentHolder.PlacementType PlacementType;
+            public bool IsPinned = false; // determines if this item can be pinned in the basis main menu
         }
 
 

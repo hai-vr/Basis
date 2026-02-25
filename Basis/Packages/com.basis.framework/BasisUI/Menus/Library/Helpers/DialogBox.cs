@@ -45,7 +45,7 @@ namespace Basis.BasisUI
             return box;
         }
 
-        public async Task CloseAsync()
+        public void CloseAsync()
         {
             if (_descriptor != null)
             {
@@ -59,7 +59,7 @@ namespace Basis.BasisUI
                 _background = null;
             }
 
-            await Task.Yield();
+            //await Task.Yield();
 
             // Closed?.Invoke();
             // Closed = null;
