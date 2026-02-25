@@ -27,11 +27,72 @@ namespace Basis.BasisUI
             return textInfo.ToTitleCase(givenText);
         }
 
+        public static void RefreshPinnedProviders()
+        {
+            //await BasisDataStoreItemKeys.LoadKeys();
+
+            var keys = BasisDataStoreItemKeys.DisplayKeys();
+
+            var existing = new List<BasisMenuActionProvider<BasisMainMenu>>(
+                BasisMenuBase<BasisMainMenu>.Providers);
+
+            // Remove old pinned providers
+            foreach (var provider in existing)
+            {
+                if (provider is PinnedItemProvider)
+                {
+                    BasisMenuBase<BasisMainMenu>.RemoveProvider(provider);
+                }
+            }
+
+            // Add new ones
+            foreach (var key in keys)
+            {
+                if (key.IsPinned)
+                {
+                    // Try get cached meta once
+                    CachedMetaData.CachedContent cachedMeta;
+                    if(CachedMetaData.TryGetMeta(key.Url, out cachedMeta))
+                    {
+                        var provider = new PinnedItemProvider(key, cachedMeta);
+                        BasisMenuBase<BasisMainMenu>.AddProvider(provider);
+                    }
+                    else
+                    {
+                        BasisDebug.LogError($" Unable to build pinned provider for item = {key.Url} failed to get item from cache");
+                    }
+                }
+            }
+        }
+
         #region Provider Setup
         [RuntimeInitializeOnLoadMethod]
-        public static void AddToMenu()
+        public static async void AddToMenu()
         {
             BasisMenuBase<BasisMainMenu>.AddProvider(new LibraryProvider());
+
+            // begin meta data caching here
+            // load all the keys
+            await BasisDataStoreItemKeys.LoadKeys();
+
+            // cache all items into the meta data
+            // build data to be used
+            var data = BasisDataStoreItemKeys.DisplayKeys()
+                .Concat(EmbeddedItems.HardcodedKeys)
+                .ToList();
+
+            // Preload metadata for all items
+            try
+            {
+                await CachedMetaData.PreloadMetaForItems(data);
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError(ex);
+            }
+
+            // once we have the cache now invoke the task to build pinned providers
+            RefreshPinnedProviders();
         }
 
         public override string Title => "Library";
@@ -481,6 +542,9 @@ namespace Basis.BasisUI
         private static async Task RefreshCurrentTab()
         {
             await RefreshTabAsync(_currentPage);
+
+            // we should also refresh providers
+            RefreshPinnedProviders();
         }
         #endregion
 
@@ -841,6 +905,18 @@ namespace Basis.BasisUI
             CachedMetaData.CachedContent cachedMeta;
             CachedMetaData.TryGetMeta(urlKey, out cachedMeta);
 
+            if(item.IsPinned)
+            {
+                // create an image for this card in top right with an offset of -35, -35
+                PanelImage pinnedIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
+                pinnedIcon.SetIcon(AddressableAssets.GetSprite(AddressableAssets.Sprites.Pin), true);
+                pinnedIcon.rectTransform.anchorMin = new Vector2(1, 1);
+                pinnedIcon.rectTransform.anchorMax = new Vector2(1, 1);
+                pinnedIcon.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                pinnedIcon.rectTransform.anchoredPosition = new Vector2(-35, -35);
+                pinnedIcon.rectTransform.sizeDelta = new Vector2(40, 40);
+            }
+
             if(item.IsEmbedded)
             {
 
@@ -873,7 +949,6 @@ namespace Basis.BasisUI
 
                 if (cachedMeta != null)
                 {
-                    BasisDebug.Log($"ApplyMetaDataToButton -> for item {urlKey}");
                     ApplyMetaDataToButton(buttonPanel, cachedMeta, urlKey);
                 }
                 else
@@ -987,9 +1062,21 @@ namespace Basis.BasisUI
                 pinButton.Descriptor.SetIcon(AddressableAssets.Sprites.Pin);
                 pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
                 pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
-                pinButton.OnClicked += () =>
+                pinButton.OnClicked += async () =>
                 {
-                    BasisDebug.LogWarning($"Pin button was invoked for item = {item.Url}, implement pin toggle!");
+                    // grab the state of the item if its pinned
+                    bool isPinned = item.IsPinned;
+
+                    // toggle the item is pinned in the key files store
+                    bool success = await BasisDataStoreItemKeys.SetPinned(item, !isPinned);
+
+                    // update it in the cache
+                    item.IsPinned = !isPinned;
+
+                    await RefreshCurrentTab();
+                    //await RefreshPinnedProviders();
+
+                    BasisDebug.Log($"Pinned button was pressed on item = {item.Url}, success = {success}, item.IsPinned = {item.IsPinned}");
                 };
             }
 
@@ -1426,7 +1513,7 @@ namespace Basis.BasisUI
         /// <param name="item">The ItemKey desired to be loaded</param>
         /// <param name="networkType">default local unless specified</param>
         /// <returns></returns>
-        private static async Task LoadSelectedItem(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType networkType = BundledContentHolder.NetworkType.Local, bool persistence = false, bool modifyScale = false)
+        public static async Task LoadSelectedItem(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType networkType = BundledContentHolder.NetworkType.Local, bool persistence = false, bool modifyScale = false)
         {
             // At this point the item should be fully loaded and ready to use. What happens next is up to you and your application needs.
             // For example, you could raise an event that other parts of your app listen for, or directly instantiate the loaded content if it's a prefab.
