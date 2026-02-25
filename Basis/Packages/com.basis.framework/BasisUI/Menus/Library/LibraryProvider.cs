@@ -21,6 +21,11 @@ namespace Basis.BasisUI
 {
     public partial class LibraryProvider : BasisMenuActionProvider<BasisMainMenu>
     {
+        public static string TitleToCase(string givenText)
+        {
+            TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
+            return textInfo.ToTitleCase(givenText);
+        }
 
         #region Provider Setup
         [RuntimeInitializeOnLoadMethod]
@@ -966,13 +971,9 @@ namespace Basis.BasisUI
             // Not sure why we need this so lets to remove.
             _activeItem = item;
 
-            // grab the current culture info
-            // and title the text
-            TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
- 
             // Build overlay using DialogBox helper
             DialogBox existingItemDialog = DialogBox.Create(panel, overlaySize,
-                $"{textInfo.ToTitleCase(description.AssetBundleName)}",
+                $"{TitleToCase(description.AssetBundleName)}",
                 $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : "No description was provided.")}",
                 ConvertItemKeyToAddressableSprite(item));
 
@@ -1409,7 +1410,7 @@ namespace Basis.BasisUI
             buttonPanel.SetIcon(iconSprite, false);
 
             var desc = buttonPanel.Descriptor;
-            desc.SetTitle(!string.IsNullOrEmpty(cachedMeta.Name) ? cachedMeta.Name : urlKey);
+            desc.SetTitle(TitleToCase(!string.IsNullOrEmpty(cachedMeta.Name) ? cachedMeta.Name : urlKey));
             desc.SetDescription(urlKey);
             desc.ForceRebuild();
         }
@@ -1481,13 +1482,22 @@ namespace Basis.BasisUI
             // simple info
             PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
             itemTextInfo._inputField.gameObject.SetActive(false); // disable the text input field box
-            itemTextInfo.Descriptor.SetTitle(itemKey.Url);
+            if(itemKey.IsEmbedded)
+            {
+                itemTextInfo.Descriptor.SetTitle(TitleToCase(itemKey.Url));
+            }
+            else
+            {
+                // Try get cached meta once
+                CachedMetaData.CachedContent cachedMeta;
+                CachedMetaData.TryGetMeta(itemKey.Url, out cachedMeta);
+                itemTextInfo.Descriptor.SetTitle(TitleToCase(cachedMeta.BasisBundleConnector.BasisBundleDescription.AssetBundleName));
+            }
             //createdInformationTextField.Descriptor.SetIcon(EmbeddedItems.GetSpriteForEmbeddedItem(item));
             itemTextInfo.Descriptor.SetDescription($"Embedded item");
 
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
-
 
             PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);
             removeItem.Descriptor.SetTitle("Remove");
