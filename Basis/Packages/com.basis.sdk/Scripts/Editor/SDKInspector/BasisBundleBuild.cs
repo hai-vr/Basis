@@ -444,7 +444,7 @@ public static class BasisBundleBuild
             Directory.CreateDirectory(rootOutDir);
 
             generatedID = BasisGenerateUniqueID.GenerateUniqueID();
-            string buildOutDir = EnsureBuildOutputDirectory(rootOutDir, generatedID, deleteIfExists: true);
+            string buildOutDir = EnsureBuildOutputDirectory(rootOutDir, FolderName, deleteIfExists: true);
 
             // Staging output folder (uncombined per-target Unity output)
             string uncombinedRoot = PathConversion(assetBundleObject.AssetBundleUnCombined);
