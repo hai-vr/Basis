@@ -14,7 +14,7 @@ namespace Basis.BasisUI
         {
             _key = item;
             _title = LibraryProvider.TitleToCase(cachedItemData.BasisBundleConnector.BasisBundleDescription.AssetBundleName);
-            _iconAddress = item.IsEmbedded ? EmbeddedItems.GetAddressableSpriteForEmbeddedItem(item) : AddressableAssets.Sprites.Pin;
+            _iconAddress = item.IsEmbedded ? EmbeddedItems.GetAddressableSpriteForEmbeddedItem(item) : AddressableAssets.Sprites.Items;
         }
 
         public override string Title => _title; // or a nicer name

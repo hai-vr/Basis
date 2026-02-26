@@ -19,6 +19,9 @@ namespace Basis.BasisUI
 {
     public partial class LibraryProvider : BasisMenuActionProvider<BasisMainMenu>
     {
+
+        // TODO: stuff up here needs to be refactored or re-worked
+
         public static string TitleToCase(string givenText)
         {
             TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
@@ -34,6 +37,11 @@ namespace Basis.BasisUI
                 BundledContentHolder.Mode.Avatar => Page.Avatar,
                 _ => throw new System.ArgumentException($"Cannot map mode {mode} to a Page")
             };
+        }
+
+        public static bool IsProp(BasisDataStoreItemKeys.ItemKey item)
+        {
+            return item.Mode == BundledContentHolder.Mode.Prop;
         }
 
         public static void RefreshPinnedProviders()
@@ -73,6 +81,8 @@ namespace Basis.BasisUI
                 }
             }
         }
+
+        // TODO END
 
         #region Provider Setup
         [RuntimeInitializeOnLoadMethod]
@@ -979,6 +989,11 @@ namespace Basis.BasisUI
 
         #region CreateItemCard, ShowItemOverlay, ApplyMetaDataToButton
 
+        private static void LockedIcon()
+        {
+            
+        }
+
         /// <summary>
         /// The item card displayed all around the library menu
         /// </summary>
@@ -1003,8 +1018,21 @@ namespace Basis.BasisUI
                 pinnedIcon.rectTransform.anchoredPosition = new Vector2(-35, -35);
                 pinnedIcon.rectTransform.sizeDelta = new Vector2(40, 40);
             }
+            else
+            {
+                if(item.IsEmbedded)
+                {    
+                    PanelImage embeddedIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
+                    embeddedIcon.SetIcon(AddressableAssets.GetSprite(AddressableAssets.Sprites.Locked), true);
+                    embeddedIcon.rectTransform.anchorMin = new Vector2(1, 1);
+                    embeddedIcon.rectTransform.anchorMax = new Vector2(1, 1);
+                    embeddedIcon.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                    embeddedIcon.rectTransform.anchoredPosition = new Vector2(-35, -35);
+                    embeddedIcon.rectTransform.sizeDelta = new Vector2(40, 40);
+                }
+            }
 
-            if (item.IsEmbedded)
+            if (item.IsEmbedded && IsProp(item))
             {
                 // TODO fix representation for stacked icons
                 // // create an image for this card in top right with an offset of -35, -35
@@ -1075,6 +1103,11 @@ namespace Basis.BasisUI
             }
         }
 
+        public static string PinnedText(BasisDataStoreItemKeys.ItemKey item)
+        {
+            return item.PinnedSettings.IsPinned ? "Pinned" : "Pin";
+        }
+
         public static void ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item)
         {
             #region ITEM OVERLAY SETUP
@@ -1095,7 +1128,7 @@ namespace Basis.BasisUI
             // default string text for embedded item
             string embedItem = "Emebbed item";
 
-            if (item.IsEmbedded)
+            if (item.IsEmbedded && IsProp(item))
             {
                 description = new BasisBundleDescription()
                 {
@@ -1129,7 +1162,7 @@ namespace Basis.BasisUI
             {
                 // create the exit button for the dialog box
                 var pinButton = PanelButton.CreateNew(ButtonStyles.ExitButton, existingItemDialog.Descriptor.Header);
-                pinButton.Descriptor.SetTitle(item.PinnedSettings.IsPinned ? "Un-Pin" : "Pin");
+                pinButton.Descriptor.SetTitle(PinnedText(item));
                 pinButton.Descriptor.SetIcon(AddressableAssets.Sprites.Pin);
                 pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
                 pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
@@ -1154,7 +1187,7 @@ namespace Basis.BasisUI
 
                     await RefreshCurrentTab();
                     //await RefreshPinnedProviders();
-                    pinButton.Descriptor.SetTitle(item.PinnedSettings.IsPinned ? "UnPin" : "Pin");
+                    pinButton.Descriptor.SetTitle(PinnedText(item));
 
                     BasisDebug.Log($"Pinned button was pressed on item = {item.Url}, success = {success}, item.IsPinned = {item.PinnedSettings.IsPinned}");
                 };
@@ -1192,7 +1225,11 @@ namespace Basis.BasisUI
 
             string creationDate = string.Empty; // get the creation date of the basis bundle
 
-            if (!item.IsEmbedded)
+            if (item.IsEmbedded && IsProp(item))
+            {
+                creationDate = embedItem;
+            }
+            else
             {
                 creationDate = metadata.BasisBundleConnector.DateOfCreation;
                 // determine what the creation date text is gonna say
@@ -1209,10 +1246,6 @@ namespace Basis.BasisUI
 
                     creationDate += " UTC";
                 }
-            }
-            else
-            {
-                creationDate = embedItem;
             }
 
 
@@ -1238,7 +1271,7 @@ namespace Basis.BasisUI
             platformIconsTextField.Descriptor.SetHeight(130);
             platformIconsTextField.Descriptor.SetWidth(400);
 
-            if (item.IsEmbedded)
+            if (item.IsEmbedded && IsProp(item))
             {
                 platformIconsTextField.Descriptor.SetDescription($"All - Embedded Item");
             }
@@ -1293,7 +1326,7 @@ namespace Basis.BasisUI
 
             long polygonCount = 0;
 
-            if (item.IsEmbedded)
+            if (item.IsEmbedded  && IsProp(item))
             {
                 polygonCount = 0;
             }
@@ -1318,7 +1351,7 @@ namespace Basis.BasisUI
 
             long materialCount = 0;
 
-            if (item.IsEmbedded)
+            if (item.IsEmbedded  && IsProp(item))
             {
                 materialCount = 0;
             }
@@ -1343,7 +1376,7 @@ namespace Basis.BasisUI
 
             long boneCount = 0;
 
-            if (item.IsEmbedded)
+            if (item.IsEmbedded && IsProp(item))
             {
                 boneCount = 0;
             }
@@ -1368,7 +1401,7 @@ namespace Basis.BasisUI
 
             string itemID = string.Empty; // item id
 
-            if (item.IsEmbedded)
+            if (item.IsEmbedded && IsProp(item))
             {
                 itemID = embedItem;
             }
