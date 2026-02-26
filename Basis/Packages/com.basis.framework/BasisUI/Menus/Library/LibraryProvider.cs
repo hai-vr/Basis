@@ -1,5 +1,4 @@
 using Basis.BasisUI.Styling;
-using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
@@ -10,8 +9,6 @@ using System.Threading.Tasks;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
-using UnityEngine.SocialPlatforms;
 using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
 using static Basis.BasisUI.PanelPasswordField;

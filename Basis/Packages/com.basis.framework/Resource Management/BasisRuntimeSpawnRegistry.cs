@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.SceneManagement;
 
 namespace Basis
@@ -158,7 +159,14 @@ namespace Basis
                     {
                         if (SpawnedGameobjects.TryGetValue(loadedNetId, out var go) && go != null)
                         {
-                            GameObject.Destroy(go);
+                            if (inst.SpawnMethod == SpawnMethod.Embedded)
+                            {
+                                Addressables.ReleaseInstance(go);
+                            }
+                            else
+                            {
+                                GameObject.Destroy(go);
+                            }
                         }
 
                         break;
@@ -167,6 +175,16 @@ namespace Basis
                     {
                         if (SpawnedScenes.TryGetValue(loadedNetId, out var scene) && scene.IsValid())
                         {
+                            /*
+                            if (inst.SpawnMethod == SpawnMethod.Embedded)
+                            {
+                                Addressables.UnloadSceneAsync(scene, true);
+                            }
+                            else
+                            {
+                                SceneManager.UnloadSceneAsync(scene);
+                            }
+                            */
                             SceneManager.UnloadSceneAsync(scene);
                         }
 

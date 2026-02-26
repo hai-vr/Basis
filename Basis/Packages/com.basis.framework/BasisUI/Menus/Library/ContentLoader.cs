@@ -144,6 +144,7 @@ namespace Basis.BasisUI
                                 GameObject CreatedObject = op.WaitForCompletion();
                                 GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
                                 Basis.BasisRuntimeSpawnRegistry.AddGameObject(item.Url, instance.name, CreatedObject, false, BasisRuntimeSpawnRegistry.SpawnMethod.Embedded, out var embeddedinstance);
+                            //    Basis.BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(instance.name,out var data);
                             }
                             else
                             {
