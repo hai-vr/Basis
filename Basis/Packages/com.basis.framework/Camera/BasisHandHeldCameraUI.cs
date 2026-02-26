@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using Basis.BasisUI;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -494,15 +495,22 @@ public partial class BasisHandHeldCameraUI
         return Format != null && Format.isOn ? FORMAT_EXR : FORMAT_PNG;
     }
 
+    public void ReleaseUILock()
+    {
+        var cameraInteractable = HHC.GetComponent<BasisHandHeldCameraInteractable>();
+        cameraInteractable?.ReleasePlayerLocks();
+
+        // only hide the cursor if the basis main menu is not there
+        if(BasisMainMenu.Instance == null)
+            Cursor.visible = false;
+    }
+
     public void CloseUI()
     {
         if (HHC == null) return;
 
-        var cameraInteractable = HHC.GetComponent<BasisHandHeldCameraInteractable>();
-        cameraInteractable?.ReleasePlayerLocks();
-
+        ReleaseUILock();
         GameObject.Destroy(HHC.gameObject);
-        Cursor.visible = false;
     }
 
     // ---------- Persistence ----------

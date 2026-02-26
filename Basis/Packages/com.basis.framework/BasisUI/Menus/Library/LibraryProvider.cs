@@ -1553,9 +1553,17 @@ namespace Basis.BasisUI
             deletePanelButton.Descriptor.SetWidth(220);
             deletePanelButton.Descriptor.SetHeight(60);
 
+            // DISABLE THIS BUTTON IF ITEM IS EMBEDDED
+            if (deletePanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button deleteButtonComponent))
+            {
+                // if the item is embedded dont interact
+                deleteButtonComponent.interactable = !item.IsEmbedded;
+            }
+
             // upon delete we do these actions
             deletePanelButton.OnClicked += async () =>
             {
+                if(item.IsEmbedded) return; // prevent delete button working on embedded items
                 if (existingItemDialog.IsBusy) return;
                 existingItemDialog.IsBusy = true;
 
@@ -1567,12 +1575,6 @@ namespace Basis.BasisUI
                 await RefreshCurrentTab();
             };
 
-            // DISABLE THIS BUTTON IF ITEM IS EMBEDDED
-            if (deletePanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button deleteButtonComponent))
-            {
-                // if the item is embedded dont interact
-                deleteButtonComponent.interactable = !item.IsEmbedded;
-            }
 
             PanelButton loadPanelButton = PanelButton.CreateNew(ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
             loadPanelButton.Descriptor.SetTitle("Load");
@@ -1680,19 +1682,20 @@ namespace Basis.BasisUI
             // simple info
             PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
             itemTextInfo._inputField.gameObject.SetActive(false); // disable the text input field box
-            if (itemKey.SpawnMethod == 0)
-            {
-                itemTextInfo.Descriptor.SetTitle(TitleToCase(itemKey.Url));
-            }
-            else
-            {
-                // Try get cached meta once
-                CachedMetaData.CachedContent cachedMeta;
-                CachedMetaData.TryGetMeta(itemKey.Url, out cachedMeta);
-                itemTextInfo.Descriptor.SetTitle(TitleToCase(cachedMeta.BasisBundleConnector.BasisBundleDescription.AssetBundleName));
-            }
+            // if (itemKey.SpawnMethod == 0)
+            // {
+            //     itemTextInfo.Descriptor.SetTitle(TitleToCase(itemKey.Url));
+            // }
+            // else
+            // {
+            //     // Try get cached meta once
+            //     CachedMetaData.CachedContent cachedMeta;
+            //     CachedMetaData.TryGetMeta(itemKey.Url, out cachedMeta);
+            //     itemTextInfo.Descriptor.SetTitle(TitleToCase(cachedMeta.BasisBundleConnector.BasisBundleDescription.AssetBundleName));
+            // }
+            itemTextInfo.Descriptor.SetTitle(TitleToCase(itemKey.Url));
             //createdInformationTextField.Descriptor.SetIcon(EmbeddedItems.GetSpriteForEmbeddedItem(item));
-            itemTextInfo.Descriptor.SetDescription($"Embedded item");
+            itemTextInfo.Descriptor.SetDescription($"Persistent: {itemKey.Persistent} | Method: {itemKey.SpawnMethod} | Mode: {itemKey.SpawnMode} | UTC: {itemKey.SpawnedUtc}");
 
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);

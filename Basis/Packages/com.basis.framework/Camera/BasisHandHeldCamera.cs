@@ -160,15 +160,19 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     public new async void OnDestroy()
     {
+        string myLoadedNetId = gameObject.name;
+        UnRegisterLoadedNetID(myLoadedNetId);
+
         UnsubscribeMeshRendererCheck();
         ReleaseRenderTexture();
 
-        UnRegisterLoadedNetID();
-
         if (HandHeld != null)
         {
+            HandHeld.ReleaseUILock(); // we should release locks if for whatever reason we get destroyed
             await HandHeld.SaveSettings();
+        
         }
+        
 
         BasisDeviceManagement.OnBootModeChanged -= OnBootModeChanged;
         OnPickupUse -= OnPickupUseCapture;
@@ -585,24 +589,21 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             renderTexture.Release();
     }
 
-    private async void UnRegisterLoadedNetID()
+    private async void UnRegisterLoadedNetID(string myLoadedNetId)
     {
-        if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(gameObject.name, out var go) && go != null)
-        {
-            BasisDebug.Log("Personal Mirror already exists in the scene");
+        if (string.IsNullOrEmpty(myLoadedNetId))
+            return;
 
-            // lets delete it
-            // if the gameobject is not null then lets remove its registery
-            bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId( gameObject.name );
-            if(success)
+        if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(myLoadedNetId, out var go) && go)
+        {
+            bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(myLoadedNetId);
+            if (success)
             {
-                // we should delete the embedded item
-                //GameObject.Destroy(go);
-                BasisDebug.Log($"successfully removed this item = {gameObject.name} from basis BasisRuntimeSpawnRegistry");
+                BasisDebug.Log($"successfully removed item = {myLoadedNetId} from registry");
             }
             else
             {
-                BasisDebug.LogError($"failed to remove item = {gameObject.name} from basis BasisRuntimeSpawnRegistry");
+                BasisDebug.LogError($"failed to remove item = {myLoadedNetId} from registry");
             }
         }
     }
