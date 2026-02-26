@@ -1685,19 +1685,20 @@ namespace Basis.BasisUI
             // simple info
             PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
             itemTextInfo._inputField.gameObject.SetActive(false); // disable the text input field box
-            if (itemKey.SpawnMethod == 0)
-            {
-                itemTextInfo.Descriptor.SetTitle(TitleToCase(itemKey.Url));
-            }
-            else
-            {
-                // Try get cached meta once
-                CachedMetaData.CachedContent cachedMeta;
-                CachedMetaData.TryGetMeta(itemKey.Url, out cachedMeta);
-                itemTextInfo.Descriptor.SetTitle(TitleToCase(cachedMeta.BasisBundleConnector.BasisBundleDescription.AssetBundleName));
-            }
+            // if (itemKey.SpawnMethod == 0)
+            // {
+            //     itemTextInfo.Descriptor.SetTitle(TitleToCase(itemKey.Url));
+            // }
+            // else
+            // {
+            //     // Try get cached meta once
+            //     CachedMetaData.CachedContent cachedMeta;
+            //     CachedMetaData.TryGetMeta(itemKey.Url, out cachedMeta);
+            //     itemTextInfo.Descriptor.SetTitle(TitleToCase(cachedMeta.BasisBundleConnector.BasisBundleDescription.AssetBundleName));
+            // }
+            itemTextInfo.Descriptor.SetTitle(TitleToCase(itemKey.Url));
             //createdInformationTextField.Descriptor.SetIcon(EmbeddedItems.GetSpriteForEmbeddedItem(item));
-            itemTextInfo.Descriptor.SetDescription($"Embedded item");
+            itemTextInfo.Descriptor.SetDescription($"Persistent: {itemKey.Persistent} | Method: {itemKey.SpawnMethod} | Mode: {itemKey.SpawnMode} | UTC: {itemKey.SpawnedUtc}");
 
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
