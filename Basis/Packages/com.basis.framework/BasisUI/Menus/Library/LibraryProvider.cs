@@ -48,7 +48,7 @@ namespace Basis.BasisUI
             // Add new ones
             foreach (var key in keys)
             {
-                if (key.IsPinned)
+                if (key.PinnedSettings.IsPinned)
                 {
                     // Try get cached meta once
                     CachedMetaData.CachedContent cachedMeta;
@@ -905,7 +905,7 @@ namespace Basis.BasisUI
             CachedMetaData.CachedContent cachedMeta;
             CachedMetaData.TryGetMeta(urlKey, out cachedMeta);
 
-            if(item.IsPinned)
+            if(item.PinnedSettings.IsPinned)
             {
                 // create an image for this card in top right with an offset of -35, -35
                 PanelImage pinnedIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
@@ -1058,26 +1058,34 @@ namespace Basis.BasisUI
             {
                 // create the exit button for the dialog box
                 var pinButton = PanelButton.CreateNew(ButtonStyles.ExitButton, existingItemDialog.Descriptor.Header);
-                pinButton.Descriptor.SetTitle(item.IsPinned ? "Un-Pin" : "Pin");
+                pinButton.Descriptor.SetTitle(item.PinnedSettings.IsPinned ? "Un-Pin" : "Pin");
                 pinButton.Descriptor.SetIcon(AddressableAssets.Sprites.Pin);
                 pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
                 pinButton.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
                 pinButton.OnClicked += async () =>
                 {
                     // grab the state of the item if its pinned
-                    bool isPinned = item.IsPinned;
+                    bool isPinned = item.PinnedSettings.IsPinned;
+
+                    // create new pinned settings
+                    BasisDataStoreItemKeys.PinnedSettings newPinnedSettings = new BasisDataStoreItemKeys.PinnedSettings
+                    {
+                        IsPinned = !isPinned,
+                        NetworkType = desiredNetworkType,
+                        IsEphemeral = ephemeral
+                    };
 
                     // toggle the item is pinned in the key files store
-                    bool success = await BasisDataStoreItemKeys.SetPinned(item, !isPinned);
+                    bool success = await BasisDataStoreItemKeys.UpdatePinnedSettings(item, newPinnedSettings);
 
                     // update it in the cache
-                    item.IsPinned = !isPinned;
+                    item.PinnedSettings.IsPinned = !isPinned;
 
                     await RefreshCurrentTab();
                     //await RefreshPinnedProviders();
-                    pinButton.Descriptor.SetTitle(item.IsPinned ? "UnPin" : "Pin");
+                    pinButton.Descriptor.SetTitle(item.PinnedSettings.IsPinned ? "UnPin" : "Pin");
 
-                    BasisDebug.Log($"Pinned button was pressed on item = {item.Url}, success = {success}, item.IsPinned = {item.IsPinned}");
+                    BasisDebug.Log($"Pinned button was pressed on item = {item.Url}, success = {success}, item.IsPinned = {item.PinnedSettings.IsPinned}");
                 };
             }
 

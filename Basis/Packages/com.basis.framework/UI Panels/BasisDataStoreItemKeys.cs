@@ -11,15 +11,29 @@ namespace Basis.Scripts.UI.UI_Panels
     public static class BasisDataStoreItemKeys
     {
         [System.Serializable]
+        public struct PinnedSettings
+        {
+            public bool IsPinned;
+            public BundledContentHolder.NetworkType NetworkType;
+            public bool IsEphemeral;
+
+            public static PinnedSettings Default => new PinnedSettings
+            {
+                IsPinned = false, // default for every item is not to be pinned
+                NetworkType = BundledContentHolder.NetworkType.Local, // default network type for all objects if they are to be pinned should be local
+                IsEphemeral = true // and default for any spawned objects should not persistent for late joiners
+            };
+        }
+
+        [System.Serializable]
         public class ItemKey
         {
             public BundledContentHolder.Mode Mode;
             public BundledContentHolder.PlacementType PlacementType;
-            //public BundledContentHolder.NetworkType NetworkType;
             public string Url;
             public string Pass;
             public bool IsEmbedded = false;
-            public bool IsPinned = false; // determines if this item can be pinned in the basis main menu
+            public PinnedSettings PinnedSettings = PinnedSettings.Default; // contains the pinned settings of an item key if it was pinned
         }
 
 
@@ -79,7 +93,7 @@ namespace Basis.Scripts.UI.UI_Panels
         /// <summary>
         /// Will adjust the pinned boolean and save
         /// </summary>
-        public static async Task<bool> SetPinned(ItemKey key, bool value)
+        public static async Task<bool> UpdatePinnedSettings(ItemKey key, PinnedSettings updatedPinnedSettings)
         {
             EnsureInit();
 
@@ -87,7 +101,7 @@ namespace Basis.Scripts.UI.UI_Panels
             if (index < 0)
                 return false;
 
-            keys.Data[index].IsPinned = value;
+            keys.Data[index].PinnedSettings = updatedPinnedSettings;
 
             await SaveKeysToFile();
             return true;
