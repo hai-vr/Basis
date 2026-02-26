@@ -22,31 +22,33 @@ namespace Basis.BasisUI
         public static ItemKey[] HardcodedKeys = new ItemKey[]
         {
             // Example entry (uncomment and edit):
-            new ItemKey { 
-                Mode = BundledContentHolder.Mode.Prop, 
-                Url = "Personal Mirror", 
-                Pass = "", 
-                IsEmbedded = true, 
-                PlacementType = BundledContentHolder.PlacementType.SpawnInFrontOfPlayer 
+            new ItemKey {
+                Mode = BundledContentHolder.Mode.Prop,
+                Url = "Personal Mirror",
+                Pass = "",
+                IsEmbedded = true,
+                PlacementType = BundledContentHolder.PlacementType.SpawnInFrontOfPlayer,
+                PinnedSettings = new PinnedSettings() {  IsPinned = true},
             },
-            new ItemKey { 
-                Mode = BundledContentHolder.Mode.Prop, 
-                Url = "Photo Camera", 
-                Pass = "", 
-                IsEmbedded = true, 
-                PlacementType = BundledContentHolder.PlacementType.SpawnInFrontOfPlayer 
+            new ItemKey {
+                Mode = BundledContentHolder.Mode.Prop,
+                Url = "Photo Camera",
+                Pass = "",
+                IsEmbedded = true,
+                PlacementType = BundledContentHolder.PlacementType.SpawnInFrontOfPlayer,
+                PinnedSettings = new PinnedSettings() {  IsPinned = true},
             },
         };
 
         public static string GetAddressableSpriteForEmbeddedItem(ItemKey item)
         {
-            if(!item.IsEmbedded)
+            if (!item.IsEmbedded)
             {
                 BasisDebug.LogError($"GetSpriteForEmbeddedItem() was invoked for item = {item.Url} it is not embedded. Returning NULL.");
                 return null;
             }
 
-            switch(item.Url)
+            switch (item.Url)
             {
                 case "Photo Camera":
                     return AddressableAssets.Sprites.Camera;
@@ -63,13 +65,13 @@ namespace Basis.BasisUI
         /// </summary>
         public static Sprite GetSpriteForEmbeddedItem(ItemKey item)
         {
-            if(!item.IsEmbedded)
+            if (!item.IsEmbedded)
             {
                 BasisDebug.LogError($"GetSpriteForEmbeddedItem() was invoked for item = {item.Url} it is not embedded. Returning NULL.");
                 return null;
             }
 
-            switch(item.Url)
+            switch (item.Url)
             {
                 case "Photo Camera":
                     return AddressableAssets.GetSprite(GetAddressableSpriteForEmbeddedItem(item));
@@ -82,7 +84,7 @@ namespace Basis.BasisUI
 
             return null;
         }
-        
+
 
         /// <summary>
         /// returns returns the bounds for the embedded item must be defined
@@ -90,13 +92,13 @@ namespace Basis.BasisUI
         public static BasisBounds GetBoundsForEmbeddedItem(ItemKey item)
         {
             BasisBounds defaultBounds = new BasisBounds(Vector3.one, Vector3.zero);
-            if(!item.IsEmbedded)
+            if (!item.IsEmbedded)
             {
                 BasisDebug.LogError($"GetBoundsForEmbeddedItem() was invoked for item = {item.Url} it is not embedded. returning default BasisBounds({defaultBounds})");
                 return defaultBounds;
             }
 
-            switch(item.Url)
+            switch (item.Url)
             {
                 case "Photo Camera":
                     return new BasisBounds(new Vector3(0.25f, 0.15f, 0.1f), Vector3.zero);
@@ -109,19 +111,19 @@ namespace Basis.BasisUI
 
             return defaultBounds;
         }
-        
+
         /// <summary>
         /// returns the offset for an embedded item when spawned with BundledContentHolder.PlacementType.SpawnInFrontOfPlayer
         /// </summary>
         internal static Vector3 GetOffsetForEmbeddedItem(ItemKey item, Vector3 playerPosReference, Vector3 playerPosForwardReference)
         {
-            if(!item.IsEmbedded)
+            if (!item.IsEmbedded)
             {
                 BasisDebug.LogError($"GetOffsetForEmbeddedItem() was invoked for item = {item.Url} it is not embedded. returning playerPosReference + playerPosForwardReference * 0.5f!");
                 return playerPosReference + playerPosForwardReference * 0.5f;
             }
 
-            switch(item.Url)
+            switch (item.Url)
             {
                 case "Photo Camera":
                     return playerPosReference + playerPosForwardReference * 0.5f;
