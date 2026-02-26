@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using static BasisNetworkCore.Serializable.SerializableBasis;
 using static DarkRift.Basis_Common.Serializable.SerializableBasis;
 using static SerializableBasis;
-using static UnityEditor.Progress;
 public static class BasisNetworkGenericMessages
 {
     public class DeferredMessage
