@@ -1597,7 +1597,7 @@ namespace Basis.BasisUI
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
                         {
 
-                            BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(instanceID, out var data);
+                           await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(instanceID);
                             break;
                         }
 

@@ -202,9 +202,9 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                     return;
                 }
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                BasisDeviceManagement.EnqueueOnMainThread(async () =>
                 {
-                    BasisNetworkGenericMessages.UnloadResourceMessage(Reader, deliveryMethod);
+                   await BasisNetworkGenericMessages.UnloadResourceMessage(Reader, deliveryMethod);
                     Reader.Recycle();
                 });
                 break;

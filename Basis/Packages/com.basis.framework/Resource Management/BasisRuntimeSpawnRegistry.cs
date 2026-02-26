@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.SceneManagement;
@@ -144,10 +145,8 @@ namespace Basis
             _byNetId[loadedNetId] = instance;
         }
 
-        public static bool RemoveByLoadedNetId(string loadedNetId, out SpawnInstance removed)
+        public static async Task<bool> RemoveByLoadedNetId(string loadedNetId)
         {
-            removed = null;
-
             if (string.IsNullOrWhiteSpace(loadedNetId)) return false;
             if (!_byNetId.TryGetValue(loadedNetId, out var inst) || inst == null) return false;
 
@@ -185,7 +184,7 @@ namespace Basis
                                 SceneManager.UnloadSceneAsync(scene);
                             }
                             */
-                            SceneManager.UnloadSceneAsync(scene);
+                            await SceneManager.UnloadSceneAsync(scene);
                         }
 
                         break;
@@ -195,16 +194,12 @@ namespace Basis
             }
 
             // Now remove bookkeeping + runtime refs
-            return RemoveByLoadedNetId_RegistryOnly(loadedNetId, out removed);
+            return RemoveByLoadedNetId_RegistryOnly(loadedNetId);
         }
-        private static bool RemoveByLoadedNetId_RegistryOnly(string loadedNetId, out SpawnInstance removed)
+        private static bool RemoveByLoadedNetId_RegistryOnly(string loadedNetId)
         {
-            removed = null;
-
             if (string.IsNullOrWhiteSpace(loadedNetId)) return false;
             if (!_byNetId.TryGetValue(loadedNetId, out var instance) || instance == null) return false;
-
-            removed = instance;
 
             // Remove from URL grouping list
             if (!string.IsNullOrWhiteSpace(instance.Url) && _map.TryGetValue(instance.Url, out var list) && list != null)
@@ -292,7 +287,7 @@ namespace Basis
             return _byNetId.Values;
         }
 
-        public static int ClearAllNetworking()
+        public static async Task<int> ClearAllNetworking()
         {
             var toRemove = new List<string>();
 
@@ -306,8 +301,10 @@ namespace Basis
             int nuked = 0;
             for (int i = 0; i < toRemove.Count; i++)
             {
-                if (RemoveByLoadedNetId(toRemove[i], out _))
+                if (await RemoveByLoadedNetId(toRemove[i]))
+                {
                     nuked++;
+                }
             }
 
             return nuked;

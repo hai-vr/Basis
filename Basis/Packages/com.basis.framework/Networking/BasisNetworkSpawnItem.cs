@@ -203,28 +203,28 @@ public static class BasisNetworkSpawnItem
         BasisProgressReport.OnProgressReport -= BasisUILoadingBar.ProgressReport;
         return reference;
     }
-    public static void DestroyScene(UnLoadResource resource)
+    public static async Task DestroyScene(UnLoadResource resource)
     {
         if (string.IsNullOrEmpty(resource.LoadedNetID))
         {
             BasisDebug.Log("Invalid resource for destroying scene.", BasisDebug.LogTag.Networking);
             return;
         }
-        BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(resource.LoadedNetID, out var removed);
+      await  BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(resource.LoadedNetID);
     }
 
-    public static void DestroyGameobject(UnLoadResource resource)
+    public static async Task DestroyGameobject(UnLoadResource resource)
     {
         if (string.IsNullOrEmpty(resource.LoadedNetID))
         {
             BasisDebug.Log("Invalid resource for destroying GameObject.", BasisDebug.LogTag.Networking);
             return;
         }
-        BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(resource.LoadedNetID, out var removed);
+      await  BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(resource.LoadedNetID);
     }
 
     public static async Task Reset()
     {
-        BasisRuntimeSpawnRegistry.ClearAllNetworking();
+     await   BasisRuntimeSpawnRegistry.ClearAllNetworking();
     }
 }

@@ -252,20 +252,20 @@ public static class BasisNetworkGenericMessages
                 break;
         }
     }
-    public static void UnloadResourceMessage(NetPacketReader reader, DeliveryMethod Method)
+    public static async Task UnloadResourceMessage(NetPacketReader reader, DeliveryMethod Method)
     {
         UnLoadResource UnLoadResource = new UnLoadResource();
         UnLoadResource.Deserialize(reader);
         switch (UnLoadResource.Mode)
         {
             case 0:
-                BasisNetworkSpawnItem.DestroyGameobject(UnLoadResource);
+                await BasisNetworkSpawnItem.DestroyGameobject(UnLoadResource);
                 break;
             case 1:
-                BasisNetworkSpawnItem.DestroyScene(UnLoadResource);
+                await BasisNetworkSpawnItem.DestroyScene(UnLoadResource);
                 break;
             case 02:
-                BasisNetworkSpawnItem.DestroyGameobject(UnLoadResource);
+              await  BasisNetworkSpawnItem.DestroyGameobject(UnLoadResource);
                 break;
             default:
                 BNL.LogError($"tried to removed Mode {UnLoadResource.Mode}");
