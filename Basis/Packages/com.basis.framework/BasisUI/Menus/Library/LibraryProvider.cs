@@ -1556,9 +1556,17 @@ namespace Basis.BasisUI
             deletePanelButton.Descriptor.SetWidth(220);
             deletePanelButton.Descriptor.SetHeight(60);
 
+            // DISABLE THIS BUTTON IF ITEM IS EMBEDDED
+            if (deletePanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button deleteButtonComponent))
+            {
+                // if the item is embedded dont interact
+                deleteButtonComponent.interactable = !item.IsEmbedded;
+            }
+
             // upon delete we do these actions
             deletePanelButton.OnClicked += async () =>
             {
+                if(item.IsEmbedded) return; // prevent delete button working on embedded items
                 if (existingItemDialog.IsBusy) return;
                 existingItemDialog.IsBusy = true;
 
@@ -1570,12 +1578,6 @@ namespace Basis.BasisUI
                 await RefreshCurrentTab();
             };
 
-            // DISABLE THIS BUTTON IF ITEM IS EMBEDDED
-            if (deletePanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button deleteButtonComponent))
-            {
-                // if the item is embedded dont interact
-                deleteButtonComponent.interactable = !item.IsEmbedded;
-            }
 
             PanelButton loadPanelButton = PanelButton.CreateNew(ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
             loadPanelButton.Descriptor.SetTitle("Load");
