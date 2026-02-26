@@ -140,11 +140,45 @@ namespace Basis.BasisUI
 
                             if (item.IsEmbedded)
                             {
-                                AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
-                                GameObject CreatedObject = op.WaitForCompletion();
-                                GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
-                                Basis.BasisRuntimeSpawnRegistry.AddGameObject(item.Url, instance.name, CreatedObject, false, BasisRuntimeSpawnRegistry.SpawnMethod.Embedded, out var embeddedinstance);
-                            //    Basis.BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(instance.name,out var data);
+                                // for the moment embedded items are one instance
+                                // lets check if it already exists
+                                bool exists = BasisRuntimeSpawnRegistry.HasAny(item.Url);
+
+                                if(exists)
+                                {
+                                    // Get the actual SpawnInstance
+                                    var singleInstance = BasisRuntimeSpawnRegistry.GetInstances(item.Url)[0];
+
+                                    // Optionally get the actual GameObject
+                                    if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(singleInstance.LoadedNetID, out var go) && go != null)
+                                    {
+                                        BasisDebug.Log("Personal Mirror already exists in the scene");
+
+                                        // lets delete it
+                                        // if the gameobject is not null then lets remove its registery
+                                        bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId( singleInstance.LoadedNetID );
+                                        if(success)
+                                        {
+                                            // we should delete the embedded item
+                                            GameObject.Destroy(go);
+                                        }
+                                        else
+                                        {
+                                            BasisDebug.LogError($"failed to remove item = {singleInstance.InstanceId} that has itemKey.SpawnMethod = {singleInstance.SpawnMethod} from basis BasisRuntimeSpawnRegistry");
+                                        }
+                                    }
+                                    
+                                }
+                                else
+                                {    
+                                    AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
+                                    GameObject CreatedObject = op.WaitForCompletion();
+                                    GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
+                                    BasisRuntimeSpawnRegistry.AddGameObject(item.Url, instance.name, instance, false, BasisRuntimeSpawnRegistry.SpawnMethod.Embedded, out var embeddedinstance);
+                                    BasisDebug.Log($"BasisRuntimeSpawnRegistry.AddGameObject instanceID = {embeddedinstance.InstanceId}, LoadedNetID = {embeddedinstance.LoadedNetID}");
+                                }
+
+
                             }
                             else
                             {
@@ -168,7 +202,7 @@ namespace Basis.BasisUI
                                     if (createdObject != null)
                                     {
                                         Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}.");
-                                        Basis.BasisRuntimeSpawnRegistry.AddGameObject(item.Url,createdObject.name, createdObject,item.IsEmbedded, BasisRuntimeSpawnRegistry.SpawnMethod.Local,out var instance);
+                                        BasisRuntimeSpawnRegistry.AddGameObject(item.Url,createdObject.name, createdObject,item.IsEmbedded, BasisRuntimeSpawnRegistry.SpawnMethod.Local,out var instance);
                                     }
                                     else
                                     {

@@ -10,6 +10,7 @@ using TMPro;
 using Unity.Android.Gradle;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
 using static Basis.BasisUI.PanelPasswordField;
@@ -1704,30 +1705,44 @@ namespace Basis.BasisUI
             removeItem.SetSize(new Vector2(200, 60));
             removeItem.OnClicked += async () =>
             {
-                switch (itemKey.SpawnMethod)
+                BasisDebug.Log($"CreateListEntry() -> requested removal of item = {itemKey.Url} of instanceID = {instanceID} of SpawnMethod = {itemKey.SpawnMethod} and SpawnMode = {itemKey.SpawnMode}");
+                
+                switch(itemKey.SpawnMethod)
                 {
-                    case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
-                        {
+                    case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
 
-                           await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(instanceID);
-                            break;
-                        }
-
-                    case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
-                        switch (itemKey.SpawnMode)
+                        // if the item is local and embedded lets actually try get the gameobject first
+                        if(BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(itemKey.LoadedNetID, out GameObject go) && go != null)
                         {
-                            case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
-                                BasisNetworkSpawnItem.RequestGameObjectUnLoad(instanceID);
-                                break;
-                            case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
-                                BasisNetworkSpawnItem.RequestSceneUnLoad(instanceID);
-                                break;
-                            default:
-                                BasisDebug.LogWarning($"Missing Spawn Method! {itemKey.SpawnMode}");
-                                break;
+                            // if the gameobject is not null then lets remove its registery
+                            bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId( itemKey.LoadedNetID );
+                            if(success)
+                            {
+                                // we should delete the embedded item
+                                GameObject.Destroy(go);
+                            }
+                            else
+                            {
+                                BasisDebug.LogError($"failed to remove item = {instanceID} that has itemKey.SpawnMethod = {itemKey.SpawnMethod} from basis BasisRuntimeSpawnRegistry");
+                            }
+
                         }
                         break;
+                    case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
+                    switch (itemKey.SpawnMode)
+                    {
+                        case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
+                            BasisNetworkSpawnItem.RequestGameObjectUnLoad(instanceID);
+                            break;
+                        case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+                            BasisNetworkSpawnItem.RequestSceneUnLoad(instanceID);
+                            break;
+                        default:
+                            BasisDebug.LogWarning($"Missing Spawn Method! {itemKey.SpawnMode}");
+                            break;
+                    }
+                    break;
                 }
                 await RefreshCurrentTab();
             };

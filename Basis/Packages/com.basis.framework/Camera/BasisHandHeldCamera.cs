@@ -1,3 +1,4 @@
+using Basis;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
@@ -161,6 +162,8 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         UnsubscribeMeshRendererCheck();
         ReleaseRenderTexture();
+
+        UnRegisterLoadedNetID();
 
         if (HandHeld != null)
         {
@@ -580,6 +583,28 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         if (renderTexture != null)
             renderTexture.Release();
+    }
+
+    private async void UnRegisterLoadedNetID()
+    {
+        if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(gameObject.name, out var go) && go != null)
+        {
+            BasisDebug.Log("Personal Mirror already exists in the scene");
+
+            // lets delete it
+            // if the gameobject is not null then lets remove its registery
+            bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId( gameObject.name );
+            if(success)
+            {
+                // we should delete the embedded item
+                //GameObject.Destroy(go);
+                BasisDebug.Log($"successfully removed this item = {gameObject.name} from basis BasisRuntimeSpawnRegistry");
+            }
+            else
+            {
+                BasisDebug.LogError($"failed to remove item = {gameObject.name} from basis BasisRuntimeSpawnRegistry");
+            }
+        }
     }
 
     /// <summary>
