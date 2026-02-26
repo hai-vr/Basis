@@ -985,12 +985,41 @@ namespace Basis.BasisUI
 
         #endregion
 
-        #region CreateItemCard, ShowItemOverlay, ApplyMetaDataToButton
+        #region Loading Dialog
 
-        private static void LockedIcon()
+        private static async Task<bool> PromptUserLoadingInProgress(
+            BasisDataStoreItemKeys.ItemKey item, 
+            BundledContentHolder.NetworkType networkType = BundledContentHolder.NetworkType.Local, 
+            bool persistence = false, 
+            bool modifyScale = false
+        )
         {
-            
+            DialogBox<bool> contentLoadingDialogBox = DialogBox<bool>.Create(panel, new Vector2(830, 120),
+                "Please wait",
+                "Your content is currently loading standby...",
+                AddressableAssets.Sprites.FileTray,
+                true
+            );
+
+            await LoadSelectedItem(item, networkType, persistence, modifyScale);
+
+            // close with true to indicate success
+            contentLoadingDialogBox.CloseWithResult(true);
+
+            // TODO cancel load button? prehaps?
+            // // create the exit button for the dialog box
+            // var button = PanelButton.CreateNew(ButtonStyles.ExitButton, legacyCotentDefineDialogBox.Descriptor.Header);
+            // button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
+            // button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
+            // button.OnClicked += () => legacyCotentDefineDialogBox.Cancel(BundledContentHolder.Mode.Legacy);
+
+            return await contentLoadingDialogBox.WaitAsync();
+
         }
+
+        #endregion
+
+        #region CreateItemCard, ShowItemOverlay, ApplyMetaDataToButton
 
         /// <summary>
         /// The item card displayed all around the library menu
@@ -1588,8 +1617,9 @@ namespace Basis.BasisUI
 
                 try
                 {
-                    BasisDebug.Log($"Load Button Clicked for item: {item.Url}");
-                    await LoadSelectedItem(item, desiredNetworkType, !ephemeral);
+                    //BasisDebug.Log($"Load Button Clicked for item: {item.Url}");
+                    
+                    bool success = await PromptUserLoadingInProgress(item, desiredNetworkType, !ephemeral);
                 }
                 catch (Exception ex)
                 {
