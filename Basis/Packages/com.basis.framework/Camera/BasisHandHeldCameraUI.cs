@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using Basis.BasisUI;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -498,7 +499,10 @@ public partial class BasisHandHeldCameraUI
     {
         var cameraInteractable = HHC.GetComponent<BasisHandHeldCameraInteractable>();
         cameraInteractable?.ReleasePlayerLocks();
-        Cursor.visible = false;
+
+        // only hide the cursor if the basis main menu is not there
+        if(BasisMainMenu.Instance == null)
+            Cursor.visible = false;
     }
 
     public void CloseUI()
