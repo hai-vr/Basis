@@ -49,10 +49,9 @@ namespace Basis.BasisUI
 
         public override async void RunAction()
         {
-            //
             // load / spawn / do whatever
             BasisDebug.Log( $"Pinned Provider Action for item = {_key.Url}" );
-            await LibraryProvider.LoadSelectedItem(_key, BundledContentHolder.NetworkType.Local, false); 
+            await LibraryProvider.LoadSelectedItem(_key, _key.PinnedSettings.NetworkType, !_key.PinnedSettings.IsEphemeral); 
         }
         
     }
