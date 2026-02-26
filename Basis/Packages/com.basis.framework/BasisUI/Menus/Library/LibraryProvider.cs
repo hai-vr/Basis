@@ -1733,10 +1733,10 @@ namespace Basis.BasisUI
                     switch (itemKey.SpawnMode)
                     {
                         case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
-                            BasisNetworkSpawnItem.RequestGameObjectUnLoad(instanceID);
+                            BasisNetworkSpawnItem.RequestGameObjectUnLoad(itemKey.LoadedNetID);
                             break;
                         case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
-                            BasisNetworkSpawnItem.RequestSceneUnLoad(instanceID);
+                            BasisNetworkSpawnItem.RequestSceneUnLoad(itemKey.LoadedNetID);
                             break;
                         default:
                             BasisDebug.LogWarning($"Missing Spawn Method! {itemKey.SpawnMode}");
