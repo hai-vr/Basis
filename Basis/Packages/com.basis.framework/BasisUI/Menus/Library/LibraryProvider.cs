@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
+using Unity.Android.Gradle;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
@@ -22,6 +23,17 @@ namespace Basis.BasisUI
         {
             TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
             return textInfo.ToTitleCase(givenText);
+        }
+
+        public static Page ModeToPage(BundledContentHolder.Mode mode)
+        {
+            return mode switch
+            {
+                BundledContentHolder.Mode.Prop => Page.Prop,
+                BundledContentHolder.Mode.World => Page.World,
+                BundledContentHolder.Mode.Avatar => Page.Avatar,
+                _ => throw new System.ArgumentException($"Cannot map mode {mode} to a Page")
+            };
         }
 
         public static void RefreshPinnedProviders()
@@ -112,6 +124,8 @@ namespace Basis.BasisUI
         private static Dictionary<Page, PanelTabPage> tabMap;
         private static PanelTabPage _currentTab;
 
+        private static PanelTabGroup tabGroup;
+
         public override async void RunAction()
         {
             if (BasisMainMenu.ActiveMenuTitle == Title) return;
@@ -130,7 +144,7 @@ namespace Basis.BasisUI
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
             
             // create a tab group to hold our content categories
-            PanelTabGroup tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Horizontal);
+            tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Horizontal);
 
             // create our main tabs without preloading items; items will be loaded lazily on tab selection
             var propsTab = PropsTab(tabGroup);
@@ -213,7 +227,7 @@ namespace Basis.BasisUI
 
 
             // add our extra menu button items, this is the buttons below the panel content
-            tabGroup.AddExtraAction("Add New Content", PromptUserForNewContent, new Vector2( 70, 80 ));
+            tabGroup.AddExtraAction("Add New Content", async () => await PromptUserForNewContent(), new Vector2( 70, 80 ));
 
             // set the current tab to the current page
             tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
@@ -538,6 +552,79 @@ namespace Basis.BasisUI
         }
         #endregion
 
+        #region PromptUserToDefineLegacyContent
+
+        private static async Task<BundledContentHolder.Mode> PromptUserToDefineLegacyContent()
+        {
+            DialogBox<BundledContentHolder.Mode> legacyCotentDefineDialogBox = DialogBox<BundledContentHolder.Mode>.Create(panel, new Vector2(830, 430),
+                "Specify Content Type",
+                "Your content is marked legacy. Please specify what type of content you are adding.",
+                AddressableAssets.Sprites.Add,
+                true
+            );
+
+            // create the exit button for the dialog box
+            var button = PanelButton.CreateNew(ButtonStyles.ExitButton, legacyCotentDefineDialogBox.Descriptor.Header);
+            button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
+            button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
+            button.OnClicked += () => legacyCotentDefineDialogBox.Cancel(BundledContentHolder.Mode.Legacy);
+
+            // information to give to the user
+            PanelTextField createdInformationTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, legacyCotentDefineDialogBox.Descriptor);
+            createdInformationTextField._inputField.gameObject.SetActive(false); // disable the text input field box
+            createdInformationTextField.Descriptor.SetTitle("Why is this showing?");
+            createdInformationTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Information);
+            createdInformationTextField.Descriptor.SetDescription($"BEE files now contain metadata of what's inside it, this is used to determine things about your BEE file which will be important in future features. Please to consider updating your content to include this metadata.");
+
+            createdInformationTextField.Descriptor.SetHeight(100);
+            createdInformationTextField.Descriptor.SetWidth(800);
+
+            // the item type dropdown determines which library tab the new item will appear in.
+            PanelDropdown contentTypeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.OverlayEntry, legacyCotentDefineDialogBox.Descriptor);
+            var modeNames = Enum.GetValues(typeof(BundledContentHolder.Mode))
+                    .Cast<BundledContentHolder.Mode>()
+                    .Where(m => m != BundledContentHolder.Mode.Legacy) // remove legacy from selection
+                    .Select(m => m.ToString())
+                    .ToArray();
+            contentTypeDropDown.Descriptor.SetTitle("Content Type");
+            contentTypeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.FileTray);
+            contentTypeDropDown.Descriptor.SetDescription( "What content are you adding?" );
+            contentTypeDropDown.AssignEntries(modeNames.ToList());
+            
+            // derive the default selected mode from the currently active tab, so if the user is browsing avatars and clicks "Add New CachedContent"
+            contentTypeDropDown.SetValueWithoutNotify(modeNames[0]);
+            contentTypeDropDown.Descriptor.SetHeight(50);
+            contentTypeDropDown.Descriptor.SetWidth(800);
+
+            // Add and Cancel buttons
+            PanelTabGroup acceptOrDenyPanel = PanelTabGroup.CreateNew(legacyCotentDefineDialogBox.Descriptor, LayoutDirection.HorizontalNoBackground);
+
+            acceptOrDenyPanel.Descriptor.SetHeight(50);
+            acceptOrDenyPanel.Descriptor.SetWidth(800);
+
+            PanelButton yesPanel = PanelButton.CreateNew(ButtonStyles.AcceptButton, acceptOrDenyPanel.TabButtonParent); //ButtonStyles.Cancel
+            yesPanel.Descriptor.SetTitle("Add");
+            yesPanel.Descriptor.SetWidth(800);
+            yesPanel.Descriptor.SetHeight(60);
+
+            // Add does the async work, then closes.
+            yesPanel.OnClicked += () =>
+            {
+                if (legacyCotentDefineDialogBox.IsBusy) return;
+                legacyCotentDefineDialogBox.IsBusy = true;
+
+                var selected = contentTypeDropDown.Value;
+                var mode = (BundledContentHolder.Mode)Enum.Parse(typeof(BundledContentHolder.Mode), selected);
+                legacyCotentDefineDialogBox.CloseWithResult(mode);
+
+            };
+
+            return await legacyCotentDefineDialogBox.WaitAsync();
+
+        }
+
+        #endregion
+
         #region PromptUserForNewContent, AddNewNewItemKey, ChangeInputFieldStyle
 
         private static void ChangeInputFieldStyle(GameObject inputFieldObject, bool isError)
@@ -556,7 +643,7 @@ namespace Basis.BasisUI
         }
 
         // not super clean but will do for now, used to update interactable input fields
-        private static void UpdateInputFieldInteractability( PanelTextField URLTextField, PanelPasswordField PasswordTextField, DialogBox activeDialog )
+        private static void UpdateInputFieldInteractability( PanelTextField URLTextField, PanelPasswordField PasswordTextField, DialogBox<BasisDataStoreItemKeys.ItemKey> activeDialog )
         {
             URLTextField._inputField.interactable = !activeDialog.IsBusy;
             PasswordTextField._inputField.interactable = !activeDialog.IsBusy;
@@ -565,10 +652,10 @@ namespace Basis.BasisUI
         /// <summary>
         /// Invoked on the add new content is pressed in the library provider menu, to prompt the user to enter new content with a dialog box
         /// </summary>
-        public static void PromptUserForNewContent()
+        public static async Task<BasisDataStoreItemKeys.ItemKey> PromptUserForNewContent()
         {
             // Build overlay using DialogBox helper
-            DialogBox newItemDialogBox = DialogBox.Create(panel, new Vector2(930, 600),
+            DialogBox<BasisDataStoreItemKeys.ItemKey> newItemDialogBox = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, new Vector2(930, 600),
                 "Add New Content",
                 "Please provide the URL and password for your BEE file. Ensure your url and pass are correct or the item wont be included in your library.",
                 AddressableAssets.Sprites.Add);
@@ -577,27 +664,12 @@ namespace Basis.BasisUI
             var button = PanelButton.CreateNew(ButtonStyles.ExitButton, newItemDialogBox.Descriptor.Header);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
-            button.OnClicked += () => newItemDialogBox.CloseAsync();
+            button.OnClicked += () => newItemDialogBox.Cancel(null);
 
             // panel group for the fields
             PanelTabGroup panelGroup = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, newItemDialogBox.Descriptor.ContentParent);
             panelGroup.Descriptor.SetHeight(400);
             panelGroup.Descriptor.SetWidth(900);
-            
-
-            // TODO: to be moved into advanced settings maybe
-            // // the item type dropdown determines which library tab the new item will appear in.
-            // PanelDropdown contentTypeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.OverlayEntry, newItemDialogBox.Descriptor);
-            // string[] modeNames = Enum.GetNames(typeof(BundledContentHolder.Mode));
-            // contentTypeDropDown.Descriptor.SetTitle("Content Type");
-            // contentTypeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.FileTray);
-            // contentTypeDropDown.Descriptor.SetDescription( "What content are you adding?" );
-            // contentTypeDropDown.AssignEntries(modeNames.ToList());
-            
-            // // derive the default selected mode from the currently active tab, so if the user is browsing avatars and clicks "Add New CachedContent"
-            // contentTypeDropDown.SetValueWithoutNotify(_currentPage.ToString());
-            // contentTypeDropDown.Descriptor.SetHeight(50);
-            // contentTypeDropDown.Descriptor.SetWidth(900);
 
             // BEE file URL field
             PanelTextField URL = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, panelGroup.TabButtonParent);
@@ -710,6 +782,7 @@ namespace Basis.BasisUI
                                     // infered item type
                                     BundledContentHolder.Mode itemType = BundledContentHolder.Mode.Legacy;
 
+                                    // grab the meta data
                                     if(loaded.BasisLoadableBundle?.BasisBundleConnector?.MetaData != null)
                                     {
                                         if(loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames != null)
@@ -739,20 +812,41 @@ namespace Basis.BasisUI
                                         }
                                         else
                                         {
-                                            BasisDebug.LogError($"Warning BEE file from url = {tempItem.Url} does not contain metadata ComponentNames, consider updating it!");
+                                            BasisDebug.LogWarning($"Warning BEE file from url = {tempItem.Url} does not contain metadata ComponentNames, consider updating it!");
                                         }
                                     }
                                     else
                                     {
-                                        BasisDebug.LogError($"Warning BEE file from url = {tempItem.Url} does not contain metadata, consider updating it!");
+                                        BasisDebug.LogWarning($"Warning BEE file from url = {tempItem.Url} does not contain metadata, consider updating it!");
+                                    }
+
+                                    // if the provided content did not change the item type assume its legacy or old BEE file with no metadata
+                                    if(itemType == BundledContentHolder.Mode.Legacy)
+                                    {
+                                        // prompt them for what content
+                                        itemType = await PromptUserToDefineLegacyContent();
+                                        
+                                        // if for whatever reason they did not enter anything else other than legacy?
+                                        if(itemType == BundledContentHolder.Mode.Legacy)
+                                        {
+                                            // Still legacy? Yea no goodbye
+                                            throw new Exception("Request Denied. Please specify content type for your legacy content.");
+                                        }
                                     }
 
                                     // add the item to the basis key store
                                     await AddNewNewItemKey(itemType, validationResponse.ProcessedUrl, validationResponse.Password);
                                     // just close the overlay
-                                    newItemDialogBox.CloseAsync();
-                                    // refresh the current tab
-                                    await RefreshCurrentTab();
+                                    newItemDialogBox.CloseWithResult(null);
+
+                                    // change the focus of the UI to goto where the users newly added content is
+                                    _currentPage = ModeToPage(itemType);
+                                    
+                                    tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
+
+                                    // switch to the page
+                                    await RefreshTabAsync(_currentPage);
+
                                 }
                                 else
                                 {
@@ -839,6 +933,9 @@ namespace Basis.BasisUI
                     UpdateInputFieldInteractability(URL, Password, newItemDialogBox);
                 }
             };
+
+            // await until user closes or accepts
+            return await newItemDialogBox.WaitAsync();
         }
 
         /// <summary>
@@ -909,23 +1006,19 @@ namespace Basis.BasisUI
 
             if(item.IsEmbedded)
             {
-
-                // create an image for this card in top right with an offset of -35, -35
-                PanelImage networkIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
-                networkIcon.SetIcon(AddressableAssets.GetSprite(AddressableAssets.Sprites.Locked), true);
-                networkIcon.rectTransform.anchorMin = new Vector2(1, 1);
-                networkIcon.rectTransform.anchorMax = new Vector2(1, 1);
-                networkIcon.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                networkIcon.rectTransform.anchoredPosition = new Vector2(-35, -35);
-                networkIcon.rectTransform.sizeDelta = new Vector2(40, 40);
+                // TODO fix representation for stacked icons
+                // // create an image for this card in top right with an offset of -35, -35
+                // PanelImage networkIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
+                // networkIcon.SetIcon(AddressableAssets.GetSprite(AddressableAssets.Sprites.Locked), true);
+                // networkIcon.rectTransform.anchorMin = new Vector2(1, 1);
+                // networkIcon.rectTransform.anchorMax = new Vector2(1, 1);
+                // networkIcon.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                // networkIcon.rectTransform.anchoredPosition = new Vector2(-35, -35);
+                // networkIcon.rectTransform.sizeDelta = new Vector2(40, 40);
 
                 desc.SetTitle(urlKey);
                 desc.SetDescription(urlKey);
                 desc.ForceRebuild();
-
-                
-                // desc.SetIcon(EmbeddedItems.GetSpriteForEmbeddedItem(item));
-                // desc.IconBackground.transform.localScale = new Vector3( 0.8f, 0.8f, 0.8f );
 
                 // yeah I know dw about temporary
                 if(desc.ContentParent.TryGetComponent<Image>(out Image image))
@@ -950,19 +1043,6 @@ namespace Basis.BasisUI
                     _ = CachedMetaData.PreloadMetaDataForItem(item);
                 }
             }
-
-            // TODO: reuse for platform icons?
-            // if(item.NetworkType == BundledContentHolder.NetworkType.Networked)
-            // {
-            //     // create an image for the button network icon in the top right with an offset of -35, -35
-            //     PanelImage networkIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
-            //     networkIcon.SetIcon(AddressableAssets.GetSprite(AddressableAssets.Sprites.Network), true);
-            //     networkIcon.rectTransform.anchorMin = new Vector2(1, 1);
-            //     networkIcon.rectTransform.anchorMax = new Vector2(1, 1);
-            //     networkIcon.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            //     networkIcon.rectTransform.anchoredPosition = new Vector2(-35, -35);
-            //     networkIcon.rectTransform.sizeDelta = new Vector2(40, 40);
-            // }
 
             buttonPanel.OnClicked += () =>
             {
@@ -1037,7 +1117,7 @@ namespace Basis.BasisUI
             _activeItem = item;
 
             // Build overlay using DialogBox helper
-            DialogBox existingItemDialog = DialogBox.Create(panel, overlaySize,
+            DialogBox<BasisDataStoreItemKeys.ItemKey> existingItemDialog = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, overlaySize,
                 $"{TitleToCase(description.AssetBundleName)}",
                 $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : "No description was provided.")}",
                 ConvertItemKeyToAddressableSprite(item));
@@ -1083,7 +1163,7 @@ namespace Basis.BasisUI
             var button = PanelButton.CreateNew(ButtonStyles.ExitButton, existingItemDialog.Descriptor.Header);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
             button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
-            button.OnClicked += () => existingItemDialog.CloseAsync();
+            button.OnClicked += () => existingItemDialog.Cancel(null);
 
             // icon for the selected item
             var itemIcon = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.GroupLargeIconVertical, existingItemDialog.Descriptor.ContentParent);
@@ -1450,7 +1530,7 @@ namespace Basis.BasisUI
                 // remove the item
                 await BasisDataStoreItemKeys.RemoveKey(item);
                 // just close the overlay instead.
-                existingItemDialog.CloseAsync();
+                existingItemDialog.CloseWithResult(null);
                 // refresh current tab
                 await RefreshCurrentTab();
             };
@@ -1484,7 +1564,7 @@ namespace Basis.BasisUI
                 finally
                 {
                     // just close the overlay instead.
-                    existingItemDialog.CloseAsync();
+                    existingItemDialog.CloseWithResult(null);
                 }
             };
         }

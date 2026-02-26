@@ -28,7 +28,7 @@ namespace Basis.BasisUI
                 Pass = "",
                 IsEmbedded = true,
                 PlacementType = BundledContentHolder.PlacementType.SpawnInFrontOfPlayer,
-                PinnedSettings = new PinnedSettings() {  IsPinned = true},
+                PinnedSettings = PinnedSettings.Embedded,
             },
             new ItemKey {
                 Mode = BundledContentHolder.Mode.Prop,
@@ -36,7 +36,7 @@ namespace Basis.BasisUI
                 Pass = "",
                 IsEmbedded = true,
                 PlacementType = BundledContentHolder.PlacementType.SpawnInFrontOfPlayer,
-                PinnedSettings = new PinnedSettings() {  IsPinned = true},
+                PinnedSettings = PinnedSettings.Embedded,
             },
         };
 

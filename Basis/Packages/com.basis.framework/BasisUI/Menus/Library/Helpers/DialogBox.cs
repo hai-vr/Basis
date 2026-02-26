@@ -1,32 +1,41 @@
-using System;
 using System.Threading.Tasks;
 using UnityEngine;
 
 namespace Basis.BasisUI
 {
-    /// <summary>
-    /// Lightweight helper that creates a standard overlay + descriptor dialog and
-    /// exposes the descriptor and a close method. This encapsulates repeated
-    /// overlay construction so callers can build dialogs and keep a reference.
-    /// </summary>
-    public class DialogBox
+    public class DialogBox<T>
     {
+        private TaskCompletionSource<T> _tcs;
         private PanelElementDescriptor _background;
         private PanelElementDescriptor _descriptor;
+
         public PanelElementDescriptor Descriptor => _descriptor;
         public PanelElementDescriptor Background => _background;
+
         public bool IsBusy = false;
-        //public event Action Closed;
+
         private DialogBox() { }
 
-        public static DialogBox Create(BasisMenuPanel panel, Vector2 size, string title = null, string description = null, string icon = null)
+        public static DialogBox<T> Create(
+            BasisMenuPanel panel,
+            Vector2 size,
+            string title = null,
+            string description = null,
+            string icon = null, 
+            bool strongerOverlay = false
+        )
         {
-            DialogBox box = new DialogBox
+            DialogBox<T> box = new DialogBox<T>
             {
-                _background = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Overlay, panel)
+                _background = PanelElementDescriptor.CreateNew(
+                    strongerOverlay ? PanelElementDescriptor.ElementStyles.OverlayLessOpacity : PanelElementDescriptor.ElementStyles.Overlay,
+                    panel)
             };
 
-            box._descriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.LibraryEntryOverlay, box._background);
+            box._descriptor = PanelElementDescriptor.CreateNew(
+                PanelElementDescriptor.ElementStyles.LibraryEntryOverlay,
+                box._background);
+
             box._descriptor.rectTransform.localPosition = Vector3.zero;
             box._descriptor.rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
             box._descriptor.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
@@ -42,10 +51,17 @@ namespace Basis.BasisUI
             if (icon != null)
                 box._descriptor.SetIcon(icon);
 
+            box._tcs = new TaskCompletionSource<T>();
+
             return box;
         }
 
-        public void CloseAsync()
+        public Task<T> WaitAsync()
+        {
+            return _tcs.Task;
+        }
+
+        public void CloseWithResult(T result)
         {
             if (_descriptor != null)
             {
@@ -59,10 +75,12 @@ namespace Basis.BasisUI
                 _background = null;
             }
 
-            //await Task.Yield();
+            _tcs?.TrySetResult(result);
+        }
 
-            // Closed?.Invoke();
-            // Closed = null;
+        public void Cancel(T fallbackValue = default)
+        {
+            CloseWithResult(fallbackValue);
         }
     }
 }

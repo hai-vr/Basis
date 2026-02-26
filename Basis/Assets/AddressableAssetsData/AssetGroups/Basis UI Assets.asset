@@ -116,6 +116,12 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 37054143e00e93c42b59000b9259eb1a
+    m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Overlay Panel - Less
+      Opacity Variant.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 39635a6f162161b4886f452055cf7169
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/Panel Element Base.prefab
     m_ReadOnly: 0

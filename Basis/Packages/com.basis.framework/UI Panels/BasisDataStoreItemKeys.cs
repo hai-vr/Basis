@@ -24,6 +24,13 @@ namespace Basis.Scripts.UI.UI_Panels
                 NetworkType = BundledContentHolder.NetworkType.Local, // default network type for all objects if they are to be pinned should be local
                 IsEphemeral = true // and default for any spawned objects should not persistent for late joiners
             };
+
+            public static PinnedSettings Embedded => new PinnedSettings // default settings for embedded items
+            {
+                IsPinned = true,
+                NetworkType = BundledContentHolder.NetworkType.Local,
+                IsEphemeral = true
+            };
         }
 
         [System.Serializable]
