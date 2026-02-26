@@ -494,15 +494,19 @@ public partial class BasisHandHeldCameraUI
         return Format != null && Format.isOn ? FORMAT_EXR : FORMAT_PNG;
     }
 
+    public void ReleaseUILock()
+    {
+        var cameraInteractable = HHC.GetComponent<BasisHandHeldCameraInteractable>();
+        cameraInteractable?.ReleasePlayerLocks();
+        Cursor.visible = false;
+    }
+
     public void CloseUI()
     {
         if (HHC == null) return;
 
-        var cameraInteractable = HHC.GetComponent<BasisHandHeldCameraInteractable>();
-        cameraInteractable?.ReleasePlayerLocks();
-
+        ReleaseUILock();
         GameObject.Destroy(HHC.gameObject);
-        Cursor.visible = false;
     }
 
     // ---------- Persistence ----------
