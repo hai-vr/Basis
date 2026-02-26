@@ -695,7 +695,7 @@ public sealed class PermissionsEditorWindow : EditorWindow
         }
     }
 
-    private static T? SafeCallRet<T>(Func<T> f)
+    private static T SafeCallRet<T>(Func<T> f)
     {
         try { return f(); }
         catch (Exception e)
