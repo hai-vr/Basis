@@ -355,20 +355,15 @@ namespace Basis.BasisUI
             }
         }
 
-        private static void BuildItemsListForInstantiatedObjects(ContentLoaderStore.LoadedItem[] loadedItems, PanelTabPage tab)
+        private static void BuildItemsListForInstantiatedObjects(IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> loadedItems, PanelTabPage tab)
         {
             RectTransform container = tab.Descriptor.ContentParent;
         
             foreach (var entry in loadedItems)
             {
-                int instanceId = entry.InstanceId;
-                BasisDataStoreItemKeys.ItemKey itemKey = entry.ItemKey;
-                GameObject go = entry.GameObject;
+                string instanceId = entry.InstanceId;
 
-                if (go == null)
-                    continue;
-
-                CreateListEntry(itemKey, container, instanceId, go);
+                CreateListEntry(entry, container, instanceId);
             }
         }
 
@@ -419,7 +414,7 @@ namespace Basis.BasisUI
             _currentTab = tab;
 
             // try convert the mode and page we are on to match
-            if(TryConvert(page, out BundledContentHolder.Mode mode))
+            if (TryConvert(page, out BundledContentHolder.Mode mode))
             {
                 try
                 {
@@ -428,7 +423,7 @@ namespace Basis.BasisUI
                     // // var data = BasisDataStoreItemKeys.DisplayKeys()
                     // //     .Where(k => k.Mode == mode)
                     // //     .ToList();
-                    
+
                     // build data to be used
                     var data = BasisDataStoreItemKeys.DisplayKeys()
                         .Concat(EmbeddedItems.HardcodedKeys)
@@ -445,16 +440,16 @@ namespace Basis.BasisUI
                     {
                         BasisDebug.LogError(ex);
                     }
-                
+
                     // Apply search filter if present
                     if (!string.IsNullOrWhiteSpace(_currentSearchQuery))
                     {
                         data = data.Where(k =>
                         {
                             var url = k.Url ?? string.Empty;
-                            if(k.IsEmbedded)
+                            if (k.IsEmbedded)
                             {
-                                if(!string.IsNullOrEmpty(url) && url.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) >= 0)
+                                if (!string.IsNullOrEmpty(url) && url.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) >= 0)
                                 {
                                     return true;
                                 }
@@ -528,11 +523,11 @@ namespace Basis.BasisUI
             else
             {
                 // grab the data?
-                ContentLoaderStore.LoadedItem[] loadedItems = ContentLoaderStore.GetAll();
+                IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> collections = BasisRuntimeSpawnRegistry.GetAll();
                 // this is most likely to be the instantiated tab so
                 ClearTabContent(tab.Descriptor.ContentParent);
                 // TODO build list of instantiated objects
-                BuildItemsListForInstantiatedObjects(loadedItems, tab);
+                BuildItemsListForInstantiatedObjects(collections, tab);
                 tab.Descriptor.ForceRebuild();
             }
 
@@ -1551,7 +1546,7 @@ namespace Basis.BasisUI
 
         // TODO use items key
         // 
-        private static void CreateListEntry(BasisDataStoreItemKeys.ItemKey itemKey, RectTransform parentTabGroup, int instanceID, GameObject gameObject)
+        private static void CreateListEntry(BasisRuntimeSpawnRegistry.SpawnInstance itemKey, RectTransform parentTabGroup, string instanceID)
         {
             // // icon for the selected item
             // var itemIcon = PanelElementDescriptor.CreateNew(
@@ -1570,7 +1565,7 @@ namespace Basis.BasisUI
             // simple info
             PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
             itemTextInfo._inputField.gameObject.SetActive(false); // disable the text input field box
-            if(itemKey.IsEmbedded)
+            if(itemKey.SpawnMethod == 0)
             {
                 itemTextInfo.Descriptor.SetTitle(TitleToCase(itemKey.Url));
             }
@@ -1592,14 +1587,15 @@ namespace Basis.BasisUI
             removeItem.SetSize(new Vector2(200, 60));
             removeItem.OnClicked += async () =>
             {
-                if(gameObject != null)
+                if(itemKey.SpawnMethod ==  BasisRuntimeSpawnRegistry.SpawnMethod.Embedded || itemKey.SpawnMethod ==  BasisRuntimeSpawnRegistry.SpawnMethod.Local)
                 {
-                    GameObject.Destroy(gameObject);
+
+                    BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(instanceID, out var data);
                 }
-
-                // remove the item from the list
-                ContentLoaderStore.Remove(instanceID);
-
+                else
+                {
+                    //network
+                }
                 await RefreshCurrentTab();
             };
             

@@ -143,7 +143,7 @@ namespace Basis.BasisUI
                                 AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
                                 GameObject CreatedObject = op.WaitForCompletion();
                                 GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
-                                ContentLoaderStore.Add(item, instance);
+                                Basis.BasisRuntimeSpawnRegistry.AddGameObject(item.Url, instance.name, CreatedObject, false, BasisRuntimeSpawnRegistry.SpawnMethod.Embedded, out var embeddedinstance);
                             }
                             else
                             {
@@ -167,7 +167,7 @@ namespace Basis.BasisUI
                                     if (createdObject != null)
                                     {
                                         Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}.");
-                                        ContentLoaderStore.Add(item, createdObject);
+                                        Basis.BasisRuntimeSpawnRegistry.AddGameObject(item.Url,createdObject.name, createdObject,item.IsEmbedded, BasisRuntimeSpawnRegistry.SpawnMethod.Local,out var instance);
                                     }
                                     else
                                     {
@@ -187,12 +187,10 @@ namespace Basis.BasisUI
                         {
                             try
                             {
-                                LocalLoadResource loadedProp;
-                                bool ok = BasisNetworkSpawnItem.RequestGameObjectLoad(item.Pass, item.Url, finalPos, finalRot, finalScale, persistent, modifyScale, out loadedProp);
+                                bool ok = BasisNetworkSpawnItem.RequestGameObjectLoad(item.Pass, item.Url, finalPos, finalRot, finalScale, persistent, modifyScale, out LocalLoadResource loadedProp);
 
                                 if (ok && !string.IsNullOrEmpty(loadedProp.LoadedNetID))
                                 {
-                                    Basis.BasisRuntimeSpawnRegistry.Add(item.Url, loadedProp.LoadedNetID, persistent, out _);
                                     BasisDebug.Log($"Requested networked load for {item.Url}, NetID={loadedProp.LoadedNetID}", BasisDebug.LogTag.Networking);
                                 }
                                 else
