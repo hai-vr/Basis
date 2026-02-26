@@ -24,7 +24,6 @@ namespace Basis.BasisUI
             public string Name;
             public DateTime? Created;
             public string AssetBundleDescription;
-            public string ImageBase64;
             public Sprite CachedSprite;
             public string DateOfCreation;
             public string UniqueVersion;
@@ -64,10 +63,10 @@ namespace Basis.BasisUI
             if (meta.CachedSprite != null)
                 return meta.CachedSprite;
 
-            if (string.IsNullOrEmpty(meta.ImageBase64))
+            if (string.IsNullOrEmpty(meta.BasisBundleConnector.ImageBase64))
                 return null;
 
-            var tex = BasisTextureCompression.FromPngBytes(meta.ImageBase64);
+            var tex = BasisTextureCompression.FromPngBytes(meta.BasisBundleConnector.ImageBase64);
             if (tex == null)
                 return null;
 
@@ -83,53 +82,73 @@ namespace Basis.BasisUI
         public static async Task PreloadMetaDataForItem(BasisDataStoreItemKeys.ItemKey item)
         {
             if (item == null) return;
-            if (item.IsEmbedded) return; // skip preloading metadata for embedded items
-
+            
             var urlKey = item.Url ?? string.Empty;
             if (ContainsMetaData(urlKey)) return;
 
             try
             {
-
-
-                // make a new wrapper to load the metadata into
-                BasisLoadableBundleWrapper newWrapper = CreateNewWrapperFromItem(item);
-
-                // new report and CancellationSource source
-                BasisProgressReport Report = new BasisProgressReport();
-                CancellationTokenSource CancellationSource = new CancellationTokenSource();
-
-                // perform the action to download the file or grab it from disc?
-                await BasisBeeManagement.HandleMetaOnlyLoad(newWrapper.basisTrackedBundleWrapper, Report, CancellationSource.Token);
-                
-                // grab the wrapper from disc, we can pass in our wrapper
-                BasisLoadableBundleWrapper wrapper = await LoadWrapperFromDisc(item, newWrapper);//on disc call? 
-                var connector = wrapper.BasisLoadableBundle.BasisBundleConnector; //wrapper.LoadableBundle.BasisBundleConnector;
-
-                if(wrapper == null)
+                CachedContent cached;
+                if(item.IsEmbedded)
                 {
-                    BasisDebug.LogError("Missing Wrapper!, was the data provided correct?");
-                    return;
+                    cached = new CachedContent
+                    {
+                        Name = item.Url,
+                        AssetBundleDescription = "Embedded Item",
+                        CachedSprite = EmbeddedItems.GetSpriteForEmbeddedItem(item),
+                        DateOfCreation = string.Empty,
+                        UniqueVersion = string.Empty,
+                        BasisBundleConnector = new BasisBundleConnector()
+                        {
+                            BasisBundleDescription = new BasisBundleDescription()
+                            {
+                                AssetBundleName = item.Url,
+                                AssetBundleDescription = "Embedded Item"
+                            }
+                        },
+                        BasisLoadableBundle = null,
+                    };
                 }
-
-                var cached = new CachedContent
+                else
                 {
-                    Name = connector?.BasisBundleDescription?.AssetBundleName ?? string.Empty,
-                    AssetBundleDescription = connector?.BasisBundleDescription?.AssetBundleDescription,
-                    ImageBase64 = connector?.ImageBase64,
-                    DateOfCreation = connector?.DateOfCreation,
-                    UniqueVersion = connector?.UniqueVersion,
-                    BasisBundleConnector = connector,
-                    BasisLoadableBundle = wrapper.BasisLoadableBundle,
-                };
+                    // make a new wrapper to load the metadata into
+                    BasisLoadableBundleWrapper newWrapper = CreateNewWrapperFromItem(item);
 
-                // might as well cache the sprite now
-                cached.CachedSprite = CreateSpriteFromMetaData(cached);
+                    // new report and CancellationSource source
+                    BasisProgressReport Report = new BasisProgressReport();
+                    CancellationTokenSource CancellationSource = new CancellationTokenSource();
 
-                string dateStrCache = connector?.DateOfCreation;
-                if (!string.IsNullOrEmpty(dateStrCache) && DateTime.TryParse(dateStrCache, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsedDate))
-                {
-                    cached.Created = parsedDate;
+                    // perform the action to download the file or grab it from disc?
+                    await BasisBeeManagement.HandleMetaOnlyLoad(newWrapper.basisTrackedBundleWrapper, Report, CancellationSource.Token);
+                    
+                    // grab the wrapper from disc, we can pass in our wrapper
+                    BasisLoadableBundleWrapper wrapper = await LoadWrapperFromDisc(item, newWrapper);//on disc call? 
+                    var connector = wrapper.BasisLoadableBundle.BasisBundleConnector; //wrapper.LoadableBundle.BasisBundleConnector;
+
+                    if(wrapper == null)
+                    {
+                        BasisDebug.LogError("Missing Wrapper!, was the data provided correct?");
+                        return;
+                    }
+
+                    cached = new CachedContent
+                    {
+                        Name = connector?.BasisBundleDescription?.AssetBundleName ?? string.Empty,
+                        AssetBundleDescription = connector?.BasisBundleDescription?.AssetBundleDescription,
+                        DateOfCreation = connector?.DateOfCreation,
+                        UniqueVersion = connector?.UniqueVersion,
+                        BasisBundleConnector = connector,
+                        BasisLoadableBundle = wrapper.BasisLoadableBundle,
+                    };
+
+                    // might as well cache the sprite now
+                    cached.CachedSprite = CreateSpriteFromMetaData(cached);
+
+                    string dateStrCache = connector?.DateOfCreation;
+                    if (!string.IsNullOrEmpty(dateStrCache) && DateTime.TryParse(dateStrCache, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsedDate))
+                    {
+                        cached.Created = parsedDate;
+                    }
                 }
 
                 SetMetaData(urlKey, cached);
