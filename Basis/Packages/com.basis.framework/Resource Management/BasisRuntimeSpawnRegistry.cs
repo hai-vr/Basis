@@ -184,7 +184,10 @@ namespace Basis
                                 SceneManager.UnloadSceneAsync(scene);
                             }
                             */
-                            await SceneManager.UnloadSceneAsync(scene);
+                            if (scene.IsValid() && scene.isLoaded)
+                            {
+                                await SceneManager.UnloadSceneAsync(scene);
+                            }
                         }
 
                         break;
