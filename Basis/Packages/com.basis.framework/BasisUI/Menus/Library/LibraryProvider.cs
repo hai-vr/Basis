@@ -410,7 +410,7 @@ namespace Basis.BasisUI
         private static async Task RefreshTabAsync(Page page)
         {
             PanelTabPage tab = tabMap[page];
-            BasisDebug.Log($"RefreshTabAsync() was invoked -> for page = {page}, tab = {tab} _currentTab = {_currentTab}, ");
+            //BasisDebug.Log($"RefreshTabAsync() was invoked -> for page = {page}, tab = {tab} _currentTab = {_currentTab}, ");
             if (tab == null) return;
 
             // Ensure keys are loaded
@@ -739,8 +739,8 @@ namespace Basis.BasisUI
                     // perform input validation, pass our current url and password along with the existing library entries to check for duplicates
                     InputValidation.EntryValidationResponse validationResponse = InputValidation.ValidateEntry(URL.Value, Password.Password, BasisDataStoreItemKeys.DisplayKeys());
 
-                    BasisDebug.Log($"given url {URL.Value}, given password {Password.Password}");
-                    BasisDebug.Log($"processed url {validationResponse.ProcessedUrl} processed password {validationResponse.Password}");
+                    //BasisDebug.Log($"given url {URL.Value}, given password {Password.Password}");
+                    //BasisDebug.Log($"processed url {validationResponse.ProcessedUrl} processed password {validationResponse.Password}");
 
                     // get the result of the validationResponse
                     InputValidation.EntryValidationResult validationResult = validationResponse.Result;
@@ -798,15 +798,15 @@ namespace Basis.BasisUI
                                     {
                                         if (loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames != null)
                                         {
-                                            BasisDebug.Log($"BasisComponentNames = {loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames}");
-                                            BasisDebug.Log($"BasisComponentNamesLength = {loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames.Length}");
+                                            //BasisDebug.Log($"BasisComponentNames = {loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames}");
+                                            //BasisDebug.Log($"BasisComponentNamesLength = {loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames.Length}");
 
                                             // lets attempt to find out what type of item it is?
 
                                             // grab components
                                             foreach (BasisBundleConnector.BasisComponentName comp in loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames)
                                             {
-                                                BasisDebug.Log($"BasisComponentName = {comp.Name} count = {comp.count}");
+                                                //BasisDebug.Log($"BasisComponentName = {comp.Name} count = {comp.count}");
                                                 switch (comp.Name.ToLower())
                                                 {
                                                     case "basisprop":
@@ -1190,7 +1190,7 @@ namespace Basis.BasisUI
                     //await RefreshPinnedProviders();
                     pinButton.Descriptor.SetTitle(PinnedText(item));
 
-                    BasisDebug.Log($"Pinned button was pressed on item = {item.Url}, success = {success}, item.IsPinned = {item.PinnedSettings.IsPinned}");
+                    //BasisDebug.Log($"Pinned button was pressed on item = {item.Url}, success = {success}, item.IsPinned = {item.PinnedSettings.IsPinned}");
                 };
             }
 
@@ -1515,7 +1515,7 @@ namespace Basis.BasisUI
                     if (Enum.TryParse(contentSyncModeDropDown.SelectedString, out BundledContentHolder.NetworkType selectedNetType))
                     {
                         desiredNetworkType = selectedNetType;
-                        BasisDebug.Log($"Selected Network Type: {desiredNetworkType}");
+                        //BasisDebug.Log($"Selected Network Type: {desiredNetworkType}");
                     }
                     else
                     {
@@ -1633,7 +1633,7 @@ namespace Basis.BasisUI
         {
             // At this point the item should be fully loaded and ready to use. What happens next is up to you and your application needs.
             // For example, you could raise an event that other parts of your app listen for, or directly instantiate the loaded content if it's a prefab.
-            BasisDebug.Log($"Attempting to load selected item: {item.Url} item type {item.Mode} with network type {networkType} persistent = {persistence} modifyScale = {modifyScale}");
+            //BasisDebug.Log($"Attempting to load selected item: {item.Url} item type {item.Mode} with network type {networkType} persistent = {persistence} modifyScale = {modifyScale}");
 
             try
             {
@@ -1696,7 +1696,7 @@ namespace Basis.BasisUI
             //     CachedMetaData.TryGetMeta(itemKey.Url, out cachedMeta);
             //     itemTextInfo.Descriptor.SetTitle(TitleToCase(cachedMeta.BasisBundleConnector.BasisBundleDescription.AssetBundleName));
             // }
-            itemTextInfo.Descriptor.SetTitle(TitleToCase(itemKey.Url));
+            itemTextInfo.Descriptor.SetTitle(itemKey.Url);
             //createdInformationTextField.Descriptor.SetIcon(EmbeddedItems.GetSpriteForEmbeddedItem(item));
             itemTextInfo.Descriptor.SetDescription($"Persistent: {itemKey.Persistent} | Method: {itemKey.SpawnMethod} | Mode: {itemKey.SpawnMode} | UTC: {itemKey.SpawnedUtc}");
 
