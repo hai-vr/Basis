@@ -38,6 +38,26 @@ namespace Basis.BasisUI
             },
         };
 
+        public static string GetAddressableSpriteForEmbeddedItem(ItemKey item)
+        {
+            if(!item.IsEmbedded)
+            {
+                BasisDebug.LogError($"GetSpriteForEmbeddedItem() was invoked for item = {item.Url} it is not embedded. Returning NULL.");
+                return null;
+            }
+
+            switch(item.Url)
+            {
+                case "Photo Camera":
+                    return AddressableAssets.Sprites.Camera;
+                case "Personal Mirror":
+                    return AddressableAssets.Sprites.Mirror;
+                default:
+                    BasisDebug.Log($"GetSpriteForEmbeddedItem() item = {item.Url} does not have a specified icon defined. please define it, here.");
+                    return AddressableAssets.Sprites.Items;
+            }
+        }
+
         /// <summary>
         /// returns the sprite of a item key that is embedded
         /// </summary>
@@ -52,9 +72,9 @@ namespace Basis.BasisUI
             switch(item.Url)
             {
                 case "Photo Camera":
-                    return AddressableAssets.GetSprite(AddressableAssets.Sprites.Camera);
+                    return AddressableAssets.GetSprite(GetAddressableSpriteForEmbeddedItem(item));
                 case "Personal Mirror":
-                    return AddressableAssets.GetSprite(AddressableAssets.Sprites.Mirror);
+                    return AddressableAssets.GetSprite(GetAddressableSpriteForEmbeddedItem(item));
                 default:
                     BasisDebug.Log($"GetSpriteForEmbeddedItem() item = {item.Url} does not have a specified icon defined. please define it, here.");
                     break;
@@ -62,6 +82,7 @@ namespace Basis.BasisUI
 
             return null;
         }
+        
 
         /// <summary>
         /// returns returns the bounds for the embedded item must be defined

@@ -78,7 +78,6 @@ namespace Basis.BasisUI
             // cache all items into the meta data
             // build data to be used
             var data = BasisDataStoreItemKeys.DisplayKeys()
-                .Concat(EmbeddedItems.HardcodedKeys)
                 .ToList();
 
             // Preload metadata for all items
@@ -431,7 +430,6 @@ namespace Basis.BasisUI
                     
                     // build data to be used
                     var data = BasisDataStoreItemKeys.DisplayKeys()
-                        .Concat(EmbeddedItems.HardcodedKeys)
                         .Where(k => k.Mode == mode)
                         .ToList();
 

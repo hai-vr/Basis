@@ -8,42 +8,17 @@ namespace Basis.BasisUI
     {
         private BasisDataStoreItemKeys.ItemKey _key;
         private readonly string _title;
+        private readonly string _iconAddress;
 
         public PinnedItemProvider(BasisDataStoreItemKeys.ItemKey item, CachedMetaData.CachedContent cachedItemData)
         {
             _key = item;
             _title = LibraryProvider.TitleToCase(cachedItemData.BasisBundleConnector.BasisBundleDescription.AssetBundleName);
-
-            // // grab the item name from cache
-            // if(!item.IsEmbedded)
-            // {
-            //     var tempWrapper = LibraryProvider.CreateNewWrapperFromItem(_key);
-            //     BasisProgressReport Report = new BasisProgressReport();
-            //     CancellationTokenSource CancellationSource = new CancellationTokenSource();
-            //     // Attempt a meta-only load (this will download or read connector info and cache meta on disk)
-            //     bool isValid = await BasisBeeManagement.HandleMetaOnlyLoad(tempWrapper.basisTrackedBundleWrapper, Report, CancellationSource.Token);
-                
-            //     BasisDebug.Log($"Creating a new pinned item provider for item = {item.Url}");
-            //     _title = LibraryProvider.TitleToCase(wrapper.BasisLoadableBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName);
-
-            //     // Try get cached meta once
-            //     // CachedMetaData.CachedContent cachedMeta;
-            //     // if(CachedMetaData.TryGetMeta(url.item, out cachedMeta))
-            //     // {
-                    
-            //     // }
-
-                
-            // }
-            // else
-            // {
-            //     _title = item.Url;
-            // }
-            
+            _iconAddress = item.IsEmbedded ? EmbeddedItems.GetAddressableSpriteForEmbeddedItem(item) : AddressableAssets.Sprites.Pin;
         }
 
         public override string Title => _title; // or a nicer name
-        public override string IconAddress => AddressableAssets.Sprites.Pin;
+        public override string IconAddress => _iconAddress;
         public override int Order => 10; // after static items
         public override bool Hidden => false;
 
