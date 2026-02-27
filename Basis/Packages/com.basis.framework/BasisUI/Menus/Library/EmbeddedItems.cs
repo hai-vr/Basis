@@ -16,9 +16,8 @@ namespace Basis.BasisUI
         /// Photo Camera
         /// 
         /// These are defined here for the menu only so we can spawn them locally within the LibraryProvider.cs
+        /// You can also define embedded items from a BEEUrl if desired
         /// </summary>
-        public static bool UseHardcodedKeys = false;
-
         public static ItemKey[] HardcodedKeys = new ItemKey[]
         {
             // Example entry (uncomment and edit):
@@ -127,7 +126,7 @@ namespace Basis.BasisUI
                     break;
             }
 
-            return null;
+            return AddressableAssets.GetSprite(GetAddressableSpriteForEmbeddedItem(item));
         }
 
 
