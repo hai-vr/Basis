@@ -16,9 +16,8 @@ namespace Basis.BasisUI
         /// Photo Camera
         /// 
         /// These are defined here for the menu only so we can spawn them locally within the LibraryProvider.cs
+        /// You can also define embedded items from a BEEUrl if desired
         /// </summary>
-        public static bool UseHardcodedKeys = false;
-
         public static ItemKey[] HardcodedKeys = new ItemKey[]
         {
             // Example entry (uncomment and edit):
@@ -26,7 +25,7 @@ namespace Basis.BasisUI
                 Mode = BundledContentHolder.Mode.Prop,
                 Url = "Personal Mirror",
                 Pass = "",
-                IsEmbedded = true,
+                EmbeddedSettings = EmbeddedSettings.Addressable,
                 PlacementType = BundledContentHolder.PlacementType.SpawnInFrontOfPlayer,
                 PinnedSettings = PinnedSettings.Embedded,
             },
@@ -34,7 +33,7 @@ namespace Basis.BasisUI
                 Mode = BundledContentHolder.Mode.Prop,
                 Url = "Photo Camera",
                 Pass = "",
-                IsEmbedded = true,
+                EmbeddedSettings = EmbeddedSettings.Addressable,
                 PlacementType = BundledContentHolder.PlacementType.SpawnInFrontOfPlayer,
                 PinnedSettings = PinnedSettings.Embedded,
             },
@@ -45,49 +44,49 @@ namespace Basis.BasisUI
                 Mode = BundledContentHolder.Mode.Avatar,
                 Url = "https://cdn.yewnyx.net/basis/2026-02-25/gymcat/c84a7ca0c5ce4912ab5584c2840036de20260225.BEE",
                 Pass = "0da01980272efbe421b7ebd5d6831d657ed96f5e5317d2f88a6dfe9e7ef5ead8",
-                IsEmbedded = true,
+                EmbeddedSettings = EmbeddedSettings.BEEUrl,
             },
             new ItemKey
             {
                 Mode = BundledContentHolder.Mode.Avatar,
                 Url = "https://cdn.yewnyx.net/basis/2026-02-25/space/c74771ec2dd84ffda33d346ada25e39420260225.BEE",
                 Pass = "878ac54af853e1a7d864520a34ae68e8b370cedd89a42c09cd016cf9eb41dbae",
-                IsEmbedded = true,
+                EmbeddedSettings = EmbeddedSettings.BEEUrl,
             },
             new ItemKey
             {
                 Mode = BundledContentHolder.Mode.Avatar,
                 Url = "https://cdn.yewnyx.net/basis/2026-02-25/space_noet/95d4459279004b39928bc292f11bbac020260225.BEE",
                 Pass = "b6e0ac7b08a23fc1cb0b6a0103f26d1f3eff8c2889ffb5c8bdcaa17a538e58b8",
-                IsEmbedded = true,
+                EmbeddedSettings = EmbeddedSettings.BEEUrl,
             },
             new ItemKey
             {
                 Mode = BundledContentHolder.Mode.Avatar,
                 Url = "https://cdn.yewnyx.net/basis/2026-02-25/spaceman/f78971c1c553483a9bbe155d60f14d4e20260225.BEE",
                 Pass = "091b548e5e036a2d1829b41f829a0dab3f30a41d4d01eb9822b316fedb2934dd",
-                IsEmbedded = true,
+                EmbeddedSettings = EmbeddedSettings.BEEUrl,
             },
             new ItemKey
             {
                 Mode = BundledContentHolder.Mode.Avatar,
                 Url = "https://cdn.yewnyx.net/basis/2026-02-25/yun/e60b159bfa9d49b1a7f4480d5999ee0320260225.BEE",
                 Pass = "e250499a5a00ebe3ee0c5447ca41677e5a4c6d33d152fd77804a5963f384652e",
-                IsEmbedded = true,
+                EmbeddedSettings = EmbeddedSettings.BEEUrl,
             },
             new ItemKey
             {
                 Mode = BundledContentHolder.Mode.Avatar,
                 Url = "https://cdn.yewnyx.net/basis/2026-02-25/yun_noet/77414044b3514656bebdcca7420809d520260225.BEE",
                 Pass = "dffe7a0b96cf6a8d23fcb72c03c625466a3f8bd0a14b826a6a017548b54f2105",
-                IsEmbedded = true,
+                EmbeddedSettings = EmbeddedSettings.BEEUrl,
             },
 
         };
 
         public static string GetAddressableSpriteForEmbeddedItem(ItemKey item)
         {
-            if (!item.IsEmbedded)
+            if (!item.EmbeddedSettings.IsEmbedded)
             {
                 BasisDebug.LogError($"GetSpriteForEmbeddedItem() was invoked for item = {item.Url} it is not embedded. Returning NULL.");
                 return null;
@@ -110,7 +109,7 @@ namespace Basis.BasisUI
         /// </summary>
         public static Sprite GetSpriteForEmbeddedItem(ItemKey item)
         {
-            if (!item.IsEmbedded)
+            if (!item.EmbeddedSettings.IsEmbedded)
             {
                 BasisDebug.LogError($"GetSpriteForEmbeddedItem() was invoked for item = {item.Url} it is not embedded. Returning NULL.");
                 return null;
@@ -127,7 +126,7 @@ namespace Basis.BasisUI
                     break;
             }
 
-            return null;
+            return AddressableAssets.GetSprite(GetAddressableSpriteForEmbeddedItem(item));
         }
 
 
@@ -137,7 +136,7 @@ namespace Basis.BasisUI
         public static BasisBounds GetBoundsForEmbeddedItem(ItemKey item)
         {
             BasisBounds defaultBounds = new BasisBounds(Vector3.one, Vector3.zero);
-            if (!item.IsEmbedded)
+            if (!item.EmbeddedSettings.IsEmbedded)
             {
                 BasisDebug.LogError($"GetBoundsForEmbeddedItem() was invoked for item = {item.Url} it is not embedded. returning default BasisBounds({defaultBounds})");
                 return defaultBounds;
@@ -162,7 +161,7 @@ namespace Basis.BasisUI
         /// </summary>
         internal static Vector3 GetOffsetForEmbeddedItem(ItemKey item, Vector3 playerPosReference, Vector3 playerPosForwardReference)
         {
-            if (!item.IsEmbedded)
+            if (!item.EmbeddedSettings.IsEmbedded)
             {
                 BasisDebug.LogError($"GetOffsetForEmbeddedItem() was invoked for item = {item.Url} it is not embedded. returning playerPosReference + playerPosForwardReference * 0.5f!");
                 return playerPosReference + playerPosForwardReference * 0.5f;

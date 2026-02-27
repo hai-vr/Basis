@@ -1,12 +1,9 @@
-using Basis.BasisUI.Styling;
-using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using TMPro;
+using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
@@ -17,70 +14,6 @@ namespace Basis.BasisUI
 {
     public partial class LibraryProvider : BasisMenuActionProvider<BasisMainMenu>
     {
-
-        // TODO: stuff up here needs to be refactored or re-worked
-
-        public static string TitleToCase(string givenText)
-        {
-            TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
-            return textInfo.ToTitleCase(givenText);
-        }
-
-        public static Page ModeToPage(BundledContentHolder.Mode mode)
-        {
-            return mode switch
-            {
-                BundledContentHolder.Mode.Prop => Page.Prop,
-                BundledContentHolder.Mode.World => Page.World,
-                BundledContentHolder.Mode.Avatar => Page.Avatar,
-                _ => throw new System.ArgumentException($"Cannot map mode {mode} to a Page")
-            };
-        }
-
-        public static bool IsProp(BasisDataStoreItemKeys.ItemKey item)
-        {
-            return item.Mode == BundledContentHolder.Mode.Prop;
-        }
-
-        public static void RefreshPinnedProviders()
-        {
-            //await BasisDataStoreItemKeys.LoadKeys();
-
-            var keys = BasisDataStoreItemKeys.DisplayKeys();
-
-            var existing = new List<BasisMenuActionProvider<BasisMainMenu>>(
-                BasisMenuBase<BasisMainMenu>.Providers);
-
-            // Remove old pinned providers
-            foreach (var provider in existing)
-            {
-                if (provider is PinnedItemProvider)
-                {
-                    BasisMenuBase<BasisMainMenu>.RemoveProvider(provider);
-                }
-            }
-
-            // Add new ones
-            foreach (var key in keys)
-            {
-                if (key.PinnedSettings.IsPinned)
-                {
-                    // Try get cached meta once
-                    CachedMetaData.CachedContent cachedMeta;
-                    if (CachedMetaData.TryGetMeta(key.Url, out cachedMeta))
-                    {
-                        var provider = new PinnedItemProvider(key, cachedMeta);
-                        BasisMenuBase<BasisMainMenu>.AddProvider(provider);
-                    }
-                    else
-                    {
-                        BasisDebug.LogError($" Unable to build pinned provider for item = {key.Url} failed to get item from cache");
-                    }
-                }
-            }
-        }
-
-        // TODO END
 
         #region Provider Setup
         [RuntimeInitializeOnLoadMethod]
@@ -108,7 +41,7 @@ namespace Basis.BasisUI
             }
 
             // once we have the cache now invoke the task to build pinned providers
-            RefreshPinnedProviders();
+            PinnedItemProvider.RefreshPinnedProviders();
         }
 
         public override string Title => "Library";
@@ -233,9 +166,8 @@ namespace Basis.BasisUI
             //     }
             // };
 
-
             // add our extra menu button items, this is the buttons below the panel content
-            tabGroup.AddExtraAction("Add New Content", async () => await PromptUserForNewContent(), new Vector2( 70, 80 ));
+            tabGroup.AddExtraAction("Add New Content", async () => await LibraryProviderDialogAdd.PromptUserForNewContent(panel), new Vector2(70, 80));
 
             // set the current tab to the current page
             tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
@@ -404,7 +336,7 @@ namespace Basis.BasisUI
             return Enum.TryParse(page.ToString(), out mode);
         }
 
-        private static async Task RefreshTabAsync(Page page)
+        public static async Task RefreshTabAsync(Page page)
         {
             PanelTabPage tab = tabMap[page];
             //BasisDebug.Log($"RefreshTabAsync() was invoked -> for page = {page}, tab = {tab} _currentTab = {_currentTab}, ");
@@ -436,12 +368,6 @@ namespace Basis.BasisUI
             {
                 try
                 {
-
-                    // // // Only fetch keys matching the requested mode, so if we only want props only grab props returned in data
-                    // // var data = BasisDataStoreItemKeys.DisplayKeys()
-                    // //     .Where(k => k.Mode == mode)
-                    // //     .ToList();
-
                     // build data to be used
                     var data = BasisDataStoreItemKeys.DisplayKeys()
                         .Where(k => k.Mode == mode)
@@ -464,7 +390,7 @@ namespace Basis.BasisUI
                         data = data.Where(k =>
                         {
                             var url = k.Url ?? string.Empty;
-                            if (k.IsEmbedded)
+                            if (k.EmbeddedSettings.IsEmbedded && k.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
                             {
                                 if (!string.IsNullOrEmpty(url) && url.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) >= 0)
                                 {
@@ -500,7 +426,7 @@ namespace Basis.BasisUI
                             data = data.OrderBy(k =>
                             {
                                 // Embedded items always treated as the oldest possible date
-                                if (k.IsEmbedded)
+                                if (k.EmbeddedSettings.IsEmbedded && k.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
                                     return DateTime.MinValue;
 
                                 var url = k.Url ?? string.Empty;
@@ -515,7 +441,7 @@ namespace Basis.BasisUI
                             data = data.OrderByDescending(k =>
                             {
                                 // Embedded items always treated as the oldest possible date
-                                if (k.IsEmbedded)
+                                if (k.EmbeddedSettings.IsEmbedded && k.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
                                     return DateTime.MinValue;
 
                                 var url = k.Url ?? string.Empty;
@@ -551,400 +477,37 @@ namespace Basis.BasisUI
         }
 
         // used to refresh the current tab
-        private static async Task RefreshCurrentTab()
+        public static async Task RefreshCurrentTab()
         {
             await RefreshTabAsync(_currentPage);
 
             // we should also refresh providers
-            RefreshPinnedProviders();
+            PinnedItemProvider.RefreshPinnedProviders();
         }
-        #endregion
 
-        #region PromptUserToDefineLegacyContent
-
-        private static async Task<BundledContentHolder.Mode> PromptUserToDefineLegacyContent()
+        public static Page ModeToPage(BundledContentHolder.Mode mode)
         {
-            DialogBox<BundledContentHolder.Mode> legacyCotentDefineDialogBox = DialogBox<BundledContentHolder.Mode>.Create(panel, new Vector2(830, 430),
-                "Specify Content Type",
-                "Your content is marked legacy. Please specify what type of content you are adding.",
-                AddressableAssets.Sprites.Add,
-                true
-            );
-
-            // create the exit button for the dialog box
-            var button = PanelButton.CreateNew(ButtonStyles.ExitButton, legacyCotentDefineDialogBox.Descriptor.Header);
-            button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
-            button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
-            button.OnClicked += () => legacyCotentDefineDialogBox.Cancel(BundledContentHolder.Mode.Legacy);
-
-            // information to give to the user
-            PanelTextField createdInformationTextField = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, legacyCotentDefineDialogBox.Descriptor);
-            createdInformationTextField._inputField.gameObject.SetActive(false); // disable the text input field box
-            createdInformationTextField.Descriptor.SetTitle("Why is this showing?");
-            createdInformationTextField.Descriptor.SetIcon(AddressableAssets.Sprites.Information);
-            createdInformationTextField.Descriptor.SetDescription($"BEE files now contain metadata of what's inside it, this is used to determine things about your BEE file which will be important in future features. Please to consider updating your content to include this metadata.");
-
-            createdInformationTextField.Descriptor.SetHeight(100);
-            createdInformationTextField.Descriptor.SetWidth(800);
-
-            // the item type dropdown determines which library tab the new item will appear in.
-            PanelDropdown contentTypeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.OverlayEntry, legacyCotentDefineDialogBox.Descriptor);
-            var modeNames = Enum.GetValues(typeof(BundledContentHolder.Mode))
-                    .Cast<BundledContentHolder.Mode>()
-                    .Where(m => m != BundledContentHolder.Mode.Legacy) // remove legacy from selection
-                    .Select(m => m.ToString())
-                    .ToArray();
-            contentTypeDropDown.Descriptor.SetTitle("Content Type");
-            contentTypeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.FileTray);
-            contentTypeDropDown.Descriptor.SetDescription( "What content are you adding?" );
-            contentTypeDropDown.AssignEntries(modeNames.ToList());
-            
-            // derive the default selected mode from the currently active tab, so if the user is browsing avatars and clicks "Add New CachedContent"
-            contentTypeDropDown.SetValueWithoutNotify(modeNames[0]);
-            contentTypeDropDown.Descriptor.SetHeight(50);
-            contentTypeDropDown.Descriptor.SetWidth(800);
-
-            // Add and Cancel buttons
-            PanelTabGroup acceptOrDenyPanel = PanelTabGroup.CreateNew(legacyCotentDefineDialogBox.Descriptor, LayoutDirection.HorizontalNoBackground);
-
-            acceptOrDenyPanel.Descriptor.SetHeight(50);
-            acceptOrDenyPanel.Descriptor.SetWidth(800);
-
-            PanelButton yesPanel = PanelButton.CreateNew(ButtonStyles.AcceptButton, acceptOrDenyPanel.TabButtonParent); //ButtonStyles.Cancel
-            yesPanel.Descriptor.SetTitle("Add");
-            yesPanel.Descriptor.SetWidth(800);
-            yesPanel.Descriptor.SetHeight(60);
-
-            // Add does the async work, then closes.
-            yesPanel.OnClicked += () =>
+            return mode switch
             {
-                if (legacyCotentDefineDialogBox.IsBusy) return;
-                legacyCotentDefineDialogBox.IsBusy = true;
-
-                var selected = contentTypeDropDown.Value;
-                var mode = (BundledContentHolder.Mode)Enum.Parse(typeof(BundledContentHolder.Mode), selected);
-                legacyCotentDefineDialogBox.CloseWithResult(mode);
-
+                BundledContentHolder.Mode.Prop => Page.Prop,
+                BundledContentHolder.Mode.World => Page.World,
+                BundledContentHolder.Mode.Avatar => Page.Avatar,
+                _ => throw new System.ArgumentException($"Cannot map mode {mode} to a Page")
             };
+        }
 
-            return await legacyCotentDefineDialogBox.WaitAsync();
+        public static void TrySwitchToTabFromItemType( BundledContentHolder.Mode type )
+        {
+            // change the focus of the UI to goto where the users newly added content is
+            _currentPage = ModeToPage(type);
+
+            tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
 
         }
 
         #endregion
 
-        #region PromptUserForNewContent, AddNewNewItemKey, ChangeInputFieldStyle
-
-        private static void ChangeInputFieldStyle(GameObject inputFieldObject, bool isError)
-        {
-            if (inputFieldObject == null) return;
-
-            if (!inputFieldObject.TryGetComponent(out UiStyleImage styleImage))
-                return;
-
-            string newStyle = isError ? "Button Caution" : "Button Standard";
-
-            if (styleImage.ColorStyle == newStyle)
-                return;
-
-            styleImage.SetStyle(newStyle);
-        }
-
-        // not super clean but will do for now, used to update interactable input fields
-        private static void UpdateInputFieldInteractability( PanelTextField URLTextField, PanelPasswordField PasswordTextField, DialogBox<BasisDataStoreItemKeys.ItemKey> activeDialog )
-        {
-            URLTextField._inputField.interactable = !activeDialog.IsBusy;
-            PasswordTextField._inputField.interactable = !activeDialog.IsBusy;
-        }
-
-        /// <summary>
-        /// Invoked on the add new content is pressed in the library provider menu, to prompt the user to enter new content with a dialog box
-        /// </summary>
-        public static async Task<BasisDataStoreItemKeys.ItemKey> PromptUserForNewContent()
-        {
-            // Build overlay using DialogBox helper
-            DialogBox<BasisDataStoreItemKeys.ItemKey> newItemDialogBox = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, new Vector2(930, 600),
-                "Add New Content",
-                "Please provide the URL and password for your BEE file. Ensure your url and pass are correct or the item wont be included in your library.",
-                AddressableAssets.Sprites.Add);
-
-            // create the exit button for the dialog box
-            var button = PanelButton.CreateNew(ButtonStyles.ExitButton, newItemDialogBox.Descriptor.Header);
-            button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, 125);
-            button.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50);
-            button.OnClicked += () => newItemDialogBox.Cancel(null);
-
-            // panel group for the fields
-            PanelTabGroup panelGroup = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, newItemDialogBox.Descriptor.ContentParent);
-            panelGroup.Descriptor.SetHeight(400);
-            panelGroup.Descriptor.SetWidth(900);
-
-            // BEE file URL field
-            PanelTextField URL = PanelTextField.CreateNew(TextFieldStyles.EntryVertical, panelGroup.TabButtonParent);
-            URL._placeholderLabel.text = "URL";
-            URL._inputField.contentType = TMP_InputField.ContentType.Standard;
-            URL.Descriptor.SetHeight(115);
-            URL.Descriptor.SetWidth(700);
-            URL.Descriptor.SetTitle("BEE File URL:");
-            URL.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
-            URL.Descriptor.SetDescription("This should be a direct link to your BEE file.");
-
-            PanelPasswordField Password = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, panelGroup.TabButtonParent);
-            Password._placeholderField.text = "Enter password";
-            Password.Descriptor.SetHeight(115);
-            Password.Descriptor.SetWidth(700);
-
-            Password.Descriptor.SetTitle("BEE File Password:");
-            Password.Descriptor.SetIcon(AddressableAssets.Sprites.Unlocked);
-            Password.Descriptor.SetDescription("This is the password that was generated with you BEE file.");
-
-            // create a text field to show validation error messages, initially empty
-            PanelTextField validationMessageField = PanelTextField.CreateNew(TextFieldStyles.EntryWarning, panelGroup.TabButtonParent);
-            validationMessageField.Descriptor.gameObject.SetActive(false);
-            validationMessageField._inputField.gameObject.SetActive(false); // disable the text input field box
-            validationMessageField.Descriptor.SetTitle("AWAITING_INPUT");
-            validationMessageField.Descriptor.SetDescription("AWAITING_INPUT");
-            validationMessageField.Descriptor.TitleLabel.color = Color.yellow;
-            validationMessageField.Descriptor.DescriptionLabel.color = Color.yellow;
-
-            validationMessageField.Descriptor.SetHeight(50);
-            validationMessageField.Descriptor.SetWidth(700);
-
-            // Add and Cancel buttons
-            PanelTabGroup acceptOrDenyPanel = PanelTabGroup.CreateNew(newItemDialogBox.Descriptor, LayoutDirection.HorizontalNoBackground);
-
-            acceptOrDenyPanel.Descriptor.SetHeight(50);
-            acceptOrDenyPanel.Descriptor.SetWidth(900);
-
-            PanelButton yesPanel = PanelButton.CreateNew(ButtonStyles.AcceptButton, acceptOrDenyPanel.TabButtonParent); //ButtonStyles.Cancel
-            yesPanel.Descriptor.SetTitle("Add");
-            yesPanel.Descriptor.SetWidth(900);
-            yesPanel.Descriptor.SetHeight(60);
-
-            // Add does the async work, then closes.
-            yesPanel.OnClicked += async () =>
-            {
-                if (newItemDialogBox.IsBusy) return;
-                newItemDialogBox.IsBusy = true;
-
-                // update interactability for fields based on dialog busy
-                UpdateInputFieldInteractability(URL, Password, newItemDialogBox);
-
-                try
-                {
-
-                    // perform input validation, pass our current url and password along with the existing library entries to check for duplicates
-                    InputValidation.EntryValidationResponse validationResponse = InputValidation.ValidateEntry(URL.Value, Password.Password, BasisDataStoreItemKeys.DisplayKeys());
-
-                    //BasisDebug.Log($"given url {URL.Value}, given password {Password.Password}");
-                    //BasisDebug.Log($"processed url {validationResponse.ProcessedUrl} processed password {validationResponse.Password}");
-
-                    // get the result of the validationResponse
-                    InputValidation.EntryValidationResult validationResult = validationResponse.Result;
-
-                    // we now use the validation result to determine whether to proceed with adding the item or show an error message
-                    switch (validationResult)
-                    {
-                        case InputValidation.EntryValidationResult.Success:
-                            // if validation succeeded, proceed with adding the item
-
-                            if (validationMessageField.enabled)
-                            {
-                                validationMessageField.enabled = false; // hide any previous error message
-                            }
-
-                            // reset the fields
-                            ChangeInputFieldStyle(URL._inputField.gameObject, false);
-                            ChangeInputFieldStyle(Password._inputField.gameObject, false);
-
-                            // perform a meta-only validation of the provided BEE file before adding the key
-                            try
-                            {
-                                if (!validationMessageField.Descriptor.gameObject.activeSelf)
-                                    validationMessageField.Descriptor.gameObject.SetActive(true);
-
-                                validationMessageField.Descriptor.SetTitle("Validating BEE file");
-                                validationMessageField.Descriptor.SetDescription("Checking BEE metadata...");
-
-                                // temp item do not use to add new item with!
-                                BasisDataStoreItemKeys.ItemKey tempItem = new BasisDataStoreItemKeys.ItemKey
-                                {
-                                    Pass = validationResponse.Password,
-                                    Url = validationResponse.ProcessedUrl,
-                                    Mode = 0, // we are going to infer from the type of data the item is
-                                };
-
-                                var tempWrapper = CreateNewWrapperFromItem(tempItem);
-
-                                BasisProgressReport Report = new BasisProgressReport();
-                                CancellationTokenSource CancellationSource = new CancellationTokenSource();
-
-                                // Attempt a meta-only load (this will download or read connector info and cache meta on disk)
-                                bool isValid = await BasisBeeManagement.HandleMetaOnlyLoad(tempWrapper.basisTrackedBundleWrapper, Report, CancellationSource.Token);
-
-                                if (isValid)
-                                {
-                                    // Attempt to read the metadata back from disk into the wrapper
-                                    BasisLoadableBundleWrapper loaded = await LoadWrapperFromDisc(tempItem, tempWrapper);
-
-                                    // infered item type
-                                    BundledContentHolder.Mode itemType = BundledContentHolder.Mode.Legacy;
-
-                                    // grab the meta data
-                                    if(loaded.BasisLoadableBundle?.BasisBundleConnector?.MetaData != null)
-                                    {
-                                        if (loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames != null)
-                                        {
-                                            //BasisDebug.Log($"BasisComponentNames = {loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames}");
-                                            //BasisDebug.Log($"BasisComponentNamesLength = {loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames.Length}");
-
-                                            // lets attempt to find out what type of item it is?
-
-                                            // grab components
-                                            foreach (BasisBundleConnector.BasisComponentName comp in loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames)
-                                            {
-                                                //BasisDebug.Log($"BasisComponentName = {comp.Name} count = {comp.count}");
-                                                switch (comp.Name.ToLower())
-                                                {
-                                                    case "basisprop":
-                                                        itemType = BundledContentHolder.Mode.Prop;
-                                                        break;
-                                                    case "basisavatar":
-                                                        itemType = BundledContentHolder.Mode.Avatar;
-                                                        break;
-                                                    case "basisccene":
-                                                        itemType = BundledContentHolder.Mode.World;
-                                                        break;
-                                                }
-                                            }
-                                        }
-                                        else
-                                        {
-                                            BasisDebug.LogWarning($"Warning BEE file from url = {tempItem.Url} does not contain metadata ComponentNames, consider updating it!");
-                                        }
-                                    }
-                                    else
-                                    {
-                                        BasisDebug.LogWarning($"Warning BEE file from url = {tempItem.Url} does not contain metadata, consider updating it!");
-                                    }
-
-                                    // if the provided content did not change the item type assume its legacy or old BEE file with no metadata
-                                    if(itemType == BundledContentHolder.Mode.Legacy)
-                                    {
-                                        // prompt them for what content
-                                        itemType = await PromptUserToDefineLegacyContent();
-                                        
-                                        // if for whatever reason they did not enter anything else other than legacy?
-                                        if(itemType == BundledContentHolder.Mode.Legacy)
-                                        {
-                                            // Still legacy? Yea no goodbye
-                                            throw new Exception("Request Denied. Please specify content type for your legacy content.");
-                                        }
-                                    }
-
-                                    // add the item to the basis key store
-                                    await AddNewNewItemKey(itemType, validationResponse.ProcessedUrl, validationResponse.Password);
-                                    // just close the overlay
-                                    newItemDialogBox.CloseWithResult(null);
-
-                                    // change the focus of the UI to goto where the users newly added content is
-                                    _currentPage = ModeToPage(itemType);
-                                    
-                                    tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
-
-                                    // switch to the page
-                                    await RefreshTabAsync(_currentPage);
-
-                                }
-                                else
-                                {
-                                    throw new Exception("The provided BEE file url could not provide the bundle array.");
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                BasisDebug.LogError(ex);
-                                ChangeInputFieldStyle(URL._inputField.gameObject, true);
-                                ChangeInputFieldStyle(Password._inputField.gameObject, true);
-
-                                if (!validationMessageField.Descriptor.gameObject.activeSelf)
-                                    validationMessageField.Descriptor.gameObject.SetActive(true);
-
-                                validationMessageField.Descriptor.SetTitle("BEE Validation Error");
-                                validationMessageField.Descriptor.SetDescription($"Failed to validate BEE file: {ex.Message}");
-
-                                newItemDialogBox.IsBusy = false;
-
-                                // update interactability for fields based on dialog busy
-                                UpdateInputFieldInteractability(URL, Password, newItemDialogBox);
-
-                                return;
-                            }
-
-                            return;
-                        case InputValidation.EntryValidationResult.EmptyUrl:
-                            ChangeInputFieldStyle(URL._inputField.gameObject, true);
-                            break;
-                        case InputValidation.EntryValidationResult.InvalidUrlFormat:
-                            ChangeInputFieldStyle(URL._inputField.gameObject, true);
-                            break;
-                        case InputValidation.EntryValidationResult.InvalidUrlScheme:
-                            ChangeInputFieldStyle(URL._inputField.gameObject, true);
-                            break;
-                        case InputValidation.EntryValidationResult.EmptyPassword:
-                            ChangeInputFieldStyle(URL._inputField.gameObject, false);
-                            ChangeInputFieldStyle(Password._inputField.gameObject, true);
-                            break;
-                        case InputValidation.EntryValidationResult.DuplicateEntry:
-                            ChangeInputFieldStyle(URL._inputField.gameObject, true);
-                            ChangeInputFieldStyle(Password._inputField.gameObject, true);
-                            break;
-                        default:
-                            BasisDebug.LogWarning("validation result returned unknown result unable to handle visual representation on UI.");
-                            break;
-                    }
-
-                    // re-enable input
-                    URL._inputField.interactable = true;
-                    Password._inputField.interactable = true;
-
-                    // if validation failed, show an error message and do not proceed
-                    string errorMessage = validationResult switch
-                    {
-                        InputValidation.EntryValidationResult.EmptyUrl => "URL cannot be empty.",
-                        InputValidation.EntryValidationResult.InvalidUrlFormat => "URL format is invalid.",
-                        InputValidation.EntryValidationResult.InvalidUrlScheme => "URL must start with http:// or https://",
-                        InputValidation.EntryValidationResult.EmptyPassword => "Password cannot be empty.",
-                        InputValidation.EntryValidationResult.DuplicateEntry => "An entry with this URL already exists in your library.",
-                        _ => "Unknown validation error."
-                    };
-
-                    if (!validationMessageField.Descriptor.gameObject.activeSelf)
-                        validationMessageField.Descriptor.gameObject.SetActive(true);
-
-                    // setting the title and desc auto enables the game object anyway
-                    validationMessageField.Descriptor.SetTitle(validationResult.ToString());
-                    validationMessageField.Descriptor.SetDescription(errorMessage);
-
-                    // For simplicity, using Debug.LogWarning. In a real implementation, you would want to show this in the UI.
-                    BasisDebug.LogWarning(errorMessage);
-                    newItemDialogBox.IsBusy = false;
-
-                    // update interactability for fields based on dialog busy
-                    UpdateInputFieldInteractability(URL, Password, newItemDialogBox);
-                }
-                catch (Exception ex)
-                {
-                    BasisDebug.LogError(ex);
-                    newItemDialogBox.IsBusy = false;
-                    // update interactability for fields based on dialog busy
-                    UpdateInputFieldInteractability(URL, Password, newItemDialogBox);
-                }
-            };
-
-            // await until user closes or accepts
-            return await newItemDialogBox.WaitAsync();
-        }
+        #region AddNewNewItemKey
 
         /// <summary>
         /// Used with the add new item button to add a new item to the basis key store for items
@@ -964,33 +527,11 @@ namespace Basis.BasisUI
             };
 
             await BasisDataStoreItemKeys.AddNewKey(key);
-
-            // this is misleading in user experience expectations
-            // while it saves 2 clicks, it will force a user out of an avatar straight up, when the action is not desired
-            // ideally we should prompt the user if they want to directly load into their most recently loaded asset
-            // TODO: revise
-            // if(mode == BundledContentHolder.Mode.Avatar)
-            // {
-            //     BasisLoadableBundle loadableBundle = new()
-            //     {
-            //         UnlockPassword = Password,
-            //         BasisRemoteBundleEncrypted = new BasisRemoteEncyptedBundle { RemoteBeeFileLocation = URL },
-            //         BasisBundleConnector = new BasisBundleConnector(),
-            //         BasisLocalEncryptedBundle = new BasisStoredEncryptedBundle()
-            //     };
-
-            //     await BasisLocalPlayer.Instance.CreateAvatar(BasisLocalPlayer.LoadModeNetworkDownloadable, loadableBundle);
-            // }
         }
 
         #endregion
 
         #region CreateItemCard, ShowItemOverlay, ApplyMetaDataToButton
-
-        private static void LockedIcon()
-        {
-            
-        }
 
         /// <summary>
         /// The item card displayed all around the library menu
@@ -1018,8 +559,8 @@ namespace Basis.BasisUI
             }
             else
             {
-                if(item.IsEmbedded)
-                {    
+                if (item.EmbeddedSettings.IsEmbedded)
+                {
                     PanelImage embeddedIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
                     embeddedIcon.SetIcon(AddressableAssets.GetSprite(AddressableAssets.Sprites.Locked), true);
                     embeddedIcon.rectTransform.anchorMin = new Vector2(1, 1);
@@ -1030,7 +571,7 @@ namespace Basis.BasisUI
                 }
             }
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 // TODO fix representation for stacked icons
                 // // create an image for this card in top right with an offset of -35, -35
@@ -1126,7 +667,7 @@ namespace Basis.BasisUI
             // default string text for embedded item
             string embedItem = "Emebbed item";
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 description = new BasisBundleDescription()
                 {
@@ -1150,7 +691,7 @@ namespace Basis.BasisUI
 
             // Build overlay using DialogBox helper
             DialogBox<BasisDataStoreItemKeys.ItemKey> existingItemDialog = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, overlaySize,
-                $"{TitleToCase(description.AssetBundleName)}",
+                $"{LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}",
                 $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : "No description was provided.")}",
                 ConvertItemKeyToAddressableSprite(item));
 
@@ -1223,7 +764,7 @@ namespace Basis.BasisUI
 
             string creationDate = string.Empty; // get the creation date of the basis bundle
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 creationDate = embedItem;
             }
@@ -1269,7 +810,7 @@ namespace Basis.BasisUI
             platformIconsTextField.Descriptor.SetHeight(130);
             platformIconsTextField.Descriptor.SetWidth(400);
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 platformIconsTextField.Descriptor.SetDescription($"All - Embedded Item");
             }
@@ -1314,7 +855,6 @@ namespace Basis.BasisUI
             #endregion
 
             // lets create a grid to put the items below in
-
             PanelTabPage grid = PanelTabPage.CreateNew(scrollablePage.Descriptor.ContentParent);
             PanelElementDescriptor scrollViewGridDescriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewGridLibrary, grid.Descriptor.ContentParent);
             grid.Descriptor.ContentParent = scrollViewGridDescriptor.ContentParent;
@@ -1324,7 +864,7 @@ namespace Basis.BasisUI
 
             long polygonCount = 0;
 
-            if (item.IsEmbedded  && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 polygonCount = 0;
             }
@@ -1349,7 +889,7 @@ namespace Basis.BasisUI
 
             long materialCount = 0;
 
-            if (item.IsEmbedded  && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 materialCount = 0;
             }
@@ -1374,7 +914,7 @@ namespace Basis.BasisUI
 
             long boneCount = 0;
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 boneCount = 0;
             }
@@ -1399,7 +939,7 @@ namespace Basis.BasisUI
 
             string itemID = string.Empty; // item id
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 itemID = embedItem;
             }
@@ -1501,7 +1041,7 @@ namespace Basis.BasisUI
                     if (dropdown.DropdownComponent != null)
                     {
                         // if the item is embedded dont interact
-                        dropdown.DropdownComponent.interactable = !item.IsEmbedded;
+                        dropdown.DropdownComponent.interactable = !(item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable);
                     }
                 }
 
@@ -1536,7 +1076,7 @@ namespace Basis.BasisUI
                 if (contentPersistenceToggle.Descriptor.gameObject.TryGetComponent<Toggle>(out Toggle toggle))
                 {
                     // if the item is embedded dont interact
-                    toggle.interactable = !item.IsEmbedded;
+                    toggle.interactable = !item.EmbeddedSettings.IsEmbedded;
                 }
             }
 
@@ -1557,27 +1097,59 @@ namespace Basis.BasisUI
             if (deletePanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button deleteButtonComponent))
             {
                 // if the item is embedded dont interact
-                deleteButtonComponent.interactable = !item.IsEmbedded;
+                deleteButtonComponent.interactable = !item.EmbeddedSettings.IsEmbedded;
             }
 
             // upon delete we do these actions
             deletePanelButton.OnClicked += async () =>
             {
-                if(item.IsEmbedded) return; // prevent delete button working on embedded items
+                if (item.EmbeddedSettings.IsEmbedded) return; // prevent delete button working on embedded items
                 if (existingItemDialog.IsBusy) return;
                 existingItemDialog.IsBusy = true;
 
-                // remove the item
-                await BasisDataStoreItemKeys.RemoveKey(item);
-                // just close the overlay instead.
-                existingItemDialog.CloseWithResult(null);
-                // refresh current tab
-                await RefreshCurrentTab();
+                bool result = await LibraryProviderDialogRemove.PromptUserForRemoval(panel, item, description);
+
+                if(result) // if they did close it lets close this window and refresh current tab
+                {
+                    // remove the item
+                    await BasisDataStoreItemKeys.RemoveKey(item);
+                    // just close the overlay instead.
+                    existingItemDialog.CloseWithResult(null);
+                    // refresh current tab
+                    await RefreshCurrentTab();
+                }
+                else
+                {
+                    // not busy anymore
+                    existingItemDialog.IsBusy = false;
+                }
             };
 
 
-            PanelButton loadPanelButton = PanelButton.CreateNew(ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
-            loadPanelButton.Descriptor.SetTitle("Load");
+            // this logic checks if we have spawned an embedded item that is addressable
+            bool replaceLoad = false;
+            if(item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
+            {
+                bool exists = BasisRuntimeSpawnRegistry.HasAny(item.Url);
+                if(exists)
+                {
+                    replaceLoad = true;
+                }
+            }
+           
+            PanelButton loadPanelButton = PanelButton.CreateNew(replaceLoad ? ButtonStyles.CancelButton : ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
+
+            switch(item.Mode)
+            {
+                case BundledContentHolder.Mode.Avatar:
+                case BundledContentHolder.Mode.World:
+                loadPanelButton.Descriptor.SetTitle("Load");
+                break;
+                case BundledContentHolder.Mode.Prop:
+                loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : "Spawn");
+                break;
+            }
+
             loadPanelButton.Descriptor.SetWidth(620);
             loadPanelButton.Descriptor.SetHeight(60);
             // on load of a item we do these actions
@@ -1588,8 +1160,7 @@ namespace Basis.BasisUI
 
                 try
                 {
-                    BasisDebug.Log($"Load Button Clicked for item: {item.Url}");
-                    await LoadSelectedItem(item, desiredNetworkType, !ephemeral);
+                    bool success = await LibraryProviderDialogLoading.PromptUserLoadingInProgress(panel, item, desiredNetworkType, !ephemeral);
                 }
                 catch (Exception ex)
                 {
@@ -1610,7 +1181,7 @@ namespace Basis.BasisUI
             buttonPanel.SetIcon(iconSprite, false);
 
             var desc = buttonPanel.Descriptor;
-            desc.SetTitle(TitleToCase(!string.IsNullOrEmpty(cachedMeta.Name) ? cachedMeta.Name : urlKey));
+            desc.SetTitle(LibraryProviderStrUtil.TitleToCase(!string.IsNullOrEmpty(cachedMeta.Name) ? cachedMeta.Name : urlKey));
             desc.SetDescription(urlKey);
             desc.ForceRebuild();
         }
@@ -1682,23 +1253,54 @@ namespace Basis.BasisUI
             // simple info
             PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
             itemTextInfo._inputField.gameObject.SetActive(false); // disable the text input field box
-            // if (itemKey.SpawnMethod == 0)
+
+            // public enum SpawnMode : byte
             // {
-            //     itemTextInfo.Descriptor.SetTitle(TitleToCase(itemKey.Url));
+            //     GameObject = 0,
+            //     Scene = 1,
+            //     Avatar = 2,
             // }
-            // else
+
+            // public enum SpawnMethod : byte
             // {
-            //     // Try get cached meta once
-            //     CachedMetaData.CachedContent cachedMeta;
-            //     CachedMetaData.TryGetMeta(itemKey.Url, out cachedMeta);
-            //     itemTextInfo.Descriptor.SetTitle(TitleToCase(cachedMeta.BasisBundleConnector.BasisBundleDescription.AssetBundleName));
+            //     Embedded = 0,
+            //     Local = 1,
+            //     Network = 2,
             // }
+
             itemTextInfo.Descriptor.SetTitle(itemKey.Url);
-            //createdInformationTextField.Descriptor.SetIcon(EmbeddedItems.GetSpriteForEmbeddedItem(item));
             itemTextInfo.Descriptor.SetDescription($"Persistent: {itemKey.Persistent} | Method: {itemKey.SpawnMethod} | Mode: {itemKey.SpawnMode} | UTC: {itemKey.SpawnedUtc}");
 
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
+
+
+            // #region ICONS FOR LIST ENTRY
+
+            // switch(itemKey.SpawnMode)
+            // {
+            //     case BasisRuntimeSpawnRegistry.SpawnMode.Avatar:
+            //     break;
+            //     case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
+            //     break;
+            //     case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+            //     break;
+            // }
+
+            // switch(itemKey.SpawnMethod)
+            // {
+            //     case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
+            //     break;
+            //     case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
+            //     break;
+            //     case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
+            //     break;
+            // }
+
+            // PanelImage panelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemTextInfo.Descriptor.ContentParent);
+            // panelImage.SetSize(new Vector2(80, 80));
+
+            // #endregion
 
             PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);
             removeItem.Descriptor.SetTitle("Remove");
@@ -1706,18 +1308,18 @@ namespace Basis.BasisUI
             removeItem.OnClicked += async () =>
             {
                 BasisDebug.Log($"CreateListEntry() -> requested removal of item = {itemKey.Url} of instanceID = {instanceID} of SpawnMethod = {itemKey.SpawnMethod} and SpawnMode = {itemKey.SpawnMode}");
-                
-                switch(itemKey.SpawnMethod)
+
+                switch (itemKey.SpawnMethod)
                 {
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
 
                         // if the item is local and embedded lets actually try get the gameobject first
-                        if(BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(itemKey.LoadedNetID, out GameObject go) && go != null)
+                        if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(itemKey.LoadedNetID, out GameObject go) && go != null)
                         {
                             // if the gameobject is not null then lets remove its registery
-                            bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId( itemKey.LoadedNetID );
-                            if(success)
+                            bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(itemKey.LoadedNetID);
+                            if (success)
                             {
                                 // we should delete the embedded item
                                 GameObject.Destroy(go);
@@ -1730,19 +1332,19 @@ namespace Basis.BasisUI
                         }
                         break;
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
-                    switch (itemKey.SpawnMode)
-                    {
-                        case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
-                            BasisNetworkSpawnItem.RequestGameObjectUnLoad(itemKey.LoadedNetID);
-                            break;
-                        case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
-                            BasisNetworkSpawnItem.RequestSceneUnLoad(itemKey.LoadedNetID);
-                            break;
-                        default:
-                            BasisDebug.LogWarning($"Missing Spawn Method! {itemKey.SpawnMode}");
-                            break;
-                    }
-                    break;
+                        switch (itemKey.SpawnMode)
+                        {
+                            case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
+                                BasisNetworkSpawnItem.RequestGameObjectUnLoad(itemKey.LoadedNetID);
+                                break;
+                            case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+                                BasisNetworkSpawnItem.RequestSceneUnLoad(itemKey.LoadedNetID);
+                                break;
+                            default:
+                                BasisDebug.LogWarning($"Missing Spawn Method! {itemKey.SpawnMode}");
+                                break;
+                        }
+                        break;
                 }
                 await RefreshCurrentTab();
             };

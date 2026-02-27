@@ -34,13 +34,45 @@ namespace Basis.Scripts.UI.UI_Panels
         }
 
         [System.Serializable]
+        public enum EmbeddedSource
+        {
+            BEEUrl,
+            Addressable
+        }
+
+        [System.Serializable]
+        public struct EmbeddedSettings
+        {
+            public bool IsEmbedded;
+            public EmbeddedSource SourceType;
+
+            public static EmbeddedSettings Default => new EmbeddedSettings
+            {
+                IsEmbedded = false,
+                SourceType = EmbeddedSource.BEEUrl
+            };
+
+            public static EmbeddedSettings Addressable => new EmbeddedSettings
+            {
+                IsEmbedded = true,
+                SourceType = EmbeddedSource.Addressable
+            };
+
+            public static EmbeddedSettings BEEUrl => new EmbeddedSettings
+            {
+                IsEmbedded = true,
+                SourceType = EmbeddedSource.BEEUrl
+            };
+        }
+
+        [System.Serializable]
         public class ItemKey
         {
             public BundledContentHolder.Mode Mode;
             public BundledContentHolder.PlacementType PlacementType;
             public string Url;
             public string Pass;
-            public bool IsEmbedded = false;
+            public EmbeddedSettings EmbeddedSettings = EmbeddedSettings.Default;
             public PinnedSettings PinnedSettings = PinnedSettings.Default; // contains the pinned settings of an item key if it was pinned
         }
 
@@ -189,7 +221,7 @@ namespace Basis.Scripts.UI.UI_Panels
             {
                 var cur = keys.Data[i];
                 // Embedded items: match by Url only
-                if (k.IsEmbedded && cur.IsEmbedded)
+                if (k.EmbeddedSettings.IsEmbedded && cur.EmbeddedSettings.IsEmbedded)
                 {
                     if (cur.Url == k.Url)
                         return i;
@@ -215,7 +247,7 @@ namespace Basis.Scripts.UI.UI_Panels
                 if (key == null)
                     continue;
 
-                if (!key.IsEmbedded)
+                if (!key.EmbeddedSettings.IsEmbedded)
                 {
                     filtered.Add(key);
                     continue;
@@ -250,7 +282,7 @@ namespace Basis.Scripts.UI.UI_Panels
                         PlacementType = item.PlacementType,
                         Url = item.Url,
                         Pass = item.Pass,
-                        IsEmbedded = true,
+                        EmbeddedSettings = item.EmbeddedSettings,
                         PinnedSettings = PinnedSettings.Default
                     };
 

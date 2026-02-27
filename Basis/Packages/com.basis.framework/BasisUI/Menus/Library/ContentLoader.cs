@@ -1,6 +1,6 @@
 using System;
-using System.Threading;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
@@ -64,7 +64,7 @@ namespace Basis.BasisUI
 
         public static async Task LoadProp(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType desiredNetworkType, bool persistent = false, bool modifyScale = false)
         {
-            if (CachedMetaData.TryGetMeta(item.Url, out var cached) || item.IsEmbedded)
+            if (CachedMetaData.TryGetMeta(item.Url, out var cached) || (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable))
             {
                 Vector3 finalPos = Vector3.zero;
                 Quaternion finalRot = Quaternion.identity;
@@ -87,7 +87,7 @@ namespace Basis.BasisUI
                         BasisMainMenu.Close();
 
                         BasisBounds FinalBounds = cached.BasisBundleConnector.Bounds;
-                        if (item.IsEmbedded)
+                        if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
                         {
                             FinalBounds = EmbeddedItems.GetBoundsForEmbeddedItem(item);
                         }
@@ -97,7 +97,7 @@ namespace Basis.BasisUI
                         (Vector3 spawnPos, Quaternion spawnRot, Vector3 spawnScale) placementResult;
                         try
                         {
-                            placementResult = await PlacementManager.BeginPlacement(input, FinalBounds.extents,FinalBounds.center);
+                            placementResult = await PlacementManager.BeginPlacement(input, FinalBounds.extents, FinalBounds.center);
                         }
                         catch (TaskCanceledException)
                         {
@@ -138,13 +138,13 @@ namespace Basis.BasisUI
                         {
                             Transform parentTarget = BasisDeviceManagement.Instance.transform;
 
-                            if (item.IsEmbedded)
+                            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
                             {
                                 // for the moment embedded items are one instance
                                 // lets check if it already exists
                                 bool exists = BasisRuntimeSpawnRegistry.HasAny(item.Url);
 
-                                if(exists)
+                                if (exists)
                                 {
                                     // Get the actual SpawnInstance
                                     var singleInstance = BasisRuntimeSpawnRegistry.GetInstances(item.Url)[0];
@@ -156,8 +156,8 @@ namespace Basis.BasisUI
 
                                         // lets delete it
                                         // if the gameobject is not null then lets remove its registery
-                                        bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId( singleInstance.LoadedNetID );
-                                        if(success)
+                                        bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(singleInstance.LoadedNetID);
+                                        if (success)
                                         {
                                             // we should delete the embedded item
                                             GameObject.Destroy(go);
@@ -167,10 +167,10 @@ namespace Basis.BasisUI
                                             BasisDebug.LogError($"failed to remove item = {singleInstance.InstanceId} that has itemKey.SpawnMethod = {singleInstance.SpawnMethod} from basis BasisRuntimeSpawnRegistry");
                                         }
                                     }
-                                    
+
                                 }
                                 else
-                                {    
+                                {
                                     AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
                                     GameObject CreatedObject = op.WaitForCompletion();
                                     GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
@@ -202,7 +202,14 @@ namespace Basis.BasisUI
                                     if (createdObject != null)
                                     {
                                         Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}.");
-                                        BasisRuntimeSpawnRegistry.AddGameObject(item.Url,createdObject.name, createdObject,item.IsEmbedded, BasisRuntimeSpawnRegistry.SpawnMethod.Local,out var instance);
+                                        BasisRuntimeSpawnRegistry.AddGameObject(
+                                            item.Url,
+                                            createdObject.name,
+                                            createdObject,
+                                            item.EmbeddedSettings.IsEmbedded,
+                                            BasisRuntimeSpawnRegistry.SpawnMethod.Local
+                                            , out var instance
+                                        );
                                     }
                                     else
                                     {
