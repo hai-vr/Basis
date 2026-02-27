@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 using UnityEngine.UI;
@@ -545,6 +546,12 @@ namespace Basis.BasisUI
             // Try get cached meta once
             CachedMetaData.CachedContent cachedMeta;
             CachedMetaData.TryGetMeta(urlKey, out cachedMeta);
+
+            // show already selected avatar
+            if(item.Mode == BundledContentHolder.Mode.Avatar)
+            {
+                buttonPanel.ButtonStyling.ShowIndicator(item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+            }
 
             if (item.PinnedSettings.IsPinned)
             {
@@ -1142,6 +1149,14 @@ namespace Basis.BasisUI
             switch(item.Mode)
             {
                 case BundledContentHolder.Mode.Avatar:
+                bool sameAvatar = item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+                if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent))
+                {
+                    // if the item is embedded dont interact
+                    loadButtonComponent.interactable = !sameAvatar;
+                }
+                loadPanelButton.Descriptor.SetTitle(sameAvatar ? "You are already in this avatar" : "Load");
+                break;
                 case BundledContentHolder.Mode.World:
                 loadPanelButton.Descriptor.SetTitle("Load");
                 break;
@@ -1170,6 +1185,10 @@ namespace Basis.BasisUI
                 {
                     // just close the overlay instead.
                     existingItemDialog.CloseWithResult(null);
+
+                    // only refresh on avatar change to show status indicator update
+                    if(item.Mode == BundledContentHolder.Mode.Avatar)
+                        await RefreshCurrentTab();
                 }
             };
         }
