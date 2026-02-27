@@ -1,13 +1,11 @@
-using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-
+using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
-
 using static Basis.BasisUI.LibraryProvider;
 
 namespace Basis.BasisUI
@@ -90,7 +88,7 @@ namespace Basis.BasisUI
 
             // perform the action to download the file or grab it from disc?
             await BasisBeeManagement.HandleMetaOnlyLoad(newWrapper.basisTrackedBundleWrapper, Report, CancellationSource.Token);
-            
+
             // grab the wrapper from disc, we can pass in our wrapper
             return await LoadWrapperFromDisc(item, newWrapper);
         }
@@ -99,8 +97,8 @@ namespace Basis.BasisUI
         {
             // grab the wrapper from disc, we can pass in our wrapper
             BasisLoadableBundleWrapper wrapper = await CreateWrapperAndPerformMetaOnlyLoad(item);//on disc call? 
-            
-            if(wrapper == null)
+
+            if (wrapper == null)
             {
                 BasisDebug.LogError("Missing Wrapper!, was the data provided correct?");
                 return null;
@@ -134,7 +132,7 @@ namespace Basis.BasisUI
         public static async Task PreloadMetaDataForItem(BasisDataStoreItemKeys.ItemKey item)
         {
             if (item == null) return;
-            
+
             var urlKey = item.Url ?? string.Empty;
             if (ContainsMetaData(urlKey)) return;
 
@@ -142,13 +140,11 @@ namespace Basis.BasisUI
             {
                 CachedContent cached = null;
 
-                if(item.IsEmbedded)
+                if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
                 {
-                    switch( item.Mode )
+                    switch (item.Mode)
                     {
                         case BundledContentHolder.Mode.Avatar:
-                            cached = await CacheNewItem(item);
-                            break;
                         case BundledContentHolder.Mode.Prop:
                             cached = new CachedContent
                             {

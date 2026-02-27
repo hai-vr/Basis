@@ -1,3 +1,10 @@
+using System;
+using System.Collections;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Threading.Tasks;
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Command_Line_Args;
@@ -7,13 +14,6 @@ using Basis.Scripts.Player;
 using Basis.Scripts.TransformBinders;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.UI.UI_Panels;
-using System;
-using System.Collections;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Threading.Tasks;
 using uLipSync;
 using UnityEngine;
 using UnityEngine.ResourceManagement.ResourceProviders;
@@ -244,9 +244,9 @@ namespace Basis.Scripts.Device_Management
                     ItemKey ItemKey = new ItemKey
                     {
                         Url = Key.Url,
-                        IsEmbedded = false,
                         Pass = Key.Pass,
-                        Mode = BundledContentHolder.Mode.Avatar
+                        Mode = BundledContentHolder.Mode.Avatar,
+                        EmbeddedSettings = EmbeddedSettings.Default
                     };
 
                     await BasisDataStoreItemKeys.AddNewKey(ItemKey);

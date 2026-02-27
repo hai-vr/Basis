@@ -1,11 +1,11 @@
-using Basis.BasisUI.Styling;
-using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Basis.BasisUI.Styling;
+using Basis.Scripts.UI.UI_Panels;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -35,11 +35,6 @@ namespace Basis.BasisUI
                 BundledContentHolder.Mode.Avatar => Page.Avatar,
                 _ => throw new System.ArgumentException($"Cannot map mode {mode} to a Page")
             };
-        }
-
-        public static bool IsProp(BasisDataStoreItemKeys.ItemKey item)
-        {
-            return item.Mode == BundledContentHolder.Mode.Prop;
         }
 
         public static void RefreshPinnedProviders()
@@ -235,7 +230,7 @@ namespace Basis.BasisUI
 
 
             // add our extra menu button items, this is the buttons below the panel content
-            tabGroup.AddExtraAction("Add New Content", async () => await PromptUserForNewContent(), new Vector2( 70, 80 ));
+            tabGroup.AddExtraAction("Add New Content", async () => await PromptUserForNewContent(), new Vector2(70, 80));
 
             // set the current tab to the current page
             tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
@@ -464,7 +459,7 @@ namespace Basis.BasisUI
                         data = data.Where(k =>
                         {
                             var url = k.Url ?? string.Empty;
-                            if (k.IsEmbedded)
+                            if (k.EmbeddedSettings.IsEmbedded && k.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
                             {
                                 if (!string.IsNullOrEmpty(url) && url.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) >= 0)
                                 {
@@ -500,7 +495,7 @@ namespace Basis.BasisUI
                             data = data.OrderBy(k =>
                             {
                                 // Embedded items always treated as the oldest possible date
-                                if (k.IsEmbedded)
+                                if (k.EmbeddedSettings.IsEmbedded && k.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
                                     return DateTime.MinValue;
 
                                 var url = k.Url ?? string.Empty;
@@ -515,7 +510,7 @@ namespace Basis.BasisUI
                             data = data.OrderByDescending(k =>
                             {
                                 // Embedded items always treated as the oldest possible date
-                                if (k.IsEmbedded)
+                                if (k.EmbeddedSettings.IsEmbedded && k.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
                                     return DateTime.MinValue;
 
                                 var url = k.Url ?? string.Empty;
@@ -596,9 +591,9 @@ namespace Basis.BasisUI
                     .ToArray();
             contentTypeDropDown.Descriptor.SetTitle("Content Type");
             contentTypeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.FileTray);
-            contentTypeDropDown.Descriptor.SetDescription( "What content are you adding?" );
+            contentTypeDropDown.Descriptor.SetDescription("What content are you adding?");
             contentTypeDropDown.AssignEntries(modeNames.ToList());
-            
+
             // derive the default selected mode from the currently active tab, so if the user is browsing avatars and clicks "Add New CachedContent"
             contentTypeDropDown.SetValueWithoutNotify(modeNames[0]);
             contentTypeDropDown.Descriptor.SetHeight(50);
@@ -651,7 +646,7 @@ namespace Basis.BasisUI
         }
 
         // not super clean but will do for now, used to update interactable input fields
-        private static void UpdateInputFieldInteractability( PanelTextField URLTextField, PanelPasswordField PasswordTextField, DialogBox<BasisDataStoreItemKeys.ItemKey> activeDialog )
+        private static void UpdateInputFieldInteractability(PanelTextField URLTextField, PanelPasswordField PasswordTextField, DialogBox<BasisDataStoreItemKeys.ItemKey> activeDialog)
         {
             URLTextField._inputField.interactable = !activeDialog.IsBusy;
             PasswordTextField._inputField.interactable = !activeDialog.IsBusy;
@@ -791,7 +786,7 @@ namespace Basis.BasisUI
                                     BundledContentHolder.Mode itemType = BundledContentHolder.Mode.Legacy;
 
                                     // grab the meta data
-                                    if(loaded.BasisLoadableBundle?.BasisBundleConnector?.MetaData != null)
+                                    if (loaded.BasisLoadableBundle?.BasisBundleConnector?.MetaData != null)
                                     {
                                         if (loaded.BasisLoadableBundle.BasisBundleConnector.MetaData.ComponentNames != null)
                                         {
@@ -829,13 +824,13 @@ namespace Basis.BasisUI
                                     }
 
                                     // if the provided content did not change the item type assume its legacy or old BEE file with no metadata
-                                    if(itemType == BundledContentHolder.Mode.Legacy)
+                                    if (itemType == BundledContentHolder.Mode.Legacy)
                                     {
                                         // prompt them for what content
                                         itemType = await PromptUserToDefineLegacyContent();
-                                        
+
                                         // if for whatever reason they did not enter anything else other than legacy?
-                                        if(itemType == BundledContentHolder.Mode.Legacy)
+                                        if (itemType == BundledContentHolder.Mode.Legacy)
                                         {
                                             // Still legacy? Yea no goodbye
                                             throw new Exception("Request Denied. Please specify content type for your legacy content.");
@@ -849,7 +844,7 @@ namespace Basis.BasisUI
 
                                     // change the focus of the UI to goto where the users newly added content is
                                     _currentPage = ModeToPage(itemType);
-                                    
+
                                     tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
 
                                     // switch to the page
@@ -988,9 +983,9 @@ namespace Basis.BasisUI
         #region Loading Dialog
 
         private static async Task<bool> PromptUserLoadingInProgress(
-            BasisDataStoreItemKeys.ItemKey item, 
-            BundledContentHolder.NetworkType networkType = BundledContentHolder.NetworkType.Local, 
-            bool persistence = false, 
+            BasisDataStoreItemKeys.ItemKey item,
+            BundledContentHolder.NetworkType networkType = BundledContentHolder.NetworkType.Local,
+            bool persistence = false,
             bool modifyScale = false
         )
         {
@@ -1047,8 +1042,8 @@ namespace Basis.BasisUI
             }
             else
             {
-                if(item.IsEmbedded)
-                {    
+                if (item.EmbeddedSettings.IsEmbedded)
+                {
                     PanelImage embeddedIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
                     embeddedIcon.SetIcon(AddressableAssets.GetSprite(AddressableAssets.Sprites.Locked), true);
                     embeddedIcon.rectTransform.anchorMin = new Vector2(1, 1);
@@ -1059,7 +1054,7 @@ namespace Basis.BasisUI
                 }
             }
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 // TODO fix representation for stacked icons
                 // // create an image for this card in top right with an offset of -35, -35
@@ -1155,7 +1150,7 @@ namespace Basis.BasisUI
             // default string text for embedded item
             string embedItem = "Emebbed item";
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 description = new BasisBundleDescription()
                 {
@@ -1252,7 +1247,7 @@ namespace Basis.BasisUI
 
             string creationDate = string.Empty; // get the creation date of the basis bundle
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 creationDate = embedItem;
             }
@@ -1298,7 +1293,7 @@ namespace Basis.BasisUI
             platformIconsTextField.Descriptor.SetHeight(130);
             platformIconsTextField.Descriptor.SetWidth(400);
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 platformIconsTextField.Descriptor.SetDescription($"All - Embedded Item");
             }
@@ -1353,7 +1348,7 @@ namespace Basis.BasisUI
 
             long polygonCount = 0;
 
-            if (item.IsEmbedded  && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 polygonCount = 0;
             }
@@ -1378,7 +1373,7 @@ namespace Basis.BasisUI
 
             long materialCount = 0;
 
-            if (item.IsEmbedded  && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 materialCount = 0;
             }
@@ -1403,7 +1398,7 @@ namespace Basis.BasisUI
 
             long boneCount = 0;
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 boneCount = 0;
             }
@@ -1428,7 +1423,7 @@ namespace Basis.BasisUI
 
             string itemID = string.Empty; // item id
 
-            if (item.IsEmbedded && IsProp(item))
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 itemID = embedItem;
             }
@@ -1530,7 +1525,7 @@ namespace Basis.BasisUI
                     if (dropdown.DropdownComponent != null)
                     {
                         // if the item is embedded dont interact
-                        dropdown.DropdownComponent.interactable = !item.IsEmbedded;
+                        dropdown.DropdownComponent.interactable = !(item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable);
                     }
                 }
 
@@ -1565,7 +1560,7 @@ namespace Basis.BasisUI
                 if (contentPersistenceToggle.Descriptor.gameObject.TryGetComponent<Toggle>(out Toggle toggle))
                 {
                     // if the item is embedded dont interact
-                    toggle.interactable = !item.IsEmbedded;
+                    toggle.interactable = !item.EmbeddedSettings.IsEmbedded;
                 }
             }
 
@@ -1586,13 +1581,13 @@ namespace Basis.BasisUI
             if (deletePanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button deleteButtonComponent))
             {
                 // if the item is embedded dont interact
-                deleteButtonComponent.interactable = !item.IsEmbedded;
+                deleteButtonComponent.interactable = !item.EmbeddedSettings.IsEmbedded;
             }
 
             // upon delete we do these actions
             deletePanelButton.OnClicked += async () =>
             {
-                if(item.IsEmbedded) return; // prevent delete button working on embedded items
+                if (item.EmbeddedSettings.IsEmbedded) return; // prevent delete button working on embedded items
                 if (existingItemDialog.IsBusy) return;
                 existingItemDialog.IsBusy = true;
 
@@ -1618,7 +1613,7 @@ namespace Basis.BasisUI
                 try
                 {
                     //BasisDebug.Log($"Load Button Clicked for item: {item.Url}");
-                    
+
                     bool success = await PromptUserLoadingInProgress(item, desiredNetworkType, !ephemeral);
                 }
                 catch (Exception ex)
@@ -1736,18 +1731,18 @@ namespace Basis.BasisUI
             removeItem.OnClicked += async () =>
             {
                 BasisDebug.Log($"CreateListEntry() -> requested removal of item = {itemKey.Url} of instanceID = {instanceID} of SpawnMethod = {itemKey.SpawnMethod} and SpawnMode = {itemKey.SpawnMode}");
-                
-                switch(itemKey.SpawnMethod)
+
+                switch (itemKey.SpawnMethod)
                 {
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
 
                         // if the item is local and embedded lets actually try get the gameobject first
-                        if(BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(itemKey.LoadedNetID, out GameObject go) && go != null)
+                        if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(itemKey.LoadedNetID, out GameObject go) && go != null)
                         {
                             // if the gameobject is not null then lets remove its registery
-                            bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId( itemKey.LoadedNetID );
-                            if(success)
+                            bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(itemKey.LoadedNetID);
+                            if (success)
                             {
                                 // we should delete the embedded item
                                 GameObject.Destroy(go);
@@ -1760,19 +1755,19 @@ namespace Basis.BasisUI
                         }
                         break;
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
-                    switch (itemKey.SpawnMode)
-                    {
-                        case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
-                            BasisNetworkSpawnItem.RequestGameObjectUnLoad(itemKey.LoadedNetID);
-                            break;
-                        case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
-                            BasisNetworkSpawnItem.RequestSceneUnLoad(itemKey.LoadedNetID);
-                            break;
-                        default:
-                            BasisDebug.LogWarning($"Missing Spawn Method! {itemKey.SpawnMode}");
-                            break;
-                    }
-                    break;
+                        switch (itemKey.SpawnMode)
+                        {
+                            case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
+                                BasisNetworkSpawnItem.RequestGameObjectUnLoad(itemKey.LoadedNetID);
+                                break;
+                            case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+                                BasisNetworkSpawnItem.RequestSceneUnLoad(itemKey.LoadedNetID);
+                                break;
+                            default:
+                                BasisDebug.LogWarning($"Missing Spawn Method! {itemKey.SpawnMode}");
+                                break;
+                        }
+                        break;
                 }
                 await RefreshCurrentTab();
             };

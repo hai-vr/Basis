@@ -14,7 +14,7 @@ namespace Basis.BasisUI
         {
             _key = item;
             _title = LibraryProvider.TitleToCase(cachedItemData.BasisBundleConnector.BasisBundleDescription.AssetBundleName);
-            _iconAddress = item.IsEmbedded ? EmbeddedItems.GetAddressableSpriteForEmbeddedItem(item) : AddressableAssets.Sprites.Items;
+            _iconAddress = (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable) ? EmbeddedItems.GetAddressableSpriteForEmbeddedItem(item) : AddressableAssets.Sprites.Items;
         }
 
         public override string Title => _title; // or a nicer name
@@ -25,9 +25,9 @@ namespace Basis.BasisUI
         public override async void RunAction()
         {
             // load / spawn / do whatever
-            BasisDebug.Log( $"Pinned Provider Action for item = {_key.Url}" );
-            await LibraryProvider.LoadSelectedItem(_key, _key.PinnedSettings.NetworkType, !_key.PinnedSettings.IsEphemeral); 
+            BasisDebug.Log($"Pinned Provider Action for item = {_key.Url}");
+            await LibraryProvider.LoadSelectedItem(_key, _key.PinnedSettings.NetworkType, !_key.PinnedSettings.IsEphemeral);
         }
-        
+
     }
 }
