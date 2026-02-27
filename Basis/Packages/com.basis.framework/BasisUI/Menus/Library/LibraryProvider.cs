@@ -1149,22 +1149,20 @@ namespace Basis.BasisUI
             switch(item.Mode)
             {
                 case BundledContentHolder.Mode.Avatar:
+                bool sameAvatar = item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+                if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent))
+                {
+                    // if the item is embedded dont interact
+                    loadButtonComponent.interactable = !sameAvatar;
+                }
+                loadPanelButton.Descriptor.SetTitle(sameAvatar ? "You are already in this avatar" : "Load");
+                break;
                 case BundledContentHolder.Mode.World:
                 loadPanelButton.Descriptor.SetTitle("Load");
                 break;
                 case BundledContentHolder.Mode.Prop:
                 loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : "Spawn");
                 break;
-            }
-
-            // DISABLE THIS BUTTON IF WE ARE IN THE SAME AVATAR
-            if(item.Mode == BundledContentHolder.Mode.Avatar)
-            {    
-                if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent))
-                {
-                    // if the item is embedded dont interact
-                    loadButtonComponent.interactable = !(item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
-                }
             }
 
             loadPanelButton.Descriptor.SetWidth(620);
