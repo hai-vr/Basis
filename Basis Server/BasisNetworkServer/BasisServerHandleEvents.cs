@@ -512,7 +512,14 @@ namespace BasisServerHandle
         public static void LoadResource(NetPacketReader Reader, NetPeer Peer)
         {
             LocalLoadResource LocalLoadResource = new LocalLoadResource();
+
+            if (NetworkServer.AuthIdentity.NetIDToUUID(Peer, out string uuid) == false)
+            {
+                BNL.LogError($"User UUID not found for peer: {Peer}");
+                return;
+            }
             LocalLoadResource.Deserialize(Reader);
+            LocalLoadResource.IsAdminLocked = NetworkServer.AuthIdentity.IsNetPeerAdmin(uuid);
             Reader.Recycle();
             //returns a message with the ushort back to the client, or it sends it to everyone if its new.
             BasisNetworkResourceManagement.LoadResource(LocalLoadResource);

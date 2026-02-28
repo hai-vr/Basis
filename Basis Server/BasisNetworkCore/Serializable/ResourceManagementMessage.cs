@@ -41,11 +41,11 @@ public static partial class SerializableBasis
 
         /// <summary>
         /// normal users cant remove these items
+        /// never net written just handled by server
         /// </summary>
         public bool IsAdminLocked;
         public void Deserialize(NetDataReader Writer)
         {
-            IsAdminLocked = Writer.GetBool();
             Mode = Writer.GetByte();
             LoadedNetID = Writer.GetString();
             UnlockPassword = Writer.GetString();
@@ -70,7 +70,6 @@ public static partial class SerializableBasis
         }
         public void Serialize(NetDataWriter Writer)
         {
-            Writer.Put(IsAdminLocked);
             Writer.Put(Mode);
             Writer.Put(LoadedNetID);
             Writer.Put(UnlockPassword);
