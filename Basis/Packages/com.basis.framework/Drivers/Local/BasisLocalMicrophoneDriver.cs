@@ -74,7 +74,8 @@ public static class BasisLocalMicrophoneDriver
     private static float[] _tmp480;
 
     private static string _pendingDeviceWhenPaused = null;
-
+    private static int channels = 1;
+    private static float[] _micInterleaved; // raw clip data (frames * channels)
     private static bool IsPaused
     {
         get => isPaused;
@@ -146,11 +147,15 @@ public static class BasisLocalMicrophoneDriver
 
         _tmp480 = null;
         clip = null;
+
+        _micInterleaved = null;
         microphoneBufferArray = null;
         processBufferArray = null;
+
         rmsValues = null;
         _denoiseDry = null;
 
+        channels = 1;
         IsInitialize = false;
         BasisDebug.Log("Microphone Driver Deinitialized.");
     }
@@ -264,14 +269,30 @@ public static class BasisLocalMicrophoneDriver
             }
 
             LocalOpusSettings.SetDeviceAudioConfig(maxFreq);
-            clip = Microphone.Start(newMicrophone, true, LocalOpusSettings.RecordingFullLength, LocalOpusSettings.MicrophoneSampleRate);
+
+            clip = Microphone.Start(newMicrophone,true, LocalOpusSettings.RecordingFullLength, LocalOpusSettings.MicrophoneSampleRate);
 
             head = 0;
             position = 0;
 
+            // Unity clip samples are in FRAMES (per-channel samples at a time index)
+            // GetData returns floats = frames * channels (interleaved)
+            channels = (clip != null) ? clip.channels : 1;
+            if (channels < 1)
+            {
+                channels = 1;
+            }
+
+            // circular buffer length in FRAMES (what your head/position math uses)
             bufferLength = LocalOpusSettings.RecordingFullLength * LocalOpusSettings.MicrophoneSampleRate;
+
+            // raw interleaved buffer for clip.GetData
+            CreateOrResizeArray(bufferLength * channels, ref _micInterleaved);
+
+            // mono circular buffer (downmixed)
             LocalOpusSettings.CreateOrResizeArray(bufferLength, ref microphoneBufferArray);
 
+            // processBufferArray is mono frame sized (your existing pipeline)
             LocalOpusSettings.EnsureProcessBuffer(ref processBufferArray, out SampleRate);
 
             CreateOrResizeArray(SampleRate, ref _denoiseDry);
@@ -286,9 +307,10 @@ public static class BasisLocalMicrophoneDriver
             warmupSamples = SampleRate * 2;
             inWarmup = true;
 
-            Array.Clear(microphoneBufferArray, 0, microphoneBufferArray.Length);
-            Array.Clear(processBufferArray, 0, processBufferArray.Length);
-            Array.Clear(_denoiseDry, 0, _denoiseDry.Length);
+            if (_micInterleaved != null) Array.Clear(_micInterleaved, 0, _micInterleaved.Length);
+            if (microphoneBufferArray != null) Array.Clear(microphoneBufferArray, 0, microphoneBufferArray.Length);
+            if (processBufferArray != null) Array.Clear(processBufferArray, 0, processBufferArray.Length);
+            if (_denoiseDry != null) Array.Clear(_denoiseDry, 0, _denoiseDry.Length);
 
             Denoiser ??= new RNNoise.NET.Denoiser();
 
@@ -325,6 +347,7 @@ public static class BasisLocalMicrophoneDriver
         inWarmup = false;
         warmupSamples = 0;
 
+        if (_micInterleaved != null) Array.Clear(_micInterleaved, 0, _micInterleaved.Length);
         if (microphoneBufferArray != null) Array.Clear(microphoneBufferArray, 0, microphoneBufferArray.Length);
         if (processBufferArray != null) Array.Clear(processBufferArray, 0, processBufferArray.Length);
 
@@ -381,10 +404,34 @@ public static class BasisLocalMicrophoneDriver
         position = currentPosition;
         if (position <= 0) return;
 
-        clip.GetData(microphoneBufferArray, 0);
+        // ===== FIX: GetData needs frames*channels float buffer =====
+        // Ensure _micInterleaved is correct size (in case device changed mid-flight)
+        int clipFrames = clip.samples; // frames in the clip (per channel)
+        if (clipFrames <= 0) return;
 
-        int dataLength = GetDataLength(bufferLength, head, position);
+        int ch = clip.channels;
+        if (ch < 1) ch = 1;
+
+        // keep globals coherent (device can sometimes report different channels after restart)
+        channels = ch;
+
+        // Safety: bufferLength should match clipFrames (it usually does)
+        // If mismatch happens, clamp operations to the min to avoid out-of-range.
+        int framesToUse = Mathf.Min(bufferLength, clipFrames);
+
+        CreateOrResizeArray(framesToUse * channels, ref _micInterleaved);
+        LocalOpusSettings.CreateOrResizeArray(framesToUse, ref microphoneBufferArray);
+
+        clip.GetData(_micInterleaved, 0);
+
+        // ===== Downmix interleaved -> mono ONLY for newly available frames =====
+        // dataLength is in FRAMES, not floats
+        int dataLength = GetDataLength(framesToUse, head, position);
         if (dataLength < SampleRate) return;
+
+        // Convert the delta region [head .. position) in the ring buffer.
+        // Because GetData gives us a full snapshot, we can downmix the exact region we need.
+        DownmixRingDeltaToMono(framesToUse, head, position, channels, _micInterleaved, microphoneBufferArray);
 
         processingEvent.Set();
 
@@ -392,6 +439,48 @@ public static class BasisLocalMicrophoneDriver
             MainThreadOnHasAudio?.Invoke();
         else if (Interlocked.Exchange(ref _scheduleMainHasSilence, 0) == 1)
             MainThreadOnHasSilence?.Invoke();
+    }
+    private static void DownmixRingDeltaToMono(int ringFrames, int headFrame, int posFrame, int ch, float[] srcInterleaved, float[] dstMono)
+    {
+        if (srcInterleaved == null || dstMono == null) return;
+        if (ch < 1) ch = 1;
+
+        // copy head..pos with wrap
+        if (posFrame >= headFrame)
+        {
+            DownmixRange(headFrame, posFrame - headFrame, ringFrames, ch, srcInterleaved, dstMono);
+        }
+        else
+        {
+            // head..end
+            int countA = ringFrames - headFrame;
+            DownmixRange(headFrame, countA, ringFrames, ch, srcInterleaved, dstMono);
+            // 0..pos
+            DownmixRange(0, posFrame, ringFrames, ch, srcInterleaved, dstMono);
+        }
+    }
+
+    private static void DownmixRange(int startFrame, int frameCount, int ringFrames, int ch, float[] srcInterleaved, float[] dstMono)
+    {
+        // srcInterleaved is length ringFrames * ch, interleaved
+        // dstMono is length ringFrames
+        int end = startFrame + frameCount;
+
+        if (ch == 1)
+        {
+            // Fast path: copy mono frames directly
+            // src index is startFrame * 1
+            Array.Copy(srcInterleaved, startFrame, dstMono, startFrame, frameCount);
+            return;
+        }
+
+        for (int f = startFrame; f < end; f++)
+        {
+            int baseIdx = f * ch;
+            float sum = 0f;
+            for (int c = 0; c < ch; c++) sum += srcInterleaved[baseIdx + c];
+            dstMono[f] = sum / ch;
+        }
     }
 
     private static void StartProcessingThread()
