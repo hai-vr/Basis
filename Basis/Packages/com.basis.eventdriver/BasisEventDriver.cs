@@ -155,7 +155,7 @@ public class BasisEventDriver : MonoBehaviour
     {
         // Network apply step + gameplay sync
         BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);//apply latest pickup data
-        BasisLocalPlayer.FireJustBeforeNetworkApply(); //hook for network events good for vehicles 
+        BasisLocalPlayer.FireJustBeforeNetworkApply(); //hook for network events good for vehicles
         BasisNetworkManagement.SimulateNetworkApply(); // begin computing player data.
         BasisObjectSyncDriver.CompleteScheduledRemoteLerp(); // apply movement of all pickups
         // Device management tick
@@ -183,7 +183,7 @@ public class BasisEventDriver : MonoBehaviour
         }
         if (BasisLocalPlayer.PlayerReady)
         {
-            BasisLocalPlayer.Instance.LocalEyeDriver.Apply();//local eye driver 
+            BasisLocalPlayer.Instance.LocalEyeDriver.Apply();//local eye driver
 
         }
         BasisRemoteAudioDriver.Apply(); //apply visemes
@@ -194,6 +194,7 @@ public class BasisEventDriver : MonoBehaviour
             BasisLocalPlayer.Instance.Simulate(DeltaTime);//update local player
             BasisLocalCameraDriver.Instance.Simulate();
         }
+        BasisAvatarDriver.ScheduleReadBlendShapes();
         // JigglePhysics: schedule/complete passes
         JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime); //schedule jiggles
         // send out avatar
@@ -217,6 +218,7 @@ public class BasisEventDriver : MonoBehaviour
         }
         //doing main thread work before this call is ideal for best performance.
         JigglePhysics.CompletePose();
+        BasisAvatarDriver.ApplyShadowCloneBlendShapes();
 #if UNITY_SERVER
         OnBeforeRender();
 #endif
