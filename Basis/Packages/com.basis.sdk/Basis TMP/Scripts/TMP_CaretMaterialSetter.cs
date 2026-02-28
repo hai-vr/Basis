@@ -11,12 +11,9 @@ namespace Basis.BasisUI
     public class TMP_CaretMaterialSetter : MonoBehaviour
     {
         [SerializeField] private Material desiredMaterial;
-        private bool applied = false;
 
         void OnTransformChildrenChanged()
         {
-            if (applied) return;
-
             // Look for TMP_SelectionCaret among children
             var caret = GetComponentInChildren<TMP_SelectionCaret>(true);
             if (caret != null)
@@ -24,12 +21,10 @@ namespace Basis.BasisUI
                 //BasisDebug.LogWarning("caret is found setting material");
                 caret.material = desiredMaterial;
 
-                applied = true; // only run once
+                // Job done — remove this component
+                Destroy(this);
             }
-            // else
-            // {
-            //     BasisDebug.LogError("caret is null");
-            // }
+            
         }
     }
 }
