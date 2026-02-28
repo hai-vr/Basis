@@ -122,9 +122,9 @@ public class BasisCursorEditorWindow : EditorWindow
             EditorGUILayout.LabelField(ctxName, EditorStyles.boldLabel);
             EditorGUILayout.LabelField("Locked", locked.ToString());
 
-            var holders = ctx.ToArray(); // snapshot (thread-safe because your LockContext locks internally)
+            var holders = ctx.ToList(); // snapshot (thread-safe because your LockContext locks internally)
 
-            if (holders.Length == 0)
+            if (holders.Count == 0)
             {
                 EditorGUILayout.LabelField("Holders", "None");
             }
