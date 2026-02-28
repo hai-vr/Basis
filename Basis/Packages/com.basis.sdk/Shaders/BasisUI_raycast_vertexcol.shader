@@ -30,6 +30,7 @@ Shader "Basis/UI/VertexColor"
 
         Cull Off
         Lighting Off
+        Fog { Mode Off }
         ZWrite Off
         ZTest Always
         Blend Off
