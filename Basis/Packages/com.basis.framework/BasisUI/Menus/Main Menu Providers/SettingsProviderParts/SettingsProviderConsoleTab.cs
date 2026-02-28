@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Basis.BasisUI.Styling;
 using TMPro;
 using UnityEngine;
 
@@ -151,6 +152,10 @@ namespace Basis.BasisUI
             text.richText = true;
             text.rectTransform.sizeDelta = new Vector2(960, 6500);
             _outputText = text;
+
+            // ensure this object is using the ui style standard
+            var label = go.AddComponent<UiStyleLabel>();
+            label.SetStyle("Element Subtitle");
         }
 
         private static void RebuildOutput()
