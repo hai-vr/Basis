@@ -76,7 +76,8 @@ namespace BasisNetworking.InitalData
                 ScaleY = config.ScaleY,
                 ScaleZ = config.ScaleZ,
                 Persist = config.Persist,
-                 ModifyScale = config.ModifyScale
+                ModifyScale = config.ModifyScale,
+                IsAdminLocked = true,
             };
         }
         public const string exampleXml = @"<BasisLoadableConfiguration>

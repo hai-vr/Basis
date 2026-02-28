@@ -524,7 +524,7 @@ namespace BasisServerHandle
             UnLoadResource.Deserialize(Reader);
             Reader.Recycle();
             //returns a message with the ushort back to the client, or it sends it to everyone if its new.
-            BasisNetworkResourceManagement.UnloadResource(UnLoadResource);
+            BasisNetworkResourceManagement.UnloadResource(UnLoadResource, Peer);
             //we need to convert the string int a  ushort.
         }
         #endregion

@@ -1,5 +1,4 @@
 using Basis.Network.Core;
-using BasisNetworkCore;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -78,19 +77,48 @@ public static class BasisNetworkResourceManagement
             BNL.LogError("Already have Object Loaded With " + LocalLoadResource.LoadedNetID);
         }
     }
-    public static void UnloadResource(UnLoadResource UnLoadResource)
+    public static void UnloadResource(UnLoadResource unLoadResource, NetPeer peer)
     {
-        if (UshortNetworkDatabase.TryRemove(UnLoadResource.LoadedNetID,out LocalLoadResource Resource))
+        if (!UshortNetworkDatabase.TryGetValue(unLoadResource.LoadedNetID, out LocalLoadResource resource))
         {
-            NetDataWriter Writer = new NetDataWriter(true);
-            UnLoadResource.Serialize(Writer);
-            BNL.Log("Removing Object " + UnLoadResource.LoadedNetID);
-            NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
-            NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.UnloadResourceChannel, peers, DeliveryMethod.ReliableOrdered);
+            BNL.LogError($"Trying to unload an object that does not exist! ID Provided was [{unLoadResource.LoadedNetID}]");
+            return;
         }
-        else
+
+        // Admin lock validation
+        if (resource.IsAdminLocked)
         {
-            BNL.LogError($"Trying to unload a object that does not exist! ID Proved was [{UnLoadResource.LoadedNetID}]");
+            if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid))
+            {
+                BNL.LogError($"User UUID not found for peer: {peer}");
+                return;
+            }
+
+            if (!NetworkServer.AuthIdentity.IsNetPeerAdmin(uuid))
+            {
+                BNL.LogError($"User {uuid} tried to remove admin-only object");
+                return;
+            }
         }
+
+        // Only remove AFTER validation
+        if (!UshortNetworkDatabase.TryRemove(unLoadResource.LoadedNetID, out _))
+        {
+            BNL.LogError($"Failed to remove object [{unLoadResource.LoadedNetID}] after validation.");
+            return;
+        }
+
+        NetDataWriter writer = new NetDataWriter(true);
+        unLoadResource.Serialize(writer);
+
+        BNL.Log("Removing Object " + unLoadResource.LoadedNetID);
+
+        NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+        NetworkServer.BroadcastMessageToClients(
+            writer,
+            BasisNetworkCommons.UnloadResourceChannel,
+            peers,
+            DeliveryMethod.ReliableOrdered
+        );
     }
 }
