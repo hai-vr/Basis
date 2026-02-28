@@ -1,6 +1,6 @@
 // Unity built-in shader source. Copyright (c) 2016 Unity Technologies. MIT license (see license.txt)
 
-Shader "UI/UIOverlayShader"
+Shader "Basis/UI/Main"
 {
     Properties
     {
@@ -22,7 +22,7 @@ Shader "UI/UIOverlayShader"
     {
         Tags
         {
-            "Queue"="Transparent"
+            "Queue"="Overlay"
             "IgnoreProjector"="True"
             "RenderType"="Transparent"
             "PreviewType"="Plane"
@@ -41,14 +41,14 @@ Shader "UI/UIOverlayShader"
         Cull Off
         Lighting Off
         ZWrite Off
-        ZTest [unity_GUIZTestMode]
+        ZTest Always // always render on top of everything //[unity_GUIZTestMode]
         Blend SrcAlpha OneMinusSrcAlpha
         ColorMask [_ColorMask]
+        
 
         Pass
         {
             Name "Default"
-             ZTest Always
         CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
@@ -111,6 +111,7 @@ Shader "UI/UIOverlayShader"
 
                 return color;
             }
+            
         ENDCG
         }
     }
