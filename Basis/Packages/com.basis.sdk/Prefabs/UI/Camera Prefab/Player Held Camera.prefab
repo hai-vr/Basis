@@ -7001,7 +7001,7 @@ Camera:
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 4194783
+    m_Bits: 4196319
   m_RenderingPath: -1
   m_TargetTexture: {fileID: 0}
   m_TargetDisplay: 0
@@ -8563,6 +8563,12 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 1
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 0.25
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
@@ -8579,6 +8585,9 @@ MonoBehaviour:
   InputConstraint:
     rid: 1028902784308609428
   _previousKinematicValue: 1
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
   enableScaleWithGesture: 0
   minScalePercent: 50
   maxScalePercent: 200
