@@ -48,7 +48,8 @@ namespace Cilbox
 			"<PrivateImplementationDetails>", // Probably remove me? But we need a way to handle string hashing.  We can do it with our own function but that's slower.
 
 			// Unity types
-			"UnityEngine.AudioClip",
+			"UnityEngine.Animator",
+            "UnityEngine.AudioClip",
 			"UnityEngine.AudioSource",
 			"UnityEngine.Color",
 			"UnityEngine.Component",
