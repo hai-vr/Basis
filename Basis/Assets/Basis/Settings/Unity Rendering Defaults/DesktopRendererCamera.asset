@@ -36,12 +36,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Basis Framework::CopyCameraColorToExternalRTFeature
   m_Active: 1
   settings:
-    when: 600
-    useHDR: 0
-    ldrFormat: 0
+    when: 550
+    forceHDR: 0
     srpBlitMaterial: {fileID: 2100000, guid: 782825b4e9c30e14ebdf2cfabde50055, type: 2}
     filterMode: 1
     wrapMode: 1
+    disableSrpBlitColorConversionKeywords: 1
+    matchCameraSRGB: 1
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
