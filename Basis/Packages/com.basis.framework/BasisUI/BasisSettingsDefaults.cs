@@ -5,7 +5,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> MainVolume => new("main volume", new BasisPlatformDefault<float>(75));
 
         public static BasisSettingsBinding<float> MenuVolume => new("menuvolume", new BasisPlatformDefault<float>(75));
-
+        public static BasisSettingsBinding<float> VideoVolume => new("videovolume", new BasisPlatformDefault<float>(75));
         public static BasisSettingsBinding<float> WorldVolume => new("worldvolume", new BasisPlatformDefault<float>(75));
 
         public static BasisSettingsBinding<float> PlayerVolume => new("playervolume", new BasisPlatformDefault<float>(75));

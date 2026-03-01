@@ -245,6 +245,11 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Percentage("World Volume"),
                 BasisSettingsDefaults.WorldVolume);
 
+            PanelSlider sliderVideoVolume = PanelSlider.CreateEntryAndBind(
+    mixerGroup,
+    PanelSlider.SliderSettings.Percentage("Video Volume"),
+    BasisSettingsDefaults.VideoVolume);
+
             PanelSlider sliderPlayerVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
                 PanelSlider.SliderSettings.Percentage("Player Volume"),

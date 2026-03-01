@@ -14,18 +14,19 @@ public class SMModuleAudio : BasisSettingsBase
     public static Action<float> MenusVolume;
     public static Action<float> WorldVolume;
     public static Action<float> PlayerVolume;
+    public static Action<float> VideoVolume;
 
     public static float ActiveMainVolume;
     public static float ActiveMenusVolume;
     public static float ActiveWorldVolume;
     public static float ActivePlayerVolume;
-
+    public static float ActiveVideoVolume;
     // --- Binding names (single source of truth) ---
     private static string K_MAIN_VOLUME => BasisSettingsDefaults.MainVolume.BindingKey;
     private static string K_MENU_VOLUME => BasisSettingsDefaults.MenuVolume.BindingKey;
     private static string K_WORLD_VOLUME => BasisSettingsDefaults.WorldVolume.BindingKey;
     private static string K_PLAYER_VOLUME => BasisSettingsDefaults.PlayerVolume.BindingKey;
-
+    private static string K_VIDEO_VOLUME => BasisSettingsDefaults.VideoVolume.BindingKey;
     public new void Awake()
     {
         Instance = this;
@@ -70,6 +71,14 @@ public class SMModuleAudio : BasisSettingsBase
                     BasisDebug.Log($"setting player Volume to {newPlayer}");
                     ActivePlayerVolume = ChangeVolume(newPlayer, "player");
                     PlayerVolume?.Invoke(ActivePlayerVolume);
+                }
+                break;
+            case var s when s == K_VIDEO_VOLUME:
+                if (SliderReadOption(optionValue, out float newVideo))
+                {
+                    BasisDebug.Log($"setting player Volume to {newVideo}");
+                    ActiveVideoVolume = newVideo / 100f;
+                    VideoVolume?.Invoke(ActiveVideoVolume);
                 }
                 break;
         }
