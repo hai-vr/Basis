@@ -133,6 +133,12 @@ public static partial class BasisNetworkOwnership
     {
         if (BasisNetworkPlayers.OwnershipPairing.TryGetValue(UniqueNetworkId, out ushort Unique))
         {
+            if (BasisNetworkConnection.TryGetLocalPlayerID(out ushort LocalID))
+            {
+                bool isLocalOwner = Unique == LocalID;
+
+                BasisNetworkPlayer.OnOwnershipTransfer?.Invoke(UniqueNetworkId, Unique, isLocalOwner);
+            }
             return new BasisOwnershipResult(true, Unique);
         }
 

@@ -118,6 +118,10 @@ public static class BasisNetworkGenericMessages
 
             BasisNetworkPlayer.OnOwnershipTransfer?.Invoke(OwnershipTransferMessage.ownershipID, OwnershipTransferMessage.playerIdMessage.playerID, isLocalOwner);
         }
+        else
+        {
+            BasisDebug.LogError("NO Local PLayer ID Found");
+        }
     }
     // Handler for server avatar data messages
     public static void HandleServerAvatarDataMessage(NetPacketReader reader, DeliveryMethod Method)
