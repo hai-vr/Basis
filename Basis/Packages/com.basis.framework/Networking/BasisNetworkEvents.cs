@@ -256,15 +256,19 @@ public static class BasisNetworkEvents
                 Reader.Recycle();
                 break;
                 case BasisNetworkCommons.ServerIsAdminChannel:
-                if (ValidateSize(Reader, peer, channel) == false)
+
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
                 {
+                    if (ValidateSize(Reader, peer, channel) == false)
+                    {
+                        Reader.Recycle();
+                        return;
+                    }
+                    Reader.Get(out bool IsAdmin);
+                    IsLocalAdmin?.Invoke(IsAdmin);
+                    //
                     Reader.Recycle();
-                    return;
-                }
-                Reader.Get(out bool IsAdmin);
-                IsLocalAdmin?.Invoke(IsAdmin);
-                //
-                Reader.Recycle();
+                });
                 break;
             default:
                 BNL.LogError($"this Channel was not been implemented {channel}");
