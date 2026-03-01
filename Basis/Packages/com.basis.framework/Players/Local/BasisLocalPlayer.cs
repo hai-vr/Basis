@@ -285,8 +285,7 @@ namespace Basis.Scripts.BasisSdk.Players
         /// <param name="rotation"></param>
         public void GetPositionAndRotation(out Vector3 position, out Quaternion rotation)
         {
-            position = this.transform.position;
-            rotation = this.transform.rotation;
+            this.transform.GetPositionAndRotation(out position, out rotation);
         }
 
         /// <summary>
