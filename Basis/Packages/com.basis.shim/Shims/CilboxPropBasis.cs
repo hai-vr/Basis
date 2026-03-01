@@ -93,7 +93,9 @@ namespace Cilbox
 			"UnityEngine.Vector3.y",
 			"UnityEngine.Vector3.z",
 			"Basis.Scripts.BasisSdk.Interactions.BasisPickupInteractable.OnPickupUse",
-		};
+            "Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject.OnInteractStartEvent",
+             "Basis.Scripts.BasisSdk.Interactions.BasisInteractableObject.OnInteractEndEvent",
+        };
 
 		static public HashSet<String> GetWhiteListTypes() { return whiteListType; }
 
