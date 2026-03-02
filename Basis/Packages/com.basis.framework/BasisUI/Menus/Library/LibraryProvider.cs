@@ -306,18 +306,6 @@ namespace Basis.BasisUI
             }
         }
 
-        private static void BuildItemsListForInstantiatedObjects(IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> loadedItems, PanelTabPage tab)
-        {
-            RectTransform container = tab.Descriptor.ContentParent;
-
-            foreach (var entry in loadedItems)
-            {
-                string instanceId = entry.InstanceId;
-
-                CreateListEntry(entry, container, instanceId);
-            }
-        }
-
         private static void ClearTabContent(RectTransform container)
         {
             if (container == null) return;
@@ -1281,6 +1269,18 @@ namespace Basis.BasisUI
 
         #region InstiatedListElement
 
+        private static void BuildItemsListForInstantiatedObjects(IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> loadedItems, PanelTabPage tab)
+        {
+            RectTransform container = tab.Descriptor.ContentParent;
+
+            foreach (var entry in loadedItems)
+            {
+                string instanceId = entry.InstanceId;
+
+                CreateListEntry(entry, container, instanceId);
+            }
+        }
+
         // TODO use items key
         // 
         private static void CreateListEntry(BasisRuntimeSpawnRegistry.SpawnInstance itemKey, RectTransform parentTabGroup, string instanceID)
@@ -1317,8 +1317,8 @@ namespace Basis.BasisUI
             //     Network = 2,
             // }
 
-            itemTextInfo.Descriptor.SetTitle(itemKey.Url);
-            itemTextInfo.Descriptor.SetDescription($"Persistent: {itemKey.Persistent} | Method: {itemKey.SpawnMethod} | Mode: {itemKey.SpawnMode} | UTC: {itemKey.SpawnedUtc}");
+            itemTextInfo.Descriptor.SetTitle(itemKey.bundleConnector != null ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName) : itemKey.Url);
+            itemTextInfo.Descriptor.SetDescription($"Metadata {itemKey.bundleConnector} | Persistent: {itemKey.Persistent} | Method: {itemKey.SpawnMethod} | Mode: {itemKey.SpawnMode} | UTC: {itemKey.SpawnedUtc}");
 
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);

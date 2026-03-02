@@ -174,7 +174,15 @@ namespace Basis.BasisUI
                                     AsyncOperationHandle<GameObject> op = Addressables.LoadAssetAsync<GameObject>(item.Url);
                                     GameObject CreatedObject = op.WaitForCompletion();
                                     GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
-                                    BasisRuntimeSpawnRegistry.AddGameObject(item.Url, instance.name, instance, false, BasisRuntimeSpawnRegistry.SpawnMethod.Embedded, out var embeddedinstance);
+                                    BasisRuntimeSpawnRegistry.AddGameObject(
+                                        item.Url, 
+                                        instance.name, 
+                                        instance, 
+                                        false, 
+                                        BasisRuntimeSpawnRegistry.SpawnMethod.Embedded,
+                                        null, // no metadata for embedded items
+                                         out var embeddedinstance
+                                    );
                                     BasisDebug.Log($"BasisRuntimeSpawnRegistry.AddGameObject instanceID = {embeddedinstance.InstanceId}, LoadedNetID = {embeddedinstance.LoadedNetID}");
                                 }
 
@@ -207,7 +215,8 @@ namespace Basis.BasisUI
                                             createdObject.name,
                                             createdObject,
                                             item.EmbeddedSettings.IsEmbedded,
-                                            BasisRuntimeSpawnRegistry.SpawnMethod.Local
+                                            BasisRuntimeSpawnRegistry.SpawnMethod.Local,
+                                            bundle.BasisBundleConnector
                                             , out var instance
                                         );
                                     }

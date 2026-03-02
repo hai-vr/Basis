@@ -143,7 +143,7 @@ public static class BasisNetworkSpawnItem
         BasisDebug.Log($"LoadSceneAssetBundle Complete now Starting Scene Traversal", BasisDebug.LogTag.Networking);
         SceneTraverseNetIdAssign(scene, localLoadResource);
 
-        BasisRuntimeSpawnRegistry.AddScene(localLoadResource.CombinedURL, localLoadResource.LoadedNetID, scene, localLoadResource.Persist, BasisRuntimeSpawnRegistry.SpawnMethod.Network, out var created);
+        BasisRuntimeSpawnRegistry.AddScene(localLoadResource.CombinedURL, localLoadResource.LoadedNetID, scene, localLoadResource.Persist, BasisRuntimeSpawnRegistry.SpawnMethod.Network, loadBundle.BasisBundleConnector, out var created);
         BasisDebug.Log($"Scene Load From Server Complete ", BasisDebug.LogTag.Networking);
         return scene;
     }
@@ -190,6 +190,8 @@ public static class BasisNetworkSpawnItem
             BasisProgressReport.OnProgressReport -= BasisUILoadingBar.ProgressReport;
             return null;
         }
+
+
         reference.name = localLoadResource.LoadedNetID;
         if (reference.TryGetComponent<BasisNetworkContentBase>(out BasisNetworkContentBase BasisContentBase))
         {
@@ -199,7 +201,8 @@ public static class BasisNetworkSpawnItem
         {
             BasisDebug.LogWarning($"Gameobject Did not have a class deriving from {nameof(BasisNetworkContentBase)} on it!");
         }
-        BasisRuntimeSpawnRegistry.AddGameObject(localLoadResource.CombinedURL, localLoadResource.LoadedNetID, reference, localLoadResource.Persist, BasisRuntimeSpawnRegistry.SpawnMethod.Network, out var data);
+        //BasisDebug.Log( $"SpawnGameObject -> was spawned does it have metadata? asset bundle name = {loadBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}" );
+        BasisRuntimeSpawnRegistry.AddGameObject(localLoadResource.CombinedURL, localLoadResource.LoadedNetID, reference, localLoadResource.Persist, BasisRuntimeSpawnRegistry.SpawnMethod.Network, loadBundle.BasisBundleConnector, out var data);
         BasisProgressReport.OnProgressReport -= BasisUILoadingBar.ProgressReport;
         return reference;
     }

@@ -29,12 +29,12 @@ namespace Basis
         {
             public SpawnMode SpawnMode;          // GameObject / Scene / Avatar
             public SpawnMethod SpawnMethod;      // Embedded / Local / Network
-
             public string InstanceId;       // unique per spawn (GUID)
             public string Url;              // original spawn URL / key
             public string LoadedNetID;      // what you pass to RequestGameObjectUnLoad
             public bool Persistent;
             public DateTime SpawnedUtc;
+            public BasisBundleConnector bundleConnector; // metadata for the spawned entity, assume it to be null when not present.
         }
 
         // LoadedNetID -> spawned thing (runtime references)
@@ -75,10 +75,11 @@ namespace Basis
             GameObject go,
             bool persistent,
             SpawnMethod method,
+            BasisBundleConnector basisBundleConnector,
             out SpawnInstance instance)
         {
             if (go == null) throw new ArgumentNullException(nameof(go));
-            AddInternal(url, loadedNetId, persistent, method, SpawnMode.GameObject, out instance);
+            AddInternal(url, loadedNetId, persistent, method, SpawnMode.GameObject, basisBundleConnector, out instance);
 
             // keep runtime ref
             SpawnedGameobjects[loadedNetId] = go;
@@ -90,10 +91,11 @@ namespace Basis
             Scene scene,
             bool persistent,
             SpawnMethod method,
+            BasisBundleConnector basisBundleConnector,
             out SpawnInstance instance)
         {
             if (!scene.IsValid()) throw new ArgumentException("Scene is not valid.", nameof(scene));
-            AddInternal(url, loadedNetId, persistent, method, SpawnMode.Scene, out instance);
+            AddInternal(url, loadedNetId, persistent, method, SpawnMode.Scene, basisBundleConnector, out instance);
 
             // keep runtime ref
             SpawnedScenes[loadedNetId] = scene;
@@ -106,9 +108,10 @@ namespace Basis
             bool persistent,
             SpawnMethod method,
             SpawnMode mode,
+            BasisBundleConnector bundleConnector,
             out SpawnInstance instance)
         {
-            AddInternal(url, loadedNetId, persistent, method, mode, out instance);
+            AddInternal(url, loadedNetId, persistent, method, mode, bundleConnector, out instance);
         }
 
         private static void AddInternal(
@@ -117,6 +120,7 @@ namespace Basis
             bool persistent,
             SpawnMethod method,
             SpawnMode mode,
+            BasisBundleConnector bundleConnector,
             out SpawnInstance instance)
         {
             if (string.IsNullOrWhiteSpace(url)) throw new ArgumentException("URL cannot be null/empty.", nameof(url));
@@ -137,6 +141,7 @@ namespace Basis
                 SpawnedUtc = DateTime.UtcNow,
                 SpawnMethod = method,
                 SpawnMode = mode,
+                bundleConnector = bundleConnector
             };
 
             list.Add(instance);
