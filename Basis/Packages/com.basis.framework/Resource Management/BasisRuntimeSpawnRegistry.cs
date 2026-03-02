@@ -10,6 +10,21 @@ namespace Basis
 {
     public static class BasisRuntimeSpawnRegistry
     {
+        public enum RegistryChangeType : byte
+        {
+            Added = 0,
+            Removed = 1,
+            ClearedUrl = 2,
+            ClearedAll = 3
+        }
+
+        public static event Action<RegistryChangeType, SpawnInstance> OnRegistryChanged;
+
+        private static void RaiseChanged(RegistryChangeType type, SpawnInstance instance)
+        {
+            OnRegistryChanged?.Invoke(type, instance);
+        }
+
         public enum SpawnMode : byte
         {
             GameObject = 0,
@@ -148,6 +163,9 @@ namespace Basis
 
             // uniqueness expected
             _byNetId[loadedNetId] = instance;
+
+            // raise a changed event that we added something
+            RaiseChanged(RegistryChangeType.Added, instance);
         }
 
         public static async Task<bool> RemoveByLoadedNetId(string loadedNetId)
@@ -229,6 +247,8 @@ namespace Basis
             SpawnedGameobjects.TryRemove(loadedNetId, out _);
             SpawnedScenes.TryRemove(loadedNetId, out _);
 
+            // raise an event we removed something
+            RaiseChanged(RegistryChangeType.Removed, instance);
             return true;
         }
 
@@ -267,11 +287,17 @@ namespace Basis
                         _byNetId.Remove(inst.LoadedNetID);
                         SpawnedGameobjects.TryRemove(inst.LoadedNetID, out _);
                         SpawnedScenes.TryRemove(inst.LoadedNetID, out _);
+                        
+                        // raise event that we cleared the url
+                        RaiseChanged(RegistryChangeType.ClearedUrl, inst);
                     }
                 }
             }
 
             _map.Remove(url);
+            
+            // raise event we cleared cleared all
+            RaiseChanged(RegistryChangeType.ClearedAll, null);
         }
 
         /// <summary>
