@@ -71,7 +71,7 @@ namespace Basis.BasisUI
             BasisCursorManagement.LockCursor(nameof(BasisMainMenu));
         }
 
-        public static BasisMenuPanel CreateActiveMenu(BasisMenuPanel.PanelData data, string style)
+        public static BasisMenuPanel CreateActiveMenu(BasisMenuPanel.PanelData data, string style, BasisMenuActionProvider<BasisMainMenu> provider = null)
         {
             if (Instance.Dialogue)
             {
@@ -85,11 +85,18 @@ namespace Basis.BasisUI
                 }
                 else
                 {
+                    // Notify the previous provider that its panel is being released
+                    if (Instance.ActiveProvider != null)
+                    {
+                        Instance.ActiveProvider.OnReleaseEvent();
+                    }
+
                     Instance.ActiveMenu.ReleaseInstance();
                 }
             }
 
-            Instance.ActiveMenu = BasisMenuPanel.CreateNew( data, Instance.MenuObjectInstance.PanelRoot, style);
+            Instance.ActiveMenu = BasisMenuPanel.CreateNew(data, Instance.MenuObjectInstance.PanelRoot, style);
+            Instance.ActiveProvider = provider;
             return Instance.ActiveMenu;
         }
     }
