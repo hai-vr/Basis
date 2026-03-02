@@ -957,30 +957,60 @@ namespace Basis.BasisUI
 
             PanelPasswordField IDField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);//accessibleItemDataTextField.Descriptor.ContentParent);
             IDField._placeholderField.text = "";
-            IDField._inputField.interactable = false;
             IDField.Descriptor.SetTitle("Unique Version:");
             IDField.Descriptor.SetDescription("The unique version number of the basis bundle.");
             IDField.Descriptor.SetIcon(AddressableAssets.Sprites.Information);
             IDField.SetPassword(itemID);
-            //IDField.LayoutElement.minWidth = 500;
+            IDField.OnSubmit += (value) =>
+            {
+                // if for whatever reason they did edit this 
+                // override it back to its original content
+                IDField.SetPassword(itemID);
+            };
+            IDField.OnValueChanged += (show) =>
+            {
+                // if for whatever reason they did edit this 
+                // override it back to its original content
+                IDField.SetPassword(itemID);
+            };
 
             PanelPasswordField urlField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);//accessibleItemDataTextField.Descriptor.ContentParent);
             urlField._placeholderField.text = "";
-            urlField._inputField.interactable = false;
             urlField.Descriptor.SetTitle("BEE File Url:");
             urlField.Descriptor.SetDescription("The direct link to the BEE file.");
             urlField.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
             urlField.SetPassword(item.Url);
-            //urlField.LayoutElement.minWidth = 500;
+            urlField.OnSubmit += (value) =>
+            {
+                // if for whatever reason they did edit this 
+                // override it back to its original content
+                urlField.SetPassword(item.Url);
+            };
+            urlField.OnValueChanged += (val) =>
+            {
+                // if for whatever reason they did edit this 
+                // override it back to its original content
+                urlField.SetPassword(item.Url);
+            };
 
             PanelPasswordField passField = PanelPasswordField.CreateNew(PasswordFieldStyles.EntryVertical, scrollablePage.Descriptor.ContentParent);//accessibleItemDataTextField.Descriptor.ContentParent);
             passField._placeholderField.text = "";
-            passField._inputField.interactable = false;
             passField.Descriptor.SetTitle("BEE File Password:");
             passField.Descriptor.SetDescription("This is the password that was generated with you BEE file.");
             passField.Descriptor.SetIcon(AddressableAssets.Sprites.Unlocked);
-            passField.SetPassword(item.Pass); // if supported
-            //passField.LayoutElement.minWidth = 500;
+            passField.SetPassword(item.Pass);
+            passField.OnSubmit += (value) =>
+            {
+                // if for whatever reason they did edit this 
+                // override it back to its original content
+                passField.SetPassword(item.Pass);
+            };
+            passField.OnValueChanged += (val) =>
+            {
+                // if for whatever reason they did edit this 
+                // override it back to its original content
+                passField.SetPassword(item.Pass);
+            };
 
             #endregion
 
