@@ -45,6 +45,11 @@ namespace Basis.BasisUI
             PinnedItemProvider.RefreshPinnedProviders();
         }
 
+        public override void OnReleaseEvent()
+        {
+            BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
+        }
+
         public override string Title => "Library";
         public override string IconAddress => AddressableAssets.Sprites.Library;
         public override int Order => 1; // after Settings
@@ -75,7 +80,8 @@ namespace Basis.BasisUI
             // this creates our panel
             panel = BasisMainMenu.CreateActiveMenu(
                 BasisMenuPanel.PanelData.Standard(Title),
-                BasisMenuPanel.PanelStyles.Page);
+                BasisMenuPanel.PanelStyles.Page,
+                this);
 
             // No tab cache to reset; tabs will be rebuilt on selection
 
@@ -325,9 +331,14 @@ namespace Basis.BasisUI
             return Enum.TryParse(page.ToString(), out mode);
         }
 
+        public static PanelTabPage GetTabFromPage(Page page)
+        {
+            return tabMap[page];
+        }
+
         public static async Task RefreshTabAsync(Page page)
         {
-            PanelTabPage tab = tabMap[page];
+            PanelTabPage tab = GetTabFromPage(page);
             //BasisDebug.Log($"RefreshTabAsync() was invoked -> for page = {page}, tab = {tab} _currentTab = {_currentTab}, ");
             if (tab == null) return;
 
@@ -345,6 +356,12 @@ namespace Basis.BasisUI
                 catch (Exception ex)
                 {
                     BasisDebug.LogError(ex);
+                }
+
+                // unsubscribe when leaving this the instantiated page
+                if (_currentPage == Page.Instantiated)
+                {
+                    BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
                 }
             }
 
@@ -454,15 +471,16 @@ namespace Basis.BasisUI
             }
             else
             {
-                // grab the data?
-                IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> collections = BasisRuntimeSpawnRegistry.GetAll();
-                // this is most likely to be the instantiated tab so
-                ClearTabContent(tab.Descriptor.ContentParent);
-                // TODO build list of instantiated objects
-                BuildItemsListForInstantiatedObjects(collections, tab);
-                tab.Descriptor.ForceRebuild();
-            }
+                // this will always be the instantiated tab when we fail to parse the correct page
+                if (_currentPage == Page.Instantiated) // sanity check
+                {
+                    BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
+                    BasisRuntimeSpawnRegistry.OnRegistryChanged += OnRegistryChanged;
 
+                    // force update this page
+                    UpdateInstantiatedTab();
+                }
+            }
         }
 
         // used to refresh the current tab
@@ -485,13 +503,12 @@ namespace Basis.BasisUI
             };
         }
 
-        public static void TrySwitchToTabFromItemType( BundledContentHolder.Mode type )
+        public static void TrySwitchToTabFromItemType(BundledContentHolder.Mode type)
         {
             // change the focus of the UI to goto where the users newly added content is
             _currentPage = ModeToPage(type);
 
             tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
-
         }
 
         #endregion
@@ -536,7 +553,7 @@ namespace Basis.BasisUI
             CachedMetaData.TryGetMeta(urlKey, out cachedMeta);
 
             // show already selected avatar
-            if(item.Mode == BundledContentHolder.Mode.Avatar)
+            if (item.Mode == BundledContentHolder.Mode.Avatar)
             {
                 buttonPanel.ButtonStyling.ShowIndicator(item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
             }
@@ -1134,7 +1151,7 @@ namespace Basis.BasisUI
 
                 bool result = await LibraryProviderDialogRemove.PromptUserForRemoval(panel, item, description);
 
-                if(result) // if they did close it lets close this window and refresh current tab
+                if (result) // if they did close it lets close this window and refresh current tab
                 {
                     // remove the item
                     await BasisDataStoreItemKeys.RemoveKey(item);
@@ -1153,34 +1170,34 @@ namespace Basis.BasisUI
 
             // this logic checks if we have spawned an embedded item that is addressable
             bool replaceLoad = false;
-            if(item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
+            if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 bool exists = BasisRuntimeSpawnRegistry.HasAny(item.Url);
-                if(exists)
+                if (exists)
                 {
                     replaceLoad = true;
                 }
             }
-           
+
             PanelButton loadPanelButton = PanelButton.CreateNew(replaceLoad ? ButtonStyles.CancelButton : ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
 
-            switch(item.Mode)
+            switch (item.Mode)
             {
                 case BundledContentHolder.Mode.Avatar:
-                bool sameAvatar = item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
-                if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent))
-                {
-                    // if the item is embedded dont interact
-                    loadButtonComponent.interactable = !sameAvatar;
-                }
-                loadPanelButton.Descriptor.SetTitle(sameAvatar ? "You are already in this avatar" : "Load");
-                break;
+                    bool sameAvatar = item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation;
+                    if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent))
+                    {
+                        // if the item is embedded dont interact
+                        loadButtonComponent.interactable = !sameAvatar;
+                    }
+                    loadPanelButton.Descriptor.SetTitle(sameAvatar ? "You are already in this avatar" : "Load");
+                    break;
                 case BundledContentHolder.Mode.World:
-                loadPanelButton.Descriptor.SetTitle("Load");
-                break;
+                    loadPanelButton.Descriptor.SetTitle("Load");
+                    break;
                 case BundledContentHolder.Mode.Prop:
-                loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : "Spawn");
-                break;
+                    loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : "Spawn");
+                    break;
             }
 
             loadPanelButton.Descriptor.SetWidth(620);
@@ -1205,7 +1222,7 @@ namespace Basis.BasisUI
                     existingItemDialog.CloseWithResult(null);
 
                     // only refresh on avatar change to show status indicator update
-                    if(item.Mode == BundledContentHolder.Mode.Avatar)
+                    if (item.Mode == BundledContentHolder.Mode.Avatar)
                         await RefreshCurrentTab();
                 }
             };
@@ -1269,6 +1286,43 @@ namespace Basis.BasisUI
 
         #region InstiatedListElement
 
+        private static void UpdateInstantiatedTab()
+        {
+            // get the data
+            IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> collections = BasisRuntimeSpawnRegistry.GetAll();
+
+            // get the page
+            PanelTabPage page = GetTabFromPage(Page.Instantiated);
+
+            // clear the page
+            ClearTabContent(page.Descriptor.ContentParent);
+
+            // rebuild the page items
+            BuildItemsListForInstantiatedObjects(collections, page);
+
+            // force rebuild it
+            page.Descriptor.ForceRebuild();
+        }
+
+        private static void OnRegistryChanged(BasisRuntimeSpawnRegistry.RegistryChangeType changeType, BasisRuntimeSpawnRegistry.SpawnInstance instance)
+        {
+            switch (changeType)
+            {
+                case BasisRuntimeSpawnRegistry.RegistryChangeType.Added:
+                case BasisRuntimeSpawnRegistry.RegistryChangeType.Removed:
+
+                    // invoke the update for the this tab
+                    UpdateInstantiatedTab();
+
+                    break;
+                case BasisRuntimeSpawnRegistry.RegistryChangeType.ClearedAll:
+                case BasisRuntimeSpawnRegistry.RegistryChangeType.ClearedUrl:
+                    BasisDebug.LogWarning($"LibraryProvider.cs rec -> OnRegistryChanged for changeType = {changeType}, ignoring! if the menu breaks nothing was linked in the menu for this.");
+                    break;
+            }
+
+        }
+
         private static void BuildItemsListForInstantiatedObjects(IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> loadedItems, PanelTabPage tab)
         {
             RectTransform container = tab.Descriptor.ContentParent;
@@ -1293,7 +1347,7 @@ namespace Basis.BasisUI
             // createdInformationTextField.Descriptor.SetDescription($"Embedded item");
             // itemIcon.SetIcon(EmbeddedItems.GetSpriteForEmbeddedItem(item));
 
-            BasisDebug.Log($"creating list entry for item url = {itemKey.Url} with instanceID = {instanceID}");
+            //BasisDebug.Log($"creating list entry for item url = {itemKey.Url} with instanceID = {instanceID}");
 
             PanelTabGroup itemListPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, parentTabGroup);
             itemListPanel.Descriptor.SetWidth(1400);
