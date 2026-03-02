@@ -214,7 +214,7 @@ namespace Basis.BasisUI
                                             item.Url,
                                             createdObject.name,
                                             createdObject,
-                                            item.EmbeddedSettings.IsEmbedded,
+                                            item.EmbeddedSettings.IsEmbedded, // persistent
                                             BasisRuntimeSpawnRegistry.SpawnMethod.Local,
                                             bundle.BasisBundleConnector
                                             , out var instance

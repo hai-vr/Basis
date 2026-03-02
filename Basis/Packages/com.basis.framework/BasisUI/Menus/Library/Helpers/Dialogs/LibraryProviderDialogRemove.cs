@@ -8,19 +8,9 @@ namespace Basis.BasisUI
     public class LibraryProviderDialogRemove
     {
         #region PromptUserForRemoval(BasisDataStoreItemKeys.ItemKey item)
-        /// <summary>
-        /// Invoked when the user wants to remove a desired item
-        /// we prompt them with this to wait for a result
-        /// </summary>
-        public static async Task<bool> PromptUserForRemoval(BasisMenuPanel panel, BasisDataStoreItemKeys.ItemKey item, BasisBundleDescription description)
-        {
-            DialogBox<bool> contentRemovalDialog = DialogBox<bool>.Create(panel, new Vector2(650, 180),
-                $"Delete {LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}?",
-                $"Are you sure you want to remove this {item.Mode}?",
-                AddressableAssets.Sprites.Information,
-                true
-            );
 
+        public static void BuildDialogButtons(DialogBox<bool> contentRemovalDialog)
+        {
             // Delete & Load Buttons
             PanelTabGroup actionsPanel = PanelTabGroup.CreateNew(contentRemovalDialog.Descriptor.ContentParent, LayoutDirection.HorizontalNoBackground);
 
@@ -55,6 +45,37 @@ namespace Basis.BasisUI
                 // just close the overlay instead.
                 contentRemovalDialog.CloseWithResult(true);
             };
+        }
+
+        /// <summary>
+        /// Invoked when the user wants to remove a desired item
+        /// we prompt them with this to wait for a result
+        /// </summary>
+        public static async Task<bool> PromptUserForRemoval(BasisMenuPanel panel, BasisDataStoreItemKeys.ItemKey item, BasisBundleDescription description)
+        {
+            DialogBox<bool> contentRemovalDialog = DialogBox<bool>.Create(panel, new Vector2(650, 180),
+                $"Delete {LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}?",
+                $"Are you sure you want to remove this {item.Mode}?",
+                AddressableAssets.Sprites.Information,
+                true
+            );
+
+            BuildDialogButtons(contentRemovalDialog);
+
+            return await contentRemovalDialog.WaitAsync();
+        }
+
+        // alternate prompt direct with string
+        public static async Task<bool> PromptUserForRemoval(BasisMenuPanel panel, string assetName, string type)
+        {
+            DialogBox<bool> contentRemovalDialog = DialogBox<bool>.Create(panel, new Vector2(650, 180),
+                $"Delete {assetName}?",
+                $"Are you sure you want to remove this {type}?",
+                AddressableAssets.Sprites.Information,
+                true
+            );
+
+            BuildDialogButtons(contentRemovalDialog);
 
             return await contentRemovalDialog.WaitAsync();
         }

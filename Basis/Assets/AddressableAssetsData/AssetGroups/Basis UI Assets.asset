@@ -430,6 +430,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: e8df14593b6778b439aae81d2ffd2767
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/embedded.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ec63650a87f01494a9ebf018336a9825
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Text Field - Vertical
       Entry Variant.prefab

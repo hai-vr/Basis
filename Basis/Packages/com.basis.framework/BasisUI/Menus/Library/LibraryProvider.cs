@@ -110,10 +110,10 @@ namespace Basis.BasisUI
             };
 
             // Attach per-tab refresh callbacks that only fetch and rebuild the associated tab when selected
-            tabGroup.AddTab("Props", AddressableAssets.Sprites.Items, async () => await RefreshTabAsync(Page.Prop), propsTab);
-            tabGroup.AddTab("Worlds", AddressableAssets.Sprites.World, async () => await RefreshTabAsync(Page.World), worldsTab);
-            tabGroup.AddTab("Avatars", AddressableAssets.Sprites.Avatars, async () => await RefreshTabAsync(Page.Avatar), avatarsTab);
-            tabGroup.AddTab("Instantiated", AddressableAssets.Sprites.List, async () => await RefreshTabAsync(Page.Instantiated), instantiatedTab);
+            tabGroup.AddTab("Props", AddressableAssets.Sprites.Items, async () => await RefreshTabAsync(Page.Prop, true), propsTab);
+            tabGroup.AddTab("Worlds", AddressableAssets.Sprites.World, async () => await RefreshTabAsync(Page.World, true), worldsTab);
+            tabGroup.AddTab("Avatars", AddressableAssets.Sprites.Avatars, async () => await RefreshTabAsync(Page.Avatar, true), avatarsTab);
+            tabGroup.AddTab("Instantiated", AddressableAssets.Sprites.List, async () => await RefreshTabAsync(Page.Instantiated, true), instantiatedTab);
 
             // create a search text field in the tab group extras area
             searchField = PanelTextField.CreateNew(TextFieldStyles.EntryWithNoTitle, tabGroup.ExtrasContainer);
@@ -121,7 +121,7 @@ namespace Basis.BasisUI
             searchField.Descriptor.SetSize(new Vector2(60, 80));
             searchField.OnValueChanged = async (val) =>
             {
-                _currentSearchQuery = val ?? string.Empty;
+                _currentSearchQuery = val.Trim() ?? string.Empty;
 
                 // refresh the current tab for any new changes
                 await RefreshCurrentTab();
@@ -336,7 +336,7 @@ namespace Basis.BasisUI
             return tabMap[page];
         }
 
-        public static async Task RefreshTabAsync(Page page)
+        public static async Task RefreshTabAsync(Page page, bool clearSearch = false)
         {
             PanelTabPage tab = GetTabFromPage(page);
             //BasisDebug.Log($"RefreshTabAsync() was invoked -> for page = {page}, tab = {tab} _currentTab = {_currentTab}, ");
@@ -344,6 +344,12 @@ namespace Basis.BasisUI
 
             // Ensure keys are loaded
             await BasisDataStoreItemKeys.LoadKeys();
+        
+            if(clearSearch)
+            {
+                _currentSearchQuery = "";
+                searchField.SetValueWithoutNotify(_currentSearchQuery);
+            }
 
             // If a different tab was previously active, clear its content when switching
             if (_currentTab != null && _currentTab != tab)
@@ -574,7 +580,7 @@ namespace Basis.BasisUI
                 if (item.EmbeddedSettings.IsEmbedded)
                 {
                     PanelImage embeddedIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
-                    embeddedIcon.SetIcon(AddressableAssets.GetSprite(AddressableAssets.Sprites.Locked), true);
+                    embeddedIcon.SetIcon(AddressableAssets.GetSprite(AddressableAssets.Sprites.Embedded), true);
                     embeddedIcon.rectTransform.anchorMin = new Vector2(1, 1);
                     embeddedIcon.rectTransform.anchorMax = new Vector2(1, 1);
                     embeddedIcon.rectTransform.pivot = new Vector2(0.5f, 0.5f);
@@ -585,15 +591,6 @@ namespace Basis.BasisUI
 
             if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
-                // TODO fix representation for stacked icons
-                // // create an image for this card in top right with an offset of -35, -35
-                // PanelImage networkIcon = PanelImage.CreateNew(buttonPanel.Descriptor);
-                // networkIcon.SetIcon(AddressableAssets.GetSprite(AddressableAssets.Sprites.Locked), true);
-                // networkIcon.rectTransform.anchorMin = new Vector2(1, 1);
-                // networkIcon.rectTransform.anchorMax = new Vector2(1, 1);
-                // networkIcon.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                // networkIcon.rectTransform.anchoredPosition = new Vector2(-35, -35);
-                // networkIcon.rectTransform.sizeDelta = new Vector2(40, 40);
 
                 desc.SetTitle(urlKey);
                 desc.SetDescription(urlKey);
@@ -1284,12 +1281,30 @@ namespace Basis.BasisUI
 
         #endregion
 
-        #region InstiatedListElement
+        #region InstantiatedListElement
 
         private static void UpdateInstantiatedTab()
         {
             // get the data
             IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> collections = BasisRuntimeSpawnRegistry.GetAll();
+
+            // filter the data
+            if (!string.IsNullOrWhiteSpace(_currentSearchQuery))
+            {
+                collections = collections.Where(k =>
+                {
+                    bool hasMetaData = k.bundleConnector != null;
+                    string title = hasMetaData ? LibraryProviderStrUtil.TitleToCase(k.bundleConnector.BasisBundleDescription.AssetBundleName) : k.Url;
+
+                    // find matching title
+                    if (!string.IsNullOrEmpty(title) && title.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) >= 0)
+                    {
+                        return true;
+                    }
+
+                    return false;
+                }).ToList();
+            }
 
             // get the page
             PanelTabPage page = GetTabFromPage(Page.Instantiated);
@@ -1308,6 +1323,9 @@ namespace Basis.BasisUI
         {
             switch (changeType)
             {
+                // TODO: 
+                // we probably want to specifically remove/add the element associated with it in the future
+                // as rebuilding this menu will get expensive if we have 1000+ listed spawned entities.
                 case BasisRuntimeSpawnRegistry.RegistryChangeType.Added:
                 case BasisRuntimeSpawnRegistry.RegistryChangeType.Removed:
 
@@ -1339,71 +1357,80 @@ namespace Basis.BasisUI
         // 
         private static void CreateListEntry(BasisRuntimeSpawnRegistry.SpawnInstance itemKey, RectTransform parentTabGroup, string instanceID)
         {
-            // // icon for the selected item
-            // var itemIcon = PanelElementDescriptor.CreateNew(
-            //     PanelElementDescriptor.ElementStyles.GroupLargeIconVertical, parentTabGroup);
-
-            // createdInformationTextField.Descriptor.SetTitle(item.Url);
-            // createdInformationTextField.Descriptor.SetDescription($"Embedded item");
-            // itemIcon.SetIcon(EmbeddedItems.GetSpriteForEmbeddedItem(item));
-
-            //BasisDebug.Log($"creating list entry for item url = {itemKey.Url} with instanceID = {instanceID}");
+            bool hasMetaData = itemKey.bundleConnector != null;
+            string title = hasMetaData ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName) : itemKey.Url;
+            string description = hasMetaData ? (itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription.Length > 0 ? itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription : "No description was provided.") : (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded ? "Embedded Item" : "N/A");
 
             PanelTabGroup itemListPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, parentTabGroup);
             itemListPanel.Descriptor.SetWidth(1400);
-            itemListPanel.Descriptor.SetHeight(80);
+            itemListPanel.Descriptor.SetHeight(95);
+
+            // create an image for the list entry to show what type of spawn method was used
+            PanelImage spawnMethodPanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+            spawnMethodPanelImage.SetSize(new Vector2(80, 80));
+
+            switch (itemKey.SpawnMethod)
+            {
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Embedded);
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Computer);
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Network);
+                    break;
+            }
+
+            // create an image for the list entry to show what type of spawn method was used
+            PanelImage spawnModePanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+            spawnModePanelImage.SetSize(new Vector2(80, 80));
+
+            switch (itemKey.SpawnMode)
+            {
+                case BasisRuntimeSpawnRegistry.SpawnMode.Avatar:
+                    spawnModePanelImage.SetIcon(AddressableAssets.Sprites.Avatars);
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
+                    spawnModePanelImage.SetIcon(AddressableAssets.Sprites.Items);
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+                    spawnModePanelImage.SetIcon(AddressableAssets.Sprites.World);
+                    break;
+            }
+
+            // create an image for the list entry to show persistence?
+            PanelImage persistencePanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+            persistencePanelImage.SetSize(new Vector2(80, 80));
+
+            switch (itemKey.Persistent)
+            {
+                case true:
+                    persistencePanelImage.SetIcon(AddressableAssets.Sprites.Pin);
+                    break;
+                case false:
+                    persistencePanelImage.SetIcon(AddressableAssets.Sprites.HourGlass);
+                    break;
+            }
 
             // simple info
             PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
             itemTextInfo._inputField.gameObject.SetActive(false); // disable the text input field box
 
-            // public enum SpawnMode : byte
-            // {
-            //     GameObject = 0,
-            //     Scene = 1,
-            //     Avatar = 2,
-            // }
-
-            // public enum SpawnMethod : byte
-            // {
-            //     Embedded = 0,
-            //     Local = 1,
-            //     Network = 2,
-            // }
-
-            itemTextInfo.Descriptor.SetTitle(itemKey.bundleConnector != null ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName) : itemKey.Url);
-            itemTextInfo.Descriptor.SetDescription($"Metadata {itemKey.bundleConnector} | Persistent: {itemKey.Persistent} | Method: {itemKey.SpawnMethod} | Mode: {itemKey.SpawnMode} | UTC: {itemKey.SpawnedUtc}");
+            // set the title and description of the list entry
+            itemTextInfo.Descriptor.SetTitle(title);
+            itemTextInfo.Descriptor.SetDescription(description);
 
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
 
-
-            // #region ICONS FOR LIST ENTRY
-
-            // switch(itemKey.SpawnMode)
-            // {
-            //     case BasisRuntimeSpawnRegistry.SpawnMode.Avatar:
-            //     break;
-            //     case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
-            //     break;
-            //     case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
-            //     break;
-            // }
-
-            // switch(itemKey.SpawnMethod)
-            // {
-            //     case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
-            //     break;
-            //     case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
-            //     break;
-            //     case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
-            //     break;
-            // }
-
-            // PanelImage panelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemTextInfo.Descriptor.ContentParent);
-            // panelImage.SetSize(new Vector2(80, 80));
-
-            // #endregion
+            PanelButton selectItem = PanelButton.CreateNew(ButtonStyles.AcceptButton, itemListPanel.TabButtonParent);
+            selectItem.Descriptor.SetTitle("Select");
+            selectItem.SetSize(new Vector2(200, 60));
+            selectItem.OnClicked += async () =>
+            {
+                BasisDebug.Log("Implement Select Item");
+            };
 
             PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);
             removeItem.Descriptor.SetTitle("Remove");
@@ -1411,6 +1438,13 @@ namespace Basis.BasisUI
             removeItem.OnClicked += async () =>
             {
                 BasisDebug.Log($"CreateListEntry() -> requested removal of item = {itemKey.Url} of instanceID = {instanceID} of SpawnMethod = {itemKey.SpawnMethod} and SpawnMode = {itemKey.SpawnMode}");
+
+                bool result = await LibraryProviderDialogRemove.PromptUserForRemoval(panel, title, itemKey.SpawnMode.ToString());
+
+                if (!result) // if the result is false
+                {
+                    return; // guard key stop here
+                }
 
                 switch (itemKey.SpawnMethod)
                 {
