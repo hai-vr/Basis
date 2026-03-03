@@ -9,52 +9,59 @@ namespace Basis.BasisUI.Styling
         public static UiStylePalette Palette;
         public static UiStyleLibrary GetActiveStyles()
         {
-#if UNITY_EDITOR
-            if (Library == null)
-            {
-                Library = AssetDatabase.LoadAssetAtPath<UiStyleLibrary>("Packages/com.basis.sdk/Settings/StyleLibrary.asset");
-                if (Library != null)
+            #if UNITY_EDITOR
+                // In the editor, use AssetDatabase directly instead of Addressable.
+                if (Library == null)
                 {
-                    return Library;
+                    Library = AssetDatabase.LoadAssetAtPath<UiStyleLibrary>(
+                        "Packages/com.basis.sdk/Settings/StyleLibrary.asset");
                 }
-            }
-#endif
-            if (Library == null)
-            {
-                var Data = Addressables.LoadAssetAsync<UiStyleLibrary>("StyleLibrary");
-                Library = Data.WaitForCompletion();
-            }
-            if (Library == null)
-            {
-                BasisDebug.LogError("Misssing Library!");
-            }
-            return Library;
-
+                // In editor, never fall through to Addressables
+                if (Library == null)
+                {
+                    BasisDebug.LogError("Missing Library! Asset not found at expected path.");
+                }
+                return Library;
+            #else
+                // At runtime, Addressables is the correct loading mechanism.
+                if (Library == null)
+                {
+                    var Data = Addressables.LoadAssetAsync<UiStyleLibrary>("StyleLibrary");
+                    Library = Data.WaitForCompletion();
+                }
+                if (Library == null)
+                {
+                    BasisDebug.LogError("Missing Library!");
+                }
+                return Library;
+            #endif
         }
 
         public static UiStylePalette GetActivePalette()
         {
-#if UNITY_EDITOR
-            if (Palette == null)
-            {
-
-                Palette = AssetDatabase.LoadAssetAtPath<UiStylePalette>("Packages/com.basis.sdk/Settings/StylePalette.asset");
-                if(Palette != null)
+            #if UNITY_EDITOR
+                if (Palette == null)
                 {
-                    return Palette; 
+                    Palette = AssetDatabase.LoadAssetAtPath<UiStylePalette>(
+                        "Packages/com.basis.sdk/Settings/StylePalette.asset");
                 }
-            }
-#endif
-            if (Palette == null)
-            {
-                var Data = Addressables.LoadAssetAsync<UiStylePalette>("StylePalette");
-                Palette = Data.WaitForCompletion();
-            }
-            if (Palette == null)
-            {
-                BasisDebug.LogError("Misssing Palette!");
-            }
-            return Palette;
+                if (Palette == null)
+                {
+                    BasisDebug.LogError("Missing Palette! Asset not found at expected path.");
+                }
+                return Palette;
+            #else
+                if (Palette == null)
+                {
+                    var Data = Addressables.LoadAssetAsync<UiStylePalette>("StylePalette");
+                    Palette = Data.WaitForCompletion();
+                }
+                if (Palette == null)
+                {
+                    BasisDebug.LogError("Missing Palette!");
+                }
+                return Palette;
+            #endif
         }
 
         public static void SetActiveStyles(UiStyleLibrary library)

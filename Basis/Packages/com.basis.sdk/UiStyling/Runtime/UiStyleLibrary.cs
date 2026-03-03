@@ -173,6 +173,14 @@ namespace Basis.BasisUI.Styling
 
         private void OnValidate()
         {
+            #if UNITY_EDITOR
+                // During import Addressables catalog may not exist yet.
+                // AssetDatabase is safe here; Addressables is not.
+                if (UnityEditor.EditorApplication.isUpdating || 
+                    UnityEditor.EditorApplication.isCompiling)
+                    return;
+            #endif
+
             if (UiStyleSettings.GetActiveStyles() == this)
                 UiStyleSettings.UpdateAllStyleComponents();
         }
