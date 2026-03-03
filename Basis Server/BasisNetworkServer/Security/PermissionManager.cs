@@ -11,8 +11,6 @@ namespace BasisPermissions
     public static class PermNodes
     {
         public const string All = "*";
-
-        public const string Admin = "basis.admin";
         public const string ServerStats = "basis.server.stats";
 
         public const string ResourceLoad = "basis.resource.load";
@@ -904,12 +902,6 @@ namespace BasisPermissions
             public static bool HasRequirement(string uuid, string permNode)
             {
                 return Manager.Has(uuid, permNode);
-            }
-
-            // Example: Admin check could be a permission node rather than hardcoded admin list
-            public static bool IsAdmin(string uuid)
-            {
-                return Manager.Has(uuid, PermNodes.Admin) || Manager.Has(uuid, "*");
             }
         }
     }
