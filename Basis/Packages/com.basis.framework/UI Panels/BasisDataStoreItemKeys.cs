@@ -323,8 +323,6 @@ namespace Basis.Scripts.UI.UI_Panels
                     return;
                 }
 
-                await File.WriteAllBytesAsync(tempPath, byteData);
-
                 // Atomic replace: old file is overwritten only after temp write succeeds.
                 await File.WriteAllBytesAsync(tempPath, byteData);
 
