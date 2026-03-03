@@ -44,10 +44,13 @@ public class BasisBundleConnector
     }
     public BasisBundleConnector()
     {
-        if(Bounds.extents == Vector3.zero)
-        {
-            Bounds.extents = new Vector3(0.1f, 0.1f, 0.1f);
-        }
+        // if we want to initialize new bundles with a default size it can be done here
+        // but this is not needed anymore I have implemented a solution in content loader to load the item beforehand and calculate it
+        // if the metadata is missing for old items
+        // if(Bounds.extents == Vector3.zero)
+        // {
+        //     Bounds.extents = new Vector3(0.1f, 0.1f, 0.1f);
+        // }
     }
     public bool CheckVersion(string version)
     {

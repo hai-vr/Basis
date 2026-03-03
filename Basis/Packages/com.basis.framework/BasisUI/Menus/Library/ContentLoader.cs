@@ -8,6 +8,7 @@ using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.UI.UI_Panels;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
@@ -62,6 +63,48 @@ namespace Basis.BasisUI
             }
         }
 
+        public static async Task<GameObject> HandleLoadGameObjectWithBundle(BasisDataStoreItemKeys.ItemKey item, CachedMetaData.CachedContent cached, BundledContentHolder.NetworkType desiredNetworkType, Vector3 finalPos, Quaternion finalRot, Vector3 finalScale, Transform parentTarget,  bool admin = false , bool modifyScale = false, bool local = false )
+        {
+            BasisLoadableBundle bundle = cached.BasisLoadableBundle;
+
+            BasisProgressReport report = new BasisProgressReport();
+            CancellationToken cancel = default;
+
+            var selector = item.Mode switch
+            {
+                BundledContentHolder.Mode.Avatar => BundledContentHolder.Selector.Avatar,
+                BundledContentHolder.Mode.Prop => BundledContentHolder.Selector.Prop,
+                BundledContentHolder.Mode.World => BundledContentHolder.Selector.System,
+                _ => BundledContentHolder.Selector.Prop
+            };
+
+            GameObject createdObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, report, cancel, finalPos, finalRot, finalScale, modifyScale, selector, parentTarget );
+
+            if (createdObject != null)
+            {
+                Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}. local = {local}");
+                if(!local) // if we are not local register it
+                {
+                    BasisRuntimeSpawnRegistry.AddGameObject(
+                        item.Url,
+                        createdObject.name,
+                        createdObject,
+                        item.EmbeddedSettings.IsEmbedded, // persistent
+                        false, // local items should not consider admin check
+                        BasisRuntimeSpawnRegistry.SpawnMethod.Local,
+                        bundle.BasisBundleConnector
+                        , out var instance
+                    );
+                }
+            }
+            else
+            {
+                Debug.LogError($"Library provider failed to create desired with networking: {desiredNetworkType} with LoadSelectedItem of url {item.Url}");
+            }
+
+            return createdObject;
+        }
+
         public static async Task LoadProp(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType desiredNetworkType, bool persistent = false, bool admin = false, bool modifyScale = false)
         {
             if (CachedMetaData.TryGetMeta(item.Url, out var cached) || (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable))
@@ -83,16 +126,45 @@ namespace Basis.BasisUI
                             return;
                         }
 
-                        BasisDebug.Log("Forcefully closing the main menu");
-                        BasisMainMenu.Close();
-
                         BasisBounds FinalBounds = cached.BasisBundleConnector.Bounds;
                         if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
                         {
                             FinalBounds = EmbeddedItems.GetBoundsForEmbeddedItem(item);
                         }
+                        else
+                        {
+                            if(FinalBounds.extents == Vector3.zero) // if for whatever reason the basis bounds is zero spawn the object in
+                            {
+                                GameObject tempOject = await HandleLoadGameObjectWithBundle(
+                                    item,
+                                    cached,
+                                    desiredNetworkType,
+                                    Vector3.zero,
+                                    Quaternion.identity,
+                                    finalScale,
+                                    BasisDeviceManagement.Instance.transform,
+                                    admin,
+                                    modifyScale,
+                                    true // we are using this one for local purposes
+                                );
 
-                        BasisDebug.Log($"{item.Url} -> finalbounds = {FinalBounds.extents} max = {FinalBounds.max} center = {FinalBounds.center}");
+                                // disable it
+                                tempOject.SetActive(false);
+
+                                // calculate the bounds
+                                Bounds calculatedBounds = PlacementManager.CalculateLocalRenderBounds(tempOject);
+                                BasisBounds newBounds = new BasisBounds(calculatedBounds.center, calculatedBounds.size);
+                                cached.BasisBundleConnector.Bounds = newBounds;
+                                FinalBounds = newBounds;
+
+                                GameObject.Destroy(tempOject);
+
+                            }
+                        }
+                        //BasisDebug.Log($"{item.Url} -> finalbounds = {FinalBounds.extents} max = {FinalBounds.max} center = {FinalBounds.center}");
+
+                        BasisDebug.Log("Forcefully closing the main menu");
+                        BasisMainMenu.Close();
 
                         (Vector3 spawnPos, Quaternion spawnRot, Vector3 spawnScale) placementResult;
                         try
@@ -193,39 +265,17 @@ namespace Basis.BasisUI
                             {
                                 if (cached.BasisBundleConnector != null)
                                 {
-                                    BasisLoadableBundle bundle = cached.BasisLoadableBundle;
-
-                                    BasisProgressReport report = new BasisProgressReport();
-                                    CancellationToken cancel = default;
-
-                                    var selector = item.Mode switch
-                                    {
-                                        BundledContentHolder.Mode.Avatar => BundledContentHolder.Selector.Avatar,
-                                        BundledContentHolder.Mode.Prop => BundledContentHolder.Selector.Prop,
-                                        BundledContentHolder.Mode.World => BundledContentHolder.Selector.System,
-                                        _ => BundledContentHolder.Selector.Prop
-                                    };
-
-                                    GameObject createdObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, report, cancel, finalPos, finalRot, finalScale, modifyScale, selector, parentTarget);
-
-                                    if (createdObject != null)
-                                    {
-                                        Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}.");
-                                        BasisRuntimeSpawnRegistry.AddGameObject(
-                                            item.Url,
-                                            createdObject.name,
-                                            createdObject,
-                                            item.EmbeddedSettings.IsEmbedded, // persistent
-                                            false, // local items should not consider admin check
-                                            BasisRuntimeSpawnRegistry.SpawnMethod.Local,
-                                            bundle.BasisBundleConnector
-                                            , out var instance
-                                        );
-                                    }
-                                    else
-                                    {
-                                        Debug.LogError($"Library provider failed to create desired with networking: {desiredNetworkType} with LoadSelectedItem of url {item.Url}");
-                                    }
+                                    await HandleLoadGameObjectWithBundle(
+                                        item,
+                                        cached,
+                                        desiredNetworkType,
+                                        finalPos,
+                                        finalRot,
+                                        finalScale,
+                                        parentTarget,
+                                        admin,
+                                        modifyScale
+                                    );
                                 }
                                 else
                                 {

@@ -71,6 +71,7 @@ namespace Basis.Scripts.UI
 
             // Half size of the placement box in *local* space where local Y is "up"
             public Vector3 Extents;
+            public Vector3 LocalBoundsCenter; // add this
 
             public float Distance => HasHit ? Hit.distance : float.PositiveInfinity;
         }
@@ -81,14 +82,15 @@ namespace Basis.Scripts.UI
         /// Enter placement mode and define the placement bounds half extents.
         /// Example half extents: (0.5, 0.1, 0.5) for a 1m x 0.2m x 1m footprint.
         /// </summary>
-        public void EnterPlacementMode(Vector3 halfExtents)
+        public void EnterPlacementMode(Vector3 halfExtents, Vector3 localBoundsCenter)
         {
             _mode = ControlMode.Placement;
             CurrentPlacement = new PlacementResult
             {
                 HasHit = false,
                 Ray = ray,
-                Extents = halfExtents
+                Extents = halfExtents,
+                LocalBoundsCenter = localBoundsCenter
             };
         }
         public void ExitPlacementMode()
@@ -303,7 +305,7 @@ namespace Basis.Scripts.UI
             }
 
             // Compute placement OBB pose (center + rotation)
-            ComputePlacementOBB(best, ray, CurrentPlacement.Extents, out var center, out var rot);
+            ComputePlacementOBB(best, ray, CurrentPlacement.Extents, CurrentPlacement.LocalBoundsCenter, out var center, out var rot);//ComputePlacementOBB(best, ray, CurrentPlacement.Extents, out var center, out var rot);
 
             CurrentPlacement = new PlacementResult
             {
@@ -320,10 +322,35 @@ namespace Basis.Scripts.UI
         /// Build a rotation from hit.normal as up, and ray direction projected onto surface as forward.
         /// Place the OBB so its "bottom" touches the hit point (local Y assumed up).
         /// </summary>
+        // private static void ComputePlacementOBB(
+        //     RaycastHit hit,
+        //     Ray ray,
+        //     Vector3 halfExtentsLocal,
+        //     out Vector3 center,
+        //     out Quaternion rotation)
+        // {
+        //     Vector3 up = hit.normal.normalized;
+
+        //     Vector3 forward = Vector3.ProjectOnPlane(ray.direction, up);
+        //     if (forward.sqrMagnitude < 1e-6f)
+        //     {
+        //         forward = Vector3.Cross(up, Vector3.right);
+        //         if (forward.sqrMagnitude < 1e-6f)
+        //             forward = Vector3.Cross(up, Vector3.forward);
+        //     }
+        //     forward.Normalize();
+
+        //     rotation = Quaternion.LookRotation(forward, up);
+
+        //     // local Y is up => halfExtentsLocal.y is "half height"
+        //     center = hit.point + up * halfExtentsLocal.y;
+        // }
+
         private static void ComputePlacementOBB(
             RaycastHit hit,
             Ray ray,
             Vector3 halfExtentsLocal,
+            Vector3 localBoundsCenter,
             out Vector3 center,
             out Quaternion rotation)
         {
@@ -340,9 +367,13 @@ namespace Basis.Scripts.UI
 
             rotation = Quaternion.LookRotation(forward, up);
 
-            // local Y is up => halfExtentsLocal.y is "half height"
-            center = hit.point + up * halfExtentsLocal.y;
+            // Distance from pivot to the very bottom of the bounds in local space
+            float pivotToBottom = localBoundsCenter.y - halfExtentsLocal.y;
+
+            // Lift pivot up by the negated offset so the mesh bottom sits on the surface
+            center = hit.point + up * (-pivotToBottom);
         }
+
         // Get a span of valid hits (still sorted by original Physics order,
         // but index 0 is now the "best" hit according to normal mode rule).
         public RaycastHit[] GetHits()

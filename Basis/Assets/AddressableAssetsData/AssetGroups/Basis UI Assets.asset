@@ -132,6 +132,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 42d747d78c371ce48bffc09bb7168ae9
+    m_Address: Packages/com.basis.sdk/Textures/Runtime/admin.png
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 43284126c633608458d1a5b131afba65
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Label Field.prefab
     m_ReadOnly: 0
