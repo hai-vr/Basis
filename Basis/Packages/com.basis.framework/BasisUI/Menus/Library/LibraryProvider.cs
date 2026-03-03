@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using Basis.BasisUI.Styling;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.UI.UI_Panels;
@@ -1376,10 +1377,18 @@ namespace Basis.BasisUI
                 // we probably want to specifically remove/add the element associated with it in the future
                 // as rebuilding this menu will get expensive if we have 1000+ listed spawned entities.
                 case BasisRuntimeSpawnRegistry.RegistryChangeType.Added:
+
+                    // invoke the update for the this tab
+                    UpdateInstantiatedTab();
+
+                    break;
                 case BasisRuntimeSpawnRegistry.RegistryChangeType.Removed:
 
                     // invoke the update for the this tab
                     UpdateInstantiatedTab();
+
+                    // remove the instance that was removed if it was selected
+                    PlacementManager.RemoveSelectionSpawnInstanceID(instance);
 
                     break;
                 case BasisRuntimeSpawnRegistry.RegistryChangeType.ClearedAll:
@@ -1416,7 +1425,22 @@ namespace Basis.BasisUI
             string title = hasMetaData ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName) : itemKey.Url;
             //string description = hasMetaData ? (itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription.Length > 0 ? itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription : "No description was provided.") : (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded ? "Embedded Item" : "N/A");
 
+            bool hasSelected = false; // used for if we have selected this item via the placement manager
+
+            // show that we have selected it
+            if(PlacementManager.ActiveInstance != null)
+            {
+                hasSelected = PlacementManager.ActiveInstance.InstanceId == itemKey.InstanceId;
+            }
+
             PanelTabGroup itemListPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, parentTabGroup);
+
+            // change this item list panel background styling depending on selection
+            if (itemListPanel.TabButtonParent.gameObject.TryGetComponent<UiStyleImage>(out UiStyleImage imageStyle))
+            {
+                imageStyle.SetStyle(hasSelected ? "Button Standard" : "Menu Element");
+            }
+            
             itemListPanel.Descriptor.SetWidth(1400);
             itemListPanel.Descriptor.SetHeight(95);
 
@@ -1500,11 +1524,30 @@ namespace Basis.BasisUI
             itemTextInfo.Descriptor.SetWidth(400);
 
             PanelButton selectItem = PanelButton.CreateNew(ButtonStyles.AcceptButton, itemListPanel.TabButtonParent);
-            selectItem.Descriptor.SetTitle("Select");
+            selectItem.Descriptor.SetTitle(hasSelected ? "Deselect" : "Select");
             selectItem.SetSize(new Vector2(200, 60));
+
+            // determine if we can select this item
+            if (selectItem.Descriptor.gameObject.TryGetComponent<Button>(out Button selectButtonComponent))
+            {
+                // for the moment disable selecting embedded items
+                selectButtonComponent.interactable = !(itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded);
+            }
+
             selectItem.OnClicked += async () =>
             {
-                BasisDebug.Log("Implement Select Item");
+                if(hasSelected)
+                {
+                    PlacementManager.RemoveSelectionSpawnInstanceID(itemKey);
+                }
+                else
+                {    
+                    // send the selection
+                    PlacementManager.SetActiveSelection(itemKey);
+                }
+
+                // close the menu
+                BasisMainMenu.Close();
             };
 
             PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);
@@ -1512,10 +1555,10 @@ namespace Basis.BasisUI
             removeItem.SetSize(new Vector2(200, 60));
 
             // determine if we can actually remove this via admin
-            if (removeItem.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent))
+            if (removeItem.Descriptor.gameObject.TryGetComponent<Button>(out Button removeButtonComponent))
             {
                 // if the item is embedded only allow an admin to interact
-                loadButtonComponent.interactable = (isUserAdmin == itemKey.IsAdminLocked);
+                removeButtonComponent.interactable = (isUserAdmin == itemKey.IsAdminLocked);
             }
 
             removeItem.OnClicked += async () =>
