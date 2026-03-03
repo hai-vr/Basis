@@ -13,8 +13,97 @@ namespace Basis.BasisUI
     /// </summary>
     public static class PlacementManager
     {
+
+        #region CalculateLocalRenderBounds, TransformBoundsAABB
+
+        /// <summary>
+        /// Calculates bounds of all child renderers in PARENT LOCAL SPACE (pivot-relative).
+        /// This is stable even if the object is moved/rotated in the world before measuring.
+        /// </summary>
+        public static Bounds CalculateLocalRenderBounds(GameObject parent)
+        {
+            var renderers = parent.GetComponentsInChildren<Renderer>(true);
+            if (renderers == null || renderers.Length == 0)
+                return new Bounds(Vector3.zero, Vector3.zero);
+
+            Matrix4x4 parentWorldToLocal = parent.transform.worldToLocalMatrix;
+
+            bool hasAny = false;
+            Bounds accum = default;
+
+            foreach (var r in renderers)
+            {
+                if (r == null) continue;
+
+                Bounds srcLocal;
+
+                if (r is SkinnedMeshRenderer smr)
+                {
+                    // In smr local space
+                    srcLocal = smr.localBounds;
+                }
+                else if (r is MeshRenderer mr)
+                {
+                    var mf = mr.GetComponent<MeshFilter>();
+                    if (mf == null || mf.sharedMesh == null) continue;
+
+                    // In mesh local space (same as MeshFilter transform local space)
+                    srcLocal = mf.sharedMesh.bounds;
+                }
+                else
+                {
+                    continue; // ignore other renderer types for now
+                }
+
+                // Map from renderer local -> world -> parent local
+                Matrix4x4 toParentLocal = parentWorldToLocal * r.transform.localToWorldMatrix;
+
+                // Transform bounds center and extents to new AABB in parent local space
+                Bounds transformed = TransformBoundsAABB(srcLocal, toParentLocal);
+
+                if (!hasAny)
+                {
+                    accum = transformed;
+                    hasAny = true;
+                }
+                else
+                {
+                    accum.Encapsulate(transformed.min);
+                    accum.Encapsulate(transformed.max);
+                }
+            }
+
+            if (!hasAny)
+                return new Bounds(Vector3.zero, Vector3.zero);
+
+            if (accum.extents == Vector3.zero)
+                accum = new Bounds(accum.center, new Vector3(0.1f, 0.1f, 0.1f));
+
+            return accum;
+        }
+
+        private static Bounds TransformBoundsAABB(Bounds b, Matrix4x4 m)
+        {
+            // Standard affine bounds transform:
+            Vector3 c = m.MultiplyPoint3x4(b.center);
+
+            Vector3 ex = m.MultiplyVector(new Vector3(b.extents.x, 0f, 0f));
+            Vector3 ey = m.MultiplyVector(new Vector3(0f, b.extents.y, 0f));
+            Vector3 ez = m.MultiplyVector(new Vector3(0f, 0f, b.extents.z));
+
+            Vector3 e = new Vector3(
+                Mathf.Abs(ex.x) + Mathf.Abs(ey.x) + Mathf.Abs(ez.x),
+                Mathf.Abs(ex.y) + Mathf.Abs(ey.y) + Mathf.Abs(ez.y),
+                Mathf.Abs(ex.z) + Mathf.Abs(ey.z) + Mathf.Abs(ez.z)
+            );
+
+            return new Bounds(c, e * 2f);
+        }
+
+        #endregion
+
         public static string SpawnOutlineAddress = "Packages/com.basis.sdk/Prefabs/SpawnOutline.prefab";
-        
+
         private static readonly int OutlineColorID = Shader.PropertyToID("_OutlineColor");
         private static readonly int OutlineThickness = Shader.PropertyToID("_OutlineThickness");
         private static readonly int OutlineCornerScale = Shader.PropertyToID("_OutlineCornerScale");
@@ -36,7 +125,7 @@ namespace Basis.BasisUI
 
         private static void UpdateOutlineScale(GameObject targetOutlineGameObject)
         {
-            float scale = targetOutlineGameObject.transform.localScale.magnitude/10;
+            float scale = targetOutlineGameObject.transform.localScale.magnitude / 10;
             foreach (Renderer r in targetOutlineGameObject.GetComponentsInChildren<Renderer>(true))
             {
                 foreach (Material mat in r.materials)
@@ -46,14 +135,14 @@ namespace Basis.BasisUI
                         mat.SetFloat(OutlineCornerScale, scale);
                     }
 
-                    if(mat.HasProperty(OutlineDotScale))
+                    if (mat.HasProperty(OutlineDotScale))
                     {
-                        mat.SetFloat(OutlineDotScale, scale/2);
+                        mat.SetFloat(OutlineDotScale, scale / 2);
                     }
 
-                    if(mat.HasProperty(OutlineThickness))
+                    if (mat.HasProperty(OutlineThickness))
                     {
-                        mat.SetFloat(OutlineThickness, scale/5);
+                        mat.SetFloat(OutlineThickness, scale / 5);
                     }
                 }
             }
@@ -154,6 +243,7 @@ namespace Basis.BasisUI
                     PlacementCube.transform.SetPositionAndRotation(placement.Center, placement.Rotation);
 
                     // placement.Extents is HALF-size; preview cube scale expects FULL size
+                    // TODO: this needs to account for the scale of the object
                     PlacementCube.transform.localScale = placement.Extents * 2f;
 
                     // update its selection
@@ -220,77 +310,85 @@ namespace Basis.BasisUI
                 CancelPlacement();
             }
         }
-    
+
         #endregion
 
         #region SELECTION
 
-        //private static BasisRuntimeSpawnRegistry.SpawnInstance selectedInstance;
-        private static BasisRuntimeSpawnRegistry.SpawnInstance selectedInstance; 
+        private static BasisRuntimeSpawnRegistry.SpawnInstance selectedInstance;
         public static BasisRuntimeSpawnRegistry.SpawnInstance ActiveInstance { get => selectedInstance; }
-        private static GameObject selectedGameObjectRef = null;
-        private static GameObject selectionGameObjectRef = null;
+        private static GameObject selectedGameObjectRef;
+        private static GameObject selectionGameObjectRef;
+
+        /// <summary>
+        /// Syncs the selection outline's transform to match the selected object's current world pose and bounds.
+        /// </summary>
+        private static void SyncOutlineTransform(BasisBundleConnector connector)
+        {
+            Vector3 worldCenter = selectedGameObjectRef.transform.TransformPoint(connector.Bounds.center);
+            selectionGameObjectRef.transform.SetPositionAndRotation(worldCenter, selectedGameObjectRef.transform.rotation);
+            selectionGameObjectRef.transform.localScale = new Vector3( selectedGameObjectRef.transform.localScale.x * connector.Bounds.size.x, selectedGameObjectRef.transform.localScale.y * connector.Bounds.size.y, selectedGameObjectRef.transform.localScale.z * connector.Bounds.size.z  );
+            UpdateOutlineScale(selectionGameObjectRef);
+        }
 
         public static void SetActiveSelection(BasisRuntimeSpawnRegistry.SpawnInstance spawnInstance)
         {
-            if(spawnInstance == null) return;
+            if (spawnInstance == null) return;
 
-            if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(spawnInstance.LoadedNetID, out GameObject go) && go != null)
+            if (!BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(spawnInstance.LoadedNetID, out GameObject go) || go == null)
             {
-                // lets attempt to grab the meta data first once we have the gameobject ref
-                BasisBundleConnector basisBundleConnector = spawnInstance.bundleConnector;
-
-                // null check meta data
-                if(basisBundleConnector != null)
-                {
-                    // set the selected instance on success of finding the object
-                    selectedInstance = spawnInstance;
-
-                    // grab the game-object via ID
-                    selectedGameObjectRef = go;
-
-                    // lets create the selection cube
-                    if (selectionGameObjectRef == null)
-                    {
-                        var op = Addressables.LoadAssetAsync<GameObject>(SpawnOutlineAddress);
-                        GameObject assignedGO = op.WaitForCompletion();
-                        selectionGameObjectRef = GameObject.Instantiate(assignedGO, BasisDeviceManagement.Instance.transform);
-
-                        // change the colour
-                        SetOutlineColor(selectionGameObjectRef, Color.cyan);
-
-                        selectionGameObjectRef.name = "Selection Outline";
-
-                        Vector3 worldCenter = go.transform.TransformPoint(basisBundleConnector.Bounds.center);
-                        selectionGameObjectRef.transform.SetPositionAndRotation(worldCenter, go.transform.rotation);
-                        selectionGameObjectRef.transform.localScale = basisBundleConnector.Bounds.size;
-                        
-                        UpdateOutlineScale(selectionGameObjectRef);
-                    }
-                    else
-                    {
-                        Vector3 worldCenter = go.transform.TransformPoint(basisBundleConnector.Bounds.center);
-                        selectionGameObjectRef.transform.SetPositionAndRotation(worldCenter, go.transform.rotation);
-                        selectionGameObjectRef.transform.localScale = basisBundleConnector.Bounds.size;
-
-                        UpdateOutlineScale(selectionGameObjectRef);
-                    }
-                }
-                else
-                {
-                    BasisDebug.LogWarning($"PlacementManager.cs was unable to properly SetActiveSelection(spawnInstance = {spawnInstance.Url}) basisBundleConnector is missing?");
-                }
-
+                BasisDebug.LogError($"PlacementManager.SetActiveSelection: was unable to find the spawned object instance for spawnInstance.LoadedNetID = {spawnInstance.LoadedNetID} or asset {spawnInstance.Url}");
+                return;
             }
 
+            BasisBundleConnector connector = spawnInstance.bundleConnector;
+            if (connector == null)
+            {
+                BasisDebug.LogWarning($"PlacementManager.SetActiveSelection: bundleConnector is null for {spawnInstance.Url}");
+                return;
+            }
+
+            selectedInstance = spawnInstance;
+            selectedGameObjectRef = go;
+
+            // Compute bounds at runtime if the connector still has default (zero-size) bounds
+            if (connector.Bounds.size == new BasisBounds().size)
+            {
+                Bounds unitybounds = CalculateLocalRenderBounds(selectedGameObjectRef);
+                connector.Bounds = new BasisBounds(unitybounds.center, unitybounds.size);
+            }
+
+            // Create the outline visual if it doesn't exist yet
+            if (selectionGameObjectRef == null)
+            {
+                var op = Addressables.LoadAssetAsync<GameObject>(SpawnOutlineAddress);
+                GameObject prefab = op.WaitForCompletion();
+                selectionGameObjectRef = GameObject.Instantiate(prefab, BasisDeviceManagement.Instance.transform);
+                selectionGameObjectRef.name = "Selection Outline";
+
+                SetOutlineColor(selectionGameObjectRef, Color.cyan);
+                BasisLocalPlayer.AfterSimulateOnLate.AddAction(122, UpdateSelectionOutline);
+            }
+
+            SyncOutlineTransform(connector);
+        }
+
+        public static void UpdateSelectionOutline()
+        {
+            if (selectedGameObjectRef == null || selectionGameObjectRef == null || selectedInstance == null)
+                return;
+
+            BasisBundleConnector connector = selectedInstance.bundleConnector;
+            if (connector == null) return;
+
+            SyncOutlineTransform(connector);
         }
 
         public static void RemoveSelectionSpawnInstanceID(BasisRuntimeSpawnRegistry.SpawnInstance spawnInstance)
         {
-            if(selectedInstance == null) return;
-            if(spawnInstance == null) return;
+            if (selectedInstance == null || spawnInstance == null) return;
 
-            if(spawnInstance.LoadedNetID == selectedInstance.LoadedNetID)
+            if (spawnInstance.LoadedNetID == selectedInstance.LoadedNetID)
             {
                 RemoveActiveSelection();
             }
@@ -298,18 +396,18 @@ namespace Basis.BasisUI
 
         public static void RemoveActiveSelection()
         {
-            // if the selected instance is not null meaning we have a selection
-            if(selectedInstance != null)
-            {
-                // delete the selection game object
-                if(selectionGameObjectRef != null)
-                {
-                    GameObject.Destroy(selectionGameObjectRef);
-                }
+            if (selectedInstance == null) return;
 
-                // set the selected instance to null
-                selectedInstance = null;
+            try { BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(122, UpdateSelectionOutline); } catch { }
+
+            if (selectionGameObjectRef != null)
+            {
+                GameObject.Destroy(selectionGameObjectRef);
+                selectionGameObjectRef = null;
             }
+
+            selectedInstance = null;
+            selectedGameObjectRef = null;
         }
 
         #endregion

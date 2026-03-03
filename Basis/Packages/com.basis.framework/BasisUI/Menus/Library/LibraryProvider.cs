@@ -1531,7 +1531,7 @@ namespace Basis.BasisUI
             if (selectItem.Descriptor.gameObject.TryGetComponent<Button>(out Button selectButtonComponent))
             {
                 // for the moment disable selecting embedded items
-                selectButtonComponent.interactable = !(itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded);
+                selectButtonComponent.interactable = (itemKey.SpawnMode != BasisRuntimeSpawnRegistry.SpawnMode.Scene) && !(itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded);
             }
 
             selectItem.OnClicked += async () =>
