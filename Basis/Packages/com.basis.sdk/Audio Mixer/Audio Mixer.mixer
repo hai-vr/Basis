@@ -134,13 +134,13 @@ AudioMixerController:
   - guid: 71336f37361a6054bad0885306768c1d
     name: Master
   - guid: b57c4b4ed53276d4e8bf75a537bc2bbe
-    name: MyExposedParam 1
+    name: avatar
   - guid: d35056bce0399914f923365e458689ee
     name: menu
+  - guid: 6cb0aa8eb4727e0469cda1a505a5aabe
+    name: prop
   - guid: 499306eacfb4bb242a8770701ad5edc6
     name: player
-  - guid: 6cb0aa8eb4727e0469cda1a505a5aabe
-    name: MyExposedParam
   - guid: d92bab2223ae60e4d99258109ca65066
     name: world
   m_AudioMixerGroupViews:
