@@ -903,12 +903,6 @@ namespace BasisPermissions
             {
                 return Manager.Has(uuid, permNode);
             }
-
-            // Example: Admin check could be a permission node rather than hardcoded admin list
-            public static bool IsAdmin(string uuid)
-            {
-                return Manager.Has(uuid, "*");
-            }
         }
     }
 }
