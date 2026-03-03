@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Audio;
 
 [CreateAssetMenu(fileName = "ContentPoliceSelector", menuName = "Basis/ContentPoliceSelector")]
 public class ContentPoliceSelector : ScriptableObject
 {
+    public AudioMixerGroup AudioMixer;
     [SerializeField] public List<string> selectedTypes = new();
 
     // Runtime cache (not serialized)

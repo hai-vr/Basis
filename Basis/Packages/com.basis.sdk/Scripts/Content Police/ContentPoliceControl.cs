@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Audio;
 using UnityEngine.SceneManagement;
 
 public static class ContentPoliceControl
@@ -36,22 +37,23 @@ public static class ContentPoliceControl
                 {
                     Component component = components[Index];
                     //do this first before we nuke stuff
-                    if (component is Animator animator)
+                    switch (component)
                     {
-                        if (ChecksRequired.DisableAnimatorEvents)
-                        {
-                            animator.fireEvents = false;
-                        }
-                    }
-                    else
-                    {
-                        if (component is Collider collider)
-                        {
+                        case Animator animator:
+                            if (ChecksRequired.DisableAnimatorEvents)
+                            {
+                                animator.fireEvents = false;
+                            }
+                            break;
+                        case Collider collider:
                             if (ChecksRequired.RemoveColliders)
                             {
                                 GameObject.Destroy(collider);
                             }
-                        }
+                            break;
+                        case AudioSource source:
+                            source.outputAudioMixerGroup = PoliceCheck.AudioMixer;
+                            break;
                     }
                     // Check if the component is a MonoBehaviour and not in the approved list
                     if (component is UnityEngine.Component monoBehaviour)
@@ -117,15 +119,15 @@ public static class ContentPoliceControl
             return;
         }
 
-        var roots = targetScene.GetRootGameObjects();
-        for (int i = 0; i < roots.Length; i++)
+        GameObject[] roots = targetScene.GetRootGameObjects();
+        for (int RootIndex = 0; RootIndex < roots.Length; RootIndex++)
         {
             // Get ALL components in this subtree
-            Component[] components = roots[i].transform.GetComponentsInChildren<Component>(includeInactive);
+            Component[] components = roots[RootIndex].transform.GetComponentsInChildren<Component>(includeInactive);
             // Check if the component is a MonoBehaviour and not in the approved list
-            for (int Index = 0; Index < components.Length; Index++)
+            for (int ComponentIndex = 0; ComponentIndex < components.Length; ComponentIndex++)
             {
-                Component component = components[Index];
+                Component component = components[ComponentIndex];
                 //do this first before we nuke stuff
                 // Check if the component is a MonoBehaviour and not in the approved list
                 if (component is UnityEngine.Component monoBehaviour)

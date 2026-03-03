@@ -7,7 +7,7 @@ namespace Basis.Scripts.Addressable_Driver.Resource
 {
     public static class AddressableResourceProcess
     {
-        public static async Task<GameObject> LoadAsGameObjectsAsync(string loadstring, InstantiationParameters instantiationParameters, ChecksRequired Required, Selector Selector)
+        public static async Task<GameObject> LoadAsGameObjectsAsync(string loadstring,InstantiationParameters instantiationParameters, ChecksRequired Required, Selector Selector)
         {
             UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> data = Addressables.LoadAssetAsync<GameObject>(loadstring);
 

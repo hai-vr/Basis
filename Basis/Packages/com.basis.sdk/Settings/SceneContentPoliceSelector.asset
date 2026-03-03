@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b20bf104ec1d97d4c99fe5d73dd78d0d, type: 3}
   m_Name: SceneContentPoliceSelector
   m_EditorClassIdentifier: 
+  AudioMixer: {fileID: 6216228358845890117, guid: 1ff7d045b2e32054aad6c5815495d8b8, type: 2}
   selectedTypes:
   - BasisVideoPlayer
   - BasisVideoPlayerNetworked
