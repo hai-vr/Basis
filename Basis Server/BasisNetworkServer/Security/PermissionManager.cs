@@ -907,7 +907,7 @@ namespace BasisPermissions
             // Example: Admin check could be a permission node rather than hardcoded admin list
             public static bool IsAdmin(string uuid)
             {
-                return Manager.Has(uuid, PermNodes.Admin) || Manager.Has(uuid, "*");
+                return Manager.Has(uuid, "*");
             }
         }
     }

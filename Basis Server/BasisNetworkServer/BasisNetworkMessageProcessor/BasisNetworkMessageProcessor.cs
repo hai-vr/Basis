@@ -206,7 +206,6 @@ public static class BasisNetworkMessageProcessor
         }
 
         if (PermissionIntegration.HasRequirement(uuid, permNode) ||
-            PermissionIntegration.HasRequirement(uuid, PermNodes.Admin) ||
             PermissionIntegration.HasRequirement(uuid, PermNodes.All))
         {
             action(reader, peer); // recycles inside handler
@@ -229,7 +228,7 @@ public static class BasisNetworkMessageProcessor
         }
 
         // Allow if they have the specific node, or admin, or global wildcard
-        if (PermissionIntegration.HasRequirement(uuid, permNode) || PermissionIntegration.HasRequirement(uuid, PermNodes.Admin) || PermissionIntegration.HasRequirement(uuid, PermNodes.All))
+        if (PermissionIntegration.HasRequirement(uuid, permNode) || PermissionIntegration.HasRequirement(uuid, PermNodes.All))
         {
             return true;
         }
