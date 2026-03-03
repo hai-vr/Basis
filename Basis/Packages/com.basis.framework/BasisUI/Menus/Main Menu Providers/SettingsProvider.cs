@@ -247,13 +247,23 @@ namespace Basis.BasisUI
 
             PanelSlider sliderVideoVolume = PanelSlider.CreateEntryAndBind(
     mixerGroup,
-    PanelSlider.SliderSettings.Percentage("Video Volume"),
-    BasisSettingsDefaults.VideoVolume);
+    PanelSlider.SliderSettings.Percentage("Media Volume"),
+    BasisSettingsDefaults.MediaVolume);
 
-            PanelSlider sliderPlayerVolume = PanelSlider.CreateEntryAndBind(
+            PanelSlider sliderVoiceVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
-                PanelSlider.SliderSettings.Percentage("Player Volume"),
-                BasisSettingsDefaults.PlayerVolume);
+                PanelSlider.SliderSettings.Percentage("Voice Volume"),
+                BasisSettingsDefaults.VoiceVolume);
+
+            PanelSlider sliderAvatarVolume = PanelSlider.CreateEntryAndBind(
+    mixerGroup,
+    PanelSlider.SliderSettings.Percentage("Avatar Volume"),
+    BasisSettingsDefaults.AvatarVolume);
+
+            PanelSlider sliderPropVolume = PanelSlider.CreateEntryAndBind(
+mixerGroup,
+PanelSlider.SliderSettings.Percentage("Prop Volume"),
+BasisSettingsDefaults.PropVolume);
 
             // MICROPHONE GROUP
             PanelElementDescriptor microphoneGroup =
@@ -265,10 +275,10 @@ namespace Basis.BasisUI
             SMDMicrophone.MicSettings snap = SMDMicrophone.Current;
 
             // Microphone Volume (0..1)
-             sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
-                microphoneGroup,
-                PanelSlider.SliderSettings.Advanced("Microphone Volume", 0, 1, false, 4, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.MicrophoneVolume);
+            sliderMicrophoneVolume = PanelSlider.CreateEntryAndBind(
+               microphoneGroup,
+               PanelSlider.SliderSettings.Advanced("Microphone Volume", 0, 1, false, 4, ValueDisplayMode.Percentage),
+               BasisSettingsDefaults.MicrophoneVolume);
             sliderMicrophoneVolume.SetValueWithoutNotify(snap.Volume01);
 
             // IMPORTANT: Use new setters (single-source-of-truth), not Save* and not Selected*
@@ -341,16 +351,16 @@ namespace Basis.BasisUI
             limiterGroup.SetTitle("Limiter");
             limiterGroup.SetDescription("Prevents clipping by soft-limiting peaks.");
 
-             sliderLimitThreshold = PanelSlider.CreateEntryAndBind(
-                limiterGroup,
-                PanelSlider.SliderSettings.Advanced("Limit Threshold", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.LimitThreshold);
+            sliderLimitThreshold = PanelSlider.CreateEntryAndBind(
+               limiterGroup,
+               PanelSlider.SliderSettings.Advanced("Limit Threshold", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+               BasisSettingsDefaults.LimitThreshold);
             sliderLimitThreshold.SetValueWithoutNotify(snap.LimitThreshold);
 
-             sliderLimitKnee = PanelSlider.CreateEntryAndBind(
-                limiterGroup,
-                PanelSlider.SliderSettings.Advanced("Limit Knee", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.LimitKnee);
+            sliderLimitKnee = PanelSlider.CreateEntryAndBind(
+               limiterGroup,
+               PanelSlider.SliderSettings.Advanced("Limit Knee", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+               BasisSettingsDefaults.LimitKnee);
             sliderLimitKnee.SetValueWithoutNotify(snap.LimitKnee);
 
             void LimitThresholdChanged(float v)
@@ -382,16 +392,16 @@ namespace Basis.BasisUI
             denoiseGroup.SetTitle("Denoiser Tuning");
             denoiseGroup.SetDescription("Adjust denoiser blend and makeup gain.");
 
-             sliderDenoiseWet = PanelSlider.CreateEntryAndBind(
-                denoiseGroup,
-                PanelSlider.SliderSettings.Advanced("Denoise Wet", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.DenoiseWet);
+            sliderDenoiseWet = PanelSlider.CreateEntryAndBind(
+               denoiseGroup,
+               PanelSlider.SliderSettings.Advanced("Denoise Wet", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+               BasisSettingsDefaults.DenoiseWet);
             sliderDenoiseWet.SetValueWithoutNotify(snap.DenoiseWet);
 
-             sliderDenoiseMakeup = PanelSlider.CreateEntryAndBind(
-                denoiseGroup,
-                PanelSlider.SliderSettings.Advanced("Denoise Makeup (dB)", -12f, 24f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.DenoiseMakeupDb);
+            sliderDenoiseMakeup = PanelSlider.CreateEntryAndBind(
+               denoiseGroup,
+               PanelSlider.SliderSettings.Advanced("Denoise Makeup (dB)", -12f, 24f, false, 2, ValueDisplayMode.Raw),
+               BasisSettingsDefaults.DenoiseMakeupDb);
             sliderDenoiseMakeup.SetValueWithoutNotify(snap.DenoiseMakeupDb);
 
             void DenoiseWetChanged(float v)
@@ -419,28 +429,28 @@ namespace Basis.BasisUI
             agcGroup.SetTitle("AGC Tuning");
             agcGroup.SetDescription("Target loudness and responsiveness (only applies when AGC is enabled).");
 
-             sliderAgcTarget = PanelSlider.CreateEntryAndBind(
-                agcGroup,
-                PanelSlider.SliderSettings.Advanced("AGC Target RMS", 0.001f, 0.25f, false, 4, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.AgcTargetRms);
+            sliderAgcTarget = PanelSlider.CreateEntryAndBind(
+               agcGroup,
+               PanelSlider.SliderSettings.Advanced("AGC Target RMS", 0.001f, 0.25f, false, 4, ValueDisplayMode.Raw),
+               BasisSettingsDefaults.AgcTargetRms);
             sliderAgcTarget.SetValueWithoutNotify(snap.AgcTargetRms);
 
-             sliderAgcMaxGain = PanelSlider.CreateEntryAndBind(
-                agcGroup,
-                PanelSlider.SliderSettings.Advanced("AGC Max Gain (dB)", 0f, 36f, false, 1, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.AgcMaxGainDb);
+            sliderAgcMaxGain = PanelSlider.CreateEntryAndBind(
+               agcGroup,
+               PanelSlider.SliderSettings.Advanced("AGC Max Gain (dB)", 0f, 36f, false, 1, ValueDisplayMode.Raw),
+               BasisSettingsDefaults.AgcMaxGainDb);
             sliderAgcMaxGain.SetValueWithoutNotify(snap.AgcMaxGainDb);
 
-             sliderAgcAttack = PanelSlider.CreateEntryAndBind(
-                agcGroup,
-                PanelSlider.SliderSettings.Advanced("AGC Attack", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.AgcAttack);
+            sliderAgcAttack = PanelSlider.CreateEntryAndBind(
+               agcGroup,
+               PanelSlider.SliderSettings.Advanced("AGC Attack", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+               BasisSettingsDefaults.AgcAttack);
             sliderAgcAttack.SetValueWithoutNotify(snap.AgcAttack);
 
-             sliderAgcRelease = PanelSlider.CreateEntryAndBind(
-                agcGroup,
-                PanelSlider.SliderSettings.Advanced("AGC Release", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.AgcRelease);
+            sliderAgcRelease = PanelSlider.CreateEntryAndBind(
+               agcGroup,
+               PanelSlider.SliderSettings.Advanced("AGC Release", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+               BasisSettingsDefaults.AgcRelease);
             sliderAgcRelease.SetValueWithoutNotify(snap.AgcRelease);
 
             void AgcTargetChanged(float v)

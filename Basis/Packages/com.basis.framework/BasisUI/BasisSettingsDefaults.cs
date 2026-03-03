@@ -5,11 +5,12 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> MainVolume => new("main volume", new BasisPlatformDefault<float>(75));
 
         public static BasisSettingsBinding<float> MenuVolume => new("menuvolume", new BasisPlatformDefault<float>(75));
-        public static BasisSettingsBinding<float> VideoVolume => new("videovolume", new BasisPlatformDefault<float>(75));
+        public static BasisSettingsBinding<float> MediaVolume => new("mediavolume", new BasisPlatformDefault<float>(75));
         public static BasisSettingsBinding<float> WorldVolume => new("worldvolume", new BasisPlatformDefault<float>(75));
 
-        public static BasisSettingsBinding<float> PlayerVolume => new("playervolume", new BasisPlatformDefault<float>(75));
-
+        public static BasisSettingsBinding<float> VoiceVolume => new("voicevolume", new BasisPlatformDefault<float>(75));
+        public static BasisSettingsBinding<float> AvatarVolume => new("avatarvolume", new BasisPlatformDefault<float>(75));
+        public static BasisSettingsBinding<float> PropVolume => new("propvolume", new BasisPlatformDefault<float>(75));
         public static BasisSettingsBinding<float> MicrophoneVolume => new("microphonevolume", new BasisPlatformDefault<float>(1));
 
         public static BasisSettingsBinding<float> ControllerDeadZone => new("joystickdeadzone", new BasisPlatformDefault<float>(0.01f));
@@ -388,7 +389,10 @@ namespace Basis.BasisUI
             MainVolume.LoadBindingValue();
             MenuVolume.LoadBindingValue();
             WorldVolume.LoadBindingValue();
-            PlayerVolume.LoadBindingValue();
+            AvatarVolume.LoadBindingValue();
+            PropVolume.LoadBindingValue();
+            MediaVolume.LoadBindingValue();
+
             MicrophoneVolume.LoadBindingValue();
             MicrophoneRange.LoadBindingValue();
             HearingRange.LoadBindingValue();
