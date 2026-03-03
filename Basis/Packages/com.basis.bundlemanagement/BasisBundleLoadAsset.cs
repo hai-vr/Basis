@@ -5,7 +5,7 @@ using UnityEngine.SceneManagement;
 using static BundledContentHolder;
 public static class BasisBundleLoadAsset
 {
-    public static async Task<GameObject> LoadFromWrapper(BasisTrackedBundleWrapper BasisLoadableBundle, bool UseContentRemoval, Vector3 Position, Quaternion Rotation,bool ModifyScale,Vector3 Scale, Selector Selector, Transform Parent = null, bool DestroyColliders = false)
+    public static async Task<GameObject> LoadFromWrapper(BasisTrackedBundleWrapper BasisLoadableBundle, bool UseContentRemoval, Vector3 Position, Quaternion Rotation, bool ModifyScale, Vector3 Scale, Selector Selector, Transform Parent = null, bool DestroyColliders = false)
     {
         bool Incremented = false;
         if (BasisLoadableBundle.AssetBundle != null)
@@ -53,7 +53,7 @@ public static class BasisBundleLoadAsset
             }
             else
             {
-                BasisDebug.LogError("Missing Platform Bundle! cant find : "+ Application.platform);
+                BasisDebug.LogError("Missing Platform Bundle! cant find : " + Application.platform);
             }
         }
         else
@@ -83,10 +83,11 @@ public static class BasisBundleLoadAsset
         {
             // Load the scene asynchronously
             AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(scenePaths[0], LoadSceneMode.Additive);
+            asyncLoad.allowSceneActivation = true;
             // Track scene loading progress
             while (!asyncLoad.isDone)
             {
-                progressCallback.ReportProgress(UniqueID,50 + asyncLoad.progress * 50, "loading scene"); // Progress from 50 to 100 during scene load
+                progressCallback.ReportProgress(UniqueID, 50 + asyncLoad.progress * 50, "loading scene"); // Progress from 50 to 100 during scene load
                 await Task.Yield();
             }
 
@@ -96,6 +97,9 @@ public static class BasisBundleLoadAsset
             // Set the loaded scene as the active scene
             if (loadedScene.IsValid())
             {
+                ChecksRequired ChecksRequired = new ChecksRequired();
+                ChecksRequired.UseContentRemoval = true;
+                ContentPoliceControl.ContentControl(ChecksRequired, Selector.World, loadedScene, true);
                 if (MakeActiveScene)
                 {
                     SceneManager.SetActiveScene(loadedScene);

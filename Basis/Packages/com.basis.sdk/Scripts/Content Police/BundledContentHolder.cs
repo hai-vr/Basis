@@ -22,6 +22,12 @@ public partial class BundledContentHolder : MonoBehaviour
     public ContentPoliceSelector PropScriptSelector;
 
     /// <summary>
+    /// Selector used to validate or control World scripts.
+    /// </summary>
+    public ContentPoliceSelector WorldScriptSelector;
+
+
+    /// <summary>
     /// Default loadable bundle representing the starting scene.
     /// </summary>
     public BasisLoadableBundle DefaultScene;
@@ -65,6 +71,9 @@ public partial class BundledContentHolder : MonoBehaviour
                 return true;
             case Selector.Prop:
                 PoliceCheck = PropScriptSelector;
+                return true;
+            case Selector.World:
+                PoliceCheck = WorldScriptSelector;
                 return true;
             default:
                 PoliceCheck = null;

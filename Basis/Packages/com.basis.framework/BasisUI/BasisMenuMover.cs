@@ -268,11 +268,11 @@ namespace Basis.BasisUI
 
         /// <summary>
         /// PlaySpaceStable distance is controlled ONLY by GroupOffset (like v1).
-        /// We keep the "VR distance" default here: 0.5m forward in local space when VR.
+        /// We keep the "VR distance" default here: 0.6m forward in local space when VR.
         /// </summary>
         private void SetRootOffsetForPlaySpaceStable()
         {
-            GroupOffset.SetLocalPositionAndRotation(new Vector3(0f, 0f, 0.5f), Quaternion.identity);
+            GroupOffset.SetLocalPositionAndRotation(new Vector3(0f, 0f, 0.6f), Quaternion.identity);
 
             ApplyScaleOnly();
         }

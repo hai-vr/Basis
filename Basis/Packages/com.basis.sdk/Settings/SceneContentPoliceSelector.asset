@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b20bf104ec1d97d4c99fe5d73dd78d0d, type: 3}
-  m_Name: PropContentPoliceSelector
+  m_Name: SceneContentPoliceSelector
   m_EditorClassIdentifier: 
   selectedTypes:
   - BasisVideoPlayer
@@ -353,5 +353,39 @@ MonoBehaviour:
   - Prism.UI.VideoPlayerUI
   - Basis.Scripts.UI.UI_Panels.BasisUIComponent
   - Cilbox.CilboxProxy
-  - VolumetricAdditionalLight
+  - BasisAvatarPedestal
+  - BasisNetworkedContent
+  - BasisLoadInGameobjectAddressable
+  - Basis.Scripts.BasisSdk.Interactions.BasisPlayerInteract
   - UnityEngine.Rendering.Universal.UniversalAdditionalLightData
+  - Cilbox.CilboxScene
+  - VolumetricAdditionalLight
+  - GatorDragonGames.JigglePhysics.JiggleRig
+  - GatorDragonGames.JigglePhysics.JiggleUpdateExample
+  - GatorDragonGames.JigglePhysics.JiggleColliderExample
+  - UnityEngine.InputSystem.PlayerInputManager
+  - UnityEngine.InputSystem.PlayerInput
+  - Prism.Native.Linux.LinuxMediaPlayer
+  - Basis.Scripts.TransformBinders.BasisLockToInput
+  - Basis.Scripts.TransformBinders.BasisLockToBone
+  - Basis.Scripts.UI.UI_Panels.BasisMenuMovementDriver
+  - Basis.Scripts.UI.UI_Panels.BasisUIMovementDriver
+  - UnityEngine.Rendering.ProbeVolume
+  - UnityEngine.Rendering.ProbeVolumePerSceneData
+  - UnityEngine.Rendering.ProbeTouchupVolume
+  - UnityEngine.Rendering.ProbeAdjustmentVolume
+  - UnityEngine.Rendering.Volume
+  - UnityEngine.Animations.Rigging.BasisFullBodyIK
+  - UnityEngine.Rendering.SceneRenderPipeline
+  - UnityEngine.Rendering.LensFlareComponentSRP
+  - UnityEngine.Rendering.DebugUpdater
+  - UnityEngine.Rendering.FreeCamera
+  - UnityEngine.Rendering.CameraSwitcher
+  - UnityEngine.Rendering.DisallowGPUDrivenRendering
+  - UnityEngine.Rendering.DisallowSmallMeshCulling
+  - UnityEngine.Rendering.Universal.CinemachineUniversalPixelPerfect
+  - UnityEngine.Rendering.Universal.Light2D
+  - UnityEngine.Rendering.Universal.PixelPerfectCamera
+  - UnityEngine.Rendering.Universal.CompositeShadowCaster2D
+  - UnityEngine.Rendering.Universal.ShadowCaster2D
+  - Basis.Media.BasisPrismVideoPlayerNetworked

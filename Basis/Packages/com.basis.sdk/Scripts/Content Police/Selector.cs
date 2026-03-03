@@ -4,7 +4,8 @@ public partial class BundledContentHolder
     {
         Avatar = 0,
         System = 1,
-        Prop = 2
+        Prop = 2,
+        World = 3,
     }
     public enum Mode
     {

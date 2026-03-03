@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public static class ContentPoliceControl
 {
@@ -94,6 +95,50 @@ public static class ContentPoliceControl
             }
         }
         return SearchAndDestroy;
+    }
+    /// <summary>
+    /// Scrubs a scene by removing any unapproved MonoBehaviours and applying optional safety checks.
+    /// </summary>
+    public static void ContentControl(ChecksRequired checks, BundledContentHolder.Selector selector, Scene targetScene, bool includeInactive = true)
+    {
+        if (!checks.UseContentRemoval)
+        {
+            return;
+        }
+
+        if (!BundledContentHolder.Instance.GetSelector(selector, out ContentPoliceSelector policeCheck))
+        {
+            BasisDebug.LogError("Can't find Police check for " + selector, BasisDebug.LogTag.Event);
+            return;
+        }
+        if (!targetScene.IsValid() || !targetScene.isLoaded)
+        {
+            Debug.LogError("Target scene is not valid or not loaded.");
+            return;
+        }
+
+        var roots = targetScene.GetRootGameObjects();
+        for (int i = 0; i < roots.Length; i++)
+        {
+            // Get ALL components in this subtree
+            Component[] components = roots[i].transform.GetComponentsInChildren<Component>(includeInactive);
+            // Check if the component is a MonoBehaviour and not in the approved list
+            for (int Index = 0; Index < components.Length; Index++)
+            {
+                Component component = components[Index];
+                //do this first before we nuke stuff
+                // Check if the component is a MonoBehaviour and not in the approved list
+                if (component is UnityEngine.Component monoBehaviour)
+                {
+                    string monoTypeName = monoBehaviour.GetType().FullName;
+                    if (!policeCheck.selectedTypes.Contains(monoTypeName))
+                    {
+                        Debug.LogError($"MonoBehaviour {monoTypeName} is not approved and will be removed.");
+                        GameObject.DestroyImmediate(monoBehaviour); // Destroy the unapproved MonoBehaviour immediately
+                    }
+                }
+            }
+        }
     }
 }
 /// <summary>

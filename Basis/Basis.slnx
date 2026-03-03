@@ -44,7 +44,6 @@
   <Project Path="BasisSDKEditor.csproj" />
   <Project Path="com.gator-dragon-games.jigglephysics.csproj" />
   <Project Path="Unity.UnifiedRayTracing.Runtime.csproj" />
-  <Project Path="Prism.Runtime.csproj" />
   <Project Path="Unity.VisualEffectGraph.Runtime.csproj" />
   <Project Path="Unity.Services.Core.Editor.csproj" />
   <Project Path="Unity.Burst.CodeGen.csproj" />
@@ -114,7 +113,6 @@
   <Project Path="Unity.Services.Core.Device.csproj" />
   <Project Path="BasisExampleEditor.csproj" />
   <Project Path="Unity.Services.Core.Analytics.csproj" />
-  <Project Path="Prism.Editor.csproj" />
   <Project Path="Unity.EditorCoroutines.Editor.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.Runtime.Tests.csproj" />
   <Project Path="SteamAudioUnityEditor.csproj" />
@@ -139,8 +137,6 @@
   <Project Path="Unity.Animation.Rigging.DocCodeExamples.csproj" />
   <Project Path="UnityEngine.XR.LegacyInputHelpers.csproj" />
   <Project Path="Unity.XR.OpenXR.Features.RuntimeDebugger.Editor.csproj" />
-  <Project Path="Basis.Media.Runtime.csproj" />
-  <Project Path="Prism.Runtime.Tests.csproj" />
   <Project Path="Unity.InputSystem.DocCodeSamples.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.Shaders.csproj" />
   <Project Path="Unity.RenderPipelines.Core.Runtime.Shared.csproj" />
@@ -153,7 +149,6 @@
   <Project Path="Basis.ZeroMessenger.Samples.csproj" />
   <Project Path="BasisSDKMIrrorEditor.csproj" />
   <Project Path="Unity.XR.OpenXR.TestTooling.csproj" />
-  <Project Path="Prism.UI.csproj" />
   <Project Path="Unity.XR.OpenXR.Features.ConformanceAutomation.csproj" />
   <Project Path="Unity.XR.Hands.Analytics.Hooks.Editor.csproj" />
   <Project Path="Unity.XR.OpenXR.Features.MockRuntime.csproj" />

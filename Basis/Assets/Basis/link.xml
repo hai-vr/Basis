@@ -23,6 +23,7 @@
     <assembly fullname="BasisPoolTable" preserve="all" />
     <assembly fullname="BasisProfiler" preserve="all" />
     <assembly fullname="BasisSDK" preserve="all" />
+    <assembly fullname="BasisSDKEditor" preserve="all" />
     <assembly fullname="BasisSeatExamples" preserve="all" />
     <assembly fullname="BasisSerializer.OdinSerializer" preserve="all" />
     <assembly fullname="BasisSettings" preserve="all" />
@@ -109,7 +110,6 @@
     <assembly fullname="Unity.XR.OpenXR.Features.MockRuntime" preserve="all" />
     <assembly fullname="Unity.XR.OpenXR.Features.OculusQuestSupport" preserve="all" />
     <assembly fullname="Unity.XR.OpenXR.Features.RuntimeDebugger" preserve="all" />
-    <assembly fullname="Unity.XR.OpenXR.TestTooling" preserve="all" />
     <assembly fullname="UnityEngine.SpatialTracking" preserve="all" />
     <assembly fullname="UnityEngine.UI" preserve="all" />
     <assembly fullname="UnityEngine.XR.LegacyInputHelpers" preserve="all" />
