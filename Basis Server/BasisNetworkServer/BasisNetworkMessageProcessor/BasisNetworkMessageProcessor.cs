@@ -196,7 +196,7 @@ public static class BasisNetworkMessageProcessor
         return false;
     }
 
-    private static void HandleAdminResourceAction(NetPeer peer, NetPacketReader reader, Action<NetPacketReader, NetPeer> action, string permNode)
+    private static void HandleAdminResourceAction(NetPeer peer, NetPacketReader reader, Action<NetPacketReader, NetPeer,string> action, string permNode)
     {
         if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid))
         {
@@ -208,7 +208,7 @@ public static class BasisNetworkMessageProcessor
         if (PermissionIntegration.HasRequirement(uuid, permNode) ||
             PermissionIntegration.HasRequirement(uuid, PermNodes.All))
         {
-            action(reader, peer); // recycles inside handler
+            action(reader, peer, uuid); // recycles inside handler
         }
         else
         {
