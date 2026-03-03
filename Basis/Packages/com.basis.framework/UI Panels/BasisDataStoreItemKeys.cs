@@ -206,7 +206,7 @@ namespace Basis.Scripts.UI.UI_Panels
 
         private static async Task WipeMemoryKeys_ValidateEmbedded_AndSave()
         {
-            BasisDebug.Log("Creating new json.");
+            BasisDebug.LogWarning("Creating new json. old was bogo binted.");
             keys.Data = System.Array.Empty<ItemKey>();
             ValidateEmbeddedKeys(); // ensures hardcoded embedded stuff is there
             await SaveKeysToFile(); // overwrite the empty file with a valid one 
@@ -311,42 +311,61 @@ namespace Basis.Scripts.UI.UI_Panels
             // new one is fully flushed.
             string tempPath = FilePath + ".tmp";
 
+            // FIX: Separate try/catch for serialization so a failure here never touches
+            // the real file or the temp file.
+            byte[] byteData;
             try
             {
-                byte[] byteData = BasisSerialization.SerializeValue(keys);
+                byteData = BasisSerialization.SerializeValue(keys);
+            }
+            catch (System.Exception e)
+            {
+                BasisDebug.LogError($"Failed to serialize Item keys: {e}");
+                return;
+            }
 
-                // FIX: Validate that serialization produced non-empty output before
-                // touching the real file. An empty serialize result would wipe the store.
-                if (byteData == null || byteData.Length == 0)
-                {
-                    BasisDebug.LogError("Serialization produced empty output. Aborting save to protect existing data.");
-                    return;
-                }
+            // FIX: Validate that serialization produced non-empty output before
+            // touching the real file. An empty serialize result would wipe the store.
+            if (byteData == null || byteData.Length == 0)
+            {
+                BasisDebug.LogError("Serialization produced empty output. Aborting save to protect existing data.");
+                return;
+            }
 
-                // Atomic replace: old file is overwritten only after temp write succeeds.
+            // FIX: Separate try/catch for the write so a failed write bails out before
+            // we attempt to swap — previously a write failure would fall through to
+            // File.Move on a non-existent tmp file, causing a FileNotFoundException.
+            try
+            {
                 await File.WriteAllBytesAsync(tempPath, byteData);
+            }
+            catch (System.Exception e)
+            {
+                BasisDebug.LogError($"Failed to write temp file: {e}");
+                return; // bail before touching the real file
+            }
 
-                // FIX: File.Move has no overwrite parameter in the target Unity/.NET
-                // version, so we explicitly delete the destination first. The window
-                // where neither file exists is minimal — the new data is already fully
-                // written to tempPath before we touch the real file.
+            // Temp file is confirmed written — now do the atomic swap.
+            try
+            {
                 if (File.Exists(FilePath))
-                    File.Delete(FilePath);
-
-                File.Move(tempPath, FilePath);
+                    File.Replace(tempPath, FilePath, null); // atomic swap, no window where FilePath is absent
+                else
+                    File.Move(tempPath, FilePath); // first ever save, Replace would throw if destination missing
 
                 BasisDebug.Log($"Item keys saved to file at: {FilePath}");
             }
             catch (System.Exception e)
             {
-                BasisDebug.LogError($"Failed to save Item keys: {e}");
+                BasisDebug.LogError($"Failed to replace Item key file: {e}");
 
-                // Clean up orphaned temp file if the move failed.
-                if (File.Exists(tempPath))
+                // Clean up orphaned temp file if the swap failed.
+                try
                 {
-                    try { File.Delete(tempPath); }
-                    catch { /* best-effort cleanup */ }
+                    if (File.Exists(tempPath))
+                        File.Delete(tempPath);
                 }
+                catch { /* best-effort cleanup */ }
             }
         }
 
