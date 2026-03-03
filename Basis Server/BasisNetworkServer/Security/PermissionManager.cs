@@ -11,8 +11,6 @@ namespace BasisPermissions
     public static class PermNodes
     {
         public const string All = "*";
-
-        public const string Admin = "basis.admin";
         public const string ServerStats = "basis.server.stats";
 
         public const string ResourceLoad = "basis.resource.load";

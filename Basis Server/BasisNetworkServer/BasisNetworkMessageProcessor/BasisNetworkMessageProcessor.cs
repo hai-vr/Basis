@@ -97,10 +97,7 @@ public static class BasisNetworkMessageProcessor
 
                 case BasisNetworkCommons.AdminChannel:
                     BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AdminChannel, reader.AvailableBytes);
-                    HandlePermitted(peer, reader, PermNodes.Admin, () =>
-                    {
-                        BasisPlayerModeration.OnAdminMessage(peer, reader); // recycles inside
-                    });
+                    BasisPlayerModeration.OnAdminMessage(peer, reader); // recycles inside
                     break;
 
                 case BasisNetworkCommons.AvatarCloneRequestChannel:
