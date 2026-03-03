@@ -10,6 +10,21 @@ namespace Basis
 {
     public static class BasisRuntimeSpawnRegistry
     {
+        public enum RegistryChangeType : byte
+        {
+            Added = 0,
+            Removed = 1,
+            ClearedUrl = 2,
+            ClearedAll = 3
+        }
+
+        public static event Action<RegistryChangeType, SpawnInstance> OnRegistryChanged;
+
+        private static void RaiseChanged(RegistryChangeType type, SpawnInstance instance)
+        {
+            OnRegistryChanged?.Invoke(type, instance);
+        }
+
         public enum SpawnMode : byte
         {
             GameObject = 0,
@@ -29,12 +44,13 @@ namespace Basis
         {
             public SpawnMode SpawnMode;          // GameObject / Scene / Avatar
             public SpawnMethod SpawnMethod;      // Embedded / Local / Network
-
             public string InstanceId;       // unique per spawn (GUID)
             public string Url;              // original spawn URL / key
             public string LoadedNetID;      // what you pass to RequestGameObjectUnLoad
             public bool Persistent;
+            public bool IsAdminLocked; // this determines if the item is admin protected
             public DateTime SpawnedUtc;
+            public BasisBundleConnector bundleConnector; // metadata for the spawned entity, assume it to be null when not present.
         }
 
         // LoadedNetID -> spawned thing (runtime references)
@@ -74,11 +90,13 @@ namespace Basis
             string loadedNetId,
             GameObject go,
             bool persistent,
+            bool admin,
             SpawnMethod method,
+            BasisBundleConnector basisBundleConnector,
             out SpawnInstance instance)
         {
             if (go == null) throw new ArgumentNullException(nameof(go));
-            AddInternal(url, loadedNetId, persistent, method, SpawnMode.GameObject, out instance);
+            AddInternal(url, loadedNetId, persistent, admin, method, SpawnMode.GameObject, basisBundleConnector, out instance);
 
             // keep runtime ref
             SpawnedGameobjects[loadedNetId] = go;
@@ -89,11 +107,13 @@ namespace Basis
             string loadedNetId,
             Scene scene,
             bool persistent,
+            bool admin,
             SpawnMethod method,
+            BasisBundleConnector basisBundleConnector,
             out SpawnInstance instance)
         {
             if (!scene.IsValid()) throw new ArgumentException("Scene is not valid.", nameof(scene));
-            AddInternal(url, loadedNetId, persistent, method, SpawnMode.Scene, out instance);
+            AddInternal(url, loadedNetId, persistent, admin, method, SpawnMode.Scene, basisBundleConnector, out instance);
 
             // keep runtime ref
             SpawnedScenes[loadedNetId] = scene;
@@ -104,19 +124,23 @@ namespace Basis
             string url,
             string loadedNetId,
             bool persistent,
+            bool admin,
             SpawnMethod method,
             SpawnMode mode,
+            BasisBundleConnector bundleConnector,
             out SpawnInstance instance)
         {
-            AddInternal(url, loadedNetId, persistent, method, mode, out instance);
+            AddInternal(url, loadedNetId, persistent, admin, method, mode, bundleConnector, out instance);
         }
 
         private static void AddInternal(
             string url,
             string loadedNetId,
             bool persistent,
+            bool admin,
             SpawnMethod method,
             SpawnMode mode,
+            BasisBundleConnector bundleConnector,
             out SpawnInstance instance)
         {
             if (string.IsNullOrWhiteSpace(url)) throw new ArgumentException("URL cannot be null/empty.", nameof(url));
@@ -134,15 +158,20 @@ namespace Basis
                 Url = url,
                 LoadedNetID = loadedNetId,
                 Persistent = persistent,
+                IsAdminLocked = admin,
                 SpawnedUtc = DateTime.UtcNow,
                 SpawnMethod = method,
                 SpawnMode = mode,
+                bundleConnector = bundleConnector
             };
 
             list.Add(instance);
 
             // uniqueness expected
             _byNetId[loadedNetId] = instance;
+
+            // raise a changed event that we added something
+            RaiseChanged(RegistryChangeType.Added, instance);
         }
 
         public static async Task<bool> RemoveByLoadedNetId(string loadedNetId)
@@ -224,6 +253,8 @@ namespace Basis
             SpawnedGameobjects.TryRemove(loadedNetId, out _);
             SpawnedScenes.TryRemove(loadedNetId, out _);
 
+            // raise an event we removed something
+            RaiseChanged(RegistryChangeType.Removed, instance);
             return true;
         }
 
@@ -262,11 +293,17 @@ namespace Basis
                         _byNetId.Remove(inst.LoadedNetID);
                         SpawnedGameobjects.TryRemove(inst.LoadedNetID, out _);
                         SpawnedScenes.TryRemove(inst.LoadedNetID, out _);
+                        
+                        // raise event that we cleared the url
+                        RaiseChanged(RegistryChangeType.ClearedUrl, inst);
                     }
                 }
             }
 
             _map.Remove(url);
+            
+            // raise event we cleared cleared all
+            RaiseChanged(RegistryChangeType.ClearedAll, null);
         }
 
         /// <summary>

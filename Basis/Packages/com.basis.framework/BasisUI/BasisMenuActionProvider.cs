@@ -36,5 +36,14 @@ namespace Basis.BasisUI
         public virtual void OnButtonCreated(PanelButton button)
         {
         }
+
+        /// <summary>
+        /// Called when this provider's active menu panel is being released
+        /// (e.g. when switching to another provider's tab).
+        /// Override to unsubscribe from events or perform cleanup.
+        /// </summary>
+        public virtual void OnReleaseEvent()
+        {
+        }
     }
 }

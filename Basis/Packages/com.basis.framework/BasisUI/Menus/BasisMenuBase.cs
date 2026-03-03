@@ -8,7 +8,7 @@ namespace Basis.BasisUI
     /// This is the backing data that supports and manages the MenuInstance in the scene.
     /// </summary>
     [Serializable]
-    public abstract class BasisMenuBase<TMenu> where TMenu: BasisMenuBase<TMenu>
+    public abstract class BasisMenuBase<TMenu> where TMenu : BasisMenuBase<TMenu>
     {
 
         public static implicit operator bool(BasisMenuBase<TMenu> menu) => menu != null;
@@ -82,8 +82,18 @@ namespace Basis.BasisUI
         public BasisMenuPanel ActiveMenu;
         public BasisMenuDialoguePanel Dialogue;
 
+        /// <summary>
+        /// The provider that currently owns the active menu panel.
+        /// </summary>
+        public BasisMenuActionProvider<TMenu> ActiveProvider;
+
         public virtual void Release()
         {
+            // if the active provider exists, notify it that its panel is being released
+            if (ActiveProvider != null)
+            {
+                ActiveProvider.OnReleaseEvent();
+            }
             if (MenuObjectInstance) MenuObjectInstance.ReleaseInstance();
         }
 
