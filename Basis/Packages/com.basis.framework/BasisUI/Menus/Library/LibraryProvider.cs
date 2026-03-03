@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Networking;
 using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 using UnityEngine.UI;
@@ -15,7 +16,6 @@ namespace Basis.BasisUI
 {
     public partial class LibraryProvider : BasisMenuActionProvider<BasisMainMenu>
     {
-
         #region Provider Setup
         [RuntimeInitializeOnLoadMethod]
         public static async void AddToMenu()
@@ -48,12 +48,14 @@ namespace Basis.BasisUI
         public override void OnReleaseEvent()
         {
             BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
+            BasisNetworkEvents.IsLocalAdmin -= IsLocalAdmin;
         }
 
         public override string Title => "Library";
         public override string IconAddress => AddressableAssets.Sprites.Library;
         public override int Order => 1; // after Settings
         public override bool Hidden => false;
+        private static protected bool isUserAdmin = false; // we use this to determine if the user is admin for admin related queries on the library provider
         public static BasisMenuPanel panel;
         public static PanelTextField searchField; // reference to the search field
         private static LibraryDateSortMode _currentSort = LibraryDateSortMode.Name; // current sort mode for the library, default to name sorting
@@ -482,6 +484,16 @@ namespace Basis.BasisUI
                 {
                     BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
                     BasisRuntimeSpawnRegistry.OnRegistryChanged += OnRegistryChanged;
+
+                    // ensure admin hooks are here
+                    BasisNetworkEvents.IsLocalAdmin -= IsLocalAdmin;
+                    BasisNetworkEvents.IsLocalAdmin += IsLocalAdmin;
+
+                    // request an admin check if the network server is valid
+                    if(BasisNetworkConnection.LocalPlayerIsConnected)
+                    {
+                        BasisNetworkEvents.RequestIsAdminCheck();
+                    }
 
                     // force update this page
                     UpdateInstantiatedTab();
@@ -1074,13 +1086,16 @@ namespace Basis.BasisUI
                 contentSyncModeDropDown.AssignEntries(contentSyncModes.ToList());
                 contentSyncModeDropDown.Descriptor.SetSize(new Vector2(700, 80));
 
-                // DISABLE THIS DROPDOWN IF EMBEDED ITEM
+                // disable network type selection
                 if (contentSyncModeDropDown.Descriptor.gameObject.TryGetComponent<PanelDropdown>(out PanelDropdown dropdown))
                 {
                     if (dropdown.DropdownComponent != null)
                     {
-                        // if the item is embedded dont interact
-                        dropdown.DropdownComponent.interactable = !(item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable);
+                        // only interactable when the player is connected and the item is not embedded
+                        dropdown.DropdownComponent.interactable =
+                            BasisNetworkConnection.LocalPlayerIsConnected &&
+                            !(item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable);
+
                     }
                 }
 
@@ -1263,7 +1278,7 @@ namespace Basis.BasisUI
                         await ContentLoader.LoadAvatar(item);
                         break;
                     case BundledContentHolder.Mode.Prop:
-                        await ContentLoader.LoadProp(item, networkType, persistence, modifyScale);
+                        await ContentLoader.LoadProp(item, networkType, persistence, isUserAdmin, modifyScale);
                         break;
                     case BundledContentHolder.Mode.World:
                         await ContentLoader.LoadWorld(item);
@@ -1283,18 +1298,25 @@ namespace Basis.BasisUI
 
         #region InstantiatedListElement
 
+        private static string TitleFromSpawnInstanceMetaData(BasisRuntimeSpawnRegistry.SpawnInstance k)
+        {
+            bool hasMetaData = k.bundleConnector != null;
+            return hasMetaData ? LibraryProviderStrUtil.TitleToCase(k.bundleConnector.BasisBundleDescription.AssetBundleName) : k.Url;
+        }
+
         private static void UpdateInstantiatedTab()
         {
             // get the data
             IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> collections = BasisRuntimeSpawnRegistry.GetAll();
+
+            #region filter data / sorting
 
             // filter the data
             if (!string.IsNullOrWhiteSpace(_currentSearchQuery))
             {
                 collections = collections.Where(k =>
                 {
-                    bool hasMetaData = k.bundleConnector != null;
-                    string title = hasMetaData ? LibraryProviderStrUtil.TitleToCase(k.bundleConnector.BasisBundleDescription.AssetBundleName) : k.Url;
+                    string title = TitleFromSpawnInstanceMetaData(k);
 
                     // find matching title
                     if (!string.IsNullOrEmpty(title) && title.IndexOf(_currentSearchQuery, StringComparison.InvariantCultureIgnoreCase) >= 0)
@@ -1305,6 +1327,33 @@ namespace Basis.BasisUI
                     return false;
                 }).ToList();
             }
+
+            // sort by type
+            switch (_currentSort)
+            {
+                case LibraryDateSortMode.Name:
+                    collections = collections.OrderBy(k =>
+                    {
+                        return TitleFromSpawnInstanceMetaData(k);
+                    }).ToList();
+                    break;
+
+                case LibraryDateSortMode.DateOldestToNewest:
+                    collections = collections.OrderBy(k =>
+                    {
+                        return k.SpawnedUtc;
+                    }).ToList();
+                    break;
+
+                case LibraryDateSortMode.DateNewestToOldest:
+                    collections = collections.OrderByDescending(k =>
+                    {
+                        return k.SpawnedUtc;
+                    }).ToList();
+                    break;
+            }
+
+            #endregion
 
             // get the page
             PanelTabPage page = GetTabFromPage(Page.Instantiated);
@@ -1341,6 +1390,12 @@ namespace Basis.BasisUI
 
         }
 
+        private static void IsLocalAdmin(bool state)
+        {
+            isUserAdmin = state;
+            BasisDebug.Log($"LibraryProvider.cs -> IsLocalAdmin(state = {state})");
+        }
+
         private static void BuildItemsListForInstantiatedObjects(IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> loadedItems, PanelTabPage tab)
         {
             RectTransform container = tab.Descriptor.ContentParent;
@@ -1359,27 +1414,27 @@ namespace Basis.BasisUI
         {
             bool hasMetaData = itemKey.bundleConnector != null;
             string title = hasMetaData ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName) : itemKey.Url;
-            string description = hasMetaData ? (itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription.Length > 0 ? itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription : "No description was provided.") : (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded ? "Embedded Item" : "N/A");
+            //string description = hasMetaData ? (itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription.Length > 0 ? itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription : "No description was provided.") : (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded ? "Embedded Item" : "N/A");
 
             PanelTabGroup itemListPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.HorizontalStackedNoBackground, parentTabGroup);
             itemListPanel.Descriptor.SetWidth(1400);
             itemListPanel.Descriptor.SetHeight(95);
 
-            // create an image for the list entry to show what type of spawn method was used
-            PanelImage spawnMethodPanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
-            spawnMethodPanelImage.SetSize(new Vector2(80, 80));
+            #region list entry images
 
-            switch (itemKey.SpawnMethod)
+            // images are in the following order:
+            // ADMIN
+            // CONTENT TYPE
+            // NETWORKING/EMBEDDED
+            // PERSISTENCE
+
+            // if this list entry is admin show a shield
+            if(itemKey.IsAdminLocked)
             {
-                case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
-                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Embedded);
-                    break;
-                case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
-                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Computer);
-                    break;
-                case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
-                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Network);
-                    break;
+                // create an image for the list entry to show what type of spawn method was used
+                PanelImage adminPanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+                adminPanelImage.SetSize(new Vector2(80, 80));
+                adminPanelImage.SetIcon(AddressableAssets.Sprites.Admin);
             }
 
             // create an image for the list entry to show what type of spawn method was used
@@ -1399,6 +1454,24 @@ namespace Basis.BasisUI
                     break;
             }
 
+            // create an image for the list entry to show what type of spawn method was used
+            PanelImage spawnMethodPanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
+            spawnMethodPanelImage.SetSize(new Vector2(80, 80));
+
+            switch (itemKey.SpawnMethod)
+            {
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Embedded);
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Computer);
+                    break;
+                case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
+                    spawnMethodPanelImage.SetIcon(AddressableAssets.Sprites.Network);
+                    break;
+            }
+
+
             // create an image for the list entry to show persistence?
             PanelImage persistencePanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
             persistencePanelImage.SetSize(new Vector2(80, 80));
@@ -1413,13 +1486,15 @@ namespace Basis.BasisUI
                     break;
             }
 
+            #endregion
+
             // simple info
             PanelTextField itemTextInfo = PanelTextField.CreateNew(TextFieldStyles.Entry, itemListPanel.TabButtonParent);
             itemTextInfo._inputField.gameObject.SetActive(false); // disable the text input field box
 
             // set the title and description of the list entry
             itemTextInfo.Descriptor.SetTitle(title);
-            itemTextInfo.Descriptor.SetDescription(description);
+            itemTextInfo.Descriptor.SetDescription($"Created {LibraryProviderStrUtil.TimeAgoUtc(itemKey.SpawnedUtc)} ago."); // {description}
 
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
@@ -1435,6 +1510,14 @@ namespace Basis.BasisUI
             PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);
             removeItem.Descriptor.SetTitle("Remove");
             removeItem.SetSize(new Vector2(200, 60));
+
+            // determine if we can actually remove this via admin
+            if (removeItem.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent))
+            {
+                // if the item is embedded only allow an admin to interact
+                loadButtonComponent.interactable = (isUserAdmin == itemKey.IsAdminLocked);
+            }
+
             removeItem.OnClicked += async () =>
             {
                 BasisDebug.Log($"CreateListEntry() -> requested removal of item = {itemKey.Url} of instanceID = {instanceID} of SpawnMethod = {itemKey.SpawnMethod} and SpawnMode = {itemKey.SpawnMode}");

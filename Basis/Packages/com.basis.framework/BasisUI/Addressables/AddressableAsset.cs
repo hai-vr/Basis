@@ -34,6 +34,7 @@ namespace Basis.BasisUI
             public static string Pin = "Packages/com.basis.sdk/Textures/Runtime/pin.png";
             public static string Computer = "Packages/com.basis.sdk/Textures/Runtime/computer.png";
             public static string Information = "Packages/com.basis.sdk/Textures/Runtime/information.png";
+            public static string Admin = "Packages/com.basis.sdk/Textures/Runtime/admin.png";
 
             // embedded items
             public static string Embedded = "Packages/com.basis.sdk/Textures/Runtime/embedded.png";

@@ -62,7 +62,7 @@ namespace Basis.BasisUI
             }
         }
 
-        public static async Task LoadProp(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType desiredNetworkType, bool persistent = false, bool modifyScale = false)
+        public static async Task LoadProp(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType desiredNetworkType, bool persistent = false, bool admin = false, bool modifyScale = false)
         {
             if (CachedMetaData.TryGetMeta(item.Url, out var cached) || (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable))
             {
@@ -179,6 +179,7 @@ namespace Basis.BasisUI
                                         instance.name, 
                                         instance, 
                                         false, 
+                                        false, // embedded items should not consider admin check
                                         BasisRuntimeSpawnRegistry.SpawnMethod.Embedded,
                                         null, // no metadata for embedded items
                                          out var embeddedinstance
@@ -215,6 +216,7 @@ namespace Basis.BasisUI
                                             createdObject.name,
                                             createdObject,
                                             item.EmbeddedSettings.IsEmbedded, // persistent
+                                            false, // local items should not consider admin check
                                             BasisRuntimeSpawnRegistry.SpawnMethod.Local,
                                             bundle.BasisBundleConnector
                                             , out var instance
@@ -238,7 +240,7 @@ namespace Basis.BasisUI
                         {
                             try
                             {
-                                bool ok = BasisNetworkSpawnItem.RequestGameObjectLoad(item.Pass, item.Url, finalPos, finalRot, finalScale, persistent, modifyScale, out LocalLoadResource loadedProp);
+                                bool ok = BasisNetworkSpawnItem.RequestGameObjectLoad(item.Pass, item.Url, finalPos, finalRot, finalScale, persistent, admin, modifyScale, out LocalLoadResource loadedProp);
 
                                 if (ok && !string.IsNullOrEmpty(loadedProp.LoadedNetID))
                                 {

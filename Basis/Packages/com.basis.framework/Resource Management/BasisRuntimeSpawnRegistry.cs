@@ -48,6 +48,7 @@ namespace Basis
             public string Url;              // original spawn URL / key
             public string LoadedNetID;      // what you pass to RequestGameObjectUnLoad
             public bool Persistent;
+            public bool IsAdminLocked; // this determines if the item is admin protected
             public DateTime SpawnedUtc;
             public BasisBundleConnector bundleConnector; // metadata for the spawned entity, assume it to be null when not present.
         }
@@ -89,12 +90,13 @@ namespace Basis
             string loadedNetId,
             GameObject go,
             bool persistent,
+            bool admin,
             SpawnMethod method,
             BasisBundleConnector basisBundleConnector,
             out SpawnInstance instance)
         {
             if (go == null) throw new ArgumentNullException(nameof(go));
-            AddInternal(url, loadedNetId, persistent, method, SpawnMode.GameObject, basisBundleConnector, out instance);
+            AddInternal(url, loadedNetId, persistent, admin, method, SpawnMode.GameObject, basisBundleConnector, out instance);
 
             // keep runtime ref
             SpawnedGameobjects[loadedNetId] = go;
@@ -105,12 +107,13 @@ namespace Basis
             string loadedNetId,
             Scene scene,
             bool persistent,
+            bool admin,
             SpawnMethod method,
             BasisBundleConnector basisBundleConnector,
             out SpawnInstance instance)
         {
             if (!scene.IsValid()) throw new ArgumentException("Scene is not valid.", nameof(scene));
-            AddInternal(url, loadedNetId, persistent, method, SpawnMode.Scene, basisBundleConnector, out instance);
+            AddInternal(url, loadedNetId, persistent, admin, method, SpawnMode.Scene, basisBundleConnector, out instance);
 
             // keep runtime ref
             SpawnedScenes[loadedNetId] = scene;
@@ -121,18 +124,20 @@ namespace Basis
             string url,
             string loadedNetId,
             bool persistent,
+            bool admin,
             SpawnMethod method,
             SpawnMode mode,
             BasisBundleConnector bundleConnector,
             out SpawnInstance instance)
         {
-            AddInternal(url, loadedNetId, persistent, method, mode, bundleConnector, out instance);
+            AddInternal(url, loadedNetId, persistent, admin, method, mode, bundleConnector, out instance);
         }
 
         private static void AddInternal(
             string url,
             string loadedNetId,
             bool persistent,
+            bool admin,
             SpawnMethod method,
             SpawnMode mode,
             BasisBundleConnector bundleConnector,
@@ -153,6 +158,7 @@ namespace Basis
                 Url = url,
                 LoadedNetID = loadedNetId,
                 Persistent = persistent,
+                IsAdminLocked = admin,
                 SpawnedUtc = DateTime.UtcNow,
                 SpawnMethod = method,
                 SpawnMode = mode,
