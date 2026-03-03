@@ -222,8 +222,6 @@ public static class BasisNetworkMessageProcessor
     }
     private static bool TryWithPermission(NetPeer peer, NetPacketReader reader, string permNode, out string uuid)
     {
-        uuid = string.Empty;
-
         if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out uuid))
         {
             BNL.LogError($"User UUID not found for peer: {peer}");

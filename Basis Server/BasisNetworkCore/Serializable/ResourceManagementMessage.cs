@@ -17,6 +17,11 @@ public static partial class SerializableBasis
         public string UnlockPassword;
         public string CombinedURL;
 
+        //will never remove this item from the server,
+        //if off when player count on server is zero it will be removed.
+        public string UUIDOfCreator;
+        public bool CreatorWasAdmin;
+
         public float PositionX;
         public float PositionY;
         public float PositionZ;
@@ -36,9 +41,6 @@ public static partial class SerializableBasis
         /// just use whatever scale it thinks it is.
         /// </summary>
         public bool ModifyScale;
-        //will never remove this item from the server,
-        //if off when player count on server is zero it will be removed.
-
         /// <summary>
         /// normal users cant remove these items
         /// never net written just handled by server
@@ -50,6 +52,9 @@ public static partial class SerializableBasis
             LoadedNetID = Writer.GetString();
             UnlockPassword = Writer.GetString();
             CombinedURL = Writer.GetString();
+            UUIDOfCreator = Writer.GetString();
+            CreatorWasAdmin = Writer.GetBool();
+
             Persist = Writer.GetBool();
             ModifyScale = Writer.GetBool();
             if (Mode == 0)
@@ -67,6 +72,7 @@ public static partial class SerializableBasis
                 ScaleY = Writer.GetFloat();
                 ScaleZ = Writer.GetFloat();
             }
+
         }
         public void Serialize(NetDataWriter Writer)
         {
@@ -74,6 +80,8 @@ public static partial class SerializableBasis
             Writer.Put(LoadedNetID);
             Writer.Put(UnlockPassword);
             Writer.Put(CombinedURL);
+            Writer.Put(UUIDOfCreator);
+            Writer.Put(CreatorWasAdmin);
             Writer.Put(Persist);
             Writer.Put(ModifyScale);
             if (Mode == 0)
