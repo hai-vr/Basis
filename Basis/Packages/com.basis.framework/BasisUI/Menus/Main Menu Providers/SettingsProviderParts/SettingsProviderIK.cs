@@ -17,6 +17,24 @@ public static class SettingsProviderIK
 
     private static PanelDropdown _boneDropdown;
 
+    private static PanelToggle _uiSmoothPos;
+    private static PanelToggle _uiSmoothRot;
+    private static PanelToggle _uiEuroPos;
+    private static PanelToggle _uiEuroRot;
+    private static PanelElementDescriptor _boneEditorGroup;
+    private static PanelElementDescriptor _boneEuroEditorGroup;
+
+    private struct BoneBindings
+    {
+        public string Name;
+        public BasisSettingsBinding<bool> SmoothPos;
+        public BasisSettingsBinding<bool> SmoothRot;
+        public BasisSettingsBinding<bool> EuroPos;
+        public BasisSettingsBinding<bool> EuroRot;
+    }
+
+    private static readonly List<BoneBindings> _bones = new();
+
     // ------------------
     // IK & Input
     // ------------------
@@ -27,6 +45,9 @@ public static class SettingsProviderIK
         var tabDesc = tabPage.Descriptor;
         tabDesc.SetTitle("IK Tab");
         tabDesc.SetIcon(AddressableAssets.Sprites.Settings);
+
+        // ONE RESET BUTTON FOR THIS PAGE
+        AddResetPageButton(tabDesc.ContentParent, "IK", ResetIkDefaults);
 
         // --- Group: "Calibration & IK" (replaces tab.Group(...)) ---
         var ikGroup = PanelElementDescriptor.CreateNew(
@@ -152,7 +173,6 @@ public static class SettingsProviderIK
         _trackerLerpToggleUIs.Clear();
         _euroToggleUIs.Clear();
 
-        // This now takes a RectTransform parent instead of a BasisGroupBuilder.
         AddFBIKTogglesCompact(ikParent);
 
         SyncMasterEuroFromChildren();
@@ -161,23 +181,65 @@ public static class SettingsProviderIK
         return tabPage;
     }
 
-    private static PanelToggle _uiSmoothPos;
-    private static PanelToggle _uiSmoothRot;
-    private static PanelToggle _uiEuroPos;
-    private static PanelToggle _uiEuroRot;
-    private static PanelElementDescriptor _boneEditorGroup;
-    private static PanelElementDescriptor _boneEuroEditorGroup;
-
-    private struct BoneBindings
+    // ------------------
+    // RESET HELPERS (LOCAL TO IK PROVIDER)
+    // ------------------
+    private static void AddResetPageButton(RectTransform parent, string pageName, System.Action resetAction)
     {
-        public string Name;
-        public BasisSettingsBinding<bool> SmoothPos;
-        public BasisSettingsBinding<bool> SmoothRot;
-        public BasisSettingsBinding<bool> EuroPos;
-        public BasisSettingsBinding<bool> EuroRot;
+        PanelButton reset = PanelButton.CreateNew(parent);
+        reset.Descriptor.SetTitle($"Reset {pageName}");
+        reset.Descriptor.SetDescription("Resets this page to defaults.");
+        reset.OnClicked += () =>
+        {
+            BasisMainMenu.Instance.OpenDialogue(
+                $"Reset {pageName}",
+                $"Reset all {pageName} settings to defaults?",
+                "Reset",
+                "Cancel",
+                value =>
+                {
+                    if (!value) return;
+                    resetAction?.Invoke();
+                });
+        };
     }
 
-    private static readonly List<BoneBindings> _bones = new();
+    private static void ResetIkDefaults()
+    {
+        // Main IK / calibration controls
+        BasisSettingsDefaults.SitStand.ResetToDefault();
+        BasisSettingsDefaults.IKMode.ResetToDefault();
+        BasisSettingsDefaults.CustomScale.ResetToDefault();
+        BasisSettingsDefaults.SelectedScale.ResetToDefault();
+
+        // Global One Euro / smoothing parameters
+        BasisSettingsDefaults.FBIKMinCutoff.ResetToDefault();
+        BasisSettingsDefaults.FBIKBeta.ResetToDefault();
+        BasisSettingsDefaults.FBIKDerivativeCutoff.ResetToDefault();
+        BasisSettingsDefaults.FBIKPositionSmoothingHz.ResetToDefault();
+        BasisSettingsDefaults.FBIKRotationSmoothingHz.ResetToDefault();
+
+        // Bone selection UI state (optional, but usually desired)
+        BasisSettingsDefaults.SelectedBone.ResetToDefault();
+
+        // If you have master toggles / global helpers:
+        // This binding is set by SyncMasterEuroFromChildren(), but reset it anyway.
+        BasisSettingsDefaults.FBIKEuroAll.ResetToDefault();
+
+        // Per-bone toggles
+        foreach (var b in _bones)
+        {
+            b.SmoothPos.ResetToDefault();
+            b.SmoothRot.ResetToDefault();
+            b.EuroPos.ResetToDefault();
+            b.EuroRot.ResetToDefault();
+        }
+
+        // Refresh the editor bindings + derived master state + interactables
+        RebindBoneEditor();
+        EvaluateInteractables();
+        SyncMasterEuroFromChildren();
+    }
 
     private static void AddFBIKTogglesCompact(RectTransform parent)
     {
@@ -257,8 +319,10 @@ public static class SettingsProviderIK
         _uiEuroRot = PanelToggle.CreateNewEntry(_boneEuroEditorGroup.ContentParent);
         _uiEuroRot.Descriptor.SetTitle("Euro Filtering (Rotation)");
         _uiEuroRot.Descriptor.SetDescription("Reduces micro-wobble while remaining responsive.");
+
         RebindBoneEditor();
     }
+
     private static void RebindBoneEditor()
     {
         if (_boneDropdown == null || _bones.Count == 0)
@@ -271,28 +335,31 @@ public static class SettingsProviderIK
         _uiSmoothRot.AssignBinding(bone.SmoothRot);
         _uiEuroPos.AssignBinding(bone.EuroPos);
         _uiEuroRot.AssignBinding(bone.EuroRot);
+
         SyncMasterEuroFromChildren();
     }
+
     private static void SyncMasterEuroFromChildren()
     {
         if (_bones.Count == 0)
-        {
             return;
-        }
 
         bool allOn = _bones.All(b => b.EuroPos.RawValue && b.EuroRot.RawValue);
         BasisSettingsDefaults.FBIKEuroAll.SetValue(allOn);
     }
+
     private static void EvaluateInteractables()
     {
         if (dropdownSeatedMode == null || dropdownIKMode == null)
-        {
             return;
-        }
 
         bool isSeated = GetCurrentText(dropdownSeatedMode) == SeatedMode_Seated;
         SetDropdownInteractable(dropdownIKMode, !isSeated);
     }
-    private static string GetCurrentText(PanelDropdown dd)  => dd.DropdownComponent.options[dd.DropdownComponent.value].text;
-    private static void SetDropdownInteractable(PanelDropdown dd, bool interactable)  => dd.DropdownComponent.interactable = interactable;
+
+    private static string GetCurrentText(PanelDropdown dd)
+        => dd.DropdownComponent.options[dd.DropdownComponent.value].text;
+
+    private static void SetDropdownInteractable(PanelDropdown dd, bool interactable)
+        => dd.DropdownComponent.interactable = interactable;
 }

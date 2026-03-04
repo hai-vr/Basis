@@ -46,6 +46,20 @@ namespace Basis.BasisUI
             Instance = new BasisMainMenu();
             BasisCursorManagement.UnlockCursor(nameof(BasisMainMenu));
         }
+        public static void OpenWithProvider(string ProviderTitle)
+        {
+            Open();
+            int count = BasisMainMenu.Providers.Count;
+            for (int Index = 0; Index < count; Index++)
+            {
+                BasisMenuActionProvider<BasisMainMenu> provider = BasisMainMenu.Providers[Index];
+                if (provider.Title == ProviderTitle)
+                {
+                    provider.RunAction();
+                    return;
+                }
+            }
+        }
 
         public static void Toggle()
         {

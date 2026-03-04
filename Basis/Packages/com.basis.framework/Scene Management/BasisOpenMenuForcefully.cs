@@ -25,15 +25,11 @@ public class BasisOpenMenuForcefully : MonoBehaviour
         BasisMainMenu.Open();
         if (OpenServerMenu)
         {
-            int count = BasisMainMenu.Providers.Count;
-            for (int Index = 0; Index < count; Index++)
-            {
-                BasisMenuActionProvider<BasisMainMenu> provider = BasisMainMenu.Providers[Index];
-                if (provider.Title == ServersProvider.TitleStatic)
-                {
-                    provider.RunAction();
-                }
-            }
+            BasisMainMenu.OpenWithProvider(ServersProvider.TitleStatic);
+        }
+        else
+        {
+            BasisMainMenu.Open();
         }
     }
 }
