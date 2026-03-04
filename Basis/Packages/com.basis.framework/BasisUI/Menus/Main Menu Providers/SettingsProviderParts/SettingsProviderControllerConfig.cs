@@ -15,6 +15,9 @@ public static class SettingsProviderControllerConfig
         PanelElementDescriptor descriptor = tab.Descriptor;
         BuildBindingsUI(tab);
 
+        RectTransform container = descriptor.ContentParent;
+        SettingsProvider.AddResetPageButton(container, "Bindings", BasisActionDriver.ResetBindingsToDefaultsAsyncIgnored);
+
         descriptor.ForceRebuild();
         return tab;
     }

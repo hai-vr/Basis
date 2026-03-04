@@ -324,7 +324,25 @@ public static class BasisActionDriver
         }
 #endif
     }
+    public static async void ResetBindingsToDefaultsAsyncIgnored()
+    {
+      await  ResetBindingsToDefaultsAsync();
+    }
+    // <summary>
+    /// Resets bindings for the current device mode back to defaults:
+    /// deletes the saved bindings file and reloads defaults (which will be saved).
+    /// </summary>
+    public static async Task ResetBindingsToDefaultsAsync()
+    {
+        // Remove any persisted overrides for this mode
+        DeleteSaveFile();
 
+        // Rebuild driver state from defaults (and SaveFromDriver() will run because file is gone)
+        await LoadBindings();
+
+        BasisDebug.Log($"Bindings reset to defaults for mode {BasisDeviceManagement.StaticCurrentMode}.",
+            BasisDebug.LogTag.Input);
+    }
     /// <summary>
     /// Delegate signature for compiled input actions.
     /// </summary>
