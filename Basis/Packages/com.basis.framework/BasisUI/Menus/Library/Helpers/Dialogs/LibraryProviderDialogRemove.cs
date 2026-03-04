@@ -23,7 +23,7 @@ namespace Basis.BasisUI
             noPanelButton.Descriptor.SetHeight(60);
 
             // upon delete we do these actions
-            noPanelButton.OnClicked += async () =>
+            noPanelButton.OnClicked += () =>
             {
                 if (contentRemovalDialog.IsBusy) return;
                 contentRemovalDialog.IsBusy = true;
@@ -37,7 +37,7 @@ namespace Basis.BasisUI
             yesPanelButton.Descriptor.SetWidth(200);
             yesPanelButton.Descriptor.SetHeight(60);
             // on load of a item we do these actions
-            yesPanelButton.OnClicked += async () =>
+            yesPanelButton.OnClicked += () =>
             {
                 if (contentRemovalDialog.IsBusy) return;
                 contentRemovalDialog.IsBusy = true;

@@ -1544,7 +1544,7 @@ namespace Basis.BasisUI
             }
         }
 
-        private static BasisNetworkPlayer? TryFindPlayer(string uuid) => BasisNetworkPlayers.Players.Values.FirstOrDefault(p => p.Player.UUID == uuid);
+        private static BasisNetworkPlayer TryFindPlayer(string uuid) => BasisNetworkPlayers.Players.Values.FirstOrDefault(p => p.Player.UUID == uuid);
  
         private static void CreateListEntry(BasisRuntimeSpawnRegistry.SpawnInstance itemKey, RectTransform parentTabGroup, string instanceID)
         {
@@ -1703,7 +1703,7 @@ namespace Basis.BasisUI
                 teleportButtonComponent.interactable = !(itemKey.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene);
             }
 
-            TeleportToItem.OnClicked += async () =>
+            TeleportToItem.OnClicked += () =>
             {
 
                 switch(itemKey.SpawnMode)
