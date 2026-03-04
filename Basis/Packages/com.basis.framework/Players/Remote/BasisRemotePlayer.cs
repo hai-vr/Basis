@@ -150,6 +150,7 @@ namespace Basis.Scripts.BasisSdk.Players
         {
             CACM = cACM;
             DisplayName = PlayerMetaDataMessage.playerDisplayName;
+            PlayerPlatform = PlayerMetaDataMessage.playerPlatform;
             SetSafeDisplayname();
             this.name = DisplayName;
             UUID = PlayerMetaDataMessage.playerUUID;

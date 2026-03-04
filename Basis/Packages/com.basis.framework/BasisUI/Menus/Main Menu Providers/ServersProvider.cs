@@ -187,7 +187,6 @@ namespace Basis.BasisUI
 
                 Info.SetTitle("Connecting");
                 Info.SetDescription("Preparing...");
-
                 BasisLocalPlayer.Instance.DisplayName = userName;
                 BasisLocalPlayer.Instance.SetSafeDisplayname();
                 BasisDataStore.SaveString(BasisLocalPlayer.Instance.DisplayName, LoadFileName);

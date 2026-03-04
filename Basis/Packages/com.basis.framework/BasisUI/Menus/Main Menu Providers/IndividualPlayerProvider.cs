@@ -212,6 +212,10 @@ namespace Basis.BasisUI
             Descriptor.SetTitle("Name");
             Descriptor.SetDescription(remotePlayer.DisplayName);
 
+            var PlatformDescriptor = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, infoGroup.ContentParent);
+            PlatformDescriptor.SetTitle("Platform");
+            PlatformDescriptor.SetDescription(remotePlayer.PlayerPlatform);
+
             var uuidField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, infoGroup.ContentParent);
             uuidField.SetTitle("UUID");
             uuidField.SetDescription(remotePlayer.UUID);

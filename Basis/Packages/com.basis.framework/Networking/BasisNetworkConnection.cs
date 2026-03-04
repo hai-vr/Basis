@@ -77,7 +77,8 @@ namespace Basis.Scripts.Networking
                 playerMetaDataMessage = new ClientMetaDataMessage
                 {
                     playerUUID = basisLocalPlayer.UUID,
-                    playerDisplayName = basisLocalPlayer.DisplayName
+                    playerDisplayName = basisLocalPlayer.DisplayName,
+                    playerPlatform = basisLocalPlayer.PlayerPlatform,
                 }
             };
 

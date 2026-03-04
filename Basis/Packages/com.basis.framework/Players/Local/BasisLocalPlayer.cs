@@ -189,6 +189,7 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 Instance = this;
             }
+            PlayerPlatform = Application.platform.ToString();
 
             BasisLocalMicrophoneDriver.OnPausedAction += LocalVisemeDriver.OnPausedEvent;
             IsLocal = true;
