@@ -1518,7 +1518,7 @@ namespace Basis.BasisUI
 
             // set the title and description of the list entry
             itemTextInfo.Descriptor.SetTitle(title);
-            itemTextInfo.Descriptor.SetDescription($"Created {LibraryProviderStrUtil.TimeAgoUtc(itemKey.SpawnedUtc)} ago."); // {description}
+            itemTextInfo.Descriptor.SetDescription($"Created {LibraryProviderStrUtil.TimeAgoUtc(itemKey.SpawnedUtc)} ago by {itemKey.UUIDOfCreator}"); // {description}
 
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);

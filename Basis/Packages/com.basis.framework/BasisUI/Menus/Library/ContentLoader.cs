@@ -89,8 +89,9 @@ namespace Basis.BasisUI
                         item.Url,
                         createdObject.name,
                         createdObject,
-                        item.EmbeddedSettings.IsEmbedded, // persistent
+                        BasisLocalPlayer.Instance.UUID,
                         false, // local items should not consider admin check
+                        item.EmbeddedSettings.IsEmbedded, // persistent
                         BasisRuntimeSpawnRegistry.SpawnMethod.Local,
                         bundle.BasisBundleConnector
                         , out var instance
@@ -249,9 +250,10 @@ namespace Basis.BasisUI
                                     BasisRuntimeSpawnRegistry.AddGameObject(
                                         item.Url, 
                                         instance.name, 
-                                        instance, 
-                                        false, 
+                                        instance,
+                                        BasisLocalPlayer.Instance.UUID,
                                         false, // embedded items should not consider admin check
+                                        false, 
                                         BasisRuntimeSpawnRegistry.SpawnMethod.Embedded,
                                         null, // no metadata for embedded items
                                          out var embeddedinstance
