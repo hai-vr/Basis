@@ -144,6 +144,8 @@ MonoBehaviour:
   ReflectingLayers:
     serializedVersion: 2
     m_Bits: 477
+  clearFlags: 0
+  clearColor: {r: 0, g: 0, b: 0, a: 1}
   ClipPlaneOffset: 0.001
   nearClipLimit: 0.01
   FarClipPlane: 25
@@ -209,6 +211,12 @@ MonoBehaviour:
   interactableEnabled: 1
   AutoHold: 1
   InputKey: 0
+  OnInteractStartEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  OnInteractEndEvent:
+    m_PersistentCalls:
+      m_Calls: []
   InteractRange: 0.1
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
@@ -225,7 +233,10 @@ MonoBehaviour:
   InputConstraint:
     rid: 1028902784308609151
   _previousKinematicValue: 1
-  enableScaleWithGesture: 0
+  OnPickupUse:
+    m_PersistentCalls:
+      m_Calls: []
+  enableScaleWithGesture: 1
   minScalePercent: 50
   maxScalePercent: 200
   constrainToAxis: 3

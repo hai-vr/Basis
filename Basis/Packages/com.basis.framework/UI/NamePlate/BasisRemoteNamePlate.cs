@@ -278,17 +278,7 @@ namespace Basis.Scripts.UI.NamePlate
                 BasisMainMenu.Close();
                 input.PlaySoundEffect("hover", SMModuleAudio.ActiveMenusVolume);
                 IndividualPlayerProvider.remotePlayer = BasisRemotePlayer;
-                BasisMainMenu.Open();
-                int count = BasisMainMenu.Providers.Count;
-                for (int Index = 0; Index < count; Index++)
-                {
-                    BasisMenuActionProvider<BasisMainMenu> provider = BasisMainMenu.Providers[Index];
-                    if (provider.Title == IndividualPlayerProvider.StaticTitle)
-                    {
-                        provider.RunAction();
-                        return;
-                    }
-                }
+                BasisMainMenu.OpenWithProvider(IndividualPlayerProvider.StaticTitle);
             }
         }
         public override bool IsInteractingWith(BasisInput input)

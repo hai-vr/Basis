@@ -15,6 +15,7 @@ namespace Basis.BasisUI
             BasisMenuBase<BasisMainMenu>.AddProvider(new SettingsProvider());
             SMDMicrophone.OnMicrophoneSettingsChanged += SyncUiFromSnapshot;
         }
+
         public static string StaticTitle => "Settings";
         public override string Title => StaticTitle;
         public override string IconAddress => AddressableAssets.Sprites.Settings;
@@ -95,7 +96,36 @@ namespace Basis.BasisUI
         }
 
         // ------------------
-        // GENERAL TAB
+        // RESET BUTTON HELPERS (ONE PER PAGE)
+        // ------------------
+        private static void AddResetPageButton(RectTransform parent, string pageName, Action resetAction)
+        {
+            PanelButton reset = PanelButton.CreateNew(parent);
+            reset.Descriptor.SetTitle($"Reset {pageName}");
+            reset.Descriptor.SetDescription("Resets this page to defaults.");
+            reset.OnClicked += () =>
+            {
+                BasisMainMenu.Instance.OpenDialogue(
+                    $"Reset {pageName}",
+                    $"Reset all {pageName} settings to defaults?",
+                    "Reset",
+                    "Cancel",
+                    value =>
+                    {
+                        if (!value)
+                        {
+                            return;
+                        }
+
+                        resetAction?.Invoke();
+                        BasisMainMenu.Close();
+                        BasisMainMenu.OpenWithProvider(StaticTitle);
+                    });
+            };
+        }
+
+        // ------------------
+        // GENERAL TAB (ONE RESET BUTTON)
         // ------------------
         public static PanelTabPage GeneralTab(PanelTabGroup tabGroup)
         {
@@ -198,7 +228,8 @@ namespace Basis.BasisUI
             horizontalGateStrengthSlider.OnValueChanged += _ => UpdatePreview();
             verticalDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
             wingCurveSlider.OnValueChanged += _ => UpdatePreview();
-
+            // One reset button for this whole page
+            AddResetPageButton(container, "General", ResetGeneralDefaults);
             descriptor.ForceRebuild();
             return tab;
         }
@@ -208,8 +239,26 @@ namespace Basis.BasisUI
             // wire up to butterflygatepreview one day
         }
 
+        private static void ResetGeneralDefaults()
+        {
+            BasisSettingsDefaults.InvertMouse.ResetToDefault();
+            BasisSettingsDefaults.mousesensitivty.ResetToDefault();
+            BasisSettingsDefaults.usesnapturn.ResetToDefault();
+            BasisSettingsDefaults.SnapTurnAngle.ResetToDefault();
+
+            BasisSettingsDefaults.AvatarRange.ResetToDefault();
+            BasisSettingsDefaults.HearingRange.ResetToDefault();
+            BasisSettingsDefaults.MicrophoneRange.ResetToDefault();
+
+            BasisSettingsDefaults.ControllerDeadZone.ResetToDefault();
+            BasisSettingsDefaults.Basexdeadzone.ResetToDefault();
+            BasisSettingsDefaults.Extraxdeadzoneatfully.ResetToDefault();
+            BasisSettingsDefaults.Wingexponent.ResetToDefault();
+            BasisSettingsDefaults.Ydeadzone.ResetToDefault();
+        }
+
         // ------------------
-        // AUDIO TAB
+        // AUDIO TAB (ONE RESET BUTTON)
         // ------------------
         public static PanelTabPage AudioTab(PanelTabGroup tabGroup)
         {
@@ -246,9 +295,9 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.WorldVolume);
 
             PanelSlider sliderVideoVolume = PanelSlider.CreateEntryAndBind(
-    mixerGroup,
-    PanelSlider.SliderSettings.Percentage("Media Volume"),
-    BasisSettingsDefaults.MediaVolume);
+                mixerGroup,
+                PanelSlider.SliderSettings.Percentage("Media Volume"),
+                BasisSettingsDefaults.MediaVolume);
 
             PanelSlider sliderVoiceVolume = PanelSlider.CreateEntryAndBind(
                 mixerGroup,
@@ -256,14 +305,14 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.VoiceVolume);
 
             PanelSlider sliderAvatarVolume = PanelSlider.CreateEntryAndBind(
-    mixerGroup,
-    PanelSlider.SliderSettings.Percentage("Avatar Volume"),
-    BasisSettingsDefaults.AvatarVolume);
+                mixerGroup,
+                PanelSlider.SliderSettings.Percentage("Avatar Volume"),
+                BasisSettingsDefaults.AvatarVolume);
 
             PanelSlider sliderPropVolume = PanelSlider.CreateEntryAndBind(
-mixerGroup,
-PanelSlider.SliderSettings.Percentage("Prop Volume"),
-BasisSettingsDefaults.PropVolume);
+                mixerGroup,
+                PanelSlider.SliderSettings.Percentage("Prop Volume"),
+                BasisSettingsDefaults.PropVolume);
 
             // MICROPHONE GROUP
             PanelElementDescriptor microphoneGroup =
@@ -366,9 +415,7 @@ BasisSettingsDefaults.PropVolume);
             void LimitThresholdChanged(float v)
             {
                 if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
-                {
                     SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
-                }
 
                 var s = SMDMicrophone.Current;
                 SMDMicrophone.SetLimiter(v, s.LimitKnee);
@@ -376,9 +423,7 @@ BasisSettingsDefaults.PropVolume);
             void LimitKneeChanged(float v)
             {
                 if (SMDMicrophone.CurrentMode != BasisDeviceManagement.StaticCurrentMode)
-                {
                     SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
-                }
 
                 var s = SMDMicrophone.Current;
                 SMDMicrophone.SetLimiter(s.LimitThreshold, v);
@@ -490,12 +535,46 @@ BasisSettingsDefaults.PropVolume);
             sliderAgcMaxGain.OnValueChanged += AgcMaxGainChanged;
             sliderAgcAttack.OnValueChanged += AgcAttackChanged;
             sliderAgcRelease.OnValueChanged += AgcReleaseChanged;
-
-
-
+            // One reset button for this whole page
+            AddResetPageButton(container, "Audio", ResetAudioDefaults);
             descriptor.ForceRebuild();
             return tab;
         }
+
+        private static void ResetAudioDefaults()
+        {
+            // Master
+            BasisSettingsDefaults.MainVolume.ResetToDefault();
+
+            // Mixer
+            BasisSettingsDefaults.MenuVolume.ResetToDefault();
+            BasisSettingsDefaults.WorldVolume.ResetToDefault();
+            BasisSettingsDefaults.MediaVolume.ResetToDefault();
+            BasisSettingsDefaults.VoiceVolume.ResetToDefault();
+            BasisSettingsDefaults.AvatarVolume.ResetToDefault();
+            BasisSettingsDefaults.PropVolume.ResetToDefault();
+
+            // Mic (bindings)
+            BasisSettingsDefaults.MicrophoneVolume.ResetToDefault();
+            BasisSettingsDefaults.MicrophoneDenoiser.ResetToDefault();
+            BasisSettingsDefaults.UseAutomaticGain.ResetToDefault();
+            BasisSettingsDefaults.MicrophoneMode.ResetToDefault();
+            BasisSettingsDefaults.MicrophoneIcon.ResetToDefault();
+
+            // DSP
+            BasisSettingsDefaults.LimitThreshold.ResetToDefault();
+            BasisSettingsDefaults.LimitKnee.ResetToDefault();
+            BasisSettingsDefaults.DenoiseWet.ResetToDefault();
+            BasisSettingsDefaults.DenoiseMakeupDb.ResetToDefault();
+            BasisSettingsDefaults.AgcTargetRms.ResetToDefault();
+            BasisSettingsDefaults.AgcMaxGainDb.ResetToDefault();
+            BasisSettingsDefaults.AgcAttack.ResetToDefault();
+            BasisSettingsDefaults.AgcRelease.ResetToDefault();
+
+            // Ensure UI reflects current microphone snapshot immediately (safe even if redundant)
+            SyncUiFromSnapshot(SMDMicrophone.Current);
+        }
+
         public static PanelSlider sliderMicrophoneVolume;
         public static PanelDropdown dropdownMicrophoneSelection;
         public static PanelSlider sliderLimitThreshold;
@@ -506,65 +585,46 @@ BasisSettingsDefaults.PropVolume);
         public static PanelSlider sliderAgcMaxGain;
         public static PanelSlider sliderAgcAttack;
         public static PanelSlider sliderAgcRelease;
+
         /// <summary>
         /// allows us to get up to date information directly from the microphone
         /// </summary>
-        /// <param name="s"></param>
         public static void SyncUiFromSnapshot(SMDMicrophone.MicSettings s)
         {
             if (BasisMainMenu.ActiveMenuTitle == SettingsProvider.StaticTitle)
             {
                 if (sliderMicrophoneVolume != null)
-                {
                     sliderMicrophoneVolume.SetValueWithoutNotify(s.Volume01);
-                }
 
                 if (dropdownMicrophoneSelection != null)
-                {
                     dropdownMicrophoneSelection.SetValueWithoutNotify(s.Microphone);
-                }
 
                 if (sliderLimitThreshold != null)
-                {
                     sliderLimitThreshold.SetValueWithoutNotify(s.LimitThreshold);
-                }
 
                 if (sliderLimitKnee != null)
-                {
                     sliderLimitKnee.SetValueWithoutNotify(s.LimitKnee);
-                }
 
                 if (sliderDenoiseWet != null)
-                {
                     sliderDenoiseWet.SetValueWithoutNotify(s.DenoiseWet);
-                }
 
                 if (sliderDenoiseMakeup != null)
-                {
                     sliderDenoiseMakeup.SetValueWithoutNotify(s.DenoiseMakeupDb);
-                }
 
                 if (sliderAgcTarget != null)
-                {
                     sliderAgcTarget.SetValueWithoutNotify(s.AgcTargetRms);
-                }
 
                 if (sliderAgcMaxGain != null)
-                {
                     sliderAgcMaxGain.SetValueWithoutNotify(s.AgcMaxGainDb);
-                }
 
                 if (sliderAgcAttack != null)
-                {
                     sliderAgcAttack.SetValueWithoutNotify(s.AgcAttack);
-                }
 
                 if (sliderAgcRelease != null)
-                {
                     sliderAgcRelease.SetValueWithoutNotify(s.AgcRelease);
-                }
             }
         }
+
         // ------------------
         // GRAPHICS TAB
         // ------------------
@@ -575,6 +635,7 @@ BasisSettingsDefaults.PropVolume);
             descriptor.SetTitle("Graphics Settings");
 
             RectTransform container = descriptor.ContentParent;
+
 
             PanelElementDescriptor qualityGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -691,8 +752,32 @@ BasisSettingsDefaults.PropVolume);
                 PanelSlider.SliderSettings.Percentage("World LOD Multiplier"),
                 BasisSettingsDefaults.GlobalMeshLOD);
 
+            // One reset button for this whole page
+            AddResetPageButton(container, "Graphics", ResetGraphicsDefaults);
+
             descriptor.ForceRebuild();
             return tab;
+        }
+
+        private static void ResetGraphicsDefaults()
+        {
+            BasisSettingsDefaults.QualityLevel.ResetToDefault();
+            BasisSettingsDefaults.ShadowQuality.ResetToDefault();
+            BasisSettingsDefaults.Antialiasing.ResetToDefault();
+            BasisSettingsDefaults.VSync.ResetToDefault();
+            BasisSettingsDefaults.VSyncCapFps.ResetToDefault();
+
+            BasisSettingsDefaults.HDRSupport.ResetToDefault();
+            BasisSettingsDefaults.MemoryAllocation.ResetToDefault();
+            BasisSettingsDefaults.RenderResolution.ResetToDefault();
+
+            BasisSettingsDefaults.FoveatedRendering.ResetToDefault();
+            BasisSettingsDefaults.FieldOfView.ResetToDefault();
+            BasisSettingsDefaults.AvatarMeshLOD.ResetToDefault();
+            BasisSettingsDefaults.GlobalMeshLOD.ResetToDefault();
+
+            // Note: Resolution & ScreenMode are not shown as BasisSettingsDefaults bindings in your snippet.
+            // If you later add bindings for them, add them here.
         }
 
         public static PanelDropdown dropdownResolution;
@@ -741,7 +826,40 @@ BasisSettingsDefaults.PropVolume);
         }
 
         // ------------------
-        // DEVELOPER TAB
+        // AVATAR TAB (ONE RESET BUTTON)
+        // ------------------
+        public static PanelTabPage AvatarTab(PanelTabGroup tabGroup)
+        {
+            PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+            PanelElementDescriptor descriptor = tab.Descriptor;
+
+            descriptor.SetTitle("Avatar Settings");
+            RectTransform container = descriptor.ContentParent;
+
+            PanelElementDescriptor debugGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            debugGroup.SetTitle("Avatar Settings");
+            debugGroup.SetDescription("Configuration settings for avatars.");
+
+            PanelSlider AvatarDownloadSize = PanelSlider.CreateEntryAndBind(
+                debugGroup.ContentParent,
+                PanelSlider.SliderSettings.Advanced("Avatar Download Size", 5, 1024, false, 0, ValueDisplayMode.MemorySize),
+                BasisSettingsDefaults.AvatarDownloadSize);
+
+            // One reset button for this whole page
+            AddResetPageButton(container, "Avatar", ResetAvatarDefaults);
+
+            descriptor.ForceRebuild();
+            return tab;
+        }
+
+        private static void ResetAvatarDefaults()
+        {
+            BasisSettingsDefaults.AvatarDownloadSize.ResetToDefault();
+        }
+
+        // ------------------
+        // DEVELOPER TAB (ONE RESET BUTTON)
         // ------------------
         public static PanelTabPage DeveloperTab(PanelTabGroup tabGroup)
         {
@@ -750,6 +868,7 @@ BasisSettingsDefaults.PropVolume);
 
             descriptor.SetTitle("Developer & Debug");
             RectTransform container = descriptor.ContentParent;
+
 
             PanelElementDescriptor debugGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -772,30 +891,17 @@ BasisSettingsDefaults.PropVolume);
 
             CreateBuildInfoSection(infoGroup.ContentParent);
 
+            // One reset button for this whole page
+            AddResetPageButton(container, "Developer", ResetDeveloperDefaults);
+
             descriptor.ForceRebuild();
             return tab;
         }
 
-        public static PanelTabPage AvatarTab(PanelTabGroup tabGroup)
+        private static void ResetDeveloperDefaults()
         {
-            PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
-            PanelElementDescriptor descriptor = tab.Descriptor;
-
-            descriptor.SetTitle("Avatar Settings");
-            RectTransform container = descriptor.ContentParent;
-
-            PanelElementDescriptor debugGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            debugGroup.SetTitle("Avatar Settings");
-            debugGroup.SetDescription("Configuration settings for avatars.");
-
-            PanelSlider AvatarDownloadSize = PanelSlider.CreateEntryAndBind(
-                debugGroup.ContentParent,
-                PanelSlider.SliderSettings.Advanced("Avatar Download Size", 5, 1024, false, 0, ValueDisplayMode.MemorySize),
-                BasisSettingsDefaults.AvatarDownloadSize);
-
-            descriptor.ForceRebuild();
-            return tab;
+            BasisSettingsDefaults.DebugVisuals.ResetToDefault();
+            BasisSettingsDefaults.VisualState.ResetToDefault();
         }
 
         private static void CreateBuildInfoSection(RectTransform parent)
