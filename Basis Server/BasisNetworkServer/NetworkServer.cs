@@ -6,7 +6,6 @@ using BasisDidLink;
 using BasisNetworkServer.BasisNetworking;
 using BasisNetworkServer.BasisNetworkingReductionSystem;
 using BasisNetworkServer.Security;
-using BasisPermissions;
 using BasisServerHandle;
 using System;
 using System.Collections.Concurrent;

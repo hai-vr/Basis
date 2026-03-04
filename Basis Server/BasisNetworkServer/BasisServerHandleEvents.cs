@@ -469,7 +469,8 @@ namespace BasisServerHandle
                     metaData = new ClientMetaDataMessage
                     {
                         playerDisplayName = "Error",
-                        playerUUID = string.Empty
+                        playerUUID = string.Empty,
+                        playerPlatform = string.Empty
                     };
                     BNL.LogError("Unable to get Last Player Meta Data! Using Error Fallback");
                 }

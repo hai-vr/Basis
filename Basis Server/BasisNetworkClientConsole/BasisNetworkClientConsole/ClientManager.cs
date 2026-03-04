@@ -41,7 +41,8 @@ namespace Basis.Network
                     playerMetaDataMessage = new ClientMetaDataMessage
                     {
                         playerDisplayName = name,
-                        playerUUID = uuid
+                        playerUUID = uuid,
+                         playerPlatform = "Headless",
                     },
                     clientAvatarChangeMessage = new ClientAvatarChangeMessage
                     {
@@ -104,7 +105,8 @@ namespace Basis.Network
                 playerMetaDataMessage = new ClientMetaDataMessage
                 {
                     playerDisplayName = name,
-                    playerUUID = uuid
+                    playerUUID = uuid,
+                     playerPlatform = "Headless",
                 },
                 clientAvatarChangeMessage = new ClientAvatarChangeMessage
                 {
