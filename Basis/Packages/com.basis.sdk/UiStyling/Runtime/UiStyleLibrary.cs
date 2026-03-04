@@ -174,10 +174,8 @@ namespace Basis.BasisUI.Styling
         private void OnValidate()
         {
             #if UNITY_EDITOR
-                // During import Addressables catalog may not exist yet.
-                // AssetDatabase is safe here; Addressables is not.
-                if (UnityEditor.EditorApplication.isUpdating || 
-                    UnityEditor.EditorApplication.isCompiling)
+                // Don't call Addressables during import/build — they aren't available yet
+                if (!UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode)
                     return;
             #endif
 
