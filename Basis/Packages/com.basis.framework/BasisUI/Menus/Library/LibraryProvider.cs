@@ -1674,10 +1674,11 @@ namespace Basis.BasisUI
                 {    
                     // send the selection
                     PlacementManager.SetActiveSelection(itemKey);
+                    
+                    // close the menu
+                    BasisMainMenu.Close();
                 }
-
-                // close the menu
-                BasisMainMenu.Close();
+        
             };
 
             PanelButton TeleportToItem = PanelButton.CreateNew(ButtonStyles.StandardButton, itemListPanel.TabButtonParent);
