@@ -46,9 +46,6 @@ public static class SettingsProviderIK
         tabDesc.SetTitle("IK Tab");
         tabDesc.SetIcon(AddressableAssets.Sprites.Settings);
 
-        // ONE RESET BUTTON FOR THIS PAGE
-        AddResetPageButton(tabDesc.ContentParent, "IK", ResetIkDefaults);
-
         // --- Group: "Calibration & IK" (replaces tab.Group(...)) ---
         var ikGroup = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group,
@@ -176,32 +173,11 @@ public static class SettingsProviderIK
         AddFBIKTogglesCompact(ikParent);
 
         SyncMasterEuroFromChildren();
+        // ONE RESET BUTTON FOR THIS PAGE
+        SettingsProvider.AddResetPageButton(tabDesc.ContentParent, "IK", ResetIkDefaults);
 
         tabDesc.ForceRebuild();
         return tabPage;
-    }
-
-    // ------------------
-    // RESET HELPERS (LOCAL TO IK PROVIDER)
-    // ------------------
-    private static void AddResetPageButton(RectTransform parent, string pageName, System.Action resetAction)
-    {
-        PanelButton reset = PanelButton.CreateNew(parent);
-        reset.Descriptor.SetTitle($"Reset {pageName}");
-        reset.Descriptor.SetDescription("Resets this page to defaults.");
-        reset.OnClicked += () =>
-        {
-            BasisMainMenu.Instance.OpenDialogue(
-                $"Reset {pageName}",
-                $"Reset all {pageName} settings to defaults?",
-                "Reset",
-                "Cancel",
-                value =>
-                {
-                    if (!value) return;
-                    resetAction?.Invoke();
-                });
-        };
     }
 
     private static void ResetIkDefaults()

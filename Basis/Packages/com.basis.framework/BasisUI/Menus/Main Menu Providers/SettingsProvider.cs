@@ -98,7 +98,7 @@ namespace Basis.BasisUI
         // ------------------
         // RESET BUTTON HELPERS (ONE PER PAGE)
         // ------------------
-        private static void AddResetPageButton(RectTransform parent, string pageName, Action resetAction)
+        public static void AddResetPageButton(RectTransform parent, string pageName, Action resetAction)
         {
             PanelButton reset = PanelButton.CreateNew(parent);
             reset.Descriptor.SetTitle($"Reset {pageName}");
