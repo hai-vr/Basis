@@ -7,11 +7,20 @@ namespace Basis.BasisUI
         DateNewestToOldest
     }
 
-    // // Network filter state for items
-    // public enum LibraryNetworkFilter
-    // {
-    //     All,
-    //     NetworkedOnly,
-    //     LocalOnly
-    // }
+    // Network filter state for items
+    public enum LibraryNetworkFilter
+    {
+        All,
+        Embedded,
+        Local,
+        Network
+    }
+
+    public enum LibraryItemTypeFilter
+    {
+        All,
+        GameObject,
+        Scene,
+        Avatar
+    }
 }

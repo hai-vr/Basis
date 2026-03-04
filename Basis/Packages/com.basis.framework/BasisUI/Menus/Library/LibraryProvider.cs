@@ -59,10 +59,19 @@ namespace Basis.BasisUI
         public override bool Hidden => false;
         private static protected bool isUserAdmin = false; // we use this to determine if the user is admin for admin related queries on the library provider
         public static BasisMenuPanel panel;
-        public static PanelTextField searchField; // reference to the search field
-        private static LibraryDateSortMode _currentSort = LibraryDateSortMode.Name; // current sort mode for the library, default to name sorting
-        // private static LibraryNetworkFilter _currentNetworkFilter = LibraryNetworkFilter.All;
+
+        // references to the search query elements
+        private static PanelTextField searchField; // reference to the search field
+        private static PanelDropdown dateSorting; // reference to the date sorting dropdown
+        private static PanelDropdown networkSorting; // reference to network sorting dropdown
+        private static PanelDropdown itemTypeSorting; // reference to item type sorting
+        private static PanelButton addNewContentButton; // reference to the add new content button
+
+        // their data they will be changing
         private static string _currentSearchQuery = string.Empty;
+        private static LibraryDateSortMode _currentSort = LibraryDateSortMode.Name; // current sort mode for the library, default to name sorting
+        private static LibraryNetworkFilter _currentNetworkFilter = LibraryNetworkFilter.All;
+        private static LibraryItemTypeFilter _currentItemTypeFilter = LibraryItemTypeFilter.All;
 
         public enum Page
         {
@@ -132,7 +141,7 @@ namespace Basis.BasisUI
             };
 
             // create a sorting dropdown in the tab group extras area
-            var dateSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
+            dateSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
             string[] dateSortNames = Enum.GetNames(typeof(LibraryDateSortMode));
 
             dateSorting.Descriptor.SetSize(new Vector2(60, 80));
@@ -151,34 +160,48 @@ namespace Basis.BasisUI
                 }
             };
 
-            // TODO this will be reused for the instantiated tab
+            // create a sorting dropdown in the tab group extras area
+            networkSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
+            string[] networkSortNames = Enum.GetNames(typeof(LibraryNetworkFilter));
 
-            // // create a sorting dropdown in the tab group extras area
-            // var networkSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
-            // string[] networkSortNames = Enum.GetNames(typeof(LibraryNetworkFilter));
+            networkSorting.Descriptor.SetSize(new Vector2(60, 80));
+            networkSorting.AssignEntries(networkSortNames.ToList());
+            networkSorting.SetValueWithoutNotify(_currentNetworkFilter.ToString());
 
-            // // modify the names of the dropdown entries to be more user-friendly
-            // //var displayNames = sortNames.Select(n => $"{n}").ToList();
+            // when sorting changes, update and refresh
+            networkSorting.OnValueChanged = async (val) =>
+            {
+                if (Enum.TryParse<LibraryNetworkFilter>(val, out var parsed))
+                {
+                    _currentNetworkFilter = parsed;
 
-            // //sorting.Descriptor.SetTitle("Sort");
-            // networkSorting.Descriptor.SetSize(new Vector2(60, 80));
-            // networkSorting.AssignEntries(networkSortNames.ToList());
-            // networkSorting.SetValueWithoutNotify(_currentNetworkFilter.ToString());
+                    // refresh the current tab for any new changes
+                    await RefreshCurrentTab();
+                }
+            };
 
-            // // when sorting changes, update and refresh
-            // networkSorting.OnValueChanged = async (val) =>
-            // {
-            //     if (Enum.TryParse<LibraryNetworkFilter>(val, out var parsed))
-            //     {
-            //         _currentNetworkFilter = parsed;
+            // create a sorting dropdown in the tab group extras area
+            itemTypeSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
+            string[] itemTypeNames = Enum.GetNames(typeof(LibraryItemTypeFilter));
 
-            //         // refresh the current tab for any new changes
-            //         await RefreshCurrentTab();
-            //     }
-            // };
+            itemTypeSorting.Descriptor.SetSize(new Vector2(60, 80));
+            itemTypeSorting.AssignEntries(networkSortNames.ToList());
+            itemTypeSorting.SetValueWithoutNotify(_currentNetworkFilter.ToString());
+
+            // when sorting changes, update and refresh
+            itemTypeSorting.OnValueChanged = async (val) =>
+            {
+                if (Enum.TryParse<LibraryItemTypeFilter>(val, out var parsed))
+                {
+                    _currentItemTypeFilter = parsed;
+
+                    // refresh the current tab for any new changes
+                    await RefreshCurrentTab();
+                }
+            };
 
             // add our extra menu button items, this is the buttons below the panel content
-            tabGroup.AddExtraAction("Add New Content", async () => await LibraryProviderDialogAdd.PromptUserForNewContent(panel), new Vector2(70, 80));
+            addNewContentButton = tabGroup.AddExtraAction("Add New Content", async () => await LibraryProviderDialogAdd.PromptUserForNewContent(panel), new Vector2(70, 80));
 
             // set the current tab to the current page
             tabGroup.SetValue((int)_currentPage); // this will trigger the tab selection and associated content loading
@@ -378,6 +401,10 @@ namespace Basis.BasisUI
             // remember currently active tab/mode
             _currentPage = page;
             _currentTab = tab;
+
+            addNewContentButton.Descriptor.SetActive(_currentPage != Page.Instantiated); // if we are on the Instantiated hide the add new content button
+            networkSorting.Descriptor.SetActive(_currentPage == Page.Instantiated); // show network sorting on the Instantiated page.
+            itemTypeSorting.Descriptor.SetActive(_currentPage == Page.Instantiated); // show item type sorting for the Instantiated page.
 
             // try convert the mode and page we are on to match
             if (TryConvert(page, out BundledContentHolder.Mode mode))
@@ -1567,6 +1594,13 @@ namespace Basis.BasisUI
             PanelButton TeleportToItem = PanelButton.CreateNew(ButtonStyles.StandardButton, itemListPanel.TabButtonParent);
             TeleportToItem.Descriptor.SetTitle("Teleport To");
             TeleportToItem.SetSize(new Vector2(200, 60));
+            // dont let the teleport button work for scenes yet
+            if (TeleportToItem.Descriptor.gameObject.TryGetComponent<Button>(out Button teleportButtonComponent))
+            {
+                // if the item is embedded only allow an admin to interact
+                teleportButtonComponent.interactable = !(itemKey.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene);
+            }
+
             TeleportToItem.OnClicked += async () =>
             {
 
@@ -1585,7 +1619,7 @@ namespace Basis.BasisUI
                                 offsetTarget.y = offsetTarget.y + itemKey.bundleConnector.Bounds.max.y;
                             }
 
-                            BasisLocalPlayer.Instance.Teleport( offsetTarget, go.transform.localRotation );
+                            BasisLocalPlayer.Instance.Teleport( offsetTarget, Quaternion.identity );
                         }
 
                     break;
