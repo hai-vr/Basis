@@ -63,14 +63,14 @@ namespace Basis.BasisUI
         // references to the search query elements
         private static PanelTextField searchField; // reference to the search field
         private static PanelDropdown dateSorting; // reference to the date sorting dropdown
-        private static PanelDropdown networkSorting; // reference to network sorting dropdown
+        //private static PanelDropdown networkSorting; // reference to network sorting dropdown
         private static PanelDropdown itemTypeSorting; // reference to item type sorting
         private static PanelButton addNewContentButton; // reference to the add new content button
 
         // their data they will be changing
         private static string _currentSearchQuery = string.Empty;
         private static LibraryDateSortMode _currentSort = LibraryDateSortMode.Name; // current sort mode for the library, default to name sorting
-        private static LibraryNetworkFilter _currentNetworkFilter = LibraryNetworkFilter.All;
+        //private static LibraryNetworkFilter _currentNetworkFilter = LibraryNetworkFilter.All;
         private static LibraryItemTypeFilter _currentItemTypeFilter = LibraryItemTypeFilter.All;
 
         public enum Page
@@ -161,32 +161,12 @@ namespace Basis.BasisUI
             };
 
             // create a sorting dropdown in the tab group extras area
-            networkSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
-            string[] networkSortNames = Enum.GetNames(typeof(LibraryNetworkFilter));
-
-            networkSorting.Descriptor.SetSize(new Vector2(60, 80));
-            networkSorting.AssignEntries(networkSortNames.ToList());
-            networkSorting.SetValueWithoutNotify(_currentNetworkFilter.ToString());
-
-            // when sorting changes, update and refresh
-            networkSorting.OnValueChanged = async (val) =>
-            {
-                if (Enum.TryParse<LibraryNetworkFilter>(val, out var parsed))
-                {
-                    _currentNetworkFilter = parsed;
-
-                    // refresh the current tab for any new changes
-                    await RefreshCurrentTab();
-                }
-            };
-
-            // create a sorting dropdown in the tab group extras area
             itemTypeSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
             string[] itemTypeNames = Enum.GetNames(typeof(LibraryItemTypeFilter));
 
             itemTypeSorting.Descriptor.SetSize(new Vector2(60, 80));
-            itemTypeSorting.AssignEntries(networkSortNames.ToList());
-            itemTypeSorting.SetValueWithoutNotify(_currentNetworkFilter.ToString());
+            itemTypeSorting.AssignEntries(itemTypeNames.ToList());
+            itemTypeSorting.SetValueWithoutNotify(_currentItemTypeFilter.ToString());
 
             // when sorting changes, update and refresh
             itemTypeSorting.OnValueChanged = async (val) =>
@@ -199,6 +179,26 @@ namespace Basis.BasisUI
                     await RefreshCurrentTab();
                 }
             };
+
+            // // create a sorting dropdown in the tab group extras area
+            // networkSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
+            // string[] networkSortNames = Enum.GetNames(typeof(LibraryNetworkFilter));
+
+            // networkSorting.Descriptor.SetSize(new Vector2(60, 80));
+            // networkSorting.AssignEntries(networkSortNames.ToList());
+            // networkSorting.SetValueWithoutNotify(_currentNetworkFilter.ToString());
+
+            // // when sorting changes, update and refresh
+            // networkSorting.OnValueChanged = async (val) =>
+            // {
+            //     if (Enum.TryParse<LibraryNetworkFilter>(val, out var parsed))
+            //     {
+            //         _currentNetworkFilter = parsed;
+
+            //         // refresh the current tab for any new changes
+            //         await RefreshCurrentTab();
+            //     }
+            // };
 
             // add our extra menu button items, this is the buttons below the panel content
             addNewContentButton = tabGroup.AddExtraAction("Add New Content", async () => await LibraryProviderDialogAdd.PromptUserForNewContent(panel), new Vector2(70, 80));
@@ -403,7 +403,7 @@ namespace Basis.BasisUI
             _currentTab = tab;
 
             addNewContentButton.Descriptor.SetActive(_currentPage != Page.Instantiated); // if we are on the Instantiated hide the add new content button
-            networkSorting.Descriptor.SetActive(_currentPage == Page.Instantiated); // show network sorting on the Instantiated page.
+            //networkSorting.Descriptor.SetActive(_currentPage == Page.Instantiated); // show network sorting on the Instantiated page.
             itemTypeSorting.Descriptor.SetActive(_currentPage == Page.Instantiated); // show item type sorting for the Instantiated page.
 
             // try convert the mode and page we are on to match
@@ -1381,6 +1381,95 @@ namespace Basis.BasisUI
                     }).ToList();
                     break;
             }
+
+            // sort by spawn mode
+            switch (_currentItemTypeFilter)
+            {
+                case LibraryItemTypeFilter.All:
+                    // do nothing
+                    break;
+                case LibraryItemTypeFilter.Embedded:
+                    collections = collections.Where(k =>
+                    {
+                        return k.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded;
+                    }).ToList();
+                    break;
+                case LibraryItemTypeFilter.Local:
+                    collections = collections.Where(k =>
+                    {
+                        return k.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Local || k.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded;
+                    }).ToList();
+                    break;
+                case LibraryItemTypeFilter.Networked:
+                    collections = collections.Where(k =>
+                    {
+                        return k.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Network;
+                    }).ToList();
+                    break;
+                case LibraryItemTypeFilter.Avatar:
+                    collections = collections.Where(k =>
+                    {
+                        return k.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Avatar;
+                    }).ToList();
+                    break;
+
+                case LibraryItemTypeFilter.GameObject:
+                    collections = collections.Where(k =>
+                    {
+                        return k.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.GameObject;
+                    }).ToList();
+                    break;
+                case LibraryItemTypeFilter.Scene:
+                    collections = collections.Where(k =>
+                    {
+                        return k.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene;
+                    }).ToList();
+                    break;
+                case LibraryItemTypeFilter.AdminOnly:
+                    collections = collections.Where(k =>
+                    {
+                        return k.IsAdminLocked == true;
+                    }).ToList();
+                    break;
+                case LibraryItemTypeFilter.PersistentOnly:
+                    collections = collections.Where(k =>
+                    {
+                        return k.Persistent == true;
+                    }).ToList();
+                    break;
+                case LibraryItemTypeFilter.NotPersistent:
+                    collections = collections.Where(k =>
+                    {
+                        return k.Persistent == false;
+                    }).ToList();
+                    break;
+            }
+
+            // // sort by spawn mode
+            // switch (_currentNetworkFilter)
+            // {
+            //     case LibraryNetworkFilter.All:
+            //         // do nothing
+            //         break;
+            //     // case LibraryNetworkFilter.Embedded:
+            //     //     collections = collections.Where(k =>
+            //     //     {
+            //     //         return k.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded;
+            //     //     }).ToList();
+            //     //     break;
+            //     case LibraryNetworkFilter.Local:
+            //         collections = collections.Where(k =>
+            //         {
+            //             return k.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Local || k.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded;
+            //         }).ToList();
+            //         break;
+            //     case LibraryNetworkFilter.Network:
+            //         collections = collections.Where(k =>
+            //         {
+            //             return k.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Network;
+            //         }).ToList();
+            //         break;
+            // }
 
             #endregion
 
