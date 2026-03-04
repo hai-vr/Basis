@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Basis.BasisUI.Styling;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
+using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 using UnityEngine.UI;
@@ -1417,8 +1418,8 @@ namespace Basis.BasisUI
             }
         }
 
-        // TODO use items key
-        // 
+        private static BasisNetworkPlayer? TryFindPlayer(string uuid) => BasisNetworkPlayers.Players.Values.FirstOrDefault(p => p.Player.UUID == uuid);
+ 
         private static void CreateListEntry(BasisRuntimeSpawnRegistry.SpawnInstance itemKey, RectTransform parentTabGroup, string instanceID)
         {
             bool hasMetaData = itemKey.bundleConnector != null;
@@ -1518,7 +1519,18 @@ namespace Basis.BasisUI
 
             // set the title and description of the list entry
             itemTextInfo.Descriptor.SetTitle(title);
-            itemTextInfo.Descriptor.SetDescription($"Created {LibraryProviderStrUtil.TimeAgoUtc(itemKey.SpawnedUtc)} ago by {itemKey.UUIDOfCreator}"); // {description}
+
+            string createdDisplayName = "Unknown";
+            if(!string.IsNullOrEmpty(itemKey.UUIDOfCreator))
+            {
+                // this is not ideal todo revise.
+                BasisNetworkPlayer player = TryFindPlayer(itemKey.UUIDOfCreator);
+                if(TryFindPlayer(itemKey.UUIDOfCreator) != null)
+                {
+                    createdDisplayName = LibraryProviderStrUtil.TitleToCase(player.displayName);
+                }
+            }
+            itemTextInfo.Descriptor.SetDescription($"Created {LibraryProviderStrUtil.TimeAgoUtc(itemKey.SpawnedUtc)} ago by {createdDisplayName}"); // {description}
 
             itemTextInfo.Descriptor.SetHeight(50);
             itemTextInfo.Descriptor.SetWidth(400);
