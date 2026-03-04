@@ -64,6 +64,10 @@ public static class BasisNetworkSpawnItem
             Mode = 0,
             CombinedURL = CombinedURL,
             UnlockPassword = UnlockPassword,
+            UUIDOfCreator = BasisLocalPlayer.Instance.UUID,
+            IsAdminLocked = Admin,
+            Persist = Persistent,
+            ModifyScale = ModifysScale,
             PositionX = Position.x,
             PositionY = Position.y,
             PositionZ = Position.z,
@@ -73,11 +77,7 @@ public static class BasisNetworkSpawnItem
             QuaternionZ = Rotation.z,
             ScaleX = Scale.x,
             ScaleY = Scale.y,
-            ScaleZ = Scale.z,
-            UUIDOfCreator = BasisLocalPlayer.Instance.UUID,
-            IsAdminLocked = Admin,
-            Persist = Persistent,
-            ModifyScale = ModifysScale
+            ScaleZ = Scale.z
         };
 
         NetDataWriter writer = new NetDataWriter();

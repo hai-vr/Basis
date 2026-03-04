@@ -1520,16 +1520,18 @@ namespace Basis.BasisUI
             // set the title and description of the list entry
             itemTextInfo.Descriptor.SetTitle(title);
 
-            string createdDisplayName = "Unknown";
+            string createdDisplayName = "N/A";
             if(!string.IsNullOrEmpty(itemKey.UUIDOfCreator))
             {
                 // this is not ideal todo revise.
+                // time complexity will explode here with more players and items!
                 BasisNetworkPlayer player = TryFindPlayer(itemKey.UUIDOfCreator);
                 if(TryFindPlayer(itemKey.UUIDOfCreator) != null)
                 {
                     createdDisplayName = LibraryProviderStrUtil.TitleToCase(player.displayName);
                 }
             }
+
             itemTextInfo.Descriptor.SetDescription($"Created {LibraryProviderStrUtil.TimeAgoUtc(itemKey.SpawnedUtc)} ago by {createdDisplayName}"); // {description}
 
             itemTextInfo.Descriptor.SetHeight(50);
@@ -1560,6 +1562,37 @@ namespace Basis.BasisUI
 
                 // close the menu
                 BasisMainMenu.Close();
+            };
+
+            PanelButton TeleportToItem = PanelButton.CreateNew(ButtonStyles.StandardButton, itemListPanel.TabButtonParent);
+            TeleportToItem.Descriptor.SetTitle("Teleport To");
+            TeleportToItem.SetSize(new Vector2(200, 60));
+            TeleportToItem.OnClicked += async () =>
+            {
+
+                switch(itemKey.SpawnMode)
+                {
+                    case BasisRuntimeSpawnRegistry.SpawnMode.Avatar:
+                    case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
+
+                        // find the object in the BasisRuntimeSpawnRegistry
+                        if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(itemKey.LoadedNetID, out GameObject go) && go != null)
+                        {
+                            Vector3 offsetTarget = go.transform.position;
+
+                            if(itemKey.bundleConnector != null)
+                            {
+                                offsetTarget.y = offsetTarget.y + itemKey.bundleConnector.Bounds.max.y;
+                            }
+
+                            BasisLocalPlayer.Instance.Teleport( offsetTarget, go.transform.localRotation );
+                        }
+
+                    break;
+                    case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+                        BasisDebug.LogWarning( "LibraryProvider.cs -> Teleport To Item button for scene is not implemented!" );
+                    break;
+                }
             };
 
             PanelButton removeItem = PanelButton.CreateNew(ButtonStyles.CancelButton, itemListPanel.TabButtonParent);

@@ -98,6 +98,10 @@ public static class BasisLoadHandler
             try
             {
                 await wrapper.WaitForBundleLoadAsync();
+
+                // ensure the bundle connector is updated from the wrapper
+                loadableBundle.BasisBundleConnector = wrapper.LoadableBundle.BasisBundleConnector;
+
                 return await BasisBundleLoadAsset.LoadFromWrapper(wrapper, useContentRemoval, Position, Rotation, ModifyScale, Scale, Selector, Parent, DestroyColliders);
             }
             catch (Exception ex)

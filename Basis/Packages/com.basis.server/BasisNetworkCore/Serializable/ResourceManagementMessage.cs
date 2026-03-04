@@ -17,19 +17,6 @@ public static partial class SerializableBasis
         public string UnlockPassword;
         public string CombinedURL;
 
-        public float PositionX;
-        public float PositionY;
-        public float PositionZ;
-
-        public float QuaternionX;
-        public float QuaternionY;
-        public float QuaternionZ;
-        public float QuaternionW;
-
-        public float ScaleX;
-        public float ScaleY;
-        public float ScaleZ;
-
         public string UUIDOfCreator;
 
         /// <summary>
@@ -47,8 +34,18 @@ public static partial class SerializableBasis
         //will never remove this item from the server,
         //if off when player count on server is zero it will be removed.
 
+        public float PositionX;
+        public float PositionY;
+        public float PositionZ;
 
+        public float QuaternionX;
+        public float QuaternionY;
+        public float QuaternionZ;
+        public float QuaternionW;
 
+        public float ScaleX;
+        public float ScaleY;
+        public float ScaleZ;
 
         public void Deserialize(NetDataReader Writer)
         {

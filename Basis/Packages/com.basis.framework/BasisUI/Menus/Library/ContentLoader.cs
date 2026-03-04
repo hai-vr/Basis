@@ -82,7 +82,7 @@ namespace Basis.BasisUI
 
             if (createdObject != null)
             {
-                Debug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}. local = {local}");
+                BasisDebug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}. local = {local}");
                 if(!local) // if we are not local register it
                 {
                     BasisRuntimeSpawnRegistry.AddGameObject(
@@ -100,7 +100,7 @@ namespace Basis.BasisUI
             }
             else
             {
-                Debug.LogError($"Library provider failed to create desired with networking: {desiredNetworkType} with LoadSelectedItem of url {item.Url}");
+                BasisDebug.LogError($"Library provider failed to create desired with networking: {desiredNetworkType} with LoadSelectedItem of url {item.Url}");
             }
 
             return createdObject;
