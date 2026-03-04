@@ -509,7 +509,7 @@ namespace BasisServerHandle
             BasisNetworkIDDatabase.AddOrFindNetworkID(Peer, ServerUniqueIDMessage.UniqueID);
             //we need to convert the string int a  ushort.
         }
-        public static void LoadResource(NetPacketReader Reader, NetPeer Peer)
+        public static void LoadResource(NetPacketReader Reader, NetPeer Peer,string UUID)
         {
             LocalLoadResource LocalLoadResource = new LocalLoadResource();
 
@@ -520,12 +520,13 @@ namespace BasisServerHandle
             }
             LocalLoadResource.Deserialize(Reader);
             LocalLoadResource.IsAdminLocked = NetworkServer.AuthIdentity.IsNetPeerAdmin(uuid);
+            LocalLoadResource.UUIDOfCreator = UUID;
             Reader.Recycle();
             //returns a message with the ushort back to the client, or it sends it to everyone if its new.
             BasisNetworkResourceManagement.LoadResource(LocalLoadResource);
             //we need to convert the string int a  ushort.
         }
-        public static void UnloadResource(NetPacketReader Reader, NetPeer Peer)
+        public static void UnloadResource(NetPacketReader Reader, NetPeer Peer, string UUID)
         {
             UnLoadResource UnLoadResource = new UnLoadResource();
             UnLoadResource.Deserialize(Reader);

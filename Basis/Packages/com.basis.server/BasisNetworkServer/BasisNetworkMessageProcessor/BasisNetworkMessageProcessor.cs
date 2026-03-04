@@ -97,10 +97,7 @@ public static class BasisNetworkMessageProcessor
 
                 case BasisNetworkCommons.AdminChannel:
                     BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AdminChannel, reader.AvailableBytes);
-                    HandlePermitted(peer, reader, PermNodes.Admin, () =>
-                    {
-                        BasisPlayerModeration.OnAdminMessage(peer, reader); // recycles inside
-                    });
+                    BasisPlayerModeration.OnAdminMessage(peer, reader); // recycles inside
                     break;
 
                 case BasisNetworkCommons.AvatarCloneRequestChannel:
@@ -199,7 +196,7 @@ public static class BasisNetworkMessageProcessor
         return false;
     }
 
-    private static void HandleAdminResourceAction(NetPeer peer, NetPacketReader reader, Action<NetPacketReader, NetPeer> action, string permNode)
+    private static void HandleAdminResourceAction(NetPeer peer, NetPacketReader reader, Action<NetPacketReader, NetPeer,string> action, string permNode)
     {
         if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid))
         {
@@ -209,10 +206,9 @@ public static class BasisNetworkMessageProcessor
         }
 
         if (PermissionIntegration.HasRequirement(uuid, permNode) ||
-            PermissionIntegration.HasRequirement(uuid, PermNodes.Admin) ||
             PermissionIntegration.HasRequirement(uuid, PermNodes.All))
         {
-            action(reader, peer); // recycles inside handler
+            action(reader, peer, uuid); // recycles inside handler
         }
         else
         {
@@ -222,8 +218,6 @@ public static class BasisNetworkMessageProcessor
     }
     private static bool TryWithPermission(NetPeer peer, NetPacketReader reader, string permNode, out string uuid)
     {
-        uuid = string.Empty;
-
         if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out uuid))
         {
             BNL.LogError($"User UUID not found for peer: {peer}");
@@ -232,7 +226,7 @@ public static class BasisNetworkMessageProcessor
         }
 
         // Allow if they have the specific node, or admin, or global wildcard
-        if (PermissionIntegration.HasRequirement(uuid, permNode) || PermissionIntegration.HasRequirement(uuid, PermNodes.Admin) || PermissionIntegration.HasRequirement(uuid, PermNodes.All))
+        if (PermissionIntegration.HasRequirement(uuid, permNode) || PermissionIntegration.HasRequirement(uuid, PermNodes.All))
         {
             return true;
         }
