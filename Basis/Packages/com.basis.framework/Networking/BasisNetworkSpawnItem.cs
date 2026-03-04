@@ -1,6 +1,7 @@
 using Basis;
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
@@ -32,8 +33,9 @@ public static class BasisNetworkSpawnItem
             Mode = 1,
             CombinedURL = CombinedURL,
             UnlockPassword = UnlockPassword,
-            Persist = Persist,
-            IsAdminLocked = Admin
+            UUIDOfCreator = BasisLocalPlayer.Instance.UUID,
+            IsAdminLocked = Admin,
+            Persist = Persist
         };
 
         NetDataWriter writer = new NetDataWriter();
@@ -72,9 +74,10 @@ public static class BasisNetworkSpawnItem
             ScaleX = Scale.x,
             ScaleY = Scale.y,
             ScaleZ = Scale.z,
-            Persist = Persistent,
-            ModifyScale = ModifysScale,
+            UUIDOfCreator = BasisLocalPlayer.Instance.UUID,
             IsAdminLocked = Admin,
+            Persist = Persistent,
+            ModifyScale = ModifysScale
         };
 
         NetDataWriter writer = new NetDataWriter();
@@ -145,7 +148,17 @@ public static class BasisNetworkSpawnItem
         BasisDebug.Log($"LoadSceneAssetBundle Complete now Starting Scene Traversal", BasisDebug.LogTag.Networking);
         SceneTraverseNetIdAssign(scene, localLoadResource);
 
-        BasisRuntimeSpawnRegistry.AddScene(localLoadResource.CombinedURL, localLoadResource.LoadedNetID, scene, localLoadResource.Persist, localLoadResource.IsAdminLocked, BasisRuntimeSpawnRegistry.SpawnMethod.Network, loadBundle.BasisBundleConnector, out var created);
+        BasisRuntimeSpawnRegistry.AddScene(
+            localLoadResource.CombinedURL, 
+            localLoadResource.LoadedNetID, 
+            scene, 
+            localLoadResource.UUIDOfCreator,
+            localLoadResource.IsAdminLocked,
+            localLoadResource.Persist, 
+            BasisRuntimeSpawnRegistry.SpawnMethod.Network, 
+            loadBundle.BasisBundleConnector, 
+            out var created
+        );
         BasisDebug.Log($"Scene Load From Server Complete ", BasisDebug.LogTag.Networking);
         return scene;
     }
@@ -204,7 +217,17 @@ public static class BasisNetworkSpawnItem
             BasisDebug.LogWarning($"Gameobject Did not have a class deriving from {nameof(BasisNetworkContentBase)} on it!");
         }
         //BasisDebug.Log( $"SpawnGameObject -> was spawned does it have metadata? asset bundle name = {loadBundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}" );
-        BasisRuntimeSpawnRegistry.AddGameObject(localLoadResource.CombinedURL, localLoadResource.LoadedNetID, reference, localLoadResource.Persist, localLoadResource.IsAdminLocked, BasisRuntimeSpawnRegistry.SpawnMethod.Network, loadBundle.BasisBundleConnector, out var data);
+        BasisRuntimeSpawnRegistry.AddGameObject(
+            localLoadResource.CombinedURL, 
+            localLoadResource.LoadedNetID, 
+            reference, 
+            localLoadResource.UUIDOfCreator,
+            localLoadResource.IsAdminLocked, 
+            localLoadResource.Persist, 
+            BasisRuntimeSpawnRegistry.SpawnMethod.Network, 
+            loadBundle.BasisBundleConnector, 
+            out var data
+        );
         BasisProgressReport.OnProgressReport -= BasisUILoadingBar.ProgressReport;
         return reference;
     }
