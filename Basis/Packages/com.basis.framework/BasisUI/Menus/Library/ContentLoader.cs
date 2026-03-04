@@ -12,6 +12,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.SceneManagement;
 using static SerializableBasis;
 
 namespace Basis.BasisUI
@@ -318,13 +319,85 @@ namespace Basis.BasisUI
             }
             else
             {
-                BasisDebug.LogError($"LoadSelectedItem failed to find cached meta for url {item.Url}, cannot load bundle without it!");
+                BasisDebug.LogError($"LoadProp failed to find cached meta for url {item.Url}, cannot load bundle without it!");
             }
         }
 
-        public static async Task LoadWorld(BasisDataStoreItemKeys.ItemKey item)
+        public static async Task LoadWorld(BasisDataStoreItemKeys.ItemKey item, BundledContentHolder.NetworkType desiredNetworkType, bool persistent = false, bool admin = false)
         {
-            BasisDebug.LogWarning("World loading not implemented yet, breaking out of load logic to prevent errors. Implement LoadWorld!");
+            if (CachedMetaData.TryGetMeta(item.Url, out var cached))
+            {
+                switch(desiredNetworkType)
+                {
+                    case BundledContentHolder.NetworkType.Local:
+
+                        if(cached.BasisBundleConnector != null)
+                        {
+                            BasisLoadableBundle bundle = cached.BasisLoadableBundle;
+
+                            BasisProgressReport report = new BasisProgressReport();
+                            CancellationToken cancel = default;
+
+                            Scene scene = await BasisLoadHandler.LoadSceneBundle(
+                                false, // for local do not set as the active scene
+                                bundle,
+                                report,
+                                cancel
+                            );
+
+
+                            if(scene != null)
+                            {
+                                string UniqueID = BasisGenerateUniqueID.GenerateUniqueID();
+
+                                BasisDebug.Log($"Library provider successfully created scene {item.Url} with networking: {desiredNetworkType} with UID = {UniqueID}");
+
+                                BasisRuntimeSpawnRegistry.AddScene(
+                                    item.Url,
+                                    scene.name,
+                                    scene,
+                                    BasisLocalPlayer.Instance.UUID,
+                                    admin,
+                                    persistent,
+                                    BasisRuntimeSpawnRegistry.SpawnMethod.Local,
+                                    bundle.BasisBundleConnector,
+                                    out BasisRuntimeSpawnRegistry.SpawnInstance instance
+                                );
+                            }
+                            else
+                            {
+                                BasisDebug.LogError($"Library provider failed to create desired scene with networking: {desiredNetworkType} with of url {item.Url}");
+                            }
+
+                        }
+
+                    break;
+                    case BundledContentHolder.NetworkType.Networked:
+                        try
+                        {
+                            bool ok = BasisNetworkSpawnItem.RequestSceneLoad(item.Pass, item.Url, persistent, admin, out LocalLoadResource loadedProp);
+
+                            if (ok && !string.IsNullOrEmpty(loadedProp.LoadedNetID))
+                            {
+                                BasisDebug.Log($"Requested networked SceneLoad for {item.Url}, NetID={loadedProp.LoadedNetID}", BasisDebug.LogTag.Networking);
+                            }
+                            else
+                            {
+                                BasisDebug.LogError($"Failed to request networked SceneLoad for {item.Url}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            BasisDebug.LogError(ex);
+                        }
+                    break;
+                }
+            }
+            else
+            {
+                BasisDebug.LogError( $"LoadWorld failed to find the cached meta for url {item.Url}" );
+            }
+
             await Task.CompletedTask;
         }
     }
