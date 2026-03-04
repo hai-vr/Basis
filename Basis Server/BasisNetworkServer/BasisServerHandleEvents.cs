@@ -507,7 +507,7 @@ namespace BasisServerHandle
             ServerUniqueIDMessage.Deserialize(Reader);
             Reader.Recycle();
             //returns a message with the ushort back to the client, or it sends it to everyone if its new.
-            BasisNetworkIDDatabase.AddOrFindNetworkID(Peer, ServerUniqueIDMessage.UniqueID);
+            BasisNetworkIDDatabase.AddOrFindNetworkID(Peer, ServerUniqueIDMessage.playerID);
             //we need to convert the string int a  ushort.
         }
         public static void LoadResource(NetPacketReader Reader, NetPeer Peer,string UUID)

@@ -19,7 +19,7 @@ namespace BasisNetworkCore
                 // We already know about it, let's just give it back to that player
                 ServerNetIDMessage SNIM = new ServerNetIDMessage
                 {
-                    NetIDMessage = new NetIDMessage() { UniqueID = UniqueStringID },
+                    NetIDMessage = new NetIDMessage() { playerID = UniqueStringID },
                     UshortUniqueIDMessage = new UshortUniqueIDMessage() { UniqueIDUshort = Value }
                 };
                 NetDataWriter Writer = new NetDataWriter(true);
@@ -51,7 +51,7 @@ namespace BasisNetworkCore
                 // Notify the requesting peer and broadcast to others
                 ServerNetIDMessage SUIMA = new ServerNetIDMessage
                 {
-                    NetIDMessage = new NetIDMessage() { UniqueID = UniqueStringID },
+                    NetIDMessage = new NetIDMessage() { playerID = UniqueStringID },
                     UshortUniqueIDMessage = new UshortUniqueIDMessage() { UniqueIDUshort = newID }
                 };
                 NetDataWriter Writer = new NetDataWriter(true);
@@ -70,7 +70,7 @@ namespace BasisNetworkCore
             {
                 ServerNetIDMessage SUIM = new ServerNetIDMessage
                 {
-                    NetIDMessage = new NetIDMessage() { UniqueID = pair.Key },
+                    NetIDMessage = new NetIDMessage() { playerID = pair.Key },
                     UshortUniqueIDMessage = new UshortUniqueIDMessage() { UniqueIDUshort = pair.Value }
                 };
                 ServerUniqueIDMessages.Add(SUIM);
