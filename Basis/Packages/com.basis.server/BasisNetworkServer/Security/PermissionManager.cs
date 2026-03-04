@@ -897,6 +897,11 @@ namespace BasisPermissions
                 // Ensure saved
                 Manager.SaveToXmlDebounced();
             }
+            public static void InitWithoutDisc()
+            {
+                // Optional defaults if file was empty/nonexistent
+                Manager.EnsureDefaults();
+            }
 
             // Example: Gate an action given a uuid and perm node
             public static bool HasRequirement(string uuid, string permNode)

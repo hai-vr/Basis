@@ -54,19 +54,27 @@ public static class NetworkServer
 
     private static void InitializeAuth()
     {
-        BasisPlayerModeration.UseFileOnDisc = Configuration.HasFileSupport;
-        IAuthIdentity.HasFileSupport = Configuration.HasFileSupport;
+        var HasFileSupport = Configuration.HasFileSupport;
+        BasisPlayerModeration.UseFileOnDisc = HasFileSupport;
+        IAuthIdentity.HasFileSupport = HasFileSupport;
 
         Auth = new PasswordAuth(Configuration.Password ?? string.Empty);
         AuthIdentity = new BasisDIDAuthIdentity();
 
-        // Keep permissions with other config files
-        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        string configDir = Path.Combine(baseDir, Configuration.ConfigFolderName);
-        Directory.CreateDirectory(configDir);
+        if (HasFileSupport)
+        {
+            // Keep permissions with other config files
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
-        string xmlPath = Path.Combine(configDir, "permissions.xml");
-        PermissionIntegration.Init(xmlPath);
+            string configDir = Path.Combine(baseDir, Configuration.ConfigFolderName);
+
+            Directory.CreateDirectory(configDir);
+            PermissionIntegration.Init(Path.Combine(configDir, "permissions.xml"));
+        }
+        else
+        {
+            PermissionIntegration.InitWithoutDisc();
+        }
     }
 
     private static void SubscribeEvents()
