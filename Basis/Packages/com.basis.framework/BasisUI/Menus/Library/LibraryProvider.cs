@@ -1669,6 +1669,8 @@ namespace Basis.BasisUI
                 if(hasSelected)
                 {
                     PlacementManager.RemoveSelectionSpawnInstanceID(itemKey);
+                    
+                    await RefreshCurrentTab();
                 }
                 else
                 {    
