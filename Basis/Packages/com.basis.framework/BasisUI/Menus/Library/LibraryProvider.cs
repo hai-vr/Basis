@@ -1725,11 +1725,15 @@ namespace Basis.BasisUI
             removeItem.Descriptor.SetTitle("Remove");
             removeItem.SetSize(new Vector2(200, 60));
 
-            // determine if we can actually remove this via admin
-            if (removeItem.Descriptor.gameObject.TryGetComponent<Button>(out Button removeButtonComponent))
+            // only apply this to items that are spawned on the network
+            if(itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Network)
             {
-                // if the item is embedded only allow an admin to interact
-                removeButtonComponent.interactable = (isUserAdmin == itemKey.IsAdminLocked);
+                // determine if we can actually remove this via admin
+                if (removeItem.Descriptor.gameObject.TryGetComponent<Button>(out Button removeButtonComponent))
+                {
+                    // if the item is embedded only allow an admin to interact
+                    removeButtonComponent.interactable = (isUserAdmin == itemKey.IsAdminLocked);
+                }
             }
 
             removeItem.OnClicked += async () =>
