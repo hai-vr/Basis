@@ -1,6 +1,7 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -69,108 +70,278 @@ namespace Basis.BasisUI
             actionsGroup.SetTitle("Actions");
             actionsGroup.SetDescription("Moderation + utility actions.");
 
-            // Teleport
+            // ------------------
+            // Teleport actions
+            // ------------------
             PanelButton teleportAll = PanelButton.CreateNew(actionsGroup.ContentParent);
             teleportAll.Descriptor.SetTitle("Teleport All To Target");
             teleportAll.Descriptor.SetDescription("Teleports everyone to the selected player's location.");
-            teleportAll.OnClicked += () =>
-            {
-                BasisNetworkModeration.TeleportAll(controller.SelectedPlayer?.playerId);
-            };
+            GuardedClick(
+                teleportAll,
+                "Teleport everyone?",
+                "This will teleport ALL players to the selected target's location. Continue?",
+                "Teleport",
+                () =>
+                {
+                    if (controller.SelectedPlayer == null)
+                    {
+                        BasisDebug.LogError("No target selected.");
+                        return;
+                    }
+                    BasisNetworkModeration.TeleportAll(controller.SelectedPlayer.playerId);
+                });
 
             PanelButton teleportTo = PanelButton.CreateNew(actionsGroup.ContentParent);
             teleportTo.Descriptor.SetTitle("Teleport To Player (by UUID)");
             teleportTo.Descriptor.SetDescription("Teleports you to the player with the UUID above.");
-            teleportTo.OnClicked += () =>
-            {
-                if (controller.TryFindId(controller.GetUUIDText(), out ushort id))
-                    BasisNetworkModeration.TryTeleportToPlayer(id);
-                else
-                    BasisDebug.LogError("Can't find ID for UUID: " + controller.GetUUIDText());
-            };
+            GuardedClick(
+                teleportTo,
+                "Teleport to player?",
+                "Teleport you to the player with the UUID above?",
+                "Teleport",
+                () =>
+                {
+                    string uuid = controller.GetUUIDText();
+                    if (string.IsNullOrWhiteSpace(uuid))
+                    {
+                        BasisDebug.LogError("UUID is empty.");
+                        return;
+                    }
+
+                    if (controller.TryFindId(uuid, out ushort id))
+                        BasisNetworkModeration.TryTeleportToPlayer(id);
+                    else
+                        BasisDebug.LogError("Can't find ID for UUID: " + uuid);
+                });
 
             PanelButton teleportHere = PanelButton.CreateNew(actionsGroup.ContentParent);
             teleportHere.Descriptor.SetTitle("Teleport Player Here (by UUID)");
             teleportHere.Descriptor.SetDescription("Teleports the player with the UUID above to you.");
-            teleportHere.OnClicked += () =>
-            {
-                if (controller.TryFindId(controller.GetUUIDText(), out ushort id))
-                    BasisNetworkModeration.TeleportHere(id);
-                else
-                    BasisDebug.LogError("Can't find ID for UUID: " + controller.GetUUIDText());
-            };
+            GuardedClick(
+                teleportHere,
+                "Teleport player to you?",
+                "Teleport the player with the UUID above to your location?",
+                "Teleport",
+                () =>
+                {
+                    string uuid = controller.GetUUIDText();
+                    if (string.IsNullOrWhiteSpace(uuid))
+                    {
+                        BasisDebug.LogError("UUID is empty.");
+                        return;
+                    }
 
-            // Moderation
+                    if (controller.TryFindId(uuid, out ushort id))
+                        BasisNetworkModeration.TeleportHere(id);
+                    else
+                        BasisDebug.LogError("Can't find ID for UUID: " + uuid);
+                });
+
+            // ------------------
+            // Moderation actions
+            // ------------------
             PanelButton ban = PanelButton.CreateNew(actionsGroup.ContentParent);
             ban.Descriptor.SetTitle("Ban (UUID)");
             ban.Descriptor.SetDescription("Bans by UUID using the reason/message field.");
-            ban.OnClicked += () =>
-            {
-                BasisNetworkModeration.SendBan(controller.GetUUIDText(), controller.GetReasonText());
-            };
+            GuardedClick(
+                ban,
+                "Ban player?",
+                "Ban the player with this UUID? This may be irreversible depending on server policy.",
+                "Ban",
+                () =>
+                {
+                    string uuid = controller.GetUUIDText();
+                    if (string.IsNullOrWhiteSpace(uuid))
+                    {
+                        BasisDebug.LogError("UUID is empty.");
+                        return;
+                    }
+                    BasisNetworkModeration.SendBan(uuid, controller.GetReasonText());
+                });
 
             PanelButton kick = PanelButton.CreateNew(actionsGroup.ContentParent);
             kick.Descriptor.SetTitle("Kick (UUID)");
             kick.Descriptor.SetDescription("Kicks by UUID using the reason/message field.");
-            kick.OnClicked += () =>
-            {
-                BasisNetworkModeration.SendKick(controller.GetUUIDText(), controller.GetReasonText());
-            };
+            GuardedClick(
+                kick,
+                "Kick player?",
+                "Kick the player with this UUID?",
+                "Kick",
+                () =>
+                {
+                    string uuid = controller.GetUUIDText();
+                    if (string.IsNullOrWhiteSpace(uuid))
+                    {
+                        BasisDebug.LogError("UUID is empty.");
+                        return;
+                    }
+                    BasisNetworkModeration.SendKick(uuid, controller.GetReasonText());
+                });
 
             PanelButton ipBan = PanelButton.CreateNew(actionsGroup.ContentParent);
             ipBan.Descriptor.SetTitle("IP Ban (UUID)");
             ipBan.Descriptor.SetDescription("IP bans by UUID using the reason/message field.");
-            ipBan.OnClicked += () =>
-            {
-                BasisNetworkModeration.SendIPBan(controller.GetUUIDText(), controller.GetReasonText());
-            };
+            GuardedClick(
+                ipBan,
+                "IP ban player?",
+                "IP-ban the player with this UUID? This can affect multiple accounts on the same connection.",
+                "IP Ban",
+                () =>
+                {
+                    string uuid = controller.GetUUIDText();
+                    if (string.IsNullOrWhiteSpace(uuid))
+                    {
+                        BasisDebug.LogError("UUID is empty.");
+                        return;
+                    }
+                    BasisNetworkModeration.SendIPBan(uuid, controller.GetReasonText());
+                });
 
             PanelButton unban = PanelButton.CreateNew(actionsGroup.ContentParent);
             unban.Descriptor.SetTitle("Unban (UUID)");
             unban.Descriptor.SetDescription("Removes ban by UUID.");
-            unban.OnClicked += () =>
-            {
-                BasisNetworkModeration.UnBan(controller.GetUUIDText());
-            };
+            GuardedClick(
+                unban,
+                "Unban player?",
+                "Remove the ban for this UUID?",
+                "Unban",
+                () =>
+                {
+                    string uuid = controller.GetUUIDText();
+                    if (string.IsNullOrWhiteSpace(uuid))
+                    {
+                        BasisDebug.LogError("UUID is empty.");
+                        return;
+                    }
+                    BasisNetworkModeration.UnBan(uuid);
+                });
 
             PanelButton addAdmin = PanelButton.CreateNew(actionsGroup.ContentParent);
             addAdmin.Descriptor.SetTitle("Add Admin (UUID)");
             addAdmin.Descriptor.SetDescription("Grants admin to UUID.");
-            addAdmin.OnClicked += () =>
-            {
-                BasisNetworkModeration.AddAdmin(controller.GetUUIDText());
-            };
+            GuardedClick(
+                addAdmin,
+                "Grant admin?",
+                "Grant admin privileges to this UUID?",
+                "Grant",
+                () =>
+                {
+                    string uuid = controller.GetUUIDText();
+                    if (string.IsNullOrWhiteSpace(uuid))
+                    {
+                        BasisDebug.LogError("UUID is empty.");
+                        return;
+                    }
+                    BasisNetworkModeration.AddAdmin(uuid);
+                });
 
             PanelButton removeAdmin = PanelButton.CreateNew(actionsGroup.ContentParent);
             removeAdmin.Descriptor.SetTitle("Remove Admin (UUID)");
             removeAdmin.Descriptor.SetDescription("Revokes admin from UUID.");
-            removeAdmin.OnClicked += () =>
-            {
-                BasisNetworkModeration.RemoveAdmin(controller.GetUUIDText());
-            };
+            GuardedClick(
+                removeAdmin,
+                "Revoke admin?",
+                "Remove admin privileges from this UUID?",
+                "Revoke",
+                () =>
+                {
+                    string uuid = controller.GetUUIDText();
+                    if (string.IsNullOrWhiteSpace(uuid))
+                    {
+                        BasisDebug.LogError("UUID is empty.");
+                        return;
+                    }
+                    BasisNetworkModeration.RemoveAdmin(uuid);
+                });
 
-            // Messaging
+            // ------------------
+            // Messaging actions
+            // ------------------
             PanelButton sendMessage = PanelButton.CreateNew(actionsGroup.ContentParent);
             sendMessage.Descriptor.SetTitle("Send Message (UUID)");
             sendMessage.Descriptor.SetDescription("Sends the message to the target player (requires UUID -> network id lookup).");
-            sendMessage.OnClicked += () =>
-            {
-                if (controller.TryFindId(controller.GetUUIDText(), out ushort id))
-                    BasisNetworkModeration.SendMessage(id, controller.GetReasonText());
-                else
-                    BasisDebug.LogError("Can't find ID for UUID: " + controller.GetUUIDText());
-            };
+            GuardedClick(
+                sendMessage,
+                "Send message?",
+                "Send this message to the target player?",
+                "Send",
+                () =>
+                {
+                    string uuid = controller.GetUUIDText();
+                    if (string.IsNullOrWhiteSpace(uuid))
+                    {
+                        BasisDebug.LogError("UUID is empty.");
+                        return;
+                    }
+
+                    if (controller.TryFindId(uuid, out ushort id))
+                        BasisNetworkModeration.SendMessage(id, controller.GetReasonText());
+                    else
+                        BasisDebug.LogError("Can't find ID for UUID: " + uuid);
+                });
 
             PanelButton sendAll = PanelButton.CreateNew(actionsGroup.ContentParent);
             sendAll.Descriptor.SetTitle("Send Message To All");
             sendAll.Descriptor.SetDescription("Broadcasts the message to all players.");
-            sendAll.OnClicked += () =>
-            {
-                BasisNetworkModeration.SendMessageAll(controller.GetReasonText());
-            };
+            GuardedClick(
+                sendAll,
+                "Broadcast message?",
+                "Send this message to ALL players?",
+                "Broadcast",
+                () =>
+                {
+                    string msg = controller.GetReasonText();
+                    if (string.IsNullOrWhiteSpace(msg))
+                    {
+                        BasisDebug.LogError("Message/Reason is empty.");
+                        return;
+                    }
+                    BasisNetworkModeration.SendMessageAll(msg);
+                });
 
             descriptor.ForceRebuild();
             return tab;
+        }
+
+        // ------------------
+        // CONFIRMATION HELPERS
+        // ------------------
+
+        private static void WithConfirm(
+            string title,
+            string body,
+            string confirmText,
+            string cancelText,
+            Action onConfirm)
+        {
+            if (BasisMainMenu.Instance == null)
+            {
+                BasisDebug.LogError("BasisMainMenu.Instance was null; cannot show confirmation dialog.");
+                return;
+            }
+
+            BasisMainMenu.Instance.OpenDialogue(
+                title,
+                body,
+                confirmText,
+                cancelText,
+                value =>
+                {
+                    if (!value) return;
+                    onConfirm?.Invoke();
+                });
+        }
+
+        private static void GuardedClick(
+            PanelButton button,
+            string title,
+            string body,
+            string confirmText,
+            Action actionOnConfirm,
+            string cancelText = "Cancel")
+        {
+            button.OnClicked += () =>
+                WithConfirm(title, body, confirmText, cancelText, actionOnConfirm);
         }
 
         /// <summary>
