@@ -3,15 +3,15 @@ public static partial class SerializableBasis
 {
     public struct PlayerIdMessage
     {
-        private ushort playerid;
+        public ushort playerID;
 
         public void Deserialize(NetDataReader Writer)
         {
-            Writer.Get(out playerid); // Read the entire ushort value
+            Writer.Get(out playerID); // Read the entire ushort value
         }
         public void Serialize(NetDataWriter Writer)
         {
-            Writer.Put(playerid); // Write the entire ushort value
+            Writer.Put(playerID); // Write the entire ushort value
         }
     }
 }
