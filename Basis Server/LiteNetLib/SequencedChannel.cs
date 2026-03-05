@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 
 namespace LiteNetLib
 {
@@ -26,14 +25,14 @@ namespace LiteNetLib
         {
             if (_reliable && OutgoingQueue.Count == 0)
             {
-                long currentTime = Stopwatch.GetTimestamp();
+                long currentTime = DateTime.UtcNow.Ticks;
                 long packetHoldTime = currentTime - _lastPacketSendTime;
-                if (packetHoldTime >= Peer.ResendDelay * (Stopwatch.Frequency / 1000.0))
+                if (packetHoldTime >= Peer.ResendDelay * TimeSpan.TicksPerMillisecond)
                 {
                     var packet = _lastPacket;
                     if (packet != null)
                     {
-                        _lastPacketSendTime = Stopwatch.GetTimestamp();
+                        _lastPacketSendTime = currentTime;
                         Peer.SendUserData(packet);
                     }
                 }

@@ -433,13 +433,10 @@ namespace LiteNetLib
             {
                 Ttl = NetConstants.SocketTTL;
 
-                if (BroadcastReceiveEnabled)
+                try { socket.EnableBroadcast = true; }
+                catch (SocketException e)
                 {
-                    try { socket.EnableBroadcast = true; }
-                    catch (SocketException e)
-                    {
-                        NetDebug.WriteError($"[B]Broadcast error: {e.SocketErrorCode}");
-                    }
+                    NetDebug.WriteError($"[B]Broadcast error: {e.SocketErrorCode}");
                 }
 
                 if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
@@ -457,8 +454,8 @@ namespace LiteNetLib
                 socket.Bind(ep);
                 //NetDebug.Write(NetLogLevel.Trace, $"[B]Successfully binded to port: {((IPEndPoint)socket.LocalEndPoint).Port}, AF: {socket.AddressFamily}");
 
-                //join multicast (only needed when broadcast receive is enabled)
-                if (BroadcastReceiveEnabled && ep.AddressFamily == AddressFamily.InterNetworkV6)
+                //join multicast
+                if (ep.AddressFamily == AddressFamily.InterNetworkV6)
                 {
                     try
                     {

@@ -158,10 +158,6 @@ namespace LiteNetLib
         private readonly object _eventLock = new object();
         private volatile bool _isRunning;
 
-        // Pre-allocated to avoid per-tick heap allocations in UpdateLogic (called every 2ms).
-        private readonly List<NetPeer> _updateSnapshot = new List<NetPeer>(64);
-        private readonly ConcurrentQueue<NetPeer> _peersToRemoveQueue = new ConcurrentQueue<NetPeer>();
-
         /// <summary>
         ///     Used with <see cref="SimulateLatency"/> and <see cref="SimulatePacketLoss"/> to tag packets that
         ///     need to be dropped. Only relevant when <c>DEBUG</c> is defined.
@@ -579,14 +575,15 @@ namespace LiteNetLib
                     elapsed = elapsed <= 0.0f ? 0.001f : elapsed;
                     stopwatch.Restart();
 
-                    // 1. Snapshot peers under read lock (reuse pre-allocated list)
+                    // 1. Snapshot peers under read lock
+                    List<NetPeer> peersSnapshot;
                     _peersLock.EnterReadLock();
                     try
                     {
-                        _updateSnapshot.Clear();
+                        peersSnapshot = new List<NetPeer>();
                         for (var netPeer = _headPeer; netPeer != null; netPeer = netPeer.NextPeer)
                         {
-                            _updateSnapshot.Add(netPeer);
+                            peersSnapshot.Add(netPeer);
                         }
                     }
                     finally
@@ -594,13 +591,15 @@ namespace LiteNetLib
                         _peersLock.ExitReadLock();
                     }
 
-                    // 2. Parallel processing (reuse pre-allocated removal queue)
-                    System.Threading.Tasks.Parallel.ForEach(_updateSnapshot, netPeer =>
+                    // 2. Parallel processing
+                    var peersToRemove = new System.Collections.Concurrent.ConcurrentBag<NetPeer>();
+
+                    System.Threading.Tasks.Parallel.ForEach(peersSnapshot, netPeer =>
                     {
                         if (netPeer.ConnectionState == ConnectionState.Disconnected &&
                             netPeer.TimeSinceLastPacket > DisconnectTimeout)
                         {
-                            _peersToRemoveQueue.Enqueue(netPeer);
+                            peersToRemove.Add(netPeer);
                         }
                         else
                         {
@@ -609,12 +608,12 @@ namespace LiteNetLib
                     });
 
                     // 3. Remove peers under write lock
-                    if (!_peersToRemoveQueue.IsEmpty)
+                    if (!peersToRemove.IsEmpty)
                     {
                         _peersLock.EnterWriteLock();
                         try
                         {
-                            while (_peersToRemoveQueue.TryDequeue(out var peer))
+                            foreach (var peer in peersToRemove)
                             {
                                 RemovePeer(peer, false);
                             }
@@ -734,7 +733,7 @@ namespace LiteNetLib
                     FastBitConverter.GetBytes(shutdownPacket.RawData, 1, request.InternalPacket.ConnectionTime);
                     if (shutdownPacket.Size >= NetConstants.PossibleMtu[0])
                     {
-                        NetDebug.WriteError("[Peer] Disconnect additional data size more than MTU!");
+                    NetDebug.WriteError("[Peer] Disconnect additional data size more than MTU!");
                     }
                     else
                         Buffer.BlockCopy(rejectData, start, shutdownPacket.RawData, 9, length);

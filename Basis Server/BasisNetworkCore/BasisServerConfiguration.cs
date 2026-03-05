@@ -13,9 +13,9 @@ public class Configuration
     public int PeerLimit = ushort.MaxValue;
     public ushort SetPort = 4296;
     public bool UseNativeSockets = true;
-    public bool NatPunchEnabled = false;
+    public bool NatPunchEnabled = true;
     public int PingInterval = 1500;
-    public int DisconnectTimeout = 6000;
+    public int DisconnectTimeout = 15000;
     public bool SimulatePacketLoss = false;
     public bool SimulateLatency = false;
     public int SimulationPacketLossChance = 10;
@@ -28,7 +28,7 @@ public class Configuration
     public bool EnableStatistics = true;
     public bool IPv6Enabled = true;
     public int MtuOverride = 0;
-    public bool MtuDiscovery = true;
+    public bool MtuDiscovery = false;
     public bool DisconnectOnUnreachable = false;
     public bool AllowPeerAddressChange = true;
     public bool HasFileSupport = true;
