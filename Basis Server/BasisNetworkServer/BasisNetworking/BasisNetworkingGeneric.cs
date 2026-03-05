@@ -1,6 +1,7 @@
 using Basis.Network.Core;
 using BasisNetworkServer.BasisNetworkingReductionSystem;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using static SerializableBasis;
 
@@ -10,7 +11,7 @@ namespace Basis.Network.Server.Generic
     {
         [ThreadStatic]
         private static List<NetPeer> _targetedClients;
-
+        public static readonly ConcurrentQueue<NetDataWriter> WriterPool = new ConcurrentQueue<NetDataWriter>();
         private static List<NetPeer> GetTargetedList()
         {
             if (_targetedClients == null) _targetedClients = new List<NetPeer>();
@@ -36,7 +37,7 @@ namespace Basis.Network.Server.Generic
                 }
             };
             byte Channel = BasisNetworkCommons.SceneChannel;
-            NetDataWriter Writer = BasisServerReductionSystemEvents.RentWriter();
+            NetDataWriter Writer = RentWriter();
             if (DeliveryMethod == DeliveryMethod.Unreliable)
             {
                 Writer.Put(Channel);
@@ -69,8 +70,19 @@ namespace Basis.Network.Server.Generic
             {
                 NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, NetworkServer.PeerSnapshot, DeliveryMethod);
             }
-            BasisServerReductionSystemEvents.ReturnWriter(Writer);
+            ReturnWriter(Writer);
             serverSceneDataMessage.sceneDataMessage.Release();
+        }
+        public static NetDataWriter RentWriter()
+        {
+            // 208 was your original; keep it or increase if you add more fields.
+            return WriterPool.TryDequeue(out var writer) ? writer : new NetDataWriter(true, 208);
+        }
+
+        public static void ReturnWriter(NetDataWriter writer)
+        {
+            writer.Reset();
+            WriterPool.Enqueue(writer);
         }
         public static void HandleAvatar(NetPacketReader Reader, DeliveryMethod DeliveryMethod, NetPeer sender)
         {
@@ -92,7 +104,7 @@ namespace Basis.Network.Server.Generic
                 }
             };
             byte Channel = BasisNetworkCommons.AvatarChannel;
-            NetDataWriter Writer = BasisServerReductionSystemEvents.RentWriter();
+            NetDataWriter Writer = RentWriter();
             if (DeliveryMethod == DeliveryMethod.Unreliable)
             {
                 Writer.Put(Channel);
@@ -125,7 +137,7 @@ namespace Basis.Network.Server.Generic
             {
                 NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, NetworkServer.PeerSnapshot, DeliveryMethod);
             }
-            BasisServerReductionSystemEvents.ReturnWriter(Writer);
+            ReturnWriter(Writer);
         }
     }
 }
