@@ -91,6 +91,16 @@ namespace Basis.BasisUI
         {
             if (BasisMainMenu.ActiveMenuTitle == Title) return;
 
+            // ensure admin hooks are here
+            BasisNetworkEvents.IsLocalAdmin -= IsLocalAdmin;
+            BasisNetworkEvents.IsLocalAdmin += IsLocalAdmin;
+
+            // before we build content perform the admin check on opening this menu
+            if(BasisNetworkConnection.LocalPlayerIsConnected)
+            {
+                BasisNetworkEvents.RequestIsAdminCheck();
+            }
+
             // this creates our panel
             panel = BasisMainMenu.CreateActiveMenu(
                 BasisMenuPanel.PanelData.Standard(Title),
@@ -512,18 +522,14 @@ namespace Basis.BasisUI
                 // this will always be the instantiated tab when we fail to parse the correct page
                 if (_currentPage == Page.Instantiated) // sanity check
                 {
-                    BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
-                    BasisRuntimeSpawnRegistry.OnRegistryChanged += OnRegistryChanged;
-
-                    // ensure admin hooks are here
-                    BasisNetworkEvents.IsLocalAdmin -= IsLocalAdmin;
-                    BasisNetworkEvents.IsLocalAdmin += IsLocalAdmin;
-
-                    // request an admin check if the network server is valid
+                    // again perform admin check if they refresh this tab?
                     if(BasisNetworkConnection.LocalPlayerIsConnected)
                     {
                         BasisNetworkEvents.RequestIsAdminCheck();
                     }
+
+                    BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
+                    BasisRuntimeSpawnRegistry.OnRegistryChanged += OnRegistryChanged;
 
                     // force update this page
                     UpdateInstantiatedTab();
