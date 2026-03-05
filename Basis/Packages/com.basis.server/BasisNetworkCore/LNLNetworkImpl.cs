@@ -161,7 +161,7 @@ namespace Basis.Network.Core
 
         void NetPeer.Send(NetDataWriter data, byte channelNumber, DeliveryMethod deliveryMethod)
         {
-            peer.Send(data.Data, 0, data.Length, channelNumber, (LiteNetLib.DeliveryMethod)(byte)deliveryMethod);
+            peer.Send(data.AsReadOnlySpan(), channelNumber, (LiteNetLib.DeliveryMethod)(byte)deliveryMethod);
         }
 
         public override bool Equals(object obj)

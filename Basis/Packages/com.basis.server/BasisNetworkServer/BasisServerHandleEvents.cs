@@ -322,7 +322,7 @@ namespace BasisServerHandle
 
             audioSegment.playerIdMessage = new PlayerIdMessage
             {
-                playerID = (ushort)sender.Id
+                playerID = (ushort)sender.Id,
             };
 
             var writer = new NetDataWriter(true, 3);
