@@ -17,7 +17,7 @@ using UnityEngine;
 /// </summary>
 public static class BasisRemoteNetworkDriver
 {
-    public const int FixedCapacity = 1024;
+    public const int FixedCapacity = ushort.MaxValue;
 
     // ---------------- INPUTS (prev/target) ----------------
     static NativeArray<float3> _prevPositions;
