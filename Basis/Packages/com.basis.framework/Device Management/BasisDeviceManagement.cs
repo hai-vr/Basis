@@ -107,6 +107,10 @@ namespace Basis.Scripts.Device_Management
         public static Action OnDeviceManagementLoop;
 
         /// <summary>
+        /// a disabled gameobject that we can spawn things under for security
+        /// </summary>
+        public GameObject CreationGameobject;
+        /// <summary>
         /// Command-line arguments baked into the build, used when platform args are unavailable (e.g., mobile).
         /// </summary>
         [SerializeField] public string[] BakedInCommandLineArgs = Array.Empty<string>();

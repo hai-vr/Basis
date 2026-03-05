@@ -193,7 +193,7 @@ public static class BasisNetworkSpawnItem
         var position = new Vector3(localLoadResource.PositionX, localLoadResource.PositionY, localLoadResource.PositionZ);
         var rotation = new Quaternion(localLoadResource.QuaternionX, localLoadResource.QuaternionY, localLoadResource.QuaternionZ, localLoadResource.QuaternionW);
         var scale = new Vector3(localLoadResource.ScaleX, localLoadResource.ScaleY, localLoadResource.ScaleZ);
-        GameObject reference = await BasisLoadHandler.LoadGameObjectBundle(loadBundle, true, BasisProgressReport, new CancellationToken(),
+        GameObject reference = await BasisLoadHandler.LoadGameObjectBundle(BasisDeviceManagement.Instance.CreationGameobject, loadBundle, true, BasisProgressReport, new CancellationToken(),
             position,
             rotation,
             scale,
