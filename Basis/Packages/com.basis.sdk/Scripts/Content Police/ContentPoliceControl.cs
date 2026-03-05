@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.Audio;
 using UnityEngine.SceneManagement;
 
 public static class ContentPoliceControl
@@ -13,14 +12,11 @@ public static class ContentPoliceControl
     /// <param name="Rotation">The rotation to instantiate the cleaned copy.</param>
     /// <param name="Parent">The parent transform for the instantiated copy. Defaults to null.</param>
     /// <returns>A copy of the GameObject with unapproved scripts removed.</returns>
-    public static GameObject ContentControl(GameObject SearchAndDestroy, ChecksRequired ChecksRequired, Vector3 Position, Quaternion Rotation, bool ModifyScale, Vector3 Scale, BundledContentHolder.Selector Selector, Transform Parent = null)
+    public static GameObject ContentControl(GameObject DisabledGameobject, GameObject SearchAndDestroy, ChecksRequired ChecksRequired, Vector3 Position, Quaternion Rotation, bool ModifyScale, Vector3 Scale, BundledContentHolder.Selector Selector, Transform Parent = null)
     {
         if (ChecksRequired.UseContentRemoval)
         {
-            GameObject newGameObject = new GameObject("Temp");
-            newGameObject.SetActive(false);
-
-            SearchAndDestroy = GameObject.Instantiate(SearchAndDestroy, Position, Rotation, newGameObject.transform);
+            SearchAndDestroy = GameObject.Instantiate(SearchAndDestroy, Position, Rotation, DisabledGameobject.transform);
             if (ModifyScale)
             {
                 BasisDebug.Log($"Overriding Default scale is now {Scale} for Game object {SearchAndDestroy.name}");
@@ -82,8 +78,6 @@ public static class ContentPoliceControl
             {
                 BasisDebug.LogError("cant find Police check for " + Selector, BasisDebug.LogTag.Event);
             }
-            GameObject.DestroyImmediate(newGameObject);
-
         }
         else
         {

@@ -79,7 +79,7 @@ namespace Basis.BasisUI
                 _ => BundledContentHolder.Selector.Prop
             };
 
-            GameObject createdObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, report, cancel, finalPos, finalRot, finalScale, modifyScale, selector, parentTarget);
+            GameObject createdObject = await BasisLoadHandler.LoadGameObjectBundle(BasisDeviceManagement.Instance.CreationGameobject, bundle, true, report, cancel, finalPos, finalRot, finalScale, modifyScale, selector, parentTarget );
 
             if (createdObject != null)
             {

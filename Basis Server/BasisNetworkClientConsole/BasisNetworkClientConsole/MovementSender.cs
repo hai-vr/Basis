@@ -61,15 +61,29 @@ namespace Basis.Network
 
         private static void WriteInitialPayload(ref LocalAvatarSyncMessage message)
         {
-            if (message.array.Length != ClientManager.Size)
-            {
-                message.array = new byte[ClientManager.Size];
-            }
-            // Layout:
-            int offset = 0;
+            // Make sure buffer is correct size for High
+            int size = BasisAvatarBitPacking.ConvertToSize(BitQuality.High);
+            if (message.array == null || message.array.Length != size)
+                message.array = new byte[size];
 
-            // Position (placeholder; will be overwritten each tick)
+            // 1) Position
+            int offset = 0;
             WritePosition(Randomizer.GetRandomOffset(), ref message.array, ref offset);
+
+            // 2) Muscles: if you want “neutral pose”, leave zeros (or write defaults here)
+
+            // 3) Scale: WRITE IT (this is what you’re missing)
+            int scaleOffset = BasisAvatarBitPacking.WritePosition + BasisAvatarBitPacking.MuscleBytes(BitQuality.High);
+            WriteScaleUShort(CompressedScale, message.array, scaleOffset);
+
+            // 4) Rotation: lives right after scale (7 bytes in your constants)
+            // int rotOffset = scaleOffset + BasisAvatarBitPacking.WriteScale;
+            // Write your compressed-rotation format there (don’t use 16-byte float quaternion here).
+        }
+        private static void WriteScaleUShort(ushort value, byte[] buffer, int byteOffset)
+        {
+            buffer[byteOffset + 0] = (byte)value;
+            buffer[byteOffset + 1] = (byte)(value >> 8);
         }
         public static void ProcessSingle(NetPeer peer, int index)
         {

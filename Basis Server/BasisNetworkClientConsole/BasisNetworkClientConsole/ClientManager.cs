@@ -3,7 +3,6 @@ using Basis.Network.Core;
 using Basis.Network.Core.Compression;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Utilities;
-using System.Drawing;
 using System.Text;
 using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 using static SerializableBasis;
@@ -42,7 +41,7 @@ namespace Basis.Network
                     {
                         playerDisplayName = name,
                         playerUUID = uuid,
-                         playerPlatform = "Headless",
+                        playerPlatform = "Headless",
                     },
                     clientAvatarChangeMessage = new ClientAvatarChangeMessage
                     {
@@ -76,7 +75,7 @@ namespace Basis.Network
 
                 await Task.Delay(1, cts.Token);
             }
-            FinalPeers = peers.ToArray();
+            FinalPeers = [.. peers];
         }
         public async Task ReconnectClientAsync(int index)
         {
@@ -106,7 +105,7 @@ namespace Basis.Network
                 {
                     playerDisplayName = name,
                     playerUUID = uuid,
-                     playerPlatform = "Headless",
+                    playerPlatform = "Headless",
                 },
                 clientAvatarChangeMessage = new ClientAvatarChangeMessage
                 {
