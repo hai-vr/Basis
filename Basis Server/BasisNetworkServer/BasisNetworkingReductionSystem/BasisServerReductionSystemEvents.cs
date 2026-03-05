@@ -579,12 +579,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static void PreSerializeKeyframe(PlayerState state, int qi, LocalAvatarSyncMessage msg, ushort playerId)
         {
-            if (msg.array == null) return;
+            byte[] baselineArray = state.KeyframeBaseline[qi];
+            if (baselineArray == null || msg.array == null) return;
 
             var quality = (BitQuality)msg.DataQualityLevel;
             int expectedPayload = BasisAvatarBitPacking.ConvertToSize(quality);
 
-            // [PlayerID:2][interval:1][quality:1][array:N][additionalSize:1][additional...]
+            // [PlayerID:2][interval:1][quality:1][baselineArray:N][additionalSize:1][additional...]
             int additionalSize = 0;
             if (msg.AdditionalAvatarDatas != null && msg.AdditionalAvatarDatas.Length > 0)
             {
@@ -600,11 +601,28 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (state.SerializedKeyframe[qi] == null || state.SerializedKeyframe[qi].Length < totalSize)
                 state.SerializedKeyframe[qi] = new byte[totalSize];
 
-            // Use a temporary writer to serialize correctly
+            // Serialize manually using baseline array (NOT current msg.array)
+            // so client baseline matches what server computes deltas against.
             NetDataWriter writer = RentWriter();
             writer.Put(playerId);
             writer.Put((byte)0); // interval placeholder
-            msg.Serialize(writer, quality);
+            writer.Put(msg.DataQualityLevel);
+            writer.Put(baselineArray, 0, expectedPayload);
+
+            // Additional avatar data (from current msg)
+            if (msg.AdditionalAvatarDatas == null || msg.AdditionalAvatarDatas.Length == 0 || msg.AdditionalAvatarDatas.Length > 256)
+            {
+                writer.Put((byte)0);
+            }
+            else
+            {
+                writer.Put((byte)msg.AdditionalAvatarDatas.Length);
+                writer.Put(msg.LinkedAvatarIndex);
+                for (int i = 0; i < msg.AdditionalAvatarDatas.Length; i++)
+                {
+                    msg.AdditionalAvatarDatas[i].Serialize(writer);
+                }
+            }
 
             int written = writer.Length;
             Buffer.BlockCopy(writer.Data, 0, state.SerializedKeyframe[qi], 0, written);
