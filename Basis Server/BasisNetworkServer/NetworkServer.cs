@@ -11,6 +11,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 using static BasisPermissions.PermissionManager;
@@ -21,6 +22,14 @@ public static class NetworkServer
     public static LNLNetManager Server;
     public static ConcurrentDictionary<int, NetPeer> AuthenticatedPeers = new();
     public static Configuration Configuration;
+    // Cached snapshot rebuilt on connect/disconnect — avoids ToArray() alloc on every broadcast.
+    private static volatile NetPeer[] _peerSnapshot = Array.Empty<NetPeer>();
+    public static NetPeer[] PeerSnapshot => _peerSnapshot;
+
+    public static void RebuildPeerSnapshot()
+    {
+        _peerSnapshot = AuthenticatedPeers.Values.ToArray();
+    }
     public static IAuth Auth;
     public static IAuthIdentity AuthIdentity;
     public static int HighQualityLength;
