@@ -600,10 +600,16 @@ namespace Basis.BasisUI
             CachedMetaData.CachedContent cachedMeta;
             CachedMetaData.TryGetMeta(urlKey, out cachedMeta);
 
-            // show already selected avatar
-            if (item.Mode == BundledContentHolder.Mode.Avatar)
+            // show already selected avatar OR world in this case that is spawned
+            switch(item.Mode)
             {
-                buttonPanel.ButtonStyling.ShowIndicator(item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+                case BundledContentHolder.Mode.Avatar:
+                    buttonPanel.ButtonStyling.ShowIndicator(item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+                break;
+                case BundledContentHolder.Mode.World:
+                    int spawnItemCount = BasisRuntimeSpawnRegistry.CountIgnoreCase(item.Url);
+                    buttonPanel.ButtonStyling.ShowIndicator(spawnItemCount > 0);
+                break;
             }
 
             if (item.PinnedSettings.IsPinned)
@@ -1236,7 +1242,7 @@ namespace Basis.BasisUI
                     loadPanelButton.Descriptor.SetTitle(sameAvatar ? "You are already in this avatar" : "Load");
                     break;
                 case BundledContentHolder.Mode.World:
-                    bool worldAlreadyExists = BasisRuntimeSpawnRegistry.CountIgnoreCase(item.Url) > 0;
+                    bool worldAlreadyExists = spawnItemCount > 0;
  
                     if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent2))
                     {
@@ -1273,8 +1279,13 @@ namespace Basis.BasisUI
                     existingItemDialog.CloseWithResult(null);
 
                     // only refresh on avatar change to show status indicator update
-                    if (item.Mode == BundledContentHolder.Mode.Avatar)
+                    switch(item.Mode)
+                    {
+                        case BundledContentHolder.Mode.Avatar:
+                        case BundledContentHolder.Mode.World:
                         await RefreshCurrentTab();
+                        break;
+                    }
                 }
             };
         }
