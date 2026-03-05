@@ -348,11 +348,12 @@ namespace Basis.BasisUI
 
                             if (scene.IsValid())
                             {
-                                BasisDebug.Log($"Library provider successfully created scene {item.Url} with networking: {desiredNetworkType}");
+                                string uniqueID = BasisGenerateUniqueID.GenerateUniqueID();
+                                BasisDebug.Log($"Library provider successfully created scene {item.Url} with loadedNetId = {uniqueID} networking: {desiredNetworkType}");
 
                                 BasisRuntimeSpawnRegistry.AddScene(
                                     item.Url,
-                                    scene.name,
+                                    uniqueID,//scene.name + $"_{desiredNetworkType}_{scene.handle}",
                                     scene,
                                     BasisLocalPlayer.Instance.UUID,
                                     admin,

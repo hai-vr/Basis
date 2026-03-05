@@ -595,7 +595,7 @@ namespace Basis.BasisUI
             PanelButton buttonPanel = PanelButton.CreateNew(ButtonStyles.Prop, container);
             var urlKey = item.Url ?? string.Empty;
             var desc = buttonPanel.Descriptor;
-
+            
             // Try get cached meta once
             CachedMetaData.CachedContent cachedMeta;
             CachedMetaData.TryGetMeta(urlKey, out cachedMeta);
@@ -1234,17 +1234,15 @@ namespace Basis.BasisUI
                     loadPanelButton.Descriptor.SetTitle(sameAvatar ? "You are already in this avatar" : "Load");
                     break;
                 case BundledContentHolder.Mode.World:
-                    loadPanelButton.Descriptor.SetTitle("Load");
-
-                    // disable the load button when the scene already exists
-                    // if(BasisRuntimeSpawnRegistry.SpawnedScenes.TryGetValue(item.Url, out Scene scene))
-                    // {
-                    //     if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent2))
-                    //     {
-                    //         loadButtonComponent2.interactable = !(scene != null);
-                    //     }
-                    // }
-
+                    bool worldAlreadyExists = BasisRuntimeSpawnRegistry.CountIgnoreCase(item.Url) > 0;
+ 
+                    if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent2))
+                    {
+                        // disable the button
+                        loadButtonComponent2.interactable = !worldAlreadyExists;
+                    }
+                    // you can only load one instance of a scene
+                    loadPanelButton.Descriptor.SetTitle(worldAlreadyExists ? "You can only load 1 instance of a scene." : "Load");
                     break;
                 case BundledContentHolder.Mode.Prop:
                     loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : "Spawn");
@@ -1551,6 +1549,8 @@ namespace Basis.BasisUI
             bool hasMetaData = itemKey.bundleConnector != null;
             string title = hasMetaData ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName) : itemKey.Url;
             //string description = hasMetaData ? (itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription.Length > 0 ? itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription : "No description was provided.") : (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded ? "Embedded Item" : "N/A");
+
+            BasisDebug.Log($"{itemKey.Url}, {itemKey.InstanceId}, {BasisRuntimeSpawnRegistry.Count(itemKey.Url)}");
 
             bool hasSelected = false; // used for if we have selected this item via the placement manager
 

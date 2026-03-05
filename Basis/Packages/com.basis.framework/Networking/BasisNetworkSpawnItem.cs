@@ -8,6 +8,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -150,7 +151,7 @@ public static class BasisNetworkSpawnItem
 
         BasisRuntimeSpawnRegistry.AddScene(
             localLoadResource.CombinedURL, 
-            localLoadResource.LoadedNetID, 
+            localLoadResource.LoadedNetID,
             scene, 
             localLoadResource.UUIDOfCreator,
             localLoadResource.IsAdminLocked,
@@ -162,6 +163,7 @@ public static class BasisNetworkSpawnItem
         BasisDebug.Log($"Scene Load From Server Complete ", BasisDebug.LogTag.Networking);
         return scene;
     }
+
     public static void SceneTraverseNetIdAssign(Scene scene, LocalLoadResource localLoadResource)
     {
         GameObject[] Root = scene.GetRootGameObjects();
@@ -253,6 +255,6 @@ public static class BasisNetworkSpawnItem
 
     public static async Task Reset()
     {
-     await   BasisRuntimeSpawnRegistry.ClearAllNetworking();
+        await BasisRuntimeSpawnRegistry.ClearAllNetworking();
     }
 }

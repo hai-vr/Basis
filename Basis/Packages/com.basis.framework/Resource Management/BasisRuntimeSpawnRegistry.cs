@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -82,6 +83,13 @@ namespace Basis
         {
             if (string.IsNullOrWhiteSpace(url)) return 0;
             return _map.TryGetValue(url, out var list) && list != null ? list.Count : 0;
+        }
+
+        public static int CountIgnoreCase(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return 0;
+            var key = _map.Keys.FirstOrDefault(k => string.Equals(k, url, StringComparison.OrdinalIgnoreCase));
+            return key != null && _map[key] != null ? _map[key].Count : 0;
         }
 
         // ---- ADD HELPERS (also set the runtime dictionaries) --------------------
@@ -354,6 +362,46 @@ namespace Basis
             }
 
             return nuked;
+        }
+
+        /// <summary>
+        /// basically we want to ensure there are no existing scenes of local when we network in the desired scene we want
+        /// </summary>
+        public static async Task RemoveAllLocalScenes()
+        {
+            BasisDebug.Log($"RemoveAllLocalScenes() -> invoked");
+
+            if (SpawnedScenes.Count == 0)
+            {
+                BasisDebug.Log($"No existing instances of local scenes found");
+                return;
+            }
+
+            foreach (var kvp in SpawnedScenes)
+            {
+                string key = kvp.Key;     // e.g., LoadedNetID or URL
+                Scene scene = kvp.Value;  // the actual Unity Scene
+
+                if (!scene.IsValid())
+                {
+                    BasisDebug.LogWarning($"Stale scene entry detected (Key = {key}). Skipping.");
+                    continue;
+                }
+
+                BasisDebug.Log($"Attempting removal of local scene instance (Key = {key})");
+
+                bool success = await RemoveByLoadedNetId(key);
+
+                if (success)
+                {
+                    BasisDebug.Log($"Successfully removed scene instance (Key = {key})");
+                }
+                else
+                {
+                    BasisDebug.LogError($"Failed to remove scene instance (Key = {key})");
+                }
+            }
+
         }
     }
 }

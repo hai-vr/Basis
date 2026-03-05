@@ -1,5 +1,5 @@
-using Basis.Scripts.BasisSdk;
 using System.Threading.Tasks;
+using Basis.Scripts.BasisSdk;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using static BundledContentHolder;
@@ -100,12 +100,13 @@ public static class BasisBundleLoadAsset
                 ChecksRequired ChecksRequired = new ChecksRequired();
                 ChecksRequired.UseContentRemoval = true;
                 ContentPoliceControl.ContentControl(ChecksRequired, Selector.World, loadedScene, true);
+                AssignedIncrement = bundle.Increment();
                 if (MakeActiveScene)
                 {
                     SceneManager.SetActiveScene(loadedScene);
-                    AssignedIncrement = bundle.Increment();
+                    BasisDebug.Log("Scene set as active: " + loadedScene.name);
                 }
-                BasisDebug.Log("Scene set as active: " + loadedScene.name);
+                BasisDebug.Log("Scene loaded: " + loadedScene.name + " (MakeActive=" + MakeActiveScene + ", Incremented=" + AssignedIncrement + ")");
                 progressCallback.ReportProgress(UniqueID, 100, "loading scene"); // Set progress to 100 when done
                 return loadedScene;
             }
