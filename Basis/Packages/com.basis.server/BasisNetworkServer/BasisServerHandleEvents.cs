@@ -298,6 +298,10 @@ namespace BasisServerHandle
             ThreadSafeMessagePool<AudioSegmentDataMessage>.Return(audioSegment);
         }
 
+        // Pooled resources for voice sends to avoid per-message allocations
+        private static readonly System.Collections.Concurrent.ConcurrentQueue<NetDataWriter> VoiceWriterPool = new();
+        [ThreadStatic] private static List<NetPeer> _voicePeerList;
+
         public static void SendVoiceMessageToClients(ServerAudioSegmentMessage audioSegment, byte channel, NetPeer sender, DeliveryMethod method)
         {
             if (BasisSavedState.GetLastVoiceReceivers(sender, out VoiceReceiversMessage receivers))
@@ -325,20 +329,29 @@ namespace BasisServerHandle
                 playerID = (ushort)sender.Id,
             };
 
-            var writer = new NetDataWriter(true, 3);
+            if (!VoiceWriterPool.TryDequeue(out var writer))
+                writer = new NetDataWriter(true, 128);
+
             audioSegment.Serialize(writer);
 
-            NetworkServer.BroadcastMessageToClients(writer, channel, ref targetPeers, method,1024);
+            NetworkServer.BroadcastMessageToClients(writer, channel, ref targetPeers, method, 1024);
+
+            writer.Reset();
+            VoiceWriterPool.Enqueue(writer);
         }
 
         private static List<NetPeer> GetTargetPeers(VoiceReceiversMessage Message)
         {
-            List<NetPeer> peers = new List<NetPeer>(Message.Users.Length);
+            if (_voicePeerList == null)
+                _voicePeerList = new List<NetPeer>(64);
+            else
+                _voicePeerList.Clear();
+
             foreach (ushort userId in Message.Users)
             {
                 if (NetworkServer.AuthenticatedPeers.TryGetValue(userId, out NetPeer found))
                 {
-                    peers.Add(found);
+                    _voicePeerList.Add(found);
                 }
                 else
                 {
@@ -346,7 +359,7 @@ namespace BasisServerHandle
                 }
             }
 
-            return peers;
+            return _voicePeerList;
         }
         public static void UpdateVoiceReceivers(NetPacketReader Reader, NetPeer Peer)
         {

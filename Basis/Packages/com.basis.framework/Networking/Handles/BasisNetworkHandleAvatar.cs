@@ -7,6 +7,7 @@ using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Concurrent;
 using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
+using static Basis.Network.Core.Compression.AvatarDeltaCompression;
 using static SerializableBasis;
 public static class BasisNetworkHandleAvatar
 {
@@ -51,29 +52,15 @@ public static class BasisNetworkHandleAvatar
                     bool hasBaseline = AvatarBaselines.TryGetValue(playerId, out var existing);
                     bool hasQuality = BaselineQuality.TryGetValue(playerId, out var existingQ);
 
-                    // --- Policy choice ---
-                    // A) "First baseline only" (old behavior): only set baseline if missing.
-                    // B) Refresh if quality changes (recommended now that payload size can change).
-                    bool shouldRefresh =
-                        !hasBaseline ||
-                        !hasQuality ||
-                        existingQ != lav.DataQualityLevel ||
-                        existing == null ||
-                        existing.Length != expectedSize;
-
-                    if (shouldRefresh)
+                    // Always refresh baseline on every keyframe receipt so delta
+                    // compression stays in sync with server baselines.
+                    if (!hasBaseline || existing == null || existing.Length != expectedSize)
                     {
-                        byte[] baseline = new byte[expectedSize];
-                        Buffer.BlockCopy(lav.array, 0, baseline, 0, expectedSize);
-
-                        AvatarBaselines[playerId] = baseline;
-                        BaselineQuality[playerId] = lav.DataQualityLevel;
+                        existing = new byte[expectedSize];
+                        AvatarBaselines[playerId] = existing;
                     }
-                    else
-                    {
-                        // If you truly want "never overwrite", comment out the refresh block above
-                        // and just do TryAdd here.
-                    }
+                    Buffer.BlockCopy(lav.array, 0, existing, 0, expectedSize);
+                    BaselineQuality[playerId] = lav.DataQualityLevel;
                 }
             }
         }
@@ -98,6 +85,88 @@ public static class BasisNetworkHandleAvatar
             while (Message.TryDequeue(out _)) { }
             BasisDebug.LogError("Messages Exceeded 250! Resetting");
         }
+    }
+
+    /// <summary>
+    /// Handles a delta-compressed avatar update on DeltaPlayerAvatarChannel.
+    /// Wire format: [PlayerID:2][interval:1][quality:1][deltaPayload:M][additionalSize:1][additional...]
+    /// deltaPayload = [bitmask:4][changed_chunks:N*8]
+    /// </summary>
+    public static void HandleDeltaAvatarUpdate(NetPacketReader reader)
+    {
+        BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, reader.AvailableBytes);
+
+        // Read header: playerID + interval (same layout as keyframe)
+        ushort playerId = reader.GetUShort();
+        byte interval = reader.GetByte();
+
+        // Read quality byte
+        byte qualityByte = reader.GetByte();
+        var quality = (BitQuality)qualityByte;
+
+        if (!BasisAvatarBitPacking.IsValidQuality(quality))
+        {
+            // Unknown quality, skip
+            return;
+        }
+
+        // Must have a baseline to apply delta against
+        if (!AvatarBaselines.TryGetValue(playerId, out byte[] baseline) || baseline == null)
+        {
+            // No baseline yet — skip delta, wait for next keyframe
+            return;
+        }
+
+        if (!BaselineQuality.TryGetValue(playerId, out byte baselineQ) || baselineQ != qualityByte)
+        {
+            // Quality mismatch — skip delta, wait for matching keyframe
+            return;
+        }
+
+        int expectedSize = BasisAvatarBitPacking.ConvertToSize(quality);
+        if (baseline.Length != expectedSize)
+        {
+            return;
+        }
+
+        // Decode XOR delta directly from reader into reconstructed payload
+        byte[] reconstructed = new byte[expectedSize];
+        AvatarDeltaCompression.DecodeDelta(reader, baseline, reconstructed);
+
+        // Read additional avatar data (same format as keyframe)
+        byte additionalCount = reader.GetByte();
+        AdditionalAvatarData[] additionalDatas = null;
+        byte linkedAvatarIndex = 0;
+        if (additionalCount > 0 && additionalCount <= 256)
+        {
+            linkedAvatarIndex = reader.GetByte();
+            additionalDatas = new AdditionalAvatarData[additionalCount];
+            for (int i = 0; i < additionalCount; i++)
+            {
+                additionalDatas[i] = new AdditionalAvatarData();
+                additionalDatas[i].Deserialize(reader);
+            }
+        }
+
+        // Build a full ServerSideSyncPlayerMessage and feed it through the normal path
+        if (!Message.TryDequeue(out ServerSideSyncPlayerMessage ssm))
+            ssm = new ServerSideSyncPlayerMessage();
+
+        ssm.playerIdMessage.playerID = playerId;
+        ssm.interval = interval;
+        ssm.avatarSerialization.DataQualityLevel = qualityByte;
+        ssm.avatarSerialization.array = reconstructed;
+        ssm.avatarSerialization.AdditionalAvatarDataSize = additionalCount;
+        ssm.avatarSerialization.AdditionalAvatarDatas = additionalDatas;
+        ssm.avatarSerialization.LinkedAvatarIndex = linkedAvatarIndex;
+
+        if (BasisNetworkPlayers.RemotePlayers.TryGetValue(playerId, out BasisNetworkReceiver player))
+        {
+            BasisNetworkAvatarDecompressor.DecompressAndProcessAvatar(player, ssm);
+        }
+
+        Message.Enqueue(ssm);
+        TrimQueue();
     }
 
     public static void HandleAvatarChangeMessage(NetPacketReader reader)

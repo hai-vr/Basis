@@ -136,6 +136,15 @@ public static class BasisNetworkEvents
                 BasisNetworkHandleAvatar.HandleAvatarUpdate(Reader, deliveryMethod);
                 Reader.Recycle();
                 break;
+            case BasisNetworkCommons.DeltaPlayerAvatarChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisNetworkHandleAvatar.HandleDeltaAvatarUpdate(Reader);
+                Reader.Recycle();
+                break;
             case BasisNetworkCommons.SceneChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
                 {
