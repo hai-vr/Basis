@@ -1,6 +1,7 @@
 using Basis.Scripts.Addressable_Driver.Resource;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using System;
 using System.Collections.Concurrent;
@@ -119,7 +120,7 @@ namespace Basis.Scripts.Avatar
                                 ChecksRequired Required = new ChecksRequired(true, false, true);
 
                                 // If LoadAsGameObjectsAsync doesn't accept a token, we still check before/after.
-                                Output = await AddressableResourceProcess.LoadAsGameObjectsAsync(
+                                Output = await AddressableResourceProcess.LoadAsGameObjectsAsync(BasisDeviceManagement.Instance.CreationGameobject,
                                     BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, Para, Required, BundledContentHolder.Selector.Avatar);
 
                                 token.ThrowIfCancellationRequested();
@@ -203,7 +204,7 @@ namespace Basis.Scripts.Avatar
                                 ChecksRequired Required = new ChecksRequired(false, false, true);
                                 InstantiationParameters Para = InstantiationParameters(Player, Position, Rotation);
 
-                                Output = await AddressableResourceProcess.LoadAsGameObjectsAsync(
+                                Output = await AddressableResourceProcess.LoadAsGameObjectsAsync(BasisDeviceManagement.Instance.CreationGameobject,
                                     BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, Para, Required, BundledContentHolder.Selector.Avatar);
 
                                 token.ThrowIfCancellationRequested();
@@ -251,7 +252,7 @@ namespace Basis.Scripts.Avatar
         public static async Task<GameObject> DownloadAndLoadAvatar(BasisLoadableBundle BasisLoadableBundle, BasisPlayer BasisPlayer, Vector3 Position, Quaternion Rotation, CancellationToken  Token, long MaxDownloadSizeInMB = 4L * 1024 * 1024 * 1024)
         {
             string UniqueID = BasisGenerateUniqueID.GenerateUniqueID();
-            GameObject Output = await BasisLoadHandler.LoadGameObjectBundle(
+            GameObject Output = await BasisLoadHandler.LoadGameObjectBundle(BasisDeviceManagement.Instance.CreationGameobject,
                 BasisLoadableBundle, true, BasisPlayer.ProgressReportAvatarLoad, Token,
                 Position, Rotation, Vector3.one, false, BundledContentHolder.Selector.Avatar, BasisPlayer.transform, true,MaxDownloadSizeInMB);
 
@@ -326,7 +327,7 @@ namespace Basis.Scripts.Avatar
             {
                 ChecksRequired Required = new ChecksRequired(false, false, true);
                 InstantiationParameters Para = InstantiationParameters(Player, Position, Rotation);
-                GameObject data = await AddressableResourceProcess.LoadAsGameObjectsAsync(
+                GameObject data = await AddressableResourceProcess.LoadAsGameObjectsAsync(BasisDeviceManagement.Instance.CreationGameobject,
                     LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation, Para, Required, BundledContentHolder.Selector.Avatar);
 
                 InitializePlayerAvatar(Player, data);

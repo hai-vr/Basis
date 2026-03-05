@@ -2,6 +2,7 @@ using Basis.BasisUI;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
@@ -117,7 +118,7 @@ public class BasisAvatarPedestal : BasisInteractableObject
                         case ShowAvatarOnPedestal.RealAvatar:
                             {
                                 transform.GetPositionAndRotation(out Vector3 Position, out Quaternion Rotation);
-                                GameObject CreatedCopy = await BasisLoadHandler.LoadGameObjectBundle(
+                                GameObject CreatedCopy = await BasisLoadHandler.LoadGameObjectBundle(BasisDeviceManagement.Instance.CreationGameobject,
                                     LoadableBundle, true, BasisProgressReport, cancellationToken,
                                     Position, Rotation, Vector3.one, false, BundledContentHolder.Selector.Prop, transform);
 

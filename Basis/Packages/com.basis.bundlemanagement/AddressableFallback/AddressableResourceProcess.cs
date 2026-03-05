@@ -7,7 +7,7 @@ namespace Basis.Scripts.Addressable_Driver.Resource
 {
     public static class AddressableResourceProcess
     {
-        public static async Task<GameObject> LoadAsGameObjectsAsync(string loadstring,InstantiationParameters instantiationParameters, ChecksRequired Required, Selector Selector)
+        public static async Task<GameObject> LoadAsGameObjectsAsync(GameObject TempSpawnDisableGameobject,string loadstring,InstantiationParameters instantiationParameters, ChecksRequired Required, Selector Selector)
         {
             UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject> data = Addressables.LoadAssetAsync<GameObject>(loadstring);
 
@@ -15,7 +15,7 @@ namespace Basis.Scripts.Addressable_Driver.Resource
 
             if (result is GameObject resource)
             {
-                GameObject spawned = ContentPoliceControl.ContentControl(resource, Required, instantiationParameters.Position, instantiationParameters.Rotation, false, Vector3.zero, Selector, instantiationParameters.Parent);
+                GameObject spawned = ContentPoliceControl.ContentControl(TempSpawnDisableGameobject, resource, Required, instantiationParameters.Position, instantiationParameters.Rotation, false, Vector3.zero, Selector, instantiationParameters.Parent);
                 return spawned;
             }
             else
@@ -31,10 +31,10 @@ namespace Basis.Scripts.Addressable_Driver.Resource
         /// <param name="loadstring"></param>
         /// <param name="InstantiationParameters"></param>
         /// <returns></returns>
-        public static async Task<GameObject> LoadSystemGameobject(string loadstring, InstantiationParameters InstantiationParameters)
+        public static async Task<GameObject> LoadSystemGameobject(GameObject TempSpawnDisableGameobject, string loadstring, InstantiationParameters InstantiationParameters)
         {
             ChecksRequired Required = new ChecksRequired(false, false, false);
-            GameObject data = await AddressableResourceProcess.LoadAsGameObjectsAsync(loadstring, InstantiationParameters, Required, BundledContentHolder.Selector.System);
+            GameObject data = await AddressableResourceProcess.LoadAsGameObjectsAsync(TempSpawnDisableGameobject, loadstring, InstantiationParameters, Required, BundledContentHolder.Selector.System);
             return data;
         }
         public static void ReleaseGameobject(GameObject Reference)

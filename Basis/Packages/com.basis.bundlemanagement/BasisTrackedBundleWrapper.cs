@@ -36,6 +36,11 @@ public class BasisTrackedBundleWrapper
         // You can implement your actual logic to check if the bundle is loaded here
         return AssetBundle != null; // Assuming AssetBundle being non-null means it's loaded
     }
+
+
+    // TODO: Bug in here
+    // when loading in mutliple same scenes and unloading one of them
+    // it will remove other duplicate scenes?
     public async Task<bool> UnloadIfReady()
     {
         if (AssetBundle == null)

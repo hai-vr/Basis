@@ -9,6 +9,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
 using static Basis.BasisUI.PanelPasswordField;
@@ -1099,8 +1100,8 @@ namespace Basis.BasisUI
 
             // };
 
-            // only do this menu for props
-            if (item.Mode == BundledContentHolder.Mode.Prop)
+            // only do this menu for props & worlds
+            if (item.Mode == BundledContentHolder.Mode.Prop || item.Mode == BundledContentHolder.Mode.World)
             {
                 // Advanced Settings
                 PanelTabGroup advancedActionsPanel = PanelTabGroup.CreateNew(PanelTabGroup.TabGroupStyles.VerticalStackedNoBackground, existingItemDialog.Descriptor.ContentParent);
@@ -1208,7 +1209,6 @@ namespace Basis.BasisUI
                 }
             };
 
-
             // this logic checks if we have spawned an embedded item that is addressable
             bool replaceLoad = false;
             if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
@@ -1235,6 +1235,16 @@ namespace Basis.BasisUI
                     break;
                 case BundledContentHolder.Mode.World:
                     loadPanelButton.Descriptor.SetTitle("Load");
+
+                    // disable the load button when the scene already exists
+                    // if(BasisRuntimeSpawnRegistry.SpawnedScenes.TryGetValue(item.Url, out Scene scene))
+                    // {
+                    //     if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent2))
+                    //     {
+                    //         loadButtonComponent2.interactable = !(scene != null);
+                    //     }
+                    // }
+
                     break;
                 case BundledContentHolder.Mode.Prop:
                     loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : "Spawn");
@@ -1310,7 +1320,7 @@ namespace Basis.BasisUI
                         await ContentLoader.LoadProp(item, networkType, persistence, isUserAdmin, modifyScale);
                         break;
                     case BundledContentHolder.Mode.World:
-                        await ContentLoader.LoadWorld(item);
+                        await ContentLoader.LoadWorld(item, networkType, persistence, isUserAdmin);
                         break;
                     default:
                         BasisDebug.LogError($"LoadSelectedItem was given an item with an unknown mode of {item.Mode}, cannot determine how to load!");
@@ -1534,7 +1544,7 @@ namespace Basis.BasisUI
             }
         }
 
-        private static BasisNetworkPlayer? TryFindPlayer(string uuid) => BasisNetworkPlayers.Players.Values.FirstOrDefault(p => p.Player.UUID == uuid);
+        private static BasisNetworkPlayer TryFindPlayer(string uuid) => BasisNetworkPlayers.Players.Values.FirstOrDefault(p => p.Player.UUID == uuid);
  
         private static void CreateListEntry(BasisRuntimeSpawnRegistry.SpawnInstance itemKey, RectTransform parentTabGroup, string instanceID)
         {
@@ -1693,7 +1703,7 @@ namespace Basis.BasisUI
                 teleportButtonComponent.interactable = !(itemKey.SpawnMode == BasisRuntimeSpawnRegistry.SpawnMode.Scene);
             }
 
-            TeleportToItem.OnClicked += async () =>
+            TeleportToItem.OnClicked += () =>
             {
 
                 switch(itemKey.SpawnMode)
@@ -1752,22 +1762,48 @@ namespace Basis.BasisUI
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Local:
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Embedded:
 
-                        // if the item is local and embedded lets actually try get the gameobject first
-                        if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(itemKey.LoadedNetID, out GameObject go) && go != null)
+                        switch(itemKey.SpawnMode)
                         {
-                            // if the gameobject is not null then lets remove its registery
-                            bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(itemKey.LoadedNetID);
-                            if (success)
-                            {
-                                // we should delete the embedded item
-                                GameObject.Destroy(go);
-                            }
-                            else
-                            {
-                                BasisDebug.LogError($"failed to remove item = {instanceID} that has itemKey.SpawnMethod = {itemKey.SpawnMethod} from basis BasisRuntimeSpawnRegistry");
-                            }
+                            case BasisRuntimeSpawnRegistry.SpawnMode.Avatar:
+                            case BasisRuntimeSpawnRegistry.SpawnMode.GameObject:
 
+                                // if the item is local and embedded lets actually try get the gameobject first
+                                if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(itemKey.LoadedNetID, out GameObject go) && go != null)
+                                {
+                                    // if the gameobject is not null then lets remove its registery
+                                    bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(itemKey.LoadedNetID);
+                                    if (success)
+                                    {
+                                        // we should delete the embedded item
+                                        GameObject.Destroy(go);
+                                    }
+                                    else
+                                    {
+                                        BasisDebug.LogError($"failed to remove item = {instanceID} that has itemKey.SpawnMethod = {itemKey.SpawnMethod} from basis BasisRuntimeSpawnRegistry");
+                                    }
+
+                                }
+
+                            break;
+
+                            case BasisRuntimeSpawnRegistry.SpawnMode.Scene:
+
+                                if(BasisRuntimeSpawnRegistry.SpawnedScenes.TryGetValue(itemKey.LoadedNetID, out Scene scene) && scene.IsValid())
+                                {
+                                    bool success = await BasisRuntimeSpawnRegistry.RemoveByLoadedNetId(itemKey.LoadedNetID);
+                                    if(success)
+                                    {
+                                        BasisDebug.Log( $"successfully removed scene with LoadedNetID = {itemKey.LoadedNetID}" );
+                                    }
+                                    else
+                                    {
+                                        BasisDebug.LogError($"failed to remove scene with LoadedNetID = {instanceID}");
+                                    }
+                                }
+
+                            break;
                         }
+
                         break;
                     case BasisRuntimeSpawnRegistry.SpawnMethod.Network:
                         switch (itemKey.SpawnMode)
