@@ -95,6 +95,14 @@ namespace Basis.Scripts.UI.NamePlate
 
         private static void FlipMesh(Mesh mesh)
         {
+            // Mirror vertices along X axis so text reads correctly when facing the flipped direction
+            Vector3[] vertices = mesh.vertices;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                vertices[i].x = -vertices[i].x;
+            }
+            mesh.vertices = vertices;
+
             // Reverse triangle winding so the mesh faces the opposite direction
             for (int sub = 0; sub < mesh.subMeshCount; sub++)
             {
