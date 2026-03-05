@@ -595,7 +595,7 @@ namespace Basis.BasisUI
             PanelButton buttonPanel = PanelButton.CreateNew(ButtonStyles.Prop, container);
             var urlKey = item.Url ?? string.Empty;
             var desc = buttonPanel.Descriptor;
-            
+
             // Try get cached meta once
             CachedMetaData.CachedContent cachedMeta;
             CachedMetaData.TryGetMeta(urlKey, out cachedMeta);
@@ -718,6 +718,8 @@ namespace Basis.BasisUI
             // default string text for embedded item
             string embedItem = "Emebbed item";
 
+            int spawnItemCount = BasisRuntimeSpawnRegistry.CountIgnoreCase(item.Url);
+
             if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 description = new BasisBundleDescription()
@@ -742,7 +744,7 @@ namespace Basis.BasisUI
 
             // Build overlay using DialogBox helper
             DialogBox<BasisDataStoreItemKeys.ItemKey> existingItemDialog = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, overlaySize,
-                $"{LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}",
+                $"{LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}{(spawnItemCount > 0 ? $" ({spawnItemCount} spawned)" : "" )}",
                 $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : "No description was provided.")}",
                 ConvertItemKeyToAddressableSprite(item));
 
@@ -1549,8 +1551,6 @@ namespace Basis.BasisUI
             bool hasMetaData = itemKey.bundleConnector != null;
             string title = hasMetaData ? LibraryProviderStrUtil.TitleToCase(itemKey.bundleConnector.BasisBundleDescription.AssetBundleName) : itemKey.Url;
             //string description = hasMetaData ? (itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription.Length > 0 ? itemKey.bundleConnector.BasisBundleDescription.AssetBundleDescription : "No description was provided.") : (itemKey.SpawnMethod == BasisRuntimeSpawnRegistry.SpawnMethod.Embedded ? "Embedded Item" : "N/A");
-
-            BasisDebug.Log($"{itemKey.Url}, {itemKey.InstanceId}, {BasisRuntimeSpawnRegistry.Count(itemKey.Url)}");
 
             bool hasSelected = false; // used for if we have selected this item via the placement manager
 
