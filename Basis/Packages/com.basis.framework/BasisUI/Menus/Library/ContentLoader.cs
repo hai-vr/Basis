@@ -64,7 +64,7 @@ namespace Basis.BasisUI
             }
         }
 
-        public static async Task<GameObject> HandleLoadGameObjectWithBundle(BasisDataStoreItemKeys.ItemKey item, CachedMetaData.CachedContent cached, BundledContentHolder.NetworkType desiredNetworkType, Vector3 finalPos, Quaternion finalRot, Vector3 finalScale, Transform parentTarget,  bool admin = false , bool modifyScale = false, bool local = false )
+        public static async Task<GameObject> HandleLoadGameObjectWithBundle(BasisDataStoreItemKeys.ItemKey item, CachedMetaData.CachedContent cached, BundledContentHolder.NetworkType desiredNetworkType, Vector3 finalPos, Quaternion finalRot, Vector3 finalScale, Transform parentTarget, bool admin = false, bool modifyScale = false, bool local = false)
         {
             BasisLoadableBundle bundle = cached.BasisLoadableBundle;
 
@@ -79,12 +79,12 @@ namespace Basis.BasisUI
                 _ => BundledContentHolder.Selector.Prop
             };
 
-            GameObject createdObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, report, cancel, finalPos, finalRot, finalScale, modifyScale, selector, parentTarget );
+            GameObject createdObject = await BasisLoadHandler.LoadGameObjectBundle(bundle, true, report, cancel, finalPos, finalRot, finalScale, modifyScale, selector, parentTarget);
 
             if (createdObject != null)
             {
                 BasisDebug.Log($"Library provider successfully created item {item.Url} with networking: {desiredNetworkType} at {createdObject.transform.position}. local = {local}");
-                if(!local) // if we are not local register it
+                if (!local) // if we are not local register it
                 {
                     BasisRuntimeSpawnRegistry.AddGameObject(
                         item.Url,
@@ -135,7 +135,7 @@ namespace Basis.BasisUI
                         }
                         else
                         {
-                            if(FinalBounds.extents == Vector3.zero) // if for whatever reason the basis bounds is zero spawn the object in
+                            if (FinalBounds.extents == Vector3.zero) // if for whatever reason the basis bounds is zero spawn the object in
                             {
                                 GameObject tempOject = await HandleLoadGameObjectWithBundle(
                                     item,
@@ -226,7 +226,7 @@ namespace Basis.BasisUI
                                     // Optionally get the actual GameObject
                                     if (BasisRuntimeSpawnRegistry.SpawnedGameobjects.TryGetValue(singleInstance.LoadedNetID, out var go) && go != null)
                                     {
-                                        BasisDebug.Log("Personal Mirror already exists in the scene");
+                                        BasisDebug.Log($"{item.Url} already exists in the scene!");
 
                                         // lets delete it
                                         // if the gameobject is not null then lets remove its registery
@@ -249,12 +249,12 @@ namespace Basis.BasisUI
                                     GameObject CreatedObject = op.WaitForCompletion();
                                     GameObject instance = GameObject.Instantiate(CreatedObject, finalPos, finalRot, parentTarget);
                                     BasisRuntimeSpawnRegistry.AddGameObject(
-                                        item.Url, 
-                                        instance.name, 
+                                        item.Url,
+                                        instance.name,
                                         instance,
                                         BasisLocalPlayer.Instance.UUID,
                                         false, // embedded items should not consider admin check
-                                        false, 
+                                        false,
                                         BasisRuntimeSpawnRegistry.SpawnMethod.Embedded,
                                         null, // no metadata for embedded items
                                          out var embeddedinstance
@@ -327,11 +327,11 @@ namespace Basis.BasisUI
         {
             if (CachedMetaData.TryGetMeta(item.Url, out var cached))
             {
-                switch(desiredNetworkType)
+                switch (desiredNetworkType)
                 {
                     case BundledContentHolder.NetworkType.Local:
 
-                        if(cached.BasisBundleConnector != null)
+                        if (cached.BasisBundleConnector != null)
                         {
                             BasisLoadableBundle bundle = cached.BasisLoadableBundle;
 
@@ -346,7 +346,7 @@ namespace Basis.BasisUI
                             );
 
 
-                            if(scene.IsValid())
+                            if (scene.IsValid())
                             {
                                 BasisDebug.Log($"Library provider successfully created scene {item.Url} with networking: {desiredNetworkType}");
 
@@ -373,7 +373,7 @@ namespace Basis.BasisUI
                             BasisDebug.LogError($"LoadWorld local: BasisBundleConnector is null for {item.Url}");
                         }
 
-                    break;
+                        break;
                     case BundledContentHolder.NetworkType.Networked:
                         try
                         {
@@ -392,15 +392,15 @@ namespace Basis.BasisUI
                         {
                             BasisDebug.LogError(ex);
                         }
-                    break;
+                        break;
                     default:
                         BasisDebug.LogError($"LoadWorld {item.Url} was loaded with an unknown network type of {desiredNetworkType}!");
-                    break;
+                        break;
                 }
             }
             else
             {
-                BasisDebug.LogError( $"LoadWorld failed to find the cached meta for url {item.Url}" );
+                BasisDebug.LogError($"LoadWorld failed to find the cached meta for url {item.Url}");
             }
 
         }
