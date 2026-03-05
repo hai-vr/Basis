@@ -1,51 +1,24 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
+using System.Buffers;
 
 namespace BasisNetworkCore.Pooling
 {
+    /// <summary>
+    /// Byte array pool backed by ArrayPool&lt;byte&gt;.Shared — lock-free, thread-local cached,
+    /// zero GC on the hot path.
+    /// Note: Rent() may return an array larger than requested. Callers must track the
+    /// actual needed length separately and must not rely on array.Length for data bounds.
+    /// </summary>
     public static class BasisByteArrayPooling
     {
-        private static readonly Dictionary<int, Queue<byte[]>> _pool = new();
-        private static readonly object _lock = new();
-
         public static byte[] Rent(int size)
         {
-            lock (_lock)
-            {
-                if (_pool.TryGetValue(size, out Queue<byte[]> queue) && queue.Count > 0)
-                {
-                    return queue.Dequeue();
-                }
-
-                // If not available, create a new array
-                return new byte[size];
-            }
+            return ArrayPool<byte>.Shared.Rent(size);
         }
 
         public static void Return(byte[] array)
         {
             if (array == null) return;
-
-            lock (_lock)
-            {
-                if (!_pool.TryGetValue(array.Length, out Queue<byte[]> queue))
-                {
-                    queue = new Queue<byte[]>();
-                    _pool[array.Length] = queue;
-                }
-
-                queue.Enqueue(array);
-            }
-        }
-
-        // Optional: Clear all pooled arrays
-        public static void Clear()
-        {
-            lock (_lock)
-            {
-                _pool.Clear();
-            }
+            ArrayPool<byte>.Shared.Return(array);
         }
     }
 }

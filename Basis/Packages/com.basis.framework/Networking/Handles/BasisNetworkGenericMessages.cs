@@ -235,6 +235,7 @@ public static class BasisNetworkGenericMessages
             BasisNetworkIdResolver.CompleteMessageDelegation(message);
         }
     }
+    
     public static async Task LoadResourceMessage(NetPacketReader reader, DeliveryMethod Method)
     {
         LocalLoadResource LocalLoadResource = new LocalLoadResource();

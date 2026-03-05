@@ -91,6 +91,16 @@ namespace Basis.BasisUI
         {
             if (BasisMainMenu.ActiveMenuTitle == Title) return;
 
+            // ensure admin hooks are here
+            BasisNetworkEvents.IsLocalAdmin -= IsLocalAdmin;
+            BasisNetworkEvents.IsLocalAdmin += IsLocalAdmin;
+
+            // before we build content perform the admin check on opening this menu
+            if(BasisNetworkConnection.LocalPlayerIsConnected)
+            {
+                BasisNetworkEvents.RequestIsAdminCheck();
+            }
+
             // this creates our panel
             panel = BasisMainMenu.CreateActiveMenu(
                 BasisMenuPanel.PanelData.Standard(Title),
@@ -512,18 +522,14 @@ namespace Basis.BasisUI
                 // this will always be the instantiated tab when we fail to parse the correct page
                 if (_currentPage == Page.Instantiated) // sanity check
                 {
-                    BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
-                    BasisRuntimeSpawnRegistry.OnRegistryChanged += OnRegistryChanged;
-
-                    // ensure admin hooks are here
-                    BasisNetworkEvents.IsLocalAdmin -= IsLocalAdmin;
-                    BasisNetworkEvents.IsLocalAdmin += IsLocalAdmin;
-
-                    // request an admin check if the network server is valid
+                    // again perform admin check if they refresh this tab?
                     if(BasisNetworkConnection.LocalPlayerIsConnected)
                     {
                         BasisNetworkEvents.RequestIsAdminCheck();
                     }
+
+                    BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
+                    BasisRuntimeSpawnRegistry.OnRegistryChanged += OnRegistryChanged;
 
                     // force update this page
                     UpdateInstantiatedTab();
@@ -600,10 +606,16 @@ namespace Basis.BasisUI
             CachedMetaData.CachedContent cachedMeta;
             CachedMetaData.TryGetMeta(urlKey, out cachedMeta);
 
-            // show already selected avatar
-            if (item.Mode == BundledContentHolder.Mode.Avatar)
+            // show already selected avatar OR world in this case that is spawned
+            switch(item.Mode)
             {
-                buttonPanel.ButtonStyling.ShowIndicator(item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+                case BundledContentHolder.Mode.Avatar:
+                    buttonPanel.ButtonStyling.ShowIndicator(item.Url == BasisLocalPlayer.Instance.AvatarMetaData.BasisRemoteBundleEncrypted.RemoteBeeFileLocation);
+                break;
+                case BundledContentHolder.Mode.World:
+                    int spawnItemCount = BasisRuntimeSpawnRegistry.CountIgnoreCase(item.Url);
+                    buttonPanel.ButtonStyling.ShowIndicator(spawnItemCount > 0);
+                break;
             }
 
             if (item.PinnedSettings.IsPinned)
@@ -718,6 +730,8 @@ namespace Basis.BasisUI
             // default string text for embedded item
             string embedItem = "Emebbed item";
 
+            int spawnItemCount = BasisRuntimeSpawnRegistry.CountIgnoreCase(item.Url);
+
             if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 description = new BasisBundleDescription()
@@ -742,7 +756,7 @@ namespace Basis.BasisUI
 
             // Build overlay using DialogBox helper
             DialogBox<BasisDataStoreItemKeys.ItemKey> existingItemDialog = DialogBox<BasisDataStoreItemKeys.ItemKey>.Create(panel, overlaySize,
-                $"{LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}",
+                $"{LibraryProviderStrUtil.TitleToCase(description.AssetBundleName)}{(spawnItemCount > 0 ? $" ({spawnItemCount} spawned)" : "" )}",
                 $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : "No description was provided.")}",
                 ConvertItemKeyToAddressableSprite(item));
 
@@ -1234,17 +1248,15 @@ namespace Basis.BasisUI
                     loadPanelButton.Descriptor.SetTitle(sameAvatar ? "You are already in this avatar" : "Load");
                     break;
                 case BundledContentHolder.Mode.World:
-                    loadPanelButton.Descriptor.SetTitle("Load");
-
-                    // disable the load button when the scene already exists
-                    // if(BasisRuntimeSpawnRegistry.SpawnedScenes.TryGetValue(item.Url, out Scene scene))
-                    // {
-                    //     if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent2))
-                    //     {
-                    //         loadButtonComponent2.interactable = !(scene != null);
-                    //     }
-                    // }
-
+                    bool worldAlreadyExists = spawnItemCount > 0;
+ 
+                    if (loadPanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button loadButtonComponent2))
+                    {
+                        // disable the button
+                        loadButtonComponent2.interactable = !worldAlreadyExists;
+                    }
+                    // you can only load one instance of a scene
+                    loadPanelButton.Descriptor.SetTitle(worldAlreadyExists ? "You can only load 1 instance of a scene." : "Load");
                     break;
                 case BundledContentHolder.Mode.Prop:
                     loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : "Spawn");
@@ -1273,8 +1285,13 @@ namespace Basis.BasisUI
                     existingItemDialog.CloseWithResult(null);
 
                     // only refresh on avatar change to show status indicator update
-                    if (item.Mode == BundledContentHolder.Mode.Avatar)
+                    switch(item.Mode)
+                    {
+                        case BundledContentHolder.Mode.Avatar:
+                        case BundledContentHolder.Mode.World:
                         await RefreshCurrentTab();
+                        break;
+                    }
                 }
             };
         }
