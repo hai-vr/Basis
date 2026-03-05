@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Threading;
 
 namespace LiteNetLib
 {
@@ -6,15 +7,14 @@ namespace LiteNetLib
     {
         private NetPacket _poolHead;
         private int _poolCount;
-        private readonly object _poolLock = new object();
 
         /// <summary>
         /// Maximum packet pool size (increase if you have tons of packets sending)
         /// </summary>
         public int PacketPoolSize = 1000;
 
-        public int PoolCount => _poolCount;
-        
+        public int PoolCount => Volatile.Read(ref _poolCount);
+
         private NetPacket PoolGetWithData(PacketProperty property, byte[] data, int start, int length)
         {
             int headerSize = NetPacket.GetHeaderSize(property);
@@ -45,16 +45,18 @@ namespace LiteNetLib
                 return new NetPacket(size);
 
             NetPacket packet;
-            lock (_poolLock)
+            while (true)
             {
-                packet = _poolHead;
+                packet = Volatile.Read(ref _poolHead);
                 if (packet == null)
                     return new NetPacket(size);
-                
-                _poolHead = _poolHead.Next;
-                _poolCount--;
+                if (Interlocked.CompareExchange(ref _poolHead, packet.Next, packet) == packet)
+                {
+                    Interlocked.Decrement(ref _poolCount);
+                    break;
+                }
             }
-            
+
             packet.Size = size;
             if (packet.RawData.Length < size)
                 packet.RawData = new byte[size];
@@ -68,14 +70,18 @@ namespace LiteNetLib
                 //Don't pool big packets. Save memory
                 return;
             }
-            
+
             //Clean fragmented flag
             packet.RawData[0] = 0;
-            lock (_poolLock)
+            while (true)
             {
-                packet.Next = _poolHead;
-                _poolHead = packet;
-                _poolCount++;
+                var head = Volatile.Read(ref _poolHead);
+                packet.Next = head;
+                if (Interlocked.CompareExchange(ref _poolHead, packet, head) == head)
+                {
+                    Interlocked.Increment(ref _poolCount);
+                    break;
+                }
             }
         }
     }

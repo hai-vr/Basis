@@ -1,12 +1,23 @@
 using Basis.Network.Core;
+using BasisNetworkServer.BasisNetworkingReductionSystem;
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using static SerializableBasis;
 
 namespace Basis.Network.Server.Generic
 {
     public static class BasisNetworkingGeneric
     {
+        [ThreadStatic]
+        private static List<NetPeer> _targetedClients;
+
+        private static List<NetPeer> GetTargetedList()
+        {
+            if (_targetedClients == null) _targetedClients = new List<NetPeer>();
+            else _targetedClients.Clear();
+            return _targetedClients;
+        }
+
         public static void HandleScene(NetPacketReader Reader, DeliveryMethod DeliveryMethod, NetPeer sender)
         {
             SceneDataMessage SceneDataMessage = new SceneDataMessage();
@@ -25,7 +36,7 @@ namespace Basis.Network.Server.Generic
                 }
             };
             byte Channel = BasisNetworkCommons.SceneChannel;
-            NetDataWriter Writer = new NetDataWriter(true, 2);
+            NetDataWriter Writer = BasisServerReductionSystemEvents.RentWriter();
             if (DeliveryMethod == DeliveryMethod.Unreliable)
             {
                 Writer.Put(Channel);
@@ -34,15 +45,13 @@ namespace Basis.Network.Server.Generic
             serverSceneDataMessage.Serialize(Writer);
             if (SceneDataMessage.recipientsSize != 0)
             {
-                List<NetPeer> targetedClients = new List<NetPeer>();
+                List<NetPeer> targetedClients = GetTargetedList();
 
                 int recipientsLength = SceneDataMessage.recipientsSize;
-                //  BNL.Log("Query Recipients " + recipientsLength);
                 for (int index = 0; index < recipientsLength; index++)
                 {
                     if (NetworkServer.AuthenticatedPeers.TryGetValue(SceneDataMessage.recipients[index], out NetPeer client))
                     {
-                        //   BNL.Log("Found Peer! " + SceneDataMessage.recipients[index]);
                         targetedClients.Add(client);
                     }
                     else
@@ -53,15 +62,14 @@ namespace Basis.Network.Server.Generic
 
                 if (targetedClients.Count > 0)
                 {
-                    //  BNL.Log("Sending out Target Clients " + targetedClients.Count);
                     NetworkServer.BroadcastMessageToClients(Writer, Channel, ref targetedClients, DeliveryMethod);
                 }
             }
             else
             {
-                NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
-                NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, peers, DeliveryMethod);
+                NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, NetworkServer.PeerSnapshot, DeliveryMethod);
             }
+            BasisServerReductionSystemEvents.ReturnWriter(Writer);
             serverSceneDataMessage.sceneDataMessage.Release();
         }
         public static void HandleAvatar(NetPacketReader Reader, DeliveryMethod DeliveryMethod, NetPeer sender)
@@ -84,7 +92,7 @@ namespace Basis.Network.Server.Generic
                 }
             };
             byte Channel = BasisNetworkCommons.AvatarChannel;
-            NetDataWriter Writer = new NetDataWriter(true, 2);
+            NetDataWriter Writer = BasisServerReductionSystemEvents.RentWriter();
             if (DeliveryMethod == DeliveryMethod.Unreliable)
             {
                 Writer.Put(Channel);
@@ -93,15 +101,13 @@ namespace Basis.Network.Server.Generic
             serverAvatarDataMessage.Serialize(Writer);
             if (avatarDataMessage.recipientsSize != 0)
             {
-                List<NetPeer> targetedClients = new List<NetPeer>();
+                List<NetPeer> targetedClients = GetTargetedList();
 
                 int recipientsLength = avatarDataMessage.recipientsSize;
-                //  BNL.Log("Query Recipients " + recipientsLength);
                 for (int index = 0; index < recipientsLength; index++)
                 {
                     if (NetworkServer.AuthenticatedPeers.TryGetValue(avatarDataMessage.recipients[index], out NetPeer client))
                     {
-                        //   BNL.Log("Found Peer! " + SceneDataMessage.recipients[index]);
                         targetedClients.Add(client);
                     }
                     else
@@ -112,15 +118,14 @@ namespace Basis.Network.Server.Generic
 
                 if (targetedClients.Count > 0)
                 {
-                    //BNL.Log("Sending out Target Clients " + targetedClients.Count);
                     NetworkServer.BroadcastMessageToClients(Writer, Channel, ref targetedClients, DeliveryMethod);
                 }
             }
             else
             {
-                NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
-                NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, peers, DeliveryMethod);
+                NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, NetworkServer.PeerSnapshot, DeliveryMethod);
             }
+            BasisServerReductionSystemEvents.ReturnWriter(Writer);
         }
     }
 }
