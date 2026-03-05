@@ -95,7 +95,9 @@ namespace Basis.Scripts.UI.NamePlate
 
         private static void FlipMesh(Mesh mesh)
         {
-            // Mirror vertices along X axis so text reads correctly when facing the flipped direction
+            // Mirror vertices along X axis so text reads correctly from the opposite side.
+            // Negating X implicitly reverses triangle winding, which makes the mesh
+            // face the opposite direction - no explicit winding reversal needed.
             Vector3[] vertices = mesh.vertices;
             for (int i = 0; i < vertices.Length; i++)
             {
@@ -103,18 +105,7 @@ namespace Basis.Scripts.UI.NamePlate
             }
             mesh.vertices = vertices;
 
-            // Reverse triangle winding so the mesh faces the opposite direction
-            for (int sub = 0; sub < mesh.subMeshCount; sub++)
-            {
-                int[] tris = mesh.GetTriangles(sub);
-                for (int i = 0; i < tris.Length; i += 3)
-                {
-                    (tris[i], tris[i + 2]) = (tris[i + 2], tris[i]);
-                }
-                mesh.SetTriangles(tris, sub);
-            }
-
-            // Flip normals
+            // Flip normals to match the new facing direction
             Vector3[] normals = mesh.normals;
             for (int i = 0; i < normals.Length; i++)
             {
