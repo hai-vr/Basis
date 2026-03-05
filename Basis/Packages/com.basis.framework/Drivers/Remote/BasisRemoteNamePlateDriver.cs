@@ -63,6 +63,7 @@ namespace Basis.Scripts.UI.NamePlate
             Text.ForceMeshUpdate();
 
             Mesh textMesh = Instantiate(Text.mesh);
+            FlipMesh(textMesh);
 
             namePlate.bakedMesh = textMesh;
             namePlate.Filter.sharedMesh = textMesh;
@@ -92,6 +93,28 @@ namespace Basis.Scripts.UI.NamePlate
             };
         }
 
+        private static void FlipMesh(Mesh mesh)
+        {
+            // Reverse triangle winding so the mesh faces the opposite direction
+            for (int sub = 0; sub < mesh.subMeshCount; sub++)
+            {
+                int[] tris = mesh.GetTriangles(sub);
+                for (int i = 0; i < tris.Length; i += 3)
+                {
+                    (tris[i], tris[i + 2]) = (tris[i + 2], tris[i]);
+                }
+                mesh.SetTriangles(tris, sub);
+            }
+
+            // Flip normals
+            Vector3[] normals = mesh.normals;
+            for (int i = 0; i < normals.Length; i++)
+            {
+                normals[i] = -normals[i];
+            }
+            mesh.normals = normals;
+        }
+
         public Mesh GenerateRoundedQuad()
         {
             int cornerCount = Mathf.Max(3, CornerVertexCount);
@@ -118,7 +141,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             v[0] = new Vector3(0, 0, zOffset);
             uv[0] = uvOffset;
-            n[0] = -Vector3.forward;
+            n[0] = Vector3.forward;
 
             for (int ci = 0; ci < cornerCount; ci++)
             {
@@ -143,18 +166,18 @@ namespace Basis.Scripts.UI.NamePlate
                 uv[baseIndex + cornerCount * 2] = br * uvScale + uvOffset;
                 uv[baseIndex + cornerCount * 3] = bl * uvScale + uvOffset;
 
-                n[baseIndex] = -Vector3.forward;
-                n[baseIndex + cornerCount] = -Vector3.forward;
-                n[baseIndex + cornerCount * 2] = -Vector3.forward;
-                n[baseIndex + cornerCount * 3] = -Vector3.forward;
+                n[baseIndex] = Vector3.forward;
+                n[baseIndex + cornerCount] = Vector3.forward;
+                n[baseIndex + cornerCount * 2] = Vector3.forward;
+                n[baseIndex + cornerCount * 3] = Vector3.forward;
             }
 
             for (int i = 0; i < ringVertexCount; i++)
             {
                 int tri = i * 3;
                 t[tri] = 0;
-                t[tri + 1] = 1 + i;
-                t[tri + 2] = 1 + ((i + 1) % ringVertexCount);
+                t[tri + 1] = 1 + ((i + 1) % ringVertexCount);
+                t[tri + 2] = 1 + i;
             }
 
             return new Mesh
