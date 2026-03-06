@@ -27,5 +27,7 @@ namespace Basis.BasisUI
         AdminOnly,
         PersistentOnly,
         NotPersistent,
+        PlacedByMe,
+        NotPlacedByMe,
     }
 }
