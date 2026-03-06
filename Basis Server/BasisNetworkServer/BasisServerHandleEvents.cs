@@ -248,7 +248,6 @@ namespace BasisServerHandle
 
                 BasisNetworkResourceManagement.SendOutAllResources(newPeer);
                 BasisNetworkOwnership.SendOutOwnershipInformation(newPeer);
-                BasisSavedState.SendStoredSceneData(newPeer);
             }
             else
             {
