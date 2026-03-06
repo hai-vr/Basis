@@ -256,7 +256,6 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_ProtectElbow;
 
         [SyncSceneToStream, SerializeField] bool m_HintHeadEnabled;
-        [SyncSceneToStream, SerializeField] bool m_HasHipsTracker;
         [SyncSceneToStream, SerializeField] bool m_SpineIKEnabled;
 
         [SyncSceneToStream, SerializeField] public bool m_LeftToeEnabled;
@@ -392,8 +391,6 @@ namespace UnityEngine.Animations.Rigging
         public string MaxHipDeltaPropertyDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxHipDeltaDeg));
         public string MaxChestDeltaPropertyDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxChestDeltaDeg));
         public bool HintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
-        public bool HasHipsTracker { get => m_HasHipsTracker; set => m_HasHipsTracker = value; }
-        public string HasHipsTrackerProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HasHipsTracker));
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
         public bool EnableLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
         public bool EnableLeftLeg { get => m_LeftLowerLegEnabled; set => m_LeftLowerLegEnabled = value; }
@@ -770,7 +767,7 @@ w20, w54;
         public Vector3 TposeLengthHeadToHips;
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxHipDeltaProperty, MaxChestDeltaProperty;
         public FloatProperty shoulderElevationFactor, shoulderProtractionFactor, hipRotationCompensation;
-        public BoolProperty shoulderSolveEnabled, hasHipsTracker;
+        public BoolProperty shoulderSolveEnabled;
         // T-pose baked reference data for shoulder solve
         public Vector3 TposeLeftShoulderLocalDir, TposeRightShoulderLocalDir;
         public Quaternion TposeLeftShoulderRot, TposeRightShoulderRot;
@@ -861,20 +858,12 @@ w20, w54;
             float restDist = MinHeadSpineHeight.Get(stream);
             float MaxBendDeg = maxBendDeg.Get(stream);
 
-            // When hips have a real tracker, pin directly to tracker position.
-            // Only apply bend limits and clamping for virtual hips (computed from head).
-            bool hipsTracked = hasHipsTracker.Get(stream);
+            // 1) Enforce spine bend limit
+            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, MaxBendDeg);
+
+            // 2) Clamp hips around head with struggle-aware blending
             Vector3 unclampedHips = hipsTargetPos;
-
-            if (!hipsTracked)
-            {
-                // 1) Enforce spine bend limit
-                hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, MaxBendDeg);
-
-                // 2) Clamp hips around head with struggle-aware blending
-                unclampedHips = hipsTargetPos;
-                hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
-            }
+            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
 
             // Struggle blending: soften IK when near reach limits
             float sStart = struggleStart.Get(stream);
@@ -1901,7 +1890,6 @@ w20, w54;
 
                 // Shoulder solve bindings
                 shoulderSolveEnabled = BoolProperty.Bind(animator, component, data.ShoulderSolveEnabledProperty),
-                hasHipsTracker = BoolProperty.Bind(animator, component, data.HasHipsTrackerProperty),
                 shoulderElevationFactor = FloatProperty.Bind(animator, component, data.ShoulderElevationFactorProperty),
                 shoulderProtractionFactor = FloatProperty.Bind(animator, component, data.ShoulderProtractionFactorProperty),
                 hipRotationCompensation = FloatProperty.Bind(animator, component, data.HipRotationCompensationProperty),
