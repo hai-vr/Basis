@@ -10,6 +10,7 @@ public class SMModuleCalibration : BasisSettingsBase
     public static bool ApplyCustomScale = false;
     public static float SelectedScale = 1.6f;
     public static float SelectedEyeHeight = 1.61f;
+    public static bool PitchCalibrationEnabled = false;
 
     // Cache last applied state so we only apply when it actually changes.
     private static bool _hasApplied;
@@ -25,6 +26,7 @@ public class SMModuleCalibration : BasisSettingsBase
     private static string K_CUSTOM_SCALE => BasisSettingsDefaults.CustomScale.BindingKey;         // "custom scale"
     private static string K_SELECTED_SCALE => BasisSettingsDefaults.SelectedScale.BindingKey;     // "selected scale"
     private static string K_REALWORLD_EYE_HEIGHT => BasisSettingsDefaults.realworldeyeheight.BindingKey; // "real world eye height"
+    private static string K_PITCH_CALIBRATION => BasisSettingsDefaults.PitchCalibration.BindingKey;     // "pitchcalibration"
 
     // One Euro globals
     private static string K_FBIK_MINCUTOFF => BasisSettingsDefaults.FBIKMinCutoff.BindingKey;                 // "fbikmincutoff"
@@ -201,6 +203,13 @@ public class SMModuleCalibration : BasisSettingsBase
                     }
                     break;
                 }
+
+            case var s when s == K_PITCH_CALIBRATION:
+                if (bool.TryParse(optionValue, out var pitchVal))
+                {
+                    PitchCalibrationEnabled = pitchVal;
+                }
+                break;
 
             // ---------- GLOBAL ONE EURO PARAMS ----------
             case var s when s == K_FBIK_MINCUTOFF:

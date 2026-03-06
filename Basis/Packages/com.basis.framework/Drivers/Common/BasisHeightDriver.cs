@@ -15,6 +15,10 @@ public static class BasisHeightDriver
 
     public static float AdditionalPlayerHeight = 0f;
 
+    // Pitch calibration: computed from up/down/forward HMD samples
+    public static bool HasPitchCalibratedHeight = false;
+    public static float PitchCalibratedEyeHeight = FallbackHeightInMeters;
+
     public static float AppliedUpScale = 1f;
 
     /// <summary>

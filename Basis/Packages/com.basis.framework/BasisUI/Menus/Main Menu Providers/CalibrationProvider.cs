@@ -34,8 +34,21 @@ namespace Basis.BasisUI
         private bool _rightPressed;
         private bool _calibrated;
 
+        // Pitch calibration state
+        private enum PitchCalibrationStep
+        {
+            None,
+            WaitingForUp,
+            WaitingForDown,
+            WaitingForForward
+        }
+        private PitchCalibrationStep _pitchStep = PitchCalibrationStep.None;
+        private float _pitchUpY;
+        private float _pitchDownY;
+
         public PanelButton Button;
         public PanelElementDescriptor HeightDescription;
+        private PanelButton _pitchToggleButton;
         public override void RunAction()
         {
             if (BasisMainMenu.ActiveMenuTitle == Title)
@@ -77,6 +90,11 @@ namespace Basis.BasisUI
             var PlusButton = PanelButton.CreateNew(Description.ContentParent);
             PlusButton.OnClicked += IncreasePlayerSize;
             PlusButton.Descriptor.SetTitle("Add 0.01f Height");
+
+            // Pitch calibration toggle
+            _pitchToggleButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
+            _pitchToggleButton.OnClicked += TogglePitchCalibration;
+            UpdatePitchToggleLabel();
         }
         /// <summary>
         /// tracker balls
@@ -96,48 +114,79 @@ namespace Basis.BasisUI
             HeightDescription.SetDescription($"{BasisHeightDriver.AdditionalPlayerHeight:F2}");
             BasisHeightDriver.ApplyScaleAndHeight();
         }
+
+        private void TogglePitchCalibration()
+        {
+            SMModuleCalibration.PitchCalibrationEnabled = !SMModuleCalibration.PitchCalibrationEnabled;
+            UpdatePitchToggleLabel();
+        }
+
+        private void UpdatePitchToggleLabel()
+        {
+            if (_pitchToggleButton != null)
+            {
+                string state = SMModuleCalibration.PitchCalibrationEnabled ? "ON" : "OFF";
+                _pitchToggleButton.Descriptor.SetTitle($"Pitch Calibration: {state}");
+            }
+        }
+
         public void Calibrate()
         {
             if (BasisLocalAvatarDriver.CurrentlyTposing)
             {
                 return;
             }
-            Button.Descriptor.SetTitle("Calibrating");
+
             var localplayer = BasisLocalPlayer.Instance;
             BasisUINeedsVisibleTrackers.Instance.Add(localplayer);
             // kept because you had it (even if unused)
             var localBoneDriver = localplayer.LocalBoneDriver;
 
-            localplayer.LocalAvatarDriver.PutAvatarIntoTPose();
-
-            bool hasLeft = BasisDeviceManagement.Instance.FindDevice(out BasisInput leftHand, BasisBoneTrackedRole.LeftHand);
-            bool hasRight = BasisDeviceManagement.Instance.FindDevice(out BasisInput rightHand, BasisBoneTrackedRole.RightHand);
-
-            // Safety: clear any old subscriptions before adding new ones
-            UnsubscribeAll();
-
             _calibrated = false;
             _leftPressed = false;
             _rightPressed = false;
+
+            if (SMModuleCalibration.PitchCalibrationEnabled && !SMModuleSitStand.IsSteatedMode)
+            {
+                // Start pitch calibration flow: look up → look down → look forward
+                _pitchStep = PitchCalibrationStep.WaitingForUp;
+                Button.Descriptor.SetTitle("Look UP, pull triggers");
+                SubscribeToTriggers();
+            }
+            else
+            {
+                // Standard single-pose calibration — clear any stale pitch data
+                _pitchStep = PitchCalibrationStep.None;
+                BasisHeightDriver.HasPitchCalibratedHeight = false;
+                Button.Descriptor.SetTitle("Calibrating");
+                localplayer.LocalAvatarDriver.PutAvatarIntoTPose();
+                SubscribeToTriggers();
+            }
+        }
+
+        private void SubscribeToTriggers()
+        {
+            UnsubscribeAll();
+
+            bool hasLeft = BasisDeviceManagement.Instance.FindDevice(out BasisInput leftHand, BasisBoneTrackedRole.LeftHand);
+            bool hasRight = BasisDeviceManagement.Instance.FindDevice(out BasisInput rightHand, BasisBoneTrackedRole.RightHand);
 
             if (hasLeft && hasRight)
             {
                 _leftHand = leftHand;
                 _rightHand = rightHand;
-
-                // Subscribe ONLY to left + right. Calibrate when BOTH pressed.
                 Subscribe(_leftHand, () => OnTriggerChanged(_leftHand));
                 Subscribe(_rightHand, () => OnTriggerChanged(_rightHand));
             }
             else
             {
-                // Fallback: controllers missing -> behave as normal (any trigger >= 0.9 calibrates)
                 foreach (BasisInput device in BasisDeviceManagement.Instance.AllInputDevices)
                 {
                     Subscribe(device, () => OnTriggerChanged(device));
                 }
             }
         }
+
         private void Subscribe(BasisInput device, Action handler)
         {
             _triggerDelegates[device] = handler;
@@ -174,7 +223,7 @@ namespace Basis.BasisUI
                     _rightPressed = (trigger >= 0.9f);
 
                 if (_leftPressed && _rightPressed)
-                    CalibrateOnce();
+                    OnTriggersConfirmed();
 
                 return;
             }
@@ -182,8 +231,81 @@ namespace Basis.BasisUI
             // Fallback: any device trigger pressed
             if (trigger >= 0.9f)
             {
-                CalibrateOnce();
+                OnTriggersConfirmed();
             }
+        }
+
+        private void OnTriggersConfirmed()
+        {
+            if (_calibrated)
+                return;
+
+            switch (_pitchStep)
+            {
+                case PitchCalibrationStep.WaitingForUp:
+                    _pitchUpY = BasisLocalHeightCalculator.CaptureHMDHeightSample();
+                    if (_pitchUpY <= 0f)
+                    {
+                        // No device, fall back to standard calibration
+                        BasisDebug.LogWarning("Pitch calibration: no HMD for up sample, falling back to standard.", BasisDebug.LogTag.Avatar);
+                        StartStandardCalibration();
+                        return;
+                    }
+                    _pitchStep = PitchCalibrationStep.WaitingForDown;
+                    Button.Descriptor.SetTitle("Look DOWN, pull triggers");
+                    // Reset trigger state for next step
+                    _leftPressed = false;
+                    _rightPressed = false;
+                    break;
+
+                case PitchCalibrationStep.WaitingForDown:
+                    _pitchDownY = BasisLocalHeightCalculator.CaptureHMDHeightSample();
+                    if (_pitchDownY <= 0f)
+                    {
+                        BasisDebug.LogWarning("Pitch calibration: no HMD for down sample, falling back to standard.", BasisDebug.LogTag.Avatar);
+                        StartStandardCalibration();
+                        return;
+                    }
+                    _pitchStep = PitchCalibrationStep.WaitingForForward;
+                    Button.Descriptor.SetTitle("Look FORWARD, pull triggers");
+                    _leftPressed = false;
+                    _rightPressed = false;
+                    break;
+
+                case PitchCalibrationStep.WaitingForForward:
+                    float forwardY = BasisLocalHeightCalculator.CaptureHMDHeightSample();
+                    if (forwardY <= 0f)
+                    {
+                        BasisDebug.LogWarning("Pitch calibration: no HMD for forward sample, falling back to standard.", BasisDebug.LogTag.Avatar);
+                        StartStandardCalibration();
+                        return;
+                    }
+                    // Compute corrected height and store it
+                    float corrected = BasisLocalHeightCalculator.ComputePitchCalibratedHeight(_pitchUpY, _pitchDownY, forwardY);
+                    BasisHeightDriver.PitchCalibratedEyeHeight = corrected;
+                    BasisHeightDriver.HasPitchCalibratedHeight = true;
+                    _pitchStep = PitchCalibrationStep.None;
+                    // Now proceed with standard full-body calibration using the corrected height
+                    StartStandardCalibration();
+                    break;
+
+                case PitchCalibrationStep.None:
+                default:
+                    CalibrateOnce();
+                    break;
+            }
+        }
+
+        private void StartStandardCalibration()
+        {
+            _pitchStep = PitchCalibrationStep.None;
+            Button.Descriptor.SetTitle("Calibrating");
+            BasisLocalPlayer.Instance.LocalAvatarDriver.PutAvatarIntoTPose();
+            // Reset trigger state so they need to press again for final calibration
+            _leftPressed = false;
+            _rightPressed = false;
+            // Subscribe fresh for the final trigger press
+            SubscribeToTriggers();
         }
 
         private void CalibrateOnce()

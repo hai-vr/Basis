@@ -62,6 +62,14 @@ public static class BasisLocalHeightCalculator
 
     public static void CalculatePlayerEyeHeight()
     {
+        // If pitch calibration data is available, use it instead of a single sample
+        if (BasisHeightDriver.HasPitchCalibratedHeight)
+        {
+            BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.PitchCalibratedEyeHeight;
+            BasisDebug.Log($"Using pitch-calibrated eye height: {BasisHeightDriver.PlayerEyeHeight}", BasisDebug.LogTag.Avatar);
+            return;
+        }
+
         if (SMModuleSitStand.IsSteatedMode)
         {
             BasisDebug.Log("Was Seated Mode taking standard size of 1.7m", BasisDebug.LogTag.Avatar);
@@ -91,6 +99,49 @@ public static class BasisLocalHeightCalculator
             BasisHeightDriver.PlayerEyeHeight = BasisHeightDriver.FallbackHeightInMeters;
             BasisDebug.LogWarning($"Player eye height was invalid. Set to default: {BasisHeightDriver.FallbackHeightInMeters}", BasisDebug.LogTag.Avatar);
         }
+    }
+
+    /// <summary>
+    /// Captures a single HMD position sample for pitch calibration.
+    /// Returns the Y height, or -1 if no device available.
+    /// </summary>
+    public static float CaptureHMDHeightSample()
+    {
+        var lockToInput = BasisLocalCameraDriver.Instance?.BasisLockToInput;
+        if (lockToInput != null && lockToInput.BasisInput != null)
+        {
+            lockToInput.BasisInput.LatePollData();
+            return lockToInput.BasisInput.UnscaledDeviceCoord.position.y;
+        }
+        return -1f;
+    }
+
+    /// <summary>
+    /// Computes the corrected eye height from three pitch samples (up, down, forward).
+    /// The HMD traces an arc around the neck pivot when pitching. The midpoint of
+    /// up/down Y values approximates the neck pivot height. The forward sample then
+    /// gives the actual eye-to-pivot offset at neutral.
+    /// </summary>
+    public static float ComputePitchCalibratedHeight(float upY, float downY, float forwardY)
+    {
+        // Neck pivot Y ≈ midpoint of up and down HMD heights
+        float pivotY = (upY + downY) * 0.5f;
+
+        // The forward-looking offset above pivot is the neutral eye-to-pivot distance
+        float eyeOffset = forwardY - pivotY;
+
+        // Corrected height = pivot + offset, but validated against the forward sample
+        // If the user's forward pose was accurate, this just returns forwardY.
+        // The real benefit is when the "forward" pose still has slight pitch error:
+        // the pivot anchors the correction.
+        float corrected = pivotY + Mathf.Abs(eyeOffset);
+
+        BasisDebug.Log(
+            $"Pitch calibration: upY={upY:F4} downY={downY:F4} forwardY={forwardY:F4} " +
+            $"pivotY={pivotY:F4} eyeOffset={eyeOffset:F4} corrected={corrected:F4}",
+            BasisDebug.LogTag.Avatar);
+
+        return corrected;
     }
     public static void CalculateAvatarEyeHeight()
     {

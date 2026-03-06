@@ -95,6 +95,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> IKMode => new("ikmode", new BasisPlatformDefault<string>("eye height"));
 
+        public static BasisSettingsBinding<bool> PitchCalibration => new("pitchcalibration", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<string> SelectedBone => new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
 
         public static BasisSettingsBinding<float> FoveatedRendering => new("foveatedrendering", new BasisPlatformDefault<float>
@@ -425,6 +427,7 @@ namespace Basis.BasisUI
             AvatarRange.LoadBindingValue();
             SelectedBone.LoadBindingValue();
             IKMode.LoadBindingValue();
+            PitchCalibration.LoadBindingValue();
             SitStand.LoadBindingValue();
 
             // Rendering / Graphics
