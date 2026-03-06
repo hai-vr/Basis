@@ -294,9 +294,6 @@ namespace UnityEngine.Animations.Rigging
 
         // Hip rotation compensation when position is clamped
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_HipRotationCompensation;
-
-        // Neck rotation distribution: fraction of head yaw/pitch applied to neck
-        [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_NeckRotationWeight;
         public float minHeadSpineHeight
         {
             get => m_MinHeadSpineHeight;
@@ -427,13 +424,11 @@ namespace UnityEngine.Animations.Rigging
         public float ShoulderElevationFactor { get => m_ShoulderElevationFactor; set => m_ShoulderElevationFactor = value; }
         public float ShoulderProtractionFactor { get => m_ShoulderProtractionFactor; set => m_ShoulderProtractionFactor = value; }
         public float HipRotationCompensation { get => m_HipRotationCompensation; set => m_HipRotationCompensation = value; }
-        public float NeckRotationWeight { get => m_NeckRotationWeight; set => m_NeckRotationWeight = value; }
 
         public string ShoulderSolveEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ShoulderSolveEnabled));
         public string ShoulderElevationFactorProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ShoulderElevationFactor));
         public string ShoulderProtractionFactorProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ShoulderProtractionFactor));
         public string HipRotationCompensationProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HipRotationCompensation));
-        public string NeckRotationWeightProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_NeckRotationWeight));
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
@@ -502,7 +497,6 @@ namespace UnityEngine.Animations.Rigging
             m_ShoulderElevationFactor = 0.4f;
             m_ShoulderProtractionFactor = 0.3f;
             m_HipRotationCompensation = 0.5f;
-            m_NeckRotationWeight = 0.4f;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
@@ -772,7 +766,7 @@ w20, w54;
         public Vector3 TposeLengthHeadToChest;
         public Vector3 TposeLengthHeadToHips;
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxHipDeltaProperty, MaxChestDeltaProperty;
-        public FloatProperty shoulderElevationFactor, shoulderProtractionFactor, hipRotationCompensation, neckRotationWeight;
+        public FloatProperty shoulderElevationFactor, shoulderProtractionFactor, hipRotationCompensation;
         public BoolProperty shoulderSolveEnabled;
         // T-pose baked reference data for shoulder solve
         public Vector3 TposeLeftShoulderLocalDir, TposeRightShoulderLocalDir;
@@ -938,25 +932,11 @@ w20, w54;
                     SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
                 }
 
-                // VR head pin: always force head to exact HMD position (critical for presence)
+                // Always pin head rotation to target
                 if (HandleHead.IsValid(stream))
                 {
-                    HandleHead.SetPosition(stream, headTargetPos);
+                    HandleHead.SetRotation(stream, headTargetRot * targetOffsetHead);
                 }
-
-                // Neck rotation distribution: share head yaw/pitch with neck for natural look
-                Quaternion finalHeadRot = headTargetRot * targetOffsetHead;
-                float neckWeight = neckRotationWeight.Get(stream);
-                if (neckWeight > 0f && HandleNeck.IsValid(stream))
-                {
-                    // headTargetRot is the HMD world rotation delta from neutral.
-                    // Distribute a fraction to the neck so looking around moves the neck naturally.
-                    Quaternion neckContribution = Quaternion.Slerp(Quaternion.identity, headTargetRot, neckWeight);
-                    Quaternion currentNeckRot = HandleNeck.GetRotation(stream);
-                    HandleNeck.SetRotation(stream, neckContribution * currentNeckRot);
-                }
-                // Always pin head rotation exactly to HMD target
-                HandleHead.SetRotation(stream, finalHeadRot);
             }
         }
         public void SolveShoulder(AnimationStream stream, ReadWriteTransformHandle shoulderHandle,
@@ -1295,11 +1275,10 @@ w20, w54;
                 ChainChestToHead[i].SetRotation(stream, delta * rot);
             }
 
-            // Pin head to true HMD target (not reach-clamped) for VR presence.
-            // The chain solved with clamped target for coherent poses, but the
-            // final head MUST match the player's actual head position.
+            // Final: you may pin the head to the *true* target for tracker truth,
+            // but NOW the chain has a coherent pose (no snapping between two modes).
             if (ChainChestToHead[tipIndex].IsValid(stream))
-                ChainChestToHead[tipIndex].SetPosition(stream, headTargetPos);
+                ChainChestToHead[tipIndex].SetPosition(stream, reachableTarget);
 
             return true; // returning “true” avoids external code branching too
         }
@@ -1914,7 +1893,6 @@ w20, w54;
                 shoulderElevationFactor = FloatProperty.Bind(animator, component, data.ShoulderElevationFactorProperty),
                 shoulderProtractionFactor = FloatProperty.Bind(animator, component, data.ShoulderProtractionFactorProperty),
                 hipRotationCompensation = FloatProperty.Bind(animator, component, data.HipRotationCompensationProperty),
-                neckRotationWeight = FloatProperty.Bind(animator, component, data.NeckRotationWeightProperty),
 
                 // Baked T-pose data for shoulder solve
                 TposeLeftShoulderRot = data.LeftShoulder != null ? data.LeftShoulder.rotation : Quaternion.identity,
