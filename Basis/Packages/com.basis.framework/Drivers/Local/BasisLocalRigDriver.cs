@@ -814,6 +814,19 @@ namespace Basis.Scripts.Drivers
             };
             data.HintWeightHead = HasRigLayer(BasisLocalBoneDriver.ChestControl);
 
+            // Hips tracker
+            BasisLocalBoneDriver.HipsControl.OnHasRigChanged += (hasRig) =>
+            {
+                if (hasRig == false)
+                {
+                    return;
+                }
+                var d = BasisFullIKConstraint.data;
+                d.HasHipsTracker = HasRigLayer(BasisLocalBoneDriver.HipsControl);
+                BasisFullIKConstraint.data = d;
+            };
+            data.HasHipsTracker = HasRigLayer(BasisLocalBoneDriver.HipsControl);
+
             // Chest (head hint)
             BasisLocalBoneDriver.LeftShoulderControl.OnHasRigChanged += (hasRig) =>
             {
@@ -881,6 +894,7 @@ namespace Basis.Scripts.Drivers
                 data.HintWeightLeftHand = false;
                 data.HintWeightRightHand = false;
                 data.HintWeightHead = false;
+                data.HasHipsTracker = false;
                 data.EnabledLeftShoulder = false;
                 data.EnabledRightShoulder = false;
                 BasisFullIKConstraint.data = data;
