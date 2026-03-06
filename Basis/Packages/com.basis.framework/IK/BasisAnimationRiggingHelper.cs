@@ -175,6 +175,12 @@ public static class BasisAnimationRiggingHelper
         data.ProtectElbow = true;
         data.EnabledSpineIK = true;
 
+        // Shoulder pre-solve defaults
+        data.ShoulderSolveEnabled = true;
+        data.ShoulderElevationFactor = 0.4f;
+        data.ShoulderProtractionFactor = 0.3f;
+        data.HipRotationCompensation = 0.5f;
+
         BasisFullIKConstraint.data = data;
 
         GeneratedRequiredTransforms(player, Mapping.head);
