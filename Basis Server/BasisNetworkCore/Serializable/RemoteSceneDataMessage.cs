@@ -1,4 +1,3 @@
-using BasisNetworkCore.Pooling;
 using Basis.Network.Core;
 using System;
 
@@ -21,13 +20,8 @@ public static partial class SerializableBasis
 
             if (payloadSize > 0)
             {
-                // Return previous payload to the pool if needed
-                if (payload != null)
-                {
-                    BasisByteArrayPooling.Return(payload);
-                }
 
-                payload = BasisByteArrayPooling.Rent(payloadSize);
+                payload = new byte[payloadSize];
                 reader.GetBytes(payload, payloadSize);
             }
         }
@@ -46,7 +40,6 @@ public static partial class SerializableBasis
         {
             if (payload != null)
             {
-                BasisByteArrayPooling.Return(payload);
                 payload = null;
             }
         }
