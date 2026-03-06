@@ -85,7 +85,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static readonly double MsToTick = Stopwatch.Frequency / 1000.0;
 
         private static List<(int id, PlayerState state)> _threadLocalActivePlayers = new();
-        public static readonly ConcurrentQueue<NetDataWriter> WriterPool = new();
         private static readonly ConcurrentQueue<int> playersToRemove = new();
 
         // Distance -> Quality thresholds (squared meters)
@@ -342,13 +341,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         public static NetDataWriter RentWriter()
         {
-            return WriterPool.TryDequeue(out var writer) ? writer : new NetDataWriter(true, 208);
+            return NetworkServer.RentWriter();
         }
 
         public static void ReturnWriter(NetDataWriter writer)
         {
-            writer.Reset();
-            WriterPool.Enqueue(writer);
+            NetworkServer.ReturnWriter(writer);
         }
 
         private static float DistanceSquared(Basis.Scripts.Networking.Compression.Vector3 a, Basis.Scripts.Networking.Compression.Vector3 b)

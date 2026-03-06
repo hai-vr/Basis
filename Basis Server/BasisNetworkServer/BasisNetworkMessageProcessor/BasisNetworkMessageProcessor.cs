@@ -148,10 +148,11 @@ public static class BasisNetworkMessageProcessor
 
                             reader.Recycle();
 
-                            NetDataWriter writer = new NetDataWriter(true);
+                            NetDataWriter writer = NetworkServer.RentWriter();
                             serverStatistic.Serialize(writer);
                             BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.ServerStatisticsChannel, writer.Length);
                             peer.Send(writer, BasisNetworkCommons.ServerStatisticsChannel, DeliveryMethod.ReliableOrdered);
+                            NetworkServer.ReturnWriter(writer);
                         }
                         else
                         {

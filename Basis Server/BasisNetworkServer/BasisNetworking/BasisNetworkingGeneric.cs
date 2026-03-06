@@ -21,20 +21,32 @@ namespace Basis.Network.Server.Generic
             SceneDataMessage SceneDataMessage = new SceneDataMessage();
             SceneDataMessage.Deserialize(Reader);
             Reader.Recycle();
+
+            byte[] payload = SceneDataMessage.payload;
+            int payloadLength = (payload != null) ? payload.Length : 0;
+
             ServerSceneDataMessage serverSceneDataMessage = new ServerSceneDataMessage
             {
                 sceneDataMessage = new RemoteSceneDataMessage()
                 {
                     messageIndex = SceneDataMessage.messageIndex,
-                    payload = SceneDataMessage.payload
+                    payload = payload,
+                    payloadLength = payloadLength
                 },
                 playerIdMessage = new PlayerIdMessage
                 {
                     playerID = (ushort)sender.Id,
                 }
             };
+
+            // Store scene data for late-joiner sync (broadcast messages only)
+            if (SceneDataMessage.recipientsSize == 0 && payload != null && payloadLength > 0)
+            {
+                BasisSavedState.AddLastSceneData((ushort)sender.Id, SceneDataMessage.messageIndex, payload, payloadLength);
+            }
+
             byte Channel = BasisNetworkCommons.SceneChannel;
-            NetDataWriter Writer = RentWriter();
+            NetDataWriter Writer = NetworkServer.RentWriter();
             if (DeliveryMethod == DeliveryMethod.Unreliable)
             {
                 Writer.Put(Channel);
@@ -67,17 +79,8 @@ namespace Basis.Network.Server.Generic
             {
                 NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, NetworkServer.PeerSnapshot, DeliveryMethod);
             }
-            ReturnWriter(Writer);
+            NetworkServer.ReturnWriter(Writer);
             serverSceneDataMessage.sceneDataMessage.Release();
-        }
-        public static NetDataWriter RentWriter()
-        {
-           return new NetDataWriter(true, 208);
-        }
-
-        public static void ReturnWriter(NetDataWriter writer)
-        {
-            writer.Reset();
         }
         public static void HandleAvatar(NetPacketReader Reader, DeliveryMethod DeliveryMethod, NetPeer sender)
         {
@@ -99,7 +102,7 @@ namespace Basis.Network.Server.Generic
                 }
             };
             byte Channel = BasisNetworkCommons.AvatarChannel;
-            NetDataWriter Writer = RentWriter();
+            NetDataWriter Writer = NetworkServer.RentWriter();
             if (DeliveryMethod == DeliveryMethod.Unreliable)
             {
                 Writer.Put(Channel);
@@ -132,7 +135,7 @@ namespace Basis.Network.Server.Generic
             {
                 NetworkServer.BroadcastMessageToClients(Writer, Channel, sender, NetworkServer.PeerSnapshot, DeliveryMethod);
             }
-            ReturnWriter(Writer);
+            NetworkServer.ReturnWriter(Writer);
         }
     }
 }

@@ -70,6 +70,7 @@ namespace BasisServerHandle
 
                 if (NetworkServer.AuthenticatedPeers.TryRemove(id, out _))
                 {
+                    NetworkServer.RebuildPeerSnapshot();
                     BNL.Log($"Peer removed: {id}");
                 }
                 else
@@ -83,11 +84,11 @@ namespace BasisServerHandle
                     BasisNetworkResourceManagement.Reset();
                 }
 
-                NetDataWriter writer = new NetDataWriter(true, sizeof(ushort));
+                NetDataWriter writer = NetworkServer.RentWriter();
                 writer.Put((ushort)id);
                 if (NetworkServer.CheckValidated(writer))
                 {
-                    NetPeer[] Peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+                    NetPeer[] Peers = NetworkServer.PeerSnapshot;
                     foreach (var client in Peers)
                     {
                         if (client.Id != id)
@@ -97,6 +98,7 @@ namespace BasisServerHandle
                         }
                     }
                 }
+                NetworkServer.ReturnWriter(writer);
             }
             catch (Exception e)
             {
@@ -108,18 +110,20 @@ namespace BasisServerHandle
         #region Utility Methods
         public static void RejectWithReason(ConnectionRequest request, string reason)
         {
-            NetDataWriter writer = new NetDataWriter(true, 2);
+            NetDataWriter writer = NetworkServer.RentWriter();
             writer.Put(reason);
             request.Reject(writer);
+            NetworkServer.ReturnWriter(writer);
             BNL.LogError($"Rejected for reason: {reason}");
         }
         public static void RejectWithReason(NetPeer request, string reason)
         {
             ushort Id =(ushort)request.Id;
-            NetDataWriter writer = new NetDataWriter(true, 2);
+            NetDataWriter writer = NetworkServer.RentWriter();
             writer.Put(reason);
             NetworkServer.AuthenticatedPeers.TryRemove(Id, out _);
             request.Disconnect();
+            NetworkServer.ReturnWriter(writer);
             BNL.LogError($"Rejected after accept with reason: {reason}");
         }
         #endregion
@@ -198,6 +202,7 @@ namespace BasisServerHandle
             ushort PeerId = (ushort)newPeer.Id;
             if (NetworkServer.AuthenticatedPeers.TryAdd(PeerId, newPeer))
             {
+                NetworkServer.RebuildPeerSnapshot();
                 BNL.Log($"Peer connected: {newPeer.Id}");
                 //never ever assume the UUID provided by the user is good always recalc on the server.
                 //this means that as long as they pass auth but locally have a bad UUID that only they locally are effected.
@@ -216,7 +221,7 @@ namespace BasisServerHandle
                     IncreaseRate = Config.BSRSIncreaseRate,
                     SlowestSendRate = Config.BSRSlowestSendRate,
                 };
-                NetDataWriter Writer = new NetDataWriter(true, 4);
+                NetDataWriter Writer = NetworkServer.RentWriter();
                 ServerMetaDataMessage.Serialize(Writer);
                 NetworkServer.TrySend(newPeer, Writer, BasisNetworkCommons.metaDataChannel, DeliveryMethod.ReliableOrdered);
 
@@ -237,10 +242,13 @@ namespace BasisServerHandle
                     BNL.Log($"No Network Ids Not Sending out");
                 }
 
+                NetworkServer.ReturnWriter(Writer);
+
                 SendRemoteSpawnMessage(newPeer, ReadyMessage);
 
                 BasisNetworkResourceManagement.SendOutAllResources(newPeer);
                 BasisNetworkOwnership.SendOutOwnershipInformation(newPeer);
+                BasisSavedState.SendStoredSceneData(newPeer);
             }
             else
             {
@@ -275,11 +283,11 @@ namespace BasisServerHandle
                 }
             };
             BasisSavedState.AddLastData(Peer, ClientAvatarChangeMessage);
-            NetDataWriter Writer = new NetDataWriter(true, 4);
+            NetDataWriter Writer = NetworkServer.RentWriter();
             serverAvatarChangeMessage.Serialize(Writer);
 
-            NetPeer[] allPeers = NetworkServer.AuthenticatedPeers.Values.ToArray();
-            NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AvatarChangeMessageChannel, Peer, allPeers, DeliveryMethod.ReliableOrdered);
+            NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AvatarChangeMessageChannel, Peer, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(Writer);
         }
 
         public static void HandleVoiceMessage(NetPacketReader reader, NetPeer peer)
@@ -298,8 +306,6 @@ namespace BasisServerHandle
             ThreadSafeMessagePool<AudioSegmentDataMessage>.Return(audioSegment);
         }
 
-        // Pooled resources for voice sends to avoid per-message allocations
-        private static readonly System.Collections.Concurrent.ConcurrentQueue<NetDataWriter> VoiceWriterPool = new();
         [ThreadStatic] private static List<NetPeer> _voicePeerList;
 
         public static void SendVoiceMessageToClients(ServerAudioSegmentMessage audioSegment, byte channel, NetPeer sender, DeliveryMethod method)
@@ -329,15 +335,13 @@ namespace BasisServerHandle
                 playerID = (ushort)sender.Id,
             };
 
-            if (!VoiceWriterPool.TryDequeue(out var writer))
-                writer = new NetDataWriter(true, 128);
+            var writer = NetworkServer.RentWriter();
 
             audioSegment.Serialize(writer);
 
             NetworkServer.BroadcastMessageToClients(writer, channel, ref targetPeers, method, 1024);
 
-            writer.Reset();
-            VoiceWriterPool.Enqueue(writer);
+            NetworkServer.ReturnWriter(writer);
         }
 
         private static List<NetPeer> GetTargetPeers(VoiceReceiversMessage Message)
@@ -399,9 +403,9 @@ namespace BasisServerHandle
         /// <param name="authClient"></param>
         public static void NotifyExistingClients(ServerReadyMessage serverSideSyncPlayerMessage, NetPeer authClient)
         {
-            NetDataWriter Writer = new NetDataWriter(true);
+            NetDataWriter Writer = NetworkServer.RentWriter();
             serverSideSyncPlayerMessage.Serialize(Writer);
-            NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
+            NetPeer[] peers = NetworkServer.PeerSnapshot;
             //  BNL.LogError("Writing Data with size Size " + Writer.Length);
             if (NetworkServer.CheckValidated(Writer))
             {
@@ -414,6 +418,7 @@ namespace BasisServerHandle
                     }
                 }
             }
+            NetworkServer.ReturnWriter(Writer);
         }
         /// <summary>
         /// send everyone to the new client
@@ -423,9 +428,8 @@ namespace BasisServerHandle
         {
             try
             {
-                // Fetch all peers into an array
-                NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
-                NetDataWriter writer = new NetDataWriter(true, 2);
+                NetPeer[] peers = NetworkServer.PeerSnapshot;
+                NetDataWriter writer = NetworkServer.RentWriter();
                 foreach (var peer in peers)
                 {
                     if (peer == authClient)
@@ -440,6 +444,7 @@ namespace BasisServerHandle
                         NetworkServer.TrySend(authClient, writer, BasisNetworkCommons.CreateRemotePlayersForNewPeerChannel, DeliveryMethod.ReliableOrdered);
                     }
                 }
+                NetworkServer.ReturnWriter(writer);
             }
             catch (Exception ex)
             {
@@ -604,10 +609,11 @@ namespace BasisServerHandle
                 jsonPayload = db.JsonPayload
             };
 
-            var writer = new NetDataWriter(true);
+            var writer = NetworkServer.RentWriter();
             msg.Serialize(writer);
             BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.StoreDatabaseChannel, writer.Length);
             peer.Send(writer, BasisNetworkCommons.StoreDatabaseChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
         }
     }
 }

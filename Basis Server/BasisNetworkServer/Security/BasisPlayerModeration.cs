@@ -236,9 +236,10 @@ namespace BasisNetworkServer.Security
             {
                 IsPeerAdmin = false;
             }
-            NetDataWriter Writer = new NetDataWriter(true, 4);
+            NetDataWriter Writer = NetworkServer.RentWriter();
             Writer.Put(IsPeerAdmin);
             NetworkServer.TrySend(peer, Writer, BasisNetworkCommons.ServerIsAdminChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(Writer);
         }
         public static void OnAdminMessage(NetPeer peer, NetPacketReader reader)
         {
@@ -283,13 +284,13 @@ namespace BasisNetworkServer.Security
                     }
                     break;
                 case AdminRequestMode.MessageAll:
-                    NetDataWriter Writer = new NetDataWriter(true, 4);
+                    NetDataWriter Writer = NetworkServer.RentWriter();
                     AdminRequest OutAdminRequest = new AdminRequest();
                     OutAdminRequest.Serialize(Writer, AdminRequestMode.MessageAll);
                     string Message = reader.GetString();
                     Writer.Put(Message);
-                    NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
-                    NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AdminChannel, peer, peers, DeliveryMethod.ReliableOrdered);
+                    NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AdminChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+                    NetworkServer.ReturnWriter(Writer);
                     BNL.Log($"sending MessageAll | {Message}");
                     break;
                 case AdminRequestMode.UnBanIP:
@@ -320,13 +321,13 @@ namespace BasisNetworkServer.Security
                 //    break;
                 case AdminRequestMode.TeleportAll:
 
-                    Writer = new NetDataWriter(true, 4);
+                    Writer = NetworkServer.RentWriter();
                     OutAdminRequest = new AdminRequest();
                     OutAdminRequest.Serialize(Writer, AdminRequestMode.TeleportAll);
                     ushort PlayerDestination = reader.GetUShort();
                     Writer.Put(PlayerDestination);
-                    NetPeer[] outgoingpeers = NetworkServer.AuthenticatedPeers.Values.ToArray();
-                    NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AdminChannel, peer, outgoingpeers, DeliveryMethod.ReliableOrdered);
+                    NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.AdminChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+                    NetworkServer.ReturnWriter(Writer);
                     BNL.Log($"sending TeleportAll destination is NetID {PlayerDestination}");
                     break;
                 case AdminRequestMode.AddAdmin:
@@ -352,13 +353,14 @@ namespace BasisNetworkServer.Security
                     }
                     break;
                 case AdminRequestMode.TeleportPlayer:
-                    Writer = new NetDataWriter(true, 4);
+                    Writer = NetworkServer.RentWriter();
                     OutAdminRequest = new AdminRequest();
                     OutAdminRequest.Serialize(Writer, AdminRequestMode.TeleportPlayer);
                     PlayerDestination = reader.GetUShort();
                     Writer.Put(PlayerDestination);
 
                     NetworkServer.TrySend(peer, Writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+                    NetworkServer.ReturnWriter(Writer);
                     break;
                 default:
                     BNL.LogError("Missing Mode!");
@@ -375,11 +377,12 @@ namespace BasisNetworkServer.Security
                 BNL.LogError("trying to send a empty message to client " + Peer.Id);
                 return;
             }
-            NetDataWriter Writer = new NetDataWriter(true, 4);
+            NetDataWriter Writer = NetworkServer.RentWriter();
             AdminRequest OutAdminRequest = new AdminRequest();
             OutAdminRequest.Serialize(Writer, AdminRequestMode.Message);
             Writer.Put(ReturnMessage);
             NetworkServer.TrySend(Peer, Writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(Writer);
         }
     }
 }

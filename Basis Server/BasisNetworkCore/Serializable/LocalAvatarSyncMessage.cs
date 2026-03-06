@@ -82,7 +82,10 @@ public static partial class SerializableBasis
                 return;
             }
 
-            AdditionalAvatarDatas = new AdditionalAvatarData[AdditionalAvatarDataSize];
+            if (AdditionalAvatarDatas == null || AdditionalAvatarDatas.Length != AdditionalAvatarDataSize)
+            {
+                AdditionalAvatarDatas = new AdditionalAvatarData[AdditionalAvatarDataSize];
+            }
             for (int i = 0; i < AdditionalAvatarDataSize; i++)
             {
                 AdditionalAvatarDatas[i] = new AdditionalAvatarData();

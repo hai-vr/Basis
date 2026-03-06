@@ -22,9 +22,10 @@ namespace BasisNetworkCore
                     NetIDMessage = new NetIDMessage() { playerID = UniqueStringID },
                     UshortUniqueIDMessage = new UshortUniqueIDMessage() { UniqueIDUshort = Value }
                 };
-                NetDataWriter Writer = new NetDataWriter(true);
+                NetDataWriter Writer = NetworkServer.RentWriter();
                 SNIM.Serialize(Writer);
                 NetworkServer.TrySend(NetPeer, Writer, BasisNetworkCommons.netIDAssignChannel, DeliveryMethod.ReliableOrdered);
+                NetworkServer.ReturnWriter(Writer);
                 BNL.Log($"Sent existing NetID ({Value}) for {UniqueStringID} to peer {NetPeer.Address}");
             }
             else
@@ -56,11 +57,11 @@ namespace BasisNetworkCore
                     NetIDMessage = new NetIDMessage() { playerID = UniqueStringID },
                     UshortUniqueIDMessage = new UshortUniqueIDMessage() { UniqueIDUshort = newID }
                 };
-                NetDataWriter Writer = new NetDataWriter(true);
+                NetDataWriter Writer = NetworkServer.RentWriter();
                 SUIMA.Serialize(Writer);
 
-                NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
-                NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.netIDAssignChannel, peers, DeliveryMethod.ReliableOrdered);
+                NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.netIDAssignChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
+                NetworkServer.ReturnWriter(Writer);
                 BNL.Log($"Broadcasted new ID ({newID}) for {UniqueStringID} to all connected peers.");
             }
         }
