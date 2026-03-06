@@ -12,9 +12,6 @@ namespace Basis.Network.Server.Generic
         private static readonly ConcurrentDictionary<int, ClientMetaDataMessage> playerMetaDataMessages = new();
         private static readonly ConcurrentDictionary<int, VoiceReceiversMessage> voiceReceiversMessages = new();
 
-        // Scene data state storage for late-joiner sync
-        private static readonly ConcurrentDictionary<ushort, StoredSceneState> sceneDataStates = new();
-
         public struct StoredSceneState
         {
             public ushort senderPlayerID;

@@ -12,17 +12,6 @@ namespace Basis.Network.Server.Generic
         private static readonly ConcurrentDictionary<int, ClientMetaDataMessage> playerMetaDataMessages = new();
         private static readonly ConcurrentDictionary<int, VoiceReceiversMessage> voiceReceiversMessages = new();
 
-        // Scene data state storage for late-joiner sync
-        private static readonly ConcurrentDictionary<ushort, StoredSceneState> sceneDataStates = new();
-
-        public struct StoredSceneState
-        {
-            public ushort senderPlayerID;
-            public ushort messageIndex;
-            public byte[] payload;
-            public int payloadLength;
-        }
-
         /// <summary>
         /// Removes all state data for a specific player.
         /// </summary>
@@ -84,59 +73,6 @@ namespace Basis.Network.Server.Generic
         public static bool GetLastVoiceReceivers(NetPeer client, out VoiceReceiversMessage message)
         {
             return voiceReceiversMessages.TryGetValue(client.Id, out message);
-        }
-
-        /// <summary>
-        /// Stores the last scene data broadcast for a given messageIndex so late joiners can receive it.
-        /// </summary>
-        public static void AddLastSceneData(ushort senderPlayerID, ushort messageIndex, byte[] payload, int payloadLength)
-        {
-            byte[] copy = new byte[payloadLength];
-            Buffer.BlockCopy(payload, 0, copy, 0, payloadLength);
-            sceneDataStates[messageIndex] = new StoredSceneState
-            {
-                senderPlayerID = senderPlayerID,
-                messageIndex = messageIndex,
-                payload = copy,
-                payloadLength = payloadLength
-            };
-        }
-
-        /// <summary>
-        /// Removes stored scene data for a given messageIndex.
-        /// </summary>
-        public static void RemoveSceneData(ushort messageIndex)
-        {
-            sceneDataStates.TryRemove(messageIndex, out _);
-        }
-
-        /// <summary>
-        /// Sends all stored scene data to a newly connected peer.
-        /// </summary>
-        public static void SendStoredSceneData(NetPeer newPeer)
-        {
-            foreach (var kvp in sceneDataStates)
-            {
-                StoredSceneState state = kvp.Value;
-                ServerSceneDataMessage serverSceneDataMessage = new ServerSceneDataMessage
-                {
-                    sceneDataMessage = new RemoteSceneDataMessage
-                    {
-                        messageIndex = state.messageIndex,
-                        payload = state.payload,
-                        payloadLength = state.payloadLength
-                    },
-                    playerIdMessage = new PlayerIdMessage
-                    {
-                        playerID = state.senderPlayerID
-                    }
-                };
-
-                NetDataWriter writer = NetworkServer.RentWriter();
-                serverSceneDataMessage.Serialize(writer);
-                NetworkServer.TrySend(newPeer, writer, BasisNetworkCommons.SceneChannel, DeliveryMethod.ReliableOrdered);
-                NetworkServer.ReturnWriter(writer);
-            }
         }
     }
 }
