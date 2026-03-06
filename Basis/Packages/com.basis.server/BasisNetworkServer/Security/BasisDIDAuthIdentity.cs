@@ -112,11 +112,12 @@ namespace BasisDidLink
                     if (AuthIdentity.TryAdd(newPeer.Id, OnAuth))
                     {
                         readyMessage.playerMetaDataMessage.playerUUID = playerDid.V;
-                        NetDataWriter Writer = new NetDataWriter();
+                        NetDataWriter Writer = NetworkServer.RentWriter();
                         BytesMessage NetworkMessage = new BytesMessage();
                         NetworkMessage.Serialize(Writer, OnAuth.Challenge.Nonce.V);
                         BNL.Log("Sending out Writer with size : " + Writer.Length);
                         NetworkServer.TrySend(newPeer, Writer, BasisNetworkCommons.AuthIdentityChannel, DeliveryMethod.ReliableOrdered);
+                        NetworkServer.ReturnWriter(Writer);
 
                         CancellationTokenSource cts = new CancellationTokenSource();
                         _timeouts[newPeer] = cts;

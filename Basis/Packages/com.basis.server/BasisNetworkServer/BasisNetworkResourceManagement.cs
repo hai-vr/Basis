@@ -25,15 +25,15 @@ public static class BasisNetworkResourceManagement
                     LoadedNetID = llr.LoadedNetID
                 };
 
-                NetDataWriter writer = new NetDataWriter(true);
+                NetDataWriter writer = NetworkServer.RentWriter();
                 unloadResource.Serialize(writer);
-                NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
                 NetworkServer.BroadcastMessageToClients(
                     writer,
                     BasisNetworkCommons.LoadResourceChannel,
-                    peers,
+                    NetworkServer.PeerSnapshot,
                     DeliveryMethod.ReliableSequenced
                 );
+                NetworkServer.ReturnWriter(writer);
 
                 // Remove the non-persistent resource from the database
                 UshortNetworkDatabase.Remove(llr.LoadedNetID,out LocalLoadResource Resource);
@@ -46,31 +46,33 @@ public static class BasisNetworkResourceManagement
         if (Resource != null)
         {
             int length = Resource.Length;
+            NetDataWriter Writer = NetworkServer.RentWriter();
             for (int Index = 0; Index < length; Index++)
             {
+                Writer.Reset();
                 LocalLoadResource LLR = Resource[Index];
-                NetDataWriter Writer = new NetDataWriter(true);
                 LLR.Serialize(Writer);
                 NetworkServer.TrySend(NewConnection, Writer, BasisNetworkCommons.LoadResourceChannel, DeliveryMethod.ReliableOrdered);
             }
+            NetworkServer.ReturnWriter(Writer);
         }
     }
     public static void LoadResource(LocalLoadResource LocalLoadResource)
     {
         if (UshortNetworkDatabase.ContainsKey(LocalLoadResource.LoadedNetID) == false)
         {
-            NetDataWriter Writer = new NetDataWriter(true);
+            NetDataWriter Writer = NetworkServer.RentWriter();
             LocalLoadResource.Serialize(Writer);
             if (UshortNetworkDatabase.TryAdd(LocalLoadResource.LoadedNetID, LocalLoadResource))
             {
                 BNL.Log("Adding Object " + LocalLoadResource.LoadedNetID);
-                NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
-                NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.LoadResourceChannel, peers, DeliveryMethod.ReliableOrdered);
+                NetworkServer.BroadcastMessageToClients(Writer, BasisNetworkCommons.LoadResourceChannel, NetworkServer.PeerSnapshot, DeliveryMethod.ReliableOrdered);
             }
             else
             {
                 BNL.LogError("Try Add Failed Already have Object Loaded With " + LocalLoadResource.LoadedNetID);
             }
+            NetworkServer.ReturnWriter(Writer);
         }
         else
         {
@@ -108,17 +110,17 @@ public static class BasisNetworkResourceManagement
             return;
         }
 
-        NetDataWriter writer = new NetDataWriter(true);
+        NetDataWriter writer = NetworkServer.RentWriter();
         unLoadResource.Serialize(writer);
 
         BNL.Log("Removing Object " + unLoadResource.LoadedNetID);
 
-        NetPeer[] peers = NetworkServer.AuthenticatedPeers.Values.ToArray();
         NetworkServer.BroadcastMessageToClients(
             writer,
             BasisNetworkCommons.UnloadResourceChannel,
-            peers,
+            NetworkServer.PeerSnapshot,
             DeliveryMethod.ReliableOrdered
         );
+        NetworkServer.ReturnWriter(writer);
     }
 }

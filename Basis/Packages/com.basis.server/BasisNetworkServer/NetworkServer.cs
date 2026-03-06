@@ -30,6 +30,20 @@ public static class NetworkServer
     {
         _peerSnapshot = AuthenticatedPeers.Values.ToArray();
     }
+
+    // Centralized NetDataWriter pool — single source of truth for all server code.
+    private static readonly ConcurrentQueue<NetDataWriter> _writerPool = new();
+    public static NetDataWriter RentWriter(int initialCapacity = 208)
+    {
+        if (_writerPool.TryDequeue(out var writer)) return writer;
+        return new NetDataWriter(true, initialCapacity);
+    }
+    public static void ReturnWriter(NetDataWriter writer)
+    {
+        writer.Reset();
+        _writerPool.Enqueue(writer);
+    }
+
     public static IAuth Auth;
     public static IAuthIdentity AuthIdentity;
     public static int HighQualityLength;
