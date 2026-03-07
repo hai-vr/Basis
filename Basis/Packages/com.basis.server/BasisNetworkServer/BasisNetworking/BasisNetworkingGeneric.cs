@@ -39,12 +39,6 @@ namespace Basis.Network.Server.Generic
                 }
             };
 
-            // Store scene data for late-joiner sync (broadcast messages only)
-            if (SceneDataMessage.recipientsSize == 0 && payload != null && payloadLength > 0)
-            {
-                BasisSavedState.AddLastSceneData((ushort)sender.Id, SceneDataMessage.messageIndex, payload, payloadLength);
-            }
-
             byte Channel = BasisNetworkCommons.SceneChannel;
             NetDataWriter Writer = NetworkServer.RentWriter();
             if (DeliveryMethod == DeliveryMethod.Unreliable)
