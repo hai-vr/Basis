@@ -10,7 +10,7 @@ namespace Basis.Network.Core
         public const int NetworkIntervalPoll = 2;
         public const int PingInterval = 1500;
         public const int ReceivePollingTime = 50000;
-        public const int PacketPoolSize = 1700;
+        public const int PacketPoolSize = 4096;
         /// <summary>
         /// when adding a new message we need to increase this
         /// will function up to 64

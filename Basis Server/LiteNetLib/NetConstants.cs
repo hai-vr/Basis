@@ -39,7 +39,7 @@ namespace LiteNetLib
     {
         //can be tuned
         public const int DefaultWindowSize = 128;
-        public const int SocketBufferSize = 8 * 1024 * 1024; //8mb
+        public const int SocketBufferSize = 32 * 1024 * 1024; //32mb — needed for 1000+ player servers
         public const int SocketTTL = 255;
 
         public const int HeaderSize = 1;

@@ -27,14 +27,20 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Used for distance decisions
         public Basis.Scripts.Networking.Compression.Vector3 Position;
 
-        // Who needs updates FROM whom (bitset indexed by player id)
-        public FastBitSet HasNewDataFrom;
-
         // Base message shell (we swap avatarSerialization before send)
         public ServerSideSyncPlayerMessage SyncMessage;
 
-        // Per-target last sent tick (used by distance-based interval logic)
-        public Dictionary<int, long> LastSentTimes = new();
+        // Per-target last sent tick — flat array indexed by player id for O(1) access
+        public long[] LastSentTimes;
+
+        // Generation counter: incremented each time this player receives new avatar data.
+        // Receivers compare against their LastSeenGeneration to know if there is new data.
+        // Access via Interlocked.Read/Increment for thread safety on 32-bit or cross-core visibility.
+        public long DataGeneration;
+
+        // Per-receiver: the DataGeneration value of each sender when we last sent to this receiver.
+        // Indexed by sender player id.
+        public long[] LastSeenGeneration;
 
         // Cached per-quality payloads (payload bytes only, plus DataQualityLevel)
         public LocalAvatarSyncMessage AvatarHigh;
@@ -71,6 +77,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static readonly CancellationTokenSource cts = new();
         private static readonly int MaxConcurrentPlayers = ushort.MaxValue;
 
+        // Initial capacity for flat arrays on PlayerState (LastSentTimes, LastSeenGeneration).
+        // Grows if a player ID exceeds this.
+        private const int InitialPlayerArrayCapacity = 2048;
+
         private static readonly ParallelOptions parallelOptions = new()
         {
             MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
@@ -84,8 +94,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public static int BSRSMillisecondDefaultInterval = 50;
         private static readonly double MsToTick = Stopwatch.Frequency / 1000.0;
 
-        private static List<(int id, PlayerState state)> _threadLocalActivePlayers = new();
+        // Maintained incrementally via ProcessMessage/ProcessPendingRemovals instead of rebuilt every tick.
+        private static readonly List<(int id, PlayerState state)> _activePlayers = new();
+        private static readonly object _activePlayersLock = new();
+
         private static readonly ConcurrentQueue<int> playersToRemove = new();
+
+        // Reusable snapshot list for draining currentMessages each tick — avoids allocation per tick.
+        private static readonly List<QueuedMessage> _messagesSnapshot = new(1024);
 
         // Distance -> Quality thresholds (squared meters)
         public static float HighDistanceSq = 9f;        // 3m
@@ -94,6 +110,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         // Delta compression: keyframe every N source updates (per player)
         public const int KeyframeInterval = 5;
+
+        // Tick slicing: only process a subset of receivers each tick to spread the O(N²) work.
+        // Adaptive: increases when ticks take too long, decreases when under budget.
+        private static int _sliceCount = 1;
+        private static int _sliceIndex = 0;
+
+        // Thread-local NetDataWriter for serialization — eliminates shared pool contention.
+        [ThreadStatic]
+        private static NetDataWriter t_serializeWriter;
 
         static BasisServerReductionSystemEvents()
         {
@@ -124,18 +149,18 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             {
                 long startTick = Stopwatch.GetTimestamp();
 
-                // Snapshot messages safely
-                var messagesSnapshot = new List<QueuedMessage>(currentMessages.Count);
+                // Snapshot messages safely — reuse list to avoid allocation
+                _messagesSnapshot.Clear();
                 foreach (var kvp in currentMessages)
                 {
                     if (currentMessages.TryRemove(kvp.Key, out var msg))
                     {
-                        messagesSnapshot.Add(msg);
+                        _messagesSnapshot.Add(msg);
                     }
                 }
 
                 // Process messages (also adds players)
-                Parallel.ForEach(messagesSnapshot, parallelOptions, msg =>
+                Parallel.ForEach(_messagesSnapshot, parallelOptions, msg =>
                 {
                     try
                     {
@@ -159,8 +184,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                 // Throttle loop if under time budget
                 long elapsedTicks = Stopwatch.GetTimestamp() - startTick;
-                long elapsedMs = (long)(elapsedTicks / MsToTick);
-                long remainingMs = intervalMs - elapsedMs;
+                double elapsedMs = elapsedTicks / MsToTick;
+                long remainingMs = intervalMs - (long)elapsedMs;
+
+                // Adaptive slice count: if tick took > 1.5ms, increase slicing; if < 0.5ms, decrease.
+                if (elapsedMs > 1.5 && _sliceCount < 32)
+                    _sliceCount++;
+                else if (elapsedMs < 0.5 && _sliceCount > 1)
+                    _sliceCount--;
 
                 if (remainingMs > 0)
                 {
@@ -181,13 +212,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 {
                     removedState.IsActive = false;
 
-                    foreach (var kvp in playerStates)
+                    // Remove from active players list
+                    lock (_activePlayersLock)
                     {
-                        var state = kvp.Value;
-                        lock (state)
+                        for (int i = _activePlayers.Count - 1; i >= 0; i--)
                         {
-                            state.HasNewDataFrom?.Set(id, false);
-                            state.LastSentTimes?.Remove(id);
+                            if (_activePlayers[i].id == id)
+                            {
+                                _activePlayers.RemoveAt(i);
+                                break;
+                            }
                         }
                     }
 
@@ -202,63 +236,107 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static void UpdateCommunicationAndDistances(long nowTicks)
         {
-            _threadLocalActivePlayers.Clear();
-            foreach (var kvp in playerStates)
+            // Take a snapshot of active players under lock for thread-safe iteration.
+            // The list is maintained incrementally, so this is just a copy.
+            (int id, PlayerState state)[] activeCopy;
+            lock (_activePlayersLock)
             {
-                if (kvp.Value.IsActive)
-                {
-                    _threadLocalActivePlayers.Add((kvp.Key, kvp.Value));
-                }
+                activeCopy = _activePlayers.ToArray();
             }
 
-            int playerCount = _threadLocalActivePlayers.Count;
+            int playerCount = activeCopy.Length;
+            if (playerCount == 0) return;
 
-            Parallel.ForEach(_threadLocalActivePlayers, parallelOptions, playerI =>
+            // Tick slicing: only process a slice of receivers per tick
+            int sliceSize = (playerCount + _sliceCount - 1) / _sliceCount;
+            int start = _sliceIndex * sliceSize;
+            int end = Math.Min(start + sliceSize, playerCount);
+            _sliceIndex = (_sliceIndex + 1) % _sliceCount;
+
+            if (start >= playerCount) return;
+
+            // Create a span/segment view for the slice to iterate
+            Parallel.For(start, end, parallelOptions, i =>
             {
+                var playerI = activeCopy[i];
                 var stateI = playerI.state;
                 var peer = stateI.Peer;
 
-                bool canSend = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced) < 2048;
+                // Congestion check: sum both avatar channels for the real picture
+                int q1 = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
+                int q2 = peer.GetPacketsCountInQueue(BasisNetworkCommons.DeltaPlayerAvatarChannel, DeliveryMethod.Sequenced);
+                int queueDepth = q1 + q2;
+
+                // Severe congestion — skip this peer entirely
+                if (queueDepth > 512) return;
+
+                // Graduated quality cap based on congestion
+                int maxQi;
+                int intervalMultiplier;
+                if (queueDepth > 256)
+                {
+                    maxQi = 0;            // force VeryLow
+                    intervalMultiplier = 2; // double intervals
+                }
+                else if (queueDepth > 128)
+                {
+                    maxQi = 1;            // cap at Low
+                    intervalMultiplier = 1;
+                }
+                else if (queueDepth > 64)
+                {
+                    maxQi = 2;            // cap at Medium
+                    intervalMultiplier = 1;
+                }
+                else
+                {
+                    maxQi = 3;            // normal quality
+                    intervalMultiplier = 1;
+                }
+
                 var sentTimes = stateI.LastSentTimes;
+                var seenGens = stateI.LastSeenGeneration;
+                if (sentTimes == null || seenGens == null) return;
 
                 for (int index = 0; index < playerCount; index++)
                 {
-                    (int id, PlayerState state) playerJ = _threadLocalActivePlayers[index];
+                    var playerJ = activeCopy[index];
                     if (playerI.id == playerJ.id)
                     {
                         continue;
                     }
 
                     var stateJ = playerJ.state;
+                    int jId = playerJ.id;
+
+                    // Bounds check — grow arrays if needed (rare, only when IDs exceed capacity)
+                    if (jId >= sentTimes.Length)
+                    {
+                        int newLen = Math.Max(sentTimes.Length * 2, jId + 1);
+                        Array.Resize(ref stateI.LastSentTimes, newLen);
+                        sentTimes = stateI.LastSentTimes;
+                        Array.Resize(ref stateI.LastSeenGeneration, newLen);
+                        seenGens = stateI.LastSeenGeneration;
+                    }
 
                     float distSq = DistanceSquared(stateI.Position, stateJ.Position);
 
                     CalculateIntervalFromDistanceSq(distSq, out byte startAtZeroInterval, out int actualInterval);
 
-                    if (!sentTimes.ContainsKey(playerJ.id))
-                    {
-                        sentTimes[playerJ.id] = 0;
-                    }
-
-                    if (stateI.HasNewDataFrom == null)
-                    {
-                        continue;
-                    }
-
-                    long lastSent = sentTimes[playerJ.id];
+                    long lastSent = sentTimes[jId];
                     long elapsed = nowTicks - lastSent;
                     elapsed = Math.Max(0, elapsed);
 
-                    long required = (long)(actualInterval * MsToTick);
+                    long required = (long)((actualInterval * intervalMultiplier) * MsToTick);
 
-                    bool hasNewData = stateI.HasNewDataFrom.Get(playerJ.id);
+                    // Generation-based new data check: compare sender's generation with what we last saw
+                    long senderGen = Interlocked.Read(ref stateJ.DataGeneration);
+                    bool hasNewData = senderGen > seenGens[jId];
 
-                    if (canSend && hasNewData && elapsed >= required)
+                    if (hasNewData && elapsed >= required)
                     {
-                        stateI.HasNewDataFrom.Set(playerJ.id, false);
-
-                        // Pick quality by distance
-                        int qi = GetQualityIndex(distSq);
+                        // Pick quality by distance, capped by congestion
+                        int qi = Math.Min(GetQualityIndex(distSq), maxQi);
 
                         // Decide keyframe vs delta
                         bool needsKeyframe = stateJ.HasReceivedKeyframe[qi] == null
@@ -282,7 +360,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                                 stateJ.SerializedDelta, stateJ.SerializedDeltaLength);
                         }
 
-                        sentTimes[playerJ.id] = nowTicks;
+                        sentTimes[jId] = nowTicks;
+                        seenGens[jId] = senderGen;
                     }
                 }
             });
@@ -290,6 +369,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         /// <summary>
         /// Sends a pre-serialized message, patching the interval byte at offset 2.
+        /// Uses a thread-local writer to avoid shared pool contention.
         /// </summary>
         private static void SendPreSerialized(NetPeer peer, PlayerState sourceState, int qi,
             byte interval, byte channel, byte[][] serializedArray, int[] lengthArray)
@@ -299,7 +379,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (src == null || len == 0)
                 return;
 
-            NetDataWriter writer = RentWriter();
+            NetDataWriter writer = GetThreadWriter();
             writer.Put(src, 0, len);
 
             // Patch interval byte at offset 2 (after PlayerID ushort)
@@ -310,8 +390,25 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
             peer.Send(writer, channel, DeliveryMethod.Sequenced);
             BasisNetworkStatistics.RecordOutbound(channel, writer.Length);
+        }
 
-            ReturnWriter(writer);
+        /// <summary>
+        /// Returns a thread-local NetDataWriter, creating one if needed.
+        /// Avoids contention on the shared ConcurrentQueue writer pool.
+        /// </summary>
+        private static NetDataWriter GetThreadWriter()
+        {
+            var w = t_serializeWriter;
+            if (w == null)
+            {
+                w = new NetDataWriter(true, 512);
+                t_serializeWriter = w;
+            }
+            else
+            {
+                w.Reset();
+            }
+            return w;
         }
 
         /// <summary>
@@ -373,6 +470,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             playersToRemove.Enqueue(id);
         }
 
+        /// <summary>
+        /// Ensures a flat array is large enough for the given player id.
+        /// </summary>
+        private static void EnsureArrayCapacity(ref long[] array, int requiredIndex)
+        {
+            if (requiredIndex < array.Length) return;
+            int newLen = Math.Max(array.Length * 2, requiredIndex + 1);
+            Array.Resize(ref array, newLen);
+        }
+
         private static void ProcessMessage(QueuedMessage message)
         {
             int id = message.FromPeer.Id;
@@ -394,13 +501,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     Peer = message.FromPeer,
                     IsActive = true,
                     Position = pos,
-                    HasNewDataFrom = new FastBitSet(MaxConcurrentPlayers),
                     SyncMessage = new ServerSideSyncPlayerMessage
                     {
                         playerIdMessage = new PlayerIdMessage { playerID = (ushort)id },
                         avatarSerialization = high
                     },
                     AvatarHigh = high,
+                    LastSentTimes = new long[InitialPlayerArrayCapacity],
+                    LastSeenGeneration = new long[InitialPlayerArrayCapacity],
+                    DataGeneration = 1,
                 };
 
                 // Build lower qualities using the zero-alloc Into variant.
@@ -429,18 +538,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 UpdateBaselines(state);
                 PreSerializeAll(state);
 
-                state.HasNewDataFrom.SetAll(true);
                 playerStates[id] = state;
 
-                // Everyone else needs new data from this new player
-                foreach (var kvp in playerStates)
+                // Add to active players list
+                lock (_activePlayersLock)
                 {
-                    if (kvp.Key == id || !kvp.Value.IsActive)
-                    {
-                        continue;
-                    }
-
-                    kvp.Value.HasNewDataFrom.Set(id, true);
+                    _activePlayers.Add((id, state));
                 }
             }
             else
@@ -482,22 +585,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 ComputeDeltas(state);
                 PreSerializeAll(state);
 
-                // Mark all other players as having new data FROM this sender
-                foreach (var kvp in playerStates)
-                {
-                    if (kvp.Key == id)
-                    {
-                        continue;
-                    }
-
-                    var other = kvp.Value;
-                    if (!other.IsActive)
-                    {
-                        continue;
-                    }
-
-                    other.HasNewDataFrom?.Set(id, true);
-                }
+                // Single atomic increment replaces O(N) CAS bit-setting across all other players.
+                // Receivers detect new data by comparing this generation against their LastSeenGeneration.
+                Interlocked.Increment(ref state.DataGeneration);
             }
 
             QueuedMessagePool.Return(message);
@@ -559,6 +649,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// <summary>
         /// Pre-serializes keyframe and delta messages for all 4 quality levels.
         /// The interval byte (offset 2) is left as 0 and patched per-recipient during send.
+        /// Uses thread-local writers to avoid shared pool contention.
         /// </summary>
         private static void PreSerializeAll(PlayerState state)
         {
@@ -599,9 +690,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (state.SerializedKeyframe[qi] == null || state.SerializedKeyframe[qi].Length < totalSize)
                 state.SerializedKeyframe[qi] = new byte[totalSize];
 
-            // Serialize manually using baseline array (NOT current msg.array)
-            // so client baseline matches what server computes deltas against.
-            NetDataWriter writer = RentWriter();
+            NetDataWriter writer = GetThreadWriter();
             writer.Put(playerId);
             writer.Put((byte)0); // interval placeholder
             writer.Put(msg.DataQualityLevel);
@@ -625,8 +714,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int written = writer.Length;
             Buffer.BlockCopy(writer.Data, 0, state.SerializedKeyframe[qi], 0, written);
             state.SerializedKeyframeLength[qi] = written;
-
-            ReturnWriter(writer);
         }
 
         private static void PreSerializeDelta(PlayerState state, int qi, LocalAvatarSyncMessage msg, ushort playerId)
@@ -649,7 +736,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (state.SerializedDelta[qi] == null || state.SerializedDelta[qi].Length < totalSize)
                 state.SerializedDelta[qi] = new byte[totalSize];
 
-            NetDataWriter writer = RentWriter();
+            NetDataWriter writer = GetThreadWriter();
             writer.Put(playerId);
             writer.Put((byte)0); // interval placeholder
             writer.Put(msg.DataQualityLevel);
@@ -673,8 +760,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int written = writer.Length;
             Buffer.BlockCopy(writer.Data, 0, state.SerializedDelta[qi], 0, written);
             state.SerializedDeltaLength[qi] = written;
-
-            ReturnWriter(writer);
         }
 
         #endregion
