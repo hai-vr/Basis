@@ -674,6 +674,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             var quality = (BitQuality)msg.DataQualityLevel;
             int expectedPayload = BasisAvatarBitPacking.ConvertToSize(quality);
 
+            // Skip if the baseline is undersized (e.g. client sent wrong quality level)
+            if (baselineArray.Length < expectedPayload) return;
+
             // [PlayerID:2][interval:1][quality:1][baselineArray:N][additionalSize:1][additional...]
             int additionalSize = 0;
             if (msg.AdditionalAvatarDatas != null && msg.AdditionalAvatarDatas.Length > 0)
