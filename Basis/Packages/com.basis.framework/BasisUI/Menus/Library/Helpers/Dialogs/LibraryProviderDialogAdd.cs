@@ -203,7 +203,7 @@ namespace Basis.BasisUI
                                                     case "basisavatar":
                                                         itemType = BundledContentHolder.Mode.Avatar;
                                                         break;
-                                                    case "basisccene":
+                                                    case "basisscene":
                                                         itemType = BundledContentHolder.Mode.World;
                                                         break;
                                                 }
