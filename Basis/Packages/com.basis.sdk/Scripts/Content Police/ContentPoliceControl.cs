@@ -12,7 +12,7 @@ public static class ContentPoliceControl
     /// <param name="Rotation">The rotation to instantiate the cleaned copy.</param>
     /// <param name="Parent">The parent transform for the instantiated copy. Defaults to null.</param>
     /// <returns>A copy of the GameObject with unapproved scripts removed.</returns>
-    public static GameObject ContentControl(GameObject DisabledGameobject, GameObject SearchAndDestroy, ChecksRequired ChecksRequired, Vector3 Position, Quaternion Rotation, bool ModifyScale, Vector3 Scale, BundledContentHolder.Selector Selector, Transform Parent = null)
+    public static GameObject ContentControl(GameObject DisabledGameobject, GameObject SearchAndDestroy, ChecksRequired ChecksRequired, Vector3 Position, Quaternion Rotation, bool ModifyScale, Vector3 Scale, BundledContentHolder.Selector Selector, Transform Parent = null,int colliderlayer = -1)
     {
         if (ChecksRequired.UseContentRemoval)
         {
@@ -42,9 +42,19 @@ public static class ContentPoliceControl
                             }
                             break;
                         case Collider collider:
+
                             if (ChecksRequired.RemoveColliders)
                             {
+                                BasisDebug.Log("Remove Collider ", BasisDebug.LogTag.Avatar);
                                 GameObject.Destroy(collider);
+                            }
+                            else
+                            {
+                                if (ChecksRequired.ChangeCollidersToCorrectLayer)
+                                {
+                                    BasisDebug.Log("Changing Collider To Correct Layer", BasisDebug.LogTag.Avatar);
+                                    collider.gameObject.layer = colliderlayer;
+                                }
                             }
                             break;
                         case AudioSource source:
@@ -145,11 +155,12 @@ public struct ChecksRequired
     public bool UseContentRemoval;
     public bool DisableAnimatorEvents;
     public bool RemoveColliders;
-
-    public ChecksRequired(bool useContentRemoval, bool disableAnimatorEvents, bool removeColliders)
+    public bool ChangeCollidersToCorrectLayer;
+    public ChecksRequired(bool useContentRemoval, bool disableAnimatorEvents, bool removeColliders,bool changeColidersToCorrectLayer)
     {
         UseContentRemoval = useContentRemoval;
         DisableAnimatorEvents = disableAnimatorEvents;
         RemoveColliders = removeColliders;
+        ChangeCollidersToCorrectLayer = changeColidersToCorrectLayer;
     }
 }

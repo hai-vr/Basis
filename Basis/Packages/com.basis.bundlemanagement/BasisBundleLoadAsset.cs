@@ -5,7 +5,7 @@ using UnityEngine.SceneManagement;
 using static BundledContentHolder;
 public static class BasisBundleLoadAsset
 {
-    public static async Task<GameObject> LoadFromWrapper(GameObject DisabledGameobject,BasisTrackedBundleWrapper BasisLoadableBundle, bool UseContentRemoval, Vector3 Position, Quaternion Rotation, bool ModifyScale, Vector3 Scale, Selector Selector, Transform Parent = null, bool DestroyColliders = false)
+    public static async Task<GameObject> LoadFromWrapper(GameObject DisabledGameobject,BasisTrackedBundleWrapper BasisLoadableBundle, bool UseContentRemoval, Vector3 Position, Quaternion Rotation, bool ModifyScale, Vector3 Scale, Selector Selector, Transform Parent = null, bool DestroyColliders = false,bool ChangeColidersToCorrectLayer = false)
     {
         bool Incremented = false;
         if (BasisLoadableBundle.AssetBundle != null)
@@ -40,7 +40,8 @@ public static class BasisBundleLoadAsset
                             }
                             ChecksRequired.UseContentRemoval = UseContentRemoval;
                             ChecksRequired.RemoveColliders = DestroyColliders;
-                            GameObject CreatedCopy = ContentPoliceControl.ContentControl(DisabledGameobject,loadedObject, ChecksRequired, Position, Rotation, ModifyScale, Scale, Selector, Parent);
+                            ChecksRequired.ChangeCollidersToCorrectLayer = ChangeColidersToCorrectLayer;
+                            GameObject CreatedCopy = ContentPoliceControl.ContentControl(DisabledGameobject,loadedObject, ChecksRequired, Position, Rotation, ModifyScale, Scale, Selector, Parent, LayerMask.NameToLayer("IgnoredByInteractable"));
                             Incremented = BasisLoadableBundle.Increment();
                             string InstanceID = BasisGenerateUniqueID.GenerateUniqueID();
                             CreatedCopy.name = InstanceID + Incremented;

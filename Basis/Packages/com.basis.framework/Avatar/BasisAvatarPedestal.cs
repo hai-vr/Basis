@@ -120,7 +120,7 @@ public class BasisAvatarPedestal : BasisInteractableObject
                                 transform.GetPositionAndRotation(out Vector3 Position, out Quaternion Rotation);
                                 GameObject CreatedCopy = await BasisLoadHandler.LoadGameObjectBundle(BasisDeviceManagement.Instance.CreationGameobject,
                                     LoadableBundle, true, BasisProgressReport, cancellationToken,
-                                    Position, Rotation, Vector3.one, false, BundledContentHolder.Selector.Prop, transform);
+                                    Position, Rotation, Vector3.one, false, BundledContentHolder.Selector.Prop, transform,true);
 
                                 if (CreatedCopy.TryGetComponent(out Avatar))
                                 {

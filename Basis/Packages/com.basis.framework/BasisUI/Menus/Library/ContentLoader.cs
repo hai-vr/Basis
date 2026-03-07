@@ -64,7 +64,7 @@ namespace Basis.BasisUI
             }
         }
 
-        public static async Task<GameObject> HandleLoadGameObjectWithBundle(BasisDataStoreItemKeys.ItemKey item, CachedMetaData.CachedContent cached, BundledContentHolder.NetworkType desiredNetworkType, Vector3 finalPos, Quaternion finalRot, Vector3 finalScale, Transform parentTarget, bool admin = false, bool modifyScale = false, bool local = false)
+        public static async Task<GameObject> HandleLoadGameObjectWithBundle(BasisDataStoreItemKeys.ItemKey item, CachedMetaData.CachedContent cached, BundledContentHolder.NetworkType desiredNetworkType, Vector3 finalPos, Quaternion finalRot, Vector3 finalScale, Transform parentTarget, bool admin = false, bool modifyScale = false, bool local = false,bool ChangeColidersToCorrectLayer = false)
         {
             BasisLoadableBundle bundle = cached.BasisLoadableBundle;
 
@@ -79,7 +79,7 @@ namespace Basis.BasisUI
                 _ => BundledContentHolder.Selector.Prop
             };
 
-            GameObject createdObject = await BasisLoadHandler.LoadGameObjectBundle(BasisDeviceManagement.Instance.CreationGameobject, bundle, true, report, cancel, finalPos, finalRot, finalScale, modifyScale, selector, parentTarget );
+            GameObject createdObject = await BasisLoadHandler.LoadGameObjectBundle(BasisDeviceManagement.Instance.CreationGameobject, bundle, true, report, cancel, finalPos, finalRot, finalScale, modifyScale, selector, parentTarget ,false, ChangeColidersToCorrectLayer);
 
             if (createdObject != null)
             {

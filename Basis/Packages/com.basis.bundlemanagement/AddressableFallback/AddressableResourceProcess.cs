@@ -15,7 +15,7 @@ namespace Basis.Scripts.Addressable_Driver.Resource
 
             if (result is GameObject resource)
             {
-                GameObject spawned = ContentPoliceControl.ContentControl(TempSpawnDisableGameobject, resource, Required, instantiationParameters.Position, instantiationParameters.Rotation, false, Vector3.zero, Selector, instantiationParameters.Parent);
+                GameObject spawned = ContentPoliceControl.ContentControl(TempSpawnDisableGameobject, resource, Required, instantiationParameters.Position, instantiationParameters.Rotation, false, Vector3.zero, Selector, instantiationParameters.Parent, LayerMask.NameToLayer("IgnoredByInteractable"));
                 return spawned;
             }
             else
@@ -33,7 +33,7 @@ namespace Basis.Scripts.Addressable_Driver.Resource
         /// <returns></returns>
         public static async Task<GameObject> LoadSystemGameobject(GameObject TempSpawnDisableGameobject, string loadstring, InstantiationParameters InstantiationParameters)
         {
-            ChecksRequired Required = new ChecksRequired(false, false, false);
+            ChecksRequired Required = new ChecksRequired(false, false, false,false);
             GameObject data = await AddressableResourceProcess.LoadAsGameObjectsAsync(TempSpawnDisableGameobject, loadstring, InstantiationParameters, Required, BundledContentHolder.Selector.System);
             return data;
         }

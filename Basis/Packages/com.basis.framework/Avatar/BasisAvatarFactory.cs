@@ -117,7 +117,7 @@ namespace Basis.Scripts.Avatar
                             {
                                 BasisDebug.Log($"Requested Avatar was an Addressable Avatar {BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation}", BasisDebug.LogTag.Avatar);
                                 InstantiationParameters Para = InstantiationParameters(Player, Position, Rotation);
-                                ChecksRequired Required = new ChecksRequired(true, false, true);
+                                ChecksRequired Required = new ChecksRequired(true, false, false,true);
 
                                 // If LoadAsGameObjectsAsync doesn't accept a token, we still check before/after.
                                 Output = await AddressableResourceProcess.LoadAsGameObjectsAsync(BasisDeviceManagement.Instance.CreationGameobject,
@@ -201,7 +201,7 @@ namespace Basis.Scripts.Avatar
                             }
                             else
                             {
-                                ChecksRequired Required = new ChecksRequired(false, false, true);
+                                ChecksRequired Required = new ChecksRequired(false, false, false,true);
                                 InstantiationParameters Para = InstantiationParameters(Player, Position, Rotation);
 
                                 Output = await AddressableResourceProcess.LoadAsGameObjectsAsync(BasisDeviceManagement.Instance.CreationGameobject,
@@ -254,7 +254,7 @@ namespace Basis.Scripts.Avatar
             string UniqueID = BasisGenerateUniqueID.GenerateUniqueID();
             GameObject Output = await BasisLoadHandler.LoadGameObjectBundle(BasisDeviceManagement.Instance.CreationGameobject,
                 BasisLoadableBundle, true, BasisPlayer.ProgressReportAvatarLoad, Token,
-                Position, Rotation, Vector3.one, false, BundledContentHolder.Selector.Avatar, BasisPlayer.transform, true,MaxDownloadSizeInMB);
+                Position, Rotation, Vector3.one, false, BundledContentHolder.Selector.Avatar, BasisPlayer.transform,false,true,MaxDownloadSizeInMB);
 
             BasisPlayer.ProgressReportAvatarLoad.ReportProgress(UniqueID, 100, "Setting Position");
             return Output;
@@ -325,7 +325,7 @@ namespace Basis.Scripts.Avatar
         {
             try
             {
-                ChecksRequired Required = new ChecksRequired(false, false, true);
+                ChecksRequired Required = new ChecksRequired(false, false, false,true);
                 InstantiationParameters Para = InstantiationParameters(Player, Position, Rotation);
                 GameObject data = await AddressableResourceProcess.LoadAsGameObjectsAsync(BasisDeviceManagement.Instance.CreationGameobject,
                     LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation, Para, Required, BundledContentHolder.Selector.Avatar);
