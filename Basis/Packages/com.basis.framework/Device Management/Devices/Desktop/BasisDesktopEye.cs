@@ -131,13 +131,27 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         private void OnCursorStateChange(CursorLockMode cursor, bool newCursorVisible)
         {
             BasisDebug.Log("cursor changed to : " + cursor + " | Cursor Visible : " + newCursorVisible, BasisDebug.LogTag.Input);
-            if (cursor == CursorLockMode.Locked)
+            switch (cursor)
             {
-                LookRotationLock.Remove(nameof(BasisCursorManagement));
-            }
-            else
-            {
-                LookRotationLock.Add(nameof(BasisCursorManagement));
+                case CursorLockMode.Locked:
+                    if (LookRotationLock.Remove(nameof(BasisCursorManagement)))
+                    {
+
+                    }
+                    else
+                    {
+                        BasisDebug.LogError("Failed to Remove Rotation Lock!");
+                    }
+                    break;
+                case CursorLockMode.Confined:
+                    LookRotationLock.Add(nameof(BasisCursorManagement));
+                    break;
+                case CursorLockMode.None:
+                    LookRotationLock.Add(nameof(BasisCursorManagement));
+                    break;
+                default:
+                    LookRotationLock.Add(nameof(BasisCursorManagement));
+                    break;
             }
         }
 

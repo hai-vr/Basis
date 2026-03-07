@@ -32,6 +32,7 @@ public static class BasisCursorManagement
     {
         if (ShouldIgnoreCursorRequests())
         {
+            BasisDebug.Log("Skipping Lock Request", BasisDebug.LogTag.Local);
             return;
         }
 
@@ -58,6 +59,7 @@ public static class BasisCursorManagement
     {
         if (ShouldIgnoreCursorRequests())
         {
+            BasisDebug.Log("Skipping Unlock Request", BasisDebug.LogTag.Local);
             return;
         }
 

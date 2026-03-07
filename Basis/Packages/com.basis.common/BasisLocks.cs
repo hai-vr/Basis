@@ -8,8 +8,8 @@ using System.Text;
 namespace Basis.Scripts.Common
 {
     /// <summary>
-    /// High-performance global lock registry.
-    /// Each context tracks owners and their re-entrant lock counts.
+    /// Global lock registry.
+    /// Each context stores unique lock owner names only.
     /// Thread-safe.
     /// </summary>
     public static class BasisLocks
@@ -24,8 +24,7 @@ namespace Basis.Scripts.Common
         private sealed class ContextState
         {
             public readonly object Sync = new object();
-            public readonly Dictionary<string, int> Owners = new Dictionary<string, int>();
-            public int TotalCount;
+            public readonly HashSet<string> Owners = new HashSet<string>();
         }
 
         public static LockContext GetContext(string context)
@@ -82,14 +81,7 @@ namespace Basis.Scripts.Common
                 var state = GetState();
 
                 lock (state.Sync)
-                {
-                    if (state.Owners.TryGetValue(key, out int count))
-                        state.Owners[key] = count + 1;
-                    else
-                        state.Owners[key] = 1;
-
-                    state.TotalCount++;
-                }
+                    state.Owners.Add(key);
             }
 
             public bool Remove(string key)
@@ -101,18 +93,7 @@ namespace Basis.Scripts.Common
                     return false;
 
                 lock (state.Sync)
-                {
-                    if (!state.Owners.TryGetValue(key, out int count))
-                        return false;
-
-                    if (count <= 1)
-                        state.Owners.Remove(key);
-                    else
-                        state.Owners[key] = count - 1;
-
-                    state.TotalCount--;
-                    return true;
-                }
+                    return state.Owners.Remove(key);
             }
 
             public void Clear()
@@ -121,10 +102,7 @@ namespace Basis.Scripts.Common
                     return;
 
                 lock (state.Sync)
-                {
                     state.Owners.Clear();
-                    state.TotalCount = 0;
-                }
             }
 
             public bool Contains(string key)
@@ -136,7 +114,7 @@ namespace Basis.Scripts.Common
                     return false;
 
                 lock (state.Sync)
-                    return state.Owners.ContainsKey(key);
+                    return state.Owners.Contains(key);
             }
 
             public bool ContainsOnly(string key)
@@ -148,9 +126,8 @@ namespace Basis.Scripts.Common
                     return false;
 
                 lock (state.Sync)
-                    return state.TotalCount > 0 &&
-                           state.Owners.Count == 1 &&
-                           state.Owners.ContainsKey(key);
+                    return state.Owners.Count == 1 &&
+                           state.Owners.Contains(key);
             }
 
             public int Count
@@ -161,7 +138,7 @@ namespace Basis.Scripts.Common
                         return 0;
 
                     lock (state.Sync)
-                        return state.TotalCount;
+                        return state.Owners.Count;
                 }
             }
 
@@ -171,15 +148,7 @@ namespace Basis.Scripts.Common
                     return new List<string>();
 
                 lock (state.Sync)
-                {
-                    var result = new List<string>(state.TotalCount);
-                    foreach (var kvp in state.Owners)
-                    {
-                        for (int i = 0; i < kvp.Value; i++)
-                            result.Add(kvp.Key);
-                    }
-                    return result;
-                }
+                    return state.Owners.ToList();
             }
 
             public override string ToString()
@@ -189,15 +158,10 @@ namespace Basis.Scripts.Common
 
                 lock (state.Sync)
                 {
-                    if (state.TotalCount == 0)
+                    if (state.Owners.Count == 0)
                         return $"{Context}[]";
 
-                    var entries = state.Owners
-                        .Select(kvp => kvp.Value == 1
-                            ? kvp.Key
-                            : $"{kvp.Key} x{kvp.Value}");
-
-                    return $"{Context}[{string.Join(", ", entries)}]";
+                    return $"{Context}[{string.Join(", ", state.Owners)}]";
                 }
             }
 
