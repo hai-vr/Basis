@@ -675,7 +675,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int expectedPayload = BasisAvatarBitPacking.ConvertToSize(quality);
 
             // Skip if the baseline is undersized (e.g. client sent wrong quality level)
-            if (baselineArray.Length < expectedPayload) return;
+            if (baselineArray.Length < expectedPayload)
+            {
+                BNL.LogError($"[PreSerializeKeyframe] Baseline undersized for quality {quality}: got {baselineArray.Length}, need {expectedPayload}. Skipping.");
+                return;
+            }
 
             // [PlayerID:2][interval:1][quality:1][baselineArray:N][additionalSize:1][additional...]
             int additionalSize = 0;
