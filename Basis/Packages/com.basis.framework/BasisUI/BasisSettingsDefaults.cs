@@ -364,6 +364,41 @@ namespace Basis.BasisUI
             other = "120"
         });
 
+        // ---------------- REMOTE PLAYER AUDIO ----------------
+        // AudioSource
+        public static BasisSettingsBinding<float> RAMinDistance => new("ra_mindistance", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> RASpread => new("ra_spread", new BasisPlatformDefault<float>(70f));
+        public static BasisSettingsBinding<float> RADopplerLevel => new("ra_dopplerlevel", new BasisPlatformDefault<float>(0f));
+        public static BasisSettingsBinding<float> RASpatialBlend => new("ra_spatialblend", new BasisPlatformDefault<float>(1f));
+
+        // Steam Audio - HRTF
+        public static BasisSettingsBinding<bool> RADirectBinaural => new("ra_directbinaural", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> RAPerspectiveCorrection => new("ra_perspectivecorrection", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<string> RAInterpolation => new("ra_interpolation", new BasisPlatformDefault<string>("nearest"));
+
+        // Steam Audio - Propagation
+        public static BasisSettingsBinding<bool> RADistanceAttenuation => new("ra_distanceattenuation", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> RAAirAbsorption => new("ra_airabsorption", new BasisPlatformDefault<bool>(true));
+
+        // Steam Audio - Directivity
+        public static BasisSettingsBinding<bool> RADirectivity => new("ra_directivity", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> RADipoleWeight => new("ra_dipoleweight", new BasisPlatformDefault<float>(0.25f));
+        public static BasisSettingsBinding<float> RADipolePower => new("ra_dipolepower", new BasisPlatformDefault<float>(1f));
+
+        // Steam Audio - Occlusion
+        public static BasisSettingsBinding<bool> RAOcclusion => new("ra_occlusion", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<string> RAOcclusionType => new("ra_occlusiontype", new BasisPlatformDefault<string>("volumetric"));
+        public static BasisSettingsBinding<float> RAOcclusionRadius => new("ra_occlusionradius", new BasisPlatformDefault<float>(0.15f));
+        public static BasisSettingsBinding<float> RAOcclusionSamples => new("ra_occlusionsamples", new BasisPlatformDefault<float>(16f));
+
+        // Steam Audio - Transmission
+        public static BasisSettingsBinding<bool> RATransmission => new("ra_transmission", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<string> RATransmissionType => new("ra_transmissiontype", new BasisPlatformDefault<string>("frequency dependent"));
+        public static BasisSettingsBinding<float> RAMaxTransmissionSurfaces => new("ra_maxtransmissionsurfaces", new BasisPlatformDefault<float>(4f));
+
+        // Steam Audio - Mix
+        public static BasisSettingsBinding<float> RADirectMixLevel => new("ra_directmixlevel", new BasisPlatformDefault<float>(1f));
+
         public static readonly BasisSettingsBinding<bool> FBIKEuroAll = new("euroall");
 
         // Limiter
@@ -556,6 +591,28 @@ namespace Basis.BasisUI
 
             // Global toggle
             FBIKEuroAll.LoadBindingValue();
+
+            // Remote Player Audio
+            RAMinDistance.LoadBindingValue();
+            RASpread.LoadBindingValue();
+            RADopplerLevel.LoadBindingValue();
+            RASpatialBlend.LoadBindingValue();
+            RADirectBinaural.LoadBindingValue();
+            RAPerspectiveCorrection.LoadBindingValue();
+            RAInterpolation.LoadBindingValue();
+            RADistanceAttenuation.LoadBindingValue();
+            RAAirAbsorption.LoadBindingValue();
+            RADirectivity.LoadBindingValue();
+            RADipoleWeight.LoadBindingValue();
+            RADipolePower.LoadBindingValue();
+            RAOcclusion.LoadBindingValue();
+            RAOcclusionType.LoadBindingValue();
+            RAOcclusionRadius.LoadBindingValue();
+            RAOcclusionSamples.LoadBindingValue();
+            RATransmission.LoadBindingValue();
+            RATransmissionType.LoadBindingValue();
+            RAMaxTransmissionSurfaces.LoadBindingValue();
+            RADirectMixLevel.LoadBindingValue();
         }
     }
 }

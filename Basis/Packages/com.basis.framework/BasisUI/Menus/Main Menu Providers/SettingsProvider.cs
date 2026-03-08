@@ -41,6 +41,7 @@ namespace Basis.BasisUI
 
             tabGroup.AddTab("General", null, GeneralTab(tabGroup));
             tabGroup.AddTab("Audio", null, AudioTab(tabGroup));
+            tabGroup.AddTab("Remote Audio", null, SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
             tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
             tabGroup.AddTab("Avatar", null, AvatarTab(tabGroup));
             tabGroup.AddTab("Calibration", null, SettingsProviderIK.IKTab(tabGroup));

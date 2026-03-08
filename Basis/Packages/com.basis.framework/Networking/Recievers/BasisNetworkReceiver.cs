@@ -271,7 +271,7 @@ namespace Basis.Scripts.Networking.Receivers
             _serverClockSeconds = 0.0;
             _serverClockSeeded = false;
             RemotePlayer = (BasisRemotePlayer)Player;
-            AudioReceiverModule.Initalize(this);
+            AudioReceiverModule.Initialize(this);
 
             // Reset staging
             _stagedRing = new BasisRingBuffer<BasisAvatarBuffer>(MaxStage);

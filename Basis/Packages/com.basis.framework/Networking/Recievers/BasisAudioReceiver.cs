@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
@@ -41,7 +42,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// <summary>
         /// Decode destination buffer (mono) sized to one network frame.
         /// </summary>
-        public float[] pcmBuffer = new float[RemoteOpusSettings.SampleLength];
+        public float[] pcmBuffer = new float[RemoteOpusSettings.FrameSize];
 
         /// <summary>
         /// Number of valid samples written to <see cref="pcmBuffer"/> by the decoder.
@@ -106,7 +107,7 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (HasAudioSource)
             {
-                pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.NetworkSampleRate, false);
+                pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.FrameSize, false);
                 InOrderRead.Add(pcmBuffer, pcmLength, true);
                 AudioSourceSet();
             }
@@ -175,6 +176,7 @@ namespace Basis.Scripts.Networking.Receivers
             HasAudioSource = true;
             AvatarChanged(networkedPlayer,false);
 
+            SettingsProviderRemoteAudio.ApplyRemoteAudioTo(this);
             ChangeRemotePlayersVolumeSettings(1);
 
             try
@@ -221,7 +223,7 @@ namespace Basis.Scripts.Networking.Receivers
         /// Sets up shared silence buffer and caches output sample rate.
         /// </summary>
         /// <param name="networkedPlayer">Owning network receiver.</param>
-        public void Initalize(BasisNetworkReceiver networkedPlayer)
+        public void Initialize(BasisNetworkReceiver networkedPlayer)
         {
 #if UNITY_SERVER
             return;
