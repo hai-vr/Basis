@@ -22,6 +22,8 @@ public class BasisOpenXRHandInput : BasisInputController
     public InputActionProperty MenuButton;
     public InputActionProperty Primary2DAxis;
     public InputActionProperty Secondary2DAxis;
+    public InputActionProperty Primary2DAxisClick;
+    public InputActionProperty Secondary2DAxisClick;
     public InputActionProperty PalmPoseActionPosition;
     public InputActionProperty PalmPoseActionRotation;
     public InputActionProperty pointerPosition;
@@ -44,10 +46,10 @@ public class BasisOpenXRHandInput : BasisInputController
 
         RightHandPalmCorrection = new Vector3(0, 0, -90);
 
-        leftHandToIKPositionOffset = new Vector3(0,0, -0.05f);
-        rightHandToIKPositionOffset = new Vector3(0,0, -0.05f);
+        leftHandToIKPositionOffset = new Vector3(0, 0, -0.05f);
+        rightHandToIKPositionOffset = new Vector3(0, 0, -0.05f);
 
-        InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole,true);
+        InitalizeTracking(UniqueID, UnUniqueID, subSystems, AssignTrackedRole, basisBoneTrackedRole, true);
         string devicePath = basisBoneTrackedRole == BasisBoneTrackedRole.LeftHand ? "<XRController>{LeftHand}" : "<XRController>{RightHand}";
         string devicePosePath = basisBoneTrackedRole == BasisBoneTrackedRole.LeftHand ? "<PalmPose>{LeftHand}" : "<PalmPose>{RightHand}";
 
@@ -63,6 +65,8 @@ public class BasisOpenXRHandInput : BasisInputController
         MenuButton = new InputActionProperty(new InputAction(devicePath + "/menuButton", InputActionType.Button, devicePath + "/menuButton", expectedControlType: "Button"));
         Primary2DAxis = new InputActionProperty(new InputAction(devicePath + "/primary2DAxis", InputActionType.Value, devicePath + "/primary2DAxis", expectedControlType: "Vector2"));
         Secondary2DAxis = new InputActionProperty(new InputAction(devicePath + "/secondary2DAxis", InputActionType.Value, devicePath + "/secondary2DAxis", expectedControlType: "Vector2"));
+        Primary2DAxisClick = new InputActionProperty(new InputAction(devicePath + "/primary2DAxisClick", InputActionType.Button, devicePath + "/primary2DAxisClick", expectedControlType: "Button"));
+        Secondary2DAxisClick = new InputActionProperty(new InputAction(devicePath + "/secondary2DAxisClick", InputActionType.Button, devicePath + "/secondary2DAxisClick", expectedControlType: "Button"));
 
         DeviceActionPosition = new InputActionProperty(new InputAction($"{devicePath}/devicePosition", InputActionType.Value, $"{devicePath}/devicePosition", expectedControlType: "Vector3"));
         DeviceActionRotation = new InputActionProperty(new InputAction($"{devicePath}/deviceRotation", InputActionType.Value, $"{devicePath}/deviceRotation", expectedControlType: "Quaternion"));
@@ -107,6 +111,8 @@ public class BasisOpenXRHandInput : BasisInputController
         yield return MenuButton;
         yield return Primary2DAxis;
         yield return Secondary2DAxis;
+        yield return Primary2DAxisClick;
+        yield return Secondary2DAxisClick;
     }
     public new void OnDestroy()
     {
@@ -118,6 +124,8 @@ public class BasisOpenXRHandInput : BasisInputController
         // Poll input state here so InputUpdate() sees fresh data after LastUpdatePlayerControl()
         CurrentInputState.Primary2DAxisRaw = Primary2DAxis.action?.ReadValue<Vector2>() ?? Vector2.zero;
         CurrentInputState.Secondary2DAxisRaw = Secondary2DAxis.action?.ReadValue<Vector2>() ?? Vector2.zero;
+        CurrentInputState.Primary2DAxisClick = Primary2DAxisClick.action?.ReadValue<float>() > TriggerDownAmount;
+        CurrentInputState.Secondary2DAxisClick = Secondary2DAxisClick.action?.ReadValue<float>() > TriggerDownAmount;
         CurrentInputState.GripButton = Grip.action?.ReadValue<float>() > TriggerDownAmount;
         CurrentInputState.SecondaryTrigger = Grip.action?.ReadValue<float>() ?? 0f;
         CurrentInputState.SystemOrMenuButton = MenuButton.action?.ReadValue<float>() > TriggerDownAmount;
@@ -129,6 +137,8 @@ public class BasisOpenXRHandInput : BasisInputController
     {
         CurrentInputState.Primary2DAxisRaw = Primary2DAxis.action?.ReadValue<Vector2>() ?? Vector2.zero;
         CurrentInputState.Secondary2DAxisRaw = Secondary2DAxis.action?.ReadValue<Vector2>() ?? Vector2.zero;
+        CurrentInputState.Primary2DAxisClick = Primary2DAxisClick.action?.ReadValue<float>() > TriggerDownAmount;
+        CurrentInputState.Secondary2DAxisClick = Secondary2DAxisClick.action?.ReadValue<float>() > TriggerDownAmount;
         CurrentInputState.GripButton = Grip.action?.ReadValue<float>() > TriggerDownAmount;
         CurrentInputState.SecondaryTrigger = Grip.action?.ReadValue<float>() ?? 0f;
         CurrentInputState.SystemOrMenuButton = MenuButton.action?.ReadValue<float>() > TriggerDownAmount;
@@ -182,7 +192,7 @@ public class BasisOpenXRHandInput : BasisInputController
         // helper local function (keeps the diff small)
         Vector3 ApplyOffsetToPos(Vector3 rawLocalPos)
         {
-            // rawLocalPos is in your “device/player” space; we scale first, then rotate+translate by offset
+            // rawLocalPos is in your "device/player" space; we scale first, then rotate+translate by offset
             Vector3 scaled = ChangeHandYHeight(rawLocalPos) * playerToAvatar;
             return OffsetCoords.position + (OffsetCoords.rotation * scaled);
         }
@@ -199,7 +209,7 @@ public class BasisOpenXRHandInput : BasisInputController
                 {
                     UpdateHandPose(subsystem.leftHand, BasisLocalPlayer.Instance.LocalHandDriver.LeftHand, out HandRaw.position, out HandRaw.rotation);
 
-                    // keep your existing “final rotation” logic, but (optionally) parent it to OffsetCoords.rotation
+                    // keep your existing "final rotation" logic, but (optionally) parent it to OffsetCoords.rotation
                     HandFinal.rotation = HandleHandFinalRotation(ApplyOffsetToRot(HandRaw.rotation));
                     HandFinal.position = ApplyOffsetToPos(HandRaw.position);
                 }
@@ -216,7 +226,7 @@ public class BasisOpenXRHandInput : BasisInputController
 
                     if (UseIKPositionOffset)
                     {
-                        // IK offset should be rotated by the *same* frame you’re using (use HandFinal.rotation usually)
+                        // IK offset should be rotated by the *same* frame you're using (use HandFinal.rotation usually)
                         HandFinal.position += (HandFinal.rotation * (leftHandToIKPositionOffset * playerToAvatar));
                     }
                 }

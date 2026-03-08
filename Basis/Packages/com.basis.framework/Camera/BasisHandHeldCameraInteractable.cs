@@ -109,6 +109,11 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
 
     private bool pauseMove = false;
 
+    // VR fly mode state
+    private bool isVRFlying = false;
+    private bool vrThumbstickClickPrev = false;
+    private Quaternion vrControllerRotation = Quaternion.identity;
+
     /// <summary>Where to pin the camera transform.</summary>
     public enum CameraPinSpace
     {
@@ -246,6 +251,11 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
             {
                 transform.SetPositionAndRotation(pos, rot);
             }
+        }
+        else
+        {
+            // VR mode: handle fly mode toggle and controller input
+            PollVRControl();
         }
 
         // Update pinning regardless of desktop/head-constraint logic
@@ -444,6 +454,80 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         }
     }
 
+    /// <summary>
+    /// VR fly-mode control: toggles fly mode on thumbstick click (edge-detected)
+    /// and captures controller rotation each frame for camera aiming.
+    /// </summary>
+    private void PollVRControl()
+    {
+        if (GetActiveVRInput(out BasisInputWrapper vrInput))
+        {
+            BasisInputState inputState = vrInput.Source.CurrentInputState;
+            string className = nameof(BasisHandHeldCameraInteractable);
+
+            // Toggle fly mode on thumbstick click (edge detection)
+            bool thumbstickClick = inputState.Primary2DAxisClick;
+            if (thumbstickClick && !vrThumbstickClickPrev)
+            {
+                if (isVRFlying)
+                {
+                    // Exit VR fly mode — return camera to hand
+                    isVRFlying = false;
+                    if (!LookLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove LookLock");
+                    if (!MovementLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove MovementLock");
+                    if (!CrouchingLock.Remove(className)) BasisDebug.LogWarning($"{className} couldn't remove CrouchingLock");
+
+                    PinSpace = CameraPinSpace.HandHeld;
+                    velocityMomentum = Vector3.zero;
+                    rotationMomentum = 0f;
+                }
+                else
+                {
+                    // Enter VR fly mode
+                    isVRFlying = true;
+                    LookLock.Add(className);
+                    MovementLock.Add(className);
+                    CrouchingLock.Add(className);
+
+                    PinSpace = CameraPinSpace.WorldSpace;
+
+                    HHC.captureCamera.transform.GetPositionAndRotation(out smoothedPosition, out smoothedRotation);
+
+                    // Initialize rotation tracking from current camera orientation
+                    Vector3 euler = smoothedRotation.eulerAngles;
+                    currentPitch = targetPitch = NormalizeAngle(euler.x);
+                    currentYaw = targetYaw = NormalizeAngle(euler.y);
+                }
+            }
+            vrThumbstickClickPrev = thumbstickClick;
+
+            if (isVRFlying)
+            {
+                // Store VR controller rotation for movement direction and camera aim
+                vrControllerRotation = vrInput.BoneControl.OutgoingWorldData.rotation;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Retrieves the VR hand currently interacting with this object.
+    /// </summary>
+    private bool GetActiveVRInput(out BasisInputWrapper wrapper)
+    {
+        if (Inputs.leftHand.GetState() == BasisInteractInputState.Interacting)
+        {
+            wrapper = Inputs.leftHand;
+            return true;
+        }
+        if (Inputs.rightHand.GetState() == BasisInteractInputState.Interacting)
+        {
+            wrapper = Inputs.rightHand;
+            return true;
+        }
+        wrapper = default;
+        return false;
+    }
+
     /// <summary>Releases any player locks this interactable has taken.</summary>
     public void ReleasePlayerLocks()
     {
@@ -509,27 +593,57 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         movement = Vector3.zero;
         speedMultiplier = 1f;
 
-        var horizontalInput = flyCamera.horizontalMoveInput;
-        var verticalInput = flyCamera.verticalMoveInput;
-        var isFastMovement = flyCamera.isFastMovement;
+        if (isVRFlying)
+        {
+            // VR path: read thumbstick from the interacting controller
+            if (!GetActiveVRInput(out BasisInputWrapper vrInput))
+                return false;
 
-        movement = new Vector3(horizontalInput.x, verticalInput, horizontalInput.y);
+            BasisInputState state = vrInput.Source.CurrentInputState;
+            Vector2 thumbstick = state.Primary2DAxisDeadZoned;
 
-        if (movement.magnitude < 0.01f)
-            return false;
+            // Thumbstick X = strafe, thumbstick Y = forward/back
+            // Vertical movement comes from controller pitch (point up + push forward = fly up)
+            movement = new Vector3(thumbstick.x, 0f, thumbstick.y);
 
-        // prevent faster diagonal movement
-        if (movement.magnitude > 1f)
-            movement.Normalize();
+            if (movement.magnitude < 0.01f)
+                return false;
 
-        speedMultiplier = isFastMovement ? flyFastMultiplier : 1f;
-        return true;
+            if (movement.magnitude > 1f)
+                movement.Normalize();
+
+            // Grip = speed boost
+            speedMultiplier = state.GripButton ? flyFastMultiplier : 1f;
+            return true;
+        }
+        else
+        {
+            // Desktop path: read keyboard input
+            var horizontalInput = flyCamera.horizontalMoveInput;
+            var verticalInput = flyCamera.verticalMoveInput;
+            var isFastMovement = flyCamera.isFastMovement;
+
+            movement = new Vector3(horizontalInput.x, verticalInput, horizontalInput.y);
+
+            if (movement.magnitude < 0.01f)
+                return false;
+
+            // prevent faster diagonal movement
+            if (movement.magnitude > 1f)
+                movement.Normalize();
+
+            speedMultiplier = isFastMovement ? flyFastMultiplier : 1f;
+            return true;
+        }
     }
 
     /// <summary>Converts input to world velocity and applies acceleration and momentum.</summary>
     private void UpdateMovement(Vector3 inputMovement, float speedMultiplier, float deltaTime)
     {
-        Vector3 worldMovement = HHC.captureCamera.transform.TransformDirection(inputMovement);
+        // In VR, move relative to controller orientation (point where you want to fly).
+        // In desktop, move relative to the camera's current orientation.
+        Quaternion orientationRef = isVRFlying ? vrControllerRotation : HHC.captureCamera.transform.rotation;
+        Vector3 worldMovement = orientationRef * inputMovement;
         targetVelocity = worldMovement * flySpeed * speedMultiplier;
         currentVelocity = Vector3.Lerp(currentVelocity, targetVelocity, flyAcceleration * deltaTime);
 
@@ -558,6 +672,18 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
     private bool HandleRotationInput(out Vector2 rotationDelta)
     {
         rotationDelta = Vector2.zero;
+
+        if (isVRFlying)
+        {
+            // VR: drive target rotation directly from controller orientation.
+            // The actual rotation is applied in ApplySmoothedPosition (1:1 mapping).
+            Vector3 euler = vrControllerRotation.eulerAngles;
+            targetPitch = NormalizeAngle(euler.x);
+            targetYaw = NormalizeAngle(euler.y);
+            return false;
+        }
+
+        // Desktop: mouse delta
         var mouseInput = flyCamera.mouseInput;
 
         if (mouseInput.magnitude < 0.001f)
@@ -603,13 +729,24 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
         Vector3 finalVelocity = currentVelocity + (useMomentum ? velocityMomentum : Vector3.zero);
         smoothedPosition += finalVelocity * deltaTime;
 
-        float enhancedRotationSmoothness = rotationSmoothing + rotationMomentum;
+        if (isVRFlying)
+        {
+            // VR: 1:1 controller-to-camera rotation for responsive aiming
+            currentPitch = targetPitch;
+            currentYaw = targetYaw;
+            smoothedRotation = vrControllerRotation;
+        }
+        else
+        {
+            // Desktop: smoothed rotation with momentum
+            float enhancedRotationSmoothness = rotationSmoothing + rotationMomentum;
 
-        currentPitch = Mathf.LerpAngle(currentPitch, targetPitch, enhancedRotationSmoothness * deltaTime);
-        currentYaw = Mathf.LerpAngle(currentYaw, targetYaw, enhancedRotationSmoothness * deltaTime);
+            currentPitch = Mathf.LerpAngle(currentPitch, targetPitch, enhancedRotationSmoothness * deltaTime);
+            currentYaw = Mathf.LerpAngle(currentYaw, targetYaw, enhancedRotationSmoothness * deltaTime);
 
-        Quaternion targetRotationQuat = Quaternion.Euler(currentPitch, currentYaw, 0f);
-        smoothedRotation = Quaternion.Slerp(smoothedRotation, targetRotationQuat, rotationSmoothing * deltaTime);
+            Quaternion targetRotationQuat = Quaternion.Euler(currentPitch, currentYaw, 0f);
+            smoothedRotation = Quaternion.Slerp(smoothedRotation, targetRotationQuat, rotationSmoothing * deltaTime);
+        }
     }
 
     /// <summary>Normalizes an angle to the range [-180, 180].</summary>
@@ -641,11 +778,12 @@ public abstract class BasisHandHeldCameraInteractable : BasisPickupInteractable
 
         BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(202, UpdateCamera);
 
-        if (pauseMove)
+        if (pauseMove || isVRFlying)
         {
             LookLock.Remove(nameof(BasisHandHeldCameraInteractable));
             MovementLock.Remove(nameof(BasisHandHeldCameraInteractable));
             CrouchingLock.Remove(nameof(BasisHandHeldCameraInteractable));
+            isVRFlying = false;
         }
         if (HighlightClone != null)
         {
