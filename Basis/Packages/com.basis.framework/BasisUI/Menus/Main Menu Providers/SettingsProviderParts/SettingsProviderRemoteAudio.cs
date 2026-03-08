@@ -57,6 +57,7 @@ namespace Basis.BasisUI
             {
                 dropdownCurvePreset.Descriptor.SetActive(
                     string.Equals(val, "custom", StringComparison.OrdinalIgnoreCase));
+                audioSourceGroup.ForceRebuild();
             };
 
             PanelSlider sliderSpread = PanelSlider.CreateEntryAndBind(
@@ -106,6 +107,7 @@ namespace Basis.BasisUI
             {
                 togglePerspectiveCorrection.Descriptor.SetActive(val);
                 dropdownInterpolation.Descriptor.SetActive(val);
+                hrtfGroup.ForceRebuild();
             };
 
             // ─────────────── STEAM AUDIO - PROPAGATION GROUP ───────────────
@@ -129,6 +131,7 @@ namespace Basis.BasisUI
             toggleDistanceAttenuation.OnValueChanged += (val) =>
             {
                 dropdownDistanceAttenuationInput.Descriptor.SetActive(val);
+                propagationGroup.ForceRebuild();
             };
 
             PanelToggle toggleAirAbsorption = PanelToggle.CreateNewEntry(propagationGroup);
@@ -170,6 +173,7 @@ namespace Basis.BasisUI
                 sliderAirAbsorptionLow.Descriptor.SetActive(val && userDefined);
                 sliderAirAbsorptionMid.Descriptor.SetActive(val && userDefined);
                 sliderAirAbsorptionHigh.Descriptor.SetActive(val && userDefined);
+                propagationGroup.ForceRebuild();
             };
 
             dropdownAirAbsorptionInput.OnValueChanged += (val) =>
@@ -179,6 +183,7 @@ namespace Basis.BasisUI
                 sliderAirAbsorptionLow.Descriptor.SetActive(enabled && userDefined);
                 sliderAirAbsorptionMid.Descriptor.SetActive(enabled && userDefined);
                 sliderAirAbsorptionHigh.Descriptor.SetActive(enabled && userDefined);
+                propagationGroup.ForceRebuild();
             };
 
             // ─────────────── STEAM AUDIO - DIRECTIVITY GROUP ───────────────
@@ -209,6 +214,7 @@ namespace Basis.BasisUI
             {
                 sliderDipoleWeight.Descriptor.SetActive(val);
                 sliderDipolePower.Descriptor.SetActive(val);
+                directivityGroup.ForceRebuild();
             };
 
             // ─────────────── STEAM AUDIO - OCCLUSION GROUP ───────────────
@@ -246,6 +252,7 @@ namespace Basis.BasisUI
                 dropdownOcclusionType.Descriptor.SetActive(val);
                 sliderOcclusionRadius.Descriptor.SetActive(val);
                 sliderOcclusionSamples.Descriptor.SetActive(val);
+                occlusionGroup.ForceRebuild();
             };
 
             // ─────────────── STEAM AUDIO - TRANSMISSION GROUP ───────────────
@@ -276,6 +283,7 @@ namespace Basis.BasisUI
             {
                 dropdownTransmissionType.Descriptor.SetActive(val);
                 sliderMaxTransmissionSurfaces.Descriptor.SetActive(val);
+                transmissionGroup.ForceRebuild();
             };
 
             // ─────────────── STEAM AUDIO - MIX GROUP ───────────────
@@ -316,6 +324,7 @@ namespace Basis.BasisUI
             {
                 sliderReflectionsMixLevel.Descriptor.SetActive(val);
                 toggleApplyHRTFToReflections.Descriptor.SetActive(val);
+                reflectionsGroup.ForceRebuild();
             };
 
             // ─────────────── RESET BUTTON ───────────────
