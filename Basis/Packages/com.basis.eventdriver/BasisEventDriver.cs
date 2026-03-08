@@ -70,6 +70,8 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
 
     public static BasisEventDriver Instance;
+
+    public static bool StateOfOnRenderBefore = false;
     /// <summary>
     /// Unity enable hook. Subscribes render callbacks (client), initializes scene and network drivers.
     /// </summary>
@@ -153,6 +155,10 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
     public void LateUpdate()
     {
+        if (StateOfOnRenderBefore)
+        {
+            OnBeforeRender();
+        }
         // Network apply step + gameplay sync
         BasisObjectSyncDriver.TransmitOwnedPickups(TimeAsDouble);//apply latest pickup data
         BasisLocalPlayer.FireJustBeforeNetworkApply(); //hook for network events good for vehicles
@@ -219,9 +225,7 @@ public class BasisEventDriver : MonoBehaviour
         //doing main thread work before this call is ideal for best performance.
         JigglePhysics.CompletePose();
         BasisAvatarDriver.ApplyShadowCloneBlendShapes();
-#if UNITY_SERVER
-        OnBeforeRender();
-#endif
+        StateOfOnRenderBefore = true;
     }
 
     /// <summary>
@@ -236,6 +240,7 @@ public class BasisEventDriver : MonoBehaviour
             BasisRemoteFaceManagement.Apply(); //apply blendshapes
             BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime); //update microphone icon
         }
+        StateOfOnRenderBefore = false;
     }
 
     /// <summary>
