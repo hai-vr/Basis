@@ -48,7 +48,7 @@ namespace BasisDidLink
             BNL.Log("DidAuthIdentity initialized.");
         }
 
-        public void DeInitalize()
+        public void DeInitialize()
         {
             BasisServerHandleEvents.OnAuthReceived -= OnAuthReceived;
             BNL.Log("DidAuthIdentity deinitialized.");

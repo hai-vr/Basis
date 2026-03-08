@@ -36,12 +36,20 @@ public static partial class SerializableBasis
         }
         public void Serialize(NetDataWriter writer)
         {
+            if (array == null)
+            {
+                PayloadSize = 0;
+                writer.Put(PayloadSize);
+                writer.Put(messageIndex);
+                return;
+            }
+
             if (array.Length > 256)
             {
                 BNL.LogError("Larger then 256 cannot send this Additional Avatar Data");
                 return;
             }
-            PayloadSize = (array != null) ? (byte)array.Length : (byte)0;
+            PayloadSize = (byte)array.Length;
 
             writer.Put(PayloadSize);
             writer.Put(messageIndex);
