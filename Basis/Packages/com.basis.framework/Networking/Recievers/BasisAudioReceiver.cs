@@ -171,8 +171,7 @@ namespace Basis.Scripts.Networking.Receivers
                 audioSource.loop = true;
                 audioSource.Play();
 
-                float userMax = BasisSettingsDefaults.RAMaxDistance.RawValue;
-                audioSource.maxDistance = Mathf.Min(MaxDistance, userMax);
+                audioSource.maxDistance = MaxDistance;
             }
             HasAudioSource = true;
             AvatarChanged(networkedPlayer,false);
@@ -194,8 +193,7 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (HasAudioSource)
             {
-                float userMax = BasisSettingsDefaults.RAMaxDistance.RawValue;
-                audioSource.maxDistance = Mathf.Min(Distance, userMax);
+                audioSource.maxDistance = Distance;
             }
         }
         /// <summary>

@@ -40,11 +40,6 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Min Distance", 0.1f, 10f, false, 2, ValueDisplayMode.Meters),
                 BasisSettingsDefaults.RAMinDistance);
 
-            PanelSlider sliderMaxDistance = PanelSlider.CreateEntryAndBind(
-                audioSourceGroup,
-                PanelSlider.SliderSettings.Advanced("Max Distance", 1f, 100f, false, 1, ValueDisplayMode.Meters),
-                BasisSettingsDefaults.RAMaxDistance);
-
             PanelDropdown dropdownRolloffMode = PanelDropdown.CreateNewEntry(audioSourceGroup);
             dropdownRolloffMode.Descriptor.SetTitle("Rolloff Mode");
             dropdownRolloffMode.AssignEntries(new List<string> { "Logarithmic", "Linear", "Custom" });
@@ -54,6 +49,15 @@ namespace Basis.BasisUI
             dropdownCurvePreset.Descriptor.SetTitle("Rolloff Curve Preset");
             dropdownCurvePreset.AssignEntries(new List<string> { "Default", "Sharp Falloff", "Gradual", "Inverse Square", "Flat" });
             dropdownCurvePreset.AssignBinding(BasisSettingsDefaults.RARolloffCurvePreset);
+
+            // Curve preset only visible when rolloff mode is Custom
+            bool isCustomRolloff = string.Equals(BasisSettingsDefaults.RARolloffMode.RawValue, "custom", StringComparison.OrdinalIgnoreCase);
+            dropdownCurvePreset.Descriptor.SetActive(isCustomRolloff);
+            dropdownRolloffMode.OnValueChanged += (val) =>
+            {
+                dropdownCurvePreset.Descriptor.SetActive(
+                    string.Equals(val, "custom", StringComparison.OrdinalIgnoreCase));
+            };
 
             PanelSlider sliderSpread = PanelSlider.CreateEntryAndBind(
                 audioSourceGroup,
@@ -94,6 +98,16 @@ namespace Basis.BasisUI
             dropdownInterpolation.AssignEntries(new List<string> { "Nearest", "Bilinear" });
             dropdownInterpolation.AssignBinding(BasisSettingsDefaults.RAInterpolation);
 
+            // HRTF sub-settings only visible when Direct Binaural is enabled
+            bool binauralOn = BasisSettingsDefaults.RADirectBinaural.RawValue;
+            togglePerspectiveCorrection.Descriptor.SetActive(binauralOn);
+            dropdownInterpolation.Descriptor.SetActive(binauralOn);
+            toggleDirectBinaural.OnValueChanged += (val) =>
+            {
+                togglePerspectiveCorrection.Descriptor.SetActive(val);
+                dropdownInterpolation.Descriptor.SetActive(val);
+            };
+
             // ─────────────── STEAM AUDIO - PROPAGATION GROUP ───────────────
             PanelElementDescriptor propagationGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -108,6 +122,14 @@ namespace Basis.BasisUI
             dropdownDistanceAttenuationInput.Descriptor.SetTitle("Attenuation Mode");
             dropdownDistanceAttenuationInput.AssignEntries(new List<string> { "Curve Driven", "Physics Based" });
             dropdownDistanceAttenuationInput.AssignBinding(BasisSettingsDefaults.RADistanceAttenuationInput);
+
+            // Attenuation mode only visible when distance attenuation is enabled
+            bool distAttenOn = BasisSettingsDefaults.RADistanceAttenuation.RawValue;
+            dropdownDistanceAttenuationInput.Descriptor.SetActive(distAttenOn);
+            toggleDistanceAttenuation.OnValueChanged += (val) =>
+            {
+                dropdownDistanceAttenuationInput.Descriptor.SetActive(val);
+            };
 
             PanelToggle toggleAirAbsorption = PanelToggle.CreateNewEntry(propagationGroup);
             toggleAirAbsorption.Descriptor.SetTitle("Air Absorption");
@@ -133,6 +155,32 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Air Absorption High", 0f, 1f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RAAirAbsorptionHigh);
 
+            // Air absorption sub-settings visibility depends on air absorption toggle + mode
+            bool airOn = BasisSettingsDefaults.RAAirAbsorption.RawValue;
+            bool airUserDefined = string.Equals(BasisSettingsDefaults.RAAirAbsorptionInput.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
+            dropdownAirAbsorptionInput.Descriptor.SetActive(airOn);
+            sliderAirAbsorptionLow.Descriptor.SetActive(airOn && airUserDefined);
+            sliderAirAbsorptionMid.Descriptor.SetActive(airOn && airUserDefined);
+            sliderAirAbsorptionHigh.Descriptor.SetActive(airOn && airUserDefined);
+
+            toggleAirAbsorption.OnValueChanged += (val) =>
+            {
+                dropdownAirAbsorptionInput.Descriptor.SetActive(val);
+                bool userDefined = string.Equals(BasisSettingsDefaults.RAAirAbsorptionInput.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
+                sliderAirAbsorptionLow.Descriptor.SetActive(val && userDefined);
+                sliderAirAbsorptionMid.Descriptor.SetActive(val && userDefined);
+                sliderAirAbsorptionHigh.Descriptor.SetActive(val && userDefined);
+            };
+
+            dropdownAirAbsorptionInput.OnValueChanged += (val) =>
+            {
+                bool userDefined = string.Equals(val, "user defined", StringComparison.OrdinalIgnoreCase);
+                bool enabled = BasisSettingsDefaults.RAAirAbsorption.RawValue;
+                sliderAirAbsorptionLow.Descriptor.SetActive(enabled && userDefined);
+                sliderAirAbsorptionMid.Descriptor.SetActive(enabled && userDefined);
+                sliderAirAbsorptionHigh.Descriptor.SetActive(enabled && userDefined);
+            };
+
             // ─────────────── STEAM AUDIO - DIRECTIVITY GROUP ───────────────
             PanelElementDescriptor directivityGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -152,6 +200,16 @@ namespace Basis.BasisUI
                 directivityGroup,
                 PanelSlider.SliderSettings.Advanced("Dipole Power", 0f, 4f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RADipolePower);
+
+            // Dipole sliders only visible when directivity is enabled
+            bool directivityOn = BasisSettingsDefaults.RADirectivity.RawValue;
+            sliderDipoleWeight.Descriptor.SetActive(directivityOn);
+            sliderDipolePower.Descriptor.SetActive(directivityOn);
+            toggleDirectivity.OnValueChanged += (val) =>
+            {
+                sliderDipoleWeight.Descriptor.SetActive(val);
+                sliderDipolePower.Descriptor.SetActive(val);
+            };
 
             // ─────────────── STEAM AUDIO - OCCLUSION GROUP ───────────────
             PanelElementDescriptor occlusionGroup =
@@ -178,6 +236,18 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Occlusion Samples", 1f, 128f, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RAOcclusionSamples);
 
+            // Occlusion sub-settings only visible when occlusion is enabled
+            bool occlusionOn = BasisSettingsDefaults.RAOcclusion.RawValue;
+            dropdownOcclusionType.Descriptor.SetActive(occlusionOn);
+            sliderOcclusionRadius.Descriptor.SetActive(occlusionOn);
+            sliderOcclusionSamples.Descriptor.SetActive(occlusionOn);
+            toggleOcclusion.OnValueChanged += (val) =>
+            {
+                dropdownOcclusionType.Descriptor.SetActive(val);
+                sliderOcclusionRadius.Descriptor.SetActive(val);
+                sliderOcclusionSamples.Descriptor.SetActive(val);
+            };
+
             // ─────────────── STEAM AUDIO - TRANSMISSION GROUP ───────────────
             PanelElementDescriptor transmissionGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -197,6 +267,16 @@ namespace Basis.BasisUI
                 transmissionGroup,
                 PanelSlider.SliderSettings.Advanced("Max Transmission Surfaces", 1f, 8f, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RAMaxTransmissionSurfaces);
+
+            // Transmission sub-settings only visible when transmission is enabled
+            bool transmissionOn = BasisSettingsDefaults.RATransmission.RawValue;
+            dropdownTransmissionType.Descriptor.SetActive(transmissionOn);
+            sliderMaxTransmissionSurfaces.Descriptor.SetActive(transmissionOn);
+            toggleTransmission.OnValueChanged += (val) =>
+            {
+                dropdownTransmissionType.Descriptor.SetActive(val);
+                sliderMaxTransmissionSurfaces.Descriptor.SetActive(val);
+            };
 
             // ─────────────── STEAM AUDIO - MIX GROUP ───────────────
             PanelElementDescriptor mixGroup =
@@ -228,6 +308,16 @@ namespace Basis.BasisUI
             toggleApplyHRTFToReflections.Descriptor.SetTitle("Apply HRTF to Reflections");
             toggleApplyHRTFToReflections.AssignBinding(BasisSettingsDefaults.RAApplyHRTFToReflections);
 
+            // Reflections sub-settings only visible when reflections is enabled
+            bool reflectionsOn = BasisSettingsDefaults.RAReflections.RawValue;
+            sliderReflectionsMixLevel.Descriptor.SetActive(reflectionsOn);
+            toggleApplyHRTFToReflections.Descriptor.SetActive(reflectionsOn);
+            toggleReflections.OnValueChanged += (val) =>
+            {
+                sliderReflectionsMixLevel.Descriptor.SetActive(val);
+                toggleApplyHRTFToReflections.Descriptor.SetActive(val);
+            };
+
             // ─────────────── RESET BUTTON ───────────────
             SettingsProvider.AddResetPageButton(container, "Remote Audio", ResetRemoteAudioDefaults);
 
@@ -239,7 +329,6 @@ namespace Basis.BasisUI
         {
             // AudioSource
             BasisSettingsDefaults.RAMinDistance.ResetToDefault();
-            BasisSettingsDefaults.RAMaxDistance.ResetToDefault();
             BasisSettingsDefaults.RARolloffMode.ResetToDefault();
             BasisSettingsDefaults.RARolloffCurvePreset.ResetToDefault();
             BasisSettingsDefaults.RASpread.ResetToDefault();
@@ -315,7 +404,6 @@ namespace Basis.BasisUI
 
             // AudioSource settings
             source.minDistance = BasisSettingsDefaults.RAMinDistance.RawValue;
-            source.maxDistance = BasisSettingsDefaults.RAMaxDistance.RawValue;
             source.rolloffMode = ParseRolloffMode(BasisSettingsDefaults.RARolloffMode.RawValue);
             if (source.rolloffMode == AudioRolloffMode.Custom)
             {
