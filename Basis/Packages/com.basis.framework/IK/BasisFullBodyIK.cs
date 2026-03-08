@@ -292,8 +292,6 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_ShoulderElevationFactor;
         [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_ShoulderProtractionFactor;
 
-        // Hip rotation compensation when position is clamped
-        [SyncSceneToStream, SerializeField, Range(0f, 1f)] float m_HipRotationCompensation;
         public float minHeadSpineHeight
         {
             get => m_MinHeadSpineHeight;
@@ -423,12 +421,9 @@ namespace UnityEngine.Animations.Rigging
         public bool ShoulderSolveEnabled { get => m_ShoulderSolveEnabled; set => m_ShoulderSolveEnabled = value; }
         public float ShoulderElevationFactor { get => m_ShoulderElevationFactor; set => m_ShoulderElevationFactor = value; }
         public float ShoulderProtractionFactor { get => m_ShoulderProtractionFactor; set => m_ShoulderProtractionFactor = value; }
-        public float HipRotationCompensation { get => m_HipRotationCompensation; set => m_HipRotationCompensation = value; }
-
         public string ShoulderSolveEnabledProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ShoulderSolveEnabled));
         public string ShoulderElevationFactorProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ShoulderElevationFactor));
         public string ShoulderProtractionFactorProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_ShoulderProtractionFactor));
-        public string HipRotationCompensationProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_HipRotationCompensation));
         // ---------- Validation ----------
         bool IAnimationJobData.IsValid()
         {
@@ -496,7 +491,6 @@ namespace UnityEngine.Animations.Rigging
             m_ShoulderSolveEnabled = true;
             m_ShoulderElevationFactor = 0.4f;
             m_ShoulderProtractionFactor = 0.3f;
-            m_HipRotationCompensation = 0.5f;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
@@ -766,7 +760,7 @@ w20, w54;
         public Vector3 TposeLengthHeadToChest;
         public Vector3 TposeLengthHeadToHips;
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxHipDeltaProperty, MaxChestDeltaProperty;
-        public FloatProperty shoulderElevationFactor, shoulderProtractionFactor, hipRotationCompensation;
+        public FloatProperty shoulderElevationFactor, shoulderProtractionFactor;
         public BoolProperty shoulderSolveEnabled;
         // T-pose baked reference data for shoulder solve
         public Vector3 TposeLeftShoulderLocalDir, TposeRightShoulderLocalDir;
@@ -847,7 +841,6 @@ w20, w54;
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
-            Quaternion headTargetRot = V4ToQuat(targetRotationHead.Get(stream));
             Quaternion hipsTargetRot = V4ToQuat(targetRotationHips.Get(stream));
             Quaternion offsetHips = V4ToQuat(offsetRotationHips.Get(stream));
             Quaternion chestTargetRot = V4ToQuat(targetChestRotation.Get(stream));
@@ -855,88 +848,53 @@ w20, w54;
             Quaternion hipDesired = hipsTargetRot * offsetHips;
             Quaternion chestDesired = chestTargetRot * targetOffsetChest;
 
+            // 1) HIPS: clamp pos + limit rot
             float restDist = MinHeadSpineHeight.Get(stream);
-            float MaxBendDeg = maxBendDeg.Get(stream);
 
-            // 1) Enforce spine bend limit
+            float MaxBendDeg = maxBendDeg.Get(stream);
+            // 1) Limit spine bend by pushing hips down if needed
             hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, MaxBendDeg);
 
-            // 2) Clamp hips around head with struggle-aware blending
-            Vector3 unclampedHips = hipsTargetPos;
             hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
-
-            // Struggle blending: soften IK when near reach limits
-            float sStart = struggleStart.Get(stream);
-            float sEnd = struggleEnd.Get(stream);
-            float headToHipsDist = (hipsTargetPos - headTargetPos).magnitude;
-            float stretchRatio = (restDist > k_Epsilon) ? headToHipsDist / restDist : 0f;
-            float struggleWeight = 1f;
-            if (sEnd > sStart && sStart > 0f)
-            {
-                struggleWeight = 1f - Saturate((stretchRatio - sStart) / (sEnd - sStart));
-            }
 
             targetPositionHips.Set(stream, hipsTargetPos);
 
-            // 3) Apply hips with rotation compensation
+            // Apply hips driver if valid
             if (HandleHips.IsValid(stream))
             {
                 HandleHips.SetPosition(stream, hipsTargetPos);
-
-                // Compensate hip rotation when position was clamped
-                float hipCompFactor = hipRotationCompensation.Get(stream);
-                if (hipCompFactor > 0f)
-                {
-                    Vector3 clampDelta = hipsTargetPos - unclampedHips;
-                    if (clampDelta.sqrMagnitude > k_SqrEpsilon)
-                    {
-                        // Tilt hips slightly toward the direction they were pushed
-                        Vector3 hipForward = hipDesired * Vector3.forward;
-                        Vector3 adjustedForward = (hipForward + clampDelta.normalized * hipCompFactor * 0.3f).normalized;
-                        if (adjustedForward.sqrMagnitude > k_SqrEpsilon)
-                        {
-                            Vector3 hipUp = hipDesired * Vector3.up;
-                            Quaternion adjustedRot = Quaternion.LookRotation(adjustedForward, hipUp);
-                            hipDesired = Quaternion.Slerp(hipDesired, adjustedRot, hipCompFactor * struggleWeight);
-                        }
-                    }
-                }
                 HandleHips.SetRotation(stream, hipDesired);
             }
-
-            // 4) Chest→Neck→Head chain
-            bool hasChestTracker = HasChestTracker.Get(stream);
-            bool chainValid = HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream);
-
-            if (chainValid)
+            if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
             {
-                // If chest tracker is present, apply its rotation first (clamped to neighbors)
-                if (hasChestTracker && HandleChest.IsValid(stream))
-                {
-                    Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
-                    Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
+                // Build target + hint transforms
+                var tRot = V4ToQuat(targetRotationHead.Get(stream));
+                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                var bendNormal = bendNormalHead.Get(stream);
 
-                    float chestMaxDelta = MaxChestDeltaProperty.Get(stream);
-                    Quaternion clampedChestRot = ClampRotation(chestDesired, neckRot, chestMaxDelta);
-                    clampedChestRot = ClampRotation(clampedChestRot, spineRot, chestMaxDelta);
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+            }
+            if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
+            {
+                // Neck rotation produced by your spine IK pass – we keep this
+                Quaternion neckRot = HandleNeck.IsValid(stream) ? HandleNeck.GetRotation(stream) : Quaternion.identity;
 
-                    HandleChest.SetRotation(stream, clampedChestRot);
-                }
+                // Spine as an extra reference if available (nice stabiliser)
+                Quaternion spineRot = HandleSpine.IsValid(stream) ? HandleSpine.GetRotation(stream) : neckRot;
 
-                // Use FABRIK for chest→head chain when available, fall back to two-bone
-                bool usedFabrik = SolveChestToHeadFABRIK(stream, headTargetPos);
-                if (!usedFabrik)
-                {
-                    var target = new AffineTransform(headTargetPos, headTargetRot);
-                    var bendNormal = bendNormalHead.Get(stream);
-                    SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
-                }
+                float Value = MaxChestDeltaProperty.Get(stream);
+                // Clamp relative to neck and spine
+                Quaternion clampedChestRot = ClampRotation(chestDesired, neckRot, Value);
+                clampedChestRot = ClampRotation(clampedChestRot, spineRot, Value);
 
-                // Always pin head rotation to target
-                if (HandleHead.IsValid(stream))
-                {
-                    HandleHead.SetRotation(stream, headTargetRot * targetOffsetHead);
-                }
+                HandleChest.SetRotation(stream, clampedChestRot);
+
+                // Build target + hint transforms
+                var tRot = V4ToQuat(targetRotationHead.Get(stream));
+                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
+                var bendNormal = bendNormalHead.Get(stream);
+
+                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
             }
         }
         public void SolveShoulder(AnimationStream stream, ReadWriteTransformHandle shoulderHandle,
@@ -1892,7 +1850,6 @@ w20, w54;
                 shoulderSolveEnabled = BoolProperty.Bind(animator, component, data.ShoulderSolveEnabledProperty),
                 shoulderElevationFactor = FloatProperty.Bind(animator, component, data.ShoulderElevationFactorProperty),
                 shoulderProtractionFactor = FloatProperty.Bind(animator, component, data.ShoulderProtractionFactorProperty),
-                hipRotationCompensation = FloatProperty.Bind(animator, component, data.HipRotationCompensationProperty),
 
                 // Baked T-pose data for shoulder solve
                 TposeLeftShoulderRot = data.LeftShoulder != null ? data.LeftShoulder.rotation : Quaternion.identity,
