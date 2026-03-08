@@ -560,9 +560,7 @@ namespace SteamAudio
             mDeformedSphereMesh = new Mesh();
             mDeformedSphereMesh.vertices = mDeformedSphereVertices;
             mDeformedSphereMesh.triangles = indices;
-
-            // For Gizmos wireframe you usually don't need normals; leave this out unless required.
-            // mDeformedSphereMesh.RecalculateNormals();
+            mDeformedSphereMesh.RecalculateNormals();
         }
 
         void DeformSphereMesh()
@@ -573,6 +571,7 @@ namespace SteamAudio
             }
 
             mDeformedSphereMesh.vertices = mDeformedSphereVertices;
+            mDeformedSphereMesh.RecalculateNormals();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
