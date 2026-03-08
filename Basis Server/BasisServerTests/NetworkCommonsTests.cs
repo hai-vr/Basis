@@ -13,9 +13,9 @@ namespace BasisServerTests
         }
 
         [Fact]
-        public void TotalChannels_Is28()
+        public void TotalChannels_Is27()
         {
-            Assert.Equal(28, BasisNetworkCommons.TotalChannels);
+            Assert.Equal(27, BasisNetworkCommons.TotalChannels);
         }
 
         [Fact]
@@ -50,7 +50,6 @@ namespace BasisServerTests
                 BasisNetworkCommons.RequestStoreDatabaseChannel,
                 BasisNetworkCommons.ServerStatisticsChannel,
                 BasisNetworkCommons.ServerIsAdminChannel,
-                BasisNetworkCommons.DeltaPlayerAvatarChannel,
             };
 
             Assert.Equal(BasisNetworkCommons.TotalChannels, channels.Count);
@@ -60,7 +59,7 @@ namespace BasisServerTests
         public void AllChannels_AreLessThanTotalChannels()
         {
             Assert.True(BasisNetworkCommons.FallChannel < BasisNetworkCommons.TotalChannels);
-            Assert.True(BasisNetworkCommons.DeltaPlayerAvatarChannel < BasisNetworkCommons.TotalChannels);
+            Assert.True(BasisNetworkCommons.ServerIsAdminChannel < BasisNetworkCommons.TotalChannels);
         }
 
         [Fact]
@@ -68,7 +67,7 @@ namespace BasisServerTests
         {
             // Channels should range from 0 to TotalChannels-1
             Assert.Equal(0, BasisNetworkCommons.FallChannel);
-            Assert.Equal(27, BasisNetworkCommons.DeltaPlayerAvatarChannel);
+            Assert.Equal(26, BasisNetworkCommons.ServerIsAdminChannel);
         }
     }
 

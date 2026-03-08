@@ -48,28 +48,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public LocalAvatarSyncMessage AvatarLow;
         public LocalAvatarSyncMessage AvatarVeryLow;
 
-        // --- Delta compression state ---
-        public int KeyframeTickCounter;
-
-        // Last keyframe payload per quality index (0=VeryLow,1=Low,2=Medium,3=High)
-        public byte[][] KeyframeBaseline = new byte[4][];
-
-        // Pre-allocated delta encode buffers per quality
-        public byte[][] DeltaBuffer = new byte[4][];
-        public int[] DeltaLength = new int[4];
-        public bool[] DeltaComputed = new bool[4];
-
-        // Per quality, tracks which recipients have received the current baseline keyframe
-        public FastBitSet[] HasReceivedKeyframe = new FastBitSet[4];
-
         // Pre-serialized keyframe bytes per quality [PlayerID:2][interval_placeholder:1][quality:1][array:N][additionalSize:1]
         // The interval byte at offset 2 is filled per-recipient in the send loop.
         public byte[][] SerializedKeyframe = new byte[4][];
         public int[] SerializedKeyframeLength = new int[4];
-
-        // Pre-serialized delta bytes per quality [PlayerID:2][interval_placeholder:1][quality:1][deltaPayload:M][additionalSize:1]
-        public byte[][] SerializedDelta = new byte[4][];
-        public int[] SerializedDeltaLength = new int[4];
     }
 
     public partial class BasisServerReductionSystemEvents
@@ -107,9 +89,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public static float HighDistanceSq = 9f;        // 3m
         public static float MediumDistanceSq = 100f;    // 10m
         public static float LowDistanceSq = 400f;       // 20m
-
-        // Delta compression: keyframe every N source updates (per player)
-        public const int KeyframeInterval = 5;
 
         // Tick slicing: only process a subset of receivers each tick to spread the O(N²) work.
         // Adaptive: increases when ticks take too long, decreases when under budget.
@@ -262,10 +241,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 var stateI = playerI.state;
                 var peer = stateI.Peer;
 
-                // Congestion check: sum both avatar channels for the real picture
-                int q1 = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
-                int q2 = peer.GetPacketsCountInQueue(BasisNetworkCommons.DeltaPlayerAvatarChannel, DeliveryMethod.Sequenced);
-                int queueDepth = q1 + q2;
+                // Congestion check
+                int queueDepth = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
 
                 // Severe congestion — skip this peer entirely
                 if (queueDepth > 512) return;
@@ -338,27 +315,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         // Pick quality by distance, capped by congestion
                         int qi = Math.Min(GetQualityIndex(distSq), maxQi);
 
-                        // Decide keyframe vs delta
-                        bool needsKeyframe = stateJ.HasReceivedKeyframe[qi] == null
-                            || !stateJ.HasReceivedKeyframe[qi].Get(playerI.id);
-
-                        if (needsKeyframe || !stateJ.DeltaComputed[qi])
-                        {
-                            // Send keyframe using pre-serialized bytes
-                            SendPreSerialized(peer, stateJ, qi, startAtZeroInterval,
-                                BasisNetworkCommons.PlayerAvatarChannel,
-                                stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
-
-                            // Mark recipient as having received this baseline
-                            stateJ.HasReceivedKeyframe[qi]?.Set(playerI.id, true);
-                        }
-                        else
-                        {
-                            // Send delta using pre-serialized bytes
-                            SendPreSerialized(peer, stateJ, qi, startAtZeroInterval,
-                                BasisNetworkCommons.DeltaPlayerAvatarChannel,
-                                stateJ.SerializedDelta, stateJ.SerializedDeltaLength);
-                        }
+                        // Always send full keyframe
+                        SendPreSerialized(peer, stateJ, qi, startAtZeroInterval,
+                            BasisNetworkCommons.PlayerAvatarChannel,
+                            stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
 
                         sentTimes[jId] = nowTicks;
                         seenGens[jId] = senderGen;
@@ -527,15 +487,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     state.AvatarVeryLow = high;
                 }
 
-                // Initialize delta compression
-                for (int q = 0; q < 4; q++)
-                {
-                    state.HasReceivedKeyframe[q] = new FastBitSet(MaxConcurrentPlayers);
-                }
-                state.KeyframeTickCounter = 0;
-
-                // First frame: set baselines and pre-serialize
-                UpdateBaselines(state);
+                // First frame: pre-serialize
                 PreSerializeAll(state);
 
                 playerStates[id] = state;
@@ -573,16 +525,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // Keep SyncMessage in sync (shell)
                 state.SyncMessage.avatarSerialization = high;
 
-                // Delta keyframe management
-                state.KeyframeTickCounter++;
-                if (state.KeyframeTickCounter >= KeyframeInterval)
-                {
-                    state.KeyframeTickCounter = 0;
-                    UpdateBaselines(state);
-                }
-
-                // Compute deltas and pre-serialize all quality levels
-                ComputeDeltas(state);
                 PreSerializeAll(state);
 
                 // Single atomic increment replaces O(N) CAS bit-setting across all other players.
@@ -593,61 +535,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             QueuedMessagePool.Return(message);
         }
 
-        #region Delta Compression Helpers
-
-        private static void UpdateBaselines(PlayerState state)
-        {
-            UpdateBaselineForQuality(state, 0, state.AvatarVeryLow);
-            UpdateBaselineForQuality(state, 1, state.AvatarLow);
-            UpdateBaselineForQuality(state, 2, state.AvatarMedium);
-            UpdateBaselineForQuality(state, 3, state.AvatarHigh);
-
-            // Force all recipients to receive a new keyframe
-            for (int q = 0; q < 4; q++)
-            {
-                state.HasReceivedKeyframe[q]?.SetAll(false);
-                state.DeltaComputed[q] = false;
-            }
-        }
-
-        private static void UpdateBaselineForQuality(PlayerState state, int qi, LocalAvatarSyncMessage msg)
-        {
-            if (msg.array == null) return;
-            int len = msg.array.Length;
-            if (state.KeyframeBaseline[qi] == null || state.KeyframeBaseline[qi].Length != len)
-                state.KeyframeBaseline[qi] = new byte[len];
-            Buffer.BlockCopy(msg.array, 0, state.KeyframeBaseline[qi], 0, len);
-        }
-
-        private static void ComputeDeltas(PlayerState state)
-        {
-            ComputeDeltaForQuality(state, 0, state.AvatarVeryLow);
-            ComputeDeltaForQuality(state, 1, state.AvatarLow);
-            ComputeDeltaForQuality(state, 2, state.AvatarMedium);
-            ComputeDeltaForQuality(state, 3, state.AvatarHigh);
-        }
-
-        private static void ComputeDeltaForQuality(PlayerState state, int qi, LocalAvatarSyncMessage msg)
-        {
-            state.DeltaComputed[qi] = false;
-            if (msg.array == null || state.KeyframeBaseline[qi] == null) return;
-            if (msg.array.Length != state.KeyframeBaseline[qi].Length) return;
-
-            int maxDelta = AvatarDeltaCompression.MaxDeltaSize(msg.array.Length);
-            if (state.DeltaBuffer[qi] == null || state.DeltaBuffer[qi].Length < maxDelta)
-                state.DeltaBuffer[qi] = new byte[maxDelta];
-
-            state.DeltaLength[qi] = AvatarDeltaCompression.EncodeDelta(
-                msg.array, state.KeyframeBaseline[qi], state.DeltaBuffer[qi]);
-            state.DeltaComputed[qi] = true;
-        }
-
-        #endregion
-
         #region Pre-serialization
 
         /// <summary>
-        /// Pre-serializes keyframe and delta messages for all 4 quality levels.
+        /// Pre-serializes keyframe messages for all 4 quality levels.
         /// The interval byte (offset 2) is left as 0 and patched per-recipient during send.
         /// Uses thread-local writers to avoid shared pool contention.
         /// </summary>
@@ -659,29 +550,23 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             PreSerializeKeyframe(state, 1, state.AvatarLow, playerId);
             PreSerializeKeyframe(state, 2, state.AvatarMedium, playerId);
             PreSerializeKeyframe(state, 3, state.AvatarHigh, playerId);
-
-            if (state.DeltaComputed[0]) PreSerializeDelta(state, 0, state.AvatarVeryLow, playerId);
-            if (state.DeltaComputed[1]) PreSerializeDelta(state, 1, state.AvatarLow, playerId);
-            if (state.DeltaComputed[2]) PreSerializeDelta(state, 2, state.AvatarMedium, playerId);
-            if (state.DeltaComputed[3]) PreSerializeDelta(state, 3, state.AvatarHigh, playerId);
         }
 
         private static void PreSerializeKeyframe(PlayerState state, int qi, LocalAvatarSyncMessage msg, ushort playerId)
         {
-            byte[] baselineArray = state.KeyframeBaseline[qi];
-            if (baselineArray == null || msg.array == null) return;
+            if (msg.array == null) return;
 
             var quality = (BitQuality)msg.DataQualityLevel;
             int expectedPayload = BasisAvatarBitPacking.ConvertToSize(quality);
 
-            // Skip if the baseline is undersized (e.g. client sent wrong quality level)
-            if (baselineArray.Length < expectedPayload)
+            // Skip if the array is undersized (e.g. client sent wrong quality level)
+            if (msg.array.Length < expectedPayload)
             {
-                BNL.LogError($"[PreSerializeKeyframe] Baseline undersized for quality {quality}: got {baselineArray.Length}, need {expectedPayload}. Skipping.");
+                BNL.LogError($"[PreSerializeKeyframe] Array undersized for quality {quality}: got {msg.array.Length}, need {expectedPayload}. Skipping.");
                 return;
             }
 
-            // [PlayerID:2][interval:1][quality:1][baselineArray:N][additionalSize:1][additional...]
+            // [PlayerID:2][interval:1][quality:1][array:N][additionalSize:1][additional...]
             int additionalSize = 0;
             if (msg.AdditionalAvatarDatas != null && msg.AdditionalAvatarDatas.Length > 0)
             {
@@ -701,7 +586,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             writer.Put(playerId);
             writer.Put((byte)0); // interval placeholder
             writer.Put(msg.DataQualityLevel);
-            writer.Put(baselineArray, 0, expectedPayload);
+            writer.Put(msg.array, 0, expectedPayload);
 
             // Additional avatar data (from current msg)
             if (msg.AdditionalAvatarDatas == null || msg.AdditionalAvatarDatas.Length == 0 || msg.AdditionalAvatarDatas.Length > 256)
@@ -721,52 +606,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int written = writer.Length;
             Buffer.BlockCopy(writer.Data, 0, state.SerializedKeyframe[qi], 0, written);
             state.SerializedKeyframeLength[qi] = written;
-        }
-
-        private static void PreSerializeDelta(PlayerState state, int qi, LocalAvatarSyncMessage msg, ushort playerId)
-        {
-            if (msg.array == null || !state.DeltaComputed[qi]) return;
-
-            // [PlayerID:2][interval:1][quality:1][deltaPayload:M][additionalSize:1][additional...]
-            int additionalSize = 0;
-            if (msg.AdditionalAvatarDatas != null && msg.AdditionalAvatarDatas.Length > 0)
-            {
-                additionalSize = 1;
-                for (int i = 0; i < msg.AdditionalAvatarDatas.Length; i++)
-                {
-                    additionalSize += 1 + 1 + (msg.AdditionalAvatarDatas[i].array?.Length ?? 0);
-                }
-            }
-
-            int totalSize = 2 + 1 + 1 + state.DeltaLength[qi] + 1 + additionalSize;
-
-            if (state.SerializedDelta[qi] == null || state.SerializedDelta[qi].Length < totalSize)
-                state.SerializedDelta[qi] = new byte[totalSize];
-
-            NetDataWriter writer = GetThreadWriter();
-            writer.Put(playerId);
-            writer.Put((byte)0); // interval placeholder
-            writer.Put(msg.DataQualityLevel);
-            writer.Put(state.DeltaBuffer[qi], 0, state.DeltaLength[qi]);
-
-            // Write additional avatar data (same as keyframe)
-            if (msg.AdditionalAvatarDatas == null || msg.AdditionalAvatarDatas.Length == 0 || msg.AdditionalAvatarDatas.Length > 256)
-            {
-                writer.Put((byte)0);
-            }
-            else
-            {
-                writer.Put((byte)msg.AdditionalAvatarDatas.Length);
-                writer.Put(msg.LinkedAvatarIndex);
-                for (int i = 0; i < msg.AdditionalAvatarDatas.Length; i++)
-                {
-                    msg.AdditionalAvatarDatas[i].Serialize(writer);
-                }
-            }
-
-            int written = writer.Length;
-            Buffer.BlockCopy(writer.Data, 0, state.SerializedDelta[qi], 0, written);
-            state.SerializedDeltaLength[qi] = written;
         }
 
         #endregion
