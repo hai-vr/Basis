@@ -1470,6 +1470,18 @@ namespace Basis.BasisUI
                         return k.Persistent == false;
                     }).ToList();
                     break;
+                case LibraryItemTypeFilter.PlacedByMe:
+                    collections = collections.Where(k =>
+                    {
+                        return k.UUIDOfCreator == BasisLocalPlayer.Instance.UUID;
+                    }).ToList();
+                    break;
+                case LibraryItemTypeFilter.NotPlacedByMe:
+                    collections = collections.Where(k =>
+                    {
+                        return k.UUIDOfCreator != BasisLocalPlayer.Instance.UUID;
+                    }).ToList();
+                    break;
             }
 
             // // sort by spawn mode
