@@ -145,12 +145,12 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> MicrophoneMode => new("microphonemode", new BasisPlatformDefault<string>("onactivation"));
 
-        public static BasisSettingsBinding<bool> UseAutomaticGain => new("agcenabled", new BasisPlatformDefault<bool>
+        public static BasisSettingsBinding<bool> UseAutomaticGain => new("automaticgainenabled", new BasisPlatformDefault<bool>
         {
-            windows = false,
-            android = false,
-            linux = false,
-            other = false
+            windows = true,
+            android = true,
+            linux = true,
+            other = true
         });
 
         public static BasisSettingsBinding<bool> FalseBinding => new("falsebinding", new BasisPlatformDefault<bool>(false));
