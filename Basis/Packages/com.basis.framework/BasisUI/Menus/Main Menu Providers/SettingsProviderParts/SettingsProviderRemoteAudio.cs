@@ -40,6 +40,21 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Min Distance", 0.1f, 10f, false, 2, ValueDisplayMode.Meters),
                 BasisSettingsDefaults.RAMinDistance);
 
+            PanelSlider sliderMaxDistance = PanelSlider.CreateEntryAndBind(
+                audioSourceGroup,
+                PanelSlider.SliderSettings.Advanced("Max Distance", 1f, 100f, false, 1, ValueDisplayMode.Meters),
+                BasisSettingsDefaults.RAMaxDistance);
+
+            PanelDropdown dropdownRolloffMode = PanelDropdown.CreateNewEntry(audioSourceGroup);
+            dropdownRolloffMode.Descriptor.SetTitle("Rolloff Mode");
+            dropdownRolloffMode.AssignEntries(new List<string> { "Logarithmic", "Linear", "Custom" });
+            dropdownRolloffMode.AssignBinding(BasisSettingsDefaults.RARolloffMode);
+
+            PanelDropdown dropdownCurvePreset = PanelDropdown.CreateNewEntry(audioSourceGroup);
+            dropdownCurvePreset.Descriptor.SetTitle("Rolloff Curve Preset");
+            dropdownCurvePreset.AssignEntries(new List<string> { "Default", "Sharp Falloff", "Gradual", "Inverse Square", "Flat" });
+            dropdownCurvePreset.AssignBinding(BasisSettingsDefaults.RARolloffCurvePreset);
+
             PanelSlider sliderSpread = PanelSlider.CreateEntryAndBind(
                 audioSourceGroup,
                 PanelSlider.SliderSettings.Degrees("Spread", 0f, 360f, true, 0),
@@ -54,6 +69,11 @@ namespace Basis.BasisUI
                 audioSourceGroup,
                 PanelSlider.SliderSettings.Advanced("Spatial Blend", 0f, 1f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RASpatialBlend);
+
+            PanelSlider sliderPriority = PanelSlider.CreateEntryAndBind(
+                audioSourceGroup,
+                PanelSlider.SliderSettings.Advanced("Priority", 0f, 256f, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.RAPriority);
 
             // ─────────────── STEAM AUDIO - HRTF GROUP ───────────────
             PanelElementDescriptor hrtfGroup =
@@ -84,9 +104,34 @@ namespace Basis.BasisUI
             toggleDistanceAttenuation.Descriptor.SetTitle("Distance Attenuation");
             toggleDistanceAttenuation.AssignBinding(BasisSettingsDefaults.RADistanceAttenuation);
 
+            PanelDropdown dropdownDistanceAttenuationInput = PanelDropdown.CreateNewEntry(propagationGroup);
+            dropdownDistanceAttenuationInput.Descriptor.SetTitle("Attenuation Mode");
+            dropdownDistanceAttenuationInput.AssignEntries(new List<string> { "Curve Driven", "Physics Based" });
+            dropdownDistanceAttenuationInput.AssignBinding(BasisSettingsDefaults.RADistanceAttenuationInput);
+
             PanelToggle toggleAirAbsorption = PanelToggle.CreateNewEntry(propagationGroup);
             toggleAirAbsorption.Descriptor.SetTitle("Air Absorption");
             toggleAirAbsorption.AssignBinding(BasisSettingsDefaults.RAAirAbsorption);
+
+            PanelDropdown dropdownAirAbsorptionInput = PanelDropdown.CreateNewEntry(propagationGroup);
+            dropdownAirAbsorptionInput.Descriptor.SetTitle("Air Absorption Mode");
+            dropdownAirAbsorptionInput.AssignEntries(new List<string> { "Simulation Defined", "User Defined" });
+            dropdownAirAbsorptionInput.AssignBinding(BasisSettingsDefaults.RAAirAbsorptionInput);
+
+            PanelSlider sliderAirAbsorptionLow = PanelSlider.CreateEntryAndBind(
+                propagationGroup,
+                PanelSlider.SliderSettings.Advanced("Air Absorption Low", 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.RAAirAbsorptionLow);
+
+            PanelSlider sliderAirAbsorptionMid = PanelSlider.CreateEntryAndBind(
+                propagationGroup,
+                PanelSlider.SliderSettings.Advanced("Air Absorption Mid", 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.RAAirAbsorptionMid);
+
+            PanelSlider sliderAirAbsorptionHigh = PanelSlider.CreateEntryAndBind(
+                propagationGroup,
+                PanelSlider.SliderSettings.Advanced("Air Absorption High", 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.RAAirAbsorptionHigh);
 
             // ─────────────── STEAM AUDIO - DIRECTIVITY GROUP ───────────────
             PanelElementDescriptor directivityGroup =
@@ -164,6 +209,25 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Direct Mix Level", 0f, 1f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RADirectMixLevel);
 
+            // ─────────────── STEAM AUDIO - REFLECTIONS GROUP ───────────────
+            PanelElementDescriptor reflectionsGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            reflectionsGroup.SetTitle("Reflections");
+            reflectionsGroup.SetDescription("Environment reflections on voice audio. Requires baked scene data for best results.");
+
+            PanelToggle toggleReflections = PanelToggle.CreateNewEntry(reflectionsGroup);
+            toggleReflections.Descriptor.SetTitle("Reflections");
+            toggleReflections.AssignBinding(BasisSettingsDefaults.RAReflections);
+
+            PanelSlider sliderReflectionsMixLevel = PanelSlider.CreateEntryAndBind(
+                reflectionsGroup,
+                PanelSlider.SliderSettings.Advanced("Reflections Mix Level", 0f, 10f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.RAReflectionsMixLevel);
+
+            PanelToggle toggleApplyHRTFToReflections = PanelToggle.CreateNewEntry(reflectionsGroup);
+            toggleApplyHRTFToReflections.Descriptor.SetTitle("Apply HRTF to Reflections");
+            toggleApplyHRTFToReflections.AssignBinding(BasisSettingsDefaults.RAApplyHRTFToReflections);
+
             // ─────────────── RESET BUTTON ───────────────
             SettingsProvider.AddResetPageButton(container, "Remote Audio", ResetRemoteAudioDefaults);
 
@@ -175,9 +239,13 @@ namespace Basis.BasisUI
         {
             // AudioSource
             BasisSettingsDefaults.RAMinDistance.ResetToDefault();
+            BasisSettingsDefaults.RAMaxDistance.ResetToDefault();
+            BasisSettingsDefaults.RARolloffMode.ResetToDefault();
+            BasisSettingsDefaults.RARolloffCurvePreset.ResetToDefault();
             BasisSettingsDefaults.RASpread.ResetToDefault();
             BasisSettingsDefaults.RADopplerLevel.ResetToDefault();
             BasisSettingsDefaults.RASpatialBlend.ResetToDefault();
+            BasisSettingsDefaults.RAPriority.ResetToDefault();
 
             // HRTF
             BasisSettingsDefaults.RADirectBinaural.ResetToDefault();
@@ -186,7 +254,12 @@ namespace Basis.BasisUI
 
             // Propagation
             BasisSettingsDefaults.RADistanceAttenuation.ResetToDefault();
+            BasisSettingsDefaults.RADistanceAttenuationInput.ResetToDefault();
             BasisSettingsDefaults.RAAirAbsorption.ResetToDefault();
+            BasisSettingsDefaults.RAAirAbsorptionInput.ResetToDefault();
+            BasisSettingsDefaults.RAAirAbsorptionLow.ResetToDefault();
+            BasisSettingsDefaults.RAAirAbsorptionMid.ResetToDefault();
+            BasisSettingsDefaults.RAAirAbsorptionHigh.ResetToDefault();
 
             // Directivity
             BasisSettingsDefaults.RADirectivity.ResetToDefault();
@@ -206,6 +279,11 @@ namespace Basis.BasisUI
 
             // Mix
             BasisSettingsDefaults.RADirectMixLevel.ResetToDefault();
+
+            // Reflections
+            BasisSettingsDefaults.RAReflections.ResetToDefault();
+            BasisSettingsDefaults.RAReflectionsMixLevel.ResetToDefault();
+            BasisSettingsDefaults.RAApplyHRTFToReflections.ResetToDefault();
 
             ApplyRemoteAudioToAll();
         }
@@ -237,9 +315,17 @@ namespace Basis.BasisUI
 
             // AudioSource settings
             source.minDistance = BasisSettingsDefaults.RAMinDistance.RawValue;
+            source.maxDistance = BasisSettingsDefaults.RAMaxDistance.RawValue;
+            source.rolloffMode = ParseRolloffMode(BasisSettingsDefaults.RARolloffMode.RawValue);
+            if (source.rolloffMode == AudioRolloffMode.Custom)
+            {
+                source.SetCustomCurve(AudioSourceCurveType.CustomRolloff,
+                    GetRolloffCurvePreset(BasisSettingsDefaults.RARolloffCurvePreset.RawValue));
+            }
             source.spread = BasisSettingsDefaults.RASpread.RawValue;
             source.dopplerLevel = BasisSettingsDefaults.RADopplerLevel.RawValue;
             source.spatialBlend = BasisSettingsDefaults.RASpatialBlend.RawValue;
+            source.priority = (int)BasisSettingsDefaults.RAPriority.RawValue;
 
 #if STEAMAUDIO_ENABLED
             // Steam Audio settings
@@ -252,7 +338,12 @@ namespace Basis.BasisUI
 
                 // Propagation
                 sa.distanceAttenuation = BasisSettingsDefaults.RADistanceAttenuation.RawValue;
+                sa.distanceAttenuationInput = ParseDistanceAttenuationInput(BasisSettingsDefaults.RADistanceAttenuationInput.RawValue);
                 sa.airAbsorption = BasisSettingsDefaults.RAAirAbsorption.RawValue;
+                sa.airAbsorptionInput = ParseAirAbsorptionInput(BasisSettingsDefaults.RAAirAbsorptionInput.RawValue);
+                sa.airAbsorptionLow = BasisSettingsDefaults.RAAirAbsorptionLow.RawValue;
+                sa.airAbsorptionMid = BasisSettingsDefaults.RAAirAbsorptionMid.RawValue;
+                sa.airAbsorptionHigh = BasisSettingsDefaults.RAAirAbsorptionHigh.RawValue;
 
                 // Directivity
                 sa.directivity = BasisSettingsDefaults.RADirectivity.RawValue;
@@ -273,6 +364,11 @@ namespace Basis.BasisUI
                 // Mix
                 sa.directMixLevel = BasisSettingsDefaults.RADirectMixLevel.RawValue;
 
+                // Reflections
+                sa.reflections = BasisSettingsDefaults.RAReflections.RawValue;
+                sa.reflectionsMixLevel = BasisSettingsDefaults.RAReflectionsMixLevel.RawValue;
+                sa.applyHRTFToReflections = BasisSettingsDefaults.RAApplyHRTFToReflections.RawValue;
+
                 sa.ForceUpdate();
             }
             else
@@ -282,11 +378,34 @@ namespace Basis.BasisUI
 #endif
         }
 
+        private static AudioRolloffMode ParseRolloffMode(string value)
+        {
+            if (string.Equals(value, "logarithmic", StringComparison.OrdinalIgnoreCase))
+                return AudioRolloffMode.Logarithmic;
+            if (string.Equals(value, "linear", StringComparison.OrdinalIgnoreCase))
+                return AudioRolloffMode.Linear;
+            return AudioRolloffMode.Custom;
+        }
+
         private static HRTFInterpolation ParseInterpolation(string value)
         {
             if (string.Equals(value, "bilinear", StringComparison.OrdinalIgnoreCase))
                 return HRTFInterpolation.Bilinear;
             return HRTFInterpolation.Nearest;
+        }
+
+        private static DistanceAttenuationInput ParseDistanceAttenuationInput(string value)
+        {
+            if (string.Equals(value, "physics based", StringComparison.OrdinalIgnoreCase))
+                return DistanceAttenuationInput.PhysicsBased;
+            return DistanceAttenuationInput.CurveDriven;
+        }
+
+        private static AirAbsorptionInput ParseAirAbsorptionInput(string value)
+        {
+            if (string.Equals(value, "user defined", StringComparison.OrdinalIgnoreCase))
+                return AirAbsorptionInput.UserDefined;
+            return AirAbsorptionInput.SimulationDefined;
         }
 
         private static OcclusionType ParseOcclusionType(string value)
@@ -301,6 +420,62 @@ namespace Basis.BasisUI
             if (string.Equals(value, "frequency dependent", StringComparison.OrdinalIgnoreCase))
                 return TransmissionType.FrequencyDependent;
             return TransmissionType.FrequencyIndependent;
+        }
+
+        /// <summary>
+        /// Returns a custom rolloff AnimationCurve for the given preset name.
+        /// Curves are defined in normalized distance (0..1 maps to minDistance..maxDistance).
+        /// </summary>
+        private static AnimationCurve GetRolloffCurvePreset(string preset)
+        {
+            if (string.Equals(preset, "sharp falloff", StringComparison.OrdinalIgnoreCase))
+            {
+                // Drops quickly near the source, nearly silent by halfway
+                return new AnimationCurve(
+                    new Keyframe(0f, 1f, 0f, -6f),
+                    new Keyframe(0.15f, 0.4f, -2.5f, -2.5f),
+                    new Keyframe(0.35f, 0.1f, -0.5f, -0.5f),
+                    new Keyframe(1f, 0f, -0.05f, 0f)
+                );
+            }
+
+            if (string.Equals(preset, "gradual", StringComparison.OrdinalIgnoreCase))
+            {
+                // Slow, even falloff across the full range
+                return new AnimationCurve(
+                    new Keyframe(0f, 1f, 0f, -0.5f),
+                    new Keyframe(0.5f, 0.6f, -0.7f, -0.7f),
+                    new Keyframe(0.85f, 0.2f, -0.8f, -0.8f),
+                    new Keyframe(1f, 0f, -0.5f, 0f)
+                );
+            }
+
+            if (string.Equals(preset, "inverse square", StringComparison.OrdinalIgnoreCase))
+            {
+                // Physically realistic 1/r^2 approximation
+                return new AnimationCurve(
+                    new Keyframe(0f, 1f, 0f, -4f),
+                    new Keyframe(0.1f, 0.7f, -3f, -3f),
+                    new Keyframe(0.25f, 0.35f, -1.5f, -1.5f),
+                    new Keyframe(0.5f, 0.1f, -0.3f, -0.3f),
+                    new Keyframe(1f, 0f, -0.02f, 0f)
+                );
+            }
+
+            if (string.Equals(preset, "flat", StringComparison.OrdinalIgnoreCase))
+            {
+                // Constant volume regardless of distance
+                return AnimationCurve.Constant(0f, 1f, 1f);
+            }
+
+            // "Default" — matches the original prefab curve
+            return new AnimationCurve(
+                new Keyframe(0.036f, 1f, -2.214f, -2.214f),
+                new Keyframe(0.239f, 0.575f, -2.305f, -2.305f),
+                new Keyframe(0.372f, 0.328f, -1.068f, -1.068f),
+                new Keyframe(0.621f, 0.144f, -0.515f, -0.515f),
+                new Keyframe(1f, 0f, -0.031f, -0.031f)
+            );
         }
     }
 }

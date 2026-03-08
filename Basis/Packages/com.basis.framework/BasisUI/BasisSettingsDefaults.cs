@@ -396,8 +396,28 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> RATransmissionType => new("ra_transmissiontype", new BasisPlatformDefault<string>("frequency dependent"));
         public static BasisSettingsBinding<float> RAMaxTransmissionSurfaces => new("ra_maxtransmissionsurfaces", new BasisPlatformDefault<float>(4f));
 
+        // AudioSource - Rolloff
+        public static BasisSettingsBinding<string> RARolloffMode => new("ra_rolloffmode", new BasisPlatformDefault<string>("custom"));
+        public static BasisSettingsBinding<string> RARolloffCurvePreset => new("ra_rolloffcurvepreset", new BasisPlatformDefault<string>("default"));
+        public static BasisSettingsBinding<float> RAMaxDistance => new("ra_maxdistance", new BasisPlatformDefault<float>(15f));
+        public static BasisSettingsBinding<float> RAPriority => new("ra_priority", new BasisPlatformDefault<float>(128f));
+
+        // Steam Audio - Attenuation Input
+        public static BasisSettingsBinding<string> RADistanceAttenuationInput => new("ra_distanceattenuationinput", new BasisPlatformDefault<string>("curve driven"));
+
+        // Steam Audio - Air Absorption Bands
+        public static BasisSettingsBinding<string> RAAirAbsorptionInput => new("ra_airabsorptioninput", new BasisPlatformDefault<string>("simulation defined"));
+        public static BasisSettingsBinding<float> RAAirAbsorptionLow => new("ra_airabsorptionlow", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> RAAirAbsorptionMid => new("ra_airabsorptionmid", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> RAAirAbsorptionHigh => new("ra_airabsorptionhigh", new BasisPlatformDefault<float>(1f));
+
         // Steam Audio - Mix
         public static BasisSettingsBinding<float> RADirectMixLevel => new("ra_directmixlevel", new BasisPlatformDefault<float>(1f));
+
+        // Steam Audio - Reflections
+        public static BasisSettingsBinding<bool> RAReflections => new("ra_reflections", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> RAReflectionsMixLevel => new("ra_reflectionsmixlevel", new BasisPlatformDefault<float>(0.1f));
+        public static BasisSettingsBinding<bool> RAApplyHRTFToReflections => new("ra_applyhrtftoreflections", new BasisPlatformDefault<bool>(false));
 
         public static readonly BasisSettingsBinding<bool> FBIKEuroAll = new("euroall");
 
@@ -613,6 +633,18 @@ namespace Basis.BasisUI
             RATransmissionType.LoadBindingValue();
             RAMaxTransmissionSurfaces.LoadBindingValue();
             RADirectMixLevel.LoadBindingValue();
+            RARolloffMode.LoadBindingValue();
+            RARolloffCurvePreset.LoadBindingValue();
+            RAMaxDistance.LoadBindingValue();
+            RAPriority.LoadBindingValue();
+            RADistanceAttenuationInput.LoadBindingValue();
+            RAAirAbsorptionInput.LoadBindingValue();
+            RAAirAbsorptionLow.LoadBindingValue();
+            RAAirAbsorptionMid.LoadBindingValue();
+            RAAirAbsorptionHigh.LoadBindingValue();
+            RAReflections.LoadBindingValue();
+            RAReflectionsMixLevel.LoadBindingValue();
+            RAApplyHRTFToReflections.LoadBindingValue();
         }
     }
 }
