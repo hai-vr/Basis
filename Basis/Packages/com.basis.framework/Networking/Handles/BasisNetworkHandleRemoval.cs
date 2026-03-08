@@ -67,6 +67,12 @@ public static class BasisNetworkHandleRemoval
             // Shutdown networking
             network.DeInitialize();
 
+            // Cancel any in-flight async avatar load to prevent orphaned avatar GameObjects
+            if (network.Player != null)
+            {
+                BasisAvatarFactory.CancelPlayerLoad(network.Player);
+            }
+
             if (network.Player != null)
             {
                 BasisAvatarFactory.DeleteLastAvatar(network.Player);
