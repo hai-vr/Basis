@@ -114,6 +114,31 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Priority", 0f, 256f, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RAPriority);
 
+            // ─────────────── LISTENER DIRECTIONAL DAMPENING GROUP ───────────────
+            PanelElementDescriptor listenerDampenGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            listenerDampenGroup.SetTitle("Listener Directional Dampening");
+            listenerDampenGroup.SetDescription("Reduces volume of players behind you. Helps in crowded environments.");
+
+            PanelSlider sliderListenerConeAngle = PanelSlider.CreateEntryAndBind(
+                listenerDampenGroup,
+                PanelSlider.SliderSettings.Degrees("Cone of Influence", 30f, 360f, true, 0),
+                BasisSettingsDefaults.RAListenerConeAngle);
+
+            PanelSlider sliderListenerDampenAmount = PanelSlider.CreateEntryAndBind(
+                listenerDampenGroup,
+                PanelSlider.SliderSettings.Advanced("Max Dampening", 1f, 45f, true, 0, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.RAListenerDampenAmount);
+
+            // Dampen amount only visible when cone angle < 360 (otherwise no dampening occurs)
+            bool dampeningActive = BasisSettingsDefaults.RAListenerConeAngle.RawValue < 360f;
+            sliderListenerDampenAmount.Descriptor.SetActive(dampeningActive);
+            sliderListenerConeAngle.OnValueChanged += (val) =>
+            {
+                sliderListenerDampenAmount.Descriptor.SetActive(val < 360f);
+                listenerDampenGroup.ForceRebuild();
+            };
+
             // ─────────────── STEAM AUDIO - HRTF GROUP ───────────────
             PanelElementDescriptor hrtfGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -381,6 +406,10 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.RADopplerLevel.ResetToDefault();
             BasisSettingsDefaults.RASpatialBlend.ResetToDefault();
             BasisSettingsDefaults.RAPriority.ResetToDefault();
+
+            // Listener Dampening
+            BasisSettingsDefaults.RAListenerConeAngle.ResetToDefault();
+            BasisSettingsDefaults.RAListenerDampenAmount.ResetToDefault();
 
             // HRTF
             BasisSettingsDefaults.RADirectBinaural.ResetToDefault();

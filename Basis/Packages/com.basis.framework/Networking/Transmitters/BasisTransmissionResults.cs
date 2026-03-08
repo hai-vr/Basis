@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
@@ -209,6 +210,9 @@ public partial class BasisTransmissionResults
                 receiver.AudioReceiverModule.ApplyRangeData(ConvertedVoiceDistance);
             }
         }
+
+        // Apply listener directional dampening
+        ApplyListenerDirectionalDampening(snapshot, receiverCount);
 
         // Apply avatar load toggles only when needed
         if (avatarChange)
@@ -472,5 +476,78 @@ public partial class BasisTransmissionResults
         NativeArray<T> tmp = a;
         a = b;
         b = tmp;
+    }
+
+    /// <summary>
+    /// Reduces AudioSource volume for remote players outside the listener's forward cone.
+    /// Players within the cone angle hear at full volume. Players outside fade to the
+    /// dampened level based on how far behind the listener they are.
+    /// </summary>
+    private void ApplyListenerDirectionalDampening(IReadOnlyList<BasisNetworkReceiver> snapshot, int receiverCount)
+    {
+        float coneAngle = BasisSettingsDefaults.RAListenerConeAngle.RawValue;
+
+        // 360 means no dampening
+        if (coneAngle >= 360f)
+        {
+            // Restore full volume for all active sources
+            for (int i = 0; i < receiverCount; i++)
+            {
+                var module = snapshot[i].AudioReceiverModule;
+                if (module.HasAudioSource && module.audioSource != null)
+                {
+                    module.audioSource.volume = 1f;
+                }
+            }
+            return;
+        }
+
+        float dampenPercent = Mathf.Clamp(BasisSettingsDefaults.RAListenerDampenAmount.RawValue, 1f, 45f);
+        float minVolume = 1f - (dampenPercent / 100f);
+
+        // Half-angle of the forward cone (in radians)
+        float halfConeRad = (coneAngle * 0.5f) * Mathf.Deg2Rad;
+        float cosHalfCone = Mathf.Cos(halfConeRad);
+
+        // Rear half-angle: from cone edge to directly behind (180 degrees)
+        // cosine of 180 = -1, so the falloff range is from cosHalfCone down to -1
+        float cosRange = cosHalfCone - (-1f); // cosHalfCone + 1
+
+        Vector3 listenerPos = BasisLocalCameraDriver.Position;
+        Vector3 listenerFwd = BasisLocalCameraDriver.Forward();
+
+        for (int i = 0; i < receiverCount; i++)
+        {
+            var module = snapshot[i].AudioReceiverModule;
+            if (!module.HasAudioSource || module.audioSource == null)
+                continue;
+
+            Vector3 toSource = ((Vector3)targetPositions[i]) - listenerPos;
+            float sqrMag = toSource.sqrMagnitude;
+
+            if (sqrMag < 0.001f)
+            {
+                // Source is essentially on top of listener
+                module.audioSource.volume = 1f;
+                continue;
+            }
+
+            // Normalize direction and compute dot product with listener forward
+            float invMag = 1f / Mathf.Sqrt(sqrMag);
+            Vector3 dir = toSource * invMag;
+            float dot = Vector3.Dot(listenerFwd, dir);
+
+            if (dot >= cosHalfCone)
+            {
+                // Inside the forward cone — full volume
+                module.audioSource.volume = 1f;
+            }
+            else
+            {
+                // Outside the cone — lerp from 1 at cone edge to minVolume at directly behind
+                float t = (cosHalfCone - dot) / cosRange;
+                module.audioSource.volume = Mathf.Lerp(1f, minVolume, t);
+            }
+        }
     }
 }

@@ -404,6 +404,10 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> RACurvePoint75 => new("ra_curvepoint75", new BasisPlatformDefault<float>(0.1f));
         public static BasisSettingsBinding<float> RAPriority => new("ra_priority", new BasisPlatformDefault<float>(128f));
 
+        // Listener Directional Dampening
+        public static BasisSettingsBinding<float> RAListenerConeAngle => new("ra_listenerconeangle", new BasisPlatformDefault<float>(150f));
+        public static BasisSettingsBinding<float> RAListenerDampenAmount => new("ra_listenerdampenamount", new BasisPlatformDefault<float>(15f));
+
         // Steam Audio - Attenuation Input
         public static BasisSettingsBinding<string> RADistanceAttenuationInput => new("ra_distanceattenuationinput", new BasisPlatformDefault<string>("curve driven"));
 
@@ -635,6 +639,8 @@ namespace Basis.BasisUI
             RATransmissionType.LoadBindingValue();
             RAMaxTransmissionSurfaces.LoadBindingValue();
             RADirectMixLevel.LoadBindingValue();
+            RAListenerConeAngle.LoadBindingValue();
+            RAListenerDampenAmount.LoadBindingValue();
             RARolloffMode.LoadBindingValue();
             RARolloffCurvePreset.LoadBindingValue();
             RACurvePoint25.LoadBindingValue();
