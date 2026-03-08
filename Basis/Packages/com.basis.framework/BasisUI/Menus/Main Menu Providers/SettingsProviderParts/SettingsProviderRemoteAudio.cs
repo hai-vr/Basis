@@ -47,16 +47,50 @@ namespace Basis.BasisUI
 
             PanelDropdown dropdownCurvePreset = PanelDropdown.CreateNewEntry(audioSourceGroup);
             dropdownCurvePreset.Descriptor.SetTitle("Rolloff Curve Preset");
-            dropdownCurvePreset.AssignEntries(new List<string> { "Default", "Sharp Falloff", "Gradual", "Inverse Square", "Flat" });
+            dropdownCurvePreset.AssignEntries(new List<string> { "Default", "Sharp Falloff", "Gradual", "Inverse Square", "Flat", "User Defined" });
             dropdownCurvePreset.AssignBinding(BasisSettingsDefaults.RARolloffCurvePreset);
 
-            // Curve preset only visible when rolloff mode is Custom
+            PanelSlider sliderCurvePoint25 = PanelSlider.CreateEntryAndBind(
+                audioSourceGroup,
+                PanelSlider.SliderSettings.Advanced("Volume at 25%", 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.RACurvePoint25);
+
+            PanelSlider sliderCurvePoint50 = PanelSlider.CreateEntryAndBind(
+                audioSourceGroup,
+                PanelSlider.SliderSettings.Advanced("Volume at 50%", 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.RACurvePoint50);
+
+            PanelSlider sliderCurvePoint75 = PanelSlider.CreateEntryAndBind(
+                audioSourceGroup,
+                PanelSlider.SliderSettings.Advanced("Volume at 75%", 0f, 1f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.RACurvePoint75);
+
+            // Curve preset visible when rolloff mode is Custom
+            // User curve sliders visible when rolloff is Custom AND preset is User Defined
             bool isCustomRolloff = string.Equals(BasisSettingsDefaults.RARolloffMode.RawValue, "custom", StringComparison.OrdinalIgnoreCase);
+            bool isUserCurve = string.Equals(BasisSettingsDefaults.RARolloffCurvePreset.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
             dropdownCurvePreset.Descriptor.SetActive(isCustomRolloff);
+            sliderCurvePoint25.Descriptor.SetActive(isCustomRolloff && isUserCurve);
+            sliderCurvePoint50.Descriptor.SetActive(isCustomRolloff && isUserCurve);
+            sliderCurvePoint75.Descriptor.SetActive(isCustomRolloff && isUserCurve);
+
             dropdownRolloffMode.OnValueChanged += (val) =>
             {
-                dropdownCurvePreset.Descriptor.SetActive(
-                    string.Equals(val, "custom", StringComparison.OrdinalIgnoreCase));
+                bool custom = string.Equals(val, "custom", StringComparison.OrdinalIgnoreCase);
+                bool userDefined = string.Equals(BasisSettingsDefaults.RARolloffCurvePreset.RawValue, "user defined", StringComparison.OrdinalIgnoreCase);
+                dropdownCurvePreset.Descriptor.SetActive(custom);
+                sliderCurvePoint25.Descriptor.SetActive(custom && userDefined);
+                sliderCurvePoint50.Descriptor.SetActive(custom && userDefined);
+                sliderCurvePoint75.Descriptor.SetActive(custom && userDefined);
+                audioSourceGroup.ForceRebuild();
+            };
+
+            dropdownCurvePreset.OnValueChanged += (val) =>
+            {
+                bool userDefined = string.Equals(val, "user defined", StringComparison.OrdinalIgnoreCase);
+                sliderCurvePoint25.Descriptor.SetActive(userDefined);
+                sliderCurvePoint50.Descriptor.SetActive(userDefined);
+                sliderCurvePoint75.Descriptor.SetActive(userDefined);
                 audioSourceGroup.ForceRebuild();
             };
 
@@ -340,6 +374,9 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.RAMinDistance.ResetToDefault();
             BasisSettingsDefaults.RARolloffMode.ResetToDefault();
             BasisSettingsDefaults.RARolloffCurvePreset.ResetToDefault();
+            BasisSettingsDefaults.RACurvePoint25.ResetToDefault();
+            BasisSettingsDefaults.RACurvePoint50.ResetToDefault();
+            BasisSettingsDefaults.RACurvePoint75.ResetToDefault();
             BasisSettingsDefaults.RASpread.ResetToDefault();
             BasisSettingsDefaults.RADopplerLevel.ResetToDefault();
             BasisSettingsDefaults.RASpatialBlend.ResetToDefault();
@@ -563,6 +600,22 @@ namespace Basis.BasisUI
             {
                 // Constant volume regardless of distance
                 return AnimationCurve.Constant(0f, 1f, 1f);
+            }
+
+            if (string.Equals(preset, "user defined", StringComparison.OrdinalIgnoreCase))
+            {
+                // Build curve from user control points
+                float v25 = Mathf.Clamp01(BasisSettingsDefaults.RACurvePoint25.RawValue);
+                float v50 = Mathf.Clamp01(BasisSettingsDefaults.RACurvePoint50.RawValue);
+                float v75 = Mathf.Clamp01(BasisSettingsDefaults.RACurvePoint75.RawValue);
+
+                return new AnimationCurve(
+                    new Keyframe(0f, 1f, 0f, 0f),
+                    new Keyframe(0.25f, v25, 0f, 0f),
+                    new Keyframe(0.5f, v50, 0f, 0f),
+                    new Keyframe(0.75f, v75, 0f, 0f),
+                    new Keyframe(1f, 0f, 0f, 0f)
+                );
             }
 
             // "Default" — matches the original prefab curve

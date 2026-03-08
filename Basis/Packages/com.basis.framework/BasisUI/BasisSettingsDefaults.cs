@@ -399,6 +399,9 @@ namespace Basis.BasisUI
         // AudioSource - Rolloff
         public static BasisSettingsBinding<string> RARolloffMode => new("ra_rolloffmode", new BasisPlatformDefault<string>("custom"));
         public static BasisSettingsBinding<string> RARolloffCurvePreset => new("ra_rolloffcurvepreset", new BasisPlatformDefault<string>("default"));
+        public static BasisSettingsBinding<float> RACurvePoint25 => new("ra_curvepoint25", new BasisPlatformDefault<float>(0.6f));
+        public static BasisSettingsBinding<float> RACurvePoint50 => new("ra_curvepoint50", new BasisPlatformDefault<float>(0.3f));
+        public static BasisSettingsBinding<float> RACurvePoint75 => new("ra_curvepoint75", new BasisPlatformDefault<float>(0.1f));
         public static BasisSettingsBinding<float> RAPriority => new("ra_priority", new BasisPlatformDefault<float>(128f));
 
         // Steam Audio - Attenuation Input
@@ -634,6 +637,9 @@ namespace Basis.BasisUI
             RADirectMixLevel.LoadBindingValue();
             RARolloffMode.LoadBindingValue();
             RARolloffCurvePreset.LoadBindingValue();
+            RACurvePoint25.LoadBindingValue();
+            RACurvePoint50.LoadBindingValue();
+            RACurvePoint75.LoadBindingValue();
             RAPriority.LoadBindingValue();
             RADistanceAttenuationInput.LoadBindingValue();
             RAAirAbsorptionInput.LoadBindingValue();
