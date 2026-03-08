@@ -70,6 +70,12 @@ namespace Basis.Scripts.Networking.Receivers
         public volatile bool HasAudioSource = false;
 
         /// <summary>
+        /// Volume multiplier applied by listener directional dampening (0..1).
+        /// Set from BasisTransmissionResults and consumed per-sample in OnAudioFilterRead.
+        /// </summary>
+        public volatile float DirectionalDampeningMultiplier = 1f;
+
+        /// <summary>
         /// Owning network receiver (player/session context).
         /// </summary>
         public BasisNetworkReceiver BasisNetworkReceiver;
@@ -507,10 +513,11 @@ namespace Basis.Scripts.Networking.Receivers
             // Copy to local scratch for safe reuse of pooled arrays
             Buffer.BlockCopy(segment, 0, _inputScratch, 0, frames * sizeof(float));
 
+            float dampen = DirectionalDampeningMultiplier;
             int idx = 0;
             for (int f = 0; f < frames; f++)
             {
-                float sample = FastClamp(_inputScratch[f]);
+                float sample = FastClamp(_inputScratch[f]) * dampen;
                 for (int c = 0; c < channels; c++)
                 {
                     data[idx++] = sample;
@@ -564,10 +571,11 @@ namespace Basis.Scripts.Networking.Receivers
                 phase += step;
             }
 
+            float dampen = DirectionalDampeningMultiplier;
             int idx = 0;
             for (int f = 0; f < frames; f++)
             {
-                float sample = FastClamp(_resampleScratch[f]);
+                float sample = FastClamp(_resampleScratch[f]) * dampen;
                 for (int c = 0; c < channels; c++)
                 {
                     data[idx++] = sample;
