@@ -21,6 +21,7 @@ namespace Basis.Scripts.Addressable_Driver.Resource
             else
             {
                 UnityEngine.Debug.LogError("Unexpected result type: " + result.GetType());
+                Addressables.Release(data);
             }
             return null;
         }
