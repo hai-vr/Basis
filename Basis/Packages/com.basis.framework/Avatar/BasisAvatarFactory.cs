@@ -168,6 +168,7 @@ namespace Basis.Scripts.Avatar
 
             if (string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
             {
+                Player.AvatarLoadErrorMessage = "Avatar address was empty or null";
                 BasisDebug.LogError("Avatar Address was empty or null! Falling back to loading avatar.");
                 await LoadAvatarAfterError(Player, Position, Rotation); // UNGATED
                 ClearPlayerLoadToken(Player, token);
@@ -222,6 +223,7 @@ namespace Basis.Scripts.Avatar
                 Player.AvatarLoadMode = Mode;
 
                 InitializePlayerAvatar(Player, Output);
+                Player.AvatarLoadErrorMessage = null;
                 Player.AvatarSwitched();
             }
             catch (OperationCanceledException)
@@ -235,6 +237,7 @@ namespace Basis.Scripts.Avatar
             }
             catch (Exception e)
             {
+                Player.AvatarLoadErrorMessage = $"Loading avatar failed: {e.Message}";
                 BasisDebug.LogError($"Loading avatar failed: {e}");
                 if (!token.IsCancellationRequested)
                     await LoadAvatarAfterError(Player, Position, Rotation); // UNGATED
