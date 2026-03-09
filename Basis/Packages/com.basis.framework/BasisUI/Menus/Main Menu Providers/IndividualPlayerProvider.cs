@@ -319,6 +319,13 @@ namespace Basis.BasisUI
             avatarGroup.SetTitle("Avatar");
             avatarGroup.SetDescription("Visibility and interaction toggles.");
 
+            if (!string.IsNullOrEmpty(remotePlayer.AvatarLoadErrorMessage))
+            {
+                var avatarErrorField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, avatarGroup.ContentParent);
+                avatarErrorField.SetTitle("Avatar Load Error");
+                avatarErrorField.SetDescription(remotePlayer.AvatarLoadErrorMessage);
+            }
+
             PanelButton toggleAvatarBtn = PanelButton.CreateNew(avatarGroup.ContentParent);
             toggleAvatarBtn.Descriptor.SetTitle(settings.AvatarVisible ? "Hide Avatar" : "Show Avatar");
             toggleAvatarBtn.Descriptor.SetDescription("Toggles rendering of this player’s avatar on your client.");

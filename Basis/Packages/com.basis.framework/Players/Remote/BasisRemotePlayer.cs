@@ -109,6 +109,12 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </summary>
         public Transform MouthTransform;
 
+        /// <summary>
+        /// Stores the error message when the avatar fails to load or is not found.
+        /// Reset to null when a real avatar is successfully loaded.
+        /// </summary>
+        public string AvatarLoadErrorMessage;
+
         #endregion
 
         #region Initialization / Addressables
@@ -200,6 +206,7 @@ namespace Basis.Scripts.BasisSdk.Players
                 }
                 else
                 {
+                    AvatarLoadErrorMessage = "Invalid initial avatar data: failed to convert network bytes to loadable bundle";
                     BasisDebug.LogError("Invalid Inital Data");
                 }
             }
@@ -237,6 +244,7 @@ namespace Basis.Scripts.BasisSdk.Players
             IsLoadingAnAvatar = true;
             if (BasisLoadableBundle == null || string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
             {
+                AvatarLoadErrorMessage = "Avatar bundle was empty or null";
                 BasisDebug.LogError("trying to create Avatar with empty Bundle", BasisDebug.LogTag.Remote);
                 BasisLoadableBundle = BasisAvatarFactory.LoadingAvatar;
                 Mode = 0;
