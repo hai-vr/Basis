@@ -177,10 +177,9 @@ namespace Basis.Scripts.Avatar
 
             // Instant fallback, not gated
             RemoveOldAvatarAndLoadFallback(Player, LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation, Position, Rotation);
+            GameObject Output = null;
             try
             {
-                GameObject Output = null;
-
                 switch (Mode)
                 {
                     case 2:
@@ -229,7 +228,12 @@ namespace Basis.Scripts.Avatar
             }
             catch (OperationCanceledException)
             {
-                // replaced; ignore
+                // Load was cancelled (e.g. player disconnected). Destroy any already-instantiated
+                // avatar GameObject to prevent it from being orphaned at spawn.
+                if (Output != null)
+                {
+                    GameObject.Destroy(Output);
+                }
             }
             catch (Exception e)
             {
@@ -429,6 +433,21 @@ namespace Basis.Scripts.Avatar
             if (_playerLoadCts.TryGetValue(key, out var cts) && cts.Token == token)
             {
                 _playerLoadCts.TryRemove(key, out _);
+                cts.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Cancels any in-flight avatar load for the given player.
+        /// Call this before destroying a player to prevent orphaned avatar GameObjects.
+        /// </summary>
+        public static void CancelPlayerLoad(BasisPlayer player)
+        {
+            if (player == null) return;
+            int key = player.GetInstanceID();
+            if (_playerLoadCts.TryRemove(key, out var cts))
+            {
+                try { cts.Cancel(); } catch { /* ignore */ }
                 cts.Dispose();
             }
         }
