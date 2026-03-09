@@ -1,3 +1,4 @@
+#if !BASIS_DISABLE_MICROPHONE
 using UnityEngine;
 using System;
 using System.Linq;
@@ -738,3 +739,5 @@ public static class BasisLocalMicrophoneDriver
         if (arr == null || arr.Length != length) arr = new float[length];
     }
 }
+
+#endif

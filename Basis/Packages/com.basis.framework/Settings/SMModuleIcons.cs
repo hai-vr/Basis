@@ -1,3 +1,4 @@
+#if !BASIS_DISABLE_MICROPHONE
 using Basis.BasisUI;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
@@ -46,3 +47,5 @@ public class SMModuleIcons : BasisSettingsBase
     {
     }
 }
+
+#endif

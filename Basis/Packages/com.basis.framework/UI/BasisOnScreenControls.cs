@@ -85,7 +85,11 @@ public class BasisOnScreenControls : MonoBehaviour
         t.localPosition = localPos * avatarScale;
     }
 
+#if !BASIS_DISABLE_MICROPHONE
     void OnV() => BasisLocalMicrophoneDriver.ToggleIsPaused();
+#else
+    void OnV() { }
+#endif
     void OnEscape() => BasisMainMenu.Toggle();
     void OnC() => BasisLocalPlayer.Instance.LocalCharacterDriver.CrouchToggle();
     void OnSpace() => BasisLocalPlayer.Instance.LocalCharacterDriver.HandleJumpRequest();

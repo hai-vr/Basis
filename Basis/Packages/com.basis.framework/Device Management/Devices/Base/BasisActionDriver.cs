@@ -411,6 +411,7 @@ public static class BasisActionDriver
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ToggleMicOnPrimaryReleaseIfNoHover(ref BasisInputState current, ref BasisInputState last)
     {
+#if !BASIS_DISABLE_MICROPHONE
         if (BasisInputModuleHandler.Instance.HasHoverONInput == false)
         {
             switch (SMDMicrophone.Current.TalkMode)
@@ -443,6 +444,7 @@ public static class BasisActionDriver
                     break;
             }
         }
+#endif
     }
 
     /// <summary>
