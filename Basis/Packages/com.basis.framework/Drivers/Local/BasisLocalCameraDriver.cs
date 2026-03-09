@@ -82,9 +82,11 @@ namespace Basis.Scripts.Drivers
         /// <summary>Parent transform for UI elements anchored to the camera (e.g., mic icon).</summary>
         public Transform ParentOfUI;
 
+#if !BASIS_DISABLE_MICROPHONE
         /// <summary>Driver for microphone icon visuals and layout near the camera.</summary>
         [SerializeField]
         public BasisLocalMicrophoneIconDriver microphoneIconDriver = new BasisLocalMicrophoneIconDriver();
+#endif
 
         /// <summary>
         /// World forward vector of the active camera instance, or zero if no instance exists.
@@ -180,9 +182,11 @@ namespace Basis.Scripts.Drivers
 
             if (HasEvents == false)
             {
+#if !BASIS_DISABLE_MICROPHONE
                 BasisLocalMicrophoneDriver.OnPausedAction += microphoneIconDriver.OnPausedEvent;
                 BasisLocalMicrophoneDriver.MainThreadOnHasAudio += microphoneIconDriver.MicrophoneTransmitting;
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence += microphoneIconDriver.MicrophoneNotTransmitting;
+#endif
 
                 RenderPipelineManager.beginCameraRendering += BeginCameraRendering;
                 RenderPipelineManager.endCameraRendering += EndCameraRendering;
@@ -195,8 +199,10 @@ namespace Basis.Scripts.Drivers
                 HasEvents = true;
             }
 
+#if !BASIS_DISABLE_MICROPHONE
             microphoneIconDriver.Initalize(this);
             microphoneIconDriver.UpdateMicrophoneVisuals(BasisLocalMicrophoneDriver.isPaused, false);
+#endif
 
 #if STEAMAUDIO_ENABLED
             if (SteamAudioListener != null)
@@ -204,10 +210,12 @@ namespace Basis.Scripts.Drivers
                 SteamAudioManager.NotifyAudioListenerChanged();
             }
 #endif
+#if !BASIS_DISABLE_MICROPHONE
             microphoneIconDriver.SpriteRendererIcon.gameObject.SetActive(true);
 
             // Cache icon half-size in camera-local RU for layout
             microphoneIconDriver.iconHalfRU = microphoneIconDriver.GetIconHalfSizeRUInCameraSpace(Camera, ParentOfUI);
+#endif
         }
 
         /// <summary>
@@ -221,7 +229,9 @@ namespace Basis.Scripts.Drivers
             BasisDeviceManagement.OnBootModeChanged -= OnModeSwitch;
             BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= UpdateCameraScale;
             BasisLocalPlayer.OnLocalAvatarChanged -= UpdateCameraScale;
+#if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.OnPausedAction -= microphoneIconDriver.OnPausedEvent;
+#endif
             HasEvents = false;
             HasInstance = false;
         }
@@ -240,8 +250,10 @@ namespace Basis.Scripts.Drivers
                 RenderPipelineManager.beginCameraRendering -= BeginCameraRendering;
                 RenderPipelineManager.endCameraRendering -= EndCameraRendering;
                 BasisDeviceManagement.OnBootModeChanged -= OnModeSwitch;
+#if !BASIS_DISABLE_MICROPHONE
                 BasisLocalMicrophoneDriver.MainThreadOnHasAudio -= microphoneIconDriver.MicrophoneTransmitting;
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence -= microphoneIconDriver.MicrophoneNotTransmitting;
+#endif
                 HasEvents = false;
             }
         }

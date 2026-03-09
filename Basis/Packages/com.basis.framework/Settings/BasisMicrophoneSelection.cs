@@ -1,3 +1,4 @@
+#if !BASIS_DISABLE_MICROPHONE
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -98,3 +99,5 @@ public class BasisMicrophoneSelection : MonoBehaviour
         MicrophoneVolume.text = $"{percentage}%";
     }
 }
+
+#endif

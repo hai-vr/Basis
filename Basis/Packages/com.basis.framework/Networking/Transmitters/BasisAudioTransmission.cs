@@ -67,23 +67,31 @@ namespace Basis.Scripts.Networking.Transmitters
                 return;
             }
 
+#if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.OnHasAudio += OnAudioReady;
             BasisLocalMicrophoneDriver.OnHasSilence += SendSilenceOverNetwork;
+#endif
 
             HasEvents = true;
         }
 
         private void DetachMicrophoneEvents()
         {
+#if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.OnHasAudio -= OnAudioReady;
             BasisLocalMicrophoneDriver.OnHasSilence -= SendSilenceOverNetwork;
+#endif
 
             HasEvents = false;
         }
 
         private void InitializeBuffers()
         {
+#if !BASIS_DISABLE_MICROPHONE
             int packetSize = BasisLocalMicrophoneDriver.PacketSize;
+#else
+            int packetSize = 0;
+#endif
 
             if (packetSize != Segment.TotalLength)
             {
@@ -103,7 +111,9 @@ namespace Basis.Scripts.Networking.Transmitters
 
             writer.Reset();
 
+#if !BASIS_DISABLE_MICROPHONE
             Segment.LengthUsed = encoder.Encode(BasisLocalMicrophoneDriver.processBufferArray,BasisLocalMicrophoneDriver.SampleRate,Segment.buffer,Segment.TotalLength);
+#endif
 
             if(SilentForHowLong > 256)
             {

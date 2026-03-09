@@ -1,3 +1,4 @@
+#if !BASIS_DISABLE_MICROPHONE
 using Basis.BasisUI;
 using Basis.Scripts.Device_Management;
 using System;
@@ -354,3 +355,5 @@ public class SMDMicrophone : BasisSettingsBase
 
     public override void ChangedSettings() { }
 }
+
+#endif

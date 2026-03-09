@@ -13,7 +13,9 @@ namespace Basis.BasisUI
         public static void AddToMenu()
         {
             BasisMenuBase<BasisMainMenu>.AddProvider(new SettingsProvider());
+#if !BASIS_DISABLE_MICROPHONE
             SMDMicrophone.OnMicrophoneSettingsChanged += SyncUiFromSnapshot;
+#endif
         }
 
         public static string StaticTitle => "Settings";
@@ -176,10 +178,12 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Distance("Hearing Range", 25),
                 BasisSettingsDefaults.HearingRange);
 
+#if !BASIS_DISABLE_MICROPHONE
             PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
                 rangeGroup,
                 PanelSlider.SliderSettings.Distance("Microphone Range", 25),
                 BasisSettingsDefaults.MicrophoneRange);
+#endif
 
             PanelElementDescriptor generalGroupDeadZone =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -249,7 +253,9 @@ namespace Basis.BasisUI
 
             BasisSettingsDefaults.AvatarRange.ResetToDefault();
             BasisSettingsDefaults.HearingRange.ResetToDefault();
+#if !BASIS_DISABLE_MICROPHONE
             BasisSettingsDefaults.MicrophoneRange.ResetToDefault();
+#endif
 
             BasisSettingsDefaults.ControllerDeadZone.ResetToDefault();
             BasisSettingsDefaults.Basexdeadzone.ResetToDefault();
@@ -263,8 +269,10 @@ namespace Basis.BasisUI
         // ------------------
         public static PanelTabPage AudioTab(PanelTabGroup tabGroup)
         {
+#if !BASIS_DISABLE_MICROPHONE
             // Ensure current mode snapshot is loaded (and keeps SMDMicrophone.Current accurate)
             SMDMicrophone.LoadInMicrophoneData(BasisDeviceManagement.StaticCurrentMode);
+#endif
 
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
             PanelElementDescriptor descriptor = tab.Descriptor;
@@ -315,6 +323,7 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Percentage("Prop Volume"),
                 BasisSettingsDefaults.PropVolume);
 
+#if !BASIS_DISABLE_MICROPHONE
             // MICROPHONE GROUP
             PanelElementDescriptor microphoneGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -536,6 +545,7 @@ namespace Basis.BasisUI
             sliderAgcMaxGain.OnValueChanged += AgcMaxGainChanged;
             sliderAgcAttack.OnValueChanged += AgcAttackChanged;
             sliderAgcRelease.OnValueChanged += AgcReleaseChanged;
+#endif
             // One reset button for this whole page
             AddResetPageButton(container, "Audio", ResetAudioDefaults);
             descriptor.ForceRebuild();
@@ -555,6 +565,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.AvatarVolume.ResetToDefault();
             BasisSettingsDefaults.PropVolume.ResetToDefault();
 
+#if !BASIS_DISABLE_MICROPHONE
             // Mic (bindings)
             BasisSettingsDefaults.MicrophoneVolume.ResetToDefault();
             BasisSettingsDefaults.MicrophoneDenoiser.ResetToDefault();
@@ -574,8 +585,10 @@ namespace Basis.BasisUI
 
             // Ensure UI reflects current microphone snapshot immediately (safe even if redundant)
             SyncUiFromSnapshot(SMDMicrophone.Current);
+#endif
         }
 
+#if !BASIS_DISABLE_MICROPHONE
         public static PanelSlider sliderMicrophoneVolume;
         public static PanelDropdown dropdownMicrophoneSelection;
         public static PanelSlider sliderLimitThreshold;
@@ -625,6 +638,7 @@ namespace Basis.BasisUI
                     sliderAgcRelease.SetValueWithoutNotify(s.AgcRelease);
             }
         }
+#endif
 
         // ------------------
         // GRAPHICS TAB

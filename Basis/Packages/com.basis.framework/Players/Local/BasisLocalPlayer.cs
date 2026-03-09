@@ -191,7 +191,9 @@ namespace Basis.Scripts.BasisSdk.Players
             }
             PlayerPlatform = Application.platform.ToString();
 
+#if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.OnPausedAction += LocalVisemeDriver.OnPausedEvent;
+#endif
             IsLocal = true;
 
             LocalBoneDriver.CreateInitialArrays(true);
@@ -225,7 +227,9 @@ namespace Basis.Scripts.BasisSdk.Players
                 await CreateAvatar(LoadModeLocal, BasisAvatarFactory.LoadingAvatar);
             }
 
+#if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.Initialize();
+#endif
 
             BasisScene BasisScene = FindFirstObjectByType<BasisScene>(FindObjectsInactive.Exclude);
             if (BasisScene != null)
@@ -357,8 +361,10 @@ namespace Basis.Scripts.BasisSdk.Players
             LocalVisemeDriver.TryInitialize(this);
             if (HasCalibrationEvents == false)
             {
+#if !BASIS_DISABLE_MICROPHONE
                 BasisLocalMicrophoneDriver.OnHasAudio += DriveAudioToViseme;
                 BasisLocalMicrophoneDriver.OnHasSilence += DriveAudioToViseme;
+#endif
                 HasCalibrationEvents = true;
             }
         }
@@ -378,11 +384,15 @@ namespace Basis.Scripts.BasisSdk.Players
             }
             if (HasCalibrationEvents)
             {
+#if !BASIS_DISABLE_MICROPHONE
                 BasisLocalMicrophoneDriver.OnHasAudio -= DriveAudioToViseme;
                 BasisLocalMicrophoneDriver.OnHasSilence -= DriveAudioToViseme;
+#endif
                 HasCalibrationEvents = false;
             }
+#if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.DeInitialize();
+#endif
 
             if (LocalHandDriver != null)
             {
@@ -394,7 +404,9 @@ namespace Basis.Scripts.BasisSdk.Players
                 FacialBlinkDriver.OnDestroy();
             }
 
+#if !BASIS_DISABLE_MICROPHONE
             BasisLocalMicrophoneDriver.OnPausedAction -= LocalVisemeDriver.OnPausedEvent;
+#endif
             LocalAnimatorDriver.OnDestroy();
             LocalBoneDriver.DeInitializeGizmos();
             BasisUILoadingBar.DeInitalize();
@@ -405,7 +417,9 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </summary>
         public void DriveAudioToViseme()
         {
+#if !BASIS_DISABLE_MICROPHONE
             LocalVisemeDriver.ProcessAudioSamples(BasisLocalMicrophoneDriver.processBufferArray,1,BasisLocalMicrophoneDriver.processBufferArray.Length);
+#endif
         }
         public void Simulate(float DeltaTime)
         {

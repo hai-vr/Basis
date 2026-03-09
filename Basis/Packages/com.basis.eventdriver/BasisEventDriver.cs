@@ -206,8 +206,7 @@ public class BasisEventDriver : MonoBehaviour
         // send out avatar
         BasisNetworkTransmitter.AfterAvatarChanges?.Invoke(); //send out local, player network data
         JigglePhysics.SchedulePose(TimeAsDouble);//requires free access to all transform of a player.
-#if UNITY_SERVER
-#else
+#if !UNITY_SERVER && !BASIS_DISABLE_MICROPHONE
         BasisLocalMicrophoneDriver.MicrophoneUpdate(); //microphone Update
 #endif
 
@@ -238,7 +237,9 @@ public class BasisEventDriver : MonoBehaviour
         {
             BasisLocalPlayer.Instance.SimulateOnRender();
             BasisRemoteFaceManagement.Apply(); //apply blendshapes
+#if !BASIS_DISABLE_MICROPHONE
             BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime); //update microphone icon
+#endif
         }
         StateOfOnRenderBefore = false;
     }
@@ -249,7 +250,9 @@ public class BasisEventDriver : MonoBehaviour
     public async void OnApplicationQuit()
     {
         JigglePhysics.Dispose();
+#if !BASIS_DISABLE_MICROPHONE
         BasisLocalMicrophoneDriver.StopProcessingThread();
+#endif
         BasisRemoteNamePlateDriver.Dispose();
         await BasisPlayerSettingsManager.FlushAllNow();
     }
