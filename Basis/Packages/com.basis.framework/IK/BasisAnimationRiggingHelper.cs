@@ -174,6 +174,7 @@ public static class BasisAnimationRiggingHelper
         data.UseHandCapsule = true;
         data.ProtectElbow = true;
         data.EnabledSpineIK = true;
+        data.IKLockMode = (float)SMModuleCalibration.CurrentIKLockMode;
 
         // Shoulder pre-solve defaults
         data.ShoulderSolveEnabled = true;

@@ -95,6 +95,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> IKMode => new("ikmode", new BasisPlatformDefault<string>("eye height"));
 
+        public static BasisSettingsBinding<string> IKLockMode => new("iklockmode", new BasisPlatformDefault<string>("lock hips"));
+
         public static BasisSettingsBinding<bool> PitchCalibration => new("pitchcalibration", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> SelectedBone => new("selectedbone", new BasisPlatformDefault<string>("selectedbone"));
@@ -488,6 +490,7 @@ namespace Basis.BasisUI
             AvatarRange.LoadBindingValue();
             SelectedBone.LoadBindingValue();
             IKMode.LoadBindingValue();
+            IKLockMode.LoadBindingValue();
             PitchCalibration.LoadBindingValue();
             SitStand.LoadBindingValue();
 

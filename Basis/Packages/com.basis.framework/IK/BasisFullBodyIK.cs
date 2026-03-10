@@ -258,6 +258,9 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] bool m_HintHeadEnabled;
         [SyncSceneToStream, SerializeField] bool m_SpineIKEnabled;
 
+        // IK Lock Mode: 0 = LockHips, 1 = LockHead, 2 = LockBoth (see BasisIKLockMode enum)
+        [SyncSceneToStream, SerializeField] float m_IKLockMode;
+
         [SyncSceneToStream, SerializeField] public bool m_LeftToeEnabled;
         [SyncSceneToStream, SerializeField] public bool m_RightToeEnabled;
 
@@ -390,6 +393,8 @@ namespace UnityEngine.Animations.Rigging
         public string MaxChestDeltaPropertyDegFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_MaxChestDeltaDeg));
         public bool HintWeightHead { get => m_HintHeadEnabled; set => m_HintHeadEnabled = value; }
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
+        public float IKLockMode { get => m_IKLockMode; set => m_IKLockMode = value; }
+        public string IKLockModeFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_IKLockMode));
         public bool EnableLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
         public bool EnableLeftLeg { get => m_LeftLowerLegEnabled; set => m_LeftLowerLegEnabled = value; }
         public bool EnableRightLowerLeg { get => m_HintRightLowerLegEnabled; set => m_HintRightLowerLegEnabled = value; }
@@ -461,6 +466,7 @@ namespace UnityEngine.Animations.Rigging
 
             m_HintHeadEnabled = m_HintLeftLowerLegEnabled = m_HintRightLowerLegEnabled = true;
             m_SpineIKEnabled = m_LeftLowerLegEnabled = m_RightLowerLegEnabled = true;
+            m_IKLockMode = (float)BasisIKLockMode.LockHips;
 
             m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
             m_EnabledLeftHand = m_EnabledRightHand = true;
@@ -681,6 +687,7 @@ namespace UnityEngine.Animations.Rigging
             m_Data.EnabledRightHand = m_Data.EnabledRightHand;
             m_Data.ProtectElbow = m_Data.ProtectElbow;
             m_Data.ShoulderSolveEnabled = m_Data.ShoulderSolveEnabled;
+            m_Data.IKLockMode = m_Data.IKLockMode;
         }
     }
 
@@ -761,6 +768,7 @@ w20, w54;
         public Vector3 TposeLengthHeadToHips;
         public FloatProperty handRadius, handSkin, chestRadius, collisionSkin, MinHeadSpineHeight, maxBendDeg, minFactor, maxFactor, struggleStart, struggleEnd, MaxHipDeltaProperty, MaxChestDeltaProperty;
         public FloatProperty shoulderElevationFactor, shoulderProtractionFactor;
+        public FloatProperty ikLockMode;
         public BoolProperty shoulderSolveEnabled;
         // T-pose baked reference data for shoulder solve
         public Vector3 TposeLeftShoulderLocalDir, TposeRightShoulderLocalDir;
@@ -848,14 +856,28 @@ w20, w54;
             Quaternion hipDesired = hipsTargetRot * offsetHips;
             Quaternion chestDesired = chestTargetRot * targetOffsetChest;
 
-            // 1) HIPS: clamp pos + limit rot
             float restDist = MinHeadSpineHeight.Get(stream);
+            int lockMode = (int)ikLockMode.Get(stream);
 
-            float MaxBendDeg = maxBendDeg.Get(stream);
-            // 1) Limit spine bend by pushing hips down if needed
-            hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, MaxBendDeg);
+            // Lock mode determines how hips position relates to head position:
+            // 0 = LockHips:  Hips are the anchor; apply hips directly, no head-relative clamping.
+            // 1 = LockHead:  Head is the anchor; derive hips position below head.
+            // 2 = LockBoth:  Both independently positioned; spine must accommodate (original behavior).
+            switch (lockMode)
+            {
+                case 0: // LockHips - hips are authoritative, skip head-relative clamping
+                    break;
 
-            hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
+                case 1: // LockHead - head is the anchor, derive hips below head
+                    hipsTargetPos = headTargetPos + Vector3.down * restDist;
+                    break;
+
+                default: // LockBoth (2) - original behavior: clamp hips relative to head
+                    float MaxBendDeg = maxBendDeg.Get(stream);
+                    hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, MaxBendDeg);
+                    hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
+                    break;
+            }
 
             targetPositionHips.Set(stream, hipsTargetPos);
 
@@ -1850,6 +1872,9 @@ w20, w54;
                 shoulderSolveEnabled = BoolProperty.Bind(animator, component, data.ShoulderSolveEnabledProperty),
                 shoulderElevationFactor = FloatProperty.Bind(animator, component, data.ShoulderElevationFactorProperty),
                 shoulderProtractionFactor = FloatProperty.Bind(animator, component, data.ShoulderProtractionFactorProperty),
+
+                // IK Lock Mode binding
+                ikLockMode = FloatProperty.Bind(animator, component, data.IKLockModeFloatProperty),
 
                 // Baked T-pose data for shoulder solve
                 TposeLeftShoulderRot = data.LeftShoulder != null ? data.LeftShoulder.rotation : Quaternion.identity,

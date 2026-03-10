@@ -7,6 +7,7 @@ using UnityEngine;
 public class SMModuleCalibration : BasisSettingsBase
 {
     public static BasisSelectedHeightMode HeightMode = BasisSelectedHeightMode.EyeHeight;
+    public static BasisIKLockMode CurrentIKLockMode = BasisIKLockMode.LockHips;
     public static bool ApplyCustomScale = false;
     public static float SelectedScale = 1.6f;
     public static float SelectedEyeHeight = 1.61f;
@@ -21,7 +22,8 @@ public class SMModuleCalibration : BasisSettingsBase
     private static bool _dirty;
 
     // --- Canonical setting keys (from defaults) ---
-    private static string K_IK_MODE => BasisSettingsDefaults.IKMode.BindingKey;                    // "ik mode"
+    private static string K_IK_MODE => BasisSettingsDefaults.IKMode.BindingKey;                    // "ikmode"
+    private static string K_IK_LOCK_MODE => BasisSettingsDefaults.IKLockMode.BindingKey;          // "iklockmode"
     private static string K_SELECTED_HEIGHT => BasisSettingsDefaults.SelectedHeight.BindingKey;    // "selectedheight"
     private static string K_CUSTOM_SCALE => BasisSettingsDefaults.CustomScale.BindingKey;         // "custom scale"
     private static string K_SELECTED_SCALE => BasisSettingsDefaults.SelectedScale.BindingKey;     // "selected scale"
@@ -150,6 +152,25 @@ public class SMModuleCalibration : BasisSettingsBase
                     }
 
                     if (HeightMode != old) _dirty = true;
+                    break;
+                }
+
+            case var s when s == K_IK_LOCK_MODE:
+                {
+                    switch (optionValue)
+                    {
+                        case "lock hips":
+                            CurrentIKLockMode = BasisIKLockMode.LockHips;
+                            break;
+                        case "lock head":
+                            CurrentIKLockMode = BasisIKLockMode.LockHead;
+                            break;
+                        case "lock both":
+                            CurrentIKLockMode = BasisIKLockMode.LockBoth;
+                            break;
+                    }
+                    ApplyIKLockMode();
+                    BasisDebug.Log($"IK Lock Mode Set To {CurrentIKLockMode}");
                     break;
                 }
 
@@ -524,5 +545,19 @@ public class SMModuleCalibration : BasisSettingsBase
             $"Applied height settings. HeightMode {HeightMode} " +
             $"SelectedScale {SelectedScale}, ApplyCustomScale {ApplyCustomScale}"
         );
+    }
+
+    private static void ApplyIKLockMode()
+    {
+        if (BasisLocalPlayer.Instance == null || BasisLocalPlayer.Instance.LocalRigDriver == null)
+            return;
+
+        var constraint = BasisLocalPlayer.Instance.LocalRigDriver.BasisFullIKConstraint;
+        if (constraint == null)
+            return;
+
+        var data = constraint.data;
+        data.IKLockMode = (float)CurrentIKLockMode;
+        constraint.data = data;
     }
 }
