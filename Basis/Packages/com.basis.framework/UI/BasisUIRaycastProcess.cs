@@ -103,7 +103,7 @@ namespace Basis.Scripts.UI
                         }
                         else
                         {
-                            BasisDebug.LogWarning(“[BasisUIRaycastProcess] Skipping raycast simulate — hit data or ray results missing.”);
+                            BasisDebug.LogWarning(nameof(BasisUIRaycastProcess) + "Skipping raycast simulate — hit data or ray results missing.");
                         }
                     }
                     else

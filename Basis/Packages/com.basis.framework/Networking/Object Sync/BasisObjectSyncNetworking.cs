@@ -127,7 +127,7 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
         {
             // Initialize BTU from current transform so the lerp job doesn't
             // snap the object back to origin before the first sync arrives
-            SelfTransform.GetLocalPositionAndRotation(out Vector3 currentPos, out Quaternion currentRot);
+            SelfTransform.GetLocalPositionAndRotation(out UnityEngine.Vector3 currentPos, out UnityEngine.Quaternion currentRot);
             BTU.TargetPosition = currentPos;
             BTU.TargetRotation = currentRot;
             BTU.TargetScales = SelfTransform.localScale;
