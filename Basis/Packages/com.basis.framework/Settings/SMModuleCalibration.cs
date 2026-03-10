@@ -36,6 +36,7 @@ public class SMModuleCalibration : BasisSettingsBase
     private static string K_FBIK_DERIV_CUTOFF => BasisSettingsDefaults.FBIKDerivativeCutoff.BindingKey;       // "fbikderivativecutoff"
     private static string K_FBIK_POS_SMOOTH_HZ => BasisSettingsDefaults.FBIKPositionSmoothingHz.BindingKey;   // "fbikpositionsmoothinghz"
     private static string K_FBIK_ROT_SMOOTH_HZ => BasisSettingsDefaults.FBIKRotationSmoothingHz.BindingKey;   // "fbikrotationsmoothinghz"
+    private static string K_FBIK_SMOOTHING_STRENGTH => BasisSettingsDefaults.FBIKSmoothingStrength.BindingKey; // "fbiksmoothingstrength"
 
     // Hips
     private static string K_HIPS_SMOOTH_POS => BasisSettingsDefaults.FBIKHipsSmoothPos.BindingKey; // "fbikhipssmoothpos"
@@ -251,6 +252,10 @@ public class SMModuleCalibration : BasisSettingsBase
 
             case var s when s == K_FBIK_ROT_SMOOTH_HZ:
                 if (SliderReadOption(optionValue, out var f4)) BasisLocalRigDriver.RotationSmoothingHz = f4;
+                break;
+
+            case var s when s == K_FBIK_SMOOTHING_STRENGTH:
+                if (SliderReadOption(optionValue, out var f5)) BasisLocalRigDriver.SmoothingStrength = Mathf.Max(1f, f5);
                 break;
 
             // ---------- HIPS ----------
