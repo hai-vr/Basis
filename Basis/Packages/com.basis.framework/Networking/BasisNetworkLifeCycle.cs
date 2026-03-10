@@ -39,9 +39,6 @@ public static class BasisNetworkLifeCycle
         Management.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
         BasisNetworkManagement.OnEnableInstanceCreate?.Invoke();
         BasisNetworkManagement.NetworkRunning = true;
-
-        // Initialize chat message handler
-        BasisNetworkHandleChat.Initialize();
     }
     public static bool GoingThroughReboot = false;
     /// <summary>
@@ -127,8 +124,6 @@ public static class BasisNetworkLifeCycle
         Management.LocalAccessTransmitter = null;
         BasisNetworkConnection.LocalPlayerIsConnected = false;
         BasisNetworkManagement.NetworkRunning = false;
-        // Shutdown chat message handler
-        BasisNetworkHandleChat.Shutdown();
         // let the MonoBehaviour reset its Instance in OnDestroy; no direct assignment here
         BasisDebug.Log("BasisNetworkManagement has been successfully shutdown.", BasisDebug.LogTag.Networking);
         BasisNetworkConnection.NetworkClient?.Disconnect();

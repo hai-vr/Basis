@@ -220,6 +220,18 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                 });
                 break;
+            case BasisNetworkCommons.ChatChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    BasisNetworkHandleChat.HandleServerChatMessage(Reader);
+                    Reader.Recycle();
+                });
+                break;
             case BasisNetworkCommons.metaDataChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
                 {
