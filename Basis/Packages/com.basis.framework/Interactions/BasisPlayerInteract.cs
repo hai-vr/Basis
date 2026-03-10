@@ -189,18 +189,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     interactInput.HasvalidRay = false;
                     if (interactInput.lastTarget != null)
                     {
-                        // Implementation could allow for hovering and holding of the same object, clear independently
-                        bool autoHold = BasisDeviceManagement.IsUserInDesktop() && interactInput.lastTarget.AutoHold == BasisAutoHold.Yes;
-
-                        // Drop logic: only drop when not triggered
-                        if (!interactInput.lastTarget.IsInteractTriggered(interactInput.input) && interactInput.lastTarget.IsInteractingWith(interactInput.input) && !autoHold)
+                        // If the object is currently being interacted with, keep the interaction alive.
+                        // Dropping will be handled by UpdatePickupState when hover detection resumes.
+                        // This prevents objects from getting stuck when their colliders temporarily
+                        // block hover sphere detection (e.g. pool cue body colliders).
+                        if (!interactInput.lastTarget.IsInteractingWith(interactInput.input))
                         {
-                            interactInput.lastTarget.OnInteractEnd(interactInput.input);
-                        }
-
-                        if (interactInput.lastTarget.IsHoveredBy(interactInput.input))
-                        {
-                            interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
+                            if (interactInput.lastTarget.IsHoveredBy(interactInput.input))
+                            {
+                                interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
+                            }
                         }
                     }
                 }
