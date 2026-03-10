@@ -54,6 +54,7 @@ namespace Basis.BasisUI
         {
             base.Awake();
             _inputField.onEndEdit.AddListener(_ => OnComponentUsed());
+            _inputField.onValueChanged.AddListener(_ => SetValueWithoutNotify(_inputField.text));
         }
 
         public override void OnComponentUsed()
