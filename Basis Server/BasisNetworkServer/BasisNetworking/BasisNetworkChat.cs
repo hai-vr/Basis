@@ -36,8 +36,65 @@ namespace BasisNetworkServer.BasisNetworking
                     File.WriteAllText(WordFilterFilePath,
                         "# Chat word filter - one word or phrase per line\n" +
                         "# Lines starting with # are comments\n" +
-                        "# Words are case-insensitive\n");
-                    BNL.Log("Created empty chat word filter file: " + WordFilterFilePath);
+                        "# Words are case-insensitive\n" +
+                        "fuck\n" +
+                        "fucking\n" +
+                        "fucker\n" +
+                        "fucked\n" +
+                        "motherfucker\n" +
+                        "shit\n" +
+                        "shitting\n" +
+                        "bullshit\n" +
+                        "bitch\n" +
+                        "bitches\n" +
+                        "ass\n" +
+                        "asshole\n" +
+                        "bastard\n" +
+                        "damn\n" +
+                        "damned\n" +
+                        "cunt\n" +
+                        "dick\n" +
+                        "dickhead\n" +
+                        "cock\n" +
+                        "cocksucker\n" +
+                        "pussy\n" +
+                        "whore\n" +
+                        "slut\n" +
+                        "piss\n" +
+                        "pissed\n" +
+                        "crap\n" +
+                        "wanker\n" +
+                        "twat\n" +
+                        "prick\n" +
+                        "douche\n" +
+                        "douchebag\n" +
+                        "# Slurs\n" +
+                        "nigger\n" +
+                        "nigga\n" +
+                        "faggot\n" +
+                        "fag\n" +
+                        "retard\n" +
+                        "retarded\n" +
+                        "tranny\n" +
+                        "kike\n" +
+                        "spic\n" +
+                        "chink\n" +
+                        "gook\n" +
+                        "wetback\n" +
+                        "beaner\n" +
+                        "coon\n" +
+                        "dyke\n" +
+                        "# Threats / harassment\n" +
+                        "kill yourself\n" +
+                        "kys\n" +
+                        "neck yourself\n" +
+                        "go die\n" +
+                        "rape\n" +
+                        "raping\n" +
+                        "rapist\n");
+                    BNL.Log("Created default chat word filter file: " + WordFilterFilePath);
+                    // Reload so the defaults are active immediately
+                    LoadWordFilter();
                     return;
                 }
 
