@@ -125,6 +125,14 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
         }
         else
         {
+            // Initialize BTU from current transform so the lerp job doesn't
+            // snap the object back to origin before the first sync arrives
+            SelfTransform.GetLocalPositionAndRotation(out Vector3 currentPos, out Quaternion currentRot);
+            BTU.TargetPosition = currentPos;
+            BTU.TargetRotation = currentRot;
+            BTU.TargetScales = SelfTransform.localScale;
+            BTU.LerpMultipliers = CatchupLerp;
+
             BasisObjectSyncDriver.RemoveLocalOwner(this);
             BasisObjectSyncDriver.AddRemoteOwner(this);
             if (BasisPickupInteractable != null)
