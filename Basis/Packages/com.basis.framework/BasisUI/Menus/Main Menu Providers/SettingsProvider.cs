@@ -45,12 +45,12 @@ namespace Basis.BasisUI
             tabGroup.AddTab("Audio", null, AudioTab(tabGroup));
             tabGroup.AddTab("Remote Audio", null, SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
             tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
-            tabGroup.AddTab("Avatar", null, AvatarTab(tabGroup));
             tabGroup.AddTab("Calibration", null, SettingsProviderIK.IKTab(tabGroup));
             tabGroup.AddTab("Bindings", null, SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
             tabGroup.AddTab("Console", null, SettingsProviderConsoleTab.ConsoleTab(tabGroup));
             tabGroup.AddTab("Admin", null, SettingsProviderAdminTab.AdminTab(tabGroup));
             tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
+            tabGroup.AddTab("chat", null, ChatTab(tabGroup));
 
             tabGroup.AddExtraAction("Switch To OpenVR", SwitchToOpenVR);
             tabGroup.AddExtraAction("Switch To OpenXR", SwitchToOpenXR);
@@ -234,34 +234,15 @@ namespace Basis.BasisUI
             verticalDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
             wingCurveSlider.OnValueChanged += _ => UpdatePreview();
 
-            PanelElementDescriptor chatGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            chatGroup.SetTitle("Chat");
-            chatGroup.SetDescription("Send a text message that appears above your nameplate.");
+            PanelElementDescriptor debugGroup =
+    PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            debugGroup.SetTitle("Avatar Download");
+            debugGroup.SetDescription("Configuration settings for Avatar Downloads.");
 
-            PanelTextField chatTextField = PanelTextField.CreateNewEntry(chatGroup);
-            chatTextField.Descriptor.SetTitle("Chat Message");
-            chatTextField.SetValueWithoutNotify(string.Empty);
-
-            PanelButton sendChatButton = PanelButton.CreateNew(chatGroup.ContentParent);
-            sendChatButton.Descriptor.SetTitle("Send");
-            sendChatButton.OnClicked += () =>
-            {
-                string message = chatTextField.Value;
-                if (!string.IsNullOrEmpty(message))
-                {
-                    BasisNetworkHandleChat.SendChatMessage(message);
-                    chatTextField.SetValueWithoutNotify(string.Empty);
-                }
-            };
-
-            PanelButton clearChatButton = PanelButton.CreateNew(chatGroup.ContentParent);
-            clearChatButton.Descriptor.SetTitle("Clear");
-            clearChatButton.OnClicked += () =>
-            {
-                BasisNetworkHandleChat.ClearChatMessage();
-                chatTextField.SetValueWithoutNotify(string.Empty);
-            };
+            PanelSlider AvatarDownloadSize = PanelSlider.CreateEntryAndBind(
+    debugGroup.ContentParent,
+    PanelSlider.SliderSettings.Advanced("Avatar Download Size", 5, 1024, false, 0, ValueDisplayMode.MemorySize),
+    BasisSettingsDefaults.AvatarDownloadSize);
 
             // One reset button for this whole page
             AddResetPageButton(container, "General", ResetGeneralDefaults);
@@ -292,6 +273,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.Extraxdeadzoneatfully.ResetToDefault();
             BasisSettingsDefaults.Wingexponent.ResetToDefault();
             BasisSettingsDefaults.Ydeadzone.ResetToDefault();
+            BasisSettingsDefaults.AvatarDownloadSize.ResetToDefault();
         }
 
         // ------------------
@@ -869,38 +851,37 @@ namespace Basis.BasisUI
             Screen.SetResolution(selectedResolution.x, selectedResolution.y, mode);
             BasisDebug.Log("Changed Resolution: " + selectedResolution.x + "x" + selectedResolution.y);
         }
-
         // ------------------
-        // AVATAR TAB (ONE RESET BUTTON)
+        // Chat
         // ------------------
-        public static PanelTabPage AvatarTab(PanelTabGroup tabGroup)
+        public static PanelTabPage ChatTab(PanelTabGroup tabGroup)
         {
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
             PanelElementDescriptor descriptor = tab.Descriptor;
 
-            descriptor.SetTitle("Avatar Settings");
+            descriptor.SetTitle("Chat");
             RectTransform container = descriptor.ContentParent;
 
-            PanelElementDescriptor debugGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            debugGroup.SetTitle("Avatar Settings");
-            debugGroup.SetDescription("Configuration settings for avatars.");
+            PanelElementDescriptor chatGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            chatGroup.SetTitle("Chat");
+            chatGroup.SetDescription("Send a text message that appears above your nameplate.");
 
-            PanelSlider AvatarDownloadSize = PanelSlider.CreateEntryAndBind(
-                debugGroup.ContentParent,
-                PanelSlider.SliderSettings.Advanced("Avatar Download Size", 5, 1024, false, 0, ValueDisplayMode.MemorySize),
-                BasisSettingsDefaults.AvatarDownloadSize);
+            PanelTextField chatTextField = PanelTextField.CreateNewEntry(chatGroup);
+            chatTextField.Descriptor.SetTitle("Chat Message");
+            chatTextField.SetValueWithoutNotify(string.Empty);
+            chatTextField._inputField.onEndEdit.AddListener(OnEndEndit);
 
-            // One reset button for this whole page
-            AddResetPageButton(container, "Avatar", ResetAvatarDefaults);
+            void OnEndEndit(string message)
+            {
+                if (!string.IsNullOrEmpty(message))
+                {
+                    BasisNetworkHandleChat.SendChatMessage(message);
+                    chatTextField.SetValueWithoutNotify(string.Empty);
+                }
+            }
 
             descriptor.ForceRebuild();
             return tab;
-        }
-
-        private static void ResetAvatarDefaults()
-        {
-            BasisSettingsDefaults.AvatarDownloadSize.ResetToDefault();
         }
 
         // ------------------
