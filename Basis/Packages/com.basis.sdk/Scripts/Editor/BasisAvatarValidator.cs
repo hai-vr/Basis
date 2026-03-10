@@ -31,6 +31,9 @@ public class BasisAvatarValidator
     // Track fix buttons created this frame
     public List<Button> FixMeButtons = new List<Button>();
 
+    // Cached objects for warning label click handler
+    private UnityEngine.Object[] _cachedWarningObjects = Array.Empty<UnityEngine.Object>();
+
     public BasisAvatarValidator(BasisAvatar avatar, VisualElement root)
     {
         Avatar = avatar;
@@ -955,14 +958,9 @@ public class BasisAvatarValidator
                 textLines.Add($"- {uniqueMessages[i].Message}");
             }
             messageLabel.text = string.Join("\n", textLines);
-            messageLabel.RegisterCallback<PointerDownEvent>(evt =>
-            {
-                Selection.objects = uniqueMessages.Select(i => i.RelatedObject).Where(obj => obj != null).ToArray();
-                if (Selection.objects.Length > 0)
-                {
-                    EditorGUIUtility.PingObject(Selection.objects[0]);
-                }
-            });
+            messageLabel.UnregisterCallback<PointerDownEvent>(OnWarningLabelClicked);
+            _cachedWarningObjects = uniqueMessages.Select(i => i.RelatedObject).Where(obj => obj != null).ToArray();
+            messageLabel.RegisterCallback<PointerDownEvent>(OnWarningLabelClicked);
 
             // --- BUTTON HANDLING ---
             // Buttons are tricky because they have callbacks. 
@@ -988,6 +986,14 @@ public class BasisAvatarValidator
                     AutoFixButton(buttonContainer, issue.Fix, actionTitle, false);
                 }
             }
+        }
+    }
+
+    private void OnWarningLabelClicked(PointerDownEvent evt)
+    {
+        if (_cachedWarningObjects.Length > 0)
+        {
+            EditorGUIUtility.PingObject(_cachedWarningObjects[0]);
         }
     }
 
@@ -1031,7 +1037,8 @@ public class BasisAvatarValidator
         fixMeButton.clicked += delegate
         {
             onClickAction?.Invoke();
-            ClearFixButtons(Root);
+            FixMeButtons.Remove(fixMeButton);
+            fixMeButton.RemoveFromHierarchy();
         };
 
         fixMeButton.text = fixMe;
