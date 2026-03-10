@@ -233,6 +233,36 @@ namespace Basis.BasisUI
             horizontalGateStrengthSlider.OnValueChanged += _ => UpdatePreview();
             verticalDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
             wingCurveSlider.OnValueChanged += _ => UpdatePreview();
+
+            PanelElementDescriptor chatGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            chatGroup.SetTitle("Chat");
+            chatGroup.SetDescription("Send a text message that appears above your nameplate.");
+
+            PanelTextField chatTextField = PanelTextField.CreateNewEntry(chatGroup);
+            chatTextField.Descriptor.SetTitle("Chat Message");
+            chatTextField.SetValueWithoutNotify(string.Empty);
+
+            PanelButton sendChatButton = PanelButton.CreateNew(chatGroup.ContentParent);
+            sendChatButton.Descriptor.SetTitle("Send");
+            sendChatButton.OnClicked += () =>
+            {
+                string message = chatTextField.Value;
+                if (!string.IsNullOrEmpty(message))
+                {
+                    BasisNetworkHandleChat.SendChatMessage(message);
+                    chatTextField.SetValueWithoutNotify(string.Empty);
+                }
+            };
+
+            PanelButton clearChatButton = PanelButton.CreateNew(chatGroup.ContentParent);
+            clearChatButton.Descriptor.SetTitle("Clear");
+            clearChatButton.OnClicked += () =>
+            {
+                BasisNetworkHandleChat.ClearChatMessage();
+                chatTextField.SetValueWithoutNotify(string.Empty);
+            };
+
             // One reset button for this whole page
             AddResetPageButton(container, "General", ResetGeneralDefaults);
             descriptor.ForceRebuild();
