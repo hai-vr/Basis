@@ -350,7 +350,9 @@ namespace Basis.Scripts.Device_Management
             }
 
             BasisSettingsSystem.LoadAllSettings();
+#if !BASIS_DISABLE_MICROPHONE
             SMDMicrophone.LoadInMicrophoneData(mode);
+#endif
             StaticCurrentMode = mode;
             await BasisActionDriver.LoadBindings();
             BasisDebug.Log($"Loading mode: {mode}", BasisDebug.LogTag.Device);
@@ -430,7 +432,7 @@ namespace Basis.Scripts.Device_Management
             return match.Count > 0 || string.Equals(name, BasisConstants.Exiting, StringComparison.Ordinal);
         }
 
-        #endregion
+#endregion
 
         #region Device Restore & Tracking
 

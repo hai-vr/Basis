@@ -186,6 +186,8 @@ namespace Basis.Scripts.Drivers
                 BasisLocalMicrophoneDriver.OnPausedAction += microphoneIconDriver.OnPausedEvent;
                 BasisLocalMicrophoneDriver.MainThreadOnHasAudio += microphoneIconDriver.MicrophoneTransmitting;
                 BasisLocalMicrophoneDriver.MainThreadOnHasSilence += microphoneIconDriver.MicrophoneNotTransmitting;
+#else
+                ParentOfUI.gameObject.SetActive(false);
 #endif
 
                 RenderPipelineManager.beginCameraRendering += BeginCameraRendering;
@@ -356,7 +358,9 @@ namespace Basis.Scripts.Drivers
                 this.transform.GetPositionAndRotation(out Position, out Rotation);
                 if (CameraData.allowXRRendering)
                 {
+                    #if !BASIS_DISABLE_MICROPHONE
                     ParentOfUI.localPosition = microphoneIconDriver.CalculateClampedLocal(Camera, Position);
+#endif
                 }
                 else
                 {
