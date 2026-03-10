@@ -82,10 +82,11 @@ public static class SettingsProviderIK
         dropdownIKLockMode.AssignEntries(new List<string> { "Lock Hips", "Lock Head", "Lock Both" });
         dropdownIKLockMode.AssignBinding(BasisSettingsDefaults.IKLockMode);
         dropdownIKLockMode.Descriptor.SetDescription(
-            "Controls how the spine IK chain resolves the relationship between head and hips.\n\n" +
-            "Lock Hips: Hips are the anchor. Prevents spine curvature from leg movement. Best for full-body tracking.\n" +
-            "Lock Head: Head is the anchor. Hips are derived below head. Best for HMD-only or 3-point tracking.\n" +
-            "Lock Both: Both head and hips are independent. Spine stretches to connect them."
+            "Lock Hips: Hips are the anchor, Lock Head: Head is the anchor."
+        //"Controls how the spine IK chain resolves the relationship between head and hips.\n\n"// +
+        //  "Lock Hips: Hips are the anchor. Prevents spine curvature from leg movement. Best for full-body tracking.\n" +
+        //  "Lock Head: Head is the anchor. Hips are derived below head. Best for HMD-only or 3-point tracking.\n" +
+        //  "Lock Both: Both head and hips are independent. Spine stretches to connect them."
         );
 
         // --- Custom scale toggle ---
