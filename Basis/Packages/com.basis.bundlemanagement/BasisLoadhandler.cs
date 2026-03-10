@@ -234,23 +234,7 @@ public static class BasisLoadHandler
 
     public static void RemoveDiscInfo(string metaUrl)
     {
-        if (OnDiscData.TryRemove(metaUrl, out _))
-        {
-        }
-        else
-        {
-            BasisDebug.LogError("Disc info not found or already removed.", BasisDebug.LogTag.Event);
-        }
-        string filePath = BasisIOManagement.GenerateFilePath($"{metaUrl}{BasisBeeConstants.BasisEncryptedExtension}", BasisBeeConstants.AssetBundlesFolder);
-        if (File.Exists(filePath))
-        {
-            File.Delete(filePath);
-            BasisDebug.Log($"Deleted disc info from {filePath}", BasisDebug.LogTag.Event);
-        }
-        else
-        {
-            BasisDebug.LogWarning($"File not found at {filePath}", BasisDebug.LogTag.Event);
-        }
+        BasisStorageManagement.DeleteStoredFile(metaUrl);
     }
 
     private static async Task EnsureInitializationComplete()

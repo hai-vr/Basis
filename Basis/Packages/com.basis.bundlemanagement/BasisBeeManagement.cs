@@ -61,6 +61,7 @@ public static class BasisBeeManagement
                         };
 
                         await BasisLoadHandler.AddDiscInfo(newDiscInfo);
+                        BasisStorageManagement.EnforceCacheSizeLimit();
                     }
                     return;
                 }
@@ -83,6 +84,7 @@ public static class BasisBeeManagement
                 };
 
                 await BasisLoadHandler.AddDiscInfo(newDiscInfo);
+                BasisStorageManagement.EnforceCacheSizeLimit();
             }
         }
         catch (Exception ex)
@@ -126,6 +128,7 @@ public static class BasisBeeManagement
             };
 
             await BasisLoadHandler.AddDiscInfo(newDiscInfo);
+            BasisStorageManagement.EnforceCacheSizeLimit();
         }
 
         return true;

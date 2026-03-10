@@ -46,6 +46,7 @@ namespace Basis.BasisUI
             tabGroup.AddTab("Remote Audio", null, SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
             tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
             tabGroup.AddTab("Avatar", null, AvatarTab(tabGroup));
+            tabGroup.AddTab("Storage", null, StorageTab(tabGroup));
             tabGroup.AddTab("Calibration", null, SettingsProviderIK.IKTab(tabGroup));
             tabGroup.AddTab("Bindings", null, SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
             tabGroup.AddTab("Console", null, SettingsProviderConsoleTab.ConsoleTab(tabGroup));
@@ -871,6 +872,115 @@ namespace Basis.BasisUI
         private static void ResetAvatarDefaults()
         {
             BasisSettingsDefaults.AvatarDownloadSize.ResetToDefault();
+        }
+
+        // ------------------
+        // STORAGE TAB
+        // ------------------
+        public static PanelTabPage StorageTab(PanelTabGroup tabGroup)
+        {
+            PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+            PanelElementDescriptor descriptor = tab.Descriptor;
+
+            descriptor.SetTitle("Storage Management");
+            RectTransform container = descriptor.ContentParent;
+
+            // Cache size info group
+            PanelElementDescriptor infoGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            infoGroup.SetTitle("Cache Info");
+
+            long totalBytes = BasisStorageManagement.GetTotalCacheSizeBytes();
+            string sizeText = BasisStorageManagement.FormatBytes(totalBytes);
+            string limitText = BasisStorageManagement.FormatBytes(BasisStorageManagement.MaxCacheSizeBytes);
+
+            PanelPasswordField cacheInfoField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
+            cacheInfoField.Descriptor.SetTitle("Total Cache Size");
+            cacheInfoField.SetPassword($"{sizeText} / {limitText}");
+
+            var storedFiles = BasisStorageManagement.GetAllStoredFiles();
+
+            PanelPasswordField fileCountField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
+            fileCountField.Descriptor.SetTitle("Stored Files");
+            fileCountField.SetPassword($"{storedFiles.Count} files");
+
+            // Cache size limit slider
+            PanelElementDescriptor limitGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            limitGroup.SetTitle("Cache Settings");
+            limitGroup.SetDescription("Set the maximum disk space for cached BEE files.");
+
+            PanelSlider cacheSizeSlider = PanelSlider.CreateEntryAndBind(
+                limitGroup.ContentParent,
+                PanelSlider.SliderSettings.Advanced("Max Cache Size (GB)", 1, 512, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.CacheMaxSizeGB);
+
+            // Clear all cache button
+            PanelButton clearAllButton = PanelButton.CreateNew(container);
+            clearAllButton.Descriptor.SetTitle("Clear All Cache");
+            clearAllButton.Descriptor.SetDescription("Delete all downloaded BEE files from disk.");
+            clearAllButton.OnClicked += () =>
+            {
+                BasisMainMenu.Instance.OpenDialogue(
+                    "Clear All Cache",
+                    $"Delete all {storedFiles.Count} cached files ({sizeText})? This cannot be undone.",
+                    "Clear All",
+                    "Cancel",
+                    value =>
+                    {
+                        if (!value) return;
+                        BasisStorageManagement.ClearAllCache();
+                        BasisMainMenu.Close();
+                        BasisMainMenu.OpenWithProvider(StaticTitle);
+                    });
+            };
+
+            // Individual file list group
+            if (storedFiles.Count > 0)
+            {
+                PanelElementDescriptor filesGroup =
+                    PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                filesGroup.SetTitle("Stored BEE Files");
+                filesGroup.SetDescription("Individual cached files. Click to delete.");
+
+                foreach (var file in storedFiles)
+                {
+                    string fileName = file.UniqueVersion;
+                    string size = BasisStorageManagement.FormatBytes(file.FileSizeBytes);
+                    string loadedStatus = file.IsLoadedInMemory ? " [IN USE]" : "";
+                    string remoteUrl = file.RemoteUrl;
+
+                    PanelButton fileButton = PanelButton.CreateNew(filesGroup.ContentParent);
+                    fileButton.Descriptor.SetTitle($"{fileName} ({size}){loadedStatus}");
+                    fileButton.Descriptor.SetDescription(remoteUrl);
+                    fileButton.OnClicked += () =>
+                    {
+                        BasisMainMenu.Instance.OpenDialogue(
+                            "Delete File",
+                            $"Delete cached file '{fileName}' ({size})?{(file.IsLoadedInMemory ? "\n\nWarning: This file is currently in use. Deleting it will unload the asset." : "")}",
+                            "Delete",
+                            "Cancel",
+                            value =>
+                            {
+                                if (!value) return;
+                                BasisStorageManagement.DeleteStoredFile(remoteUrl);
+                                BasisMainMenu.Close();
+                                BasisMainMenu.OpenWithProvider(StaticTitle);
+                            });
+                    };
+                }
+            }
+
+            // Reset button
+            AddResetPageButton(container, "Storage", ResetStorageDefaults);
+
+            descriptor.ForceRebuild();
+            return tab;
+        }
+
+        private static void ResetStorageDefaults()
+        {
+            BasisSettingsDefaults.CacheMaxSizeGB.ResetToDefault();
         }
 
         // ------------------
