@@ -103,6 +103,7 @@ GameObject:
   - component: {fileID: 3054218223580752409}
   - component: {fileID: 4147712560411048403}
   - component: {fileID: -6216164189268355534}
+  - component: {fileID: 7243030912262970484}
   m_Layer: 8
   m_Name: PersonalMirror
   m_TagString: Untagged
@@ -178,7 +179,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 1
+  m_IsTrigger: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -220,6 +221,7 @@ MonoBehaviour:
   InteractRange: 0.1
   KinematicWhileInteracting: 1
   CanSelfSteal: 1
+  ShowHighlightOnHover: 0
   DesktopRotateSpeed: 0.1
   DesktopZoopSpeed: 0.2
   DesktopZoopMinDistance: 0.2
@@ -229,7 +231,7 @@ MonoBehaviour:
   interactEndLinearVelocityMultiplier: 1
   minAngularVelocity: 0.5
   interactEndAngularVelocityMultiplier: 1
-  RigidRef: {fileID: 0}
+  RigidRef: {fileID: 7243030912262970484}
   InputConstraint:
     rid: 1028902784308609151
   _previousKinematicValue: 1
@@ -294,6 +296,33 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e6527b4fe5e39b14a91aa0e51b25c992, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!54 &7243030912262970484
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6605923727707009212}
+  serializedVersion: 5
+  m_Mass: 1
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 0
+  m_IsKinematic: 1
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!1 &7563364329703000399
 GameObject:
   m_ObjectHideFlags: 0

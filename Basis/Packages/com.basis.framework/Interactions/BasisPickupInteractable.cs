@@ -37,6 +37,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public bool CanSelfSteal = true;
 
         /// <summary>
+        /// Show Highlight on haver. does not effect on hover exit.
+        /// </summary>
+        public bool ShowHighlightOnHover = true;
+        /// <summary>
         /// Desktop-only rotation speed multiplier when dragging to rotate the held object.
         /// </summary>
         public float DesktopRotateSpeed = 0.1f;
@@ -257,8 +261,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
         # endregion
 
         private float _previousDistance = 0;
-
-
         /// <summary>
         /// Unity start hook. Ensures references, allocates constraint, loads highlight material, and optionally builds the collider highlight mesh.
         /// </summary>
@@ -374,7 +376,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 BasisDebug.LogWarning(nameof(BasisPickupInteractable) + " did not find role for input on hover");
 
             OnHoverStartEvent?.Invoke(input);
-            HighlightObject(true);
+            if (ShowHighlightOnHover)
+            {
+                HighlightObject(true);
+            }
         }
 
         /// <summary>
