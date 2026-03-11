@@ -14,6 +14,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public static void Return(QueuedMessage msg)
         {
             msg.FromPeer = null;
+            msg.Sequence = 0;
             // Preserve msg.AvatarMessage.array so it can be reused on next Rent
             // instead of allocating a new byte[] every deserialization.
             var saved = msg.AvatarMessage;

@@ -44,6 +44,11 @@ namespace Basis.Scripts.Networking.Receivers
 
         public bool HasBufferHolds;
 
+        // ---------------- sequence tracking for unreliable delivery ----------------
+        private byte _highestSequence;
+        private bool _hasFirstSequence;
+        private readonly List<BasisAvatarBuffer> _pendingSort = new List<BasisAvatarBuffer>(16);
+
         // ---------------- staging (ring buffer) ----------------
         private const int MaxStage = 64;
         public int StagedCount;
@@ -99,17 +104,56 @@ namespace Basis.Scripts.Networking.Receivers
                 return;
             }
             hasRequiredData = true;
-            // 1) Pull network packets to main-thread staging ring (bounded)
+            // 1) Pull network packets, drop stale, sort by sequence, then stage
+            _pendingSort.Clear();
             while (PayloadQueue.TryDequeue(out BasisAvatarBuffer buffer))
             {
-                // Stamp monotonic server time *here* (single-threaded)
+                // Drop truly stale packets (sequence delta >= 128 means it's in the past)
+                if (_hasFirstSequence)
+                {
+                    byte delta = unchecked((byte)(_highestSequence - buffer.Sequence));
+                    if (delta > 0 && delta >= 128)
+                    {
+                        BasisAvatarBufferPool.Release(buffer);
+                        continue;
+                    }
+                }
+
+                // Track the highest sequence seen
+                if (!_hasFirstSequence)
+                {
+                    _highestSequence = buffer.Sequence;
+                    _hasFirstSequence = true;
+                }
+                else
+                {
+                    byte fwd = unchecked((byte)(buffer.Sequence - _highestSequence));
+                    if (fwd > 0 && fwd < 128)
+                    {
+                        _highestSequence = buffer.Sequence;
+                    }
+                }
+
+                _pendingSort.Add(buffer);
+            }
+
+            // Sort by sequence so out-of-order arrivals are staged in correct order
+            if (_pendingSort.Count > 1)
+            {
+                _pendingSort.Sort((a, b) => ((sbyte)(a.Sequence - b.Sequence)));
+            }
+
+            // Enqueue sorted items into staging ring with monotonic server clock
+            for (int i = 0; i < _pendingSort.Count; i++)
+            {
+                var buffer = _pendingSort[i];
+
                 if (!_serverClockSeeded)
                 {
                     _serverClockSeconds = 0.0;
                     _serverClockSeeded = true;
                 }
 
-                // secondsInterval already validated/clamped by decompressor
                 _serverClockSeconds += buffer.SecondsInterval;
                 buffer.ServerTimeSeconds = _serverClockSeconds;
 
@@ -270,6 +314,8 @@ namespace Basis.Scripts.Networking.Receivers
         {
             _serverClockSeconds = 0.0;
             _serverClockSeeded = false;
+            _highestSequence = 0;
+            _hasFirstSequence = false;
             RemotePlayer = (BasisRemotePlayer)Player;
             AudioReceiverModule.Initialize(this);
 
@@ -341,6 +387,8 @@ namespace Basis.Scripts.Networking.Receivers
         {
             _serverClockSeconds = 0.0;
             _serverClockSeeded = false;
+            _highestSequence = 0;
+            _hasFirstSequence = false;
             // _stagedRing can be null if Initialize never completed, so don't Assert here—guard.
             if (_stagedRing != null)
             {
