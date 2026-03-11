@@ -31,7 +31,7 @@ public static class BasisNetworkHandleVoice
                 {
                     if (audioUpdate.audioSegmentData.LengthUsed == 0)
                     {
-                        BasisDebug.LogError(Audio Segment Data Length was zero this is now unsupported, BasisDebug.LogTag.Voice);
+                        BasisDebug.LogError("Audio Segment Data Length was zero this is now unsupported", BasisDebug.LogTag.Voice);
                     }
                     else
                     {
@@ -40,7 +40,7 @@ public static class BasisNetworkHandleVoice
                 }
                 else
                 {
-                    BasisDebug.Log(Missing Player For Message  + audioUpdate.playerIdMessage.playerID);
+                    BasisDebug.Log("Missing Player For Message" + audioUpdate.playerIdMessage.playerID);
                 }
                 Message.Enqueue(audioUpdate);
                 while (Message.Count > MaxStoredServerAudioSegmentMessage)
@@ -50,7 +50,7 @@ public static class BasisNetworkHandleVoice
             }
             catch (Exception ex)
             {
-                BasisDebug.LogError(Error in HandleAudioUpdate:  + ex.Message +   + ex.StackTrace);
+                BasisDebug.LogError($"Error in HandleAudioUpdate:{ex.Message}{ex.StackTrace}");
             }
             finally
             {
@@ -63,7 +63,7 @@ public static class BasisNetworkHandleVoice
         }
         catch (OperationCanceledException)
         {
-            BasisDebug.LogError(HandleAudioUpdate task canceled.);
+            BasisDebug.LogError("HandleAudioUpdate task canceled.");
         }
     }
 }

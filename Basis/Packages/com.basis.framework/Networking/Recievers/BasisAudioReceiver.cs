@@ -161,24 +161,6 @@ namespace Basis.Scripts.Networking.Receivers
                 AudioSourceSet();
             }
         }
-
-        public void OnDecodePLC()
-        {
-            if (HasAudioSource)
-            {
-                try
-                {
-                    pcmLength = decoder.Decode(Span<byte>.Empty, 0, new Span<float>(pcmBuffer), RemoteOpusSettings.FrameSize, false);
-                    InOrderRead.Add(pcmBuffer, pcmLength, true);
-                }
-                catch
-                {
-                    InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
-                }
-                AudioSourceSet();
-            }
-        }
-
         public void InsertAndDrain(AudioSegmentDataMessage msg)
         {
             JitterBuffer.Insert(msg.SequenceNumber, msg.buffer, msg.LengthUsed, msg.TotalPlayedInSilence);
@@ -222,34 +204,6 @@ namespace Basis.Scripts.Networking.Receivers
                 AudioSourceSet();
             }
         }
-
-        /// <summary>
-        /// Inserts an encoded packet into the jitter buffer and drains ready frames in order.
-        /// </summary>
-        public void InsertAndDrain(AudioSegmentDataMessage msg)
-        {
-            JitterBuffer.Insert(msg.SequenceNumber, msg.buffer, msg.LengthUsed, msg.TotalPlayedInSilence);
-
-            while (JitterBuffer.TryConsume(out byte[] data, out int length, out byte silenceUnits, out bool isMissing))
-            {
-                if (isMissing)
-                {
-                    OnDecodePLC();
-                }
-                else
-                {
-                    if (silenceUnits > 0)
-                    {
-                        int localUnits = System.Threading.Interlocked.Exchange(ref _silentUnits20ms, 0);
-                        int missing = silenceUnits - localUnits;
-                        for (int i = 0; i < missing; i++)
-                            OnDecodeSilence();
-                    }
-                    OnDecode(data, length);
-                }
-            }
-        }
-
         /// <summary>
         /// Creates/attaches an <see cref="AudioSource"/> and begins playback for the given player.
         /// Also initializes viseme driving and applies per-player volume settings.
