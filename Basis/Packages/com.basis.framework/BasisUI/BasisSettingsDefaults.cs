@@ -157,6 +157,10 @@ namespace Basis.BasisUI
             other = true
         });
 
+        // ---------------- NOTIFICATIONS ----------------
+        public static BasisSettingsBinding<bool> JoinNotifications => new("joinnotifications", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> LeaveNotifications => new("leavenotifications", new BasisPlatformDefault<bool>(true));
+
         public static BasisSettingsBinding<bool> FalseBinding => new("falsebinding", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> TrueBinding => new("truebinding", new BasisPlatformDefault<bool>(false));
@@ -518,6 +522,10 @@ namespace Basis.BasisUI
             CacheMaxSizeGB.LoadBindingValue();
             AvatarMeshLOD.LoadBindingValue();
             GlobalMeshLOD.LoadBindingValue();
+
+            // Notifications
+            JoinNotifications.LoadBindingValue();
+            LeaveNotifications.LoadBindingValue();
 
             // UI
             MicrophoneIcon.LoadBindingValue();
