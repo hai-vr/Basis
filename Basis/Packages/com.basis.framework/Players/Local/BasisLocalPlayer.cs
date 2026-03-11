@@ -426,10 +426,18 @@ namespace Basis.Scripts.BasisSdk.Players
             // now lets move the local player position.
             LocalCharacterDriver.SimulateMovement(DeltaTime);
 
+            // Apply virtual data (e.g. seat driver) before polling input devices so that
+            // localToWorldMatrix reflects the seat-adjusted player position. This ensures
+            // bone world positions and raycast origins are correct while seated (#514).
+            ApplyVirtualData(this);
+            if (LocalSeatDriver.IsSeated)
+            {
+                transform.GetPositionAndRotation(out Vector3 seatPos, out Quaternion seatRot);
+                localToWorldMatrix = Matrix4x4.TRS(seatPos, seatRot, transform.lossyScale);
+            }
+
             OnLateSimulateBones(this);
 
-
-            ApplyVirtualData(this);
             // moves all bones to where they belong
             // This also drives head and camera movement.
             LocalBoneDriver.Simulate(DeltaTime, localToWorldMatrix);
