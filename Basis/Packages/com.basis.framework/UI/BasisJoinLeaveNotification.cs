@@ -29,9 +29,9 @@ namespace Basis.Scripts.UI
         public static float FontSize = 28f;
         public static float FontSizeMin = 14f;
         public static float FontSizeMax = 28f;
-        public static float BackgroundPadding = 2f;
-        public static float MinHalfWidth = 6f;
-        public static float MinHalfHeight = 3f;
+        public static float BackgroundPadding = 4f;
+        public static float MinHalfWidth = 10f;
+        public static float MinHalfHeight = 1.5f;
         public static float LineSpacing = 3f;
         public static float TextRectWidth = 58f;
         public static float TextRectHeight = 10f;
@@ -266,11 +266,7 @@ namespace Basis.Scripts.UI
                 name = "Unknown";
             }
 
-            Color joinColor = BasisRemoteNamePlateDriver.Instance != null
-                ? BasisRemoteNamePlateDriver.StaticIsTalkingColor
-                : new Color(0.2f, 0.8f, 0.4f, 1f);
-
-            ShowNotification(name + " joined", joinColor);
+            ShowNotification(name + " joined", Color.white);
         }
 
         private static void OnRemotePlayerLeft(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
@@ -281,11 +277,7 @@ namespace Basis.Scripts.UI
                 name = "Unknown";
             }
 
-            Color leaveColor = BasisRemoteNamePlateDriver.Instance != null
-                ? BasisRemoteNamePlateDriver.StaticOutOfRangeColor
-                : new Color(0.85f, 0.35f, 0.35f, 1f);
-
-            ShowNotification(name + " left", leaveColor);
+            ShowNotification(name + " left", Color.white);
         }
 
         private static void ShowNotification(string message, Color color)
