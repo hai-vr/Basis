@@ -304,6 +304,7 @@ namespace Basis.Scripts.BasisCharacterController
                 if (LastWasGrounded && currentVerticalSpeed <= 0f)
                 {
                     coyoteTimeCounter = coyoteTimeDuration;
+                    currentVerticalSpeed = -2f; // Smooth ledge transition without terminal velocity
                 }
                 else if (coyoteTimeCounter > 0f)
                 {
@@ -378,12 +379,6 @@ namespace Basis.Scripts.BasisCharacterController
                 totalMoveDirection = Vector3.zero;
             }
 
-            // Prevent gravity from accumulating to terminal velocity while grounded.
-            // A small constant keeps the controller pressed onto the surface.
-            if (groundedPlayer && currentVerticalSpeed < 0f)
-            {
-                currentVerticalSpeed = -2f;
-            }
 
             // Handle jumping and falling
             if (CanJump && HasJumpAction)
