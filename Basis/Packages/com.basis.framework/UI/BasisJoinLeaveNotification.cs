@@ -62,7 +62,7 @@ namespace Basis.Scripts.UI
             root = go.transform;
             initialized = true;
 
-            CreateWhiteSprite();
+            CreateRoundedSprite();
             PrewarmPool();
 
             BasisNetworkPlayer.OnRemotePlayerJoined += OnRemotePlayerJoined;
@@ -162,12 +162,55 @@ namespace Basis.Scripts.UI
             root.localScale = Vector3.one;
         }
 
-        private static void CreateWhiteSprite()
+        private static void CreateRoundedSprite()
         {
-            whiteTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-            whiteTexture.SetPixel(0, 0, Color.white);
+            const int size = 64;
+            const int radius = 16;
+
+            whiteTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            whiteTexture.filterMode = FilterMode.Bilinear;
+            Color[] pixels = new Color[size * size];
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float px = x + 0.5f;
+                    float py = y + 0.5f;
+                    float dx = 0f, dy = 0f;
+
+                    if (px < radius) dx = radius - px;
+                    else if (px > size - radius) dx = px - (size - radius);
+
+                    if (py < radius) dy = radius - py;
+                    else if (py > size - radius) dy = py - (size - radius);
+
+                    if (dx > 0f && dy > 0f)
+                    {
+                        float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                        float alpha = Mathf.Clamp01(radius - dist + 0.5f);
+                        pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+                    }
+                    else
+                    {
+                        pixels[y * size + x] = Color.white;
+                    }
+                }
+            }
+
+            whiteTexture.SetPixels(pixels);
             whiteTexture.Apply();
-            whiteSprite = Sprite.Create(whiteTexture, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
+
+            Vector4 border = new Vector4(radius, radius, radius, radius);
+            whiteSprite = Sprite.Create(
+                whiteTexture,
+                new Rect(0, 0, size, size),
+                new Vector2(0.5f, 0.5f),
+                4f,
+                0,
+                SpriteMeshType.FullRect,
+                border
+            );
         }
 
         private static void PrewarmPool()
