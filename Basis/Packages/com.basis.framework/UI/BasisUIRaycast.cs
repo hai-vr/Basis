@@ -57,6 +57,8 @@ namespace Basis.Scripts.UI
         public bool IgnoreReversedGraphics = true;
         public Vector3 highlightQuadInitalSize;
         public bool HasOnPlayersHeightChanged = false;
+        public BasisCursorType ActiveCursorType = BasisCursorType.Default;
+        public Renderer ReticleRenderer;
 
         public void Initialize(BasisInput basisInput, BasisPointRaycaster pointRaycaster)
         {
@@ -133,6 +135,7 @@ namespace Basis.Scripts.UI
                 {
                     Canvas.worldCamera = BasisLocalCameraDriver.Instance.Camera;
                 }
+                ReticleRenderer = highlightQuadInstance.GetComponentInChildren<Renderer>();
                 highlightQuadInstance.gameObject.SetActive(false);
                 HighlightState = ActiveStateOfHightlight.NA;
                 HasRedicalRenderer = true;
@@ -218,6 +221,7 @@ namespace Basis.Scripts.UI
         private void HandleNoHit()
         {
             ResetRenderers();
+            ResetCursorType();
             RaycastResult = new RaycastResult();
             PhysicHit = new RaycastHit();
         }
@@ -235,10 +239,12 @@ namespace Basis.Scripts.UI
                 UpdateRayCastResult();   // sets all RaycastResult data
                 UpdateLineRenderer();    // updates the line renderer
                 UpdateReticleRenderer(); // moves the Reticle renderer
+                UpdateCursorType();      // detects cursor hints from hovered UI
             }
             else
             {
                 ResetRenderers();
+                ResetCursorType();
             }
         }
 
@@ -324,6 +330,97 @@ namespace Basis.Scripts.UI
                     }
                 }
             }
+        }
+
+        private static readonly int ReticleColorID = Shader.PropertyToID("_Color");
+        private static readonly int ReticleMainTexID = Shader.PropertyToID("_MainTex");
+
+        private void UpdateCursorType()
+        {
+            BasisCursorType newType = BasisCursorType.Default;
+            Texture2D customTex = null;
+
+            if (SortedGraphics.Count > 0 && SortedGraphics[0].graphic != null)
+            {
+                var graphic = SortedGraphics[0].graphic;
+                if (graphic.TryGetComponent(out BasisCursorHint hint))
+                {
+                    newType = hint.CursorType;
+                    customTex = hint.CustomTexture;
+                }
+                else if (graphic.GetComponentInParent<BasisCursorHint>() is BasisCursorHint parentHint && parentHint != null)
+                {
+                    newType = parentHint.CursorType;
+                    customTex = parentHint.CustomTexture;
+                }
+                else
+                {
+                    newType = BasisCursorType.Pointer;
+                }
+            }
+
+            if (ActiveCursorType != newType)
+            {
+                ActiveCursorType = newType;
+                ApplyCursorVisual(newType, customTex);
+            }
+
+            BasisCursorManagement.SetCursorType(newType, customTex);
+        }
+
+        private void ResetCursorType()
+        {
+            if (ActiveCursorType != BasisCursorType.Default)
+            {
+                ActiveCursorType = BasisCursorType.Default;
+                ApplyCursorVisual(BasisCursorType.Default);
+                BasisCursorManagement.SetCursorType(BasisCursorType.Default);
+            }
+        }
+
+        private void ApplyCursorVisual(BasisCursorType cursorType, Texture2D customTexture = null)
+        {
+            if (!HasRedicalRenderer || ReticleRenderer == null)
+            {
+                return;
+            }
+
+            Color color;
+            switch (cursorType)
+            {
+                case BasisCursorType.Pointer:
+                    color = new Color(0.3f, 0.6f, 1f, 0.8f);
+                    break;
+                case BasisCursorType.Text:
+                    color = new Color(1f, 1f, 1f, 0.9f);
+                    break;
+                case BasisCursorType.Grab:
+                    color = new Color(0.4f, 1f, 0.4f, 0.8f);
+                    break;
+                case BasisCursorType.Grabbing:
+                    color = new Color(1f, 0.8f, 0.2f, 0.9f);
+                    break;
+                case BasisCursorType.NotAllowed:
+                    color = new Color(1f, 0.3f, 0.3f, 0.9f);
+                    break;
+                case BasisCursorType.Move:
+                    color = new Color(0.6f, 0.8f, 1f, 0.8f);
+                    break;
+                default:
+                    color = Color.white;
+                    break;
+            }
+
+            MaterialPropertyBlock block = new MaterialPropertyBlock();
+            ReticleRenderer.GetPropertyBlock(block);
+            block.SetColor(ReticleColorID, color);
+
+            if (cursorType == BasisCursorType.Custom && customTexture != null)
+            {
+                block.SetTexture(ReticleMainTexID, customTexture);
+            }
+
+            ReticleRenderer.SetPropertyBlock(block);
         }
 
         private void ResetRenderers()
