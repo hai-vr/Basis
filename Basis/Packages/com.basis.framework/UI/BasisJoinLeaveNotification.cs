@@ -32,7 +32,7 @@ namespace Basis.Scripts.UI
         public static float BackgroundPadding = 2f;
         public static float MinHalfWidth = 6f;
         public static float MinHalfHeight = 3f;
-        public static float LineSpacing = 12f;
+        public static float LineSpacing = 3f;
         public static float TextRectWidth = 58f;
         public static float TextRectHeight = 10f;
         public static float RoundEdges = 0.5f;
@@ -48,7 +48,7 @@ namespace Basis.Scripts.UI
         private static MaterialPropertyBlock mpb;
         private static Material cachedMaterial;
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
-        private static readonly Color FullAlpha = new Color(1f, 1f, 1f, 1f);
+        private static readonly Color FullAlpha = new Color(0.1f, 0.1f, 0.1f, 1f);
 
         private class NotificationSlot
         {
@@ -205,7 +205,8 @@ namespace Basis.Scripts.UI
 
             slot.BgObj = new GameObject("Background");
             slot.BgObj.transform.SetParent(slot.Root.transform, false);
-            slot.BgObj.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            Vector3 Euler = new Vector3(0, 180, 0);
+            slot.BgObj.transform.SetLocalPositionAndRotation(Vector3.zero,Quaternion.Euler(Euler));
             slot.BgObj.transform.localScale = Vector3.one;
 
             slot.BgFilter = slot.BgObj.AddComponent<MeshFilter>();
@@ -318,7 +319,7 @@ namespace Basis.Scripts.UI
             Vector2 textSize = slot.Text.GetRenderedValues(true);
 
             float halfWidth = (textSize.x / 2f) + BackgroundPadding;
-            float halfHeight = (textSize.y / 2f) + BackgroundPadding;
+            float halfHeight = (textSize.y / 4f) + BackgroundPadding;
             halfWidth = Mathf.Max(halfWidth, MinHalfWidth);
             halfHeight = Mathf.Max(halfHeight, MinHalfHeight);
 
