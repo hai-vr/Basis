@@ -43,14 +43,15 @@ namespace Basis.BasisUI
 
             tabGroup.AddTab("General", null, GeneralTab(tabGroup));
             tabGroup.AddTab("Audio", null, AudioTab(tabGroup));
-            tabGroup.AddTab("Remote Audio", null, SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
             tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
             tabGroup.AddTab("Calibration", null, SettingsProviderIK.IKTab(tabGroup));
+            tabGroup.AddTab("Cached Storage", null, SettingsProviderStorage.StorageTab(tabGroup));
+            tabGroup.AddTab("chat", null, ChatTab(tabGroup));
             tabGroup.AddTab("Bindings", null, SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
             tabGroup.AddTab("Console", null, SettingsProviderConsoleTab.ConsoleTab(tabGroup));
             tabGroup.AddTab("Admin", null, SettingsProviderAdminTab.AdminTab(tabGroup));
             tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
-            tabGroup.AddTab("chat", null, ChatTab(tabGroup));
+            tabGroup.AddTab("Remote Audio", null, SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
 
             tabGroup.AddExtraAction("Switch To OpenVR", SwitchToOpenVR);
             tabGroup.AddExtraAction("Switch To OpenXR", SwitchToOpenXR);

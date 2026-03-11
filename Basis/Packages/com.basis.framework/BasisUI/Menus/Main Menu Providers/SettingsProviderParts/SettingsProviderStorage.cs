@@ -1,0 +1,75 @@
+using Basis.BasisUI;
+using UnityEngine;
+
+public static class SettingsProviderStorage
+{
+    public static PanelTabPage StorageTab(PanelTabGroup tabGroup)
+    {
+        PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+        PanelElementDescriptor descriptor = tab.Descriptor;
+        descriptor.SetIcon(AddressableAssets.Sprites.Settings);
+        descriptor.SetTitle("Storage Settings");
+
+        RectTransform container = descriptor.ContentParent;
+        // Cache size info group
+        PanelElementDescriptor infoGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        infoGroup.SetTitle("Cache Info");
+
+        long totalBytes = BasisStorageManagement.GetTotalCacheSizeBytes();
+        string sizeText = BasisStorageManagement.FormatBytes(totalBytes);
+        string limitText = BasisStorageManagement.FormatBytes(BasisStorageManagement.MaxCacheSizeBytes);
+
+        PanelPasswordField cacheInfoField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
+        cacheInfoField.Descriptor.SetTitle("Total Cache Size");
+        cacheInfoField.SetPassword($"{sizeText} / {limitText}");
+
+        var storedFiles = BasisStorageManagement.GetAllStoredFiles();
+
+        PanelPasswordField fileCountField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
+        fileCountField.Descriptor.SetTitle("Stored Files");
+        fileCountField.SetPassword($"{storedFiles.Count} files");
+
+        // Cache size limit slider
+        PanelElementDescriptor limitGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        limitGroup.SetTitle("Cache Settings");
+        limitGroup.SetDescription("Set the maximum disk space for cached BEE files.");
+
+        PanelSlider cacheSizeSlider = PanelSlider.CreateEntryAndBind(
+            limitGroup.ContentParent,
+            PanelSlider.SliderSettings.Advanced("Max Cache Size (GB)", 1, 512, true, 0, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.CacheMaxSizeGB);
+
+        // Clear all cache button
+        PanelButton clearAllButton = PanelButton.CreateNew(container);
+        clearAllButton.Descriptor.SetTitle("Clear All Cache");
+        clearAllButton.Descriptor.SetDescription("Delete all downloaded BEE files from disk.");
+        clearAllButton.OnClicked += () =>
+        {
+            BasisMainMenu.Instance.OpenDialogue(
+                "Clear All Cache",
+                $"Delete all {storedFiles.Count} cached files ({sizeText})? This cannot be undone.",
+                "Clear All",
+                "Cancel",
+                value =>
+                {
+                    if (!value) return;
+                    BasisStorageManagement.ClearAllCache();
+                    BasisMainMenu.Close();
+                    BasisMainMenu.OpenWithProvider(StaticTitle);
+                });
+        };
+
+        // One reset button for this whole page
+        SettingsProvider.AddResetPageButton(container, "Storage", ResetAvatarDefaults);
+
+        descriptor.ForceRebuild();
+        return tab;
+    }
+
+    private static void ResetAvatarDefaults()
+    {
+        BasisSettingsDefaults.AvatarDownloadSize.ResetToDefault();
+    }
+}
