@@ -61,7 +61,8 @@ namespace Basis.Scripts.BasisCharacterController
 
             if (ctx.MovementLock)
             {
-                move = Vector3.zero;
+                move.x = 0;
+                move.z = 0;
             }
 
             ctx.Flags = ctx.characterController.Move(move);
