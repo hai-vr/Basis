@@ -32,7 +32,7 @@ namespace Basis.Scripts.UI
         public static float BackgroundPadding = 4f;
         public static float MinHalfWidth = 10f;
         public static float MinHalfHeight = 1.5f;
-        public static float LineSpacing = 3f;
+        public static float LineSpacing = 5f;
         public static float TextRectWidth = 58f;
         public static float TextRectHeight = 10f;
         public static float RoundEdges = 0.5f;
