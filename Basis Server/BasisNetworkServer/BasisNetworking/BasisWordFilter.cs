@@ -381,6 +381,51 @@ namespace BasisNetworkServer.BasisNetworking
         }
 
         /// <summary>
+        /// After a match is found, checks if the match is embedded in a longer word
+        /// by looking for valid trigrams crossing the match boundaries.
+        /// Unlike the main trigram check, this does NOT skip trigrams whose characters
+        /// are all in the banned word — that's the key to catching cases like "assassinate"
+        /// where the banned word's characters (a,s) dominate the surrounding context.
+        /// </summary>
+        private static bool IsEmbeddedInWord(List<TextElementInfo> elements, List<int> matchedElementIndices)
+        {
+            if (matchedElementIndices.Count < 2) return false;
+
+            int firstIdx = matchedElementIndices[0];
+            int lastIdx = matchedElementIndices[matchedElementIndices.Count - 1];
+
+            // Check end boundary: last 2 matched chars + next char after match
+            if (lastIdx + 1 < elements.Count)
+            {
+                string nextEl = elements[lastIdx + 1].Value;
+                if (nextEl.Length == 1 && char.IsLetter(nextEl[0]))
+                {
+                    string secondLast = elements[matchedElementIndices[matchedElementIndices.Count - 2]].Value;
+                    string last = elements[lastIdx].Value;
+                    string tri = (secondLast + last + nextEl).ToLowerInvariant();
+                    if (tri.Length == 3 && Trigrams.Contains(tri))
+                        return true;
+                }
+            }
+
+            // Check start boundary: char before match + first 2 matched chars
+            if (firstIdx > 0)
+            {
+                string prevEl = elements[firstIdx - 1].Value;
+                if (prevEl.Length == 1 && char.IsLetter(prevEl[0]))
+                {
+                    string first = elements[matchedElementIndices[0]].Value;
+                    string second = elements[matchedElementIndices[1]].Value;
+                    string tri = (prevEl + first + second).ToLowerInvariant();
+                    if (tri.Length == 3 && Trigrams.Contains(tri))
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Checks whether the text contains any banned word from the blacklist.
         /// Handles Unicode homoglyph substitution and character insertion evasion.
         /// Uses trigram analysis to avoid false positives (e.g. "ass" in "assignment").
@@ -400,6 +445,7 @@ namespace BasisNetworkServer.BasisNetworking
                 if (string.IsNullOrEmpty(word)) continue;
 
                 int state = 0;
+                var matchedElementIndices = new List<int>();
                 for (int i = 0; i < elements.Count; i++)
                 {
                     char target = word[state];
@@ -410,17 +456,25 @@ namespace BasisNetworkServer.BasisNetworking
 
                     if (isHomoglyph && !isTrigram)
                     {
+                        matchedElementIndices.Add(i);
                         state++;
                     }
                     else if (isTrigram && state > 0)
                     {
+                        matchedElementIndices.RemoveAt(matchedElementIndices.Count - 1);
                         state--;
                     }
 
                     if (state == word.Length)
                     {
-                        matchedWord = word;
-                        return true;
+                        if (!IsEmbeddedInWord(elements, matchedElementIndices))
+                        {
+                            matchedWord = word;
+                            return true;
+                        }
+                        // Match was embedded in a longer word — reset and continue
+                        state = 0;
+                        matchedElementIndices.Clear();
                     }
                 }
             }
@@ -452,6 +506,7 @@ namespace BasisNetworkServer.BasisNetworking
                     var elements = BuildTextElements(new string(result));
                     int state = 0;
                     var matchedPositions = new List<TextElementInfo>();
+                    var matchedElementIndices = new List<int>();
 
                     for (int i = 0; i < elements.Count; i++)
                     {
@@ -464,16 +519,27 @@ namespace BasisNetworkServer.BasisNetworking
                         if (isHomoglyph && !isTrigram)
                         {
                             matchedPositions.Add(elements[i]);
+                            matchedElementIndices.Add(i);
                             state++;
                         }
                         else if (isTrigram && state > 0)
                         {
                             matchedPositions.RemoveAt(matchedPositions.Count - 1);
+                            matchedElementIndices.RemoveAt(matchedElementIndices.Count - 1);
                             state--;
                         }
 
                         if (state == word.Length)
                         {
+                            if (IsEmbeddedInWord(elements, matchedElementIndices))
+                            {
+                                // Match is part of a longer word — reset and continue
+                                state = 0;
+                                matchedPositions.Clear();
+                                matchedElementIndices.Clear();
+                                continue;
+                            }
+
                             foreach (var pos in matchedPositions)
                             {
                                 for (int j = pos.CharIndex; j < pos.CharIndex + pos.Value.Length && j < result.Length; j++)
