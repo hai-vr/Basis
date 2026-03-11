@@ -1,9 +1,22 @@
 using Basis.BasisUI;
 using Basis.Scripts.Device_Management;
+using System.Collections.Generic;
 using UnityEngine;
 
 public static class SettingsProviderPlatform
 {
+    /// <summary>
+    /// All user-facing device modes to probe against registered BaseTypes.
+    /// </summary>
+    private static readonly string[] AllModes = new string[]
+    {
+        BasisConstants.Desktop,
+        BasisConstants.OpenVRLoader,
+        BasisConstants.OpenXRLoader,
+        BasisConstants.SimulateXR,
+        BasisConstants.Headless,
+    };
+
     public static PanelTabPage DeviceModeTab(PanelTabGroup tabGroup)
     {
         PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
@@ -13,71 +26,82 @@ public static class SettingsProviderPlatform
 
         RectTransform container = descriptor.ContentParent;
 
+        string currentMode = BasisDeviceManagement.StaticCurrentMode ?? BasisConstants.None;
+
         // Current mode info
         PanelElementDescriptor infoGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         infoGroup.SetTitle("Current Mode");
         infoGroup.SetDescription("The active device mode for this session.");
 
-        PanelPasswordField currentMode = PanelPasswordField.CreateNew(infoGroup.ContentParent);
-        currentMode.Descriptor.SetTitle("Active Mode");
-        currentMode.SetPassword(BasisDeviceManagement.StaticCurrentMode ?? "Unknown");
+        PanelPasswordField currentModeField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
+        currentModeField.Descriptor.SetTitle("Active Mode");
+        currentModeField.SetPassword(currentMode);
+
+        // Discover available modes from registered BaseTypes
+        List<string> availableModes = new List<string>();
+        BasisDeviceManagement dm = BasisDeviceManagement.Instance;
+        if (dm != null)
+        {
+            foreach (string mode in AllModes)
+            {
+                if (dm.TryFindBasisBaseTypeManagement(mode, out _, OnlyFinding: true))
+                {
+                    availableModes.Add(mode);
+                }
+            }
+        }
 
         // Switch mode group
         PanelElementDescriptor switchGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         switchGroup.SetTitle("Switch Mode");
-        switchGroup.SetDescription("Change the active device mode. This will reload the session.");
+        switchGroup.SetDescription("Available device modes. Switch will reload the session.");
 
-        PanelButton openVrButton = PanelButton.CreateNew(switchGroup.ContentParent);
-        openVrButton.Descriptor.SetTitle("Switch To OpenVR");
-        openVrButton.Descriptor.SetDescription("Use SteamVR / OpenVR runtime.");
-        openVrButton.OnClicked += () =>
+        if (availableModes.Count == 0)
         {
-            BasisMainMenu.Instance.OpenDialogue("Switch To OpenVR",
-                "Are you sure you want to swap to OpenVR?",
-                "Switch To OpenVR",
-                "Cancel",
-                async value =>
-                {
-                    if (!value) return;
-                    await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
-                });
-        };
+            PanelPasswordField noModes = PanelPasswordField.CreateNew(switchGroup.ContentParent);
+            noModes.Descriptor.SetTitle("No Modes Available");
+            noModes.SetPassword("No device managers registered.");
+        }
+        else
+        {
+            foreach (string mode in availableModes)
+            {
+                string capturedMode = mode;
+                bool isActive = string.Equals(currentMode, capturedMode, System.StringComparison.Ordinal);
+                string suffix = isActive ? " [ACTIVE]" : "";
 
-        PanelButton openXrButton = PanelButton.CreateNew(switchGroup.ContentParent);
-        openXrButton.Descriptor.SetTitle("Switch To OpenXR");
-        openXrButton.Descriptor.SetDescription("Use OpenXR runtime.");
-        openXrButton.OnClicked += () =>
-        {
-            BasisMainMenu.Instance.OpenDialogue("Switch To OpenXR",
-                "Are you sure you want to swap to OpenXR?",
-                "Switch To OpenXR",
-                "Cancel",
-                async value =>
+                PanelButton modeButton = PanelButton.CreateNew(switchGroup.ContentParent);
+                modeButton.Descriptor.SetTitle($"Switch To {capturedMode}{suffix}");
+                modeButton.Descriptor.SetDescription(GetModeDescription(capturedMode));
+                modeButton.OnClicked += () =>
                 {
-                    if (!value) return;
-                    await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenXRLoader);
-                });
-        };
-
-        PanelButton desktopButton = PanelButton.CreateNew(switchGroup.ContentParent);
-        desktopButton.Descriptor.SetTitle("Switch To Desktop");
-        desktopButton.Descriptor.SetDescription("Use Desktop mode (no VR).");
-        desktopButton.OnClicked += () =>
-        {
-            BasisMainMenu.Instance.OpenDialogue("Switch To Desktop",
-                "Are you sure you want to swap to Desktop?",
-                "Switch To Desktop",
-                "Cancel",
-                async value =>
-                {
-                    if (!value) return;
-                    await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.Desktop);
-                });
-        };
+                    if (isActive) return;
+                    BasisMainMenu.Instance.OpenDialogue($"Switch To {capturedMode}",
+                        $"Are you sure you want to switch to {capturedMode}?",
+                        $"Switch To {capturedMode}",
+                        "Cancel",
+                        async value =>
+                        {
+                            if (!value) return;
+                            await BasisDeviceManagement.Instance.SwitchSetMode(capturedMode);
+                        });
+                };
+            }
+        }
 
         descriptor.ForceRebuild();
         return tab;
+    }
+
+    private static string GetModeDescription(string mode)
+    {
+        if (mode == BasisConstants.Desktop) return "Desktop mode (no VR).";
+        if (mode == BasisConstants.OpenVRLoader) return "SteamVR / OpenVR runtime.";
+        if (mode == BasisConstants.OpenXRLoader) return "OpenXR runtime.";
+        if (mode == BasisConstants.SimulateXR) return "Simulate XR without hardware.";
+        if (mode == BasisConstants.Headless) return "Headless mode (no rendering).";
+        return mode;
     }
 }
