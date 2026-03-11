@@ -129,7 +129,7 @@ namespace Basis.Scripts.UI.NamePlate
             ChatText.fontSizeMin = 14;
             ChatText.fontSizeMax = 28;
             ChatText.color = Color.white;
-            ChatText.enableWordWrapping = true;
+            ChatText.textWrappingMode =  TextWrappingModes.Normal;
             ChatText.overflowMode = TextOverflowModes.Truncate;
 
             // Use same font as the loading text if available
