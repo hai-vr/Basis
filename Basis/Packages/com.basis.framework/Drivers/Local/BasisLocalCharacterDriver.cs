@@ -35,6 +35,16 @@ namespace Basis.Scripts.BasisCharacterController
         public bool HasJumpAction = false;
         public float jumpHeight = 1.0f; // Jump height set to 1 meter
         public float currentVerticalSpeed = 0f; // Vertical speed of the character
+        /// <summary>
+        /// Duration in seconds after leaving the ground during which the player can still jump.
+        /// Helps with unreliable grounded detection on slopes and near ledges.
+        /// </summary>
+        [SerializeField] public float coyoteTimeDuration = 0.15f;
+        [System.NonSerialized] public float coyoteTimeCounter;
+        /// <summary>
+        /// Whether the player is allowed to jump — true when grounded or within the coyote time window.
+        /// </summary>
+        public bool CanJump => groundedPlayer || coyoteTimeCounter > 0f;
         public Vector2 Rotation;
         public float RotationSpeed = 200;
         public bool HasEvents = false;
@@ -147,7 +157,7 @@ namespace Basis.Scripts.BasisCharacterController
             LastBottomPoint = bottomPointLocalSpace;
             CalculateCharacterSize();
             HandleMovement(DeltaTime);
-            GroundCheck();
+            GroundCheck(DeltaTime);
 
             // Calculate the rotation amount for this frame
             float rotationAmount;
@@ -214,20 +224,36 @@ namespace Basis.Scripts.BasisCharacterController
 
         public void HandleJumpRequest()
         {
-            if (groundedPlayer && !HasJumpAction)
+            if (CanJump && !HasJumpAction)
             {
                 HasJumpAction = true;
             }
         }
-        public void GroundCheck()
+        public void GroundCheck(float deltaTime)
         {
             groundedPlayer = characterController.isGrounded;
             IsFalling = !groundedPlayer;
 
-            if (groundedPlayer && !LastWasGrounded)
+            if (groundedPlayer)
             {
-                JustLanded?.Invoke();
-                currentVerticalSpeed = 0f; // Reset vertical speed on landing
+                if (!LastWasGrounded)
+                {
+                    JustLanded?.Invoke();
+                    currentVerticalSpeed = 0f; // Reset vertical speed on landing
+                }
+            }
+            else
+            {
+                // Grant coyote time on the frame we leave the ground,
+                // but only when walking off (not after an active jump).
+                if (LastWasGrounded && currentVerticalSpeed <= 0f)
+                {
+                    coyoteTimeCounter = coyoteTimeDuration;
+                }
+                else if (coyoteTimeCounter > 0f)
+                {
+                    coyoteTimeCounter -= deltaTime;
+                }
             }
 
             LastWasGrounded = groundedPlayer;
@@ -298,9 +324,10 @@ namespace Basis.Scripts.BasisCharacterController
             }
 
             // Handle jumping and falling
-            if (groundedPlayer && HasJumpAction)
+            if (CanJump && HasJumpAction)
             {
                 currentVerticalSpeed = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
+                coyoteTimeCounter = 0f; // Consume coyote time to prevent double jumps
                 JustJumped?.Invoke();
             }
             else
