@@ -300,7 +300,7 @@ namespace BasisServerHandle
                 audioSegmentData = audioSegment,
             };
 
-            SendVoiceMessageToClients(serverAudio, BasisNetworkCommons.VoiceChannel, peer, DeliveryMethod.Sequenced);
+            SendVoiceMessageToClients(serverAudio, BasisNetworkCommons.VoiceChannel, peer, DeliveryMethod.Unreliable);
 
             ThreadSafeMessagePool<AudioSegmentDataMessage>.Return(audioSegment);
         }
