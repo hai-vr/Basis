@@ -628,9 +628,27 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 ref var hit = ref hoverSphere.Results[index];
 
-                if (hit.collider != null &&
-                    hit.collider.TryGetComponent(out BasisInteractableObject component) &&
-                    component.IsInfluencable(input))
+                if (hit.collider == null) continue;
+
+                // Check the collider itself first, then check parent GameObjects.
+                // This matches PointRaycasterFindInteractable behavior — interactables
+                // often live on a parent with colliders on child objects.
+                BasisInteractableObject component = hit.collider.GetComponent<BasisInteractableObject>();
+                if (component == null)
+                {
+                    component = hit.collider.GetComponentInParent<BasisInteractableObject>();
+                    // Verify the hit collider belongs to this interactable
+                    if (component != null)
+                    {
+                        Collider[] colliders = component.GetColliders();
+                        if (colliders == null || !colliders.Contains(hit.collider))
+                        {
+                            component = null;
+                        }
+                    }
+                }
+
+                if (component != null && component.IsInfluencable(input))
                 {
                     result = hit;
                     interactable = component;
