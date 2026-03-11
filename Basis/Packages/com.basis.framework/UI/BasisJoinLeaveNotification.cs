@@ -1,6 +1,7 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.UI.NamePlate;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -9,11 +10,12 @@ namespace Basis.Scripts.UI
 {
     /// <summary>
     /// Displays join/leave notifications below the microphone icon on the player's HUD.
-    /// Uses TextMeshPro + SpriteRenderer for the background.
+    /// Uses TextMeshPro + MeshFilter/MeshRenderer with a generated rounded-corner quad.
     /// Parented under BasisLocalCameraDriver.ParentOfUI for VR and desktop.
     ///
     /// Fully static – driven by BasisEventDriver.LateUpdate via Simulate().
     /// Object pool pre-allocates MaxMessages slots, reuses GameObjects.
+    /// Mesh cache avoids regenerating identical rounded quads.
     /// </summary>
     public static class BasisJoinLeaveNotification
     {
@@ -29,15 +31,20 @@ namespace Basis.Scripts.UI
         public static float LineSpacing = 4f;
         public static float TextRectWidth = 58f;
         public static float TextRectHeight = 10f;
+        public static float RoundEdges = 0.5f;
+        public static int CornerVertexCount = 8;
+        public static float ZOffset = 0.06f;
         public static Vector3 LocalPosition = new Vector3(0f, -4f, 0f);
         public static Color BackgroundColor = new Color(0.1f, 0.1f, 0.1f, 1f);
 
         private static readonly List<NotificationSlot> activeSlots = new List<NotificationSlot>();
         private static readonly Stack<NotificationSlot> pool = new Stack<NotificationSlot>();
+        private static readonly Dictionary<long, Mesh> meshCache = new Dictionary<long, Mesh>();
         private static Transform root;
         private static bool initialized;
-        private static Sprite whiteSprite;
-        private static Texture2D whiteTexture;
+        private static MaterialPropertyBlock mpb;
+        private static Material cachedMaterial;
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
         private class NotificationSlot
         {
@@ -45,7 +52,8 @@ namespace Basis.Scripts.UI
             public GameObject BgObj;
             public GameObject TextObj;
             public TextMeshPro Text;
-            public SpriteRenderer BgSprite;
+            public MeshRenderer BgRenderer;
+            public MeshFilter BgFilter;
             public Color TextColor;
             public double SpawnTime;
         }
@@ -60,9 +68,9 @@ namespace Basis.Scripts.UI
             GameObject go = new GameObject("BasisJoinLeaveNotification");
             Object.DontDestroyOnLoad(go);
             root = go.transform;
+            mpb = new MaterialPropertyBlock();
             initialized = true;
 
-            CreateRoundedSprite();
             PrewarmPool();
 
             BasisNetworkPlayer.OnRemotePlayerJoined += OnRemotePlayerJoined;
@@ -89,18 +97,20 @@ namespace Basis.Scripts.UI
             activeSlots.Clear();
             pool.Clear();
 
+            foreach (Mesh mesh in meshCache.Values)
+            {
+                Object.Destroy(mesh);
+            }
+            meshCache.Clear();
+
             if (root != null)
             {
                 Object.Destroy(root.gameObject);
                 root = null;
             }
 
-            if (whiteTexture != null)
-            {
-                Object.Destroy(whiteTexture);
-                whiteTexture = null;
-            }
-            whiteSprite = null;
+            cachedMaterial = null;
+            mpb = null;
             initialized = false;
         }
 
@@ -140,7 +150,9 @@ namespace Basis.Scripts.UI
 
                     Color bg = BackgroundColor;
                     bg.a = alpha;
-                    slot.BgSprite.color = bg;
+                    slot.BgRenderer.GetPropertyBlock(mpb, 0);
+                    mpb.SetColor(BaseColorId, bg);
+                    slot.BgRenderer.SetPropertyBlock(mpb, 0);
                 }
             }
 
@@ -162,55 +174,16 @@ namespace Basis.Scripts.UI
             root.localScale = Vector3.one;
         }
 
-        private static void CreateRoundedSprite()
+        private static void CacheMaterial()
         {
-            const int size = 64;
-            const int radius = 16;
-
-            whiteTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            whiteTexture.filterMode = FilterMode.Bilinear;
-            Color[] pixels = new Color[size * size];
-
-            for (int y = 0; y < size; y++)
+            if (cachedMaterial != null)
             {
-                for (int x = 0; x < size; x++)
-                {
-                    float px = x + 0.5f;
-                    float py = y + 0.5f;
-                    float dx = 0f, dy = 0f;
-
-                    if (px < radius) dx = radius - px;
-                    else if (px > size - radius) dx = px - (size - radius);
-
-                    if (py < radius) dy = radius - py;
-                    else if (py > size - radius) dy = py - (size - radius);
-
-                    if (dx > 0f && dy > 0f)
-                    {
-                        float dist = Mathf.Sqrt(dx * dx + dy * dy);
-                        float alpha = Mathf.Clamp01(radius - dist + 0.5f);
-                        pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
-                    }
-                    else
-                    {
-                        pixels[y * size + x] = Color.white;
-                    }
-                }
+                return;
             }
-
-            whiteTexture.SetPixels(pixels);
-            whiteTexture.Apply();
-
-            Vector4 border = new Vector4(radius, radius, radius, radius);
-            whiteSprite = Sprite.Create(
-                whiteTexture,
-                new Rect(0, 0, size, size),
-                new Vector2(0.5f, 0.5f),
-                4f,
-                0,
-                SpriteMeshType.FullRect,
-                border
-            );
+            if (BasisRemoteNamePlateDriver.Instance != null)
+            {
+                cachedMaterial = BasisRemoteNamePlateDriver.Instance.SelectedNamePlateMaterial;
+            }
         }
 
         private static void PrewarmPool()
@@ -230,14 +203,14 @@ namespace Basis.Scripts.UI
 
             slot.BgObj = new GameObject("Background");
             slot.BgObj.transform.SetParent(slot.Root.transform, false);
-            slot.BgObj.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            slot.BgObj.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.Euler(0, 180, 0));
             slot.BgObj.transform.localScale = Vector3.one;
 
-            slot.BgSprite = slot.BgObj.AddComponent<SpriteRenderer>();
-            slot.BgSprite.sprite = whiteSprite;
-            slot.BgSprite.drawMode = SpriteDrawMode.Sliced;
-            slot.BgSprite.size = Vector2.one;
-            slot.BgSprite.color = BackgroundColor;
+            slot.BgFilter = slot.BgObj.AddComponent<MeshFilter>();
+            slot.BgRenderer = slot.BgObj.AddComponent<MeshRenderer>();
+            slot.BgRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            slot.BgRenderer.receiveShadows = false;
+            slot.BgRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
 
             slot.TextObj = new GameObject("Text");
             slot.TextObj.transform.SetParent(slot.Root.transform, false);
@@ -275,7 +248,9 @@ namespace Basis.Scripts.UI
         private static void ReleaseSlot(NotificationSlot slot)
         {
             slot.Root.SetActive(false);
-            slot.BgSprite.color = BackgroundColor;
+            slot.BgRenderer.GetPropertyBlock(mpb, 0);
+            mpb.SetColor(BaseColorId, BackgroundColor);
+            slot.BgRenderer.SetPropertyBlock(mpb, 0);
             pool.Push(slot);
         }
 
@@ -314,7 +289,14 @@ namespace Basis.Scripts.UI
                 activeSlots.RemoveAt(0);
             }
 
+            CacheMaterial();
+
             NotificationSlot slot = AcquireSlot();
+
+            if (cachedMaterial != null && slot.BgRenderer.sharedMaterial != cachedMaterial)
+            {
+                slot.BgRenderer.sharedMaterial = cachedMaterial;
+            }
 
             slot.Text.text = message;
             slot.Text.color = color;
@@ -324,15 +306,108 @@ namespace Basis.Scripts.UI
             slot.Text.ForceMeshUpdate();
             Vector2 textSize = slot.Text.GetRenderedValues(true);
 
-            float bgWidth = Mathf.Max(textSize.x + BackgroundPadding * 2f, MinHalfWidth * 2f);
-            float bgHeight = Mathf.Max(textSize.y / 2f + BackgroundPadding, MinHalfHeight * 2f);
+            float halfWidth = (textSize.x / 2f) + BackgroundPadding;
+            float halfHeight = (textSize.y / 4f) + BackgroundPadding;
+            halfWidth = Mathf.Max(halfWidth, MinHalfWidth);
+            halfHeight = Mathf.Max(halfHeight, MinHalfHeight);
 
-            slot.BgSprite.size = new Vector2(bgWidth, bgHeight);
-            slot.BgSprite.color = BackgroundColor;
+            slot.BgFilter.sharedMesh = GetOrCreateMesh(halfWidth, halfHeight);
+            slot.BgRenderer.GetPropertyBlock(mpb, 0);
+            mpb.SetColor(BaseColorId, BackgroundColor);
+            slot.BgRenderer.SetPropertyBlock(mpb, 0);
             slot.Root.SetActive(true);
 
             activeSlots.Add(slot);
             RepositionAll();
+        }
+
+        private static Mesh GetOrCreateMesh(float halfWidth, float halfHeight)
+        {
+            int qw = Mathf.CeilToInt(halfWidth * 2f);
+            int qh = Mathf.CeilToInt(halfHeight * 2f);
+            long key = ((long)qw << 32) | (uint)qh;
+
+            if (meshCache.TryGetValue(key, out Mesh cached))
+            {
+                return cached;
+            }
+
+            float actualHW = qw * 0.5f;
+            float actualHH = qh * 0.5f;
+            Mesh mesh = GenerateRoundedQuad(actualHW, actualHH);
+            meshCache[key] = mesh;
+            return mesh;
+        }
+
+        private static Mesh GenerateRoundedQuad(float halfWidth, float halfHeight)
+        {
+            int cornerCount = Mathf.Max(3, CornerVertexCount);
+            int ringVertexCount = cornerCount * 4;
+            int vertexCount = ringVertexCount + 1;
+
+            Vector3[] v = new Vector3[vertexCount];
+            Vector3[] n = new Vector3[vertexCount];
+            Vector2[] uv = new Vector2[vertexCount];
+            int[] t = new int[ringVertexCount * 3];
+
+            float width = halfWidth * 2f;
+            float height = halfHeight * 2f;
+
+            float maxRadius = Mathf.Min(halfWidth, halfHeight);
+            float radius = Mathf.Clamp01(RoundEdges) * maxRadius;
+
+            float angleStep = Mathf.PI * 0.5f / (cornerCount - 1);
+            Vector2 uvOff = new Vector2(0.5f, 0.5f);
+            Vector2 uvScale = new Vector2(1f / width, 1f / height);
+
+            v[0] = new Vector3(0, 0, ZOffset);
+            uv[0] = uvOff;
+            n[0] = Vector3.forward;
+
+            for (int ci = 0; ci < cornerCount; ci++)
+            {
+                float angle = ci * angleStep;
+                float sin = Mathf.Sin(angle);
+                float cos = Mathf.Cos(angle);
+
+                Vector2 tl = new Vector2(-halfWidth + (1f - cos) * radius, halfHeight - (1f - sin) * radius);
+                Vector2 tr = new Vector2(halfWidth - (1f - sin) * radius, halfHeight - (1f - cos) * radius);
+                Vector2 br = new Vector2(halfWidth - (1f - cos) * radius, -halfHeight + (1f - sin) * radius);
+                Vector2 bl = new Vector2(-halfWidth + (1f - sin) * radius, -halfHeight + (1f - cos) * radius);
+
+                int b = 1 + ci;
+                v[b] = new Vector3(tl.x, tl.y, ZOffset);
+                v[b + cornerCount] = new Vector3(tr.x, tr.y, ZOffset);
+                v[b + cornerCount * 2] = new Vector3(br.x, br.y, ZOffset);
+                v[b + cornerCount * 3] = new Vector3(bl.x, bl.y, ZOffset);
+
+                uv[b] = tl * uvScale + uvOff;
+                uv[b + cornerCount] = tr * uvScale + uvOff;
+                uv[b + cornerCount * 2] = br * uvScale + uvOff;
+                uv[b + cornerCount * 3] = bl * uvScale + uvOff;
+
+                n[b] = Vector3.forward;
+                n[b + cornerCount] = Vector3.forward;
+                n[b + cornerCount * 2] = Vector3.forward;
+                n[b + cornerCount * 3] = Vector3.forward;
+            }
+
+            for (int i = 0; i < ringVertexCount; i++)
+            {
+                int tri = i * 3;
+                t[tri] = 0;
+                t[tri + 1] = 1 + ((i + 1) % ringVertexCount);
+                t[tri + 2] = 1 + i;
+            }
+
+            return new Mesh
+            {
+                name = "Notification Quad",
+                vertices = v,
+                normals = n,
+                uv = uv,
+                triangles = t
+            };
         }
 
         private static void RepositionAll()
