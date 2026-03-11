@@ -38,8 +38,7 @@ namespace Basis.Scripts.UI
             public double SpawnTime;
         }
 
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void AutoCreate()
+        public static void Create()
         {
             if (instance != null)
             {
@@ -171,7 +170,7 @@ namespace Basis.Scripts.UI
             tmp.fontSize = FontSize;
             tmp.color = color;
             tmp.alignment = TextAlignmentOptions.Center;
-            tmp.enableWordWrapping = false;
+            tmp.textWrappingMode =  TextWrappingModes.Normal;
             tmp.overflowMode = TextOverflowModes.Overflow;
             tmp.sortingOrder = 1;
 
