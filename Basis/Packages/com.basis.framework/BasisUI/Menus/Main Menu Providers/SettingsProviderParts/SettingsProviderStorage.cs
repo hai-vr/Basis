@@ -11,6 +11,7 @@ public static class SettingsProviderStorage
         descriptor.SetTitle("Storage Settings");
 
         RectTransform container = descriptor.ContentParent;
+
         // Cache size info group
         PanelElementDescriptor infoGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -57,19 +58,55 @@ public static class SettingsProviderStorage
                     if (!value) return;
                     BasisStorageManagement.ClearAllCache();
                     BasisMainMenu.Close();
-                    BasisMainMenu.OpenWithProvider(StaticTitle);
+                    BasisMainMenu.OpenWithProvider(SettingsProvider.StaticTitle);
                 });
         };
 
+        // Individual file list group
+        if (storedFiles.Count > 0)
+        {
+            PanelElementDescriptor filesGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            filesGroup.SetTitle("Stored BEE Files");
+            filesGroup.SetDescription("Individual cached files. Click to delete.");
+
+            foreach (var file in storedFiles)
+            {
+                string fileName = file.UniqueVersion;
+                string size = BasisStorageManagement.FormatBytes(file.FileSizeBytes);
+                string loadedStatus = file.IsLoadedInMemory ? " [IN USE]" : "";
+                string remoteUrl = file.RemoteUrl;
+
+                PanelButton fileButton = PanelButton.CreateNew(filesGroup.ContentParent);
+                fileButton.Descriptor.SetTitle($"{fileName} ({size}){loadedStatus}");
+                fileButton.Descriptor.SetDescription(remoteUrl);
+                fileButton.OnClicked += () =>
+                {
+                    BasisMainMenu.Instance.OpenDialogue(
+                        "Delete File",
+                        $"Delete cached file '{fileName}' ({size})?{(file.IsLoadedInMemory ? "\n\nWarning: This file is currently in use. Deleting it will unload the asset." : "")}",
+                        "Delete",
+                        "Cancel",
+                        value =>
+                        {
+                            if (!value) return;
+                            BasisStorageManagement.DeleteStoredFile(remoteUrl);
+                            BasisMainMenu.Close();
+                            BasisMainMenu.OpenWithProvider(SettingsProvider.StaticTitle);
+                        });
+                };
+            }
+        }
+
         // One reset button for this whole page
-        SettingsProvider.AddResetPageButton(container, "Storage", ResetAvatarDefaults);
+        SettingsProvider.AddResetPageButton(container, "Storage", ResetStorageDefaults);
 
         descriptor.ForceRebuild();
         return tab;
     }
 
-    private static void ResetAvatarDefaults()
+    private static void ResetStorageDefaults()
     {
-        BasisSettingsDefaults.AvatarDownloadSize.ResetToDefault();
+        BasisSettingsDefaults.CacheMaxSizeGB.ResetToDefault();
     }
 }
