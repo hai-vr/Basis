@@ -38,6 +38,10 @@ public static class BasisNetworkHandleChat
     /// <param name="message">The text message to send.</param>
     public static void SendChatMessage(string message)
     {
+        if(BasisNetworkConnection.LocalPlayerIsConnected == false)
+        {
+            return;
+        }
         if (string.IsNullOrEmpty(message)) return;
 
         if (message.Length > MaxMessageLength)
