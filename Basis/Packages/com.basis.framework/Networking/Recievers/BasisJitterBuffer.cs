@@ -40,12 +40,8 @@ public class BasisJitterBuffer
                 _receivedSinceStart = 0;
                 _hasHighest = false;
             }
-
             int distance = SequenceDistance(sequenceNumber, _nextPlaybackSeq);
-
-            if (distance < 0)
-                return;
-
+            if (distance < 0) return;
             if (distance >= MaxAheadDistance)
             {
                 Reset();
@@ -54,27 +50,20 @@ public class BasisJitterBuffer
                 _receivedSinceStart = 0;
                 distance = 0;
             }
-
             if (!_hasHighest || SequenceDistance(sequenceNumber, _highestReceivedSeq) > 0)
             {
                 _highestReceivedSeq = sequenceNumber;
                 _hasHighest = true;
             }
-
             int slotIndex = sequenceNumber & BufferMask;
-
-            if (!_slots[slotIndex].Occupied)
-                _bufferedCount++;
-
+            if (!_slots[slotIndex].Occupied) _bufferedCount++;
             if (_slots[slotIndex].EncodedData == null || _slots[slotIndex].EncodedData.Length < length)
                 _slots[slotIndex].EncodedData = new byte[length];
-
             Buffer.BlockCopy(data, 0, _slots[slotIndex].EncodedData, 0, length);
             _slots[slotIndex].EncodedLength = length;
             _slots[slotIndex].SequenceNumber = sequenceNumber;
             _slots[slotIndex].SilenceUnits = silenceUnits;
             _slots[slotIndex].Occupied = true;
-
             _receivedSinceStart++;
         }
     }
@@ -83,26 +72,16 @@ public class BasisJitterBuffer
     {
         lock (_lock)
         {
-            data = null;
-            length = 0;
-            silenceUnits = 0;
-            isMissing = false;
-
-            if (!_started)
-                return false;
-
-            if (_receivedSinceStart < InitialBufferDepth)
-                return false;
-
+            data = null; length = 0; silenceUnits = 0; isMissing = false;
+            if (!_started) return false;
+            if (_receivedSinceStart < InitialBufferDepth) return false;
             int slotIndex = _nextPlaybackSeq & BufferMask;
-
             if (_slots[slotIndex].Occupied && _slots[slotIndex].SequenceNumber == _nextPlaybackSeq)
             {
                 data = _slots[slotIndex].EncodedData;
                 length = _slots[slotIndex].EncodedLength;
                 silenceUnits = _slots[slotIndex].SilenceUnits;
                 isMissing = false;
-
                 _slots[slotIndex].Occupied = false;
                 _bufferedCount--;
                 _nextPlaybackSeq++;
@@ -116,7 +95,6 @@ public class BasisJitterBuffer
                     _nextPlaybackSeq++;
                     return true;
                 }
-
                 return false;
             }
         }
@@ -131,8 +109,7 @@ public class BasisJitterBuffer
     {
         lock (_lock)
         {
-            for (int i = 0; i < BufferSize; i++)
-                _slots[i].Occupied = false;
+            for (int i = 0; i < BufferSize; i++) _slots[i].Occupied = false;
             _started = false;
             _hasHighest = false;
             _bufferedCount = 0;

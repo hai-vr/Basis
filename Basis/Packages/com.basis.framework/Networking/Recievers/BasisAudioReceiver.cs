@@ -162,6 +162,47 @@ namespace Basis.Scripts.Networking.Receivers
             }
         }
 
+        public void OnDecodePLC()
+        {
+            if (HasAudioSource)
+            {
+                try
+                {
+                    pcmLength = decoder.Decode(Span<byte>.Empty, 0, new Span<float>(pcmBuffer), RemoteOpusSettings.FrameSize, false);
+                    InOrderRead.Add(pcmBuffer, pcmLength, true);
+                }
+                catch
+                {
+                    InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
+                }
+                AudioSourceSet();
+            }
+        }
+
+        public void InsertAndDrain(AudioSegmentDataMessage msg)
+        {
+            JitterBuffer.Insert(msg.SequenceNumber, msg.buffer, msg.LengthUsed, msg.TotalPlayedInSilence);
+
+            while (JitterBuffer.TryConsume(out byte[] data, out int length, out byte silenceUnits, out bool isMissing))
+            {
+                if (isMissing)
+                {
+                    OnDecodePLC();
+                }
+                else
+                {
+                    if (silenceUnits > 0)
+                    {
+                        int localUnits = System.Threading.Interlocked.Exchange(ref _silentUnits20ms, 0);
+                        int missing = silenceUnits - localUnits;
+                        for (int i = 0; i < missing; i++)
+                            OnDecodeSilence();
+                    }
+                    OnDecode(data, length);
+                }
+            }
+        }
+
         /// <summary>
         /// Generates a Packet Loss Concealment frame using the Opus decoder internal state.
         /// </summary>
