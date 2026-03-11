@@ -162,6 +162,11 @@ public static class BasisNetworkMessageProcessor
                         break;
                     }
 
+                case BasisNetworkCommons.ChatChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ChatChannel, reader.AvailableBytes);
+                    BasisNetworkChat.HandleChatMessage(reader, peer); // recycles inside
+                    break;
+
                 default:
                     BNL.LogError($"Unknown channel: {channel} ({reader.AvailableBytes} bytes remaining)");
                     reader.Recycle(); // prevent leaks on unknown messages

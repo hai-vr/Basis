@@ -34,6 +34,33 @@ namespace Basis.Scripts.UI.NamePlate
         private static readonly int ColorId = Shader.PropertyToID("_BaseColor"); // or "_Color" for Built-in RP
         private MaterialPropertyBlock mpb;
 
+        // --------- Chat text display above nameplate ---------
+        /// <summary>
+        /// TextMeshPro component for displaying chat messages above the nameplate.
+        /// Created dynamically at runtime positioned above the name mesh.
+        /// </summary>
+        public TextMeshPro ChatText;
+
+        /// <summary>
+        /// The MeshFilter for the chat text bubble background.
+        /// </summary>
+        public MeshFilter ChatBubbleFilter;
+
+        /// <summary>
+        /// The MeshRenderer for the chat text bubble.
+        /// </summary>
+        public MeshRenderer ChatBubbleRenderer;
+
+        /// <summary>
+        /// Time when the current chat message was set, for auto-clear.
+        /// </summary>
+        private double chatMessageSetTime;
+
+        /// <summary>
+        /// Whether there is an active chat message being displayed.
+        /// </summary>
+        private bool hasChatMessage;
+
         // --------- Update-driven "talk pulse" state (replaces coroutine) ---------
         private bool isPulsingTalk;
         private double talkStartTime;
@@ -55,12 +82,69 @@ namespace Basis.Scripts.UI.NamePlate
             mpb = new MaterialPropertyBlock();
             Renderer.GetPropertyBlock(mpb, 0);
             BasisRemoteNamePlateDriver.Register(this);
+
+            // Create chat text display above nameplate
+            CreateChatTextDisplay();
         }
         private void SetPlateColor(Color c)
         {
             mpb.SetColor(ColorId, c);
             Renderer.SetPropertyBlock(mpb, 0);
         }
+        private void CreateChatTextDisplay()
+        {
+            // Create the chat bubble background object
+            GameObject chatBubbleObj = new GameObject("ChatBubble");
+            chatBubbleObj.transform.SetParent(Self, false);
+            chatBubbleObj.transform.localPosition = new Vector3(0, 12f, 0);
+            chatBubbleObj.transform.localRotation = Quaternion.identity;
+            chatBubbleObj.transform.localScale = Vector3.one;
+            chatBubbleObj.layer = gameObject.layer;
+
+            ChatBubbleFilter = chatBubbleObj.AddComponent<MeshFilter>();
+            ChatBubbleRenderer = chatBubbleObj.AddComponent<MeshRenderer>();
+
+            if (BasisRemoteNamePlateDriver.Instance != null)
+            {
+                ChatBubbleRenderer.material = BasisRemoteNamePlateDriver.Instance.SelectedNamePlateMaterial;
+                ChatBubbleRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                ChatBubbleRenderer.receiveShadows = false;
+                ChatBubbleRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            }
+            chatBubbleObj.SetActive(false);
+
+            // Create the chat text TMP object
+            GameObject chatTextObj = new GameObject("ChatText");
+            chatTextObj.transform.SetParent(Self, false);
+            // Position above the nameplate (nameplate is at y=0, half height ~4.5 units)
+            chatTextObj.transform.localPosition = new Vector3(0, 12f, 0.04f);
+            chatTextObj.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            chatTextObj.transform.localScale = Vector3.one;
+            chatTextObj.layer = gameObject.layer;
+
+            ChatText = chatTextObj.AddComponent<TextMeshPro>();
+            ChatText.alignment = TextAlignmentOptions.Center;
+            ChatText.fontSize = 28;
+            ChatText.enableAutoSizing = true;
+            ChatText.fontSizeMin = 14;
+            ChatText.fontSizeMax = 28;
+            ChatText.color = Color.white;
+            ChatText.enableWordWrapping = true;
+            ChatText.overflowMode = TextOverflowModes.Truncate;
+
+            // Use same font as the loading text if available
+            if (LoadingText != null && LoadingText.font != null)
+            {
+                ChatText.font = LoadingText.font;
+            }
+
+            // Size the rect to fit above nameplate
+            RectTransform chatRect = ChatText.GetComponent<RectTransform>();
+            chatRect.sizeDelta = new Vector2(58, 10);
+
+            chatTextObj.SetActive(false);
+        }
+
         public void DeInitalize()
         {
             BasisRemoteNamePlateDriver.Unregister(this);
@@ -71,6 +155,11 @@ namespace Basis.Scripts.UI.NamePlate
                 BasisRemotePlayer.AudioReceived -= OnAudioReceived;
                 BasisRemotePlayer.OnAvatarSwitched -= RebuildRenderCheck;
             }
+
+            // Clean up chat display
+            if (ChatText != null) Destroy(ChatText.gameObject);
+            if (ChatBubbleFilter != null) Destroy(ChatBubbleFilter.gameObject);
+            hasChatMessage = false;
 
             // Clean up rendering resources
             DeInitalizeCallToRender();
@@ -149,6 +238,51 @@ namespace Basis.Scripts.UI.NamePlate
             SetPlateColor(c);
             CurrentColor = c;
         }
+
+        /// <summary>
+        /// Sets the chat text to display above the nameplate.
+        /// Empty or null clears the chat text.
+        /// </summary>
+        public void SetChatText(string message)
+        {
+            if (ChatText == null) return;
+
+            if (string.IsNullOrEmpty(message))
+            {
+                ChatText.gameObject.SetActive(false);
+                if (ChatBubbleFilter != null)
+                    ChatBubbleFilter.gameObject.SetActive(false);
+                hasChatMessage = false;
+                return;
+            }
+
+            ChatText.text = message;
+            ChatText.gameObject.SetActive(true);
+
+            // Rebuild chat bubble background to fit text
+            if (ChatBubbleFilter != null && BasisRemoteNamePlateDriver.Instance != null)
+            {
+                BasisRemoteNamePlateDriver.Instance.GenerateChatBubble(this);
+                ChatBubbleFilter.gameObject.SetActive(true);
+            }
+
+            chatMessageSetTime = Time.timeAsDouble;
+            hasChatMessage = true;
+        }
+
+        /// <summary>
+        /// Called each frame to check if chat message should auto-clear.
+        /// </summary>
+        public void UpdateChatTimeout()
+        {
+            if (!hasChatMessage) return;
+
+            if (Time.timeAsDouble - chatMessageSetTime >= BasisNetworkHandleChat.MessageDisplayDuration)
+            {
+                SetChatText(null);
+            }
+        }
+
         public void DeInitalizeCallToRender()
         {
             if (HasRendererCheckWiredUp && BasisRemotePlayer != null && BasisRemotePlayer.FaceRenderer != null)

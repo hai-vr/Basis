@@ -15,7 +15,7 @@ namespace Basis.Network.Core
         /// when adding a new message we need to increase this
         /// will function up to 64
         /// </summary>
-        public const byte TotalChannels = 27;
+        public const byte TotalChannels = 28;
         /// <summary>
         /// channel zero is only used for unreliable methods
         /// we fall it through to stop bugs
@@ -126,5 +126,9 @@ namespace Basis.Network.Core
         /// request is admin from client
         /// </summary>
         public const byte ServerIsAdminChannel = 26;
+        /// <summary>
+        /// chat text messages displayed above player nameplates
+        /// </summary>
+        public const byte ChatChannel = 27;
     }
 }

@@ -103,6 +103,7 @@ public static class NetworkServer
     {
         BasisServerHandleEvents.SubscribeServerEvents();
         BasisPlayerModeration.LoadBannedPlayers();
+        BasisNetworkChat.LoadWordFilter();
     }
 
     #endregion

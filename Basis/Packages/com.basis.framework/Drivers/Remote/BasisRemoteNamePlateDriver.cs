@@ -189,6 +189,111 @@ namespace Basis.Scripts.UI.NamePlate
             };
         }
 
+        // ===========================
+        // Chat bubble mesh generation
+        // ===========================
+
+        /// <summary>
+        /// Generates a rounded quad background mesh for the chat bubble,
+        /// sized to fit the current chat text.
+        /// </summary>
+        public void GenerateChatBubble(BasisRemoteNamePlate namePlate)
+        {
+            if (namePlate.ChatText == null || namePlate.ChatBubbleFilter == null) return;
+
+            namePlate.ChatText.ForceMeshUpdate();
+            Vector2 textSize = namePlate.ChatText.GetRenderedValues(true);
+
+            float padding = 2f;
+            float halfWidth = (textSize.x / 2f) + padding;
+            float halfHeight = (textSize.y / 2f) + padding;
+
+            // Clamp minimum size
+            halfWidth = Mathf.Max(halfWidth, 6f);
+            halfHeight = Mathf.Max(halfHeight, 3f);
+
+            Mesh bubbleMesh = GenerateChatBubbleQuad(halfWidth, halfHeight);
+            namePlate.ChatBubbleFilter.sharedMesh = bubbleMesh;
+
+            if (namePlate.ChatBubbleRenderer.sharedMaterial == null)
+            {
+                namePlate.ChatBubbleRenderer.material = SelectedNamePlateMaterial;
+            }
+        }
+
+        private Mesh GenerateChatBubbleQuad(float halfWidth, float halfHeight)
+        {
+            int cornerCount = Mathf.Max(3, CornerVertexCount);
+            int ringVertexCount = cornerCount * 4;
+            int vertexCount = ringVertexCount + 1;
+            int triangleCount = ringVertexCount;
+
+            Vector3[] v = new Vector3[vertexCount];
+            Vector3[] n = new Vector3[vertexCount];
+            Vector2[] uv = new Vector2[vertexCount];
+            int[] t = new int[triangleCount * 3];
+
+            float width = halfWidth * 2f;
+            float height = halfHeight * 2f;
+
+            float maxRadius = Mathf.Min(halfWidth, halfHeight);
+            float radius = Mathf.Clamp01(RoundEdges) * maxRadius;
+
+            float angleStep = Mathf.PI * 0.5f / (cornerCount - 1);
+            Vector2 uvOffset = new Vector2(0.5f, 0.5f);
+            Vector2 uvScale = new Vector2(1f / width, 1f / height);
+
+            v[0] = new Vector3(0, 0, zOffset);
+            uv[0] = uvOffset;
+            n[0] = Vector3.forward;
+
+            for (int ci = 0; ci < cornerCount; ci++)
+            {
+                float angle = ci * angleStep;
+                float sin = Mathf.Sin(angle);
+                float cos = Mathf.Cos(angle);
+
+                Vector2 tl = new Vector2(-halfWidth + (1f - cos) * radius, halfHeight - (1f - sin) * radius);
+                Vector2 tr = new Vector2(halfWidth - (1f - sin) * radius, halfHeight - (1f - cos) * radius);
+                Vector2 br = new Vector2(halfWidth - (1f - cos) * radius, -halfHeight + (1f - sin) * radius);
+                Vector2 bl = new Vector2(-halfWidth + (1f - sin) * radius, -halfHeight + (1f - cos) * radius);
+
+                int baseIndex = 1 + ci;
+
+                v[baseIndex] = new Vector3(tl.x, tl.y, zOffset);
+                v[baseIndex + cornerCount] = new Vector3(tr.x, tr.y, zOffset);
+                v[baseIndex + cornerCount * 2] = new Vector3(br.x, br.y, zOffset);
+                v[baseIndex + cornerCount * 3] = new Vector3(bl.x, bl.y, zOffset);
+
+                uv[baseIndex] = tl * uvScale + uvOffset;
+                uv[baseIndex + cornerCount] = tr * uvScale + uvOffset;
+                uv[baseIndex + cornerCount * 2] = br * uvScale + uvOffset;
+                uv[baseIndex + cornerCount * 3] = bl * uvScale + uvOffset;
+
+                n[baseIndex] = Vector3.forward;
+                n[baseIndex + cornerCount] = Vector3.forward;
+                n[baseIndex + cornerCount * 2] = Vector3.forward;
+                n[baseIndex + cornerCount * 3] = Vector3.forward;
+            }
+
+            for (int i = 0; i < ringVertexCount; i++)
+            {
+                int tri = i * 3;
+                t[tri] = 0;
+                t[tri + 1] = 1 + ((i + 1) % ringVertexCount);
+                t[tri + 2] = 1 + i;
+            }
+
+            return new Mesh
+            {
+                name = "Chat Bubble Quad",
+                vertices = v,
+                normals = n,
+                uv = uv,
+                triangles = t
+            };
+        }
+
         // =========================================================
         // Optimized job system (double-buffered + safe structural changes)
         // =========================================================
@@ -354,6 +459,9 @@ namespace Basis.Scripts.UI.NamePlate
                     float4 c = outBuf[i].color;
                     p.ApplyColorFromJob(new Color(c.x, c.y, c.z, c.w));
                 }
+
+                // Update chat message timeout
+                p.UpdateChatTimeout();
             }
         }
 

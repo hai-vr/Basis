@@ -174,6 +174,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> FBIKRotationSmoothingHz =>
             new("fbikrotationsmoothinghz", new BasisPlatformDefault<float>(25f));
 
+        public static BasisSettingsBinding<float> FBIKSmoothingStrength =>
+            new("fbiksmoothingstrength", new BasisPlatformDefault<float>(1f));
+
         // ---------------- HIPS ----------------
         public static BasisSettingsBinding<bool> FBIKHipsSmoothPos =>
             new("fbikhipssmoothpos", new BasisPlatformDefault<bool>(false));
@@ -531,6 +534,7 @@ namespace Basis.BasisUI
             FBIKDerivativeCutoff.LoadBindingValue();
             FBIKPositionSmoothingHz.LoadBindingValue();
             FBIKRotationSmoothingHz.LoadBindingValue();
+            FBIKSmoothingStrength.LoadBindingValue();
 
             // Hips
             FBIKHipsSmoothPos.LoadBindingValue();

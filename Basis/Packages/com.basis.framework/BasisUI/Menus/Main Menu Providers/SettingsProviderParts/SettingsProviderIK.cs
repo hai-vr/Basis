@@ -116,6 +116,20 @@ public static class SettingsProviderIK
         // ------------------
         // One Euro (Global)
         // ------------------
+        var smoothingStrength = PanelSlider.CreateAndBind(
+            ikParent,
+            PanelSlider.SliderSettings.Advanced("Smoothing Strength", 1f, 100f, false, 1, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKSmoothingStrength);
+
+        if (smoothingStrength != null)
+        {
+            smoothingStrength.Descriptor.SetDescription(
+                "Global multiplier for all smoothing filters.\n\n" +
+                "1x = default. Higher values greatly increase smoothing but add latency.\n" +
+                "WARNING: Values above 10x may cause noticeable input delay."
+            );
+        }
+
         var minCutoff = PanelSlider.CreateAndBind(
             ikParent,
             PanelSlider.SliderSettings.Advanced("Min Cutoff", 0.1f, 10f, false, 2, ValueDisplayMode.Raw),
@@ -204,6 +218,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.SelectedScale.ResetToDefault();
 
         // Global One Euro / smoothing parameters
+        BasisSettingsDefaults.FBIKSmoothingStrength.ResetToDefault();
         BasisSettingsDefaults.FBIKMinCutoff.ResetToDefault();
         BasisSettingsDefaults.FBIKBeta.ResetToDefault();
         BasisSettingsDefaults.FBIKDerivativeCutoff.ResetToDefault();

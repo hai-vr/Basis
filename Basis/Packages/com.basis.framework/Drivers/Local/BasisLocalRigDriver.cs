@@ -36,6 +36,12 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public static float DerivativeCutoff = 3f;
 
+        /// <summary>
+        /// Global smoothing strength multiplier (1-100). Divides MinCutoff and Hz values
+        /// to amplify filtering. Higher = stronger smoothing but more latency.
+        /// </summary>
+        public static float SmoothingStrength = 1f;
+
         public RigBuilder Builder;
         public List<RigTransform> AdditionalTransforms = new List<RigTransform>();
         public PlayableGraph PlayableGraph;
@@ -595,51 +601,57 @@ namespace Basis.Scripts.Drivers
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Vector3 FallbackPos(ref Vector3 state, Vector3 raw, float dt)
         {
-            float a = ExpAlpha(PositionSmoothingHz, dt);
+            float strength = Mathf.Max(1f, SmoothingStrength);
+            float a = ExpAlpha(PositionSmoothingHz / strength, dt);
             state = Vector3.LerpUnclamped(state, raw, a);
             return state;
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Quaternion FallbackRot(ref Quaternion state, Quaternion raw, float dt)
         {
-            float a = ExpAlpha(RotationSmoothingHz, dt);
+            float strength = Mathf.Max(1f, SmoothingStrength);
+            float a = ExpAlpha(RotationSmoothingHz / strength, dt);
             state = Quaternion.Slerp(state, raw, a);
             return state;
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UpdateEuroSettings()
         {
+            float strength = Mathf.Max(1f, SmoothingStrength);
+            float effectiveMinCutoff = MinCutoff / strength;
+            float effectiveDCutoff = DerivativeCutoff / strength;
+
             // Position filters
-            fPosHips.minCutoff = MinCutoff; fPosHips.beta = Beta; fPosHips.dCutoff = DerivativeCutoff;
-            fPosHead.minCutoff = MinCutoff; fPosHead.beta = Beta; fPosHead.dCutoff = DerivativeCutoff;
-            fPosLeftFoot.minCutoff = MinCutoff; fPosLeftFoot.beta = Beta; fPosLeftFoot.dCutoff = DerivativeCutoff;
-            fPosRightFoot.minCutoff = MinCutoff; fPosRightFoot.beta = Beta; fPosRightFoot.dCutoff = DerivativeCutoff;
-            fPosChest.minCutoff = MinCutoff; fPosChest.beta = Beta; fPosChest.dCutoff = DerivativeCutoff;
-            fPosLeftLowerLeg.minCutoff = MinCutoff; fPosLeftLowerLeg.beta = Beta; fPosLeftLowerLeg.dCutoff = DerivativeCutoff;
-            fPosRightLowerLeg.minCutoff = MinCutoff; fPosRightLowerLeg.beta = Beta; fPosRightLowerLeg.dCutoff = DerivativeCutoff;
-            fPosLeftHand.minCutoff = MinCutoff; fPosLeftHand.beta = Beta; fPosLeftHand.dCutoff = DerivativeCutoff;
-            fPosRightHand.minCutoff = MinCutoff; fPosRightHand.beta = Beta; fPosRightHand.dCutoff = DerivativeCutoff;
-            fPosLeftLowerArm.minCutoff = MinCutoff; fPosLeftLowerArm.beta = Beta; fPosLeftLowerArm.dCutoff = DerivativeCutoff;
-            fPosRightLowerArm.minCutoff = MinCutoff; fPosRightLowerArm.beta = Beta; fPosRightLowerArm.dCutoff = DerivativeCutoff;
-            fPosLeftToe.minCutoff = MinCutoff; fPosLeftToe.beta = Beta; fPosLeftToe.dCutoff = DerivativeCutoff;
-            fPosRightToe.minCutoff = MinCutoff; fPosRightToe.beta = Beta; fPosRightToe.dCutoff = DerivativeCutoff;
+            fPosHips.minCutoff = effectiveMinCutoff; fPosHips.beta = Beta; fPosHips.dCutoff = effectiveDCutoff;
+            fPosHead.minCutoff = effectiveMinCutoff; fPosHead.beta = Beta; fPosHead.dCutoff = effectiveDCutoff;
+            fPosLeftFoot.minCutoff = effectiveMinCutoff; fPosLeftFoot.beta = Beta; fPosLeftFoot.dCutoff = effectiveDCutoff;
+            fPosRightFoot.minCutoff = effectiveMinCutoff; fPosRightFoot.beta = Beta; fPosRightFoot.dCutoff = effectiveDCutoff;
+            fPosChest.minCutoff = effectiveMinCutoff; fPosChest.beta = Beta; fPosChest.dCutoff = effectiveDCutoff;
+            fPosLeftLowerLeg.minCutoff = effectiveMinCutoff; fPosLeftLowerLeg.beta = Beta; fPosLeftLowerLeg.dCutoff = effectiveDCutoff;
+            fPosRightLowerLeg.minCutoff = effectiveMinCutoff; fPosRightLowerLeg.beta = Beta; fPosRightLowerLeg.dCutoff = effectiveDCutoff;
+            fPosLeftHand.minCutoff = effectiveMinCutoff; fPosLeftHand.beta = Beta; fPosLeftHand.dCutoff = effectiveDCutoff;
+            fPosRightHand.minCutoff = effectiveMinCutoff; fPosRightHand.beta = Beta; fPosRightHand.dCutoff = effectiveDCutoff;
+            fPosLeftLowerArm.minCutoff = effectiveMinCutoff; fPosLeftLowerArm.beta = Beta; fPosLeftLowerArm.dCutoff = effectiveDCutoff;
+            fPosRightLowerArm.minCutoff = effectiveMinCutoff; fPosRightLowerArm.beta = Beta; fPosRightLowerArm.dCutoff = effectiveDCutoff;
+            fPosLeftToe.minCutoff = effectiveMinCutoff; fPosLeftToe.beta = Beta; fPosLeftToe.dCutoff = effectiveDCutoff;
+            fPosRightToe.minCutoff = effectiveMinCutoff; fPosRightToe.beta = Beta; fPosRightToe.dCutoff = effectiveDCutoff;
 
             // Rotation filters
-            fRotHips.minCutoff = MinCutoff; fRotHips.beta = Beta; fRotHips.dCutoff = DerivativeCutoff;
-            fRotHead.minCutoff = MinCutoff; fRotHead.beta = Beta; fRotHead.dCutoff = DerivativeCutoff;
-            fRotLeftFoot.minCutoff = MinCutoff; fRotLeftFoot.beta = Beta; fRotLeftFoot.dCutoff = DerivativeCutoff;
-            fRotRightFoot.minCutoff = MinCutoff; fRotRightFoot.beta = Beta; fRotRightFoot.dCutoff = DerivativeCutoff;
-            fRotChest.minCutoff = MinCutoff; fRotChest.beta = Beta; fRotChest.dCutoff = DerivativeCutoff;
-            fRotLeftLowerLeg.minCutoff = MinCutoff; fRotLeftLowerLeg.beta = Beta; fRotLeftLowerLeg.dCutoff = DerivativeCutoff;
-            fRotRightLowerLeg.minCutoff = MinCutoff; fRotRightLowerLeg.beta = Beta; fRotRightLowerLeg.dCutoff = DerivativeCutoff;
-            fRotLeftHand.minCutoff = MinCutoff; fRotLeftHand.beta = Beta; fRotLeftHand.dCutoff = DerivativeCutoff;
-            fRotRightHand.minCutoff = MinCutoff; fRotRightHand.beta = Beta; fRotRightHand.dCutoff = DerivativeCutoff;
-            fRotLeftLowerArm.minCutoff = MinCutoff; fRotLeftLowerArm.beta = Beta; fRotLeftLowerArm.dCutoff = DerivativeCutoff;
-            fRotRightLowerArm.minCutoff = MinCutoff; fRotRightLowerArm.beta = Beta; fRotRightLowerArm.dCutoff = DerivativeCutoff;
-            fRotLeftToe.minCutoff = MinCutoff; fRotLeftToe.beta = Beta; fRotLeftToe.dCutoff = DerivativeCutoff;
-            fRotRightToe.minCutoff = MinCutoff; fRotRightToe.beta = Beta; fRotRightToe.dCutoff = DerivativeCutoff;
-            fRotLeftShoulder.minCutoff = MinCutoff; fRotLeftShoulder.beta = Beta; fRotLeftShoulder.dCutoff = DerivativeCutoff;
-            fRotRightShoulder.minCutoff = MinCutoff; fRotRightShoulder.beta = Beta; fRotRightShoulder.dCutoff = DerivativeCutoff;
+            fRotHips.minCutoff = effectiveMinCutoff; fRotHips.beta = Beta; fRotHips.dCutoff = effectiveDCutoff;
+            fRotHead.minCutoff = effectiveMinCutoff; fRotHead.beta = Beta; fRotHead.dCutoff = effectiveDCutoff;
+            fRotLeftFoot.minCutoff = effectiveMinCutoff; fRotLeftFoot.beta = Beta; fRotLeftFoot.dCutoff = effectiveDCutoff;
+            fRotRightFoot.minCutoff = effectiveMinCutoff; fRotRightFoot.beta = Beta; fRotRightFoot.dCutoff = effectiveDCutoff;
+            fRotChest.minCutoff = effectiveMinCutoff; fRotChest.beta = Beta; fRotChest.dCutoff = effectiveDCutoff;
+            fRotLeftLowerLeg.minCutoff = effectiveMinCutoff; fRotLeftLowerLeg.beta = Beta; fRotLeftLowerLeg.dCutoff = effectiveDCutoff;
+            fRotRightLowerLeg.minCutoff = effectiveMinCutoff; fRotRightLowerLeg.beta = Beta; fRotRightLowerLeg.dCutoff = effectiveDCutoff;
+            fRotLeftHand.minCutoff = effectiveMinCutoff; fRotLeftHand.beta = Beta; fRotLeftHand.dCutoff = effectiveDCutoff;
+            fRotRightHand.minCutoff = effectiveMinCutoff; fRotRightHand.beta = Beta; fRotRightHand.dCutoff = effectiveDCutoff;
+            fRotLeftLowerArm.minCutoff = effectiveMinCutoff; fRotLeftLowerArm.beta = Beta; fRotLeftLowerArm.dCutoff = effectiveDCutoff;
+            fRotRightLowerArm.minCutoff = effectiveMinCutoff; fRotRightLowerArm.beta = Beta; fRotRightLowerArm.dCutoff = effectiveDCutoff;
+            fRotLeftToe.minCutoff = effectiveMinCutoff; fRotLeftToe.beta = Beta; fRotLeftToe.dCutoff = effectiveDCutoff;
+            fRotRightToe.minCutoff = effectiveMinCutoff; fRotRightToe.beta = Beta; fRotRightToe.dCutoff = effectiveDCutoff;
+            fRotLeftShoulder.minCutoff = effectiveMinCutoff; fRotLeftShoulder.beta = Beta; fRotLeftShoulder.dCutoff = effectiveDCutoff;
+            fRotRightShoulder.minCutoff = effectiveMinCutoff; fRotRightShoulder.beta = Beta; fRotRightShoulder.dCutoff = effectiveDCutoff;
         }
         private void OnPlayersHeightChangedNextFrame(HeightModeChange HeightModeChange)
         {
