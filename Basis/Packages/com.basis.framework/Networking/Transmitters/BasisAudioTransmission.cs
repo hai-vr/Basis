@@ -16,6 +16,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public bool HasEvents = false;
         public AudioSegmentDataMessage Segment = new AudioSegmentDataMessage();
         public NetDataWriter writer = new NetDataWriter();
+        public ushort _sequenceNumber = 0;
         public int SilentForHowLong = 0;
         public void Initialize(BasisNetworkPlayer networkedPlayer)
         {
@@ -114,6 +115,8 @@ namespace Basis.Scripts.Networking.Transmitters
 #if !BASIS_DISABLE_MICROPHONE
             Segment.LengthUsed = encoder.Encode(BasisLocalMicrophoneDriver.processBufferArray,BasisLocalMicrophoneDriver.SampleRate,Segment.buffer,Segment.TotalLength);
 #endif
+
+            Segment.SequenceNumber = _sequenceNumber++;
 
             if(SilentForHowLong > 256)
             {

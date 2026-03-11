@@ -9,6 +9,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using UnityEngine;
+using static SerializableBasis;
 namespace Basis.Scripts.Networking.Receivers
 {
     /// <summary>
@@ -38,6 +39,8 @@ namespace Basis.Scripts.Networking.Receivers
         /// Ring buffer used to maintain correct ordering of decoded audio samples.
         /// </summary>
         public BasisVoiceRingBuffer InOrderRead = new BasisVoiceRingBuffer();
+
+        public BasisJitterBuffer JitterBuffer = new BasisJitterBuffer();
 
         /// <summary>
         /// Decode destination buffer (mono) sized to one network frame.
@@ -156,6 +159,47 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
                 AudioSourceSet();
+            }
+        }
+
+        public void OnDecodePLC()
+        {
+            if (HasAudioSource)
+            {
+                try
+                {
+                    pcmLength = decoder.Decode(Span<byte>.Empty, 0, new Span<float>(pcmBuffer), RemoteOpusSettings.FrameSize, false);
+                    InOrderRead.Add(pcmBuffer, pcmLength, true);
+                }
+                catch
+                {
+                    InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
+                }
+                AudioSourceSet();
+            }
+        }
+
+        public void InsertAndDrain(AudioSegmentDataMessage msg)
+        {
+            JitterBuffer.Insert(msg.SequenceNumber, msg.buffer, msg.LengthUsed, msg.TotalPlayedInSilence);
+
+            while (JitterBuffer.TryConsume(out byte[] data, out int length, out byte silenceUnits, out bool isMissing))
+            {
+                if (isMissing)
+                {
+                    OnDecodePLC();
+                }
+                else
+                {
+                    if (silenceUnits > 0)
+                    {
+                        int localUnits = System.Threading.Interlocked.Exchange(ref _silentUnits20ms, 0);
+                        int missing = silenceUnits - localUnits;
+                        for (int i = 0; i < missing; i++)
+                            OnDecodeSilence();
+                    }
+                    OnDecode(data, length);
+                }
             }
         }
 
