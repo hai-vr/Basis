@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.UI.NamePlate;
 using System.Collections.Generic;
@@ -10,10 +11,9 @@ namespace Basis.Scripts.UI
 {
     /// <summary>
     /// Displays join/leave notifications on the player's HUD.
-    /// Auto-registers via RuntimeInitializeOnLoadMethod using the same pattern as SettingsProvider.
-    /// Creates a screen-space overlay Canvas with vertically stacked messages
-    /// that fade out over time. Colors are pulled from BasisRemoteNamePlateDriver
-    /// to match the existing nameplate visual language.
+    /// Uses a world-space Canvas parented under BasisLocalCameraDriver.ParentOfUI
+    /// so it works correctly in both VR and desktop modes.
+    /// Colors are pulled from BasisRemoteNamePlateDriver to match the nameplate style.
     /// </summary>
     public class BasisJoinLeaveNotification : MonoBehaviour
     {
@@ -32,6 +32,13 @@ namespace Basis.Scripts.UI
         /// <summary>Background alpha for notification pills.</summary>
         public float BackgroundAlpha = 0.55f;
 
+        /// <summary>Local position offset from ParentOfUI.</summary>
+        public Vector3 LocalPosition = new Vector3(-10f, -3f, 0f);
+
+        /// <summary>Local scale for the world-space canvas (world units per UI pixel).</summary>
+        public Vector3 LocalScale = new Vector3(0.02f, 0.02f, 0.02f);
+
+        private Canvas canvas;
         private Transform messageContainer;
         private readonly List<NotificationEntry> activeMessages = new List<NotificationEntry>();
         private static BasisJoinLeaveNotification instance;
@@ -67,27 +74,65 @@ namespace Basis.Scripts.UI
             BuildCanvas();
         }
 
+        private void OnEnable()
+        {
+            BasisNetworkPlayer.OnRemotePlayerJoined += OnRemotePlayerJoined;
+            BasisNetworkPlayer.OnRemotePlayerLeft += OnRemotePlayerLeft;
+
+            if (BasisLocalCameraDriver.HasInstance)
+            {
+                AttachToCamera();
+            }
+            BasisLocalCameraDriver.InstanceExists += AttachToCamera;
+        }
+
+        private void OnDisable()
+        {
+            BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemotePlayerJoined;
+            BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayerLeft;
+            BasisLocalCameraDriver.InstanceExists -= AttachToCamera;
+        }
+
+        /// <summary>
+        /// Parents this object under the camera driver's ParentOfUI transform
+        /// and assigns the world camera, following the BasisUILoadingBar pattern.
+        /// </summary>
+        private void AttachToCamera()
+        {
+            if (BasisLocalCameraDriver.Instance == null)
+            {
+                return;
+            }
+
+            transform.SetParent(BasisLocalCameraDriver.Instance.ParentOfUI, false);
+            transform.SetLocalPositionAndRotation(LocalPosition, Quaternion.identity);
+            transform.localScale = LocalScale;
+
+            if (canvas != null)
+            {
+                canvas.worldCamera = BasisLocalCameraDriver.Instance.Camera;
+            }
+        }
+
         private void BuildCanvas()
         {
-            Canvas canvas = gameObject.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas = gameObject.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
             canvas.sortingOrder = 100;
 
-            CanvasScaler scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight = 0.5f;
+            RectTransform canvasRect = canvas.GetComponent<RectTransform>();
+            canvasRect.sizeDelta = new Vector2(500, 400);
+            canvasRect.pivot = new Vector2(0, 0);
 
-            // Container anchored to bottom-left
+            // Container for vertical message stack
             GameObject container = new GameObject("NotificationContainer");
             container.transform.SetParent(transform, false);
 
             RectTransform containerRect = container.AddComponent<RectTransform>();
             containerRect.anchorMin = new Vector2(0, 0);
-            containerRect.anchorMax = new Vector2(0, 0);
-            containerRect.pivot = new Vector2(0, 0);
-            containerRect.anchoredPosition = new Vector2(20, 20);
-            containerRect.sizeDelta = new Vector2(500, 400);
+            containerRect.anchorMax = new Vector2(1, 1);
+            containerRect.offsetMin = Vector2.zero;
+            containerRect.offsetMax = Vector2.zero;
 
             VerticalLayoutGroup layout = container.AddComponent<VerticalLayoutGroup>();
             layout.childAlignment = TextAnchor.LowerLeft;
@@ -102,18 +147,6 @@ namespace Basis.Scripts.UI
             messageContainer = container.transform;
         }
 
-        private void OnEnable()
-        {
-            BasisNetworkPlayer.OnRemotePlayerJoined += OnRemotePlayerJoined;
-            BasisNetworkPlayer.OnRemotePlayerLeft += OnRemotePlayerLeft;
-        }
-
-        private void OnDisable()
-        {
-            BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemotePlayerJoined;
-            BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayerLeft;
-        }
-
         private void OnRemotePlayerJoined(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
         {
             string name = networkPlayer.displayName;
@@ -122,8 +155,6 @@ namespace Basis.Scripts.UI
                 name = "Unknown";
             }
 
-            // Use the IsTalkingColor from the nameplate driver (green) to signal a positive event,
-            // falling back to the PanelToggle OnColor convention if the driver isn't loaded yet.
             Color joinColor = BasisRemoteNamePlateDriver.Instance != null
                 ? BasisRemoteNamePlateDriver.StaticIsTalkingColor
                 : new Color(0.2f, 0.8f, 0.4f, 1f);
@@ -139,8 +170,6 @@ namespace Basis.Scripts.UI
                 name = "Unknown";
             }
 
-            // Use the OutOfRangeColor from the nameplate driver (muted/warm) for a disconnect event,
-            // falling back to a soft red if the driver isn't loaded yet.
             Color leaveColor = BasisRemoteNamePlateDriver.Instance != null
                 ? BasisRemoteNamePlateDriver.StaticOutOfRangeColor
                 : new Color(0.85f, 0.35f, 0.35f, 1f);
@@ -150,7 +179,6 @@ namespace Basis.Scripts.UI
 
         private void ShowNotification(string message, Color color)
         {
-            // Remove oldest if at capacity
             while (activeMessages.Count >= MaxMessages)
             {
                 RemoveMessage(0);
@@ -161,11 +189,9 @@ namespace Basis.Scripts.UI
 
             CanvasGroup group = msgObj.AddComponent<CanvasGroup>();
 
-            // Semi-transparent dark background matching the nameplate material style
             Image bg = msgObj.AddComponent<Image>();
             bg.color = new Color(0f, 0f, 0f, BackgroundAlpha);
 
-            // Padding around the text
             HorizontalLayoutGroup hlg = msgObj.AddComponent<HorizontalLayoutGroup>();
             hlg.padding = new RectOffset(12, 12, 6, 6);
             hlg.childAlignment = TextAnchor.MiddleLeft;
@@ -176,7 +202,6 @@ namespace Basis.Scripts.UI
             msgFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
             msgFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            // Text child
             GameObject textObj = new GameObject("Text");
             textObj.transform.SetParent(msgObj.transform, false);
 
@@ -236,6 +261,8 @@ namespace Basis.Scripts.UI
 
         private void OnDestroy()
         {
+            BasisLocalCameraDriver.InstanceExists -= AttachToCamera;
+
             for (int i = activeMessages.Count - 1; i >= 0; i--)
             {
                 RemoveMessage(i);
