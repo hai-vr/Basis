@@ -416,8 +416,8 @@ namespace Basis.Scripts.UI
             float y = 0f;
             for (int i = activeSlots.Count - 1; i >= 0; i--)
             {
-                y -= LineSpacing;
                 activeSlots[i].Root.transform.localPosition = new Vector3(0f, y, 0f);
+                y -= LineSpacing;
             }
         }
     }
