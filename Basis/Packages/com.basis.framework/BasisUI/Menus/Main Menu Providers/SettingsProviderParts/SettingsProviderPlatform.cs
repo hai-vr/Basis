@@ -13,8 +13,6 @@ public static class SettingsProviderPlatform
         BasisConstants.Desktop,
         BasisConstants.OpenVRLoader,
         BasisConstants.OpenXRLoader,
-        BasisConstants.SimulateXR,
-        BasisConstants.Headless,
     };
 
     public static PanelTabPage DeviceModeTab(PanelTabGroup tabGroup)
@@ -100,8 +98,6 @@ public static class SettingsProviderPlatform
         if (mode == BasisConstants.Desktop) return "Desktop mode (no VR).";
         if (mode == BasisConstants.OpenVRLoader) return "SteamVR / OpenVR runtime.";
         if (mode == BasisConstants.OpenXRLoader) return "OpenXR runtime.";
-        if (mode == BasisConstants.SimulateXR) return "Simulate XR without hardware.";
-        if (mode == BasisConstants.Headless) return "Headless mode (no rendering).";
         return mode;
     }
 }
