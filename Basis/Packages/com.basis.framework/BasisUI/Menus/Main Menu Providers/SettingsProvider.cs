@@ -52,7 +52,7 @@ namespace Basis.BasisUI
             tabGroup.AddTab("Admin", null, SettingsProviderAdminTab.AdminTab(tabGroup));
             tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
             tabGroup.AddTab("Remote Audio", null, SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
-            tabGroup.AddTab("Platform", null, SettingsProviderPlatform.PlatformTab(tabGroup));
+            tabGroup.AddTab("Device Mode", null, SettingsProviderPlatform.DeviceModeTab(tabGroup));
 
             panel.Descriptor.ForceRebuild();
         }

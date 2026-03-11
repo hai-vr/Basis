@@ -4,12 +4,12 @@ using UnityEngine;
 
 public static class SettingsProviderPlatform
 {
-    public static PanelTabPage PlatformTab(PanelTabGroup tabGroup)
+    public static PanelTabPage DeviceModeTab(PanelTabGroup tabGroup)
     {
         PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
         PanelElementDescriptor descriptor = tab.Descriptor;
         descriptor.SetIcon(AddressableAssets.Sprites.Settings);
-        descriptor.SetTitle("Platform");
+        descriptor.SetTitle("Device Mode");
 
         RectTransform container = descriptor.ContentParent;
 
