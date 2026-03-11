@@ -434,6 +434,22 @@ namespace Basis.BasisUI
 
         public static readonly BasisSettingsBinding<bool> FBIKEuroAll = new("euroall");
 
+        // ---------------- CALIBRATION SPHERE SCALE (per bone) ----------------
+        public static BasisSettingsBinding<float> CalibSphereScaleHips => new("calibspherescalehips", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleChest => new("calibspherescalechest", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftFoot => new("calibspherescaleleftfoot", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightFoot => new("calibspherescalerightfoot", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftLowerLeg => new("calibspherescaleleftlowerleg", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightLowerLeg => new("calibspherescalerightlowerleg", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftLowerArm => new("calibspherescaleleftlowerarm", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightLowerArm => new("calibspherescalerightlowerarm", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftHand => new("calibspherescalelefthand", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightHand => new("calibspherescalerighthand", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftToes => new("calibspherescalelefttoes", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightToes => new("calibspherescalerighttoes", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftShoulder => new("calibspherescaleleftshoulder", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightShoulder => new("calibspherescalerightshoulder", new BasisPlatformDefault<float>(1f));
+
         // Limiter
         public static BasisSettingsBinding<float> LimitThreshold => new("limitthreshold", new BasisPlatformDefault<float>(0.95f)); // pre-clip
 
@@ -627,6 +643,22 @@ namespace Basis.BasisUI
 
             // Global toggle
             FBIKEuroAll.LoadBindingValue();
+
+            // Calibration sphere scale (per bone)
+            CalibSphereScaleHips.LoadBindingValue();
+            CalibSphereScaleChest.LoadBindingValue();
+            CalibSphereScaleLeftFoot.LoadBindingValue();
+            CalibSphereScaleRightFoot.LoadBindingValue();
+            CalibSphereScaleLeftLowerLeg.LoadBindingValue();
+            CalibSphereScaleRightLowerLeg.LoadBindingValue();
+            CalibSphereScaleLeftLowerArm.LoadBindingValue();
+            CalibSphereScaleRightLowerArm.LoadBindingValue();
+            CalibSphereScaleLeftHand.LoadBindingValue();
+            CalibSphereScaleRightHand.LoadBindingValue();
+            CalibSphereScaleLeftToes.LoadBindingValue();
+            CalibSphereScaleRightToes.LoadBindingValue();
+            CalibSphereScaleLeftShoulder.LoadBindingValue();
+            CalibSphereScaleRightShoulder.LoadBindingValue();
 
             // Remote Player Audio
             RAMinDistance.LoadBindingValue();

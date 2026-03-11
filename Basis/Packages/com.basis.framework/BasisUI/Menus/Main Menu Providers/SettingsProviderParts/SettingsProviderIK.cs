@@ -22,8 +22,10 @@ public static class SettingsProviderIK
     private static PanelToggle _uiSmoothRot;
     private static PanelToggle _uiEuroPos;
     private static PanelToggle _uiEuroRot;
+    private static PanelSlider _uiCalibSphereScale;
     private static PanelElementDescriptor _boneEditorGroup;
     private static PanelElementDescriptor _boneEuroEditorGroup;
+    private static PanelElementDescriptor _boneCalibGroup;
 
     private struct BoneBindings
     {
@@ -32,6 +34,7 @@ public static class SettingsProviderIK
         public BasisSettingsBinding<bool> SmoothRot;
         public BasisSettingsBinding<bool> EuroPos;
         public BasisSettingsBinding<bool> EuroRot;
+        public BasisSettingsBinding<float> CalibSphereScale;
     }
 
     private static readonly List<BoneBindings> _bones = new();
@@ -232,13 +235,14 @@ public static class SettingsProviderIK
         // This binding is set by SyncMasterEuroFromChildren(), but reset it anyway.
         BasisSettingsDefaults.FBIKEuroAll.ResetToDefault();
 
-        // Per-bone toggles
+        // Per-bone toggles and calibration sphere scale
         foreach (var b in _bones)
         {
             b.SmoothPos.ResetToDefault();
             b.SmoothRot.ResetToDefault();
             b.EuroPos.ResetToDefault();
             b.EuroRot.ResetToDefault();
+            b.CalibSphereScale?.ResetToDefault();
         }
 
         // Refresh the editor bindings + derived master state + interactables
@@ -253,23 +257,24 @@ public static class SettingsProviderIK
             BasisSettingsBinding<bool> smoothPos,
             BasisSettingsBinding<bool> smoothRot,
             BasisSettingsBinding<bool> euroPos,
-            BasisSettingsBinding<bool> euroRot)[]
+            BasisSettingsBinding<bool> euroRot,
+            BasisSettingsBinding<float> calibSphereScale)[]
         {
-            ("Hips", BasisSettingsDefaults.FBIKHipsSmoothPos, BasisSettingsDefaults.FBIKHipsSmoothRot, BasisSettingsDefaults.FBIKHipsEuroPos, BasisSettingsDefaults.FBIKHipsEuroRot),
-            ("Head", BasisSettingsDefaults.FBIKHeadSmoothPos, BasisSettingsDefaults.FBIKHeadSmoothRot, BasisSettingsDefaults.FBIKHeadEuroPos, BasisSettingsDefaults.FBIKHeadEuroRot),
-            ("Left Foot", BasisSettingsDefaults.FBIKLeftFootSmoothPos, BasisSettingsDefaults.FBIKLeftFootSmoothRot, BasisSettingsDefaults.FBIKLeftFootEuroPos, BasisSettingsDefaults.FBIKLeftFootEuroRot),
-            ("Right Foot", BasisSettingsDefaults.FBIKRightFootSmoothPos, BasisSettingsDefaults.FBIKRightFootSmoothRot, BasisSettingsDefaults.FBIKRightFootEuroPos, BasisSettingsDefaults.FBIKRightFootEuroRot),
-            ("Chest", BasisSettingsDefaults.FBIKChestSmoothPos, BasisSettingsDefaults.FBIKChestSmoothRot, BasisSettingsDefaults.FBIKChestEuroPos, BasisSettingsDefaults.FBIKChestEuroRot),
-            ("Left Lower Leg", BasisSettingsDefaults.FBIKLeftLowerLegSmoothPos, BasisSettingsDefaults.FBIKLeftLowerLegSmoothRot, BasisSettingsDefaults.FBIKLeftLowerLegEuroPos, BasisSettingsDefaults.FBIKLeftLowerLegEuroRot),
-            ("Right Lower Leg", BasisSettingsDefaults.FBIKRightLowerLegSmoothPos, BasisSettingsDefaults.FBIKRightLowerLegSmoothRot, BasisSettingsDefaults.FBIKRightLowerLegEuroPos, BasisSettingsDefaults.FBIKRightLowerLegEuroRot),
-            ("Left Hand", BasisSettingsDefaults.FBIKLeftHandSmoothPos, BasisSettingsDefaults.FBIKLeftHandSmoothRot, BasisSettingsDefaults.FBIKLeftHandEuroPos, BasisSettingsDefaults.FBIKLeftHandEuroRot),
-            ("Right Hand", BasisSettingsDefaults.FBIKRightHandSmoothPos, BasisSettingsDefaults.FBIKRightHandSmoothRot, BasisSettingsDefaults.FBIKRightHandEuroPos, BasisSettingsDefaults.FBIKRightHandEuroRot),
-            ("Left Lower Arm", BasisSettingsDefaults.FBIKLeftLowerArmSmoothPos, BasisSettingsDefaults.FBIKLeftLowerArmSmoothRot, BasisSettingsDefaults.FBIKLeftLowerArmEuroPos, BasisSettingsDefaults.FBIKLeftLowerArmEuroRot),
-            ("Right Lower Arm", BasisSettingsDefaults.FBIKRightLowerArmSmoothPos, BasisSettingsDefaults.FBIKRightLowerArmSmoothRot, BasisSettingsDefaults.FBIKRightLowerArmEuroPos, BasisSettingsDefaults.FBIKRightLowerArmEuroRot),
-            ("Left Toe", BasisSettingsDefaults.FBIKLeftToeSmoothPos, BasisSettingsDefaults.FBIKLeftToeSmoothRot, BasisSettingsDefaults.FBIKLeftToeEuroPos, BasisSettingsDefaults.FBIKLeftToeEuroRot),
-            ("Right Toe", BasisSettingsDefaults.FBIKRightToeSmoothPos, BasisSettingsDefaults.FBIKRightToeSmoothRot, BasisSettingsDefaults.FBIKRightToeEuroPos, BasisSettingsDefaults.FBIKRightToeEuroRot),
-            ("Left Shoulder", BasisSettingsDefaults.FBIKLeftShoulderSmoothPos, BasisSettingsDefaults.FBIKLeftShoulderSmoothRot, BasisSettingsDefaults.FBIKLeftShoulderEuroPos, BasisSettingsDefaults.FBIKLeftShoulderEuroRot),
-            ("Right Shoulder", BasisSettingsDefaults.FBIKRightShoulderSmoothPos, BasisSettingsDefaults.FBIKRightShoulderSmoothRot, BasisSettingsDefaults.FBIKRightShoulderEuroPos, BasisSettingsDefaults.FBIKRightShoulderEuroRot),
+            ("Hips", BasisSettingsDefaults.FBIKHipsSmoothPos, BasisSettingsDefaults.FBIKHipsSmoothRot, BasisSettingsDefaults.FBIKHipsEuroPos, BasisSettingsDefaults.FBIKHipsEuroRot, BasisSettingsDefaults.CalibSphereScaleHips),
+            ("Head", BasisSettingsDefaults.FBIKHeadSmoothPos, BasisSettingsDefaults.FBIKHeadSmoothRot, BasisSettingsDefaults.FBIKHeadEuroPos, BasisSettingsDefaults.FBIKHeadEuroRot, null),
+            ("Left Foot", BasisSettingsDefaults.FBIKLeftFootSmoothPos, BasisSettingsDefaults.FBIKLeftFootSmoothRot, BasisSettingsDefaults.FBIKLeftFootEuroPos, BasisSettingsDefaults.FBIKLeftFootEuroRot, BasisSettingsDefaults.CalibSphereScaleLeftFoot),
+            ("Right Foot", BasisSettingsDefaults.FBIKRightFootSmoothPos, BasisSettingsDefaults.FBIKRightFootSmoothRot, BasisSettingsDefaults.FBIKRightFootEuroPos, BasisSettingsDefaults.FBIKRightFootEuroRot, BasisSettingsDefaults.CalibSphereScaleRightFoot),
+            ("Chest", BasisSettingsDefaults.FBIKChestSmoothPos, BasisSettingsDefaults.FBIKChestSmoothRot, BasisSettingsDefaults.FBIKChestEuroPos, BasisSettingsDefaults.FBIKChestEuroRot, BasisSettingsDefaults.CalibSphereScaleChest),
+            ("Left Lower Leg", BasisSettingsDefaults.FBIKLeftLowerLegSmoothPos, BasisSettingsDefaults.FBIKLeftLowerLegSmoothRot, BasisSettingsDefaults.FBIKLeftLowerLegEuroPos, BasisSettingsDefaults.FBIKLeftLowerLegEuroRot, BasisSettingsDefaults.CalibSphereScaleLeftLowerLeg),
+            ("Right Lower Leg", BasisSettingsDefaults.FBIKRightLowerLegSmoothPos, BasisSettingsDefaults.FBIKRightLowerLegSmoothRot, BasisSettingsDefaults.FBIKRightLowerLegEuroPos, BasisSettingsDefaults.FBIKRightLowerLegEuroRot, BasisSettingsDefaults.CalibSphereScaleRightLowerLeg),
+            ("Left Hand", BasisSettingsDefaults.FBIKLeftHandSmoothPos, BasisSettingsDefaults.FBIKLeftHandSmoothRot, BasisSettingsDefaults.FBIKLeftHandEuroPos, BasisSettingsDefaults.FBIKLeftHandEuroRot, BasisSettingsDefaults.CalibSphereScaleLeftHand),
+            ("Right Hand", BasisSettingsDefaults.FBIKRightHandSmoothPos, BasisSettingsDefaults.FBIKRightHandSmoothRot, BasisSettingsDefaults.FBIKRightHandEuroPos, BasisSettingsDefaults.FBIKRightHandEuroRot, BasisSettingsDefaults.CalibSphereScaleRightHand),
+            ("Left Lower Arm", BasisSettingsDefaults.FBIKLeftLowerArmSmoothPos, BasisSettingsDefaults.FBIKLeftLowerArmSmoothRot, BasisSettingsDefaults.FBIKLeftLowerArmEuroPos, BasisSettingsDefaults.FBIKLeftLowerArmEuroRot, BasisSettingsDefaults.CalibSphereScaleLeftLowerArm),
+            ("Right Lower Arm", BasisSettingsDefaults.FBIKRightLowerArmSmoothPos, BasisSettingsDefaults.FBIKRightLowerArmSmoothRot, BasisSettingsDefaults.FBIKRightLowerArmEuroPos, BasisSettingsDefaults.FBIKRightLowerArmEuroRot, BasisSettingsDefaults.CalibSphereScaleRightLowerArm),
+            ("Left Toe", BasisSettingsDefaults.FBIKLeftToeSmoothPos, BasisSettingsDefaults.FBIKLeftToeSmoothRot, BasisSettingsDefaults.FBIKLeftToeEuroPos, BasisSettingsDefaults.FBIKLeftToeEuroRot, BasisSettingsDefaults.CalibSphereScaleLeftToes),
+            ("Right Toe", BasisSettingsDefaults.FBIKRightToeSmoothPos, BasisSettingsDefaults.FBIKRightToeSmoothRot, BasisSettingsDefaults.FBIKRightToeEuroPos, BasisSettingsDefaults.FBIKRightToeEuroRot, BasisSettingsDefaults.CalibSphereScaleRightToes),
+            ("Left Shoulder", BasisSettingsDefaults.FBIKLeftShoulderSmoothPos, BasisSettingsDefaults.FBIKLeftShoulderSmoothRot, BasisSettingsDefaults.FBIKLeftShoulderEuroPos, BasisSettingsDefaults.FBIKLeftShoulderEuroRot, BasisSettingsDefaults.CalibSphereScaleLeftShoulder),
+            ("Right Shoulder", BasisSettingsDefaults.FBIKRightShoulderSmoothPos, BasisSettingsDefaults.FBIKRightShoulderSmoothRot, BasisSettingsDefaults.FBIKRightShoulderEuroPos, BasisSettingsDefaults.FBIKRightShoulderEuroRot, BasisSettingsDefaults.CalibSphereScaleRightShoulder),
         };
 
         _bones.Clear();
@@ -281,7 +286,8 @@ public static class SettingsProviderIK
                 SmoothPos = b.smoothPos,
                 SmoothRot = b.smoothRot,
                 EuroPos = b.euroPos,
-                EuroRot = b.euroRot
+                EuroRot = b.euroRot,
+                CalibSphereScale = b.calibSphereScale
             });
         }
 
@@ -326,6 +332,28 @@ public static class SettingsProviderIK
         _uiEuroRot.Descriptor.SetTitle("Euro Filtering (Rotation)");
         _uiEuroRot.Descriptor.SetDescription("Reduces micro-wobble while remaining responsive.");
 
+        _boneCalibGroup = PanelElementDescriptor.CreateNew(
+            PanelElementDescriptor.ElementStyles.Group,
+            parent);
+
+        _boneCalibGroup.SetTitle("Calibration Sphere Scale");
+        _boneCalibGroup.SetDescription(
+            "Adjusts the calibration sphere size for this bone. " +
+            "Larger spheres make it easier for trackers to attach during calibration."
+        );
+
+        _uiCalibSphereScale = PanelSlider.CreateAndBind(
+            _boneCalibGroup.ContentParent,
+            PanelSlider.SliderSettings.Advanced("Sphere Scale", 0.1f, 5f, false, 2, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.CalibSphereScaleHips);
+
+        if (_uiCalibSphereScale != null)
+        {
+            _uiCalibSphereScale.Descriptor.SetDescription(
+                "1.0 = default size. Increase for easier tracker attachment at troublesome calibration points."
+            );
+        }
+
         RebindBoneEditor();
     }
 
@@ -341,6 +369,16 @@ public static class SettingsProviderIK
         _uiSmoothRot.AssignBinding(bone.SmoothRot);
         _uiEuroPos.AssignBinding(bone.EuroPos);
         _uiEuroRot.AssignBinding(bone.EuroRot);
+
+        bool hasCalibSphere = bone.CalibSphereScale != null;
+        if (_boneCalibGroup != null)
+        {
+            _boneCalibGroup.gameObject.SetActive(hasCalibSphere);
+        }
+        if (hasCalibSphere && _uiCalibSphereScale != null)
+        {
+            _uiCalibSphereScale.AssignBinding(bone.CalibSphereScale);
+        }
 
         SyncMasterEuroFromChildren();
     }
