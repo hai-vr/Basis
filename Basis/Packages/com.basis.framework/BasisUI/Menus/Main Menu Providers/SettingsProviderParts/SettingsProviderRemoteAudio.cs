@@ -93,7 +93,7 @@ namespace Basis.BasisUI
                 sliderCurvePoint75.Descriptor.SetActive(userDefined);
                 audioSourceGroup.ForceRebuild();
             };
-
+            /*
             PanelSlider sliderSpread = PanelSlider.CreateEntryAndBind(
                 audioSourceGroup,
                 PanelSlider.SliderSettings.Degrees("Spread", 0f, 360f, true, 0),
@@ -103,16 +103,17 @@ namespace Basis.BasisUI
                 audioSourceGroup,
                 PanelSlider.SliderSettings.Advanced("Doppler Level", 0f, 5f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RADopplerLevel);
-
+            */
             PanelSlider sliderSpatialBlend = PanelSlider.CreateEntryAndBind(
                 audioSourceGroup,
                 PanelSlider.SliderSettings.Advanced("Spatial Blend", 0f, 1f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.RASpatialBlend);
-
-            PanelSlider sliderPriority = PanelSlider.CreateEntryAndBind(
-                audioSourceGroup,
-                PanelSlider.SliderSettings.Advanced("Priority", 0f, 256f, true, 0, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.RAPriority);
+            /*
+PanelSlider sliderPriority = PanelSlider.CreateEntryAndBind(
+    audioSourceGroup,
+    PanelSlider.SliderSettings.Advanced("Priority", 0f, 256f, true, 0, ValueDisplayMode.Raw),
+    BasisSettingsDefaults.RAPriority);
+            */
 
             // ─────────────── LISTENER DIRECTIONAL DAMPENING GROUP ───────────────
             PanelElementDescriptor listenerDampenGroup =
@@ -149,22 +150,22 @@ namespace Basis.BasisUI
             toggleDirectBinaural.Descriptor.SetTitle("Direct Binaural (HRTF)");
             toggleDirectBinaural.AssignBinding(BasisSettingsDefaults.RADirectBinaural);
 
-            PanelToggle togglePerspectiveCorrection = PanelToggle.CreateNewEntry(hrtfGroup);
-            togglePerspectiveCorrection.Descriptor.SetTitle("Perspective Correction");
-            togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCorrection);
-
+            /*
+PanelToggle togglePerspectiveCorrection = PanelToggle.CreateNewEntry(hrtfGroup);
+togglePerspectiveCorrection.Descriptor.SetTitle("Perspective Correction");
+togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCorrection);
+*/
             PanelDropdown dropdownInterpolation = PanelDropdown.CreateNewEntry(hrtfGroup);
             dropdownInterpolation.Descriptor.SetTitle("HRTF Interpolation");
             dropdownInterpolation.AssignEntries(new List<string> { "Nearest", "Bilinear" });
             dropdownInterpolation.AssignBinding(BasisSettingsDefaults.RAInterpolation);
-
             // HRTF sub-settings only visible when Direct Binaural is enabled
             bool binauralOn = BasisSettingsDefaults.RADirectBinaural.RawValue;
-            togglePerspectiveCorrection.Descriptor.SetActive(binauralOn);
+            //togglePerspectiveCorrection.Descriptor.SetActive(binauralOn);
             dropdownInterpolation.Descriptor.SetActive(binauralOn);
             toggleDirectBinaural.OnValueChanged += (val) =>
             {
-                togglePerspectiveCorrection.Descriptor.SetActive(val);
+                //togglePerspectiveCorrection.Descriptor.SetActive(val);
                 dropdownInterpolation.Descriptor.SetActive(val);
                 hrtfGroup.ForceRebuild();
             };
@@ -344,7 +345,7 @@ namespace Basis.BasisUI
                 sliderMaxTransmissionSurfaces.Descriptor.SetActive(val);
                 transmissionGroup.ForceRebuild();
             };
-
+            /*
             // ─────────────── STEAM AUDIO - MIX GROUP ───────────────
             PanelElementDescriptor mixGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -385,7 +386,7 @@ namespace Basis.BasisUI
                 toggleApplyHRTFToReflections.Descriptor.SetActive(val);
                 reflectionsGroup.ForceRebuild();
             };
-
+            */
             // ─────────────── RESET BUTTON ───────────────
             SettingsProvider.AddResetPageButton(container, "Remote Audio", ResetRemoteAudioDefaults);
 
