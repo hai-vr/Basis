@@ -3,6 +3,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
+using Basis.Scripts.UI;
 using Basis.Network.Core;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,6 +38,7 @@ public static class BasisNetworkLifeCycle
         Management.transform.SetParent(BasisDeviceManagement.Instance.transform, false);
 
         Management.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+        BasisJoinLeaveNotification.Create();
         BasisNetworkManagement.OnEnableInstanceCreate?.Invoke();
         BasisNetworkManagement.NetworkRunning = true;
     }
