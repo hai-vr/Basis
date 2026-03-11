@@ -369,20 +369,8 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage msg)
         {
-            int serverSilentUnits = msg.audioSegmentData.TotalPlayedInSilence; // 20ms units
-
-            if (serverSilentUnits > 0)
-            {
-                int localUnits = System.Threading.Interlocked.Exchange(ref AudioReceiverModule._silentUnits20ms, 0);
-                int missing = serverSilentUnits - localUnits;
-                if (missing > 0)
-                {
-                    for (int Index = 0; Index < missing; Index++)
-                        AudioReceiverModule.OnDecodeSilence();
-                }
-            }
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, msg.audioSegmentData.LengthUsed);
-            AudioReceiverModule.OnDecode(msg.audioSegmentData.buffer, msg.audioSegmentData.LengthUsed);
+            AudioReceiverModule.InsertAndDrain(msg.audioSegmentData);
             Player.AudioReceived?.Invoke();
         }
 

@@ -16,6 +16,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public bool HasEvents = false;
         public AudioSegmentDataMessage Segment = new AudioSegmentDataMessage();
         public NetDataWriter writer = new NetDataWriter();
+        public byte _sequenceNumber = 0;
         public int SilentForHowLong = 0;
         public void Initialize(BasisNetworkPlayer networkedPlayer)
         {
@@ -115,6 +116,8 @@ namespace Basis.Scripts.Networking.Transmitters
             Segment.LengthUsed = encoder.Encode(BasisLocalMicrophoneDriver.processBufferArray,BasisLocalMicrophoneDriver.SampleRate,Segment.buffer,Segment.TotalLength);
 #endif
 
+            Segment.SequenceNumber = _sequenceNumber++;
+
             if(SilentForHowLong > 256)
             {
                 Segment.TotalPlayedInSilence = 0;
@@ -126,7 +129,7 @@ namespace Basis.Scripts.Networking.Transmitters
             Segment.Serialize(writer);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, Segment.LengthUsed);
-            BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Sequenced);
+            BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Unreliable);
             if (BasisLocalPlayer.Instance != null)
             {
                 BasisLocalPlayer.Instance.AudioReceived?.Invoke();
