@@ -5,14 +5,14 @@ public static partial class SerializableBasis
     [System.Serializable]
     public struct AudioSegmentDataMessage
     {
-        public ushort SequenceNumber;
+        public byte SequenceNumber;
         public byte TotalPlayedInSilence;
         public byte[] buffer;
         public int TotalLength;
         public int LengthUsed;
         public void Deserialize(NetDataReader Writer)
         {
-            SequenceNumber = Writer.GetUShort();
+            SequenceNumber = Writer.GetByte();
             TotalPlayedInSilence = Writer.GetByte();
             if (Writer.EndOfData)
             {

@@ -16,7 +16,7 @@ namespace Basis.Scripts.Networking.Transmitters
         public bool HasEvents = false;
         public AudioSegmentDataMessage Segment = new AudioSegmentDataMessage();
         public NetDataWriter writer = new NetDataWriter();
-        public ushort _sequenceNumber = 0;
+        public byte _sequenceNumber = 0;
         public int SilentForHowLong = 0;
         public void Initialize(BasisNetworkPlayer networkedPlayer)
         {

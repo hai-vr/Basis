@@ -6,7 +6,7 @@ public class BasisJitterBuffer
     private struct Slot
     {
         public bool Occupied;
-        public ushort SequenceNumber;
+        public byte SequenceNumber;
         public byte[] EncodedData;
         public int EncodedLength;
         public byte SilenceUnits;
@@ -19,8 +19,8 @@ public class BasisJitterBuffer
     private readonly Slot[] _slots = new Slot[BufferSize];
     private readonly object _lock = new object();
 
-    private ushort _nextPlaybackSeq;
-    private ushort _highestReceivedSeq;
+    private byte _nextPlaybackSeq;
+    private byte _highestReceivedSeq;
     private bool _started;
     private bool _hasHighest;
     private int _bufferedCount;
@@ -28,7 +28,7 @@ public class BasisJitterBuffer
 
     public int InitialBufferDepth => RemoteOpusSettings.JitterBufferSize;
 
-    public void Insert(ushort sequenceNumber, byte[] data, int length, byte silenceUnits)
+    public void Insert(byte sequenceNumber, byte[] data, int length, byte silenceUnits)
     {
         lock (_lock)
         {
@@ -100,9 +100,9 @@ public class BasisJitterBuffer
         }
     }
 
-    private static int SequenceDistance(ushort target, ushort baseSeq)
+    private static int SequenceDistance(byte target, byte baseSeq)
     {
-        return (short)(target - baseSeq);
+        return (sbyte)(target - baseSeq);
     }
 
     public void Reset()
