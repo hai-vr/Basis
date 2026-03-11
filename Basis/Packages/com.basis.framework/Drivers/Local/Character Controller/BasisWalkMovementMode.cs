@@ -42,6 +42,12 @@ namespace Basis.Scripts.BasisCharacterController
             // Ground & gravity
             ctx.GroundCheck(dt);
 
+            // Prevent gravity from accumulating to terminal velocity while grounded
+            if (ctx.groundedPlayer && ctx.currentVerticalSpeed < 0f)
+            {
+                ctx.currentVerticalSpeed = -2f;
+            }
+
             if (ctx.CanJump && ctx.HasJumpAction && !ctx.MovementLock)
             {
                 ctx.currentVerticalSpeed = Mathf.Sqrt(ctx.jumpHeight * -2f * ctx.gravityValue);
