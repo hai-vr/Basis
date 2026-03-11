@@ -25,7 +25,6 @@ public static class SettingsProviderIK
     private static PanelSlider _uiCalibSphereScale;
     private static PanelElementDescriptor _boneEditorGroup;
     private static PanelElementDescriptor _boneEuroEditorGroup;
-    private static PanelElementDescriptor _boneCalibGroup;
 
     private struct BoneBindings
     {
@@ -332,25 +331,17 @@ public static class SettingsProviderIK
         _uiEuroRot.Descriptor.SetTitle("Euro Filtering (Rotation)");
         _uiEuroRot.Descriptor.SetDescription("Reduces micro-wobble while remaining responsive.");
 
-        _boneCalibGroup = PanelElementDescriptor.CreateNew(
-            PanelElementDescriptor.ElementStyles.Group,
-            parent);
-
-        _boneCalibGroup.SetTitle("Calibration Sphere Scale");
-        _boneCalibGroup.SetDescription(
-            "Adjusts the calibration sphere size for this bone. " +
-            "Larger spheres make it easier for trackers to attach during calibration."
-        );
-
         _uiCalibSphereScale = PanelSlider.CreateAndBind(
-            _boneCalibGroup.ContentParent,
-            PanelSlider.SliderSettings.Advanced("Sphere Scale", 0.1f, 5f, false, 2, ValueDisplayMode.Raw),
+            _boneEditorGroup.ContentParent,
+            PanelSlider.SliderSettings.Advanced("Calibration Sphere Scale", 0.1f, 5f, false, 2, ValueDisplayMode.Raw),
             BasisSettingsDefaults.CalibSphereScaleHips);
 
         if (_uiCalibSphereScale != null)
         {
             _uiCalibSphereScale.Descriptor.SetDescription(
-                "1.0 = default size. Increase for easier tracker attachment at troublesome calibration points."
+                "Adjusts the calibration sphere size for this bone. " +
+                "Larger spheres make it easier for trackers to attach during calibration. " +
+                "1.0 = default size."
             );
         }
 
@@ -371,13 +362,13 @@ public static class SettingsProviderIK
         _uiEuroRot.AssignBinding(bone.EuroRot);
 
         bool hasCalibSphere = bone.CalibSphereScale != null;
-        if (_boneCalibGroup != null)
+        if (_uiCalibSphereScale != null)
         {
-            _boneCalibGroup.gameObject.SetActive(hasCalibSphere);
-        }
-        if (hasCalibSphere && _uiCalibSphereScale != null)
-        {
-            _uiCalibSphereScale.AssignBinding(bone.CalibSphereScale);
+            _uiCalibSphereScale.gameObject.SetActive(hasCalibSphere);
+            if (hasCalibSphere)
+            {
+                _uiCalibSphereScale.AssignBinding(bone.CalibSphereScale);
+            }
         }
 
         SyncMasterEuroFromChildren();
