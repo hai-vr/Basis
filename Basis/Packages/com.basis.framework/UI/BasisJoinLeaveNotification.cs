@@ -14,14 +14,16 @@ namespace Basis.Scripts.UI
     /// for the background, matching the nameplate chat bubble approach.
     /// Parented under BasisLocalCameraDriver.ParentOfUI for VR and desktop.
     ///
+    /// Fully static – driven by BasisEventDriver.LateUpdate via Simulate().
+    ///
     /// Optimizations:
     /// - Object pool: pre-allocates MaxMessages slots, reuses GameObjects instead of Destroy/Instantiate.
     /// - Mesh cache: rounded-corner quads are cached by quantized dimensions, avoiding repeated generation.
     /// - Shader property ID and material are cached once.
     /// </summary>
-    public class BasisJoinLeaveNotification : MonoBehaviour
+    public static class BasisJoinLeaveNotification
     {
-        public static  float MessageDuration = 5f;
+        public static float MessageDuration = 5f;
         public static int MaxMessages = 5;
         public static float FadeStartTime = 3.5f;
         public static float FontSize = 28f;
@@ -35,13 +37,14 @@ namespace Basis.Scripts.UI
         public static float TextRectHeight = 10f;
         public static float RoundEdges = 0.5f;
         public static int CornerVertexCount = 8;
-        public static Vector3 LocalPosition = new Vector3(0f, -4f, 0f);
-        public static Vector3 LocalScale = new Vector3(1f, 1f, 1f);
         public static float ZOffset = 0.06f;
-        private readonly List<NotificationSlot> activeSlots = new List<NotificationSlot>();
-        private readonly Stack<NotificationSlot> pool = new Stack<NotificationSlot>();
-        private readonly Dictionary<long, Mesh> meshCache = new Dictionary<long, Mesh>();
-        private static BasisJoinLeaveNotification instance;
+        public static Vector3 LocalPosition = new Vector3(0f, -4f, 0f);
+
+        private static readonly List<NotificationSlot> activeSlots = new List<NotificationSlot>();
+        private static readonly Stack<NotificationSlot> pool = new Stack<NotificationSlot>();
+        private static readonly Dictionary<long, Mesh> meshCache = new Dictionary<long, Mesh>();
+        private static Transform root;
+        private static bool initialized;
         private static MaterialPropertyBlock mpb;
         private static Material cachedMaterial;
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -61,30 +64,19 @@ namespace Basis.Scripts.UI
 
         public static void Create()
         {
-            if (instance != null)
+            if (initialized)
             {
                 return;
             }
 
-            GameObject root = new GameObject("BasisJoinLeaveNotification");
-            DontDestroyOnLoad(root);
-            instance = root.AddComponent<BasisJoinLeaveNotification>();
-        }
-
-        private void Awake()
-        {
-            if (instance != null && instance != this)
-            {
-                Destroy(gameObject);
-                return;
-            }
-            instance = this;
+            GameObject go = new GameObject("BasisJoinLeaveNotification");
+            Object.DontDestroyOnLoad(go);
+            root = go.transform;
             mpb = new MaterialPropertyBlock();
-            PrewarmPool();
-        }
+            initialized = true;
 
-        private void OnEnable()
-        {
+            PrewarmPool();
+
             BasisNetworkPlayer.OnRemotePlayerJoined += OnRemotePlayerJoined;
             BasisNetworkPlayer.OnRemotePlayerLeft += OnRemotePlayerLeft;
 
@@ -95,26 +87,96 @@ namespace Basis.Scripts.UI
             BasisLocalCameraDriver.InstanceExists += AttachToCamera;
         }
 
-        private void OnDisable()
+        public static void Shutdown()
         {
-            BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemotePlayerJoined;
-            BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayerLeft;
-            BasisLocalCameraDriver.InstanceExists -= AttachToCamera;
-        }
-
-        private void AttachToCamera()
-        {
-            if (BasisLocalCameraDriver.Instance == null)
+            if (!initialized)
             {
                 return;
             }
 
-            transform.SetParent(BasisLocalCameraDriver.Instance.ParentOfUI, false);
-            transform.SetLocalPositionAndRotation(LocalPosition, Quaternion.identity);
-            transform.localScale = LocalScale;
+            BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemotePlayerJoined;
+            BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayerLeft;
+            BasisLocalCameraDriver.InstanceExists -= AttachToCamera;
+
+            activeSlots.Clear();
+            pool.Clear();
+
+            foreach (Mesh mesh in meshCache.Values)
+            {
+                Object.Destroy(mesh);
+            }
+            meshCache.Clear();
+
+            if (root != null)
+            {
+                Object.Destroy(root.gameObject);
+                root = null;
+            }
+
+            cachedMaterial = null;
+            mpb = null;
+            initialized = false;
         }
 
-        private void CacheMaterial()
+        /// <summary>
+        /// Per-frame update driven by BasisEventDriver.LateUpdate.
+        /// Handles fade-out and expiry of active notifications.
+        /// </summary>
+        public static void Simulate(double now)
+        {
+            if (!initialized || activeSlots.Count == 0)
+            {
+                return;
+            }
+
+            bool removed = false;
+
+            for (int i = activeSlots.Count - 1; i >= 0; i--)
+            {
+                NotificationSlot slot = activeSlots[i];
+                double elapsed = now - slot.SpawnTime;
+
+                if (elapsed >= MessageDuration)
+                {
+                    ReleaseSlot(slot);
+                    activeSlots.RemoveAt(i);
+                    removed = true;
+                    continue;
+                }
+
+                if (elapsed >= FadeStartTime)
+                {
+                    float alpha = 1f - (float)(elapsed - FadeStartTime) / (MessageDuration - FadeStartTime);
+
+                    Color tc = slot.TextColor;
+                    tc.a = alpha;
+                    slot.Text.color = tc;
+
+                    slot.BgRenderer.GetPropertyBlock(mpb, 0);
+                    mpb.SetColor(BaseColorId, new Color(1f, 1f, 1f, alpha));
+                    slot.BgRenderer.SetPropertyBlock(mpb, 0);
+                }
+            }
+
+            if (removed)
+            {
+                RepositionAll();
+            }
+        }
+
+        private static void AttachToCamera()
+        {
+            if (root == null || BasisLocalCameraDriver.Instance == null)
+            {
+                return;
+            }
+
+            root.SetParent(BasisLocalCameraDriver.Instance.ParentOfUI, false);
+            root.SetLocalPositionAndRotation(LocalPosition, Quaternion.identity);
+            root.localScale = Vector3.one;
+        }
+
+        private static void CacheMaterial()
         {
             if (cachedMaterial != null)
             {
@@ -126,7 +188,7 @@ namespace Basis.Scripts.UI
             }
         }
 
-        private void PrewarmPool()
+        private static void PrewarmPool()
         {
             for (int i = 0; i < MaxMessages; i++)
             {
@@ -134,12 +196,12 @@ namespace Basis.Scripts.UI
             }
         }
 
-        private NotificationSlot CreateSlot()
+        private static NotificationSlot CreateSlot()
         {
             NotificationSlot slot = new NotificationSlot();
 
             slot.Root = new GameObject("Notification");
-            slot.Root.transform.SetParent(transform, false);
+            slot.Root.transform.SetParent(root, false);
 
             slot.BgObj = new GameObject("Background");
             slot.BgObj.transform.SetParent(slot.Root.transform, false);
@@ -177,7 +239,7 @@ namespace Basis.Scripts.UI
             return slot;
         }
 
-        private NotificationSlot AcquireSlot()
+        private static NotificationSlot AcquireSlot()
         {
             if (pool.Count > 0)
             {
@@ -186,17 +248,16 @@ namespace Basis.Scripts.UI
             return CreateSlot();
         }
 
-        private void ReleaseSlot(NotificationSlot slot)
+        private static void ReleaseSlot(NotificationSlot slot)
         {
             slot.Root.SetActive(false);
-            // Reset background alpha
             slot.BgRenderer.GetPropertyBlock(mpb, 0);
             mpb.SetColor(BaseColorId, FullAlpha);
             slot.BgRenderer.SetPropertyBlock(mpb, 0);
             pool.Push(slot);
         }
 
-        private void OnRemotePlayerJoined(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
+        private static void OnRemotePlayerJoined(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
         {
             string name = networkPlayer.displayName;
             if (string.IsNullOrEmpty(name))
@@ -211,7 +272,7 @@ namespace Basis.Scripts.UI
             ShowNotification(name + " joined", joinColor);
         }
 
-        private void OnRemotePlayerLeft(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
+        private static void OnRemotePlayerLeft(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
         {
             string name = networkPlayer.displayName;
             if (string.IsNullOrEmpty(name))
@@ -226,9 +287,13 @@ namespace Basis.Scripts.UI
             ShowNotification(name + " left", leaveColor);
         }
 
-        private void ShowNotification(string message, Color color)
+        private static void ShowNotification(string message, Color color)
         {
-            // Evict oldest if at capacity
+            if (!initialized)
+            {
+                return;
+            }
+
             while (activeSlots.Count >= MaxMessages)
             {
                 ReleaseSlot(activeSlots[0]);
@@ -239,19 +304,16 @@ namespace Basis.Scripts.UI
 
             NotificationSlot slot = AcquireSlot();
 
-            // Assign material (may have been null at pool creation time)
             if (cachedMaterial != null && slot.BgRenderer.sharedMaterial != cachedMaterial)
             {
                 slot.BgRenderer.sharedMaterial = cachedMaterial;
             }
 
-            // Configure text
             slot.Text.text = message;
             slot.Text.color = color;
             slot.TextColor = color;
             slot.SpawnTime = Time.timeAsDouble;
 
-            // Size background to fit text
             slot.Text.ForceMeshUpdate();
             Vector2 textSize = slot.Text.GetRenderedValues(true);
 
@@ -267,13 +329,8 @@ namespace Basis.Scripts.UI
             RepositionAll();
         }
 
-        /// <summary>
-        /// Returns a cached mesh for the given dimensions, quantized to 0.5-unit steps
-        /// to maximize cache hits while keeping visuals accurate.
-        /// </summary>
-        private Mesh GetOrCreateMesh(float halfWidth, float halfHeight)
+        private static Mesh GetOrCreateMesh(float halfWidth, float halfHeight)
         {
-            // Quantize to 0.5 units (pack two ints into one long for the key)
             int qw = Mathf.CeilToInt(halfWidth * 2f);
             int qh = Mathf.CeilToInt(halfHeight * 2f);
             long key = ((long)qw << 32) | (uint)qh;
@@ -283,7 +340,6 @@ namespace Basis.Scripts.UI
                 return cached;
             }
 
-            // Generate at quantized size
             float actualHW = qw * 0.5f;
             float actualHH = qh * 0.5f;
             Mesh mesh = GenerateRoundedQuad(actualHW, actualHH);
@@ -291,11 +347,7 @@ namespace Basis.Scripts.UI
             return mesh;
         }
 
-        /// <summary>
-        /// Generates a rounded-corner quad mesh, same algorithm as
-        /// BasisRemoteNamePlateDriver.GenerateChatBubbleQuad.
-        /// </summary>
-        private Mesh GenerateRoundedQuad(float halfWidth, float halfHeight)
+        private static Mesh GenerateRoundedQuad(float halfWidth, float halfHeight)
         {
             int cornerCount = Mathf.Max(3, CornerVertexCount);
             int ringVertexCount = cornerCount * 4;
@@ -366,77 +418,13 @@ namespace Basis.Scripts.UI
             };
         }
 
-        private void RepositionAll()
+        private static void RepositionAll()
         {
             float y = 0f;
             for (int i = activeSlots.Count - 1; i >= 0; i--)
             {
                 y -= LineSpacing;
                 activeSlots[i].Root.transform.localPosition = new Vector3(0f, y, 0f);
-            }
-        }
-
-        private void Update()
-        {
-            if (activeSlots.Count == 0)
-            {
-                return;
-            }
-
-            double now = Time.timeAsDouble;
-            bool removed = false;
-
-            for (int i = activeSlots.Count - 1; i >= 0; i--)
-            {
-                NotificationSlot slot = activeSlots[i];
-                double elapsed = now - slot.SpawnTime;
-
-                if (elapsed >= MessageDuration)
-                {
-                    ReleaseSlot(slot);
-                    activeSlots.RemoveAt(i);
-                    removed = true;
-                    continue;
-                }
-
-                if (elapsed >= FadeStartTime)
-                {
-                    float alpha = 1f - (float)(elapsed - FadeStartTime) / (MessageDuration - FadeStartTime);
-
-                    Color tc = slot.TextColor;
-                    tc.a = alpha;
-                    slot.Text.color = tc;
-
-                    slot.BgRenderer.GetPropertyBlock(mpb, 0);
-                    mpb.SetColor(BaseColorId, new Color(1f, 1f, 1f, alpha));
-                    slot.BgRenderer.SetPropertyBlock(mpb, 0);
-                }
-            }
-
-            if (removed)
-            {
-                RepositionAll();
-            }
-        }
-
-        private void OnDestroy()
-        {
-            BasisLocalCameraDriver.InstanceExists -= AttachToCamera;
-
-            // Return active slots (no Destroy needed, they're children of this GO)
-            activeSlots.Clear();
-            pool.Clear();
-
-            // Destroy cached meshes
-            foreach (Mesh mesh in meshCache.Values)
-            {
-                Destroy(mesh);
-            }
-            meshCache.Clear();
-
-            if (instance == this)
-            {
-                instance = null;
             }
         }
     }
