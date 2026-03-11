@@ -13,6 +13,11 @@ namespace Basis.Scripts.UI
     /// Uses TextMeshPro + MeshFilter/MeshRenderer with a generated rounded-corner quad
     /// for the background, matching the nameplate chat bubble approach.
     /// Parented under BasisLocalCameraDriver.ParentOfUI for VR and desktop.
+    ///
+    /// Optimizations:
+    /// - Object pool: pre-allocates MaxMessages slots, reuses GameObjects instead of Destroy/Instantiate.
+    /// - Mesh cache: rounded-corner quads are cached by quantized dimensions, avoiding repeated generation.
+    /// - Shader property ID and material are cached once.
     /// </summary>
     public class BasisJoinLeaveNotification : MonoBehaviour
     {
@@ -34,13 +39,20 @@ namespace Basis.Scripts.UI
         public Vector3 LocalPosition = new Vector3(0f, -12f, 0f);
         public Vector3 LocalScale = new Vector3(1f, 1f, 1f);
 
-        private readonly List<NotificationEntry> activeMessages = new List<NotificationEntry>();
+        private readonly List<NotificationSlot> activeSlots = new List<NotificationSlot>();
+        private readonly Stack<NotificationSlot> pool = new Stack<NotificationSlot>();
+        private readonly Dictionary<long, Mesh> meshCache = new Dictionary<long, Mesh>();
         private static BasisJoinLeaveNotification instance;
         private MaterialPropertyBlock mpb;
+        private Material cachedMaterial;
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly Color FullAlpha = new Color(1f, 1f, 1f, 1f);
 
-        private struct NotificationEntry
+        private class NotificationSlot
         {
             public GameObject Root;
+            public GameObject BgObj;
+            public GameObject TextObj;
             public TextMeshPro Text;
             public MeshRenderer BgRenderer;
             public MeshFilter BgFilter;
@@ -69,6 +81,7 @@ namespace Basis.Scripts.UI
             }
             instance = this;
             mpb = new MaterialPropertyBlock();
+            PrewarmPool();
         }
 
         private void OnEnable()
@@ -100,6 +113,87 @@ namespace Basis.Scripts.UI
             transform.SetParent(BasisLocalCameraDriver.Instance.ParentOfUI, false);
             transform.SetLocalPositionAndRotation(LocalPosition, Quaternion.identity);
             transform.localScale = LocalScale;
+        }
+
+        private void CacheMaterial()
+        {
+            if (cachedMaterial != null)
+            {
+                return;
+            }
+            if (BasisRemoteNamePlateDriver.Instance != null)
+            {
+                cachedMaterial = BasisRemoteNamePlateDriver.Instance.SelectedNamePlateMaterial;
+            }
+        }
+
+        private void PrewarmPool()
+        {
+            for (int i = 0; i < MaxMessages; i++)
+            {
+                pool.Push(CreateSlot());
+            }
+        }
+
+        private NotificationSlot CreateSlot()
+        {
+            NotificationSlot slot = new NotificationSlot();
+
+            slot.Root = new GameObject("Notification");
+            slot.Root.transform.SetParent(transform, false);
+
+            slot.BgObj = new GameObject("Background");
+            slot.BgObj.transform.SetParent(slot.Root.transform, false);
+            slot.BgObj.transform.localPosition = Vector3.zero;
+            slot.BgObj.transform.localRotation = Quaternion.identity;
+            slot.BgObj.transform.localScale = Vector3.one;
+
+            slot.BgFilter = slot.BgObj.AddComponent<MeshFilter>();
+            slot.BgRenderer = slot.BgObj.AddComponent<MeshRenderer>();
+            slot.BgRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            slot.BgRenderer.receiveShadows = false;
+            slot.BgRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+
+            slot.TextObj = new GameObject("Text");
+            slot.TextObj.transform.SetParent(slot.Root.transform, false);
+            slot.TextObj.transform.localPosition = new Vector3(0f, 0f, ZOffset - 0.02f);
+            slot.TextObj.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            slot.TextObj.transform.localScale = Vector3.one;
+
+            slot.Text = slot.TextObj.AddComponent<TextMeshPro>();
+            slot.Text.fontSize = FontSize;
+            slot.Text.enableAutoSizing = true;
+            slot.Text.fontSizeMin = FontSizeMin;
+            slot.Text.fontSizeMax = FontSizeMax;
+            slot.Text.alignment = TextAlignmentOptions.Center;
+            slot.Text.textWrappingMode = TextWrappingModes.Normal;
+            slot.Text.overflowMode = TextOverflowModes.Truncate;
+            slot.Text.sortingOrder = 1;
+
+            RectTransform textRect = slot.Text.GetComponent<RectTransform>();
+            textRect.sizeDelta = new Vector2(TextRectWidth, TextRectHeight);
+
+            slot.Root.SetActive(false);
+            return slot;
+        }
+
+        private NotificationSlot AcquireSlot()
+        {
+            if (pool.Count > 0)
+            {
+                return pool.Pop();
+            }
+            return CreateSlot();
+        }
+
+        private void ReleaseSlot(NotificationSlot slot)
+        {
+            slot.Root.SetActive(false);
+            // Reset background alpha
+            slot.BgRenderer.GetPropertyBlock(mpb, 0);
+            mpb.SetColor(BaseColorId, FullAlpha);
+            slot.BgRenderer.SetPropertyBlock(mpb, 0);
+            pool.Push(slot);
         }
 
         private void OnRemotePlayerJoined(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
@@ -134,76 +228,67 @@ namespace Basis.Scripts.UI
 
         private void ShowNotification(string message, Color color)
         {
-            while (activeMessages.Count >= MaxMessages)
+            // Evict oldest if at capacity
+            while (activeSlots.Count >= MaxMessages)
             {
-                RemoveMessage(0);
+                ReleaseSlot(activeSlots[0]);
+                activeSlots.RemoveAt(0);
             }
 
-            GameObject root = new GameObject("Notification");
-            root.transform.SetParent(transform, false);
+            CacheMaterial();
 
-            // Background: MeshFilter + MeshRenderer, same as nameplate chat bubble
-            GameObject bgObj = new GameObject("Background");
-            bgObj.transform.SetParent(root.transform, false);
-            bgObj.transform.localPosition = Vector3.zero;
-            bgObj.transform.localRotation = Quaternion.identity;
-            bgObj.transform.localScale = Vector3.one;
+            NotificationSlot slot = AcquireSlot();
 
-            MeshFilter bgFilter = bgObj.AddComponent<MeshFilter>();
-            MeshRenderer bgRenderer = bgObj.AddComponent<MeshRenderer>();
-
-            if (BasisRemoteNamePlateDriver.Instance != null)
+            // Assign material (may have been null at pool creation time)
+            if (cachedMaterial != null && slot.BgRenderer.sharedMaterial != cachedMaterial)
             {
-                bgRenderer.material = BasisRemoteNamePlateDriver.Instance.SelectedNamePlateMaterial;
+                slot.BgRenderer.sharedMaterial = cachedMaterial;
             }
-            bgRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            bgRenderer.receiveShadows = false;
-            bgRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
 
-            // Text: TextMeshPro matching nameplate chat text style
-            GameObject textObj = new GameObject("Text");
-            textObj.transform.SetParent(root.transform, false);
-            textObj.transform.localPosition = new Vector3(0f, 0f, ZOffset - 0.02f);
-            textObj.transform.localRotation = Quaternion.Euler(0, 180, 0);
-            textObj.transform.localScale = Vector3.one;
+            // Configure text
+            slot.Text.text = message;
+            slot.Text.color = color;
+            slot.TextColor = color;
+            slot.SpawnTime = Time.timeAsDouble;
 
-            TextMeshPro tmp = textObj.AddComponent<TextMeshPro>();
-            tmp.text = message;
-            tmp.fontSize = FontSize;
-            tmp.enableAutoSizing = true;
-            tmp.fontSizeMin = FontSizeMin;
-            tmp.fontSizeMax = FontSizeMax;
-            tmp.color = color;
-            tmp.alignment = TextAlignmentOptions.Center;
-            tmp.textWrappingMode = TextWrappingModes.Normal;
-            tmp.overflowMode = TextOverflowModes.Truncate;
-            tmp.sortingOrder = 1;
-
-            RectTransform textRect = tmp.GetComponent<RectTransform>();
-            textRect.sizeDelta = new Vector2(TextRectWidth, TextRectHeight);
-
-            // Size the background mesh to fit text, same as GenerateChatBubble
-            tmp.ForceMeshUpdate();
-            Vector2 textSize = tmp.GetRenderedValues(true);
+            // Size background to fit text
+            slot.Text.ForceMeshUpdate();
+            Vector2 textSize = slot.Text.GetRenderedValues(true);
 
             float halfWidth = (textSize.x / 2f) + BackgroundPadding;
             float halfHeight = (textSize.y / 2f) + BackgroundPadding;
             halfWidth = Mathf.Max(halfWidth, MinHalfWidth);
             halfHeight = Mathf.Max(halfHeight, MinHalfHeight);
 
-            bgFilter.sharedMesh = GenerateRoundedQuad(halfWidth, halfHeight);
+            slot.BgFilter.sharedMesh = GetOrCreateMesh(halfWidth, halfHeight);
+            slot.Root.SetActive(true);
 
-            activeMessages.Add(new NotificationEntry
-            {
-                Root = root,
-                Text = tmp,
-                BgRenderer = bgRenderer,
-                BgFilter = bgFilter,
-                TextColor = color,
-                SpawnTime = Time.timeAsDouble,
-            });
-
+            activeSlots.Add(slot);
             RepositionAll();
+        }
+
+        /// <summary>
+        /// Returns a cached mesh for the given dimensions, quantized to 0.5-unit steps
+        /// to maximize cache hits while keeping visuals accurate.
+        /// </summary>
+        private Mesh GetOrCreateMesh(float halfWidth, float halfHeight)
+        {
+            // Quantize to 0.5 units (pack two ints into one long for the key)
+            int qw = Mathf.CeilToInt(halfWidth * 2f);
+            int qh = Mathf.CeilToInt(halfHeight * 2f);
+            long key = ((long)qw << 32) | (uint)qh;
+
+            if (meshCache.TryGetValue(key, out Mesh cached))
+            {
+                return cached;
+            }
+
+            // Generate at quantized size
+            float actualHW = qw * 0.5f;
+            float actualHH = qh * 0.5f;
+            Mesh mesh = GenerateRoundedQuad(actualHW, actualHH);
+            meshCache[key] = mesh;
+            return mesh;
         }
 
         /// <summary>
@@ -284,28 +369,32 @@ namespace Basis.Scripts.UI
         private void RepositionAll()
         {
             float y = 0f;
-            for (int i = activeMessages.Count - 1; i >= 0; i--)
+            for (int i = activeSlots.Count - 1; i >= 0; i--)
             {
-                NotificationEntry entry = activeMessages[i];
                 y -= LineSpacing;
-                entry.Root.transform.localPosition = new Vector3(0f, y, 0f);
+                activeSlots[i].Root.transform.localPosition = new Vector3(0f, y, 0f);
             }
         }
 
         private void Update()
         {
+            if (activeSlots.Count == 0)
+            {
+                return;
+            }
+
             double now = Time.timeAsDouble;
             bool removed = false;
-            int colorId = Shader.PropertyToID("_BaseColor");
 
-            for (int i = activeMessages.Count - 1; i >= 0; i--)
+            for (int i = activeSlots.Count - 1; i >= 0; i--)
             {
-                NotificationEntry entry = activeMessages[i];
-                double elapsed = now - entry.SpawnTime;
+                NotificationSlot slot = activeSlots[i];
+                double elapsed = now - slot.SpawnTime;
 
                 if (elapsed >= MessageDuration)
                 {
-                    RemoveMessage(i);
+                    ReleaseSlot(slot);
+                    activeSlots.RemoveAt(i);
                     removed = true;
                     continue;
                 }
@@ -314,14 +403,13 @@ namespace Basis.Scripts.UI
                 {
                     float alpha = 1f - (float)(elapsed - FadeStartTime) / (MessageDuration - FadeStartTime);
 
-                    Color tc = entry.TextColor;
+                    Color tc = slot.TextColor;
                     tc.a = alpha;
-                    entry.Text.color = tc;
+                    slot.Text.color = tc;
 
-                    // Fade background via MaterialPropertyBlock (same as nameplate SetPlateColor)
-                    entry.BgRenderer.GetPropertyBlock(mpb, 0);
-                    mpb.SetColor(colorId, new Color(1f, 1f, 1f, alpha));
-                    entry.BgRenderer.SetPropertyBlock(mpb, 0);
+                    slot.BgRenderer.GetPropertyBlock(mpb, 0);
+                    mpb.SetColor(BaseColorId, new Color(1f, 1f, 1f, alpha));
+                    slot.BgRenderer.SetPropertyBlock(mpb, 0);
                 }
             }
 
@@ -331,33 +419,20 @@ namespace Basis.Scripts.UI
             }
         }
 
-        private void RemoveMessage(int index)
-        {
-            if (index < 0 || index >= activeMessages.Count)
-            {
-                return;
-            }
-
-            NotificationEntry entry = activeMessages[index];
-            if (entry.BgFilter != null && entry.BgFilter.sharedMesh != null)
-            {
-                Destroy(entry.BgFilter.sharedMesh);
-            }
-            if (entry.Root != null)
-            {
-                Destroy(entry.Root);
-            }
-            activeMessages.RemoveAt(index);
-        }
-
         private void OnDestroy()
         {
             BasisLocalCameraDriver.InstanceExists -= AttachToCamera;
 
-            for (int i = activeMessages.Count - 1; i >= 0; i--)
+            // Return active slots (no Destroy needed, they're children of this GO)
+            activeSlots.Clear();
+            pool.Clear();
+
+            // Destroy cached meshes
+            foreach (Mesh mesh in meshCache.Values)
             {
-                RemoveMessage(i);
+                Destroy(mesh);
             }
+            meshCache.Clear();
 
             if (instance == this)
             {
