@@ -153,7 +153,7 @@ namespace Basis.Scripts.UI
                     slot.Text.color = tc;
 
                     slot.BgRenderer.GetPropertyBlock(mpb, 0);
-                    mpb.SetColor(BaseColorId, new Color(1f, 1f, 1f, alpha));
+                    mpb.SetColor(BaseColorId, new Color(FullAlpha.r, FullAlpha.g, FullAlpha.b, alpha));
                     slot.BgRenderer.SetPropertyBlock(mpb, 0);
                 }
             }
