@@ -21,30 +21,29 @@ namespace Basis.Scripts.UI
     /// </summary>
     public class BasisJoinLeaveNotification : MonoBehaviour
     {
-        public float MessageDuration = 5f;
-        public int MaxMessages = 5;
-        public float FadeStartTime = 3.5f;
-        public float FontSize = 28f;
-        public float FontSizeMin = 14f;
-        public float FontSizeMax = 28f;
-        public float BackgroundPadding = 2f;
-        public float MinHalfWidth = 6f;
-        public float MinHalfHeight = 3f;
-        public float LineSpacing = 12f;
-        public float TextRectWidth = 58f;
-        public float TextRectHeight = 10f;
-        public float RoundEdges = 0.5f;
-        public int CornerVertexCount = 8;
-        public float ZOffset = 0.06f;
-        public Vector3 LocalPosition = new Vector3(0f, -12f, 0f);
-        public Vector3 LocalScale = new Vector3(1f, 1f, 1f);
-
+        public static  float MessageDuration = 5f;
+        public static int MaxMessages = 5;
+        public static float FadeStartTime = 3.5f;
+        public static float FontSize = 28f;
+        public static float FontSizeMin = 14f;
+        public static float FontSizeMax = 28f;
+        public static float BackgroundPadding = 2f;
+        public static float MinHalfWidth = 6f;
+        public static float MinHalfHeight = 3f;
+        public static float LineSpacing = 12f;
+        public static float TextRectWidth = 58f;
+        public static float TextRectHeight = 10f;
+        public static float RoundEdges = 0.5f;
+        public static int CornerVertexCount = 8;
+        public static Vector3 LocalPosition = new Vector3(0f, -4f, 0f);
+        public static Vector3 LocalScale = new Vector3(1f, 1f, 1f);
+        public static float ZOffset = 0.06f;
         private readonly List<NotificationSlot> activeSlots = new List<NotificationSlot>();
         private readonly Stack<NotificationSlot> pool = new Stack<NotificationSlot>();
         private readonly Dictionary<long, Mesh> meshCache = new Dictionary<long, Mesh>();
         private static BasisJoinLeaveNotification instance;
-        private MaterialPropertyBlock mpb;
-        private Material cachedMaterial;
+        private static MaterialPropertyBlock mpb;
+        private static Material cachedMaterial;
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly Color FullAlpha = new Color(1f, 1f, 1f, 1f);
 
@@ -144,20 +143,19 @@ namespace Basis.Scripts.UI
 
             slot.BgObj = new GameObject("Background");
             slot.BgObj.transform.SetParent(slot.Root.transform, false);
-            slot.BgObj.transform.localPosition = Vector3.zero;
-            slot.BgObj.transform.localRotation = Quaternion.identity;
+            slot.BgObj.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
             slot.BgObj.transform.localScale = Vector3.one;
 
             slot.BgFilter = slot.BgObj.AddComponent<MeshFilter>();
             slot.BgRenderer = slot.BgObj.AddComponent<MeshRenderer>();
+
             slot.BgRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             slot.BgRenderer.receiveShadows = false;
             slot.BgRenderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
 
             slot.TextObj = new GameObject("Text");
             slot.TextObj.transform.SetParent(slot.Root.transform, false);
-            slot.TextObj.transform.localPosition = new Vector3(0f, 0f, ZOffset - 0.02f);
-            slot.TextObj.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            slot.TextObj.transform.SetLocalPositionAndRotation(Vector3.zero,Quaternion.identity);
             slot.TextObj.transform.localScale = Vector3.one;
 
             slot.Text = slot.TextObj.AddComponent<TextMeshPro>();
@@ -170,8 +168,10 @@ namespace Basis.Scripts.UI
             slot.Text.overflowMode = TextOverflowModes.Truncate;
             slot.Text.sortingOrder = 1;
 
-            RectTransform textRect = slot.Text.GetComponent<RectTransform>();
-            textRect.sizeDelta = new Vector2(TextRectWidth, TextRectHeight);
+            if (slot.Text.TryGetComponent<RectTransform>(out RectTransform textRect))
+            {
+                textRect.sizeDelta = new Vector2(TextRectWidth, TextRectHeight);
+            }
 
             slot.Root.SetActive(false);
             return slot;
