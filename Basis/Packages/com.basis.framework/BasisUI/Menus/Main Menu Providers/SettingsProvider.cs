@@ -52,52 +52,11 @@ namespace Basis.BasisUI
             tabGroup.AddTab("Admin", null, SettingsProviderAdminTab.AdminTab(tabGroup));
             tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
             tabGroup.AddTab("Remote Audio", null, SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
-
-            tabGroup.AddExtraAction("Switch To OpenVR", SwitchToOpenVR);
-            tabGroup.AddExtraAction("Switch To OpenXR", SwitchToOpenXR);
-            tabGroup.AddExtraAction("Switch To Desktop", SwitchToDesktop);
+            tabGroup.AddTab("Platform", null, SettingsProviderPlatform.PlatformTab(tabGroup));
 
             panel.Descriptor.ForceRebuild();
         }
 
-        public void SwitchToOpenVR()
-        {
-            BasisMainMenu.Instance.OpenDialogue("Switch To OpenVR",
-                "Are you sure you want to swap to OpenVR?",
-                "Switch To OpenVR",
-                "Cancel",
-                async value =>
-                {
-                    if (!value) return;
-                    await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenVRLoader);
-                });
-        }
-
-        public void SwitchToOpenXR()
-        {
-            BasisMainMenu.Instance.OpenDialogue("Switch To OpenXR",
-                "Are you sure you want to swap to OpenXR?",
-                "Switch To OpenXR",
-                "Cancel",
-                async value =>
-                {
-                    if (!value) return;
-                    await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.OpenXRLoader);
-                });
-        }
-
-        public void SwitchToDesktop()
-        {
-            BasisMainMenu.Instance.OpenDialogue("Switch To Desktop",
-                "Are you sure you want to swap to Desktop?",
-                "Switch To Desktop",
-                "Cancel",
-                async value =>
-                {
-                    if (!value) return;
-                    await BasisDeviceManagement.Instance.SwitchSetMode(BasisConstants.Desktop);
-                });
-        }
 
         // ------------------
         // RESET BUTTON HELPERS (ONE PER PAGE)
