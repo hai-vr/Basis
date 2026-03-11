@@ -833,6 +833,18 @@ namespace Basis.BasisUI
             descriptor.SetTitle("Chat");
             RectTransform container = descriptor.ContentParent;
 
+            PanelElementDescriptor notificationGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            notificationGroup.SetTitle("Notifications");
+            notificationGroup.SetDescription("Toggle join and leave notifications.");
+
+            PanelToggle toggleJoinNotifications = PanelToggle.CreateNewEntry(notificationGroup);
+            toggleJoinNotifications.Descriptor.SetTitle("Join Notifications");
+            toggleJoinNotifications.AssignBinding(BasisSettingsDefaults.JoinNotifications);
+
+            PanelToggle toggleLeaveNotifications = PanelToggle.CreateNewEntry(notificationGroup);
+            toggleLeaveNotifications.Descriptor.SetTitle("Leave Notifications");
+            toggleLeaveNotifications.AssignBinding(BasisSettingsDefaults.LeaveNotifications);
+
             PanelElementDescriptor chatGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             chatGroup.SetTitle("Chat");
             chatGroup.SetDescription("Send a text message that appears above your nameplate.");
