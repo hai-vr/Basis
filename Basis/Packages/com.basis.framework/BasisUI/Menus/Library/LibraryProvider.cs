@@ -1771,7 +1771,7 @@ namespace Basis.BasisUI
                 if (removeItem.Descriptor.gameObject.TryGetComponent<Button>(out Button removeButtonComponent))
                 {
                     // if the item is embedded only allow an admin to interact
-                    removeButtonComponent.interactable = (isUserAdmin == itemKey.IsAdminLocked);
+                    removeButtonComponent.interactable = !itemKey.IsAdminLocked || isUserAdmin;
                 }
             }
 
