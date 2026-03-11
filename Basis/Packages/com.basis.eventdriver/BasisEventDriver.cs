@@ -180,7 +180,9 @@ public class BasisEventDriver : MonoBehaviour
         {
             BasisDeviceManagement.Instance.Simulate(); // poll things like steam audio
         }
+        #if STEAMAUDIO_ENABLED
         SteamAudioManager.Schedule();//schedule steam audio
+        #endif
         BasisRemoteFaceManagement.Simulate(TimeAsDouble, DeltaTime); // eye blinking
 
         if (BasisLocalPlayer.PlayerReady)
@@ -194,7 +196,9 @@ public class BasisEventDriver : MonoBehaviour
 
         }
         BasisRemoteAudioDriver.Apply(); //apply visemes
+        #if STEAMAUDIO_ENABLED
         SteamAudioManager.Apply(); //apply steam audio transforms
+        #endif
 
         if (BasisLocalPlayer.PlayerReady)
         {
