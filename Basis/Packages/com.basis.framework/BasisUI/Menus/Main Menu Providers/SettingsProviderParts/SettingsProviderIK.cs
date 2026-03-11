@@ -371,6 +371,9 @@ public static class SettingsProviderIK
             }
         }
 
+        _boneEditorGroup.ForceRebuild();
+        _boneEuroEditorGroup.ForceRebuild();
+
         SyncMasterEuroFromChildren();
     }
 
