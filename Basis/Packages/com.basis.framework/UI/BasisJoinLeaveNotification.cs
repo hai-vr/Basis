@@ -5,48 +5,36 @@ using Basis.Scripts.UI.NamePlate;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace Basis.Scripts.UI
 {
     /// <summary>
-    /// Displays join/leave notifications on the player's HUD.
-    /// Uses a world-space Canvas parented under BasisLocalCameraDriver.ParentOfUI
-    /// so it works correctly in both VR and desktop modes.
-    /// Colors are pulled from BasisRemoteNamePlateDriver to match the nameplate style.
+    /// Displays join/leave notifications below the microphone icon on the player's HUD.
+    /// Uses TextMeshPro and SpriteRenderer (no Canvas) parented under
+    /// BasisLocalCameraDriver.ParentOfUI for VR and desktop compatibility.
     /// </summary>
     public class BasisJoinLeaveNotification : MonoBehaviour
     {
-        /// <summary>How long each notification stays visible (seconds).</summary>
         public float MessageDuration = 5f;
-
-        /// <summary>Maximum number of simultaneous notifications.</summary>
         public int MaxMessages = 5;
-
-        /// <summary>Time (seconds) after which the notification begins fading out.</summary>
         public float FadeStartTime = 3.5f;
-
-        /// <summary>Font size for notification text.</summary>
-        public float FontSize = 18f;
-
-        /// <summary>Background alpha for notification pills.</summary>
+        public float FontSize = 6f;
+        public float LineHeight = 1.6f;
         public float BackgroundAlpha = 0.55f;
+        public float BackgroundPadding = 0.4f;
+        public Vector3 LocalPosition = new Vector3(0f, -1.2f, 0f);
+        public Vector3 LocalScale = new Vector3(1f, 1f, 1f);
 
-        /// <summary>Local position offset from ParentOfUI.</summary>
-        public Vector3 LocalPosition = new Vector3(-10f, -3f, 0f);
-
-        /// <summary>Local scale for the world-space canvas (world units per UI pixel).</summary>
-        public Vector3 LocalScale = new Vector3(0.02f, 0.02f, 0.02f);
-
-        private Canvas canvas;
-        private Transform messageContainer;
         private readonly List<NotificationEntry> activeMessages = new List<NotificationEntry>();
         private static BasisJoinLeaveNotification instance;
+        private static Sprite whiteSprite;
 
         private struct NotificationEntry
         {
-            public GameObject GameObject;
-            public CanvasGroup Group;
+            public GameObject Root;
+            public TextMeshPro Text;
+            public SpriteRenderer Background;
+            public Color TextColor;
             public double SpawnTime;
         }
 
@@ -71,7 +59,7 @@ namespace Basis.Scripts.UI
                 return;
             }
             instance = this;
-            BuildCanvas();
+            EnsureWhiteSprite();
         }
 
         private void OnEnable()
@@ -93,10 +81,6 @@ namespace Basis.Scripts.UI
             BasisLocalCameraDriver.InstanceExists -= AttachToCamera;
         }
 
-        /// <summary>
-        /// Parents this object under the camera driver's ParentOfUI transform
-        /// and assigns the world camera, following the BasisUILoadingBar pattern.
-        /// </summary>
         private void AttachToCamera()
         {
             if (BasisLocalCameraDriver.Instance == null)
@@ -107,44 +91,24 @@ namespace Basis.Scripts.UI
             transform.SetParent(BasisLocalCameraDriver.Instance.ParentOfUI, false);
             transform.SetLocalPositionAndRotation(LocalPosition, Quaternion.identity);
             transform.localScale = LocalScale;
-
-            if (canvas != null)
-            {
-                canvas.worldCamera = BasisLocalCameraDriver.Instance.Camera;
-            }
         }
 
-        private void BuildCanvas()
+        private static void EnsureWhiteSprite()
         {
-            canvas = gameObject.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.WorldSpace;
-            canvas.sortingOrder = 100;
+            if (whiteSprite != null)
+            {
+                return;
+            }
 
-            RectTransform canvasRect = canvas.GetComponent<RectTransform>();
-            canvasRect.sizeDelta = new Vector2(500, 400);
-            canvasRect.pivot = new Vector2(0, 0);
-
-            // Container for vertical message stack
-            GameObject container = new GameObject("NotificationContainer");
-            container.transform.SetParent(transform, false);
-
-            RectTransform containerRect = container.AddComponent<RectTransform>();
-            containerRect.anchorMin = new Vector2(0, 0);
-            containerRect.anchorMax = new Vector2(1, 1);
-            containerRect.offsetMin = Vector2.zero;
-            containerRect.offsetMax = Vector2.zero;
-
-            VerticalLayoutGroup layout = container.AddComponent<VerticalLayoutGroup>();
-            layout.childAlignment = TextAnchor.LowerLeft;
-            layout.childForceExpandWidth = false;
-            layout.childForceExpandHeight = false;
-            layout.spacing = 4;
-            layout.padding = new RectOffset(0, 0, 0, 0);
-
-            ContentSizeFitter fitter = container.AddComponent<ContentSizeFitter>();
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            messageContainer = container.transform;
+            Texture2D tex = new Texture2D(4, 4);
+            Color[] pixels = new Color[16];
+            for (int i = 0; i < 16; i++)
+            {
+                pixels[i] = Color.white;
+            }
+            tex.SetPixels(pixels);
+            tex.Apply();
+            whiteSprite = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4f);
         }
 
         private void OnRemotePlayerJoined(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
@@ -184,46 +148,68 @@ namespace Basis.Scripts.UI
                 RemoveMessage(0);
             }
 
-            GameObject msgObj = new GameObject("Notification");
-            msgObj.transform.SetParent(messageContainer, false);
+            // Root for this notification
+            GameObject root = new GameObject("Notification");
+            root.transform.SetParent(transform, false);
 
-            CanvasGroup group = msgObj.AddComponent<CanvasGroup>();
+            // Background sprite
+            GameObject bgObj = new GameObject("Background");
+            bgObj.transform.SetParent(root.transform, false);
 
-            Image bg = msgObj.AddComponent<Image>();
+            SpriteRenderer bg = bgObj.AddComponent<SpriteRenderer>();
+            bg.sprite = whiteSprite;
             bg.color = new Color(0f, 0f, 0f, BackgroundAlpha);
+            bg.sortingOrder = 0;
 
-            HorizontalLayoutGroup hlg = msgObj.AddComponent<HorizontalLayoutGroup>();
-            hlg.padding = new RectOffset(12, 12, 6, 6);
-            hlg.childAlignment = TextAnchor.MiddleLeft;
-            hlg.childForceExpandWidth = false;
-            hlg.childForceExpandHeight = false;
-
-            ContentSizeFitter msgFitter = msgObj.AddComponent<ContentSizeFitter>();
-            msgFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            msgFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
+            // Text
             GameObject textObj = new GameObject("Text");
-            textObj.transform.SetParent(msgObj.transform, false);
+            textObj.transform.SetParent(root.transform, false);
+            textObj.transform.localPosition = new Vector3(0f, 0f, -0.01f);
 
-            TextMeshProUGUI text = textObj.AddComponent<TextMeshProUGUI>();
-            text.text = message;
-            text.fontSize = FontSize;
-            text.color = color;
-            text.alignment = TextAlignmentOptions.Left;
-            text.enableWordWrapping = false;
-            text.overflowMode = TextOverflowModes.Truncate;
+            TextMeshPro tmp = textObj.AddComponent<TextMeshPro>();
+            tmp.text = message;
+            tmp.fontSize = FontSize;
+            tmp.color = color;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.enableWordWrapping = false;
+            tmp.overflowMode = TextOverflowModes.Overflow;
+            tmp.sortingOrder = 1;
+
+            // Size the background to fit the text
+            tmp.ForceMeshUpdate();
+            Vector2 textSize = tmp.GetRenderedValues(true);
+            float bgWidth = textSize.x + BackgroundPadding * 2f;
+            float bgHeight = textSize.y + BackgroundPadding * 2f;
+            bg.size = new Vector2(bgWidth, bgHeight);
+            bg.drawMode = SpriteDrawMode.Sliced;
 
             activeMessages.Add(new NotificationEntry
             {
-                GameObject = msgObj,
-                Group = group,
+                Root = root,
+                Text = tmp,
+                Background = bg,
+                TextColor = color,
                 SpawnTime = Time.timeAsDouble,
             });
+
+            RepositionAll();
+        }
+
+        private void RepositionAll()
+        {
+            float y = 0f;
+            for (int i = activeMessages.Count - 1; i >= 0; i--)
+            {
+                NotificationEntry entry = activeMessages[i];
+                y -= LineHeight;
+                entry.Root.transform.localPosition = new Vector3(0f, y, 0f);
+            }
         }
 
         private void Update()
         {
             double now = Time.timeAsDouble;
+            bool removed = false;
 
             for (int i = activeMessages.Count - 1; i >= 0; i--)
             {
@@ -233,14 +219,26 @@ namespace Basis.Scripts.UI
                 if (elapsed >= MessageDuration)
                 {
                     RemoveMessage(i);
+                    removed = true;
                     continue;
                 }
 
                 if (elapsed >= FadeStartTime)
                 {
-                    float fadeProgress = (float)(elapsed - FadeStartTime) / (MessageDuration - FadeStartTime);
-                    entry.Group.alpha = 1f - fadeProgress;
+                    float alpha = 1f - (float)(elapsed - FadeStartTime) / (MessageDuration - FadeStartTime);
+                    Color tc = entry.TextColor;
+                    tc.a = alpha;
+                    entry.Text.color = tc;
+
+                    Color bc = entry.Background.color;
+                    bc.a = BackgroundAlpha * alpha;
+                    entry.Background.color = bc;
                 }
+            }
+
+            if (removed)
+            {
+                RepositionAll();
             }
         }
 
@@ -252,9 +250,9 @@ namespace Basis.Scripts.UI
             }
 
             NotificationEntry entry = activeMessages[index];
-            if (entry.GameObject != null)
+            if (entry.Root != null)
             {
-                Destroy(entry.GameObject);
+                Destroy(entry.Root);
             }
             activeMessages.RemoveAt(index);
         }
