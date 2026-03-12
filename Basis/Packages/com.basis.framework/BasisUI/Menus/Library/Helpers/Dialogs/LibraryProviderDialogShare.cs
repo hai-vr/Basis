@@ -13,7 +13,7 @@ namespace Basis.BasisUI
 
             actionsPanel.Descriptor.SetHeight(60);
 
-            PanelButton noPanelButton = PanelButton.CreateNew(ButtonStyles.CancelButton, actionsPanel.TabButtonParent);
+            PanelButton noPanelButton = PanelButton.CreateNew(ButtonStyles.StandardButton, actionsPanel.TabButtonParent);
             noPanelButton.Descriptor.SetTitle("No");
             noPanelButton.Descriptor.SetWidth(200);
             noPanelButton.Descriptor.SetHeight(60);
