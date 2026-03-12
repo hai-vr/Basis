@@ -116,6 +116,7 @@ namespace Basis.BasisUI
         public Slider SliderComponent;
 
         private RectTransform _handleRect;
+        private Graphic _roundedFrontGraphic;
         private TweenScale _handleScaleTween;
         private TweenGraphicColor _fillColorTween;
         private TweenScale _labelPunchTween;
@@ -170,6 +171,16 @@ namespace Basis.BasisUI
             {
                 FillGraphic = SliderComponent.fillRect.GetComponent<Graphic>();
             }
+
+            // Color-match the rounded front cap to the fill so it blends seamlessly
+            if (SliderComponent.fillRect != null)
+            {
+                Transform roundedFront = SliderComponent.fillRect.parent.Find("Rounded Front");
+                if (roundedFront != null)
+                {
+                    _roundedFrontGraphic = roundedFront.GetComponent<Graphic>();
+                }
+            }
         }
 
         public void OnPointerDown(PointerEventData eventData)
@@ -191,7 +202,7 @@ namespace Basis.BasisUI
             if (!Application.isPlaying) return;
             _isDragging = false;
 
-            // Scale handle back down with a bounce
+            // Scale down handle on release
             if (_handleRect != null)
             {
                 if (_handleScaleTween != null && _handleScaleTween.Active) _handleScaleTween.Reset();
@@ -277,12 +288,14 @@ namespace Basis.BasisUI
                 {
                     // Instant color while dragging for responsiveness
                     FillGraphic.color = targetFillColor;
+                    if (_roundedFrontGraphic != null) _roundedFrontGraphic.color = targetFillColor;
                 }
                 else
                 {
                     if (_fillColorTween != null && _fillColorTween.Active) _fillColorTween.Reset();
                     _fillColorTween = FillGraphic.TweenColor(0.15f, FillGraphic.color, targetFillColor)
                         .SetEase(Easing.OutCubic);
+                    if (_roundedFrontGraphic != null) _roundedFrontGraphic.color = targetFillColor;
                 }
             }
 

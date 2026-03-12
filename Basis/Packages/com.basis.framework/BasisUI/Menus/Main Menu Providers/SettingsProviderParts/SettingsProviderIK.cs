@@ -10,7 +10,7 @@ public static class SettingsProviderIK
     private static PanelDropdown dropdownIKLockMode;
     private static PanelDropdown dropdownSeatedMode;
 
-    public const string SeatedMode_Seated = "Seated mode";
+    public const string SeatedMode_Seated = "Seated Mode";
     public const string SeatedMode_Standing = "Standing Mode";
 
     private static readonly List<PanelToggle> _euroToggleUIs = new();
@@ -46,7 +46,7 @@ public static class SettingsProviderIK
         // --- Tab (replaces BasisTabBuilder) ---
         var tabPage = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
         var tabDesc = tabPage.Descriptor;
-        tabDesc.SetTitle("IK Tab");
+        tabDesc.SetTitle("Calibration & IK");
         tabDesc.SetIcon(AddressableAssets.Sprites.Settings);
 
         // --- Group: "Calibration & IK" (replaces tab.Group(...)) ---
@@ -62,7 +62,7 @@ public static class SettingsProviderIK
 
         // --- Seated Mode dropdown ---
         dropdownSeatedMode = PanelDropdown.CreateNewEntry(ikParent);
-        dropdownSeatedMode.Descriptor.SetTitle(BasisSettingsDefaults.SitStand.BindingKey);
+        dropdownSeatedMode.Descriptor.SetTitle("Seated / Standing Mode");
         dropdownSeatedMode.Descriptor.SetDescription(
             "Select the reference pose used for body scaling"
         );

@@ -46,13 +46,14 @@ namespace Basis.BasisUI
             tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
             tabGroup.AddTab("Calibration", null, SettingsProviderIK.IKTab(tabGroup));
             tabGroup.AddTab("Cached Storage", null, SettingsProviderStorage.StorageTab(tabGroup));
-            tabGroup.AddTab("chat", null, ChatTab(tabGroup));
+            tabGroup.AddTab("Chat", null, ChatTab(tabGroup));
             tabGroup.AddTab("Bindings", null, SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
             tabGroup.AddTab("Console", null, SettingsProviderConsoleTab.ConsoleTab(tabGroup));
             tabGroup.AddTab("Admin", null, SettingsProviderAdminTab.AdminTab(tabGroup));
             tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
             tabGroup.AddTab("Remote Audio", null, SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
             tabGroup.AddTab("Nameplate", null, SettingsProviderNamePlate.NamePlateTab(tabGroup));
+         //  tabGroup.AddTab("Camera Tracking", null, SettingsProviderCameraTracking.CameraTrackingTab(tabGroup));
             tabGroup.AddTab("Device Mode", null, SettingsProviderPlatform.DeviceModeTab(tabGroup));
 
             panel.Descriptor.ForceRebuild();
@@ -116,7 +117,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.mousesensitivty);
 
             PanelToggle smoothlocomotion = PanelToggle.CreateNewEntry(generalGroup);
-            smoothlocomotion.Descriptor.SetTitle("Use SnapTurn locomotion");
+            smoothlocomotion.Descriptor.SetTitle("Use Snap Turn Locomotion");
             smoothlocomotion.AssignBinding(BasisSettingsDefaults.usesnapturn);
 
             PanelSlider sliderSnapTurnAngle = PanelSlider.CreateEntryAndBind(
@@ -721,7 +722,7 @@ namespace Basis.BasisUI
             dropdownScreenMode = PanelDropdown.CreateNewEntry(renderingGroup.ContentParent);
             List<string> screenModeOptions = new List<string> { "Fullscreen", "Borderless Window", "Windowed" };
 
-            dropdownScreenMode.Descriptor.SetTitle("ScreenMode");
+            dropdownScreenMode.Descriptor.SetTitle("Screen Mode");
             dropdownScreenMode.AssignEntries(screenModeOptions);
             dropdownScreenMode.DropdownComponent.onValueChanged.AddListener(ScreenMode);
             dropdownScreenMode.DropdownComponent.SetValueWithoutNotify(GetIndexFromScreenMode(Screen.fullScreenMode));

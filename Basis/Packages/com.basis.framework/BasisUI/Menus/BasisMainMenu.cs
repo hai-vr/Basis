@@ -1,3 +1,4 @@
+using Basis.BTween;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -32,6 +33,24 @@ namespace Basis.BasisUI
             HorizontalLayout = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewHorizontal, HotbarMenu.Descriptor.ContentParent);
 
             BindProvidersToButtons();
+            AnimateMenuEntrance();
+        }
+
+        private void AnimateMenuEntrance()
+        {
+            // Fade in the hotbar panel
+            UIAnimations.FadeIn(HotbarMenu, 0.2f, 0f, Easing.OutCubic);
+
+            // Stagger the hotbar buttons with fade + slide up
+            if (ProviderButtons.Count > 0)
+            {
+                RectTransform[] buttonTransforms = new RectTransform[ProviderButtons.Count];
+                for (int i = 0; i < ProviderButtons.Count; i++)
+                {
+                    buttonTransforms[i] = ProviderButtons[i].rectTransform;
+                }
+                UIAnimations.StaggerEntrance(buttonTransforms, 0.04f, 0.2f, -15f);
+            }
         }
 
         public static void Open()
@@ -111,6 +130,10 @@ namespace Basis.BasisUI
 
             Instance.ActiveMenu = BasisMenuPanel.CreateNew(data, Instance.MenuObjectInstance.PanelRoot, style);
             Instance.ActiveProvider = provider;
+
+            // Animate content panel entrance
+            UIAnimations.PanelIn(Instance.ActiveMenu);
+
             return Instance.ActiveMenu;
         }
     }
