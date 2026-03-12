@@ -169,7 +169,7 @@ namespace Basis.BasisUI
                 {
                     _handleCanvasGroup = _handleRect.gameObject.AddComponent<CanvasGroup>();
                 }
-                _handleCanvasGroup.alpha = 0.45f;
+                _handleCanvasGroup.alpha = 0f;
             }
 
             // Try to find fill graphic if not assigned
@@ -215,7 +215,7 @@ namespace Basis.BasisUI
                 if (_handleCanvasGroup != null)
                 {
                     if (_handleAlphaTween != null && _handleAlphaTween.Active) _handleAlphaTween.Reset();
-                    _handleAlphaTween = _handleCanvasGroup.TweenAlpha(0.3f, _handleCanvasGroup.alpha, 0.45f)
+                    _handleAlphaTween = _handleCanvasGroup.TweenAlpha(0.3f, _handleCanvasGroup.alpha, 0f)
                         .SetEase(Easing.OutCubic);
                 }
             }
