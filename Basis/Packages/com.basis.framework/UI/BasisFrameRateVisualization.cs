@@ -13,7 +13,7 @@ public class BasisFrameRateVisualization : MonoBehaviour
     private float nextTimeUpdate;
 
     // Reusable character buffer — adjust size if needed
-    private char[] buffer = new char[128];
+    private char[] buffer = new char[160];
 
     void Update()
     {
@@ -38,8 +38,8 @@ public class BasisFrameRateVisualization : MonoBehaviour
         for (int i = 0; i < Title.Length; i++)
             buffer[idx++] = Title[i];
 
-        // Append cached time (HH:MM:SS) — no GC
-        idx = Append(buffer, " Time:", idx);
+        // Scale down stats relative to title
+        idx = Append(buffer, " <size=70%>Time:", idx);
         idx = AppendTwoDigit(cachedHour, idx);
         buffer[idx++] = ':';
         idx = AppendTwoDigit(cachedMinute, idx);
