@@ -39,7 +39,7 @@ public class BasisFrameRateVisualization : MonoBehaviour
             buffer[idx++] = Title[i];
 
         // Scale down stats relative to title
-        idx = Append(buffer, " <size=70%>Time:", idx);
+        idx = Append(buffer, "     <size=70%>Time:", idx);
         idx = AppendTwoDigit(cachedHour, idx);
         buffer[idx++] = ':';
         idx = AppendTwoDigit(cachedMinute, idx);
