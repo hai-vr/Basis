@@ -41,20 +41,22 @@ namespace Basis.BasisUI
 
             PanelTabGroup tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
 
+            // First tab is eager (shown immediately on open)
             tabGroup.AddTab("General", null, GeneralTab(tabGroup));
-            tabGroup.AddTab("Audio", null, AudioTab(tabGroup));
-            tabGroup.AddTab("Graphics", null, GraphicsTab(tabGroup));
-            tabGroup.AddTab("Calibration", null, SettingsProviderIK.IKTab(tabGroup));
-            tabGroup.AddTab("Cached Storage", null, SettingsProviderStorage.StorageTab(tabGroup));
-            tabGroup.AddTab("Chat", null, ChatTab(tabGroup));
-            tabGroup.AddTab("Bindings", null, SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
-            tabGroup.AddTab("Console", null, SettingsProviderConsoleTab.ConsoleTab(tabGroup));
-            tabGroup.AddTab("Admin", null, SettingsProviderAdminTab.AdminTab(tabGroup));
-            tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
-            tabGroup.AddTab("Remote Audio", null, SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
-            tabGroup.AddTab("Nameplate", null, SettingsProviderNamePlate.NamePlateTab(tabGroup));
-         //  tabGroup.AddTab("Camera Tracking", null, SettingsProviderCameraTracking.CameraTrackingTab(tabGroup));
-            tabGroup.AddTab("Device Mode", null, SettingsProviderPlatform.DeviceModeTab(tabGroup));
+            // Remaining tabs are lazy-loaded on first selection to reduce stuttering
+            tabGroup.AddTab("Audio", null, () => AudioTab(tabGroup));
+            tabGroup.AddTab("Graphics", null, () => GraphicsTab(tabGroup));
+            tabGroup.AddTab("Calibration", null, () => SettingsProviderIK.IKTab(tabGroup));
+            tabGroup.AddTab("Cached Storage", null, () => SettingsProviderStorage.StorageTab(tabGroup));
+            tabGroup.AddTab("Chat", null, () => ChatTab(tabGroup));
+            tabGroup.AddTab("Bindings", null, () => SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
+            tabGroup.AddTab("Console", null, () => SettingsProviderConsoleTab.ConsoleTab(tabGroup));
+            tabGroup.AddTab("Admin", null, () => SettingsProviderAdminTab.AdminTab(tabGroup));
+            tabGroup.AddTab("Developer", null, () => DeveloperTab(tabGroup));
+            tabGroup.AddTab("Remote Audio", null, () => SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
+            tabGroup.AddTab("Nameplate", null, () => SettingsProviderNamePlate.NamePlateTab(tabGroup));
+         //  tabGroup.AddTab("Camera Tracking", null, () => SettingsProviderCameraTracking.CameraTrackingTab(tabGroup));
+            tabGroup.AddTab("Device Mode", null, () => SettingsProviderPlatform.DeviceModeTab(tabGroup));
 
             panel.Descriptor.ForceRebuild();
         }

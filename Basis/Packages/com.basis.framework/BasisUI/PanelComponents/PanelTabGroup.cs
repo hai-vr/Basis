@@ -11,6 +11,8 @@ namespace Basis.BasisUI
         public List<PanelTabPage> Pages = new();
         public RectTransform ExtrasContainer;
 
+        private Dictionary<int, Func<PanelTabPage>> _lazyPageBuilders = new();
+
         public static class TabGroupStyles
         {
             public static string Vertical =>
@@ -49,6 +51,13 @@ namespace Basis.BasisUI
         {
             base.ApplyValue();
 
+            // Build lazy page on first selection
+            if (Value >= 0 && Value < Pages.Count && !Pages[Value] && _lazyPageBuilders.TryGetValue(Value, out var builder))
+            {
+                Pages[Value] = builder();
+                _lazyPageBuilders.Remove(Value);
+            }
+
             for (int i = 0; i < Pages.Count; i++)
             {
                 if (Pages[i]) Pages[i].ShowPage(i == Value);
@@ -69,6 +78,47 @@ namespace Basis.BasisUI
             tabButton.OnClicked += () => OnTabSelected(tabButton);
 
             Pages.Add(page);
+            ApplyValue();
+        }
+
+        /// <summary>
+        /// Adds a tab with lazy-loaded content. The pageBuilder is only called the first time the tab is selected, reducing upfront load.
+        /// </summary>
+        public void AddTab(string tabName, Action onSelected, Func<PanelTabPage> pageBuilder)
+        {
+            PanelButton tabButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Tab, TabButtonParent);
+
+            SelectionButtons.Add(tabButton);
+
+            tabButton.Descriptor.SetTitle(tabName);
+            tabButton.OnClicked += onSelected;
+            tabButton.OnClicked += () => OnTabSelected(tabButton);
+
+            int index = Pages.Count;
+            Pages.Add(null);
+            _lazyPageBuilders[index] = pageBuilder;
+
+            ApplyValue();
+        }
+
+        /// <summary>
+        /// Adds a tab with lazy-loaded content and an icon. The pageBuilder is only called the first time the tab is selected, reducing upfront load.
+        /// </summary>
+        public void AddTab(string tabName, string iconAddress, Action onSelected, Func<PanelTabPage> pageBuilder)
+        {
+            PanelButton tabButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Tab, TabButtonParent);
+
+            SelectionButtons.Add(tabButton);
+
+            tabButton.Descriptor.SetTitle(tabName);
+            tabButton.Descriptor.SetIcon(iconAddress);
+            tabButton.OnClicked += onSelected;
+            tabButton.OnClicked += () => OnTabSelected(tabButton);
+
+            int index = Pages.Count;
+            Pages.Add(null);
+            _lazyPageBuilders[index] = pageBuilder;
+
             ApplyValue();
         }
 
