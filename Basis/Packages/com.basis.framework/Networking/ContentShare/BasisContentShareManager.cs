@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using System;
 using System.Collections.Concurrent;
@@ -39,17 +40,10 @@ public static class BasisContentShareManager
             return;
         }
 
-        BasisLocalPlayer player = BasisLocalPlayer.Instance;
-        if (player == null)
-        {
-            BasisDebug.LogError("No local player to drop content sphere.", BasisDebug.LogTag.Networking);
-            return;
-        }
-
-        // Position sphere 1.5m in front of the player at chest height
-        player.GetPositionAndRotation(out Vector3 playerPos, out Quaternion playerRot);
-        Vector3 forward = playerRot * Vector3.forward;
-        Vector3 dropPosition = playerPos + forward * 1.5f + Vector3.up * 1.5f;
+        // Use camera position for consistent height between local and remote
+        Vector3 cameraPos = BasisLocalCameraDriver.Position;
+        Vector3 forward = BasisLocalCameraDriver.Forward();
+        Vector3 dropPosition = cameraPos + forward * 1.5f;
 
         ContentShareMessage msg = new ContentShareMessage
         {
