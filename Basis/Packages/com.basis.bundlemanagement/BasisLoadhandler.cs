@@ -181,11 +181,12 @@ public static class BasisLoadHandler
                 {
                     info = discInfo;
 
-                    if (discInfo.StoredLocal.DownloadedBeeFileLocation == string.Empty)
+                    if (string.IsNullOrEmpty(discInfo.StoredLocal.DownloadedBeeFileLocation))
                     {
                         string BEEPath = BasisIOManagement.GenerateFilePath($"{info.UniqueVersion}{BasisBeeConstants.BasisEncryptedExtension}", BasisBeeConstants.AssetBundlesFolder);
                         if (File.Exists(BEEPath))
                         {
+                            discInfo.StoredLocal.DownloadedBeeFileLocation = BEEPath;
                             return true;
                         }
                     }
