@@ -68,6 +68,7 @@ public static class BasisNetworkLifeCycle
 
             BasisNetworkPlayers.ClearAllRegistries();//remove players
             await BasisNetworkSpawnItem.Reset();//remove items
+            BasisContentShareManager.Reset();//remove content spheres
             BasisNetworkIdResolver.KnownIdMap.Clear();
             BasisNetworkIdResolver.PendingResolutions.Clear();
             BasisNetworkManagement.Transmitter = null;
@@ -108,6 +109,7 @@ public static class BasisNetworkLifeCycle
         }
         BasisNetworkPlayers.ClearAllRegistries();//remove players
         await BasisNetworkSpawnItem.Reset();//remove items
+        BasisContentShareManager.Reset();//remove content spheres
         BasisNetworkIdResolver.KnownIdMap.Clear();
         BasisNetworkIdResolver.PendingResolutions.Clear();
         BasisAudioRemoteSource.DeInitalize();//release memory for audio gameobject

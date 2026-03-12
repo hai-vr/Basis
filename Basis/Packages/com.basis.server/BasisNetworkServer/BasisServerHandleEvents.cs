@@ -67,6 +67,7 @@ namespace BasisServerHandle
                 BasisNetworkOwnership.RemovePlayerOwnership(id);
                 BasisSavedState.RemovePlayer(id);
                 BasisServerReductionSystemEvents.RemovePlayer(id);
+                BasisNetworkContentShare.RemovePlayerSpheres(id);
 
                 if (NetworkServer.AuthenticatedPeers.TryRemove(id, out _))
                 {
@@ -82,6 +83,7 @@ namespace BasisServerHandle
                 {
                     BasisNetworkIDDatabase.Reset();
                     BasisNetworkResourceManagement.Reset();
+                    BasisNetworkContentShare.Reset();
                 }
 
                 NetDataWriter writer = NetworkServer.RentWriter();
@@ -248,6 +250,7 @@ namespace BasisServerHandle
 
                 BasisNetworkResourceManagement.SendOutAllResources(newPeer);
                 BasisNetworkOwnership.SendOutOwnershipInformation(newPeer);
+                BasisNetworkContentShare.SendAllSpheresToPeer(newPeer);
             }
             else
             {

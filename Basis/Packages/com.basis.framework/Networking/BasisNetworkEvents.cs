@@ -220,6 +220,30 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                 });
                 break;
+            case BasisNetworkCommons.ContentShareChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    BasisContentShareManager.HandleContentShareMessage(Reader);
+                    Reader.Recycle();
+                });
+                break;
+            case BasisNetworkCommons.ContentShareCleanupChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    BasisContentShareManager.HandleContentShareCleanup(Reader);
+                    Reader.Recycle();
+                });
+                break;
             case BasisNetworkCommons.ChatChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
                 {
