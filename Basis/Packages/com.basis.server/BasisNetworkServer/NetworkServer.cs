@@ -57,7 +57,7 @@ public static class NetworkServer
         InitializePulseSettings();
         InitializeAuth();
         SetupServer(configuration);
-        SubscribeEvents();
+        SubscribeEvents(Configuration);
 
         if (configuration.EnableStatistics)
         {
@@ -99,11 +99,11 @@ public static class NetworkServer
         }
     }
 
-    private static void SubscribeEvents()
+    private static void SubscribeEvents(Configuration Configuration)
     {
         BasisServerHandleEvents.SubscribeServerEvents();
         BasisPlayerModeration.LoadBannedPlayers();
-        BasisNetworkChat.LoadWordFilter();
+        BasisNetworkChat.LoadWordFilter(Configuration);
     }
 
     #endregion

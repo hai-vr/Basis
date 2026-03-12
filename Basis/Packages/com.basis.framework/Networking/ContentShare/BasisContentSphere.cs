@@ -73,7 +73,6 @@ public class BasisContentSphere : BasisInteractableObject
         // Slow rotation
         transform.Rotate(Vector3.up, RotationSpeed * DeltaTime, Space.World);
     }
-
     private async Task LoadMetadataImageAsync(CancellationToken cancellationToken)
     {
         try
@@ -88,12 +87,14 @@ public class BasisContentSphere : BasisInteractableObject
 
             if (cancellationToken.IsCancellationRequested || this == null) return;
 
+            Color typeColor = GetTypeColor();
+            Texture2D texture;
+
             if (wrapper.LoadableBundle.BasisBundleConnector.ImageBase64 != null)
             {
-                Texture2D texture = BasisTextureCompression.FromPngBytes(wrapper.LoadableBundle.BasisBundleConnector.ImageBase64);
+                texture = BasisTextureCompression.FromPngBytes(wrapper.LoadableBundle.BasisBundleConnector.ImageBase64);
 
                 // Blend 50% type color with 50% texture
-                Color typeColor = GetTypeColor();
                 Color[] pixels = texture.GetPixels();
                 for (int i = 0; i < pixels.Length; i++)
                 {
@@ -102,17 +103,25 @@ public class BasisContentSphere : BasisInteractableObject
                 texture.SetPixels(pixels);
                 texture.Apply();
 
-                if (Renderer != null)
-                {
-                    Renderer.materials[MaterialIndex].mainTexture = texture;
-                }
-
                 // Update label with bundle name if available
                 string bundleName = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription?.AssetBundleName;
                 if (!string.IsNullOrEmpty(bundleName) && Label != null)
                 {
                     Label.text = $"{GetContentTypeName()}\n{bundleName}";
                 }
+            }
+            else
+            {
+                texture = new Texture2D(1, 1);
+                texture.SetPixel(0, 0, typeColor);
+                texture.Apply();
+            }
+
+            if (Renderer != null)
+            {
+                var mats = Renderer.materials;
+                mats[MaterialIndex].mainTexture = texture;
+                Renderer.materials = mats;
             }
         }
         catch (OperationCanceledException) { }

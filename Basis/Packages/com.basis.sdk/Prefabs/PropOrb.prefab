@@ -317,7 +317,7 @@ MonoBehaviour:
   InteractRange: 1
   Label: {fileID: 2454600319957122716}
   Renderer: {fileID: 2834293478064308129}
-  MaterialIndex: 0
+  MaterialIndex: 1
 --- !u!54 &4410017629799781353
 Rigidbody:
   m_ObjectHideFlags: 0
