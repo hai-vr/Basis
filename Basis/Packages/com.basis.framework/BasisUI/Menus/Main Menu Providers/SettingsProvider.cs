@@ -53,7 +53,7 @@ namespace Basis.BasisUI
             tabGroup.AddTab("Developer", null, DeveloperTab(tabGroup));
             tabGroup.AddTab("Remote Audio", null, SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
             tabGroup.AddTab("Nameplate", null, SettingsProviderNamePlate.NamePlateTab(tabGroup));
-            tabGroup.AddTab("Camera Tracking", null, SettingsProviderCameraTracking.CameraTrackingTab(tabGroup));
+         //  tabGroup.AddTab("Camera Tracking", null, SettingsProviderCameraTracking.CameraTrackingTab(tabGroup));
             tabGroup.AddTab("Device Mode", null, SettingsProviderPlatform.DeviceModeTab(tabGroup));
 
             panel.Descriptor.ForceRebuild();
