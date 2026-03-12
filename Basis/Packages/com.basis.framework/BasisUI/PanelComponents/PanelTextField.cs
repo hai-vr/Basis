@@ -1,3 +1,4 @@
+using Basis.BTween;
 using TMPro;
 using UnityEngine;
 
@@ -11,6 +12,8 @@ namespace Basis.BasisUI
         [SerializeField] protected string _placeholderText;
         [SerializeField] protected string _defaultValue;
         [SerializeField] protected TMP_InputField.ContentType _contentType = TMP_InputField.ContentType.Alphanumeric;
+
+        private TweenScale _focusTween;
 
         public static class TextFieldStyles
         {
@@ -55,12 +58,48 @@ namespace Basis.BasisUI
             base.Awake();
             _inputField.onEndEdit.AddListener(_ => OnComponentUsed());
             _inputField.onValueChanged.AddListener(_ => SetValueWithoutNotify(_inputField.text));
+            _inputField.onSelect.AddListener(_ => OnFieldFocused());
+            _inputField.onDeselect.AddListener(_ => OnFieldUnfocused());
+        }
+
+        private void OnFieldFocused()
+        {
+            if (!Application.isPlaying) return;
+            if (_focusTween != null && _focusTween.Active) _focusTween.Reset();
+
+            _focusTween = transform.TweenScale(0.12f, transform.localScale, Vector3.one * 1.02f)
+                .SetEase(Easing.OutCubic);
+        }
+
+        private void OnFieldUnfocused()
+        {
+            if (!Application.isPlaying) return;
+            if (_focusTween != null && _focusTween.Active) _focusTween.Reset();
+
+            _focusTween = transform.TweenScale(0.15f, transform.localScale, Vector3.one)
+                .SetEase(Easing.OutCubic);
         }
 
         public override void OnComponentUsed()
         {
             base.OnComponentUsed();
             SetValue(_inputField.text);
+
+            // Punch on submit
+            if (Application.isPlaying)
+            {
+                if (_focusTween != null && _focusTween.Active) _focusTween.Reset();
+                _focusTween = transform.TweenScale(0.06f, transform.localScale, Vector3.one * 1.03f)
+                    .SetEase(Easing.OutCubic)
+                    .AddCallback(() =>
+                    {
+                        if (this != null)
+                        {
+                            transform.TweenScale(0.12f, Vector3.one * 1.03f, Vector3.one)
+                                .SetEase(Easing.OutBack);
+                        }
+                    });
+            }
         }
 
         protected override void ApplyValue()
