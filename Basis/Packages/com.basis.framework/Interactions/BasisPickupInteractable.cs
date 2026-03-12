@@ -361,6 +361,14 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 CanInteractInjected.AllTrue(input);                         // injected
         }
 
+        /// <inheritdoc />
+        public override bool CanDirectGrab(BasisInput input)
+        {
+            if (!base.CanDirectGrab(input)) return false;
+            if (Inputs.AnyInteracting() && !CanSelfSteal) return false;
+            return CanInteractInjected.AllTrue(input);
+        }
+
         /// <summary>
         /// Called when hovering begins for an input. Promotes the input to the <c>Hovering</c> state,
         /// shows highlight, and invokes <see cref="BasisInteractableObject.OnHoverStartEvent"/>.

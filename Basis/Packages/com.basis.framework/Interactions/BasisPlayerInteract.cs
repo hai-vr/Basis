@@ -32,6 +32,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public static int k_MaxPhysicHitCount = 128;
         public static bool OnlySortClosest = true;
 
+        [Tooltip("Search radius for direct grab detection around hand bones")]
+        public static float grabSearchRadius = 0.25f;
+
+        private static readonly Collider[] _grabHitBuffer = new Collider[32];
+
         [SerializeField]
         public BasisInteractInput[] InteractInputs = new BasisInteractInput[] { };
 
@@ -182,6 +187,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     {
                         BasisDebug.LogWarning("Player Interact expected a registered hit but found null. This is a bug, please report.");
                     }
+                }
+                // Direct grab detection: hand-proximity grab for VR hands
+                else if (TryDetectDirectGrab(interactInput, out BasisInteractableObject grabTarget))
+                {
+                    HandleDirectGrab(grabTarget, ref interactInput);
                 }
                 // Hover missed entirely. Test for drop & clear hover
                 else
@@ -529,6 +539,96 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     .Where(x => x.input.UniqueDeviceIdentifier != input.input.UniqueDeviceIdentifier)
                     .ToArray();
             }
+        }
+
+        /// <summary>
+        /// Attempts to find a directly grabbable interactable near the hand bone position.
+        /// Only activates for hand inputs when grip is pressed.
+        /// </summary>
+        private bool TryDetectDirectGrab(BasisInteractInput interactInput, out BasisInteractableObject grabTarget)
+        {
+            grabTarget = null;
+            BasisInput input = interactInput.input;
+
+            // Don't try to grab if already interacting with something
+            if (interactInput.lastTarget != null && interactInput.lastTarget.IsInteractingWith(input))
+                return false;
+
+            // Only for hand roles with grip pressed
+            if (!input.TryGetRole(out BasisBoneTrackedRole role)) return false;
+            if (role != BasisBoneTrackedRole.LeftHand && role != BasisBoneTrackedRole.RightHand) return false;
+            if (!input.CurrentInputState.GripButton) return false;
+
+            // Get the hand bone world position
+            if (!input.HasControl || input.Control == null) return false;
+            Vector3 handPos = input.Control.OutgoingWorldData.position;
+
+            // Overlap sphere at hand position to find nearby colliders
+            int hitCount = Physics.OverlapSphereNonAlloc(handPos, grabSearchRadius, _grabHitBuffer, Mask, TriggerInteraction);
+
+            float closestDist = float.MaxValue;
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                Collider col = _grabHitBuffer[i];
+                if (col == null) continue;
+
+                // Find interactable on collider or parent (matching existing lookup pattern)
+                BasisInteractableObject obj = col.GetComponent<BasisInteractableObject>();
+                if (obj == null)
+                {
+                    obj = col.GetComponentInParent<BasisInteractableObject>();
+                    if (obj != null)
+                    {
+                        Collider[] colliders = obj.GetColliders();
+                        if (colliders == null || !colliders.Contains(col))
+                            continue;
+                    }
+                }
+                if (obj == null) continue;
+
+                // Check distance against object's specific grab radius
+                float dist = Vector3.Distance(obj.GetClosestPoint(handPos), handPos);
+                if (dist > obj.GrabRadius) continue;
+
+                // Check if object allows direct grab from this input
+                if (!obj.CanDirectGrab(input)) continue;
+
+                if (dist < closestDist)
+                {
+                    closestDist = dist;
+                    grabTarget = obj;
+                }
+            }
+
+            return grabTarget != null;
+        }
+
+        /// <summary>
+        /// Executes a direct grab: transitions the interactable from Ignored → Hovering → Interacting in a single frame.
+        /// </summary>
+        private void HandleDirectGrab(BasisInteractableObject target, ref BasisInteractInput interactInput)
+        {
+            BasisInput input = interactInput.input;
+
+            // Clean up any existing hover/interaction on the previous target
+            if (interactInput.lastTarget != null && interactInput.lastTarget != target)
+            {
+                if (interactInput.lastTarget.IsHoveredBy(input))
+                    interactInput.lastTarget.OnHoverEnd(input, false);
+                if (interactInput.lastTarget.IsInteractingWith(input))
+                    interactInput.lastTarget.OnInteractEnd(input);
+            }
+
+            // Transition: Ignored → Hovering
+            target.OnHoverStart(input);
+            // End hover with willInteract=true (keeps state at Hovering for OnInteractStart)
+            target.OnHoverEnd(input, true);
+            // Transition: Hovering → Interacting
+            target.OnInteractStart(input);
+
+            interactInput.lastTarget = target;
+            interactInput.HasvalidRay = true;
         }
 
         public static void DrawAll()
