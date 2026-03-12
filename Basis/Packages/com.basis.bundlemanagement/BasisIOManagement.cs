@@ -303,14 +303,18 @@ public static class BasisIOManagement
         long remaining = fs.Length - fs.Position;
         if (remaining < 0) remaining = 0;
 
-        byte[] sectionData = remaining == 0 ? null : await ReadExactAsync(fs, checked((int)remaining), cancellationToken);
-        if(sectionData == null)
+        byte[] sectionData;
+        if (remaining == 0)
         {
-            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full section data. Expected {remaining}, got {null}.");
+            sectionData = Array.Empty<byte>();
         }
-        if (sectionData.LongLength != remaining)
+        else
         {
-            return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full section data. Expected {remaining}, got {sectionData.LongLength}.");
+            sectionData = await ReadExactAsync(fs, checked((int)remaining), cancellationToken);
+            if (sectionData == null || sectionData.LongLength != remaining)
+            {
+                return BeeResult<BeeReadResult>.Fail($"ReadBEEFileEx: Failed to read full section data. Expected {remaining}, got {sectionData?.LongLength ?? 0}.");
+            }
         }
 
         return BeeResult<BeeReadResult>.Ok(new BeeReadResult(connector, sectionData));
