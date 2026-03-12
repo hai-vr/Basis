@@ -80,6 +80,20 @@ namespace Basis.Scripts.UI.NamePlate
         }
 
         /// <summary>
+        /// Updates gameObject.SetActive on all plates based on current visibility state.
+        /// Call only on state transitions, not every frame.
+        /// </summary>
+        private static void SetAllPlateVisibility()
+        {
+            for (int i = 0; i < plates.Count; i++)
+            {
+                var plate = plates[i];
+                if (plate != null)
+                    plate.gameObject.SetActive(ShouldPlateBeActive(plate));
+            }
+        }
+
+        /// <summary>
         /// Called by SettingsProviderNamePlate when nameplate settings change.
         /// Re-reads settings and applies width, size, and transparency to all active plates.
         /// </summary>
@@ -125,8 +139,9 @@ namespace Basis.Scripts.UI.NamePlate
                 }
 
                 plate.ApplyColorFromJob(StaticNormalColor);
-                plate.gameObject.SetActive(ShouldPlateBeActive(plate));
             }
+
+            SetAllPlateVisibility();
         }
 
         private void RebuildPlateMesh(BasisRemoteNamePlate namePlate)
@@ -457,7 +472,17 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         public static void ScheduleSimulate(double now)
         {
+            if (!ShouldRunJobs())
+                return;
+
             ScheduleSimulate(now, returnDelay, transitionDuration, StaticNormalColor);
+        }
+
+        private static bool ShouldRunJobs()
+        {
+            if (!NamePlateEnabled) return false;
+            if (NamePlateMenuOnly && BasisMainMenu.Instance == null) return false;
+            return true;
         }
 
         public static void ScheduleSimulate(double now, float hold, float fade, Color normalUnityColor)
@@ -528,19 +553,14 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         public static void CompleteNamePlates()
         {
-            // When menu-only mode is active, toggle plate visibility on menu open/close
+            // Detect menu open/close transitions for menu-only mode
             if (NamePlateMenuOnly && NamePlateEnabled)
             {
                 bool menuOpen = BasisMainMenu.Instance != null;
                 if (menuOpen != lastMenuOpenState)
                 {
                     lastMenuOpenState = menuOpen;
-                    for (int i = 0; i < plates.Count; i++)
-                    {
-                        var plate = plates[i];
-                        if (plate != null)
-                            plate.gameObject.SetActive(ShouldPlateBeActive(plate));
-                    }
+                    SetAllPlateVisibility();
                 }
             }
 
