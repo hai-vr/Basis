@@ -49,7 +49,7 @@ public static class BasisContentShareManager
         // Position sphere 1.5m in front of the player at chest height
         player.GetPositionAndRotation(out Vector3 playerPos, out Quaternion playerRot);
         Vector3 forward = playerRot * Vector3.forward;
-        Vector3 dropPosition = playerPos + forward * 1.5f + Vector3.up * 1.0f;
+        Vector3 dropPosition = playerPos + forward * 1.5f + Vector3.up * 1.5f;
 
         ContentShareMessage msg = new ContentShareMessage
         {
@@ -233,11 +233,8 @@ public static class BasisContentShareManager
         mat.color = color;
         mat.SetFloat("_Metallic", 1f);
         mat.SetFloat("_Smoothness", 1f);
-        if (mat.HasProperty("_EmissionColor"))
-        {
-            mat.EnableKeyword("_EMISSION");
-            mat.SetColor("_EmissionColor", color * 0.5f);
-        }
+        mat.EnableKeyword("_EMISSION");
+        mat.SetColor("_EmissionColor", Color.white * 0.5f);
         renderer.material = mat;
     }
 
