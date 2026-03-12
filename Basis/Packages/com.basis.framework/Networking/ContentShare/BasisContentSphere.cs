@@ -29,7 +29,6 @@ public class BasisContentSphere : BasisInteractableObject
 
     private float _bobPhase;
     private Vector3 _restPosition;
-    private bool _isInteracting;
     private CancellationTokenSource _metaLoadCts;
     public TextMeshPro Label;
     public Renderer Renderer;
@@ -154,9 +153,6 @@ public class BasisContentSphere : BasisInteractableObject
     /// </summary>
     public void WasPressed()
     {
-        if (_isInteracting) return;
-        _isInteracting = true;
-
         OnSphereInteracted?.Invoke(this);
 
         string typeName = GetContentTypeName();
@@ -175,7 +171,6 @@ public class BasisContentSphere : BasisInteractableObject
             {
                 RequestRemove();
             }
-            _isInteracting = false;
         });
     }
 
