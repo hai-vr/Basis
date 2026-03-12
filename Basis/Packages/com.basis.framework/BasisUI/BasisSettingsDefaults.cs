@@ -457,6 +457,7 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> CalibSphereScaleRightShoulder => new("calibspherescalerightshoulder", new BasisPlatformDefault<float>(1f));
 
         // ---------------- REMOTE NAMEPLATE ----------------
+        public static BasisSettingsBinding<bool> NPEnabled => new("np_enabled", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> NPWidth => new("np_width", new BasisPlatformDefault<float>(30f));
         public static BasisSettingsBinding<float> NPSize => new("np_size", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> NPTransparency => new("np_transparency", new BasisPlatformDefault<float>(0.45f));
@@ -677,6 +678,7 @@ namespace Basis.BasisUI
             CalibSphereScaleRightShoulder.LoadBindingValue();
 
             // Remote Nameplate
+            NPEnabled.LoadBindingValue();
             NPWidth.LoadBindingValue();
             NPSize.LoadBindingValue();
             NPTransparency.LoadBindingValue();

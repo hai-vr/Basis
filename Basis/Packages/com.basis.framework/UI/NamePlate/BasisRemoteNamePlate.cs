@@ -86,6 +86,11 @@ namespace Basis.Scripts.UI.NamePlate
 
             // Create chat text display above nameplate
             CreateChatTextDisplay();
+
+            if (!BasisRemoteNamePlateDriver.NamePlateEnabled)
+            {
+                gameObject.SetActive(false);
+            }
         }
         private void SetPlateColor(Color c)
         {
@@ -196,7 +201,7 @@ namespace Basis.Scripts.UI.NamePlate
         private void UpdateFaceVisibility(bool State)
         {
             IsVisible = State;
-            gameObject.SetActive(State);
+            gameObject.SetActive(State && BasisRemoteNamePlateDriver.NamePlateEnabled);
 
             // If we get hidden, just stop the pulse (avoids Update doing work on hidden plate)
             if (!State)

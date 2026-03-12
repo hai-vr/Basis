@@ -38,6 +38,7 @@ namespace Basis.Scripts.UI.NamePlate
         public int CornerVertexCount = 8;
         public float zOffset = 0.06f;
 
+        public static bool NamePlateEnabled = true;
         public static float NamePlateHalfWidth = 30f;
         public static float NamePlateSize = 1f;
         public static float NamePlateTransparency = 0.45f;
@@ -50,6 +51,7 @@ namespace Basis.Scripts.UI.NamePlate
                 ? OpaqueNamePlateMaterial
                 : TransParentNamePlateMaterial;
 
+            NamePlateEnabled = BasisSettingsDefaults.NPEnabled.RawValue;
             NamePlateHalfWidth = BasisSettingsDefaults.NPWidth.RawValue;
             NamePlateSize = BasisSettingsDefaults.NPSize.RawValue;
             NamePlateTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
@@ -67,12 +69,14 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         public void ApplyNamePlateSettingsFromUI()
         {
+            bool enabled = BasisSettingsDefaults.NPEnabled.RawValue;
             float newWidth = BasisSettingsDefaults.NPWidth.RawValue;
             float newSize = BasisSettingsDefaults.NPSize.RawValue;
             float newTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
 
             bool meshChanged = !Mathf.Approximately(NamePlateHalfWidth, newWidth);
 
+            NamePlateEnabled = enabled;
             NamePlateHalfWidth = newWidth;
             NamePlateSize = newSize;
             NamePlateTransparency = newTransparency;
@@ -103,6 +107,7 @@ namespace Basis.Scripts.UI.NamePlate
                 }
 
                 plate.ApplyColorFromJob(StaticNormalColor);
+                plate.gameObject.SetActive(enabled && plate.IsVisible);
             }
         }
 

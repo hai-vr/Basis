@@ -5,7 +5,7 @@ namespace Basis.BasisUI
 {
     /// <summary>
     /// Settings tab for remote nameplate appearance.
-    /// Exposes width, size, and transparency controls.
+    /// Exposes an enable toggle plus width, size, and transparency controls.
     /// </summary>
     public static class SettingsProviderNamePlate
     {
@@ -24,6 +24,11 @@ namespace Basis.BasisUI
             descriptor.SetDescription("Controls the appearance of nameplates above other players.");
 
             RectTransform container = descriptor.ContentParent;
+
+            // ─────────────── ENABLE TOGGLE ───────────────
+            PanelToggle toggleEnabled = PanelToggle.CreateNewEntry(container);
+            toggleEnabled.Descriptor.SetTitle("Show Nameplates");
+            toggleEnabled.AssignBinding(BasisSettingsDefaults.NPEnabled);
 
             // ─────────────── NAMEPLATE APPEARANCE GROUP ───────────────
             PanelElementDescriptor nameplateGroup =
@@ -46,6 +51,15 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Transparency", 0f, 1f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.NPTransparency);
 
+            // Appearance group only visible when nameplates are enabled
+            bool isEnabled = BasisSettingsDefaults.NPEnabled.RawValue;
+            nameplateGroup.SetActive(isEnabled);
+            toggleEnabled.OnValueChanged += (val) =>
+            {
+                nameplateGroup.SetActive(val);
+                container.GetComponentInParent<PanelElementDescriptor>()?.ForceRebuild();
+            };
+
             // ─────────────── RESET BUTTON ───────────────
             SettingsProvider.AddResetPageButton(container, "Nameplate", ResetNamePlateDefaults);
 
@@ -55,6 +69,7 @@ namespace Basis.BasisUI
 
         private static void ResetNamePlateDefaults()
         {
+            BasisSettingsDefaults.NPEnabled.ResetToDefault();
             BasisSettingsDefaults.NPWidth.ResetToDefault();
             BasisSettingsDefaults.NPSize.ResetToDefault();
             BasisSettingsDefaults.NPTransparency.ResetToDefault();
