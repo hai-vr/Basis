@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.UIElements;
 
 namespace Basis.BasisUI
@@ -11,8 +10,6 @@ namespace Basis.BasisUI
 
         public List<PanelTabPage> Pages = new();
         public RectTransform ExtrasContainer;
-
-        private Dictionary<int, Func<PanelTabPage>> _lazyPageBuilders = new();
 
         public static class TabGroupStyles
         {
@@ -47,25 +44,10 @@ namespace Basis.BasisUI
         public static PanelTabGroup CreateNew(string style, Component parent)
             => CreateNew<PanelTabGroup>(style, parent);
 
-        private void BuildLazyPage(int index)
-        {
-            if (_lazyPageBuilders.TryGetValue(index, out var builder))
-            {
-                Pages[index] = builder();
-                _lazyPageBuilders.Remove(index);
-                LayoutRebuilder.ForceRebuildLayoutImmediate(Descriptor.ContentParent);
-            }
-        }
 
         protected override void ApplyValue()
         {
             base.ApplyValue();
-
-            // Fallback: build lazy page if value was set programmatically
-            if (Value >= 0 && Value < Pages.Count && (object)Pages[Value] == null)
-            {
-                BuildLazyPage(Value);
-            }
 
             for (int i = 0; i < Pages.Count; i++)
             {
@@ -87,53 +69,6 @@ namespace Basis.BasisUI
             tabButton.OnClicked += () => OnTabSelected(tabButton);
 
             Pages.Add(page);
-            ApplyValue();
-        }
-
-        /// <summary>
-        /// Adds a tab with lazy-loaded content. The pageBuilder is only called the first time the tab is selected, reducing upfront load.
-        /// </summary>
-        public void AddTab(string tabName, Action onSelected, Func<PanelTabPage> pageBuilder)
-        {
-            PanelButton tabButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Tab, TabButtonParent);
-
-            SelectionButtons.Add(tabButton);
-
-            tabButton.Descriptor.SetTitle(tabName);
-            tabButton.OnClicked += onSelected;
-
-            int index = Pages.Count;
-            Pages.Add(null);
-            _lazyPageBuilders[index] = pageBuilder;
-
-            // Build the page on first click, before OnTabSelected processes the selection
-            tabButton.OnClicked += () => BuildLazyPage(index);
-            tabButton.OnClicked += () => OnTabSelected(tabButton);
-
-            ApplyValue();
-        }
-
-        /// <summary>
-        /// Adds a tab with lazy-loaded content and an icon. The pageBuilder is only called the first time the tab is selected, reducing upfront load.
-        /// </summary>
-        public void AddTab(string tabName, string iconAddress, Action onSelected, Func<PanelTabPage> pageBuilder)
-        {
-            PanelButton tabButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Tab, TabButtonParent);
-
-            SelectionButtons.Add(tabButton);
-
-            tabButton.Descriptor.SetTitle(tabName);
-            tabButton.Descriptor.SetIcon(iconAddress);
-            tabButton.OnClicked += onSelected;
-
-            int index = Pages.Count;
-            Pages.Add(null);
-            _lazyPageBuilders[index] = pageBuilder;
-
-            // Build the page on first click, before OnTabSelected processes the selection
-            tabButton.OnClicked += () => BuildLazyPage(index);
-            tabButton.OnClicked += () => OnTabSelected(tabButton);
-
             ApplyValue();
         }
 

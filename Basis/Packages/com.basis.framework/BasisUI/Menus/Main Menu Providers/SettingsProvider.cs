@@ -44,21 +44,42 @@ namespace Basis.BasisUI
             // First tab is eager (shown immediately on open)
             tabGroup.AddTab("General", null, GeneralTab(tabGroup));
             // Remaining tabs are lazy-loaded on first selection to reduce stuttering
-            tabGroup.AddTab("Audio", null, () => AudioTab(tabGroup));
-            tabGroup.AddTab("Graphics", null, () => GraphicsTab(tabGroup));
-            tabGroup.AddTab("Calibration", null, () => SettingsProviderIK.IKTab(tabGroup));
-            tabGroup.AddTab("Cached Storage", null, () => SettingsProviderStorage.StorageTab(tabGroup));
-            tabGroup.AddTab("Chat", null, () => ChatTab(tabGroup));
-            tabGroup.AddTab("Bindings", null, () => SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
-            tabGroup.AddTab("Console", null, () => SettingsProviderConsoleTab.ConsoleTab(tabGroup));
-            tabGroup.AddTab("Admin", null, () => SettingsProviderAdminTab.AdminTab(tabGroup));
-            tabGroup.AddTab("Developer", null, () => DeveloperTab(tabGroup));
-            tabGroup.AddTab("Remote Audio", null, () => SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
-            tabGroup.AddTab("Nameplate", null, () => SettingsProviderNamePlate.NamePlateTab(tabGroup));
-         //  tabGroup.AddTab("Camera Tracking", null, () => SettingsProviderCameraTracking.CameraTrackingTab(tabGroup));
-            tabGroup.AddTab("Device Mode", null, () => SettingsProviderPlatform.DeviceModeTab(tabGroup));
+            AddLazyTab(tabGroup, "Audio", () => AudioTab(tabGroup));
+            AddLazyTab(tabGroup, "Graphics", () => GraphicsTab(tabGroup));
+            AddLazyTab(tabGroup, "Calibration", () => SettingsProviderIK.IKTab(tabGroup));
+            AddLazyTab(tabGroup, "Cached Storage", () => SettingsProviderStorage.StorageTab(tabGroup));
+            AddLazyTab(tabGroup, "Chat", () => ChatTab(tabGroup));
+            AddLazyTab(tabGroup, "Bindings", () => SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
+            AddLazyTab(tabGroup, "Console", () => SettingsProviderConsoleTab.ConsoleTab(tabGroup));
+            AddLazyTab(tabGroup, "Admin", () => SettingsProviderAdminTab.AdminTab(tabGroup));
+            AddLazyTab(tabGroup, "Developer", () => DeveloperTab(tabGroup));
+            AddLazyTab(tabGroup, "Remote Audio", () => SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
+            AddLazyTab(tabGroup, "Nameplate", () => SettingsProviderNamePlate.NamePlateTab(tabGroup));
+         //  AddLazyTab(tabGroup, "Camera Tracking", () => SettingsProviderCameraTracking.CameraTrackingTab(tabGroup));
+            AddLazyTab(tabGroup, "Device Mode", () => SettingsProviderPlatform.DeviceModeTab(tabGroup));
 
             panel.Descriptor.ForceRebuild();
+        }
+
+        /// <summary>
+        /// Adds a tab with an empty placeholder page. On first selection the real
+        /// content is built, the placeholder is released, and the Pages entry is swapped.
+        /// </summary>
+        private static void AddLazyTab(PanelTabGroup tabGroup, string tabName, Func<PanelTabPage> builder)
+        {
+            PanelTabPage placeholder = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+            int index = tabGroup.Pages.Count;
+            bool built = false;
+
+            tabGroup.AddTab(tabName, () =>
+            {
+                if (built) return;
+                built = true;
+
+                PanelTabPage realPage = builder();
+                tabGroup.Pages[index] = realPage;
+                placeholder.ReleaseInstance();
+            }, placeholder);
         }
 
 
