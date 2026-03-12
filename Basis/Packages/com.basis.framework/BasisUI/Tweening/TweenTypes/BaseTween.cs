@@ -29,8 +29,10 @@ namespace Basis.BTween
         private static void ProcessGroup(double currentTime)
         {
             List<T> list = Tweens;
-            foreach (T tween in list)
+            int count = list.Count;
+            for (int i = 0; i < count; i++)
             {
+                T tween = list[i];
                 if (!tween.Active) continue;
                 tween.Process(currentTime);
             }
