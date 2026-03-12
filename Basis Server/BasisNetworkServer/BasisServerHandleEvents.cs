@@ -391,7 +391,7 @@ namespace BasisServerHandle
                     playerID = (ushort)authClient.Id
                 }
             };
-            BasisServerReductionSystemEvents.AddMessage(authClient, readyMessage.localAvatarSyncMessage);
+            BasisServerReductionSystemEvents.AddMessage(authClient, readyMessage.localAvatarSyncMessage, 0);
             BasisSavedState.AddLastData(authClient, readyMessage);
             return serverReadyMessage;
         }

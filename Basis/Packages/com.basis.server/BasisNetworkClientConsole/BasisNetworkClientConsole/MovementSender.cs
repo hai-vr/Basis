@@ -22,6 +22,7 @@ namespace Basis.Network
         {
             public NetDataWriter Writer;
             public LocalAvatarSyncMessage Message;
+            public byte SequenceByte;
         }
 
         // Precompute compressed scale once; reused for all messages.
@@ -101,9 +102,11 @@ namespace Basis.Network
             // Serialize and send
             var writer = ActivePlayerData[index].Writer;
             writer.Reset();
+            writer.Put(ActivePlayerData[index].SequenceByte);
+            unchecked { ActivePlayerData[index].SequenceByte++; }
             msg.Serialize(writer, BitQuality.High);
 
-            peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
+            peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Unreliable);
 
             ActivePlayerData[index].Message = msg;
         }

@@ -28,6 +28,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 double interval = (double)BasisNetworkManagement.ServerMetaDataMessage.SyncInterval;
                 if (TryCreateAvatarBuffer(data, ref offset, (interval + (double)syncMessage.interval) / 1000.0, q, out BasisAvatarBuffer avatarBuffer))
                 {
+                    avatarBuffer.Sequence = syncMessage.sequence;
                     EnqueueAndProcessAdditionalData(baseReceiver, avatarBuffer, syncMessage.avatarSerialization);
                 }
             }

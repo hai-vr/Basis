@@ -44,6 +44,16 @@ namespace Basis.Scripts.Networking.Receivers
 
         public bool HasBufferHolds;
 
+        // ---------------- sequence tracking for unreliable delivery ----------------
+        private byte _highestSequence;
+        /// <summary>
+        /// 0 = no packets seen, 1 = initial data only (seq unset), 2+ = stale-check active.
+        /// The first packet (initial join data, seq=0) doesn't seed the tracker;
+        /// the second packet (first streaming update with real sequence) does.
+        /// </summary>
+        private int _seenPackets;
+        private readonly List<BasisAvatarBuffer> _pendingSort = new List<BasisAvatarBuffer>(16);
+
         // ---------------- staging (ring buffer) ----------------
         private const int MaxStage = 64;
         public int StagedCount;
@@ -99,17 +109,57 @@ namespace Basis.Scripts.Networking.Receivers
                 return;
             }
             hasRequiredData = true;
-            // 1) Pull network packets to main-thread staging ring (bounded)
+            // 1) Pull network packets, drop stale, sort by sequence, then stage
+            _pendingSort.Clear();
             while (PayloadQueue.TryDequeue(out BasisAvatarBuffer buffer))
             {
-                // Stamp monotonic server time *here* (single-threaded)
+                if (_seenPackets >= 2)
+                {
+                    // Forward distance from highest to buffer:
+                    // [1,127] = buffer is newer, [128,255] = buffer is behind (stale)
+                    byte fwd = unchecked((byte)(buffer.Sequence - _highestSequence));
+                    if (fwd >= 128)
+                    {
+                        BasisAvatarBufferPool.Release(buffer);
+                        continue;
+                    }
+                    if (fwd > 0)
+                    {
+                        _highestSequence = buffer.Sequence;
+                    }
+                }
+                else
+                {
+                    // Warmup: skip stale checking, seed highest from second packet.
+                    // First packet is initial join data with an unset sequence (0);
+                    // second packet is the first streaming update with a real server sequence.
+                    if (_seenPackets == 1)
+                    {
+                        _highestSequence = buffer.Sequence;
+                    }
+                    _seenPackets++;
+                }
+
+                _pendingSort.Add(buffer);
+            }
+
+            // Sort by sequence so out-of-order arrivals are staged in correct order
+            if (_pendingSort.Count > 1)
+            {
+                _pendingSort.Sort((a, b) => ((sbyte)(a.Sequence - b.Sequence)));
+            }
+
+            // Enqueue sorted items into staging ring with monotonic server clock
+            for (int i = 0; i < _pendingSort.Count; i++)
+            {
+                var buffer = _pendingSort[i];
+
                 if (!_serverClockSeeded)
                 {
                     _serverClockSeconds = 0.0;
                     _serverClockSeeded = true;
                 }
 
-                // secondsInterval already validated/clamped by decompressor
                 _serverClockSeconds += buffer.SecondsInterval;
                 buffer.ServerTimeSeconds = _serverClockSeconds;
 
@@ -270,6 +320,8 @@ namespace Basis.Scripts.Networking.Receivers
         {
             _serverClockSeconds = 0.0;
             _serverClockSeeded = false;
+            _highestSequence = 0;
+            _seenPackets = 0;
             RemotePlayer = (BasisRemotePlayer)Player;
             AudioReceiverModule.Initialize(this);
 
@@ -341,6 +393,8 @@ namespace Basis.Scripts.Networking.Receivers
         {
             _serverClockSeconds = 0.0;
             _serverClockSeeded = false;
+            _highestSequence = 0;
+            _seenPackets = 0;
             // _stagedRing can be null if Initialize never completed, so don't Assert here—guard.
             if (_stagedRing != null)
             {
