@@ -116,6 +116,7 @@ namespace Basis.BasisUI
         public Slider SliderComponent;
 
         private RectTransform _handleRect;
+        private Graphic _roundedFrontGraphic;
         private TweenScale _handleScaleTween;
         private TweenGraphicColor _fillColorTween;
         private TweenScale _labelPunchTween;
@@ -171,15 +172,14 @@ namespace Basis.BasisUI
                 FillGraphic = SliderComponent.fillRect.GetComponent<Graphic>();
             }
 
-            // Hide the decorative sphere at the start of the slider track
-            // and extend the fill to cover the gap it leaves
+            // Color-match the rounded front cap to the fill so it blends seamlessly
             if (SliderComponent.fillRect != null)
             {
-                Transform fillArea = SliderComponent.fillRect.parent;
-                Transform roundedFront = fillArea.Find("Rounded Front");
-                if (roundedFront != null) roundedFront.gameObject.SetActive(false);
-
-                SliderComponent.fillRect.offsetMin = new Vector2(0f, SliderComponent.fillRect.offsetMin.y);
+                Transform roundedFront = SliderComponent.fillRect.parent.Find("Rounded Front");
+                if (roundedFront != null)
+                {
+                    _roundedFrontGraphic = roundedFront.GetComponent<Graphic>();
+                }
             }
         }
 
@@ -288,12 +288,14 @@ namespace Basis.BasisUI
                 {
                     // Instant color while dragging for responsiveness
                     FillGraphic.color = targetFillColor;
+                    if (_roundedFrontGraphic != null) _roundedFrontGraphic.color = targetFillColor;
                 }
                 else
                 {
                     if (_fillColorTween != null && _fillColorTween.Active) _fillColorTween.Reset();
                     _fillColorTween = FillGraphic.TweenColor(0.15f, FillGraphic.color, targetFillColor)
                         .SetEase(Easing.OutCubic);
+                    if (_roundedFrontGraphic != null) _roundedFrontGraphic.color = targetFillColor;
                 }
             }
 
