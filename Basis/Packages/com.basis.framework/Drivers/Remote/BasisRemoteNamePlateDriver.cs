@@ -39,9 +39,11 @@ namespace Basis.Scripts.UI.NamePlate
         public float zOffset = 0.06f;
 
         public static bool NamePlateEnabled = true;
+        public static bool NamePlateMenuOnly = false;
         public static float NamePlateHalfWidth = 30f;
         public static float NamePlateSize = 1f;
         public static float NamePlateTransparency = 0.45f;
+        private static bool lastMenuOpenState;
 
         public void Awake()
         {
@@ -52,9 +54,11 @@ namespace Basis.Scripts.UI.NamePlate
                 : TransParentNamePlateMaterial;
 
             NamePlateEnabled = BasisSettingsDefaults.NPEnabled.RawValue;
+            NamePlateMenuOnly = BasisSettingsDefaults.NPMenuOnly.RawValue;
             NamePlateHalfWidth = BasisSettingsDefaults.NPWidth.RawValue;
             NamePlateSize = BasisSettingsDefaults.NPSize.RawValue;
             NamePlateTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
+            lastMenuOpenState = BasisMainMenu.Instance != null;
 
             StaticNormalColor = new Color(NormalColor.r, NormalColor.g, NormalColor.b, NamePlateTransparency);
             StaticIsTalkingColor = new Color(IsTalkingColor.r, IsTalkingColor.g, IsTalkingColor.b, NamePlateTransparency);
@@ -64,12 +68,25 @@ namespace Basis.Scripts.UI.NamePlate
         }
 
         /// <summary>
+        /// Returns whether a given plate should currently be active, considering
+        /// the enabled toggle, menu-only mode, and per-plate face visibility.
+        /// </summary>
+        public static bool ShouldPlateBeActive(BasisRemoteNamePlate plate)
+        {
+            if (!NamePlateEnabled) return false;
+            if (!plate.IsVisible) return false;
+            if (NamePlateMenuOnly && BasisMainMenu.Instance == null) return false;
+            return true;
+        }
+
+        /// <summary>
         /// Called by SettingsProviderNamePlate when nameplate settings change.
         /// Re-reads settings and applies width, size, and transparency to all active plates.
         /// </summary>
         public void ApplyNamePlateSettingsFromUI()
         {
             bool enabled = BasisSettingsDefaults.NPEnabled.RawValue;
+            bool menuOnly = BasisSettingsDefaults.NPMenuOnly.RawValue;
             float newWidth = BasisSettingsDefaults.NPWidth.RawValue;
             float newSize = BasisSettingsDefaults.NPSize.RawValue;
             float newTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
@@ -77,6 +94,7 @@ namespace Basis.Scripts.UI.NamePlate
             bool meshChanged = !Mathf.Approximately(NamePlateHalfWidth, newWidth);
 
             NamePlateEnabled = enabled;
+            NamePlateMenuOnly = menuOnly;
             NamePlateHalfWidth = newWidth;
             NamePlateSize = newSize;
             NamePlateTransparency = newTransparency;
@@ -107,7 +125,7 @@ namespace Basis.Scripts.UI.NamePlate
                 }
 
                 plate.ApplyColorFromJob(StaticNormalColor);
-                plate.gameObject.SetActive(enabled && plate.IsVisible);
+                plate.gameObject.SetActive(ShouldPlateBeActive(plate));
             }
         }
 
@@ -510,6 +528,22 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         public static void CompleteNamePlates()
         {
+            // When menu-only mode is active, toggle plate visibility on menu open/close
+            if (NamePlateMenuOnly && NamePlateEnabled)
+            {
+                bool menuOpen = BasisMainMenu.Instance != null;
+                if (menuOpen != lastMenuOpenState)
+                {
+                    lastMenuOpenState = menuOpen;
+                    for (int i = 0; i < plates.Count; i++)
+                    {
+                        var plate = plates[i];
+                        if (plate != null)
+                            plate.gameObject.SetActive(ShouldPlateBeActive(plate));
+                    }
+                }
+            }
+
             if (!jobScheduled || count == 0)
                 return;
 

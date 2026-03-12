@@ -458,6 +458,7 @@ namespace Basis.BasisUI
 
         // ---------------- REMOTE NAMEPLATE ----------------
         public static BasisSettingsBinding<bool> NPEnabled => new("np_enabled", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> NPMenuOnly => new("np_menuonly", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> NPWidth => new("np_width", new BasisPlatformDefault<float>(30f));
         public static BasisSettingsBinding<float> NPSize => new("np_size", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> NPTransparency => new("np_transparency", new BasisPlatformDefault<float>(0.45f));
@@ -679,6 +680,7 @@ namespace Basis.BasisUI
 
             // Remote Nameplate
             NPEnabled.LoadBindingValue();
+            NPMenuOnly.LoadBindingValue();
             NPWidth.LoadBindingValue();
             NPSize.LoadBindingValue();
             NPTransparency.LoadBindingValue();
