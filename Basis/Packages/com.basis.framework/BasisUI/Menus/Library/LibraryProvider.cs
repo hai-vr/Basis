@@ -1233,7 +1233,7 @@ namespace Basis.BasisUI
             {
                 shareButtonComponent.interactable = BasisNetworkConnection.LocalPlayerIsConnected;
             }
-            sharePanelButton.OnClicked += () =>
+            sharePanelButton.OnClicked += async () =>
             {
                 if (!BasisNetworkConnection.LocalPlayerIsConnected) return;
                 ContentShareType shareType;
@@ -1251,6 +1251,8 @@ namespace Basis.BasisUI
                     default:
                         return;
                 }
+                bool confirmed = await LibraryProviderDialogShare.PromptUserForShare(panel, item, description);
+                if (!confirmed) return;
                 BasisContentShareManager.DropContentSphere(item.Url, item.Pass, shareType);
             };
 
