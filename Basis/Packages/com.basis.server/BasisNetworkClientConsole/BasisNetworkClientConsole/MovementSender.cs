@@ -27,14 +27,10 @@ namespace Basis.Network
         // Precompute compressed scale once; reused for all messages.
         private static readonly ushort CompressedScale = CompressScaleOnce(1f);
 
-        // Per-player outbound sequence counters for unreliable avatar packets
-        private static byte[] _localSequences;
-
         public static void Initialize(int clientCount)
         {
             PlayersCurrentPosition = new Vector3[clientCount];
             ActivePlayerData = new PlayerData[clientCount];
-            _localSequences = new byte[clientCount];
 
             for (int i = 0; i < clientCount; i++)
             {
@@ -105,14 +101,9 @@ namespace Basis.Network
             // Serialize and send
             var writer = ActivePlayerData[index].Writer;
             writer.Reset();
-
-            // Write sequence byte before the LASM payload
-            writer.Put(_localSequences[index]);
-            unchecked { _localSequences[index]++; }
-
             msg.Serialize(writer, BitQuality.High);
 
-            peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Unreliable);
+            peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
 
             ActivePlayerData[index].Message = msg;
         }
