@@ -39,7 +39,7 @@ public class BasisFrameRateVisualization : MonoBehaviour
             buffer[idx++] = Title[i];
 
         // Append cached time (HH:MM:SS) — no GC
-        buffer[idx++] = ' ';
+        idx = Append(buffer, " Time:", idx);
         idx = AppendTwoDigit(cachedHour, idx);
         buffer[idx++] = ':';
         idx = AppendTwoDigit(cachedMinute, idx);
