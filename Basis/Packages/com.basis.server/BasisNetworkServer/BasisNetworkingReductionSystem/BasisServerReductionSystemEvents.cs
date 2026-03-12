@@ -123,6 +123,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             var localMessage = new LocalAvatarSyncMessage();
             localMessage.Deserialize(reader);
             reader.Recycle();
+
+            if (localMessage.array == null)
+            {
+                BNL.LogError($"[HandleAvatarMovement] Deserialized avatar message has null array from peer {fromPeer.Id}");
+                return;
+            }
+
             AddMessage(fromPeer, localMessage, sequence);
         }
 
@@ -485,6 +492,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             byte inboundSeq = message.Sequence;
 
             var high = message.AvatarMessage;
+
+            if (high.array == null)
+            {
+                BNL.LogError($"[ProcessMessage] Avatar array is null for peer {id}");
+                QueuedMessagePool.Return(message);
+                return;
+            }
 
             if (high.DataQualityLevel != (byte)BitQuality.High)
             {
