@@ -28,7 +28,7 @@ public static class BasisBeeManagement
             BasisDebug.Log("Download Store Meta And Bundle", BasisDebug.LogTag.Event);
             output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancellationToken, MaxDownloadSizeInBytes);
         }
-        if(output.Item2 == null)
+        if(output.Item2 == null || output.Item2.Length == 0)
         {
             //lets force download it again. this guards against partial file, corrupt file or reattempt at downloading if it fails.
             BasisDebug.Log("Local load returned null section data, forcing re-download", BasisDebug.LogTag.Event);
