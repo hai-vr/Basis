@@ -84,6 +84,13 @@ namespace Basis.BTween
             return (T)this;
         }
 
+        public T SetDelay(float delay)
+        {
+            StartTime += delay;
+            EndTime += delay;
+            return (T)this;
+        }
+
         /// <summary>
         /// Returns true when completed.
         /// </summary>
