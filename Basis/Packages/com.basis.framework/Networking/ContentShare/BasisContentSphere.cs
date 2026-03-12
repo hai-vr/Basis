@@ -4,6 +4,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Networking;
 using Basis.Scripts.TransformBinders.BoneControl;
+using Basis.Scripts.UI.UI_Panels;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -199,30 +200,14 @@ public class BasisContentSphere : BasisInteractableObject
         string typeName = GetContentTypeName();
         string title = $"Shared {typeName}";
 
-        // Build description based on content type
-        string description;
-        switch (ContentType)
-        {
-            case ContentShareType.Avatar:
-                description = $"Load this shared avatar?";
-                break;
-            case ContentShareType.Prop:
-                description = $"Spawn this shared prop?";
-                break;
-            case ContentShareType.World:
-                description = $"Load this shared world?";
-                break;
-            default:
-                description = $"Load this shared content?";
-                break;
-        }
+        string description = $"Save this shared {typeName.ToLower()} to your library?";
 
         BasisMainMenu.Open();
-        BasisMainMenu.Instance.OpenDialogue(title, description, "Load", "Delete", value =>
+        BasisMainMenu.Instance.OpenDialogue(title, description, "Save", "Delete", value =>
         {
             if (value)
             {
-                HandleLoad();
+                SaveToLibrary();
             }
             else
             {
@@ -232,53 +217,33 @@ public class BasisContentSphere : BasisInteractableObject
         });
     }
 
-    private async void HandleLoad()
+    private async void SaveToLibrary()
     {
+        BundledContentHolder.Mode mode;
         switch (ContentType)
         {
             case ContentShareType.Avatar:
-                await LoadAsAvatar();
+                mode = BundledContentHolder.Mode.Avatar;
                 break;
             case ContentShareType.Prop:
-                LoadAsProp();
+                mode = BundledContentHolder.Mode.Prop;
                 break;
             case ContentShareType.World:
-                LoadAsWorld();
+                mode = BundledContentHolder.Mode.World;
                 break;
+            default:
+                return;
         }
-    }
 
-    public async Task LoadAsAvatar()
-    {
-        BasisDebug.Log($"Loading content sphere as avatar: {ContentURL}", BasisDebug.LogTag.Networking);
-        BasisLoadableBundle bundle = ToLoadableBundle();
-        await BasisLocalPlayer.Instance.CreateAvatar(0, bundle);
-    }
+        BasisDataStoreItemKeys.ItemKey key = new BasisDataStoreItemKeys.ItemKey
+        {
+            Mode = mode,
+            Url = ContentURL,
+            Pass = UnlockPassword,
+        };
 
-    public void LoadAsProp()
-    {
-        BasisDebug.Log($"Loading content sphere as prop: {ContentURL}", BasisDebug.LogTag.Networking);
-
-        BasisLocalPlayer.Instance.GetPositionAndRotation(out Vector3 playerPos, out Quaternion playerRot);
-        Vector3 spawnPos = playerPos + playerRot * Vector3.forward * 2f + Vector3.up * 0.5f;
-
-        BasisNetworkSpawnItem.RequestGameObjectLoad(
-            UnlockPassword,
-            ContentURL,
-            spawnPos,
-            Quaternion.identity,
-            Vector3.one,
-            false,
-            false,
-            false,
-            out _
-        );
-    }
-
-    public void LoadAsWorld()
-    {
-        BasisDebug.Log($"Loading content sphere as world: {ContentURL}", BasisDebug.LogTag.Networking);
-        BasisNetworkSpawnItem.RequestSceneLoad(UnlockPassword, ContentURL, false, false, out _);
+        await BasisDataStoreItemKeys.AddNewKey(key);
+        BasisDebug.Log($"Saved content sphere to library: {ContentURL} as {mode}", BasisDebug.LogTag.Networking);
     }
 
     public bool IsLocalPlayerCreator()
