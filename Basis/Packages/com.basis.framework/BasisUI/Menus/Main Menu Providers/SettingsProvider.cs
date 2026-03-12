@@ -46,17 +46,17 @@ namespace Basis.BasisUI
             // Remaining tabs are lazy-loaded on first selection to reduce stuttering
             AddLazyTab(tabGroup, "Audio", () => AudioTab(tabGroup));
             AddLazyTab(tabGroup, "Graphics", () => GraphicsTab(tabGroup));
-            AddLazyTab(tabGroup, "Calibration", () => SettingsProviderIK.IKTab(tabGroup));
-            AddLazyTab(tabGroup, "Cached Storage", () => SettingsProviderStorage.StorageTab(tabGroup));
+            AddLazyTab(tabGroup, "Controls", () => SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
             AddLazyTab(tabGroup, "Chat", () => ChatTab(tabGroup));
-            AddLazyTab(tabGroup, "Bindings", () => SettingsProviderControllerConfig.OpenControllerConfig(tabGroup));
-            AddLazyTab(tabGroup, "Console", () => SettingsProviderConsoleTab.ConsoleTab(tabGroup));
-            AddLazyTab(tabGroup, "Admin", () => SettingsProviderAdminTab.AdminTab(tabGroup));
-            AddLazyTab(tabGroup, "Developer", () => DeveloperTab(tabGroup));
-            AddLazyTab(tabGroup, "Remote Audio", () => SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
-            AddLazyTab(tabGroup, "Nameplate", () => SettingsProviderNamePlate.NamePlateTab(tabGroup));
-         //  AddLazyTab(tabGroup, "Camera Tracking", () => SettingsProviderCameraTracking.CameraTrackingTab(tabGroup));
+            AddLazyTab(tabGroup, "Nameplates", () => SettingsProviderNamePlate.NamePlateTab(tabGroup));
+            AddLazyTab(tabGroup, "Body Tracking", () => SettingsProviderIK.IKTab(tabGroup));
+         // AddLazyTab(tabGroup, "Face Tracking", () => SettingsProviderCameraTracking.CameraTrackingTab(tabGroup));
+            AddLazyTab(tabGroup, "Spatial Audio", () => SettingsProviderRemoteAudio.RemoteAudioTab(tabGroup));
             AddLazyTab(tabGroup, "Device Mode", () => SettingsProviderPlatform.DeviceModeTab(tabGroup));
+            AddLazyTab(tabGroup, "Storage", () => SettingsProviderStorage.StorageTab(tabGroup));
+            AddLazyTab(tabGroup, "Console", () => SettingsProviderConsoleTab.ConsoleTab(tabGroup));
+            AddLazyTab(tabGroup, "Developer", () => DeveloperTab(tabGroup));
+            AddLazyTab(tabGroup, "Admin", () => SettingsProviderAdminTab.AdminTab(tabGroup));
 
             panel.Descriptor.ForceRebuild();
         }

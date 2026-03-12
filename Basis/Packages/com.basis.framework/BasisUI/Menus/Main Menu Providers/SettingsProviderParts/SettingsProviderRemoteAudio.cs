@@ -24,8 +24,8 @@ namespace Basis.BasisUI
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
             PanelElementDescriptor descriptor = tab.Descriptor;
 
-            descriptor.SetTitle("Remote Player Audio");
-            descriptor.SetDescription("Controls how you hear other players' voices.");
+            descriptor.SetTitle("Spatial Audio");
+            descriptor.SetDescription("Controls how you hear other players' voices in 3D space.");
 
             RectTransform container = descriptor.ContentParent;
 
@@ -388,7 +388,7 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
             };
             */
             // ─────────────── RESET BUTTON ───────────────
-            SettingsProvider.AddResetPageButton(container, "Remote Audio", ResetRemoteAudioDefaults);
+            SettingsProvider.AddResetPageButton(container, "Spatial Audio", ResetRemoteAudioDefaults);
 
             descriptor.ForceRebuild();
             return tab;
