@@ -40,14 +40,17 @@ namespace Basis.BTween
 
         public static T GetAvailableTween()
         {
-            foreach (T tween in Tweens)
+            List<T> list = Tweens;
+            int count = list.Count;
+            for (int i = 0; i < count; i++)
             {
+                T tween = list[i];
                 if (tween.Active) continue;
                 return tween;
             }
 
             T newTween = new();
-            Tweens.Add(newTween);
+            list.Add(newTween);
             return newTween;
         }
 
