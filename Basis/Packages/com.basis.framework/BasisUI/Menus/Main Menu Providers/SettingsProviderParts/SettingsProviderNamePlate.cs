@@ -20,7 +20,7 @@ namespace Basis.BasisUI
             PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
             PanelElementDescriptor descriptor = tab.Descriptor;
 
-            descriptor.SetTitle("Remote Nameplate");
+            descriptor.SetTitle("Nameplates");
             descriptor.SetDescription("Controls the appearance of nameplates above other players.");
 
             RectTransform container = descriptor.ContentParent;
@@ -67,7 +67,7 @@ namespace Basis.BasisUI
             };
 
             // ─────────────── RESET BUTTON ───────────────
-            SettingsProvider.AddResetPageButton(container, "Nameplate", ResetNamePlateDefaults);
+            SettingsProvider.AddResetPageButton(container, "Nameplates", ResetNamePlateDefaults);
 
             descriptor.ForceRebuild();
             return tab;
