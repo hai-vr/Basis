@@ -133,20 +133,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             message.Sequence = sequence;
             message.AvatarMessage = localMessage;
 
-            // Only keep the newest message per peer; use sequence to avoid overwriting newer with stale
-            currentMessages.AddOrUpdate(fromPeer.Id, message, (_, existing) =>
-            {
-                // Accept if incoming is newer (wrapping byte comparison: delta in [1,127] means newer)
-                byte delta = unchecked((byte)(sequence - existing.Sequence));
-                if (delta > 0 && delta < 128)
-                {
-                    QueuedMessagePool.Return(existing);
-                    return message;
-                }
-                // Stale arrival — discard incoming
-                QueuedMessagePool.Return(message);
-                return existing;
-            });
+            // Simple overwrite — stale detection is handled in ProcessMessage via LastInboundSequence.
+            // Avoid pool operations inside AddOrUpdate factories (factory can be called multiple times
+            // under contention, causing double-return / use-after-return).
+            currentMessages.AddOrUpdate(fromPeer.Id, message, (_, _) => message);
         }
 
         private static async Task StartBackgroundProcessingAsync()
