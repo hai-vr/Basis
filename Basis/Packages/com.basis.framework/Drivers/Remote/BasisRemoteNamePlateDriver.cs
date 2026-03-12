@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using System.Collections.Generic;
@@ -37,6 +38,10 @@ namespace Basis.Scripts.UI.NamePlate
         public int CornerVertexCount = 8;
         public float zOffset = 0.06f;
 
+        public static float NamePlateHalfWidth = 30f;
+        public static float NamePlateSize = 1f;
+        public static float NamePlateTransparency = 0.45f;
+
         public void Awake()
         {
             Instance = this;
@@ -45,11 +50,72 @@ namespace Basis.Scripts.UI.NamePlate
                 ? OpaqueNamePlateMaterial
                 : TransParentNamePlateMaterial;
 
-            StaticNormalColor = NormalColor;
-            StaticIsTalkingColor = IsTalkingColor;
-            StaticOutOfRangeColor = OutOfRangeColor;
+            NamePlateHalfWidth = BasisSettingsDefaults.NPWidth.RawValue;
+            NamePlateSize = BasisSettingsDefaults.NPSize.RawValue;
+            NamePlateTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
+
+            StaticNormalColor = new Color(NormalColor.r, NormalColor.g, NormalColor.b, NamePlateTransparency);
+            StaticIsTalkingColor = new Color(IsTalkingColor.r, IsTalkingColor.g, IsTalkingColor.b, NamePlateTransparency);
+            StaticOutOfRangeColor = new Color(OutOfRangeColor.r, OutOfRangeColor.g, OutOfRangeColor.b, NamePlateTransparency);
 
             RoundedCornersMesh = GenerateRoundedQuad();
+        }
+
+        /// <summary>
+        /// Called by SettingsProviderNamePlate when nameplate settings change.
+        /// Re-reads settings and applies width, size, and transparency to all active plates.
+        /// </summary>
+        public void ApplyNamePlateSettingsFromUI()
+        {
+            float newWidth = BasisSettingsDefaults.NPWidth.RawValue;
+            float newSize = BasisSettingsDefaults.NPSize.RawValue;
+            float newTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
+
+            bool meshChanged = !Mathf.Approximately(NamePlateHalfWidth, newWidth);
+
+            NamePlateHalfWidth = newWidth;
+            NamePlateSize = newSize;
+            NamePlateTransparency = newTransparency;
+
+            StaticNormalColor = new Color(NormalColor.r, NormalColor.g, NormalColor.b, newTransparency);
+            StaticIsTalkingColor = new Color(IsTalkingColor.r, IsTalkingColor.g, IsTalkingColor.b, newTransparency);
+            StaticOutOfRangeColor = new Color(OutOfRangeColor.r, OutOfRangeColor.g, OutOfRangeColor.b, newTransparency);
+
+            if (meshChanged)
+            {
+                RoundedCornersMesh = GenerateRoundedQuad();
+            }
+
+            Vector3 scale = Vector3.one * newSize;
+            for (int i = 0; i < plates.Count; i++)
+            {
+                var plate = plates[i];
+                if (plate == null) continue;
+
+                if (meshChanged && plate.bakedMesh != null)
+                {
+                    RebuildPlateMesh(plate);
+                }
+
+                if (plate.Self != null)
+                {
+                    plate.Self.localScale = scale;
+                }
+
+                plate.ApplyColorFromJob(StaticNormalColor);
+            }
+        }
+
+        private void RebuildPlateMesh(BasisRemoteNamePlate namePlate)
+        {
+            CombineInstance[] combine = new CombineInstance[2];
+            combine[0] = new CombineInstance { mesh = RoundedCornersMesh, transform = Matrix4x4.identity };
+            combine[1] = new CombineInstance { mesh = namePlate.bakedMesh, transform = Matrix4x4.identity };
+
+            Mesh combinedMesh = new Mesh { name = "CombinedNameplateMesh" };
+            combinedMesh.CombineMeshes(combine, false);
+
+            namePlate.Filter.sharedMesh = combinedMesh;
         }
 
         // ===========================
@@ -126,7 +192,7 @@ namespace Basis.Scripts.UI.NamePlate
             Vector2[] uv = new Vector2[vertexCount];
             int[] t = new int[triangleCount * 3];
 
-            float halfWidth = 30f;
+            float halfWidth = NamePlateHalfWidth;
             float halfHeight = 4.5f;
             float width = halfWidth * 2f;
             float height = halfHeight * 2f;

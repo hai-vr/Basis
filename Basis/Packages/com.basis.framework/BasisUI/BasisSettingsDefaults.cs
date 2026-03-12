@@ -456,6 +456,11 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> CalibSphereScaleLeftShoulder => new("calibspherescaleleftshoulder", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> CalibSphereScaleRightShoulder => new("calibspherescalerightshoulder", new BasisPlatformDefault<float>(1f));
 
+        // ---------------- REMOTE NAMEPLATE ----------------
+        public static BasisSettingsBinding<float> NPWidth => new("np_width", new BasisPlatformDefault<float>(30f));
+        public static BasisSettingsBinding<float> NPSize => new("np_size", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> NPTransparency => new("np_transparency", new BasisPlatformDefault<float>(0.45f));
+
         // Limiter
         public static BasisSettingsBinding<float> LimitThreshold => new("limitthreshold", new BasisPlatformDefault<float>(0.95f)); // pre-clip
 
@@ -670,6 +675,11 @@ namespace Basis.BasisUI
             CalibSphereScaleRightToes.LoadBindingValue();
             CalibSphereScaleLeftShoulder.LoadBindingValue();
             CalibSphereScaleRightShoulder.LoadBindingValue();
+
+            // Remote Nameplate
+            NPWidth.LoadBindingValue();
+            NPSize.LoadBindingValue();
+            NPTransparency.LoadBindingValue();
 
             // Remote Player Audio
             RAMinDistance.LoadBindingValue();

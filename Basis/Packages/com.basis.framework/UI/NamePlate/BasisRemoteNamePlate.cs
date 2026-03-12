@@ -77,6 +77,7 @@ namespace Basis.Scripts.UI.NamePlate
             BasisRemotePlayer.OnAvatarSwitched += RebuildRenderCheck;
 
             Self = this.transform;
+            Self.localScale = Vector3.one * BasisRemoteNamePlateDriver.NamePlateSize;
             BasisRemoteNamePlateDriver.Instance.GenerateTextFactory(BasisRemotePlayer, this);
             LoadingText.enableVertexGradient = false;
             mpb = new MaterialPropertyBlock();
