@@ -94,19 +94,7 @@ public class BasisContentSphere : BasisInteractableObject
         // Gentle hover/bob animation
         _bobPhase += Time.deltaTime * 1.5f;
         float bobOffset = Mathf.Sin(_bobPhase) * 0.05f;
-        Rigidbody rb = GetComponent<Rigidbody>();
-        if (rb != null && !rb.isKinematic)
-        {
-            if (rb.linearVelocity.sqrMagnitude < 0.01f && Time.timeSinceLevelLoad > 1f)
-            {
-                _restPosition = transform.position;
-                rb.isKinematic = true;
-            }
-        }
-        else
-        {
-            transform.position = _restPosition + Vector3.up * bobOffset;
-        }
+        transform.position = _restPosition + Vector3.up * bobOffset;
 
         // Slow rotation
         transform.Rotate(Vector3.up, 30f * Time.deltaTime, Space.World);

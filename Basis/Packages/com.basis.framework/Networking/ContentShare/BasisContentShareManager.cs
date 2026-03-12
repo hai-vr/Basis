@@ -153,10 +153,8 @@ public static class BasisContentShareManager
 
         // Set up physics
         Rigidbody rb = sphereObj.AddComponent<Rigidbody>();
-        rb.useGravity = true;
-        rb.mass = 0.1f;
-        rb.linearDamping = 2f;
-        rb.angularDamping = 2f;
+        rb.useGravity = false;
+        rb.isKinematic = true;
 
         // Add the content sphere component
         BasisContentSphere sphere = sphereObj.AddComponent<BasisContentSphere>();
@@ -225,7 +223,7 @@ public static class BasisContentShareManager
         }
 
         mat.color = color;
-        mat.SetFloat("_Metallic", 1f);
+        mat.SetFloat("_Metallic", 0f);
         mat.SetFloat("_Smoothness", 1f);
         mat.EnableKeyword("_EMISSION");
         mat.SetColor("_EmissionColor", Color.white * 0.5f);
