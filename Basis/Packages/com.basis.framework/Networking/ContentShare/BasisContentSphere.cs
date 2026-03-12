@@ -1,6 +1,5 @@
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Interactions;
-using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Networking;
 using Basis.Scripts.TransformBinders.BoneControl;
@@ -34,10 +33,13 @@ public class BasisContentSphere : BasisInteractableObject
     private bool _initialized;
     private bool _isInteracting;
     private CancellationTokenSource _metaLoadCts;
-    private TextMeshPro _label;
-
-    public void Initialize(string sphereNetID, string contentURL, string unlockPassword,
-        ContentShareType contentType, ushort creatorPlayerID)
+    public TextMeshPro Label;
+    public Renderer Renderer;
+    public int MaterialIndex;
+    public static float BobPhaseClock = 1.5f;
+    public static float BobPhaseOffset = 0.05f;
+    public static float RotationSpeed = 30f;
+    public void Initialize(string sphereNetID, string contentURL, string unlockPassword, ContentShareType contentType, ushort creatorPlayerID)
     {
         SphereNetID = sphereNetID;
         ContentURL = contentURL;
@@ -50,35 +52,7 @@ public class BasisContentSphere : BasisInteractableObject
 
         _metaLoadCts = new CancellationTokenSource();
         _ = LoadMetadataImageAsync(_metaLoadCts.Token);
-
-        CreateLabel();
-    }
-
-    private void CreateLabel()
-    {
-        GameObject labelObj = new GameObject("Label");
-        labelObj.transform.SetParent(transform, false);
-        // Sphere scale is 0.3, so local offset needs inverse scale to get world-space height
-        labelObj.transform.localPosition = new Vector3(0, 2f, 0);
-        labelObj.transform.localRotation = Quaternion.Euler(0, 180, 0);
-        // Counter the parent sphere scale so text is readable
-        float invScale = 1f / 0.3f;
-        labelObj.transform.localScale = Vector3.one * invScale * 0.1f;
-
-        _label = labelObj.AddComponent<TextMeshPro>();
-        _label.alignment = TextAlignmentOptions.Center;
-        _label.fontSize = 6;
-        _label.enableAutoSizing = true;
-        _label.fontSizeMin = 3;
-        _label.fontSizeMax = 6;
-        _label.color = Color.white;
-        _label.textWrappingMode = TextWrappingModes.Normal;
-        _label.overflowMode = TextOverflowModes.Truncate;
-
-        RectTransform rect = _label.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(10, 3);
-
-        _label.text = GetContentTypeName();
+        Label.text = GetContentTypeName();
     }
 
     private void Start()
@@ -86,18 +60,18 @@ public class BasisContentSphere : BasisInteractableObject
         _restPosition = transform.position;
         _bobPhase = UnityEngine.Random.value * Mathf.PI * 2f;
     }
-
     private void Update()
     {
         if (!_initialized) return;
 
+        var DeltaTime = Time.deltaTime;
         // Gentle hover/bob animation
-        _bobPhase += Time.deltaTime * 1.5f;
-        float bobOffset = Mathf.Sin(_bobPhase) * 0.05f;
+        _bobPhase += DeltaTime * BobPhaseClock;
+        float bobOffset = Mathf.Sin(_bobPhase) * BobPhaseOffset;
         transform.position = _restPosition + Vector3.up * bobOffset;
 
         // Slow rotation
-        transform.Rotate(Vector3.up, 30f * Time.deltaTime, Space.World);
+        transform.Rotate(Vector3.up, RotationSpeed * DeltaTime, Space.World);
     }
 
     private async Task LoadMetadataImageAsync(CancellationToken cancellationToken)
@@ -128,20 +102,16 @@ public class BasisContentSphere : BasisInteractableObject
                 texture.SetPixels(pixels);
                 texture.Apply();
 
-                Renderer renderer = GetComponent<Renderer>();
-                if (renderer != null && renderer.material != null)
+                if (Renderer != null)
                 {
-                    renderer.material.mainTexture = texture;
-                    renderer.material.color = Color.white;
-                    renderer.material.SetTexture("_EmissionMap", texture);
-                    renderer.material.SetColor("_EmissionColor", Color.white * 0.5f);
+                    Renderer.materials[MaterialIndex].mainTexture = texture;
                 }
 
                 // Update label with bundle name if available
                 string bundleName = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription?.AssetBundleName;
-                if (!string.IsNullOrEmpty(bundleName) && _label != null)
+                if (!string.IsNullOrEmpty(bundleName) && Label != null)
                 {
-                    _label.text = $"{GetContentTypeName()}\n{bundleName}";
+                    Label.text = $"{GetContentTypeName()}\n{bundleName}";
                 }
             }
         }
@@ -151,13 +121,13 @@ public class BasisContentSphere : BasisInteractableObject
             BasisDebug.LogError($"Failed to load metadata image for content sphere {SphereNetID}: {e.Message}");
         }
     }
-
-    private void OnDestroy()
+    public override void OnDestroy()
     {
         _metaLoadCts?.Cancel();
         _metaLoadCts?.Dispose();
-    }
+        base.OnDestroy();
 
+    }
     /// <summary>
     /// Constructs a BasisLoadableBundle from this sphere's metadata.
     /// </summary>

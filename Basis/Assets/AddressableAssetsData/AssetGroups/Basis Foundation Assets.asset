@@ -21,6 +21,11 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 02557e153ce417740995e1aa0b218555
+    m_Address: Packages/com.basis.sdk/Prefabs/PropOrb.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 040c70d334425ce409edf84dd387a824
     m_Address: Packages/com.basis.sdk/Prefabs/Panel Elements/PE Image.prefab
     m_ReadOnly: 0
@@ -154,6 +159,16 @@ MonoBehaviour:
     FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: 5dac596566264434bb51fc9fb566b888
     m_Address: Assets/UI/Prefabs/NamePlate.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 686ea57ae89c1284e99d97afd5b30195
+    m_Address: Packages/com.basis.sdk/Prefabs/AvatarOrb.prefab
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 6d6028608171cc34aa0cd1ee986fd9d8
+    m_Address: Packages/com.basis.sdk/Prefabs/WorldOrb.prefab
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0

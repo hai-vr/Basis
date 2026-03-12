@@ -1,11 +1,17 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.LightTransport;
+using UnityEngine.UIElements;
 using static SerializableBasis;
+using static UnityEditor.FilePathAttribute;
 
 /// <summary>
 /// Client-side manager for content share spheres.
@@ -129,7 +135,9 @@ public static class BasisContentShareManager
 
         RemoveSphere(serverMsg.contentShareCleanupMessage.SphereNetID);
     }
-
+    public static string AvatarOrb = "Packages/com.basis.sdk/Prefabs/AvatarOrb.prefab";
+    public static string PropOrb = "Packages/com.basis.sdk/Prefabs/PropOrb.prefab";
+    public static string WorldOrb = "Packages/com.basis.sdk/Prefabs/WorldOrb.prefab";
     /// <summary>
     /// Creates a content sphere GameObject in the world.
     /// </summary>
@@ -144,35 +152,41 @@ public static class BasisContentShareManager
         }
 
         Vector3 position = new Vector3(msg.PositionX, msg.PositionY, msg.PositionZ);
-
-        // Create the sphere primitive
-        GameObject sphereObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        sphereObj.name = $"ContentSphere_{msg.SphereNetID}";
-        sphereObj.transform.position = position;
-        sphereObj.transform.localScale = Vector3.one * 0.3f;
-
-        // Set up physics
-        Rigidbody rb = sphereObj.AddComponent<Rigidbody>();
-        rb.useGravity = false;
-        rb.isKinematic = true;
-
-        // Add the content sphere component
-        BasisContentSphere sphere = sphereObj.AddComponent<BasisContentSphere>();
-        sphere.Initialize(
-            msg.SphereNetID,
-            msg.ContentURL,
-            msg.UnlockPassword,
-            msg.ContentType,
-            serverMsg.playerIdMessage.playerID
-        );
-
-        // Apply visual based on content type
-        ApplySphereVisual(sphereObj, msg.ContentType);
-
-        if (ActiveSpheres.TryAdd(msg.SphereNetID, sphere))
+        var op = new UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject>();
+        switch (serverMsg.contentShareMessage.ContentType)
         {
-            BasisDebug.Log($"Content sphere created: {msg.SphereNetID} type={msg.ContentType}", BasisDebug.LogTag.Networking);
-            OnSphereCreated?.Invoke(sphere);
+            case ContentShareType.Avatar:
+                op = Addressables.LoadAssetAsync<GameObject>(AvatarOrb);
+                break;
+            case ContentShareType.Prop:
+                op = Addressables.LoadAssetAsync<GameObject>(PropOrb);
+                break;
+            case ContentShareType.World:
+                op = Addressables.LoadAssetAsync<GameObject>(WorldOrb);
+                break;
+        }
+        var Orb = op.WaitForCompletion();
+        var InSceneOrb = GameObject.Instantiate(Orb);
+        InSceneOrb.transform.position = position;
+        InSceneOrb.transform.parent = BasisDeviceManagement.Instance.transform;
+        // Add the content sphere component
+        if (InSceneOrb.TryGetComponent<BasisContentSphere>(out BasisContentSphere Sphere))
+        {
+            Sphere.Initialize(
+                msg.SphereNetID,
+                msg.ContentURL,
+                msg.UnlockPassword,
+                msg.ContentType,
+                serverMsg.playerIdMessage.playerID
+            );
+            // Apply visual based on content type
+            ApplySphereVisual(InSceneOrb, msg.ContentType);
+
+            if (ActiveSpheres.TryAdd(msg.SphereNetID, Sphere))
+            {
+                BasisDebug.Log($"Content sphere created: {msg.SphereNetID} type={msg.ContentType}", BasisDebug.LogTag.Networking);
+                OnSphereCreated?.Invoke(Sphere);
+            }
         }
     }
 
