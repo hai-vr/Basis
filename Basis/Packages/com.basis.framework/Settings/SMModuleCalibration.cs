@@ -2,6 +2,8 @@ using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.TransformBinders.BoneControl;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class SMModuleCalibration : BasisSettingsBase
@@ -12,6 +14,21 @@ public class SMModuleCalibration : BasisSettingsBase
     public static float SelectedScale = 1.6f;
     public static float SelectedEyeHeight = 1.61f;
     public static bool PitchCalibrationEnabled = false;
+
+    /// <summary>
+    /// Per-sphere calibration scale multipliers. Default is 1.0 for each role.
+    /// </summary>
+    public static readonly Dictionary<BasisBoneTrackedRole, float> SphereScaleMultipliers = new Dictionary<BasisBoneTrackedRole, float>();
+
+    /// <summary>
+    /// Returns the user-configured sphere scale multiplier for a given role (defaults to 1.0).
+    /// </summary>
+    public static float GetSphereScale(BasisBoneTrackedRole role)
+    {
+        if (SphereScaleMultipliers.TryGetValue(role, out float scale))
+            return scale;
+        return 1f;
+    }
 
     // Cache last applied state so we only apply when it actually changes.
     private static bool _hasApplied;
@@ -127,6 +144,43 @@ public class SMModuleCalibration : BasisSettingsBase
     private static string K_RS_SMOOTH_ROT => BasisSettingsDefaults.FBIKRightShoulderSmoothRot.BindingKey;
     private static string K_RS_EURO_POS => BasisSettingsDefaults.FBIKRightShoulderEuroPos.BindingKey;
     private static string K_RS_EURO_ROT => BasisSettingsDefaults.FBIKRightShoulderEuroRot.BindingKey;
+
+    // Calibration sphere scale keys
+    private static string K_CALIB_HIPS => BasisSettingsDefaults.CalibSphereScaleHips.BindingKey;
+    private static string K_CALIB_CHEST => BasisSettingsDefaults.CalibSphereScaleChest.BindingKey;
+    private static string K_CALIB_LF => BasisSettingsDefaults.CalibSphereScaleLeftFoot.BindingKey;
+    private static string K_CALIB_RF => BasisSettingsDefaults.CalibSphereScaleRightFoot.BindingKey;
+    private static string K_CALIB_LLL => BasisSettingsDefaults.CalibSphereScaleLeftLowerLeg.BindingKey;
+    private static string K_CALIB_RLL => BasisSettingsDefaults.CalibSphereScaleRightLowerLeg.BindingKey;
+    private static string K_CALIB_LLA => BasisSettingsDefaults.CalibSphereScaleLeftLowerArm.BindingKey;
+    private static string K_CALIB_RLA => BasisSettingsDefaults.CalibSphereScaleRightLowerArm.BindingKey;
+    private static string K_CALIB_LH => BasisSettingsDefaults.CalibSphereScaleLeftHand.BindingKey;
+    private static string K_CALIB_RH => BasisSettingsDefaults.CalibSphereScaleRightHand.BindingKey;
+    private static string K_CALIB_LT => BasisSettingsDefaults.CalibSphereScaleLeftToes.BindingKey;
+    private static string K_CALIB_RT => BasisSettingsDefaults.CalibSphereScaleRightToes.BindingKey;
+    private static string K_CALIB_LS => BasisSettingsDefaults.CalibSphereScaleLeftShoulder.BindingKey;
+    private static string K_CALIB_RS => BasisSettingsDefaults.CalibSphereScaleRightShoulder.BindingKey;
+
+    private static readonly Dictionary<string, BasisBoneTrackedRole> _calibKeyToRole = new Dictionary<string, BasisBoneTrackedRole>();
+
+    private static void EnsureCalibKeyMap()
+    {
+        if (_calibKeyToRole.Count > 0) return;
+        _calibKeyToRole[K_CALIB_HIPS] = BasisBoneTrackedRole.Hips;
+        _calibKeyToRole[K_CALIB_CHEST] = BasisBoneTrackedRole.Chest;
+        _calibKeyToRole[K_CALIB_LF] = BasisBoneTrackedRole.LeftFoot;
+        _calibKeyToRole[K_CALIB_RF] = BasisBoneTrackedRole.RightFoot;
+        _calibKeyToRole[K_CALIB_LLL] = BasisBoneTrackedRole.LeftLowerLeg;
+        _calibKeyToRole[K_CALIB_RLL] = BasisBoneTrackedRole.RightLowerLeg;
+        _calibKeyToRole[K_CALIB_LLA] = BasisBoneTrackedRole.LeftLowerArm;
+        _calibKeyToRole[K_CALIB_RLA] = BasisBoneTrackedRole.RightLowerArm;
+        _calibKeyToRole[K_CALIB_LH] = BasisBoneTrackedRole.LeftHand;
+        _calibKeyToRole[K_CALIB_RH] = BasisBoneTrackedRole.RightHand;
+        _calibKeyToRole[K_CALIB_LT] = BasisBoneTrackedRole.LeftToes;
+        _calibKeyToRole[K_CALIB_RT] = BasisBoneTrackedRole.RightToes;
+        _calibKeyToRole[K_CALIB_LS] = BasisBoneTrackedRole.LeftShoulder;
+        _calibKeyToRole[K_CALIB_RS] = BasisBoneTrackedRole.RightShoulder;
+    }
 
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
@@ -513,6 +567,17 @@ public class SMModuleCalibration : BasisSettingsBase
                 if (bool.TryParse(optionValue, out var brs3)) BasisLocalRigDriver.EuroRot[BasisLocalRigDriver.S_RightShoulder] = brs3;
                 break;
 
+            // ---------- CALIBRATION SPHERE SCALE ----------
+            default:
+                EnsureCalibKeyMap();
+                if (_calibKeyToRole.TryGetValue(matchedSettingName, out var calibRole))
+                {
+                    if (SliderReadOption(optionValue, out var calibScale))
+                    {
+                        SphereScaleMultipliers[calibRole] = Mathf.Clamp(calibScale, 0.1f, 5f);
+                    }
+                }
+                break;
         }
         BasisLocalPlayer.Instance.LocalRigDriver.UpdateEuroSettings();
     }

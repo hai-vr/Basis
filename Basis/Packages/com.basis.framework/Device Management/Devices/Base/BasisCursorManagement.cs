@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using System;
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.UI;
 
 public static class BasisCursorManagement
 {
@@ -9,6 +10,36 @@ public static class BasisCursorManagement
     private static List<string> cursorUnlockRequests = new List<string>();
     // Event that gets triggered whenever the cursor state changes
     public static event Action<CursorLockMode, bool> OnCursorStateChange;
+
+    /// <summary>
+    /// The current logical cursor type based on what UI element is being hovered.
+    /// </summary>
+    public static BasisCursorType CurrentCursorType { get; private set; } = BasisCursorType.Default;
+
+    /// <summary>
+    /// Optional custom texture when CurrentCursorType is Custom.
+    /// </summary>
+    public static Texture2D CurrentCustomTexture { get; private set; }
+
+    /// <summary>
+    /// Fired when the cursor type changes. Parameters: (newType, customTexture).
+    /// </summary>
+    public static event Action<BasisCursorType, Texture2D> OnCursorTypeChanged;
+
+    /// <summary>
+    /// Sets the active cursor type. Called by the raycast system when hovering UI elements.
+    /// </summary>
+    public static void SetCursorType(BasisCursorType type, Texture2D customTexture = null)
+    {
+        if (CurrentCursorType == type && CurrentCustomTexture == customTexture)
+        {
+            return;
+        }
+        CurrentCursorType = type;
+        CurrentCustomTexture = customTexture;
+        OnCursorTypeChanged?.Invoke(type, customTexture);
+    }
+
     public static CursorLockMode ActiveLockState()
     {
         return Cursor.lockState;
@@ -114,5 +145,6 @@ public static class BasisCursorManagement
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
         OnCursorStateChange?.Invoke(CursorLockMode.None, true);
+        SetCursorType(BasisCursorType.Default);
     }
 }

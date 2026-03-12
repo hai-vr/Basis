@@ -123,8 +123,8 @@ namespace Basis.Scripts.Avatar
                 BasisBoneTrackedRole role = trackInputRoles[Index];
                 if (BasisLocalPlayer.Instance.LocalBoneDriver.FindBone(out BasisLocalBoneControl control, role))
                 {
-                    //0.3f * 1 
-                    float ScaledDistance = MaxDistanceBeforeTrackerIsIrrelivant(role) * BasisHeightDriver.ScaledToMatchValue;
+                    //0.3f * 1 * per-sphere user scale
+                    float ScaledDistance = MaxDistanceBeforeTrackerIsIrrelivant(role) * SMModuleCalibration.GetSphereScale(role) * BasisHeightDriver.ScaledToMatchValue;
                     if (StoredRolesTransforms.TryGetValue(role, out Transform Transform))
                     {
                         //  BasisLocalPlayer.Instance.LocalBoneDriver.AddGizmo($"{control.name} IK Calibration with Scaler Distance {ScaledDistance}", Transform, ScaledDistance, control.Color, role);

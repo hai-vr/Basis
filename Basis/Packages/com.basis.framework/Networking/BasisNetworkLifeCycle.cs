@@ -3,6 +3,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
+using Basis.Scripts.UI;
 using Basis.Network.Core;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,18 +38,18 @@ public static class BasisNetworkLifeCycle
         Management.transform.SetParent(BasisDeviceManagement.Instance.transform, false);
 
         Management.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+        BasisJoinLeaveNotification.Create();
         BasisNetworkManagement.OnEnableInstanceCreate?.Invoke();
         BasisNetworkManagement.NetworkRunning = true;
     }
-    public static bool GoingThroughReboot = false;
+    private static int _rebootGuard = 0;
     /// <summary>
     /// allows us to reset before continuing on the operation.
     /// </summary>
     public static async Task RebootManagement(BasisNetworkManagement Management, bool DisplayReason, NetPeer peer, DisconnectInfo disconnectInfo)
     {
-        if (GoingThroughReboot == false)
+        if (System.Threading.Interlocked.CompareExchange(ref _rebootGuard, 1, 0) == 0)
         {
-            GoingThroughReboot = true;
             BasisDebug.Log($"Rebooting Network Connection", BasisDebug.LogTag.Networking);
             if (BasisNetworkConnection.LocalPlayerPeer != null && BasisNetworkPlayers.Players.TryGetValue((ushort)BasisNetworkConnection.LocalPlayerPeer.RemoteId, out var networkedPlayer))
             {
@@ -67,6 +68,7 @@ public static class BasisNetworkLifeCycle
 
             BasisNetworkPlayers.ClearAllRegistries();//remove players
             await BasisNetworkSpawnItem.Reset();//remove items
+            BasisContentShareManager.Reset();//remove content spheres
             BasisNetworkIdResolver.KnownIdMap.Clear();
             BasisNetworkIdResolver.PendingResolutions.Clear();
             BasisNetworkManagement.Transmitter = null;
@@ -80,7 +82,7 @@ public static class BasisNetworkLifeCycle
                 BasisDebug.Log($"Client disconnected from server [{peer?.RemoteId}] [{disconnectInfo.Reason}]");
                 BasisNetworkEvents.HandleDisconnectionReason(disconnectInfo);
             }
-            GoingThroughReboot = false;
+            System.Threading.Interlocked.Exchange(ref _rebootGuard, 0);
         }
     }
     /// <summary>
@@ -107,6 +109,7 @@ public static class BasisNetworkLifeCycle
         }
         BasisNetworkPlayers.ClearAllRegistries();//remove players
         await BasisNetworkSpawnItem.Reset();//remove items
+        BasisContentShareManager.Reset();//remove content spheres
         BasisNetworkIdResolver.KnownIdMap.Clear();
         BasisNetworkIdResolver.PendingResolutions.Clear();
         BasisAudioRemoteSource.DeInitalize();//release memory for audio gameobject
@@ -126,6 +129,7 @@ public static class BasisNetworkLifeCycle
         BasisNetworkManagement.NetworkRunning = false;
         // let the MonoBehaviour reset its Instance in OnDestroy; no direct assignment here
         BasisDebug.Log("BasisNetworkManagement has been successfully shutdown.", BasisDebug.LogTag.Networking);
+        BasisJoinLeaveNotification.Shutdown();
         BasisNetworkConnection.NetworkClient?.Disconnect();
     }
 }

@@ -67,6 +67,7 @@ namespace BasisServerHandle
                 BasisNetworkOwnership.RemovePlayerOwnership(id);
                 BasisSavedState.RemovePlayer(id);
                 BasisServerReductionSystemEvents.RemovePlayer(id);
+                BasisNetworkContentShare.RemovePlayerSpheres(id);
 
                 if (NetworkServer.AuthenticatedPeers.TryRemove(id, out _))
                 {
@@ -82,6 +83,7 @@ namespace BasisServerHandle
                 {
                     BasisNetworkIDDatabase.Reset();
                     BasisNetworkResourceManagement.Reset();
+                    BasisNetworkContentShare.Reset();
                 }
 
                 NetDataWriter writer = NetworkServer.RentWriter();
@@ -248,6 +250,7 @@ namespace BasisServerHandle
 
                 BasisNetworkResourceManagement.SendOutAllResources(newPeer);
                 BasisNetworkOwnership.SendOutOwnershipInformation(newPeer);
+                BasisNetworkContentShare.SendAllSpheresToPeer(newPeer);
             }
             else
             {
@@ -300,7 +303,7 @@ namespace BasisServerHandle
                 audioSegmentData = audioSegment,
             };
 
-            SendVoiceMessageToClients(serverAudio, BasisNetworkCommons.VoiceChannel, peer, DeliveryMethod.Sequenced);
+            SendVoiceMessageToClients(serverAudio, BasisNetworkCommons.VoiceChannel, peer, DeliveryMethod.Unreliable);
 
             ThreadSafeMessagePool<AudioSegmentDataMessage>.Return(audioSegment);
         }
@@ -391,7 +394,7 @@ namespace BasisServerHandle
                     playerID = (ushort)authClient.Id
                 }
             };
-            BasisServerReductionSystemEvents.AddMessage(authClient, readyMessage.localAvatarSyncMessage);
+            BasisServerReductionSystemEvents.AddMessage(authClient, readyMessage.localAvatarSyncMessage, 0);
             BasisSavedState.AddLastData(authClient, readyMessage);
             return serverReadyMessage;
         }
@@ -555,7 +558,7 @@ namespace BasisServerHandle
         #endregion
         public static void HandleStoreDatabase(NetPacketReader reader, NetPeer peer)
         {
-            if (NetworkServer.Configuration.DisableReadUnlessAdminPersistentFlag)
+            if (NetworkServer.Configuration.DisableWriteUnlessAdminPersistentFlag)
             {
                 if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid) == false)
                 {
@@ -579,7 +582,7 @@ namespace BasisServerHandle
 
         public static void HandleRequestStoreDatabase(NetPacketReader reader, NetPeer peer)
         {
-            if(NetworkServer.Configuration.DisableWriteUnlessAdminPersistentFlag)
+            if(NetworkServer.Configuration.DisableReadUnlessAdminPersistentFlag)
             {
                 if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid) == false)
                 {

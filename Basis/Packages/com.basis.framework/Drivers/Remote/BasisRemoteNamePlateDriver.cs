@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using System.Collections.Generic;
@@ -37,6 +38,13 @@ namespace Basis.Scripts.UI.NamePlate
         public int CornerVertexCount = 8;
         public float zOffset = 0.06f;
 
+        public static bool NamePlateEnabled = true;
+        public static bool NamePlateMenuOnly = false;
+        public static float NamePlateHalfWidth = 30f;
+        public static float NamePlateSize = 1f;
+        public static float NamePlateTransparency = 0.45f;
+        private static bool lastMenuOpenState;
+
         public void Awake()
         {
             Instance = this;
@@ -45,11 +53,107 @@ namespace Basis.Scripts.UI.NamePlate
                 ? OpaqueNamePlateMaterial
                 : TransParentNamePlateMaterial;
 
-            StaticNormalColor = NormalColor;
-            StaticIsTalkingColor = IsTalkingColor;
-            StaticOutOfRangeColor = OutOfRangeColor;
+            NamePlateEnabled = BasisSettingsDefaults.NPEnabled.RawValue;
+            NamePlateMenuOnly = BasisSettingsDefaults.NPMenuOnly.RawValue;
+            NamePlateHalfWidth = BasisSettingsDefaults.NPWidth.RawValue;
+            NamePlateSize = BasisSettingsDefaults.NPSize.RawValue;
+            NamePlateTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
+            lastMenuOpenState = BasisMainMenu.Instance != null;
+
+            StaticNormalColor = new Color(NormalColor.r, NormalColor.g, NormalColor.b, NamePlateTransparency);
+            StaticIsTalkingColor = new Color(IsTalkingColor.r, IsTalkingColor.g, IsTalkingColor.b, NamePlateTransparency);
+            StaticOutOfRangeColor = new Color(OutOfRangeColor.r, OutOfRangeColor.g, OutOfRangeColor.b, NamePlateTransparency);
 
             RoundedCornersMesh = GenerateRoundedQuad();
+        }
+
+        /// <summary>
+        /// Returns whether a given plate should currently be active, considering
+        /// the enabled toggle, menu-only mode, and per-plate face visibility.
+        /// </summary>
+        public static bool ShouldPlateBeActive(BasisRemoteNamePlate plate)
+        {
+            if (!NamePlateEnabled) return false;
+            if (!plate.IsVisible) return false;
+            if (NamePlateMenuOnly && BasisMainMenu.Instance == null) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Updates gameObject.SetActive on all plates based on current visibility state.
+        /// Call only on state transitions, not every frame.
+        /// </summary>
+        private static void SetAllPlateVisibility()
+        {
+            for (int i = 0; i < plates.Count; i++)
+            {
+                var plate = plates[i];
+                if (plate != null)
+                    plate.gameObject.SetActive(ShouldPlateBeActive(plate));
+            }
+        }
+
+        /// <summary>
+        /// Called by SettingsProviderNamePlate when nameplate settings change.
+        /// Re-reads settings and applies width, size, and transparency to all active plates.
+        /// </summary>
+        public void ApplyNamePlateSettingsFromUI()
+        {
+            bool enabled = BasisSettingsDefaults.NPEnabled.RawValue;
+            bool menuOnly = BasisSettingsDefaults.NPMenuOnly.RawValue;
+            float newWidth = BasisSettingsDefaults.NPWidth.RawValue;
+            float newSize = BasisSettingsDefaults.NPSize.RawValue;
+            float newTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
+
+            bool meshChanged = !Mathf.Approximately(NamePlateHalfWidth, newWidth);
+
+            NamePlateEnabled = enabled;
+            NamePlateMenuOnly = menuOnly;
+            NamePlateHalfWidth = newWidth;
+            NamePlateSize = newSize;
+            NamePlateTransparency = newTransparency;
+
+            StaticNormalColor = new Color(NormalColor.r, NormalColor.g, NormalColor.b, newTransparency);
+            StaticIsTalkingColor = new Color(IsTalkingColor.r, IsTalkingColor.g, IsTalkingColor.b, newTransparency);
+            StaticOutOfRangeColor = new Color(OutOfRangeColor.r, OutOfRangeColor.g, OutOfRangeColor.b, newTransparency);
+
+            if (meshChanged)
+            {
+                RoundedCornersMesh = GenerateRoundedQuad();
+            }
+
+            Vector3 scale = new Vector3(0.02f, 0.02f, 0.02f) * newSize;
+            for (int i = 0; i < plates.Count; i++)
+            {
+                var plate = plates[i];
+                if (plate == null) continue;
+
+                if (meshChanged && plate.bakedMesh != null)
+                {
+                    RebuildPlateMesh(plate);
+                }
+
+                if (plate.Self != null)
+                {
+                    plate.Self.localScale = scale;
+                }
+
+                plate.ApplyColorFromJob(StaticNormalColor);
+            }
+
+            SetAllPlateVisibility();
+        }
+
+        private void RebuildPlateMesh(BasisRemoteNamePlate namePlate)
+        {
+            CombineInstance[] combine = new CombineInstance[2];
+            combine[0] = new CombineInstance { mesh = RoundedCornersMesh, transform = Matrix4x4.identity };
+            combine[1] = new CombineInstance { mesh = namePlate.bakedMesh, transform = Matrix4x4.identity };
+
+            Mesh combinedMesh = new Mesh { name = "CombinedNameplateMesh" };
+            combinedMesh.CombineMeshes(combine, false);
+
+            namePlate.Filter.sharedMesh = combinedMesh;
         }
 
         // ===========================
@@ -126,7 +230,7 @@ namespace Basis.Scripts.UI.NamePlate
             Vector2[] uv = new Vector2[vertexCount];
             int[] t = new int[triangleCount * 3];
 
-            float halfWidth = 30f;
+            float halfWidth = NamePlateHalfWidth;
             float halfHeight = 4.5f;
             float width = halfWidth * 2f;
             float height = halfHeight * 2f;
@@ -368,7 +472,17 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         public static void ScheduleSimulate(double now)
         {
+            if (!ShouldRunJobs())
+                return;
+
             ScheduleSimulate(now, returnDelay, transitionDuration, StaticNormalColor);
+        }
+
+        private static bool ShouldRunJobs()
+        {
+            if (!NamePlateEnabled) return false;
+            if (NamePlateMenuOnly && BasisMainMenu.Instance == null) return false;
+            return true;
         }
 
         public static void ScheduleSimulate(double now, float hold, float fade, Color normalUnityColor)
@@ -439,6 +553,17 @@ namespace Basis.Scripts.UI.NamePlate
         /// </summary>
         public static void CompleteNamePlates()
         {
+            // Detect menu open/close transitions for menu-only mode
+            if (NamePlateMenuOnly && NamePlateEnabled)
+            {
+                bool menuOpen = BasisMainMenu.Instance != null;
+                if (menuOpen != lastMenuOpenState)
+                {
+                    lastMenuOpenState = menuOpen;
+                    SetAllPlateVisibility();
+                }
+            }
+
             if (!jobScheduled || count == 0)
                 return;
 

@@ -629,7 +629,6 @@ public partial class BasisProjectSetup : EditorWindow
         ""GUID:75469ad4d38634e559750d17036d5f7c"",
         ""GUID:2684ea0d564097444a05d23355ff46a1""
     ],
-    ""inc
   ""includePlatforms"": [],
   ""excludePlatforms"": [],
   ""allowUnsafeCode"": false,
@@ -649,7 +648,6 @@ public partial class BasisProjectSetup : EditorWindow
         ""GUID:75469ad4d38634e559750d17036d5f7c"",
         ""GUID:2684ea0d564097444a05d23355ff46a1""
     ],
-    ""inc
   ""includePlatforms"": [ ""Editor"" ],
   ""excludePlatforms"": [],
   ""allowUnsafeCode"": false,

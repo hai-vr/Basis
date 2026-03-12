@@ -10,6 +10,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
     public class BasisAvatarBuffer : IDisposable
     {
         public const int MuscleCount = 95;
+        public byte Sequence;
         public double ServerTimeSeconds;
         public quaternion Rotation = quaternion.identity;
         public float3 Scale = new float3(1f, 1f, 1f);
@@ -47,6 +48,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             EnsureAllocated();
 
+            Sequence = 0;
             Rotation = quaternion.identity;
             Scale = new float3(1f, 1f, 1f);
             Position = new float3(0f, 0f, 0f);

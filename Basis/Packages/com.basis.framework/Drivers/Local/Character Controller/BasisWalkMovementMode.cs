@@ -40,11 +40,13 @@ namespace Basis.Scripts.BasisCharacterController
             Vector3 move = facing * inputDir * ctx.CurrentSpeed * dt;
 
             // Ground & gravity
-            ctx.GroundCheck();
+            ctx.GroundCheck(dt);
 
-            if (ctx.groundedPlayer && ctx.HasJumpAction && !ctx.MovementLock)
+
+            if (ctx.CanJump && ctx.HasJumpAction && !ctx.MovementLock)
             {
                 ctx.currentVerticalSpeed = Mathf.Sqrt(ctx.jumpHeight * -2f * ctx.gravityValue);
+                ctx.coyoteTimeCounter = 0f; // Consume coyote time to prevent double jumps
                 ctx.JustJumped?.Invoke();
             }
             else
@@ -59,7 +61,8 @@ namespace Basis.Scripts.BasisCharacterController
 
             if (ctx.MovementLock)
             {
-                move = Vector3.zero;
+                move.x = 0;
+                move.z = 0;
             }
 
             ctx.Flags = ctx.characterController.Move(move);

@@ -94,13 +94,13 @@ namespace Basis.Network.Core
         /// </summary>
         public const byte AdminChannel = 18;
         /// <summary>
-        /// Avatar Request Channel
+        /// Content Share Channel - used to drop content spheres
         /// </summary>
-        public const byte AvatarCloneRequestChannel = 19;
+        public const byte ContentShareChannel = 19;
         /// <summary>
-        /// Avatar Response Channel
+        /// Content Share Cleanup Channel - used to remove content spheres
         /// </summary>
-        public const byte AvatarCloneResponseChannel = 20;
+        public const byte ContentShareCleanupChannel = 20;
         /// <summary>
         /// requires implementation from a developer,
         /// ground work for hooking in code that only gets delivered to the server

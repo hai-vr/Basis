@@ -100,11 +100,14 @@ public static class BasisNetworkMessageProcessor
                     BasisPlayerModeration.OnAdminMessage(peer, reader); // recycles inside
                     break;
 
-                case BasisNetworkCommons.AvatarCloneRequestChannel:
-                case BasisNetworkCommons.AvatarCloneResponseChannel:
-                    // Placeholder for AvatarCloneMessage handlers
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AvatarCloneResponseChannel, reader.AvailableBytes);
-                    reader.Recycle(); // recycles here
+                case BasisNetworkCommons.ContentShareChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ContentShareChannel, reader.AvailableBytes);
+                    BasisNetworkContentShare.HandleContentShareDrop(reader, peer); // recycles inside
+                    break;
+
+                case BasisNetworkCommons.ContentShareCleanupChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ContentShareCleanupChannel, reader.AvailableBytes);
+                    BasisNetworkContentShare.HandleContentShareCleanup(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.ServerBoundChannel:
@@ -193,9 +196,8 @@ public static class BasisNetworkMessageProcessor
             else
             {
                 BNL.LogError($"FallChannel redirection failed, no data remains: {reader.AvailableBytes}");
+                reader.Recycle();
             }
-
-            reader.Recycle();
             return true;
         }
 

@@ -337,6 +337,7 @@ namespace LiteNetLib
             if (deliveryMethod == DeliveryMethod.Unreliable)
             {
                 packet.Property = PacketProperty.Unreliable;
+                packet.RawData[1] = channelNumber;
                 return new PooledPacket(packet, mtu, 0);
             }
             else
@@ -722,6 +723,7 @@ namespace LiteNetLib
 
             if (channel == null) //unreliable
             {
+                packet.RawData[1] = channelNumber;
                 EnqueueUnreliable(packet);
             }
             else
@@ -851,6 +853,7 @@ namespace LiteNetLib
 
             if (channel == null) //unreliable
             {
+                packet.RawData[1] = channelNumber;
                 EnqueueUnreliable(packet);
             }
             else
@@ -1279,7 +1282,7 @@ namespace LiteNetLib
 
                 //Simple packet without acks
                 case PacketProperty.Unreliable:
-                    NetManager.CreateReceiveEvent(packet, DeliveryMethod.Unreliable, 0, NetConstants.HeaderSize, this);
+                    NetManager.CreateReceiveEvent(packet, DeliveryMethod.Unreliable, packet.RawData[1], NetConstants.UnreliableHeaderSize, this);
                     return;
 
                 case PacketProperty.MtuCheck:

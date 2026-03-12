@@ -19,7 +19,7 @@ namespace Basis.BasisUI
             BasisMenuBase<BasisMainMenu>.AddProvider(new CalibrationProvider());
         }
 
-        public override string Title => "Calibrate";
+        public override string Title => "Avatar Setup";
         public override string IconAddress => AddressableAssets.Sprites.Calibrate;
         public override int Order => 50;
 
@@ -85,11 +85,11 @@ namespace Basis.BasisUI
 
             var MinusButton = PanelButton.CreateNew(Description.ContentParent);
             MinusButton.OnClicked += DecreasePlayerSize;
-            MinusButton.Descriptor.SetTitle("Remove 0.01f Height");
+            MinusButton.Descriptor.SetTitle("Decrease Height");
 
             var PlusButton = PanelButton.CreateNew(Description.ContentParent);
             PlusButton.OnClicked += IncreasePlayerSize;
-            PlusButton.Descriptor.SetTitle("Add 0.01f Height");
+            PlusButton.Descriptor.SetTitle("Increase Height");
 
             // Pitch calibration toggle
             _pitchToggleButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);

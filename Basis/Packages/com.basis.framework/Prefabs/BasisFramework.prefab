@@ -1090,5 +1090,5 @@ MonoBehaviour:
   fixedDeltaTime: 0
   unscaledDeltaTime: 0
   realtimeSinceStartupAsDouble: 0
-  proceduralMaterial: {fileID: 2100000, guid: 4fe20975baa16b1d4986440508067f23, type: 2}
+  proceduralMaterial: {fileID: 2100000, guid: ce26966915c63cb4fbadbc98e10e00af, type: 2}
   sphereMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}

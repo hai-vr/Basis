@@ -149,6 +149,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> MicrophoneMode => new("microphonemode", new BasisPlatformDefault<string>("onactivation"));
 
+        public static BasisSettingsBinding<string> MicStartBehavior => new("micstartbehavior", new BasisPlatformDefault<string>(BasisLocalMicrophoneDriver.SettingStartOff));
+
         public static BasisSettingsBinding<bool> UseAutomaticGain => new("automaticgainenabled", new BasisPlatformDefault<bool>
         {
             windows = true,
@@ -377,7 +379,7 @@ namespace Basis.BasisUI
 
         // ---------------- REMOTE PLAYER AUDIO ----------------
         // AudioSource
-        public static BasisSettingsBinding<float> RAMinDistance => new("ra_mindistance", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> RAMinDistance => new("ra_mindistance", new BasisPlatformDefault<float>(0.5f));
         public static BasisSettingsBinding<float> RASpread => new("ra_spread", new BasisPlatformDefault<float>(70f));
         public static BasisSettingsBinding<float> RADopplerLevel => new("ra_dopplerlevel", new BasisPlatformDefault<float>(0f));
         public static BasisSettingsBinding<float> RASpatialBlend => new("ra_spatialblend", new BasisPlatformDefault<float>(1f));
@@ -438,6 +440,29 @@ namespace Basis.BasisUI
 
         public static readonly BasisSettingsBinding<bool> FBIKEuroAll = new("euroall");
 
+        // ---------------- CALIBRATION SPHERE SCALE (per bone) ----------------
+        public static BasisSettingsBinding<float> CalibSphereScaleHips => new("calibspherescalehips", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleChest => new("calibspherescalechest", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftFoot => new("calibspherescaleleftfoot", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightFoot => new("calibspherescalerightfoot", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftLowerLeg => new("calibspherescaleleftlowerleg", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightLowerLeg => new("calibspherescalerightlowerleg", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftLowerArm => new("calibspherescaleleftlowerarm", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightLowerArm => new("calibspherescalerightlowerarm", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftHand => new("calibspherescalelefthand", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightHand => new("calibspherescalerighthand", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftToes => new("calibspherescalelefttoes", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightToes => new("calibspherescalerighttoes", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleLeftShoulder => new("calibspherescaleleftshoulder", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> CalibSphereScaleRightShoulder => new("calibspherescalerightshoulder", new BasisPlatformDefault<float>(1f));
+
+        // ---------------- REMOTE NAMEPLATE ----------------
+        public static BasisSettingsBinding<bool> NPEnabled => new("np_enabled", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> NPMenuOnly => new("np_menuonly", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> NPWidth => new("np_width", new BasisPlatformDefault<float>(30f));
+        public static BasisSettingsBinding<float> NPSize => new("np_size", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> NPTransparency => new("np_transparency", new BasisPlatformDefault<float>(0.45f));
+
         // Limiter
         public static BasisSettingsBinding<float> LimitThreshold => new("limitthreshold", new BasisPlatformDefault<float>(0.95f)); // pre-clip
 
@@ -472,6 +497,7 @@ namespace Basis.BasisUI
             HearingRange.LoadBindingValue();
             MicrophoneDenoiser.LoadBindingValue();
             MicrophoneMode.LoadBindingValue();
+            MicStartBehavior.LoadBindingValue();
             UseAutomaticGain.LoadBindingValue();
             DenoiseMakeupDb.LoadBindingValue();
             DenoiseWet.LoadBindingValue();
@@ -635,6 +661,29 @@ namespace Basis.BasisUI
 
             // Global toggle
             FBIKEuroAll.LoadBindingValue();
+
+            // Calibration sphere scale (per bone)
+            CalibSphereScaleHips.LoadBindingValue();
+            CalibSphereScaleChest.LoadBindingValue();
+            CalibSphereScaleLeftFoot.LoadBindingValue();
+            CalibSphereScaleRightFoot.LoadBindingValue();
+            CalibSphereScaleLeftLowerLeg.LoadBindingValue();
+            CalibSphereScaleRightLowerLeg.LoadBindingValue();
+            CalibSphereScaleLeftLowerArm.LoadBindingValue();
+            CalibSphereScaleRightLowerArm.LoadBindingValue();
+            CalibSphereScaleLeftHand.LoadBindingValue();
+            CalibSphereScaleRightHand.LoadBindingValue();
+            CalibSphereScaleLeftToes.LoadBindingValue();
+            CalibSphereScaleRightToes.LoadBindingValue();
+            CalibSphereScaleLeftShoulder.LoadBindingValue();
+            CalibSphereScaleRightShoulder.LoadBindingValue();
+
+            // Remote Nameplate
+            NPEnabled.LoadBindingValue();
+            NPMenuOnly.LoadBindingValue();
+            NPWidth.LoadBindingValue();
+            NPSize.LoadBindingValue();
+            NPTransparency.LoadBindingValue();
 
             // Remote Player Audio
             RAMinDistance.LoadBindingValue();

@@ -355,6 +355,30 @@ namespace Basis.BasisUI
 
                 if (remotePlayer != null) remotePlayer.ReloadAvatar();
             };
+
+            var chatGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            chatGroup.SetTitle("Chat");
+            chatGroup.SetDescription("Control chat message visibility for this player.");
+
+            PanelButton toggleChatBtn = PanelButton.CreateNew(chatGroup.ContentParent);
+            toggleChatBtn.Descriptor.SetTitle(settings.ChatVisible ? "Hide Chat" : "Show Chat");
+            toggleChatBtn.Descriptor.SetDescription("Toggles whether chat messages from this player appear above their nameplate.");
+
+            toggleChatBtn.OnClicked += async () =>
+            {
+                var s = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
+                s.ChatVisible = !s.ChatVisible;
+                await BasisPlayerSettingsManager.SetPlayerSettings(s);
+
+                toggleChatBtn.Descriptor.SetTitle(s.ChatVisible ? "Hide Chat" : "Show Chat");
+
+                // If chat was just hidden, clear any currently displayed message
+                if (!s.ChatVisible && remotePlayer != null && remotePlayer.RemoteNamePlate != null)
+                {
+                    remotePlayer.RemoteNamePlate.SetChatText(string.Empty);
+                }
+            };
+
             var debugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             debugGroup.SetTitle("Debug");
             debugGroup.SetDescription("Live diagnostics for voice/range checks (optional).");

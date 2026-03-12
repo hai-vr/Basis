@@ -16,6 +16,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
     public class QueuedMessage
     {
         public NetPeer FromPeer;
+        public byte Sequence;
         public LocalAvatarSyncMessage AvatarMessage;
     }
 
@@ -48,7 +49,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public LocalAvatarSyncMessage AvatarLow;
         public LocalAvatarSyncMessage AvatarVeryLow;
 
-        // Pre-serialized keyframe bytes per quality [PlayerID:2][interval_placeholder:1][quality:1][array:N][additionalSize:1]
+        // Inbound sequence tracking for unreliable client→server packets
+        public byte LastInboundSequence;
+        public bool HasReceivedFirst;
+
+        // Outbound sequence stamped into pre-serialized data (increments per new avatar update)
+        public byte OutboundSequence;
+
+        // Pre-serialized keyframe bytes per quality [PlayerID:2][interval_placeholder:1][sequence:1][quality:1][array:N][additionalSize:1]
         // The interval byte at offset 2 is filled per-recipient in the send loop.
         public byte[][] SerializedKeyframe = new byte[4][];
         public int[] SerializedKeyframeLength = new int[4];
@@ -106,17 +114,35 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         public static void HandleAvatarMovement(NetPacketReader reader, NetPeer fromPeer)
         {
+            // Read the application-level sequence byte prepended by the client
+            if (!reader.TryGetByte(out byte sequence))
+            {
+                reader.Recycle();
+                return;
+            }
             var localMessage = new LocalAvatarSyncMessage();
             localMessage.Deserialize(reader);
             reader.Recycle();
-            AddMessage(fromPeer, localMessage);
+
+            if (localMessage.array == null)
+            {
+                BNL.LogError($"[HandleAvatarMovement] Deserialized avatar message has null array from peer {fromPeer.Id}");
+                return;
+            }
+
+            AddMessage(fromPeer, localMessage, sequence);
         }
 
-        public static void AddMessage(NetPeer fromPeer, LocalAvatarSyncMessage localMessage)
+        public static void AddMessage(NetPeer fromPeer, LocalAvatarSyncMessage localMessage, byte sequence)
         {
             var message = QueuedMessagePool.Rent();
             message.FromPeer = fromPeer;
+            message.Sequence = sequence;
             message.AvatarMessage = localMessage;
+
+            // Simple overwrite — stale detection is handled in ProcessMessage via LastInboundSequence.
+            // Avoid pool operations inside AddOrUpdate factories (factory can be called multiple times
+            // under contention, causing double-return / use-after-return).
             currentMessages.AddOrUpdate(fromPeer.Id, message, (_, _) => message);
         }
 
@@ -255,7 +281,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 var peer = stateI.Peer;
 
                 // Congestion check
-                int queueDepth = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
+                int queueDepth = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Unreliable);
 
                 // Severe congestion — skip this peer entirely
                 if (queueDepth > 512) return;
@@ -302,11 +328,18 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     // Bounds check — grow arrays if needed (rare, only when IDs exceed capacity)
                     if (jId >= sentTimes.Length)
                     {
-                        int newLen = Math.Max(sentTimes.Length * 2, jId + 1);
-                        Array.Resize(ref stateI.LastSentTimes, newLen);
-                        sentTimes = stateI.LastSentTimes;
-                        Array.Resize(ref stateI.LastSeenGeneration, newLen);
-                        seenGens = stateI.LastSeenGeneration;
+                        lock (stateI)
+                        {
+                            // Re-check after acquiring lock
+                            if (jId >= stateI.LastSentTimes.Length)
+                            {
+                                int newLen = Math.Max(stateI.LastSentTimes.Length * 2, jId + 1);
+                                Array.Resize(ref stateI.LastSentTimes, newLen);
+                                Array.Resize(ref stateI.LastSeenGeneration, newLen);
+                            }
+                            sentTimes = stateI.LastSentTimes;
+                            seenGens = stateI.LastSeenGeneration;
+                        }
                     }
 
                     float distSq = DistanceSquared(stateI.Position, stateJ.Position);
@@ -361,7 +394,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 writer.Data[2] = interval;
             }
 
-            peer.Send(writer, channel, DeliveryMethod.Sequenced);
+            peer.Send(writer, channel, DeliveryMethod.Unreliable);
             BasisNetworkStatistics.RecordOutbound(channel, writer.Length);
         }
 
@@ -456,8 +489,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static void ProcessMessage(QueuedMessage message)
         {
             int id = message.FromPeer.Id;
+            byte inboundSeq = message.Sequence;
 
             var high = message.AvatarMessage;
+
+            if (high.array == null)
+            {
+                BNL.LogError($"[ProcessMessage] Avatar array is null for peer {id}");
+                QueuedMessagePool.Return(message);
+                return;
+            }
 
             if (high.DataQualityLevel != (byte)BitQuality.High)
             {
@@ -483,6 +524,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     LastSentTimes = new long[InitialPlayerArrayCapacity],
                     LastSeenGeneration = new long[InitialPlayerArrayCapacity],
                     DataGeneration = 1,
+                    LastInboundSequence = inboundSeq,
+                    HasReceivedFirst = true,
+                    OutboundSequence = 0,
                 };
 
                 // Build lower qualities using the zero-alloc Into variant.
@@ -513,10 +557,27 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
             else
             {
+                // Drop stale inbound packets (unreliable can deliver out of order)
+                if (state.HasReceivedFirst)
+                {
+                    byte delta = unchecked((byte)(inboundSeq - state.LastInboundSequence));
+                    if (delta == 0 || delta >= 128)
+                    {
+                        // Duplicate or stale — discard
+                        QueuedMessagePool.Return(message);
+                        return;
+                    }
+                }
+                state.LastInboundSequence = inboundSeq;
+                state.HasReceivedFirst = true;
+
                 if (!state.IsActive)
                     state.IsActive = true;
 
                 state.Position = pos;
+
+                // Increment outbound sequence for this sender's new update
+                unchecked { state.OutboundSequence++; }
 
                 // Update high quality
                 state.AvatarHigh = high;
@@ -579,7 +640,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
-            // [PlayerID:2][interval:1][quality:1][array:N][additionalSize:1][additional...]
+            // [PlayerID:2][interval:1][sequence:1][quality:1][array:N][additionalSize:1][additional...]
             int additionalSize = 0;
             if (msg.AdditionalAvatarDatas != null && msg.AdditionalAvatarDatas.Length > 0)
             {
@@ -590,7 +651,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 }
             }
 
-            int totalSize = 2 + 1 + 1 + expectedPayload + 1 + additionalSize;
+            int totalSize = 2 + 1 + 1 + 1 + expectedPayload + 1 + additionalSize;
 
             if (state.SerializedKeyframe[qi] == null || state.SerializedKeyframe[qi].Length < totalSize)
                 state.SerializedKeyframe[qi] = new byte[totalSize];
@@ -598,6 +659,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             NetDataWriter writer = GetThreadWriter();
             writer.Put(playerId);
             writer.Put((byte)0); // interval placeholder
+            writer.Put(state.OutboundSequence); // sequence byte
             writer.Put(msg.DataQualityLevel);
             writer.Put(msg.array, 0, expectedPayload);
 

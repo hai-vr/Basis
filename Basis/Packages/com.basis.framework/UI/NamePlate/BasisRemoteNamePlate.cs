@@ -77,6 +77,7 @@ namespace Basis.Scripts.UI.NamePlate
             BasisRemotePlayer.OnAvatarSwitched += RebuildRenderCheck;
 
             Self = this.transform;
+            Self.localScale = new Vector3(0.02f, 0.02f, 0.02f) * BasisRemoteNamePlateDriver.NamePlateSize;
             BasisRemoteNamePlateDriver.Instance.GenerateTextFactory(BasisRemotePlayer, this);
             LoadingText.enableVertexGradient = false;
             mpb = new MaterialPropertyBlock();
@@ -85,6 +86,11 @@ namespace Basis.Scripts.UI.NamePlate
 
             // Create chat text display above nameplate
             CreateChatTextDisplay();
+
+            if (!BasisRemoteNamePlateDriver.ShouldPlateBeActive(this))
+            {
+                gameObject.SetActive(false);
+            }
         }
         private void SetPlateColor(Color c)
         {
@@ -129,7 +135,7 @@ namespace Basis.Scripts.UI.NamePlate
             ChatText.fontSizeMin = 14;
             ChatText.fontSizeMax = 28;
             ChatText.color = Color.white;
-            ChatText.enableWordWrapping = true;
+            ChatText.textWrappingMode =  TextWrappingModes.Normal;
             ChatText.overflowMode = TextOverflowModes.Truncate;
 
             // Use same font as the loading text if available
@@ -195,7 +201,7 @@ namespace Basis.Scripts.UI.NamePlate
         private void UpdateFaceVisibility(bool State)
         {
             IsVisible = State;
-            gameObject.SetActive(State);
+            gameObject.SetActive(BasisRemoteNamePlateDriver.ShouldPlateBeActive(this));
 
             // If we get hidden, just stop the pulse (avoids Update doing work on hidden plate)
             if (!State)

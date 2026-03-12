@@ -12,6 +12,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
+using static SerializableBasis;
 using static Basis.BasisUI.PanelPasswordField;
 using static Basis.BasisUI.PanelTextField;
 
@@ -1223,6 +1224,36 @@ namespace Basis.BasisUI
                 }
             };
 
+            // Share button - only enabled when connected to a server
+            PanelButton sharePanelButton = PanelButton.CreateNew(ButtonStyles.StandardButton, actionsPanel.TabButtonParent);
+            sharePanelButton.Descriptor.SetTitle("Share");
+            sharePanelButton.Descriptor.SetWidth(150);
+            sharePanelButton.Descriptor.SetHeight(60);
+            if (sharePanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button shareButtonComponent))
+            {
+                shareButtonComponent.interactable = BasisNetworkConnection.LocalPlayerIsConnected;
+            }
+            sharePanelButton.OnClicked += () =>
+            {
+                if (!BasisNetworkConnection.LocalPlayerIsConnected) return;
+                ContentShareType shareType;
+                switch (item.Mode)
+                {
+                    case BundledContentHolder.Mode.Avatar:
+                        shareType = ContentShareType.Avatar;
+                        break;
+                    case BundledContentHolder.Mode.World:
+                        shareType = ContentShareType.World;
+                        break;
+                    case BundledContentHolder.Mode.Prop:
+                        shareType = ContentShareType.Prop;
+                        break;
+                    default:
+                        return;
+                }
+                BasisContentShareManager.DropContentSphere(item.Url, item.Pass, shareType);
+            };
+
             // this logic checks if we have spawned an embedded item that is addressable
             bool replaceLoad = false;
             if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
@@ -1771,7 +1802,7 @@ namespace Basis.BasisUI
                 if (removeItem.Descriptor.gameObject.TryGetComponent<Button>(out Button removeButtonComponent))
                 {
                     // if the item is embedded only allow an admin to interact
-                    removeButtonComponent.interactable = (isUserAdmin == itemKey.IsAdminLocked);
+                    removeButtonComponent.interactable = !itemKey.IsAdminLocked || isUserAdmin;
                 }
             }
 

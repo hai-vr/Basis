@@ -35,6 +35,53 @@ namespace Basis.Scripts.BasisCharacterController
         public bool HasJumpAction = false;
         public float jumpHeight = 1.0f; // Jump height set to 1 meter
         public float currentVerticalSpeed = 0f; // Vertical speed of the character
+        /// <summary>
+        /// Duration in seconds after leaving the ground during which the player can still jump.
+        /// Helps with unreliable grounded detection on slopes and near ledges.
+        /// </summary>
+        [SerializeField] public float coyoteTimeDuration = 0.15f;
+        [System.NonSerialized] public float coyoteTimeCounter;
+        /// <summary>
+        /// Whether the player is allowed to jump — true when grounded or within the coyote time window.
+        /// </summary>
+        public bool CanJump => groundedPlayer || coyoteTimeCounter > 0f;
+        /// <summary>
+        /// Grace period before the falling state triggers, preventing animation flicker on slopes.
+        /// </summary>
+        [SerializeField] public float fallingGracePeriod = 0.1f;
+        [System.NonSerialized] public float airborneTimer;
+
+        // --- Movement Mode Management ---
+        public enum Mode
+        {
+            Walk,
+            Fly,
+            NoClip,
+        }
+        private BasisWalkMovementMode _walkMode = new BasisWalkMovementMode();
+        private BasisFlyMovementMode _flyMode = new BasisFlyMovementMode();
+        private BasisNoClipMovementMode _noClipMode = new BasisNoClipMovementMode();
+        [System.NonSerialized] public IMovementMode CurrentMode;
+        [System.NonSerialized] public Mode CurrentModeKind = Mode.Walk;
+        public delegate void ModeChangedHandler(Mode newMode);
+        public ModeChangedHandler ModeChanged;
+        public void SetMode(Mode mode)
+        {
+            if (CurrentModeKind == mode && CurrentMode != null) return;
+            CurrentMode?.Exit(this);
+            CurrentModeKind = mode;
+            CurrentMode = mode switch
+            {
+                Mode.Fly => _flyMode,
+                Mode.NoClip => _noClipMode,
+                _ => _walkMode,
+            };
+            airborneTimer = 0f;
+            coyoteTimeCounter = 0f;
+            CurrentMode.Enter(this);
+            ModeChanged?.Invoke(mode);
+        }
+
         public Vector2 Rotation;
         public float RotationSpeed = 200;
         public bool HasEvents = false;
@@ -93,6 +140,8 @@ namespace Basis.Scripts.BasisCharacterController
         public float CurrentSpeed;
         public void DeInitalize()
         {
+            CurrentMode?.Exit(this);
+            CurrentMode = null;
             if (HasEvents)
             {
                 HasEvents = false;
@@ -113,6 +162,7 @@ namespace Basis.Scripts.BasisCharacterController
             SetMovementSpeedMultiplier(GetMultiplierForMovementSpeed(DefaultMovementSpeed));
             Validate();
             CalculateCharacterSize();
+            SetMode(Mode.Walk);
         }
 
         public void OnControllerColliderHit(ControllerColliderHit hit)
@@ -146,8 +196,16 @@ namespace Basis.Scripts.BasisCharacterController
             }
             LastBottomPoint = bottomPointLocalSpace;
             CalculateCharacterSize();
-            HandleMovement(DeltaTime);
-            GroundCheck();
+            // Delegate movement, gravity, and ground checking to the active mode.
+            if (CurrentMode != null)
+            {
+                CurrentMode.Tick(this, DeltaTime);
+            }
+            else
+            {
+                HandleMovement(DeltaTime);
+                GroundCheck(DeltaTime);
+            }
 
             // Calculate the rotation amount for this frame
             float rotationAmount;
@@ -214,20 +272,44 @@ namespace Basis.Scripts.BasisCharacterController
 
         public void HandleJumpRequest()
         {
-            if (groundedPlayer && !HasJumpAction)
+            if (CanJump && !HasJumpAction)
             {
                 HasJumpAction = true;
             }
         }
-        public void GroundCheck()
+        public void GroundCheck(float deltaTime)
         {
             groundedPlayer = characterController.isGrounded;
-            IsFalling = !groundedPlayer;
 
-            if (groundedPlayer && !LastWasGrounded)
+            if (groundedPlayer)
             {
-                JustLanded?.Invoke();
-                currentVerticalSpeed = 0f; // Reset vertical speed on landing
+                airborneTimer = 0f;
+                IsFalling = false;
+
+                if (!LastWasGrounded)
+                {
+                    JustLanded?.Invoke();
+                    currentVerticalSpeed = 0f; // Reset vertical speed on landing
+                }
+            }
+            else
+            {
+                // Only trigger the falling state after a grace period to prevent
+                // animation flickering on slopes and during ground-type transitions.
+                airborneTimer += deltaTime;
+                IsFalling = airborneTimer > fallingGracePeriod;
+
+                // Grant coyote time on the frame we leave the ground,
+                // but only when walking off (not after an active jump).
+                if (LastWasGrounded && currentVerticalSpeed <= 0f)
+                {
+                    coyoteTimeCounter = coyoteTimeDuration;
+                    currentVerticalSpeed = -2f; // Smooth ledge transition without terminal velocity
+                }
+                else if (coyoteTimeCounter > 0f)
+                {
+                    coyoteTimeCounter -= deltaTime;
+                }
             }
 
             LastWasGrounded = groundedPlayer;
@@ -297,10 +379,12 @@ namespace Basis.Scripts.BasisCharacterController
                 totalMoveDirection = Vector3.zero;
             }
 
+
             // Handle jumping and falling
-            if (groundedPlayer && HasJumpAction)
+            if (CanJump && HasJumpAction)
             {
                 currentVerticalSpeed = Mathf.Sqrt(jumpHeight * -2f * gravityValue);
+                coyoteTimeCounter = 0f; // Consume coyote time to prevent double jumps
                 JustJumped?.Invoke();
             }
             else

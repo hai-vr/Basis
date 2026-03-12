@@ -43,6 +43,7 @@ namespace LiteNetLib
         public const int SocketTTL = 255;
 
         public const int HeaderSize = 1;
+        public const int UnreliableHeaderSize = 2;
         public const int ChanneledHeaderSize = 4;
         public const int FragmentHeaderSize = 6;
         public const int FragmentedHeaderTotalSize = ChanneledHeaderSize + FragmentHeaderSize;
@@ -68,7 +69,7 @@ namespace LiteNetLib
         //Max possible single packet size
         public static readonly int InitialMtu = PossibleMtu[0];
         public static readonly int MaxPacketSize = PossibleMtu[PossibleMtu.Length - 1];
-        public static readonly int MaxUnreliableDataSize = MaxPacketSize - HeaderSize;
+        public static readonly int MaxUnreliableDataSize = MaxPacketSize - UnreliableHeaderSize;
 
         //peer specific
         public const byte MaxConnectionNumber = 4;

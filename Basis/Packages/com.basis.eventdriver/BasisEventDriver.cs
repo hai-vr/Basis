@@ -7,6 +7,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Transmitters;
+using Basis.Scripts.UI;
 using Basis.Scripts.UI.NamePlate;
 using GatorDragonGames.JigglePhysics;
 using SteamAudio;
@@ -179,7 +180,9 @@ public class BasisEventDriver : MonoBehaviour
         {
             BasisDeviceManagement.Instance.Simulate(); // poll things like steam audio
         }
+        #if STEAMAUDIO_ENABLED
         SteamAudioManager.Schedule();//schedule steam audio
+        #endif
         BasisRemoteFaceManagement.Simulate(TimeAsDouble, DeltaTime); // eye blinking
 
         if (BasisLocalPlayer.PlayerReady)
@@ -193,7 +196,9 @@ public class BasisEventDriver : MonoBehaviour
 
         }
         BasisRemoteAudioDriver.Apply(); //apply visemes
+        #if STEAMAUDIO_ENABLED
         SteamAudioManager.Apply(); //apply steam audio transforms
+        #endif
 
         if (BasisLocalPlayer.PlayerReady)
         {
@@ -211,6 +216,7 @@ public class BasisEventDriver : MonoBehaviour
 #endif
 
         BasisRemoteNamePlateDriver.CompleteNamePlates();//just colors
+        BasisJoinLeaveNotification.Simulate(TimeAsDouble);//fade and expire join/leave HUD notifications
         if (SMModuleDebugOptions.UseGizmos)
         {
             JigglePhysics.ScheduleRender();

@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using System.Text.RegularExpressions;
 using static SerializableBasis;
 
 namespace BasisNetworkServer.BasisNetworking
@@ -15,6 +14,7 @@ namespace BasisNetworkServer.BasisNetworking
     public static class BasisNetworkChat
     {
         private static readonly HashSet<string> BlockedWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static string[] _blockedWordsArray = Array.Empty<string>();
         private static readonly string WordFilterFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Configuration.ConfigFolderName, "chat_word_filter.txt");
 
         /// <summary>
@@ -108,7 +108,9 @@ namespace BasisNetworkServer.BasisNetworking
                         BlockedWords.Add(trimmed);
                     }
                 }
-                BNL.Log($"Loaded {BlockedWords.Count} words into chat filter");
+                _blockedWordsArray = new string[BlockedWords.Count];
+                BlockedWords.CopyTo(_blockedWordsArray);
+                BNL.Log($"Loaded {BlockedWords.Count} words into chat filter (using homoglyph + trigram detection)");
             }
             catch (Exception ex)
             {
@@ -118,23 +120,18 @@ namespace BasisNetworkServer.BasisNetworking
 
         /// <summary>
         /// Applies the word filter to a message, replacing blocked words with asterisks.
+        /// Uses homoglyph detection (Unicode lookalike characters) and trigram-based
+        /// false positive prevention to catch evasion attempts while avoiding
+        /// incorrect matches (e.g. won't match "ass" in "assignment").
         /// </summary>
         public static string FilterMessage(string message)
         {
-            if (BlockedWords.Count == 0 || string.IsNullOrEmpty(message))
+            if (_blockedWordsArray.Length == 0 || string.IsNullOrEmpty(message))
             {
                 return message;
             }
 
-            foreach (string word in BlockedWords)
-            {
-                if (string.IsNullOrEmpty(word)) continue;
-
-                string replacement = new string('*', word.Length);
-                message = Regex.Replace(message, Regex.Escape(word), replacement, RegexOptions.IgnoreCase);
-            }
-
-            return message;
+            return BasisWordFilter.Filter(message, _blockedWordsArray);
         }
 
         /// <summary>

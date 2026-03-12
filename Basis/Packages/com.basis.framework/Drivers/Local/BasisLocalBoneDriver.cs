@@ -188,7 +188,7 @@ namespace Basis.Scripts.Drivers
                 GizmoBone GizmoBone = GizmoBones[i];
                 if (GizmoBone.GizmoTransform != null)
                 {
-                    float ScaledDistance = BasisAvatarIKStageCalibration.MaxDistanceBeforeTrackerIsIrrelivant(GizmoBone.Control) * BasisHeightDriver.ScaledToMatchValue;
+                    float ScaledDistance = BasisAvatarIKStageCalibration.MaxDistanceBeforeTrackerIsIrrelivant(GizmoBone.Control) * SMModuleCalibration.GetSphereScale(GizmoBone.Control) * BasisHeightDriver.ScaledToMatchValue;
                     BasisGizmoManager.UpdateSphereGizmo(GizmoBone.GizmoReference, GizmoBone.GizmoTransform.position, Vector3.one * ScaledDistance);
                 }
             }
