@@ -379,7 +379,7 @@ namespace Basis.BasisUI
 
         // ---------------- REMOTE PLAYER AUDIO ----------------
         // AudioSource
-        public static BasisSettingsBinding<float> RAMinDistance => new("ra_mindistance", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> RAMinDistance => new("ra_mindistance", new BasisPlatformDefault<float>(0.5f));
         public static BasisSettingsBinding<float> RASpread => new("ra_spread", new BasisPlatformDefault<float>(70f));
         public static BasisSettingsBinding<float> RADopplerLevel => new("ra_dopplerlevel", new BasisPlatformDefault<float>(0f));
         public static BasisSettingsBinding<float> RASpatialBlend => new("ra_spatialblend", new BasisPlatformDefault<float>(1f));
