@@ -172,10 +172,17 @@ namespace Basis.BasisUI
             }
 
             // Hide the decorative sphere at the start of the slider track
+            // and extend the fill area to cover the gap it leaves
             if (SliderComponent.fillRect != null)
             {
-                Transform roundedFront = SliderComponent.fillRect.parent.Find("Rounded Front");
+                Transform fillArea = SliderComponent.fillRect.parent;
+                Transform roundedFront = fillArea.Find("Rounded Front");
                 if (roundedFront != null) roundedFront.gameObject.SetActive(false);
+
+                if (fillArea is RectTransform fillAreaRect)
+                {
+                    fillAreaRect.offsetMin = new Vector2(0f, fillAreaRect.offsetMin.y);
+                }
             }
         }
 
