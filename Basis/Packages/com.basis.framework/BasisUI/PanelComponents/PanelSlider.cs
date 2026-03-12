@@ -116,9 +116,7 @@ namespace Basis.BasisUI
         public Slider SliderComponent;
 
         private RectTransform _handleRect;
-        private CanvasGroup _handleCanvasGroup;
         private TweenScale _handleScaleTween;
-        private TweenCanvasGroupAlpha _handleAlphaTween;
         private TweenGraphicColor _fillColorTween;
         private TweenScale _labelPunchTween;
         private bool _isDragging;
@@ -161,21 +159,23 @@ namespace Basis.BasisUI
             SliderComponent.onValueChanged.AddListener(OnSliderValueChanged);
             SliderConfirmedListener.OnValueConfirmed += OnSliderConfirmed;
 
-            // Cache handle rect for scale animations and start subtle
+            // Cache handle rect for scale animations
             if (SliderComponent.handleRect != null)
             {
                 _handleRect = SliderComponent.handleRect;
-                if (!_handleRect.TryGetComponent(out _handleCanvasGroup))
-                {
-                    _handleCanvasGroup = _handleRect.gameObject.AddComponent<CanvasGroup>();
-                }
-                _handleCanvasGroup.alpha = 0f;
             }
 
             // Try to find fill graphic if not assigned
             if (FillGraphic == null && SliderComponent.fillRect != null)
             {
                 FillGraphic = SliderComponent.fillRect.GetComponent<Graphic>();
+            }
+
+            // Hide the decorative sphere at the start of the slider track
+            if (SliderComponent.fillRect != null)
+            {
+                Transform roundedFront = SliderComponent.fillRect.parent.Find("Rounded Front");
+                if (roundedFront != null) roundedFront.gameObject.SetActive(false);
             }
         }
 
@@ -184,19 +184,12 @@ namespace Basis.BasisUI
             if (!Application.isPlaying) return;
             _isDragging = true;
 
-            // Scale up + fade in handle on grab
+            // Scale up handle on grab
             if (_handleRect != null)
             {
                 if (_handleScaleTween != null && _handleScaleTween.Active) _handleScaleTween.Reset();
                 _handleScaleTween = _handleRect.TweenScale(0.12f, _handleRect.localScale, Vector3.one * 1.25f)
                     .SetEase(Easing.OutBack);
-
-                if (_handleCanvasGroup != null)
-                {
-                    if (_handleAlphaTween != null && _handleAlphaTween.Active) _handleAlphaTween.Reset();
-                    _handleAlphaTween = _handleCanvasGroup.TweenAlpha(0.1f, _handleCanvasGroup.alpha, 1f)
-                        .SetEase(Easing.OutCubic);
-                }
             }
         }
 
@@ -205,19 +198,12 @@ namespace Basis.BasisUI
             if (!Application.isPlaying) return;
             _isDragging = false;
 
-            // Scale down + fade handle back to subtle
+            // Scale down handle on release
             if (_handleRect != null)
             {
                 if (_handleScaleTween != null && _handleScaleTween.Active) _handleScaleTween.Reset();
                 _handleScaleTween = _handleRect.TweenScale(0.2f, _handleRect.localScale, Vector3.one)
                     .SetEase(Easing.OutBack);
-
-                if (_handleCanvasGroup != null)
-                {
-                    if (_handleAlphaTween != null && _handleAlphaTween.Active) _handleAlphaTween.Reset();
-                    _handleAlphaTween = _handleCanvasGroup.TweenAlpha(0.3f, _handleCanvasGroup.alpha, 0f)
-                        .SetEase(Easing.OutCubic);
-                }
             }
         }
 
