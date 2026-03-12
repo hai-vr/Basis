@@ -116,12 +116,13 @@ public class BasisContentSphere : BasisInteractableObject
                 texture.SetPixel(0, 0, typeColor);
                 texture.Apply();
             }
-
             if (Renderer != null)
             {
-                var mats = Renderer.materials;
-                mats[MaterialIndex].mainTexture = texture;
-                Renderer.materials = mats;
+                MaterialPropertyBlock block = new MaterialPropertyBlock();
+                Renderer.GetPropertyBlock(block, MaterialIndex);
+                block.SetTexture("_MainTex", texture);
+                block.SetTexture("_EmissionMap", texture);
+                Renderer.SetPropertyBlock(block, MaterialIndex);
             }
         }
         catch (OperationCanceledException) { }
@@ -213,16 +214,6 @@ public class BasisContentSphere : BasisInteractableObject
         await BasisDataStoreItemKeys.AddNewKey(key);
         BasisDebug.Log($"Saved content sphere to library: {ContentURL} as {mode}", BasisDebug.LogTag.Networking);
     }
-
-    public bool IsLocalPlayerCreator()
-    {
-        if (BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId))
-        {
-            return localId == CreatorPlayerID;
-        }
-        return false;
-    }
-
     public void RequestRemove()
     {
         BasisContentShareManager.RequestRemoveSphere(SphereNetID);

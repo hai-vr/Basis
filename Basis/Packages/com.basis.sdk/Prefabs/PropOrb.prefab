@@ -237,6 +237,10 @@ PrefabInstance:
       propertyPath: 'm_Materials.Array.data[1]'
       value: 
       objectReference: {fileID: 2100000, guid: 89d91b9e307208f41b092716806fbe14, type: 2}
+    - target: {fileID: -5535416229252122208, guid: 77e3dfe1a148c414091ca17b830884b8, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 98c6e28597211dc4ca46b1232906f316, type: 2}
     - target: {fileID: 919132149155446097, guid: 77e3dfe1a148c414091ca17b830884b8, type: 3}
       propertyPath: m_Name
       value: PropOrb
@@ -244,7 +248,7 @@ PrefabInstance:
     - target: {fileID: 5252314069528041695, guid: 77e3dfe1a148c414091ca17b830884b8, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: 98c6e28597211dc4ca46b1232906f316, type: 2}
+      objectReference: {fileID: 2100000, guid: 89d91b9e307208f41b092716806fbe14, type: 2}
     - target: {fileID: 5252314069528041695, guid: 77e3dfe1a148c414091ca17b830884b8, type: 3}
       propertyPath: 'm_Materials.Array.data[1]'
       value: 
@@ -266,11 +270,6 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 5706775059681156493}
   m_SourcePrefab: {fileID: 100100000, guid: 77e3dfe1a148c414091ca17b830884b8, type: 3}
---- !u!23 &2834293478064308129 stripped
-MeshRenderer:
-  m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: 77e3dfe1a148c414091ca17b830884b8, type: 3}
-  m_PrefabInstance: {fileID: 3500699093265031973}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &3971684739892724942 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 77e3dfe1a148c414091ca17b830884b8, type: 3}
@@ -316,8 +315,8 @@ MonoBehaviour:
       m_Calls: []
   InteractRange: 1
   Label: {fileID: 2454600319957122716}
-  Renderer: {fileID: 2834293478064308129}
-  MaterialIndex: 1
+  Renderer: {fileID: 8680420646852328442}
+  MaterialIndex: 0
 --- !u!54 &4410017629799781353
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -366,3 +365,8 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 0.3266085
   m_Center: {x: -0.00000010430813, y: 0.00000017881393, z: 0}
+--- !u!23 &8680420646852328442 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 5252314069528041695, guid: 77e3dfe1a148c414091ca17b830884b8, type: 3}
+  m_PrefabInstance: {fileID: 3500699093265031973}
+  m_PrefabAsset: {fileID: 0}
