@@ -86,7 +86,7 @@ namespace Basis.Scripts.UI.NamePlate
                 RoundedCornersMesh = GenerateRoundedQuad();
             }
 
-            Vector3 scale = Vector3.one * newSize;
+            Vector3 scale = new Vector3(0.02f, 0.02f, 0.02f) * newSize;
             for (int i = 0; i < plates.Count; i++)
             {
                 var plate = plates[i];
