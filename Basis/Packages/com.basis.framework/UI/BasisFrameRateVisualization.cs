@@ -9,6 +9,8 @@ public class BasisFrameRateVisualization : MonoBehaviour
     public string Title;
 
     private float deltaTime;
+    private int cachedHour, cachedMinute, cachedSecond;
+    private float nextTimeUpdate;
 
     // Reusable character buffer — adjust size if needed
     private char[] buffer = new char[128];
@@ -19,11 +21,30 @@ public class BasisFrameRateVisualization : MonoBehaviour
         deltaTime += (dt - deltaTime) * 0.1f;
         float fps = 1f / deltaTime;
 
+        // Only fetch system time once per second
+        float time = Time.unscaledTime;
+        if (time >= nextTimeUpdate)
+        {
+            var now = DateTime.Now;
+            cachedHour = now.Hour;
+            cachedMinute = now.Minute;
+            cachedSecond = now.Second;
+            nextTimeUpdate = time + 1f;
+        }
+
         int idx = 0;
 
         // Copy title straight into buffer
         for (int i = 0; i < Title.Length; i++)
             buffer[idx++] = Title[i];
+
+        // Append cached time (HH:MM:SS) — no GC
+        buffer[idx++] = ' ';
+        idx = AppendTwoDigit(cachedHour, idx);
+        buffer[idx++] = ':';
+        idx = AppendTwoDigit(cachedMinute, idx);
+        buffer[idx++] = ':';
+        idx = AppendTwoDigit(cachedSecond, idx);
 
         var peer = BasisNetworkConnection.LocalPlayerPeer;
 
@@ -51,6 +72,13 @@ public class BasisFrameRateVisualization : MonoBehaviour
     {
         for (int i = 0; i < str.Length; i++)
             buf[index++] = str[i];
+        return index;
+    }
+
+    private int AppendTwoDigit(int val, int index)
+    {
+        buffer[index++] = (char)('0' + val / 10);
+        buffer[index++] = (char)('0' + val % 10);
         return index;
     }
 
