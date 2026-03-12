@@ -233,22 +233,6 @@ public class BasisContentSphere : BasisInteractableObject
 
         await BasisDataStoreItemKeys.AddNewKey(key);
         BasisDebug.Log($"Saved content sphere to library: {ContentURL} as {mode}", BasisDebug.LogTag.Networking);
-
-        // Cache metadata then load using the library's placement system
-        await CachedMetaData.PreloadMetaDataForItem(key);
-
-        switch (ContentType)
-        {
-            case ContentShareType.Avatar:
-                await ContentLoader.LoadAvatar(key);
-                break;
-            case ContentShareType.Prop:
-                await ContentLoader.LoadProp(key, BundledContentHolder.NetworkType.Local);
-                break;
-            case ContentShareType.World:
-                await ContentLoader.LoadWorld(key, BundledContentHolder.NetworkType.Local);
-                break;
-        }
     }
 
     public bool IsLocalPlayerCreator()
