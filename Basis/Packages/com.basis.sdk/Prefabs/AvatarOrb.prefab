@@ -26,7 +26,7 @@ RectTransform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3066528509266225726}
   m_LocalRotation: {x: 0.0000017099289, y: -0.70710826, z: -0.70710534, w: 0.0000018304058}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0.5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -35,7 +35,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 10, y: 3}
+  m_SizeDelta: {x: 5, y: 1}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!23 &7388812632791673092
 MeshRenderer:
@@ -133,12 +133,12 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 6
+  m_fontSize: 3
   m_fontSizeBase: 5
   m_fontWeight: 400
   m_enableAutoSizing: 1
   m_fontSizeMin: 3
-  m_fontSizeMax: 6
+  m_fontSizeMax: 3
   m_fontStyle: 0
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 256
@@ -195,7 +195,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f0d1d5c0f7212e445a8a6b048a795747, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -1.55
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: f0d1d5c0f7212e445a8a6b048a795747, type: 3}
       propertyPath: m_LocalPosition.z
@@ -304,6 +304,7 @@ MonoBehaviour:
   Label: {fileID: 8452803495268253739}
   Renderer: {fileID: 6410138300982690908}
   MaterialIndex: 0
+  texture: {fileID: 0}
 --- !u!54 &3357315586662725574
 Rigidbody:
   m_ObjectHideFlags: 0

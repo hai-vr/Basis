@@ -34,8 +34,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 10, y: 3}
+  m_AnchoredPosition: {x: 0, y: 0.5}
+  m_SizeDelta: {x: 5, y: 1}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!23 &8169729874504179300
 MeshRenderer:
@@ -133,12 +133,12 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 6
+  m_fontSize: 3
   m_fontSizeBase: 5
   m_fontWeight: 400
   m_enableAutoSizing: 1
   m_fontSizeMin: 3
-  m_fontSizeMax: 6
+  m_fontSizeMax: 3
   m_fontStyle: 0
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 256
@@ -195,7 +195,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: da106abb2c5f0f243a5f1d12f5302eae, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -1.55
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: da106abb2c5f0f243a5f1d12f5302eae, type: 3}
       propertyPath: m_LocalPosition.z
@@ -309,6 +309,7 @@ MonoBehaviour:
   Label: {fileID: 1127513761493123036}
   Renderer: {fileID: 3660545441981622705}
   MaterialIndex: 0
+  texture: {fileID: 0}
 --- !u!54 &8873382721238884015
 Rigidbody:
   m_ObjectHideFlags: 0

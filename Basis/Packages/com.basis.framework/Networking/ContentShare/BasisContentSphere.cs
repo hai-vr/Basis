@@ -1,7 +1,6 @@
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.Device_Management.Devices;
-using Basis.Scripts.Networking;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.UI.UI_Panels;
 using System;
@@ -30,7 +29,6 @@ public class BasisContentSphere : BasisInteractableObject
 
     private float _bobPhase;
     private Vector3 _restPosition;
-    private bool _initialized;
     private bool _isInteracting;
     private CancellationTokenSource _metaLoadCts;
     public TextMeshPro Label;
@@ -39,6 +37,7 @@ public class BasisContentSphere : BasisInteractableObject
     public static float BobPhaseClock = 1.5f;
     public static float BobPhaseOffset = 0.05f;
     public static float RotationSpeed = 30f;
+    public Texture2D texture;
     public void Initialize(string sphereNetID, string contentURL, string unlockPassword, ContentShareType contentType, ushort creatorPlayerID)
     {
         SphereNetID = sphereNetID;
@@ -46,8 +45,6 @@ public class BasisContentSphere : BasisInteractableObject
         UnlockPassword = unlockPassword;
         ContentType = contentType;
         CreatorPlayerID = creatorPlayerID;
-        _initialized = true;
-
         InteractRange = 2f;
 
         _metaLoadCts = new CancellationTokenSource();
@@ -62,8 +59,6 @@ public class BasisContentSphere : BasisInteractableObject
     }
     private void Update()
     {
-        if (!_initialized) return;
-
         var DeltaTime = Time.deltaTime;
         // Gentle hover/bob animation
         _bobPhase += DeltaTime * BobPhaseClock;
@@ -88,8 +83,6 @@ public class BasisContentSphere : BasisInteractableObject
             if (cancellationToken.IsCancellationRequested || this == null) return;
 
             Color typeColor = GetTypeColor();
-            Texture2D texture;
-
             if (wrapper.LoadableBundle.BasisBundleConnector.ImageBase64 != null)
             {
                 texture = BasisTextureCompression.FromPngBytes(wrapper.LoadableBundle.BasisBundleConnector.ImageBase64);
@@ -133,6 +126,7 @@ public class BasisContentSphere : BasisInteractableObject
     }
     public override void OnDestroy()
     {
+        GameObject.Destroy(texture);
         _metaLoadCts?.Cancel();
         _metaLoadCts?.Dispose();
         base.OnDestroy();
