@@ -125,6 +125,17 @@ public static class BasisPlayerSettingsManager
         await WriteUnderLockAsync(key, data).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Non-blocking cache lookup. Returns true if the settings are already loaded in memory.
+    /// Useful for hot-path code that cannot await (e.g., incoming chat message handling).
+    /// </summary>
+    public static bool TryGetCachedPlayerSettings(string uuid, out BasisPlayerSettingsData settings)
+    {
+        settings = null;
+        if (string.IsNullOrWhiteSpace(uuid)) return false;
+        return cache.TryGetValue(Sanitize(uuid), out settings);
+    }
+
     // ---- internals ---------------------------------------------------------
 
     private static async Task<BasisPlayerSettingsData> LoadOrCreateAndCacheAsync(string key, string originalUuid)
