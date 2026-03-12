@@ -46,15 +46,15 @@ public static class SettingsProviderIK
         // --- Tab (replaces BasisTabBuilder) ---
         var tabPage = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
         var tabDesc = tabPage.Descriptor;
-        tabDesc.SetTitle("Calibration & IK");
+        tabDesc.SetTitle("Body Tracking");
         tabDesc.SetIcon(AddressableAssets.Sprites.Settings);
 
-        // --- Group: "Calibration & IK" (replaces tab.Group(...)) ---
+        // --- Group: "Body Tracking" (replaces tab.Group(...)) ---
         var ikGroup = PanelElementDescriptor.CreateNew(
             PanelElementDescriptor.ElementStyles.Group,
             tabDesc.ContentParent);
 
-        ikGroup.SetTitle("Calibration & IK");
+        ikGroup.SetTitle("Body Tracking");
         ikGroup.SetDescription("Fine-tuning for avatar scaling, calibration, and IK smoothing");
         ikGroup.SetIcon(AddressableAssets.Sprites.Settings);
 
@@ -204,7 +204,7 @@ public static class SettingsProviderIK
 
         SyncMasterEuroFromChildren();
         // ONE RESET BUTTON FOR THIS PAGE
-        SettingsProvider.AddResetPageButton(tabDesc.ContentParent, "IK", ResetIkDefaults);
+        SettingsProvider.AddResetPageButton(tabDesc.ContentParent, "Body Tracking", ResetIkDefaults);
 
         tabDesc.ForceRebuild();
         return tabPage;

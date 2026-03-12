@@ -16,7 +16,7 @@ public static class SettingsProviderControllerConfig
         BuildBindingsUI(tab);
 
         RectTransform container = descriptor.ContentParent;
-        SettingsProvider.AddResetPageButton(container, "Bindings", BasisActionDriver.ResetBindingsToDefaultsAsyncIgnored);
+        SettingsProvider.AddResetPageButton(container, "Controls", BasisActionDriver.ResetBindingsToDefaultsAsyncIgnored);
 
         descriptor.ForceRebuild();
         return tab;
