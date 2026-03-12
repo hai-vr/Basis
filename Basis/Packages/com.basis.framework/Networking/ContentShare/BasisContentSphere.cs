@@ -149,7 +149,7 @@ public class BasisContentSphere : BasisInteractableObject
                 }
 
                 // Update label with bundle name if available
-                string bundleName = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleInformation?.AssetBundleName;
+                string bundleName = wrapper.LoadableBundle.BasisBundleConnector.BasisBundleDescription?.AssetBundleName;
                 if (!string.IsNullOrEmpty(bundleName) && _label != null)
                 {
                     _label.text = $"{GetContentTypeName()}\n{bundleName}";
