@@ -35,14 +35,14 @@ public static class BasisBeeManagement
 
         if (output.Item1 == null || output.Item3 != string.Empty)
         {
-            new Exception($"missing Bundle Bytes Array Error Message {output.Item3}");
+            throw new Exception($"missing Bundle Bytes Array Error Message {output.Item3}");
         }
         IEnumerable<AssetBundle> AssetBundles = AssetBundle.GetAllLoadedAssetBundles();
         foreach (AssetBundle assetBundle in AssetBundles)
         {
             if (output.Item1 == null || output.Item1.AssetToLoadName == null)
             {
-                new Exception($"Missing AssetToName! in obtained file! corrupted?");
+                throw new Exception($"Missing AssetToName! in obtained file! corrupted?");
             }
             else
             {

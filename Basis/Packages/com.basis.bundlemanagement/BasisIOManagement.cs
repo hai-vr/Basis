@@ -699,6 +699,52 @@ public static class BasisIOManagement
     }
 
     /// <summary>
+    /// Sends an HTTP HEAD request to check if the remote file is reachable.
+    /// Returns success if the server responds with a 2xx status code,
+    /// indicating the file exists and is accessible.
+    /// </summary>
+    public static async Task<BeeResult<bool>> CheckRemoteFileReachable(string url, CancellationToken cancellationToken = default)
+    {
+        if (!ValidateUrl(url, out var urlErr))
+            return BeeResult<bool>.Fail($"Invalid URL: {urlErr}");
+
+        using var req = new UnityWebRequest(url, UnityWebRequest.kHttpVerbHEAD);
+        req.downloadHandler = new DownloadHandlerBuffer();
+
+        var op = req.SendWebRequest();
+
+        while (!op.isDone)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                req.Abort();
+                return BeeResult<bool>.Fail("Reachability check cancelled.");
+            }
+            await Task.Yield();
+        }
+
+        long code = req.responseCode;
+
+        if (req.result == UnityWebRequest.Result.ConnectionError)
+            return BeeResult<bool>.Fail($"Cannot connect to server: {req.error}", code);
+
+        if (req.result == UnityWebRequest.Result.ProtocolError)
+        {
+            if (code == 404)
+                return BeeResult<bool>.Fail("Avatar file not found on the server (404). The file may have been moved or deleted.", code);
+            if (code == 403)
+                return BeeResult<bool>.Fail("Access denied to avatar file (403). You may not have permission to access this file.", code);
+
+            return BeeResult<bool>.Fail($"Server returned error {code}: {req.error}", code);
+        }
+
+        if (req.result != UnityWebRequest.Result.Success)
+            return BeeResult<bool>.Fail($"Request failed: {req.error}", code);
+
+        return BeeResult<bool>.Ok(true);
+    }
+
+    /// <summary>
     /// Builds a concise, actionable detail string from a UnityWebRequest result without leaking nulls.
     /// </summary>
     private static string BuildNetworkErrorDetail(UnityWebRequest req)
