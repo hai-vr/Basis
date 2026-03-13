@@ -199,11 +199,18 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     interactInput.HasvalidRay = false;
                     if (interactInput.lastTarget != null)
                     {
-                        // If the object is currently being interacted with, keep the interaction alive.
-                        // Dropping will be handled by UpdatePickupState when hover detection resumes.
-                        // This prevents objects from getting stuck when their colliders temporarily
-                        // block hover sphere detection (e.g. pool cue body colliders).
-                        if (!interactInput.lastTarget.IsInteractingWith(interactInput.input))
+                        if (interactInput.lastTarget.IsInteractingWith(interactInput.input))
+                        {
+                            // Keep interaction alive while grip is held (detection may resume).
+                            // But if grip is released and detection is lost, drop immediately
+                            // so objects don't get permanently stuck.
+                            if (!interactInput.lastTarget.IsInteractTriggered(interactInput.input))
+                            {
+                                interactInput.lastTarget.OnInteractEnd(interactInput.input);
+                                interactInput.lastTarget = null;
+                            }
+                        }
+                        else
                         {
                             if (interactInput.lastTarget.IsHoveredBy(interactInput.input))
                             {
@@ -620,8 +627,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     interactInput.lastTarget.OnInteractEnd(input);
             }
 
-            // Transition: Ignored → Hovering
-            target.OnHoverStart(input);
+            // Only start hover if not already hovering (avoid redundant state transitions)
+            if (!target.IsHoveredBy(input))
+            {
+                target.OnHoverStart(input);
+            }
             // End hover with willInteract=true (keeps state at Hovering for OnInteractStart)
             target.OnHoverEnd(input, true);
             // Transition: Hovering → Interacting
