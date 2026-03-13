@@ -37,10 +37,12 @@ public class BasisSDKConstants
     #endregion
     #region Prop
     public static readonly string PropuxmlPath = $"{BasePath}{PropFile}";
+    public static readonly string PropIcon = "propicon";
     #endregion
 
     #region Scene
     public static readonly string SceneuxmlPath = $"{BasePath}{SceneFile}";
+    public static readonly string SceneIcon = "sceneicon";
     #endregion
     #region Shared
     public static readonly string ErrorMessage = "ErrorMessage";

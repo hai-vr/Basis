@@ -14,6 +14,7 @@ public class BasisPropSDKInspector : Editor
     public VisualElement uiElementsRoot;
     private Label resultLabel; // Store the result label for later clearing
     public BasisAssetBundleObject assetBundleObject;
+    public static Texture2D Icon;
     public void OnEnable()
     {
         visualTree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(BasisSDKConstants.PropuxmlPath);
@@ -35,8 +36,15 @@ public class BasisPropSDKInspector : Editor
             BasisSDKCommonInspector.CreateBuildOptionsDropdown(uiElementsRoot);
 
             BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
+
+            ObjectField PropIconField = uiElementsRoot.Q<ObjectField>(BasisSDKConstants.PropIcon);
+            PropIconField.objectType = typeof(Texture2D);
+            PropIconField.allowSceneObjects = true;
+            PropIconField.value = Icon;
+            PropIconField.RegisterCallback<ChangeEvent<UnityEngine.Object>>(OnIconFieldChanged);
+
             Button BuildButton = BasisHelpersGizmo.Button(uiElementsRoot, BasisSDKConstants.BuildButton);
-            BuildButton.clicked += () => Build(BuildButton, assetBundleObject.selectedTargets);
+            BuildButton.clicked += () => Build(BuildButton, assetBundleObject.selectedTargets, Icon);
         }
         else
         {
@@ -46,14 +54,23 @@ public class BasisPropSDKInspector : Editor
         return rootElement;
     }
 
-    private async void Build(Button buildButton, List<BuildTarget> targets)
+    private void OnIconFieldChanged(ChangeEvent<UnityEngine.Object> evt)
+    {
+        Icon = evt.newValue as Texture2D;
+        BasisDebug.Log($"Setting to {Icon}");
+    }
+
+    private async void Build(Button buildButton, List<BuildTarget> targets, Texture2D Image)
     {
         if (targets == null || targets.Count == 0)
         {
             Debug.LogError("No build targets selected.");
             return;
         }
-        Texture2D Image = AssetPreview.GetAssetPreview(BasisProp.gameObject);
+        if (Image == null)
+        {
+            Image = AssetPreview.GetAssetPreview(BasisProp.gameObject);
+        }
         string ImageBytes = null;
         if (Image != null)
         {

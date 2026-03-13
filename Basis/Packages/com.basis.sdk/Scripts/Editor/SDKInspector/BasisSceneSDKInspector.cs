@@ -14,6 +14,7 @@ public class BasisSceneSDKInspector : Editor
     public VisualElement rootElement;
     public VisualElement uiElementsRoot;
     private Label resultLabel; // Store the result label for later clearing
+    public static Texture2D Icon;
     public void OnEnable()
     {
         visualTree = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(BasisSDKConstants.SceneuxmlPath);
@@ -35,11 +36,18 @@ public class BasisSceneSDKInspector : Editor
             BasisSDKCommonInspector.CreateBuildTargetOptions(uiElementsRoot);
             BasisSDKCommonInspector.CreateBuildOptionsDropdown(uiElementsRoot);
 
+            // Icon Field
+            ObjectField SceneIconField = uiElementsRoot.Q<ObjectField>(BasisSDKConstants.SceneIcon);
+            SceneIconField.objectType = typeof(Texture2D);
+            SceneIconField.allowSceneObjects = true;
+            SceneIconField.value = Icon;
+            SceneIconField.RegisterCallback<ChangeEvent<UnityEngine.Object>>(OnIconFieldChanged);
+
             // Build Button
             Button buildButton = BasisHelpersGizmo.Button(uiElementsRoot, BasisSDKConstants.BuildButton);
 
             BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
-            buildButton.clicked += () => Build(assetBundleObject.selectedTargets);
+            buildButton.clicked += () => Build(assetBundleObject.selectedTargets, Icon);
         }
         else
         {
@@ -49,7 +57,13 @@ public class BasisSceneSDKInspector : Editor
         return rootElement;
     }
 
-    private async void Build( List<BuildTarget> targets)
+    private void OnIconFieldChanged(ChangeEvent<UnityEngine.Object> evt)
+    {
+        Icon = evt.newValue as Texture2D;
+        BasisDebug.Log($"Setting to {Icon}");
+    }
+
+    private async void Build(List<BuildTarget> targets, Texture2D Image)
     {
         if (targets == null || targets.Count == 0)
         {
@@ -63,7 +77,10 @@ public class BasisSceneSDKInspector : Editor
             Debug.LogError("Invalid scene. AssetBundle build aborted.");
             return;
         }
-        Texture2D Image = AssetPreview.GetAssetPreview(BasisScene);
+        if (Image == null)
+        {
+            Image = AssetPreview.GetAssetPreview(BasisScene);
+        }
         string ImageBytes = null;
         if (Image != null)
         {

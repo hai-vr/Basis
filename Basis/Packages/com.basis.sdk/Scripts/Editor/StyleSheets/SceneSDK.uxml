@@ -1,6 +1,7 @@
 <engine:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:engine="UnityEngine.UIElements" xmlns:editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
     <engine:VisualElement style="flex-grow: 1;">
         <engine:Label name="ErrorMessage" enabled="false" style="white-space: normal; color: rgb(255, 0, 0);" />
+        <editor:ObjectField name="sceneicon" allow-scene-objects="true" usage-hints="None" data-source-type="UnityEngine.Texture2D, UnityEngine.CoreModule" type="UnityEngine.Texture2D, UnityEngine.CoreModule" label="Scene Icon" enabled="true" style="position: relative; overflow: flex-start; visibility: visible; flex-direction: row; align-items: auto; top: auto; left: auto; align-self: auto; opacity: 1; justify-content: flex-start; height: auto; width: auto; display: flex; flex-wrap: nowrap;"/>
         <engine:Button text="Create Scene Bee FIle" name="BuildButton" />
     </engine:VisualElement>
 </engine:UXML>
