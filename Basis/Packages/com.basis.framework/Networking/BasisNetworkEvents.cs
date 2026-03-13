@@ -317,10 +317,7 @@ public static class BasisNetworkEvents
                     CameraPIPStateMessage pipState = new CameraPIPStateMessage();
                     pipState.Deserialize(Reader);
                     Reader.Recycle();
-                    if (BasisNetworkPIPCameraManager.Instance != null)
-                    {
-                        BasisNetworkPIPCameraManager.Instance.OnRemotePIPState(pipState);
-                    }
+                    BasisNetworkPIPCameraManager.OnRemotePIPState(pipState);
                 });
                 break;
             case BasisNetworkCommons.CameraPIPPositionChannel:
@@ -335,10 +332,7 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                     BasisDeviceManagement.EnqueueOnMainThread(() =>
                     {
-                        if (BasisNetworkPIPCameraManager.Instance != null)
-                        {
-                            BasisNetworkPIPCameraManager.Instance.OnRemotePIPPosition(pipPos);
-                        }
+                        BasisNetworkPIPCameraManager.OnRemotePIPPosition(pipPos);
                     });
                 }
                 break;

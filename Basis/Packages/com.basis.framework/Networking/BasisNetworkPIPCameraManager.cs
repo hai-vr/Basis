@@ -1,6 +1,6 @@
 using Basis.Network.Core;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
-using Basis.Scripts.Networking.NetworkedAvatar;
 using System;
 using System.Collections.Generic;
 using Unity.Burst;
@@ -12,12 +12,11 @@ using static SerializableBasis;
 
 /// <summary>
 /// Client-side manager for networked PIP cameras.
-/// Uses Unity Jobs (Burst-compiled) for smoothing remote camera positions.
+/// Fully static - driven by BasisLocalPlayer.AfterSimulateOnLate via Simulate().
+/// Uses Unity Jobs (Burst-compiled IJobParallelFor) for smoothing remote camera positions.
 /// </summary>
-public class BasisNetworkPIPCameraManager : MonoBehaviour
+public static class BasisNetworkPIPCameraManager
 {
-    public static BasisNetworkPIPCameraManager Instance { get; private set; }
-
     /// <summary>
     /// Fired when a remote player's PIP camera is created.
     /// Subscribers should instantiate the 3D lens model.
@@ -31,54 +30,81 @@ public class BasisNetworkPIPCameraManager : MonoBehaviour
     public static event Action<ushort> OnRemotePIPDestroyed;
 
     // Mapping from playerID -> index in NativeArrays
-    private readonly Dictionary<ushort, int> playerIdToIndex = new();
-    private readonly Dictionary<int, ushort> indexToPlayerId = new();
-    private readonly HashSet<ushort> activeRemotePIPs = new();
+    private static readonly Dictionary<ushort, int> playerIdToIndex = new();
+    private static readonly Dictionary<int, ushort> indexToPlayerId = new();
+    private static readonly HashSet<ushort> activeRemotePIPs = new();
 
     // Job data
-    private NativeArray<float3> currentPositions;
-    private NativeArray<float3> targetPositions;
-    private NativeArray<byte> activeFlags;
-    private JobHandle smoothHandle;
+    private static NativeArray<float3> currentPositions;
+    private static NativeArray<float3> targetPositions;
+    private static NativeArray<byte> activeFlags;
+    private static JobHandle smoothHandle;
 
     // Transform references for active PIP models
-    private readonly Dictionary<ushort, Transform> pipTransforms = new();
+    private static readonly Dictionary<ushort, Transform> pipTransforms = new();
 
     private const int MaxPIPCameras = 256;
     private const float LerpSpeed = 12f;
 
-    private bool isInitialized;
+    /// <summary>
+    /// Priority for AfterSimulateOnLate. Runs after the hand-held camera interactable (202).
+    /// </summary>
+    private const int SimulatePriority = 203;
 
-    private void Awake()
+    private static bool initialized;
+    private static int nextFreeIndex;
+    private static readonly Queue<int> recycledIndices = new();
+
+    /// <summary>
+    /// Initialize native arrays and subscribe to the simulation loop.
+    /// Called from BasisNetworkLifeCycle.Initalize().
+    /// </summary>
+    public static void Create()
     {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-        Instance = this;
+        if (initialized) return;
 
         currentPositions = new NativeArray<float3>(MaxPIPCameras, Allocator.Persistent);
         targetPositions = new NativeArray<float3>(MaxPIPCameras, Allocator.Persistent);
         activeFlags = new NativeArray<byte>(MaxPIPCameras, Allocator.Persistent);
-        isInitialized = true;
+        nextFreeIndex = 0;
+
+        BasisLocalPlayer.AfterSimulateOnLate.AddAction(SimulatePriority, Simulate);
+        initialized = true;
     }
 
-    private void OnDestroy()
+    /// <summary>
+    /// Dispose native arrays and unsubscribe from the simulation loop.
+    /// Called from BasisNetworkLifeCycle shutdown path.
+    /// </summary>
+    public static void Shutdown()
     {
+        if (!initialized) return;
+
+        BasisLocalPlayer.AfterSimulateOnLate.RemoveAction(SimulatePriority, Simulate);
+
         smoothHandle.Complete();
 
         if (currentPositions.IsCreated) currentPositions.Dispose();
         if (targetPositions.IsCreated) targetPositions.Dispose();
         if (activeFlags.IsCreated) activeFlags.Dispose();
 
-        if (Instance == this) Instance = null;
+        playerIdToIndex.Clear();
+        indexToPlayerId.Clear();
+        activeRemotePIPs.Clear();
+        pipTransforms.Clear();
+        recycledIndices.Clear();
+        nextFreeIndex = 0;
+
+        initialized = false;
     }
 
-    private void Update()
+    /// <summary>
+    /// Per-frame simulation driven by BasisLocalPlayer.AfterSimulateOnLate.
+    /// Completes the previous frame's job, applies positions, schedules next job.
+    /// </summary>
+    private static void Simulate()
     {
-        if (!isInitialized) return;
-        if (activeRemotePIPs.Count == 0) return;
+        if (!initialized || activeRemotePIPs.Count == 0) return;
 
         smoothHandle.Complete();
 
@@ -107,8 +133,10 @@ public class BasisNetworkPIPCameraManager : MonoBehaviour
     /// <summary>
     /// Called from network receive when a remote PIP state message arrives.
     /// </summary>
-    public void OnRemotePIPState(CameraPIPStateMessage msg)
+    public static void OnRemotePIPState(CameraPIPStateMessage msg)
     {
+        if (!initialized) return;
+
         if (msg.IsActive)
         {
             int index = GetOrAllocateIndex(msg.PlayerID);
@@ -136,8 +164,10 @@ public class BasisNetworkPIPCameraManager : MonoBehaviour
     /// <summary>
     /// Called from network receive when a remote PIP position update arrives.
     /// </summary>
-    public void OnRemotePIPPosition(CameraPIPPositionMessage msg)
+    public static void OnRemotePIPPosition(CameraPIPPositionMessage msg)
     {
+        if (!initialized) return;
+
         if (playerIdToIndex.TryGetValue(msg.PlayerID, out int index))
         {
             targetPositions[index] = new float3(msg.PositionX, msg.PositionY, msg.PositionZ);
@@ -147,7 +177,7 @@ public class BasisNetworkPIPCameraManager : MonoBehaviour
     /// <summary>
     /// Register a transform to be driven by the smoothed PIP position.
     /// </summary>
-    public void RegisterPIPTransform(ushort playerId, Transform t)
+    public static void RegisterPIPTransform(ushort playerId, Transform t)
     {
         pipTransforms[playerId] = t;
     }
@@ -155,7 +185,7 @@ public class BasisNetworkPIPCameraManager : MonoBehaviour
     /// <summary>
     /// Unregister a PIP transform (called when the model is destroyed).
     /// </summary>
-    public void UnregisterPIPTransform(ushort playerId)
+    public static void UnregisterPIPTransform(ushort playerId)
     {
         pipTransforms.Remove(playerId);
     }
@@ -198,8 +228,10 @@ public class BasisNetworkPIPCameraManager : MonoBehaviour
     /// <summary>
     /// Clean up when a remote player disconnects.
     /// </summary>
-    public void HandlePlayerDisconnect(ushort playerId)
+    public static void HandlePlayerDisconnect(ushort playerId)
     {
+        if (!initialized) return;
+
         if (activeRemotePIPs.Contains(playerId))
         {
             if (playerIdToIndex.TryGetValue(playerId, out int index))
@@ -214,10 +246,7 @@ public class BasisNetworkPIPCameraManager : MonoBehaviour
         }
     }
 
-    private int nextFreeIndex = 0;
-    private readonly Queue<int> recycledIndices = new();
-
-    private int GetOrAllocateIndex(ushort playerId)
+    private static int GetOrAllocateIndex(ushort playerId)
     {
         if (playerIdToIndex.TryGetValue(playerId, out int existing))
             return existing;
@@ -228,7 +257,7 @@ public class BasisNetworkPIPCameraManager : MonoBehaviour
         return index;
     }
 
-    private void FreeIndex(ushort playerId, int index)
+    private static void FreeIndex(ushort playerId, int index)
     {
         playerIdToIndex.Remove(playerId);
         indexToPlayerId.Remove(index);
