@@ -37,10 +37,25 @@ public class BasisSDKConstants
     #endregion
     #region Prop
     public static readonly string PropuxmlPath = $"{BasePath}{PropFile}";
+    public static readonly string PropIcon = "propicon";
+    public static readonly string PropName = "propnameinput";
+    public static readonly string PropDescription = "propdescriptioninput";
+    public static readonly string PropDocumentationURL = "https://docs.basisvr.org/docs/prop";
     #endregion
 
     #region Scene
     public static readonly string SceneuxmlPath = $"{BasePath}{SceneFile}";
+    public static readonly string SceneIcon = "sceneicon";
+    public static readonly string SceneName = "scenenameinput";
+    public static readonly string SceneDescription = "scenedescriptioninput";
+    public static readonly string SceneDocumentationURL = "https://docs.basisvr.org/docs/scene";
+    public static readonly string SpawnPointField = "spawnpointfield";
+    public static readonly string MainCameraField = "maincamerafield";
+    public static readonly string AudioMixerGroupField = "audiomixergroupfield";
+    public static readonly string IsReadyField = "isreadyfield";
+    public static readonly string RespawnHeightField = "respawnheightfield";
+    public static readonly string RespawnCheckTimerField = "respawnchecktimer";
+    public static readonly string SpawnPointGizmoButton = "SpawnPointGizmoButton";
     #endregion
     #region Shared
     public static readonly string ErrorMessage = "ErrorMessage";
