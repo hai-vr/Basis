@@ -843,14 +843,17 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     BasisInputWrapper = Inputs.desktopCenterEye;
                     return true;
                 default:
-                    if (Inputs.leftHand.GetState() == BasisInteractInputState.Interacting)
+                    // Check dominant hand first so the preferred hand wins when both are interacting
+                    BasisInputWrapper dominant = BasisDominantHand.IsLeftHanded ? Inputs.leftHand : Inputs.rightHand;
+                    BasisInputWrapper nonDominant = BasisDominantHand.IsLeftHanded ? Inputs.rightHand : Inputs.leftHand;
+                    if (dominant.GetState() == BasisInteractInputState.Interacting)
                     {
-                        BasisInputWrapper = Inputs.leftHand;
+                        BasisInputWrapper = dominant;
                         return true;
                     }
-                    else if (Inputs.rightHand.GetState() == BasisInteractInputState.Interacting)
+                    else if (nonDominant.GetState() == BasisInteractInputState.Interacting)
                     {
-                        BasisInputWrapper = Inputs.rightHand;
+                        BasisInputWrapper = nonDominant;
                         return true;
                     }
                     else
@@ -874,14 +877,17 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     BasisInputWrapper = Inputs.desktopCenterEye;
                     return true;
                 default:
-                    if (Inputs.leftHand.GetState() == BasisInteractInputState.Interacting)
+                    // Check dominant hand first; return the opposite hand
+                    BasisInputWrapper dominant = BasisDominantHand.IsLeftHanded ? Inputs.leftHand : Inputs.rightHand;
+                    BasisInputWrapper nonDominant = BasisDominantHand.IsLeftHanded ? Inputs.rightHand : Inputs.leftHand;
+                    if (dominant.GetState() == BasisInteractInputState.Interacting)
                     {
-                        BasisInputWrapper = Inputs.rightHand;
+                        BasisInputWrapper = nonDominant;
                         return true;
                     }
-                    else if (Inputs.rightHand.GetState() == BasisInteractInputState.Interacting)
+                    else if (nonDominant.GetState() == BasisInteractInputState.Interacting)
                     {
-                        BasisInputWrapper = Inputs.leftHand;
+                        BasisInputWrapper = dominant;
                         return true;
                     }
                     else

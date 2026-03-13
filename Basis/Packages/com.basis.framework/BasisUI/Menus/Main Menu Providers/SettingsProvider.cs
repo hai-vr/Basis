@@ -139,6 +139,11 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Mouse Sensitivity", 0, 2f, false, 2, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.mousesensitivty);
 
+            PanelDropdown dropdownDominantHand = PanelDropdown.CreateNewEntry(generalGroup);
+            dropdownDominantHand.Descriptor.SetTitle("Dominant Hand");
+            dropdownDominantHand.AssignEntries(new List<string> { BasisDominantHand.Right, BasisDominantHand.Left });
+            dropdownDominantHand.AssignBinding(BasisSettingsDefaults.DominantHand);
+
             PanelToggle smoothlocomotion = PanelToggle.CreateNewEntry(generalGroup);
             smoothlocomotion.Descriptor.SetTitle("Use Snap Turn Locomotion");
             smoothlocomotion.AssignBinding(BasisSettingsDefaults.usesnapturn);

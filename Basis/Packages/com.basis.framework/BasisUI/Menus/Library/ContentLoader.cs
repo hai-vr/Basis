@@ -120,8 +120,8 @@ namespace Basis.BasisUI
                     case BundledContentHolder.PlacementType.SpawnAtRaycast:
                         BasisDeviceManagement deviceInstance = BasisDeviceManagement.Instance;
 
-                        if (!deviceInstance.FindDevice(out BasisInput input, BasisBoneTrackedRole.LeftHand) &&
-                            !deviceInstance.FindDevice(out input, BasisBoneTrackedRole.RightHand) &&
+                        if (!deviceInstance.FindDevice(out BasisInput input, BasisDominantHand.DominantRole) &&
+                            !deviceInstance.FindDevice(out input, BasisDominantHand.NonDominantRole) &&
                             !deviceInstance.FindDevice(out input, BasisBoneTrackedRole.CenterEye))
                         {
                             BasisDebug.LogError("LoadProp failed: no suitable device found (LeftHand/RightHand/CenterEye).");
