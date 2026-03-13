@@ -10,10 +10,14 @@ public static partial class SerializableBasis
     {
         public ushort PlayerID;
         public bool IsActive;
-        // Position only sent when IsActive == true (initial spawn location)
+        // Position and rotation only sent when IsActive == true (initial spawn)
         public float PositionX;
         public float PositionY;
         public float PositionZ;
+        public float RotationX;
+        public float RotationY;
+        public float RotationZ;
+        public float RotationW;
 
         public void Serialize(NetDataWriter writer)
         {
@@ -24,6 +28,10 @@ public static partial class SerializableBasis
                 writer.Put(PositionX);
                 writer.Put(PositionY);
                 writer.Put(PositionZ);
+                writer.Put(RotationX);
+                writer.Put(RotationY);
+                writer.Put(RotationZ);
+                writer.Put(RotationW);
             }
         }
 
@@ -36,13 +44,16 @@ public static partial class SerializableBasis
                 PositionX = reader.GetFloat();
                 PositionY = reader.GetFloat();
                 PositionZ = reader.GetFloat();
+                RotationX = reader.GetFloat();
+                RotationY = reader.GetFloat();
+                RotationZ = reader.GetFloat();
+                RotationW = reader.GetFloat();
             }
         }
     }
 
     /// <summary>
-    /// Lightweight position-only update for PIP camera (14 bytes total).
-    /// No rotation synced by design.
+    /// Position and rotation update for PIP camera.
     /// </summary>
     public struct CameraPIPPositionMessage
     {
@@ -50,6 +61,10 @@ public static partial class SerializableBasis
         public float PositionX;
         public float PositionY;
         public float PositionZ;
+        public float RotationX;
+        public float RotationY;
+        public float RotationZ;
+        public float RotationW;
 
         public void Serialize(NetDataWriter writer)
         {
@@ -57,6 +72,10 @@ public static partial class SerializableBasis
             writer.Put(PositionX);
             writer.Put(PositionY);
             writer.Put(PositionZ);
+            writer.Put(RotationX);
+            writer.Put(RotationY);
+            writer.Put(RotationZ);
+            writer.Put(RotationW);
         }
 
         public void Deserialize(NetDataReader reader)
@@ -65,6 +84,10 @@ public static partial class SerializableBasis
             PositionX = reader.GetFloat();
             PositionY = reader.GetFloat();
             PositionZ = reader.GetFloat();
+            RotationX = reader.GetFloat();
+            RotationY = reader.GetFloat();
+            RotationZ = reader.GetFloat();
+            RotationW = reader.GetFloat();
         }
     }
 
@@ -77,6 +100,10 @@ public static partial class SerializableBasis
         public float PositionX;
         public float PositionY;
         public float PositionZ;
+        public float RotationX;
+        public float RotationY;
+        public float RotationZ;
+        public float RotationW;
 
         public void Serialize(NetDataWriter writer)
         {
@@ -86,6 +113,10 @@ public static partial class SerializableBasis
                 writer.Put(PositionX);
                 writer.Put(PositionY);
                 writer.Put(PositionZ);
+                writer.Put(RotationX);
+                writer.Put(RotationY);
+                writer.Put(RotationZ);
+                writer.Put(RotationW);
             }
         }
 
@@ -97,24 +128,36 @@ public static partial class SerializableBasis
                 PositionX = reader.GetFloat();
                 PositionY = reader.GetFloat();
                 PositionZ = reader.GetFloat();
+                RotationX = reader.GetFloat();
+                RotationY = reader.GetFloat();
+                RotationZ = reader.GetFloat();
+                RotationW = reader.GetFloat();
             }
         }
     }
 
     /// <summary>
-    /// Client -> server: position update (no PlayerID, server fills it from peer).
+    /// Client -> server: position and rotation update (no PlayerID, server fills it from peer).
     /// </summary>
     public struct ClientCameraPIPPositionMessage
     {
         public float PositionX;
         public float PositionY;
         public float PositionZ;
+        public float RotationX;
+        public float RotationY;
+        public float RotationZ;
+        public float RotationW;
 
         public void Serialize(NetDataWriter writer)
         {
             writer.Put(PositionX);
             writer.Put(PositionY);
             writer.Put(PositionZ);
+            writer.Put(RotationX);
+            writer.Put(RotationY);
+            writer.Put(RotationZ);
+            writer.Put(RotationW);
         }
 
         public void Deserialize(NetDataReader reader)
@@ -122,6 +165,10 @@ public static partial class SerializableBasis
             PositionX = reader.GetFloat();
             PositionY = reader.GetFloat();
             PositionZ = reader.GetFloat();
+            RotationX = reader.GetFloat();
+            RotationY = reader.GetFloat();
+            RotationZ = reader.GetFloat();
+            RotationW = reader.GetFloat();
         }
     }
 }

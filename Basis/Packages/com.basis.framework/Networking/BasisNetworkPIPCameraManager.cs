@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using System;
 using System.Collections.Generic;
@@ -8,26 +9,34 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 using static SerializableBasis;
 
 /// <summary>
 /// Client-side manager for networked PIP cameras.
 /// Fully static - driven by BasisLocalPlayer.AfterSimulateOnLate via Simulate().
-/// Uses Unity Jobs (Burst-compiled IJobParallelFor) for smoothing remote camera positions.
+/// Uses Unity Jobs (Burst-compiled IJobParallelFor) for smoothing remote camera transforms.
+/// Spawns/destroys the remote PIP prefab via Addressables.
 /// </summary>
 public static class BasisNetworkPIPCameraManager
 {
     /// <summary>
     /// Fired when a remote player's PIP camera is created.
-    /// Subscribers should instantiate the 3D lens model.
     /// </summary>
-    public static event Action<ushort, float3> OnRemotePIPCreated;
+    public static event Action<ushort, float3, quaternion> OnRemotePIPCreated;
 
     /// <summary>
     /// Fired when a remote player's PIP camera is destroyed.
-    /// Subscribers should remove the 3D lens model.
     /// </summary>
     public static event Action<ushort> OnRemotePIPDestroyed;
+
+    // Addressable path for the remote PIP prefab
+    private const string RemotePIPPrefabPath = "Packages/com.basis.sdk/Prefabs/UI/Camera Prefab/BasisCameraRemotePip.prefab";
+
+    // Cached prefab loaded via Addressables
+    private static AsyncOperationHandle<GameObject> prefabHandle;
+    private static GameObject loadedPrefab;
 
     // Mapping from playerID -> index in NativeArrays
     private static readonly Dictionary<ushort, int> playerIdToIndex = new();
@@ -37,11 +46,14 @@ public static class BasisNetworkPIPCameraManager
     // Job data
     private static NativeArray<float3> currentPositions;
     private static NativeArray<float3> targetPositions;
+    private static NativeArray<quaternion> currentRotations;
+    private static NativeArray<quaternion> targetRotations;
     private static NativeArray<byte> activeFlags;
     private static JobHandle smoothHandle;
 
-    // Transform references for active PIP models
+    // Transform references and spawned instances for active PIP models
     private static readonly Dictionary<ushort, Transform> pipTransforms = new();
+    private static readonly Dictionary<ushort, GameObject> pipInstances = new();
 
     private const int MaxPIPCameras = 256;
     private const float LerpSpeed = 12f;
@@ -65,8 +77,22 @@ public static class BasisNetworkPIPCameraManager
 
         currentPositions = new NativeArray<float3>(MaxPIPCameras, Allocator.Persistent);
         targetPositions = new NativeArray<float3>(MaxPIPCameras, Allocator.Persistent);
+        currentRotations = new NativeArray<quaternion>(MaxPIPCameras, Allocator.Persistent);
+        targetRotations = new NativeArray<quaternion>(MaxPIPCameras, Allocator.Persistent);
         activeFlags = new NativeArray<byte>(MaxPIPCameras, Allocator.Persistent);
+
+        // Initialize rotations to identity
+        for (int i = 0; i < MaxPIPCameras; i++)
+        {
+            currentRotations[i] = quaternion.identity;
+            targetRotations[i] = quaternion.identity;
+        }
+
         nextFreeIndex = 0;
+
+        // Preload the remote PIP prefab
+        prefabHandle = Addressables.LoadAssetAsync<GameObject>(RemotePIPPrefabPath);
+        loadedPrefab = prefabHandle.WaitForCompletion();
 
         BasisLocalPlayer.AfterSimulateOnLate.AddAction(SimulatePriority, Simulate);
         initialized = true;
@@ -84,8 +110,27 @@ public static class BasisNetworkPIPCameraManager
 
         smoothHandle.Complete();
 
+        // Destroy all spawned PIP instances
+        foreach (var kvp in pipInstances)
+        {
+            if (kvp.Value != null)
+            {
+                UnityEngine.Object.Destroy(kvp.Value);
+            }
+        }
+        pipInstances.Clear();
+
+        // Release the loaded prefab
+        if (prefabHandle.IsValid())
+        {
+            Addressables.Release(prefabHandle);
+        }
+        loadedPrefab = null;
+
         if (currentPositions.IsCreated) currentPositions.Dispose();
         if (targetPositions.IsCreated) targetPositions.Dispose();
+        if (currentRotations.IsCreated) currentRotations.Dispose();
+        if (targetRotations.IsCreated) targetRotations.Dispose();
         if (activeFlags.IsCreated) activeFlags.Dispose();
 
         playerIdToIndex.Clear();
@@ -100,7 +145,7 @@ public static class BasisNetworkPIPCameraManager
 
     /// <summary>
     /// Per-frame simulation driven by BasisLocalPlayer.AfterSimulateOnLate.
-    /// Completes the previous frame's job, applies positions, schedules next job.
+    /// Completes the previous frame's job, applies transforms, schedules next job.
     /// </summary>
     private static void Simulate()
     {
@@ -108,23 +153,29 @@ public static class BasisNetworkPIPCameraManager
 
         smoothHandle.Complete();
 
-        // Apply smoothed positions to transforms
+        // Apply smoothed positions and rotations to transforms
         foreach (var kvp in pipTransforms)
         {
             if (playerIdToIndex.TryGetValue(kvp.Key, out int index))
             {
                 float3 pos = currentPositions[index];
-                kvp.Value.position = new Vector3(pos.x, pos.y, pos.z);
+                quaternion rot = currentRotations[index];
+                kvp.Value.SetPositionAndRotation(
+                    new Vector3(pos.x, pos.y, pos.z),
+                    new Quaternion(rot.value.x, rot.value.y, rot.value.z, rot.value.w)
+                );
             }
         }
 
         // Schedule next frame's smoothing job
-        var job = new PIPPositionSmoothJob
+        var job = new PIPSmoothJob
         {
             DeltaTime = Time.deltaTime,
             LerpSpeed = LerpSpeed,
             CurrentPositions = currentPositions,
             TargetPositions = targetPositions,
+            CurrentRotations = currentRotations,
+            TargetRotations = targetRotations,
             ActiveFlags = activeFlags,
         };
         smoothHandle = job.Schedule(MaxPIPCameras, 32);
@@ -143,12 +194,17 @@ public static class BasisNetworkPIPCameraManager
         {
             int index = GetOrAllocateIndex(msg.PlayerID);
             float3 pos = new float3(msg.PositionX, msg.PositionY, msg.PositionZ);
+            quaternion rot = new quaternion(msg.RotationX, msg.RotationY, msg.RotationZ, msg.RotationW);
             currentPositions[index] = pos;
             targetPositions[index] = pos;
+            currentRotations[index] = rot;
+            targetRotations[index] = rot;
             activeFlags[index] = 1;
             activeRemotePIPs.Add(msg.PlayerID);
 
-            OnRemotePIPCreated?.Invoke(msg.PlayerID, pos);
+            SpawnRemotePIP(msg.PlayerID, pos, rot);
+
+            OnRemotePIPCreated?.Invoke(msg.PlayerID, pos, rot);
         }
         else
         {
@@ -158,6 +214,8 @@ public static class BasisNetworkPIPCameraManager
                 FreeIndex(msg.PlayerID, index);
             }
             activeRemotePIPs.Remove(msg.PlayerID);
+
+            DestroyRemotePIP(msg.PlayerID);
 
             OnRemotePIPDestroyed?.Invoke(msg.PlayerID);
         }
@@ -174,29 +232,14 @@ public static class BasisNetworkPIPCameraManager
         {
             smoothHandle.Complete();
             targetPositions[index] = new float3(msg.PositionX, msg.PositionY, msg.PositionZ);
+            targetRotations[index] = new quaternion(msg.RotationX, msg.RotationY, msg.RotationZ, msg.RotationW);
         }
-    }
-
-    /// <summary>
-    /// Register a transform to be driven by the smoothed PIP position.
-    /// </summary>
-    public static void RegisterPIPTransform(ushort playerId, Transform t)
-    {
-        pipTransforms[playerId] = t;
-    }
-
-    /// <summary>
-    /// Unregister a PIP transform (called when the model is destroyed).
-    /// </summary>
-    public static void UnregisterPIPTransform(ushort playerId)
-    {
-        pipTransforms.Remove(playerId);
     }
 
     /// <summary>
     /// Send local PIP camera state to server.
     /// </summary>
-    public static void SendPIPState(bool isActive, Vector3 position)
+    public static void SendPIPState(bool isActive, Vector3 position, Quaternion rotation)
     {
         ClientCameraPIPStateMessage msg = new ClientCameraPIPStateMessage
         {
@@ -204,6 +247,10 @@ public static class BasisNetworkPIPCameraManager
             PositionX = position.x,
             PositionY = position.y,
             PositionZ = position.z,
+            RotationX = rotation.x,
+            RotationY = rotation.y,
+            RotationZ = rotation.z,
+            RotationW = rotation.w,
         };
 
         NetDataWriter writer = new NetDataWriter();
@@ -212,15 +259,19 @@ public static class BasisNetworkPIPCameraManager
     }
 
     /// <summary>
-    /// Send local PIP camera position to server.
+    /// Send local PIP camera position and rotation to server.
     /// </summary>
-    public static void SendPIPPosition(Vector3 position)
+    public static void SendPIPPosition(Vector3 position, Quaternion rotation)
     {
         ClientCameraPIPPositionMessage msg = new ClientCameraPIPPositionMessage
         {
             PositionX = position.x,
             PositionY = position.y,
             PositionZ = position.z,
+            RotationX = rotation.x,
+            RotationY = rotation.y,
+            RotationZ = rotation.z,
+            RotationW = rotation.w,
         };
 
         NetDataWriter writer = new NetDataWriter();
@@ -244,9 +295,58 @@ public static class BasisNetworkPIPCameraManager
                 FreeIndex(playerId, index);
             }
             activeRemotePIPs.Remove(playerId);
-            pipTransforms.Remove(playerId);
+
+            DestroyRemotePIP(playerId);
 
             OnRemotePIPDestroyed?.Invoke(playerId);
+        }
+    }
+
+    /// <summary>
+    /// Spawn the remote PIP prefab instance for a player.
+    /// </summary>
+    private static void SpawnRemotePIP(ushort playerId, float3 position, quaternion rotation)
+    {
+        if (loadedPrefab == null)
+        {
+            BasisDebug.LogError("Remote PIP prefab not loaded");
+            return;
+        }
+
+        // Destroy any existing instance for this player
+        DestroyRemotePIP(playerId);
+
+        Vector3 pos = new Vector3(position.x, position.y, position.z);
+        Quaternion rot = new Quaternion(rotation.value.x, rotation.value.y, rotation.value.z, rotation.value.w);
+
+        GameObject instance = UnityEngine.Object.Instantiate(loadedPrefab, pos, rot);
+        instance.transform.parent = BasisDeviceManagement.Instance.transform;
+
+        // Apply rotation offset from the metadata component
+        if (instance.TryGetComponent<BasisCameraRemotePip>(out BasisCameraRemotePip pipMeta))
+        {
+            pipMeta.PlayerID = playerId;
+            instance.transform.localRotation *= Quaternion.Euler(pipMeta.RotationOffset);
+        }
+
+        pipInstances[playerId] = instance;
+        pipTransforms[playerId] = instance.transform;
+    }
+
+    /// <summary>
+    /// Destroy the remote PIP prefab instance for a player.
+    /// </summary>
+    private static void DestroyRemotePIP(ushort playerId)
+    {
+        pipTransforms.Remove(playerId);
+
+        if (pipInstances.TryGetValue(playerId, out GameObject instance))
+        {
+            pipInstances.Remove(playerId);
+            if (instance != null)
+            {
+                UnityEngine.Object.Destroy(instance);
+            }
         }
     }
 
@@ -269,13 +369,15 @@ public static class BasisNetworkPIPCameraManager
     }
 
     [BurstCompile(FloatMode = FloatMode.Fast)]
-    struct PIPPositionSmoothJob : IJobParallelFor
+    struct PIPSmoothJob : IJobParallelFor
     {
         public float DeltaTime;
         public float LerpSpeed;
 
         public NativeArray<float3> CurrentPositions;
         [ReadOnly] public NativeArray<float3> TargetPositions;
+        public NativeArray<quaternion> CurrentRotations;
+        [ReadOnly] public NativeArray<quaternion> TargetRotations;
         [ReadOnly] public NativeArray<byte> ActiveFlags;
 
         public void Execute(int index)
@@ -283,10 +385,18 @@ public static class BasisNetworkPIPCameraManager
             if (ActiveFlags[index] == 0)
                 return;
 
+            float t = math.saturate(DeltaTime * LerpSpeed);
+
             CurrentPositions[index] = math.lerp(
                 CurrentPositions[index],
                 TargetPositions[index],
-                math.saturate(DeltaTime * LerpSpeed)
+                t
+            );
+
+            CurrentRotations[index] = math.nlerp(
+                CurrentRotations[index],
+                TargetRotations[index],
+                t
             );
         }
     }
