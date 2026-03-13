@@ -404,6 +404,19 @@ namespace Basis.BasisUI
             });
             dropdownMicrophoneIcon.AssignBinding(BasisSettingsDefaults.MicrophoneIcon);
 
+            // Microphone Icon Position Offset
+            PanelSlider sliderMicIconOffsetX = PanelSlider.CreateEntryAndBind(
+                microphoneGroup,
+                PanelSlider.SliderSettings.Advanced("Mic Icon Horizontal Offset", -0.5f, 0.5f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MicrophoneIconOffsetX);
+            sliderMicIconOffsetX.Descriptor.SetDescription("Slide the microphone icon left or right.");
+
+            PanelSlider sliderMicIconOffsetY = PanelSlider.CreateEntryAndBind(
+                microphoneGroup,
+                PanelSlider.SliderSettings.Advanced("Mic Icon Vertical Offset", -0.5f, 0.5f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MicrophoneIconOffsetY);
+            sliderMicIconOffsetY.Descriptor.SetDescription("Slide the microphone icon up or down.");
+
             // Mic Start Behavior dropdown
             PanelDropdown dropdownMicStartBehavior = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicStartBehavior.Descriptor.SetTitle("Mic Start Behavior");
@@ -585,6 +598,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.UseAutomaticGain.ResetToDefault();
             BasisSettingsDefaults.MicrophoneMode.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIcon.ResetToDefault();
+            BasisSettingsDefaults.MicrophoneIconOffsetX.ResetToDefault();
+            BasisSettingsDefaults.MicrophoneIconOffsetY.ResetToDefault();
 
             // DSP
             BasisSettingsDefaults.LimitThreshold.ResetToDefault();
@@ -758,26 +773,34 @@ namespace Basis.BasisUI
             PanelElementDescriptor advancedGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             advancedGroup.SetTitle("Advanced Rendering");
-            advancedGroup.SetDescription("Foveation, FOV and LOD controls.");
+            advancedGroup.SetDescription("Change how things look vs how smooth they run.");
 
             PanelSlider sliderFoveatedRendering = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
-                PanelSlider.SliderSettings.Advanced("Foveated Rendering", 0, 1, false, 1, ValueDisplayMode.Percentage),
+                new PanelSlider.SliderSettings("Foveated Rendering",
+                    "Blurs the edges of your view so things run faster.",
+                    0, 1, false, 1, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.FoveatedRendering);
 
             PanelSlider sliderFieldOfView = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
-                PanelSlider.SliderSettings.Degrees("Field Of View", BasisSettingsDefaults.FOV_MIN, BasisSettingsDefaults.FOV_MAX, true, 0),
+                new PanelSlider.SliderSettings("Field of View",
+                    "How wide you can see on desktop. VR sets this for you.",
+                    BasisSettingsDefaults.FOV_MIN, BasisSettingsDefaults.FOV_MAX, true, 0, ValueDisplayMode.Degrees),
                 BasisSettingsDefaults.FieldOfView);
 
             PanelSlider sliderMeshLOD = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
-                new PanelSlider.SliderSettings("Avatar LOD Multiplier", "", 0, 1, false, 3, ValueDisplayMode.Percentage),
+                new PanelSlider.SliderSettings("Avatar Detail",
+                    "How detailed avatars look far away.",
+                    0, 1, false, 3, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.AvatarMeshLOD);
 
             PanelSlider sliderGlobalMeshLOD = PanelSlider.CreateEntryAndBind(
                 advancedGroup.ContentParent,
-                PanelSlider.SliderSettings.Percentage("World LOD Multiplier"),
+                new PanelSlider.SliderSettings("World Detail",
+                    "How detailed the world looks far away.",
+                    0, 100, true, 0, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.GlobalMeshLOD);
 
             // One reset button for this whole page

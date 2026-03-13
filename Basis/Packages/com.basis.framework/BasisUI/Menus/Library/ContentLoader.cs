@@ -22,45 +22,79 @@ namespace Basis.BasisUI
     /// </summary>
     public static class ContentLoader
     {
+        /// <summary>
+        /// A reachability warning from the last avatar load attempt, if any.
+        /// Set when the remote file could not be reached but the load was still attempted.
+        /// Cleared on each new load attempt.
+        /// </summary>
+        public static string LastAvatarReachabilityWarning { get; private set; }
+
         public static async Task LoadAvatar(BasisDataStoreItemKeys.ItemKey item)
         {
-            if (BasisLocalPlayer.Instance)
+            LastAvatarReachabilityWarning = null;
+
+            if (!BasisLocalPlayer.Instance)
             {
-                CachedMetaData.CachedContent cachedMeta;
-                if (CachedMetaData.TryGetMeta(item.Url, out cachedMeta))
-                {
-                    BasisLoadableBundle bundle = cachedMeta.BasisLoadableBundle;
+                BasisDebug.LogError("Attempted to LoadAvatar without a BasisLocalPlayer.Instance.");
+                return;
+            }
 
-                    BasisDebug.Log($"LoadAvatar({item.Url}) -> bundle = {bundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}");
+            if (!CachedMetaData.TryGetMeta(item.Url, out CachedMetaData.CachedContent cachedMeta))
+            {
+                BasisDebug.LogError($"LoadAvatar({item.Url}) -> failed to get cached meta");
+                return;
+            }
 
-                    if (cachedMeta.BasisBundleConnector.GetPlatform(out BasisBundleGenerated platformBundle))
-                    {
-                        string assetMode = platformBundle.AssetMode;
-                        byte mode = !string.IsNullOrEmpty(assetMode) && byte.TryParse(assetMode, out byte result)
-                            ? result
-                            : (byte)0;
-                        await BasisLocalPlayer.Instance.CreateAvatar(mode, bundle);
-                    }
-                    else
-                    {
-                        if (bundle.UnlockPassword == BasisBeeConstants.DefaultAvatar)
-                        {
-                            await BasisLocalPlayer.Instance.CreateAvatar(1, bundle);
-                        }
-                        else
-                        {
-                            BasisDebug.LogError("LoadAvatar -> Missing Platform " + Application.platform);
-                        }
-                    }
-                }
-                else
-                {
-                    BasisDebug.LogError($"LoadAvatar({item.Url}) -> failed to get cached meta");
-                }
+            BasisLoadableBundle bundle = cachedMeta.BasisLoadableBundle;
+            BasisDebug.Log($"LoadAvatar({item.Url}) -> bundle = {bundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}");
+
+            // Fire reachability check in parallel with the avatar load
+            Task<BeeResult<bool>> reachabilityTask = null;
+            string remoteUrl = bundle.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation;
+            if (!string.IsNullOrEmpty(remoteUrl) && Uri.TryCreate(remoteUrl, UriKind.Absolute, out _))
+            {
+                BasisDebug.Log($"Checking avatar file reachability: {remoteUrl}", BasisDebug.LogTag.Avatar);
+                reachabilityTask = BasisIOManagement.CheckRemoteFileReachable(remoteUrl);
+            }
+
+            // Load the avatar immediately without waiting for the reachability check
+            if (cachedMeta.BasisBundleConnector.GetPlatform(out BasisBundleGenerated platformBundle))
+            {
+                string assetMode = platformBundle.AssetMode;
+                byte mode = !string.IsNullOrEmpty(assetMode) && byte.TryParse(assetMode, out byte result)
+                    ? result
+                    : (byte)0;
+                await BasisLocalPlayer.Instance.CreateAvatar(mode, bundle);
             }
             else
             {
-                BasisDebug.LogError("Attempted to LoadAvatar without a BasisLocalPlayer.Instance.");
+                if (bundle.UnlockPassword == BasisBeeConstants.DefaultAvatar)
+                {
+                    await BasisLocalPlayer.Instance.CreateAvatar(1, bundle);
+                }
+                else
+                {
+                    BasisDebug.LogError("LoadAvatar -> Missing Platform " + Application.platform);
+                }
+            }
+
+            // Collect the reachability result after the load finishes
+            if (reachabilityTask != null)
+            {
+                try
+                {
+                    var reachResult = await reachabilityTask;
+                    if (!reachResult.IsSuccess)
+                    {
+                        LastAvatarReachabilityWarning = $"Could not reach avatar file at URL: {reachResult.Error}";
+                        BasisDebug.LogWarning(LastAvatarReachabilityWarning);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LastAvatarReachabilityWarning = $"Could not reach avatar file at URL: {ex.Message}";
+                    BasisDebug.LogWarning(LastAvatarReachabilityWarning);
+                }
             }
         }
 

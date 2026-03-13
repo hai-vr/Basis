@@ -96,6 +96,9 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<string> MicrophoneIcon => new("microphoneicon", new BasisPlatformDefault<string>("alwaysvisible"));
 
+        public static BasisSettingsBinding<float> MicrophoneIconOffsetX => new("microphoneiconoffsetx", new BasisPlatformDefault<float>(0f));
+        public static BasisSettingsBinding<float> MicrophoneIconOffsetY => new("microphoneiconoffsety", new BasisPlatformDefault<float>(0f));
+
         public static BasisSettingsBinding<string> VisualState => new("visualstate", new BasisPlatformDefault<string>("off"));
 
         public static BasisSettingsBinding<string> IKMode => new("ikmode", new BasisPlatformDefault<string>("eye height"));
@@ -561,6 +564,8 @@ namespace Basis.BasisUI
 
             // UI
             MicrophoneIcon.LoadBindingValue();
+            MicrophoneIconOffsetX.LoadBindingValue();
+            MicrophoneIconOffsetY.LoadBindingValue();
 
             // Misc
             FalseBinding.LoadBindingValue();

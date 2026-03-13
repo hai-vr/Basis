@@ -122,7 +122,12 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
                 // still reset the request, we dont care if we actually picked up
                 pendingStealRequest = null;
             }
-            SetIsKinematicOnPickup(false);
+            // Only force non-kinematic when not currently interacting,
+            // so pickup kinematic state is preserved during ownership transfer
+            if (BasisPickupInteractable == null || !BasisPickupInteractable.KinematicWhileInteracting || !BasisPickupInteractable.Inputs.AnyInteracting())
+            {
+                SetIsKinematicOnPickup(false);
+            }
         }
         else
         {

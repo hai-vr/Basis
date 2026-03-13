@@ -6,40 +6,59 @@ using UnityEngine;
 
 public class SMModuleIcons : BasisSettingsBase
 {
-    // --- Canonical setting key (from defaults) ---
-    private static string K_MICROPHONE_ICON => BasisSettingsDefaults.MicrophoneIcon.BindingKey; // "microphone icon"
+    // --- Canonical setting keys (from defaults) ---
+    private static string K_MICROPHONE_ICON => BasisSettingsDefaults.MicrophoneIcon.BindingKey;
+    private static string K_MICROPHONE_ICON_OFFSET_X => BasisSettingsDefaults.MicrophoneIconOffsetX.BindingKey;
+    private static string K_MICROPHONE_ICON_OFFSET_Y => BasisSettingsDefaults.MicrophoneIconOffsetY.BindingKey;
 
     public override void ValidSettingsChange(string matchedSettingName, string optionValue)
     {
-        // Only react to the microphone icon setting
-        if (matchedSettingName != K_MICROPHONE_ICON)
-            return;
-
         if (BasisLocalCameraDriver.Instance == null)
             return;
 
         if (BasisLocalCameraDriver.Instance.microphoneIconDriver == null)
             return;
 
-        switch (optionValue)
+        if (matchedSettingName == K_MICROPHONE_ICON)
         {
-            case "activitydetection":
-                BasisLocalCameraDriver.Instance.microphoneIconDriver
-                    .OnDisplayModeChanged(
-                        BasisLocalMicrophoneIconDriver.MicrophoneDisplayMode.ActivityDetection);
-                break;
+            switch (optionValue)
+            {
+                case "activitydetection":
+                    BasisLocalCameraDriver.Instance.microphoneIconDriver
+                        .OnDisplayModeChanged(
+                            BasisLocalMicrophoneIconDriver.MicrophoneDisplayMode.ActivityDetection);
+                    break;
 
-            case "alwaysvisible":
-                BasisLocalCameraDriver.Instance.microphoneIconDriver
-                    .OnDisplayModeChanged(
-                        BasisLocalMicrophoneIconDriver.MicrophoneDisplayMode.AlwaysVisible);
-                break;
+                case "alwaysvisible":
+                    BasisLocalCameraDriver.Instance.microphoneIconDriver
+                        .OnDisplayModeChanged(
+                            BasisLocalMicrophoneIconDriver.MicrophoneDisplayMode.AlwaysVisible);
+                    break;
 
-            case "hidden":
-                BasisLocalCameraDriver.Instance.microphoneIconDriver
-                    .OnDisplayModeChanged(
-                        BasisLocalMicrophoneIconDriver.MicrophoneDisplayMode.Off);
-                break;
+                case "hidden":
+                    BasisLocalCameraDriver.Instance.microphoneIconDriver
+                        .OnDisplayModeChanged(
+                            BasisLocalMicrophoneIconDriver.MicrophoneDisplayMode.Off);
+                    break;
+            }
+        }
+        else if (matchedSettingName == K_MICROPHONE_ICON_OFFSET_X)
+        {
+            if (float.TryParse(optionValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float x))
+            {
+                var offset = BasisLocalCameraDriver.Instance.microphoneIconDriver.IconPositionOffset;
+                offset.x = x;
+                BasisLocalCameraDriver.Instance.microphoneIconDriver.IconPositionOffset = offset;
+            }
+        }
+        else if (matchedSettingName == K_MICROPHONE_ICON_OFFSET_Y)
+        {
+            if (float.TryParse(optionValue, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float y))
+            {
+                var offset = BasisLocalCameraDriver.Instance.microphoneIconDriver.IconPositionOffset;
+                offset.y = y;
+                BasisLocalCameraDriver.Instance.microphoneIconDriver.IconPositionOffset = offset;
+            }
         }
     }
 

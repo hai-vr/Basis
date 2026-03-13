@@ -26,6 +26,9 @@ namespace Basis.Scripts.Drivers
         [Range(0f, 0.2f)]
         public float VRextraViewportPad = 0.022f;
 
+        /// <summary>User-configurable offset applied to VRdesiredNormXY. Range -1..1 for both axes.</summary>
+        public Vector2 IconPositionOffset = Vector2.zero;
+
         private Vector2 iconHalfRU;
         private readonly Vector3[] corners = new Vector3[4];
         private Rect FrustumRequest = new Rect(0, 0, 1, 1);
@@ -114,8 +117,8 @@ namespace Basis.Scripts.Drivers
             float marginU = Mathf.Clamp01(iconHalfRU.x / Mathf.Max(halfW, 1e-4f)) + VRextraViewportPad;
             float marginV = Mathf.Clamp01(iconHalfRU.y / Mathf.Max(halfH, 1e-4f)) + VRextraViewportPad;
 
-            float u = Mathf.Clamp(VRdesiredNormXY.x, -1f + marginU, 1f - marginU);
-            float v = Mathf.Clamp(VRdesiredNormXY.y, -1f + marginV, 1f - marginV);
+            float u = Mathf.Clamp(VRdesiredNormXY.x + IconPositionOffset.x, -1f + marginU, 1f - marginU);
+            float v = Mathf.Clamp(VRdesiredNormXY.y + IconPositionOffset.y, -1f + marginV, 1f - marginV);
 
             Vector3 centerAtDepth = cam.transform.InverseTransformPoint(Position + cam.transform.forward * BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale);
 

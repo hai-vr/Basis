@@ -375,14 +375,20 @@ namespace Basis.Scripts.Drivers
                 {
                     if (BasisDeviceManagement.IsMobileHardware())
                     {
-                        Vector3 worldPoint = Camera.ViewportToWorldPoint(MobileMicrophoneViewportPosition);
+                        Vector3 viewportPos = MobileMicrophoneViewportPosition;
+                        viewportPos.x += microphoneIconDriver.IconPositionOffset.x;
+                        viewportPos.y += microphoneIconDriver.IconPositionOffset.y;
+                        Vector3 worldPoint = Camera.ViewportToWorldPoint(viewportPos);
                         // assume this transform is the camera parent
                         Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
                         ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
                     }
                     else
                     {
-                        Vector3 worldPoint = Camera.ViewportToWorldPoint(DesktopMicrophoneViewportPosition);
+                        Vector3 viewportPos = DesktopMicrophoneViewportPosition;
+                        viewportPos.x += microphoneIconDriver.IconPositionOffset.x;
+                        viewportPos.y += microphoneIconDriver.IconPositionOffset.y;
+                        Vector3 worldPoint = Camera.ViewportToWorldPoint(viewportPos);
                         // assume this transform is the camera parent
                         Vector3 localPos = this.transform.InverseTransformPoint(worldPoint);
                         ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;

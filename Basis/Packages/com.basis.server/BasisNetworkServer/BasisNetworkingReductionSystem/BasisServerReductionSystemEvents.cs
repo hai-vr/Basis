@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
+using BasisNetworkServer;
 using BasisNetworkServer.BasisNetworking;
 using System;
 using System.Collections.Concurrent;
@@ -182,7 +183,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 ProcessPendingRemovals();
 
                 // Network updates
-                UpdateCommunicationAndDistances(Stopwatch.GetTimestamp());
+                long now = Stopwatch.GetTimestamp();
+                UpdateCommunicationAndDistances(now);
+                BasisNetworkPIPCamera.UpdatePIPPositions(now);
 
                 if (NetworkServer.Server != null && NetworkServer.Server.manager != null)
                 {
