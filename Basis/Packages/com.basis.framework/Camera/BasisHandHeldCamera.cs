@@ -149,7 +149,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // Notify network that PIP camera was created
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
-            transform.GetPositionAndRotation(out Vector3 pipPos, out Quaternion pipRot);
+            captureCamera.transform.GetPositionAndRotation(out Vector3 pipPos, out Quaternion pipRot);
             BasisNetworkPIPCameraDriver.SendPIPState(true, pipPos, pipRot);
         }
     }
@@ -490,7 +490,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // Send PIP camera position to network
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
-            transform.GetPositionAndRotation(out Vector3 pos, out Quaternion rot);
+            captureCamera.transform.GetPositionAndRotation(out Vector3 pos, out Quaternion rot);
             BasisNetworkPIPCameraDriver.SendPIPPosition(pos, rot);
         }
     }
