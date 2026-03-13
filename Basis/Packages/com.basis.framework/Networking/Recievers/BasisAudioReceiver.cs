@@ -161,10 +161,13 @@ namespace Basis.Scripts.Networking.Receivers
                 AudioSourceSet();
             }
         }
-        public void InsertAndDrain(AudioSegmentDataMessage msg)
+        public void Insert(AudioSegmentDataMessage msg)
         {
             JitterBuffer.Insert(msg.SequenceNumber, msg.buffer, msg.LengthUsed, msg.TotalPlayedInSilence);
+        }
 
+        public void DrainAndDecode()
+        {
             while (JitterBuffer.TryConsume(out byte[] data, out int length, out byte silenceUnits, out bool isMissing))
             {
                 if (isMissing)
