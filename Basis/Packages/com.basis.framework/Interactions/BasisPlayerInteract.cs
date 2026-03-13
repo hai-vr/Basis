@@ -202,12 +202,21 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         if (interactInput.lastTarget.IsInteractingWith(interactInput.input))
                         {
                             // Keep interaction alive while grip is held (detection may resume).
-                            // But if grip is released and detection is lost, drop immediately
-                            // so objects don't get permanently stuck.
-                            if (!interactInput.lastTarget.IsInteractTriggered(interactInput.input))
+                            if (interactInput.lastTarget.IsInteractTriggered(interactInput.input))
                             {
-                                interactInput.lastTarget.OnInteractEnd(interactInput.input);
-                                interactInput.lastTarget = null;
+                                interactInput.timeSinceGripConfirmed = 0f;
+                            }
+                            else
+                            {
+                                // Grace period before dropping: prevents false drops during
+                                // fast VR hand movement where tracking can briefly glitch
+                                interactInput.timeSinceGripConfirmed += Time.deltaTime;
+                                if (interactInput.timeSinceGripConfirmed > 0.1f)
+                                {
+                                    interactInput.lastTarget.OnInteractEnd(interactInput.input);
+                                    interactInput.lastTarget = null;
+                                    interactInput.timeSinceGripConfirmed = 0f;
+                                }
                             }
                         }
                         else
@@ -410,6 +419,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // -----------------------------
             if (hitInteractable.IsInteractTriggered(interactInput.input))
             {
+                interactInput.timeSinceGripConfirmed = 0f;
                 // If currently hovered, end hover before interaction
                 if (hitInteractable.IsHoveredBy(interactInput.input))
                 {
@@ -441,10 +451,16 @@ namespace Basis.Scripts.BasisSdk.Interactions
                      hitInteractable.IsHoldDropTriggered(interactInput.input));
             }
 
-            // End interaction if we’re not holding and we should drop
+            // End interaction if grip is confirmed released (with grace period
+            // to prevent false drops during fast VR hand movement)
             if (hitInteractable.IsInteractingWith(interactInput.input) && autoHoldDroppedSameTarget)
             {
-                hitInteractable.OnInteractEnd(interactInput.input);
+                interactInput.timeSinceGripConfirmed += Time.deltaTime;
+                if (interactInput.timeSinceGripConfirmed > 0.1f)
+                {
+                    hitInteractable.OnInteractEnd(interactInput.input);
+                    interactInput.timeSinceGripConfirmed = 0f;
+                }
             }
 
             // ✅ Key part: Hover maintenance vs hover start
