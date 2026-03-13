@@ -48,19 +48,16 @@ namespace Basis.BasisUI
             BasisLoadableBundle bundle = cachedMeta.BasisLoadableBundle;
             BasisDebug.Log($"LoadAvatar({item.Url}) -> bundle = {bundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}");
 
-            // Check remote file reachability - warn but still attempt load
+            // Fire reachability check in parallel with the avatar load
+            Task<BeeResult<bool>> reachabilityTask = null;
             string remoteUrl = bundle.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation;
             if (!string.IsNullOrEmpty(remoteUrl) && Uri.TryCreate(remoteUrl, UriKind.Absolute, out _))
             {
                 BasisDebug.Log($"Checking avatar file reachability: {remoteUrl}", BasisDebug.LogTag.Avatar);
-                var reachResult = await BasisIOManagement.CheckRemoteFileReachable(remoteUrl);
-                if (!reachResult.IsSuccess)
-                {
-                    LastAvatarReachabilityWarning = $"Could not reach avatar file at URL: {reachResult.Error}";
-                    BasisDebug.LogWarning(LastAvatarReachabilityWarning);
-                }
+                reachabilityTask = BasisIOManagement.CheckRemoteFileReachable(remoteUrl);
             }
 
+            // Load the avatar immediately without waiting for the reachability check
             if (cachedMeta.BasisBundleConnector.GetPlatform(out BasisBundleGenerated platformBundle))
             {
                 string assetMode = platformBundle.AssetMode;
@@ -78,6 +75,25 @@ namespace Basis.BasisUI
                 else
                 {
                     BasisDebug.LogError("LoadAvatar -> Missing Platform " + Application.platform);
+                }
+            }
+
+            // Collect the reachability result after the load finishes
+            if (reachabilityTask != null)
+            {
+                try
+                {
+                    var reachResult = await reachabilityTask;
+                    if (!reachResult.IsSuccess)
+                    {
+                        LastAvatarReachabilityWarning = $"Could not reach avatar file at URL: {reachResult.Error}";
+                        BasisDebug.LogWarning(LastAvatarReachabilityWarning);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LastAvatarReachabilityWarning = $"Could not reach avatar file at URL: {ex.Message}";
+                    BasisDebug.LogWarning(LastAvatarReachabilityWarning);
                 }
             }
         }
