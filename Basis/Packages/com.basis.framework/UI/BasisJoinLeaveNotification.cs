@@ -307,7 +307,7 @@ namespace Basis.Scripts.UI
             Vector2 textSize = slot.Text.GetRenderedValues(true);
 
             float halfWidth = (textSize.x / 2f) + BackgroundPadding;
-            float halfHeight = (textSize.y / 4f) + BackgroundPadding;
+            float halfHeight = (TextRectHeight / 4f) + BackgroundPadding;
             halfWidth = Mathf.Max(halfWidth, MinHalfWidth);
             halfHeight = Mathf.Max(halfHeight, MinHalfHeight);
 
