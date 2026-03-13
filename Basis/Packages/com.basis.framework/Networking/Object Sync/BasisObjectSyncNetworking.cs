@@ -101,11 +101,6 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
         if (BasisPickupInteractable != null && BasisPickupInteractable.RigidRef != null)
         {
             BasisPickupInteractable.RigidRef.isKinematic = state;
-            if (!state)
-            {
-                BasisPickupInteractable.RigidRef.linearVelocity = UnityEngine.Vector3.zero;
-                BasisPickupInteractable.RigidRef.angularVelocity = UnityEngine.Vector3.zero;
-            }
         }
     }
     public override void OnOwnershipTransfer(BasisNetworkPlayer NetIdNewOwner)

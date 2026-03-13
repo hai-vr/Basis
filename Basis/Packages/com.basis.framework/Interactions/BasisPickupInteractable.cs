@@ -458,11 +458,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
                     transform.GetPositionAndRotation(out Vector3 ActivePosition, out Quaternion ActiveRotation);
 
-                    // Initialize velocity tracking so the first frame doesn't
-                    // compute a huge delta from a stale previous position
-                    _previousPosition = ActivePosition;
-                    _previousRotation = ActiveRotation;
-
                     var offsetPos = Quaternion.Inverse(inRot) * (ActivePosition - inPos);
                     var offsetRot = Quaternion.Inverse(inRot) * ActiveRotation;
 
