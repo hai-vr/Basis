@@ -110,20 +110,6 @@ public class BasisPropValidator
             passes.Add("No missing scripts.");
         }
 
-        // Check for renderers
-        Renderer[] renderers = Prop.GetComponentsInChildren<Renderer>(true);
-        if (renderers.Length == 0)
-        {
-            errors.Add(new BasisValidationIssue(
-                "No renderers found. Prop will not be visible.",
-                ValidationCategory.MissingReference, null
-            ));
-        }
-        else
-        {
-            passes.Add($"Renderers found ({renderers.Length}).");
-        }
-
         // Check custom password
         BasisAssetBundleObject assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
         if (assetBundleObject != null)
@@ -135,20 +121,6 @@ public class BasisPropValidator
                     ValidationCategory.Security, null
                 ));
             }
-        }
-
-        // Check for colliders
-        Collider[] colliders = Prop.GetComponentsInChildren<Collider>(true);
-        if (colliders.Length == 0)
-        {
-            errors.Add(new BasisValidationIssue(
-                "No colliders found. Prop will not be interactable.",
-                ValidationCategory.MissingReference, null
-            ));
-        }
-        else
-        {
-            passes.Add($"Colliders found ({colliders.Length}).");
         }
 
         return errors.Count == 0;
