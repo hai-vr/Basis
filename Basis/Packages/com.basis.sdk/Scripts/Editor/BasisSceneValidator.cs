@@ -190,6 +190,7 @@ public class BasisSceneValidator
     private void FixAssignSpawnPoint()
     {
         if (Scene == null) return;
+        Undo.RecordObject(Scene, "Assign Spawn Point");
         Scene.SpawnPoint = Scene.transform;
         EditorUtility.SetDirty(Scene);
     }
