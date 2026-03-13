@@ -15,6 +15,10 @@ namespace BasisNetworkServer
         public float PositionX;
         public float PositionY;
         public float PositionZ;
+        public float RotationX;
+        public float RotationY;
+        public float RotationZ;
+        public float RotationW;
         public bool HasNewData;
         public Dictionary<int, long> LastSentTimes = new();
     }
@@ -41,6 +45,10 @@ namespace BasisNetworkServer
                 state.PositionX = clientMsg.PositionX;
                 state.PositionY = clientMsg.PositionY;
                 state.PositionZ = clientMsg.PositionZ;
+                state.RotationX = clientMsg.RotationX;
+                state.RotationY = clientMsg.RotationY;
+                state.RotationZ = clientMsg.RotationZ;
+                state.RotationW = clientMsg.RotationW;
                 state.HasNewData = true;
 
                 BNL.Log($"PIP camera created for player {peerId}");
@@ -65,6 +73,10 @@ namespace BasisNetworkServer
                 PositionX = clientMsg.PositionX,
                 PositionY = clientMsg.PositionY,
                 PositionZ = clientMsg.PositionZ,
+                RotationX = clientMsg.RotationX,
+                RotationY = clientMsg.RotationY,
+                RotationZ = clientMsg.RotationZ,
+                RotationW = clientMsg.RotationW,
             };
 
             NetDataWriter writer = NetworkServer.RentWriter();
@@ -90,6 +102,10 @@ namespace BasisNetworkServer
             state.PositionX = clientMsg.PositionX;
             state.PositionY = clientMsg.PositionY;
             state.PositionZ = clientMsg.PositionZ;
+            state.RotationX = clientMsg.RotationX;
+            state.RotationY = clientMsg.RotationY;
+            state.RotationZ = clientMsg.RotationZ;
+            state.RotationW = clientMsg.RotationW;
             state.HasNewData = true;
         }
 
@@ -125,6 +141,10 @@ namespace BasisNetworkServer
                     PositionX = pipState.PositionX,
                     PositionY = pipState.PositionY,
                     PositionZ = pipState.PositionZ,
+                    RotationX = pipState.RotationX,
+                    RotationY = pipState.RotationY,
+                    RotationZ = pipState.RotationZ,
+                    RotationW = pipState.RotationW,
                 };
 
                 NetDataWriter writer = NetworkServer.RentWriter();
@@ -188,6 +208,10 @@ namespace BasisNetworkServer
                     PositionX = state.PositionX,
                     PositionY = state.PositionY,
                     PositionZ = state.PositionZ,
+                    RotationX = state.RotationX,
+                    RotationY = state.RotationY,
+                    RotationZ = state.RotationZ,
+                    RotationW = state.RotationW,
                 };
                 msg.Serialize(writer);
                 NetworkServer.TrySend(newPeer, writer, BasisNetworkCommons.CameraPIPStateChannel, DeliveryMethod.ReliableOrdered);
