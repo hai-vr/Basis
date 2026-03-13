@@ -115,16 +115,23 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
         {
             BasisObjectSyncDriver.AddLocalOwner(this);
             BasisObjectSyncDriver.RemoveRemoteOwner(this);
-            // Delayed InteractStart when local user gets ownership
             if (pendingStealRequest != null)
             {
+                // Set non-kinematic before ForceSetInteracting so that OnInteractStart
+                // saves the correct _previousKinematicValue (false) for restore on drop
+                SetIsKinematicOnPickup(false);
                 BasisPlayerInteract.Instance.ForceSetInteracting(BasisPickupInteractable, pendingStealRequest);
-                // still reset the request, we dont care if we actually picked up
                 pendingStealRequest = null;
+                // ForceSetInteracting -> OnInteractStart re-applies isKinematic = true
+                // when KinematicWhileInteracting is enabled, so don't override after
             }
-            // Only force non-kinematic when not currently interacting,
-            // so pickup kinematic state is preserved during ownership transfer
-            if (BasisPickupInteractable == null || !BasisPickupInteractable.KinematicWhileInteracting || !BasisPickupInteractable.Inputs.AnyInteracting())
+            else if (BasisPickupInteractable != null
+                && BasisPickupInteractable.KinematicWhileInteracting
+                && BasisPickupInteractable.RequiresUpdateLoop)
+            {
+                // Currently held with KinematicWhileInteracting - preserve kinematic state
+            }
+            else
             {
                 SetIsKinematicOnPickup(false);
             }
