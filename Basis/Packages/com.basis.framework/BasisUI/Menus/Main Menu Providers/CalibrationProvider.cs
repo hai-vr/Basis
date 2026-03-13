@@ -19,7 +19,7 @@ namespace Basis.BasisUI
             BasisMenuBase<BasisMainMenu>.AddProvider(new CalibrationProvider());
         }
 
-        public override string Title => "Avatar Setup";
+        public override string Title => "Calibration";
         public override string IconAddress => AddressableAssets.Sprites.Calibrate;
         public override int Order => 50;
 
