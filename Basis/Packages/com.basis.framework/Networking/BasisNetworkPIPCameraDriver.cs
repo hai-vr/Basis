@@ -326,7 +326,6 @@ public static class BasisNetworkPIPCameraDriver
         if (instance.TryGetComponent<BasisCameraRemotePip>(out BasisCameraRemotePip pipMeta))
         {
             pipMeta.PlayerID = playerId;
-            instance.transform.localRotation *= Quaternion.Euler(pipMeta.RotationOffset);
         }
 
         pipInstances[playerId] = instance;
