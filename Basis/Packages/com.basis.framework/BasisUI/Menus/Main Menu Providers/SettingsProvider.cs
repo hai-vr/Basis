@@ -404,6 +404,19 @@ namespace Basis.BasisUI
             });
             dropdownMicrophoneIcon.AssignBinding(BasisSettingsDefaults.MicrophoneIcon);
 
+            // Microphone Icon Position Offset
+            PanelSlider sliderMicIconOffsetX = PanelSlider.CreateEntryAndBind(
+                microphoneGroup,
+                PanelSlider.SliderSettings.Advanced("Mic Icon Horizontal Offset", -0.5f, 0.5f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MicrophoneIconOffsetX);
+            sliderMicIconOffsetX.Descriptor.SetDescription("Slide the microphone icon left or right.");
+
+            PanelSlider sliderMicIconOffsetY = PanelSlider.CreateEntryAndBind(
+                microphoneGroup,
+                PanelSlider.SliderSettings.Advanced("Mic Icon Vertical Offset", -0.5f, 0.5f, false, 2, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MicrophoneIconOffsetY);
+            sliderMicIconOffsetY.Descriptor.SetDescription("Slide the microphone icon up or down.");
+
             // Mic Start Behavior dropdown
             PanelDropdown dropdownMicStartBehavior = PanelDropdown.CreateNewEntry(microphoneGroup);
             dropdownMicStartBehavior.Descriptor.SetTitle("Mic Start Behavior");
@@ -585,6 +598,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.UseAutomaticGain.ResetToDefault();
             BasisSettingsDefaults.MicrophoneMode.ResetToDefault();
             BasisSettingsDefaults.MicrophoneIcon.ResetToDefault();
+            BasisSettingsDefaults.MicrophoneIconOffsetX.ResetToDefault();
+            BasisSettingsDefaults.MicrophoneIconOffsetY.ResetToDefault();
 
             // DSP
             BasisSettingsDefaults.LimitThreshold.ResetToDefault();
