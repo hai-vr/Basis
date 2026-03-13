@@ -59,11 +59,8 @@ public class BasisSceneSDKInspector : Editor
             TextField SceneNameField = uiElementsRoot.Q<TextField>(BasisSDKConstants.SceneName);
             TextField SceneDescriptionField = uiElementsRoot.Q<TextField>(BasisSDKConstants.SceneDescription);
 
-            SceneNameField.value = BasisScene.BasisBundleDescription.AssetBundleName;
-            SceneDescriptionField.value = BasisScene.BasisBundleDescription.AssetBundleDescription;
-
-            SceneNameField.RegisterCallback<ChangeEvent<string>>(SceneNameChanged);
-            SceneDescriptionField.RegisterCallback<ChangeEvent<string>>(SceneDescriptionChanged);
+            SceneNameField.BindProperty(serializedObject.FindProperty("BasisBundleDescription.AssetBundleName"));
+            SceneDescriptionField.BindProperty(serializedObject.FindProperty("BasisBundleDescription.AssetBundleDescription"));
 
             // Icon field
             ObjectField SceneIconField = uiElementsRoot.Q<ObjectField>(BasisSDKConstants.SceneIcon);
@@ -83,10 +80,9 @@ public class BasisSceneSDKInspector : Editor
             MainCameraField.value = BasisScene.MainCamera;
             MainCameraField.RegisterCallback<ChangeEvent<UnityEngine.Object>>(OnMainCameraChanged);
 
-            // Audio mixer group (read-only display)
+            // Audio mixer group (hidden)
             ObjectField AudioMixerGroupField = uiElementsRoot.Q<ObjectField>(BasisSDKConstants.AudioMixerGroupField);
-            AudioMixerGroupField.SetEnabled(false);
-            AudioMixerGroupField.BindProperty(serializedObject.FindProperty("Group"));
+            AudioMixerGroupField.style.display = DisplayStyle.None;
 
             // Is ready (read-only display)
             Toggle IsReadyField = uiElementsRoot.Q<Toggle>(BasisSDKConstants.IsReadyField);
@@ -130,18 +126,6 @@ public class BasisSceneSDKInspector : Editor
         BasisScene.BasisBundleDescription.AssetBundleIcon = evt.newValue as Texture2D;
         EditorUtility.SetDirty(BasisScene);
         BasisDebug.Log($"Setting to {BasisScene.BasisBundleDescription.AssetBundleIcon}");
-    }
-
-    private void SceneNameChanged(ChangeEvent<string> evt)
-    {
-        BasisScene.BasisBundleDescription.AssetBundleName = evt.newValue;
-        EditorUtility.SetDirty(BasisScene);
-    }
-
-    private void SceneDescriptionChanged(ChangeEvent<string> evt)
-    {
-        BasisScene.BasisBundleDescription.AssetBundleDescription = evt.newValue;
-        EditorUtility.SetDirty(BasisScene);
     }
 
     private void OnMainCameraChanged(ChangeEvent<UnityEngine.Object> evt)
