@@ -76,16 +76,17 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
         {
             return true;
         }
-        // NOTE: this is called 2 times per frame on interact start, once to tell HoverEnd that it will be interacting, and again for the actual interact check
-        if (CanNetworkSteal && (pendingStealRequest == null || pendingStealRequest == input))
-        {
-            pendingStealRequest = input;
-            return true;
-        }
-        return false;
+        // Allow if stealing is enabled and no other input has a steal in progress
+        // NOTE: pendingStealRequest is only set in OnInteractStartEvent to avoid
+        // side effects when this is called speculatively (e.g. via IsInfluencable)
+        return CanNetworkSteal && (pendingStealRequest == null || pendingStealRequest == input);
     }
     private void OnInteractStartEvent(BasisInput input)
     {
+        if (!IsOwnedLocallyOnClient)
+        {
+            pendingStealRequest = input;
+        }
         CanInteractAsync(); // ControlState handles the ownership transfer logic here
     }
     private async void CanInteractAsync()
