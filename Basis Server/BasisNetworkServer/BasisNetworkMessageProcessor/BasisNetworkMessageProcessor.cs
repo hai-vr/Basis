@@ -1,6 +1,7 @@
 using Basis.Network.Core;
 using Basis.Network.Server.Generic;
 using Basis.Network.Server.Ownership;
+using BasisNetworkServer;
 using BasisNetworkServer.BasisNetworking;
 using BasisNetworkServer.BasisNetworkingReductionSystem;
 using BasisNetworkServer.Security;
@@ -168,6 +169,16 @@ public static class BasisNetworkMessageProcessor
                 case BasisNetworkCommons.ChatChannel:
                     BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ChatChannel, reader.AvailableBytes);
                     BasisNetworkChat.HandleChatMessage(reader, peer); // recycles inside
+                    break;
+
+                case BasisNetworkCommons.CameraPIPStateChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.CameraPIPStateChannel, reader.AvailableBytes);
+                    BasisNetworkPIPCamera.HandlePIPStateChange(reader, peer); // recycles inside
+                    break;
+
+                case BasisNetworkCommons.CameraPIPPositionChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.CameraPIPPositionChannel, reader.AvailableBytes);
+                    BasisNetworkPIPCamera.HandlePIPPositionUpdate(reader, peer); // recycles inside
                     break;
 
                 default:

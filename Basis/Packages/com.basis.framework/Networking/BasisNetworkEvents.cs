@@ -306,6 +306,42 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                 });
                 break;
+            case BasisNetworkCommons.CameraPIPStateChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    CameraPIPStateMessage pipState = new CameraPIPStateMessage();
+                    pipState.Deserialize(Reader);
+                    Reader.Recycle();
+                    if (BasisNetworkPIPCameraManager.Instance != null)
+                    {
+                        BasisNetworkPIPCameraManager.Instance.OnRemotePIPState(pipState);
+                    }
+                });
+                break;
+            case BasisNetworkCommons.CameraPIPPositionChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                {
+                    CameraPIPPositionMessage pipPos = new CameraPIPPositionMessage();
+                    pipPos.Deserialize(Reader);
+                    Reader.Recycle();
+                    BasisDeviceManagement.EnqueueOnMainThread(() =>
+                    {
+                        if (BasisNetworkPIPCameraManager.Instance != null)
+                        {
+                            BasisNetworkPIPCameraManager.Instance.OnRemotePIPPosition(pipPos);
+                        }
+                    });
+                }
+                break;
             default:
                 BNL.LogError($"this Channel was not been implemented {channel}");
                 Reader.Recycle();

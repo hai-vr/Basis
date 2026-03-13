@@ -4,6 +4,7 @@ using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.Networking;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -144,6 +145,12 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.targetTexture = renderTexture;
         captureCamera.gameObject.SetActive(true);
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
+
+        // Notify network that PIP camera was created
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            BasisNetworkPIPCameraManager.SendPIPState(true, transform.position);
+        }
     }
     public void InitalizeVolumetrics()
     {
@@ -160,6 +167,12 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     public new async void OnDestroy()
     {
+        // Notify network that PIP camera was destroyed
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            BasisNetworkPIPCameraManager.SendPIPState(false, Vector3.zero);
+        }
+
         string myLoadedNetId = gameObject.name;
         UnRegisterLoadedNetID(myLoadedNetId);
 
@@ -471,6 +484,12 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             actualMaterial.mainTexture = CopyCameraColorToStaticRTFeature.OutputRT;
             actualMaterial.SetTexture("_MainTex", CopyCameraColorToStaticRTFeature.OutputRT);
+        }
+
+        // Send PIP camera position to network
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            BasisNetworkPIPCameraManager.SendPIPPosition(transform.position);
         }
     }
     /// <summary>
