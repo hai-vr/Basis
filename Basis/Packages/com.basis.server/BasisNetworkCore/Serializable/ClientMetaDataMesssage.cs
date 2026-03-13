@@ -13,6 +13,7 @@ public static partial class SerializableBasis
         public int BaseMultiplier;
         public float IncreaseRate;
         public float SlowestSendRate;
+        public int PeerLimit;
 
         public void Deserialize(NetDataReader Writer)
         {
@@ -22,6 +23,7 @@ public static partial class SerializableBasis
             Writer.Get(out BaseMultiplier);
             Writer.Get(out IncreaseRate);
             Writer.Get(out SlowestSendRate);
+            Writer.Get(out PeerLimit);
         }
         public void Serialize(NetDataWriter Writer)
         {
@@ -52,6 +54,7 @@ public static partial class SerializableBasis
             Writer.Put(BaseMultiplier);
             Writer.Put(IncreaseRate);
             Writer.Put(SlowestSendRate);
+            Writer.Put(PeerLimit);
         }
     }
 }

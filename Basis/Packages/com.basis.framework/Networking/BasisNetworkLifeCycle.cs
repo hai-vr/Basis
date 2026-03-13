@@ -32,7 +32,8 @@ public static class BasisNetworkLifeCycle
             SyncInterval = 50,
             BaseMultiplier = 1,
             IncreaseRate = 0.005f,
-            SlowestSendRate = 2.5f
+            SlowestSendRate = 2.5f,
+            PeerLimit = 0
         };
 
         Management.transform.SetParent(BasisDeviceManagement.Instance.transform, false);
