@@ -137,6 +137,8 @@ public static class BasisNetworkPIPCameraManager
     {
         if (!initialized) return;
 
+        smoothHandle.Complete();
+
         if (msg.IsActive)
         {
             int index = GetOrAllocateIndex(msg.PlayerID);
@@ -170,6 +172,7 @@ public static class BasisNetworkPIPCameraManager
 
         if (playerIdToIndex.TryGetValue(msg.PlayerID, out int index))
         {
+            smoothHandle.Complete();
             targetPositions[index] = new float3(msg.PositionX, msg.PositionY, msg.PositionZ);
         }
     }
@@ -234,6 +237,7 @@ public static class BasisNetworkPIPCameraManager
 
         if (activeRemotePIPs.Contains(playerId))
         {
+            smoothHandle.Complete();
             if (playerIdToIndex.TryGetValue(playerId, out int index))
             {
                 activeFlags[index] = 0;
