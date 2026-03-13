@@ -149,7 +149,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // Notify network that PIP camera was created
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
-            BasisNetworkPIPCameraDriver.SendPIPState(true, transform.position);
+            BasisNetworkPIPCameraDriver.SendPIPState(true, transform.position, transform.rotation);
         }
     }
     public void InitalizeVolumetrics()
@@ -170,7 +170,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // Notify network that PIP camera was destroyed
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
-            BasisNetworkPIPCameraDriver.SendPIPState(false, Vector3.zero);
+            BasisNetworkPIPCameraDriver.SendPIPState(false, Vector3.zero, Quaternion.identity);
         }
 
         string myLoadedNetId = gameObject.name;
@@ -489,7 +489,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // Send PIP camera position to network
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
-            BasisNetworkPIPCameraDriver.SendPIPPosition(transform.position);
+            BasisNetworkPIPCameraDriver.SendPIPPosition(transform.position, transform.rotation);
         }
     }
     /// <summary>
