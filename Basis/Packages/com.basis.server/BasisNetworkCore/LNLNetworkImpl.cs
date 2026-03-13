@@ -201,7 +201,6 @@ namespace Basis.Network.Core
             manager = new LiteNetLib.NetManager(listener, Compressor)
             {
                 AutoRecycle = false,
-                MergeEnabled = true,
                 UnconnectedMessagesEnabled = false,
                 NatPunchEnabled = configuration.NatPunchEnabled,
                 AllowPeerAddressChange = configuration.AllowPeerAddressChange,
