@@ -7,19 +7,18 @@ public class BasisVoiceRingBuffer
 {
     private readonly float[] buffer;
     private readonly bool[] realMask; // parallel mask of "real" (non-silent) samples
-    private int head;
-    private int tail;
+    private int _head;
+    private int _tail;
     private int size;
     private int realCount; // number of real samples currently resident
-    private readonly object bufferLock = new();
     public ConcurrentQueue<float[]> BufferedReturn = new ConcurrentQueue<float[]>();
 
     public BasisVoiceRingBuffer()
     {
         buffer = new float[RemoteOpusSettings.TotalFrameBufferSize];
         realMask = new bool[buffer.Length];
-        head = 0;
-        tail = 0;
+        _head = 0;
+        _tail = 0;
         size = 0;
         realCount = 0;
     }
@@ -35,6 +34,7 @@ public class BasisVoiceRingBuffer
     /// <summary>
     /// Add 'length' samples from 'segment'. If hasActualAudio is true, those samples are flagged as real (non-silent).
     /// Older data is overwritten if needed (ring semantics).
+    /// Producer side (network thread) — lock-free SPSC design.
     /// </summary>
     public void Add(float[] segment, int length, bool hasActualAudio)
     {
@@ -43,86 +43,85 @@ public class BasisVoiceRingBuffer
         if (length <= 0 || length > segment.Length)
             throw new ArgumentOutOfRangeException(nameof(length), "Length must be a positive number and within segment length.");
 
-        lock (bufferLock)
+        if (length > Capacity)
+            throw new InvalidOperationException("The segment is too large to fit into the buffer.");
+
+        int currentSize = Interlocked.CompareExchange(ref size, 0, 0);
+        int availableSpace = Capacity - currentSize;
+
+        // If not enough space, drop (overwrite) the oldest 'itemsToRemove' samples
+        if (length > availableSpace)
         {
-            if (length > Capacity)
-                throw new InvalidOperationException("The segment is too large to fit into the buffer.");
+            int itemsToRemove = length - availableSpace;
 
-            int currentSize = Interlocked.CompareExchange(ref size, 0, 0);
-            int availableSpace = Capacity - currentSize;
+            int currentTail = Volatile.Read(ref _tail);
 
-            // If not enough space, drop (overwrite) the oldest 'itemsToRemove' samples
-            if (length > availableSpace)
-            {
-                int itemsToRemove = length - availableSpace;
+            // Count and clear real flags in the range being dropped
+            int removedReal = CountTrueAndClear(currentTail, itemsToRemove);
+            if (removedReal != 0) Interlocked.Add(ref realCount, -removedReal);
 
-                // Count and clear real flags in the range being dropped
-                int removedReal = CountTrueAndClear(tail, itemsToRemove);
-                if (removedReal != 0) Interlocked.Add(ref realCount, -removedReal);
-
-                // advance tail/size
-                tail = (tail + itemsToRemove) % Capacity;
-                Interlocked.Add(ref size, -itemsToRemove);
-                // BasisDebug.Log($"Overwriting {itemsToRemove} elements due to lack of space in the Audio buffer.");
-            }
-
-            // Write samples (may wrap)
-            int firstPart = Math.Min(length, Capacity - head);
-            Array.Copy(segment, 0, buffer, head, firstPart);
-            int remaining = length - firstPart;
-            if (remaining > 0)
-            {
-                Array.Copy(segment, firstPart, buffer, 0, remaining);
-            }
-
-            // Set real flags for written region and update realCount
-            int newlyReal = hasActualAudio ? length : 0;
-            SetMaskRange(head, length, hasActualAudio);
-            if (newlyReal != 0) Interlocked.Add(ref realCount, newlyReal);
-
-            // advance head/size
-            head = (head + length) % Capacity;
-            Interlocked.Add(ref size, length);
+            // advance tail/size
+            Volatile.Write(ref _tail, (currentTail + itemsToRemove) % Capacity);
+            Interlocked.Add(ref size, -itemsToRemove);
+            // BasisDebug.Log($"Overwriting {itemsToRemove} elements due to lack of space in the Audio buffer.");
         }
+
+        int head = Volatile.Read(ref _head);
+
+        // Write samples (may wrap)
+        int firstPart = Math.Min(length, Capacity - head);
+        Array.Copy(segment, 0, buffer, head, firstPart);
+        int remaining = length - firstPart;
+        if (remaining > 0)
+        {
+            Array.Copy(segment, firstPart, buffer, 0, remaining);
+        }
+
+        // Set real flags for written region and update realCount
+        int newlyReal = hasActualAudio ? length : 0;
+        SetMaskRange(head, length, hasActualAudio);
+        if (newlyReal != 0) Interlocked.Add(ref realCount, newlyReal);
+
+        // advance head/size — publish new head so consumer can see the data
+        Volatile.Write(ref _head, (head + length) % Capacity);
+        Interlocked.Add(ref size, length);
     }
 
     /// <summary>
     /// Remove up to segmentSize samples from the buffer into 'segment'.
     /// If fewer exist, returns what is available (remaining padded with whatever is in 'segment' array).
+    /// Consumer side (audio thread) — lock-free SPSC design.
     /// </summary>
     public void Remove(int segmentSize, out float[] segment)
     {
         if (segmentSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(segmentSize));
 
-        lock (BufferedReturn)
-        {
-            if (!BufferedReturn.TryDequeue(out segment) || segment.Length != segmentSize)
-                segment = new float[segmentSize];
-            else
-                Array.Clear(segment, 0, segmentSize);
-        }
+        // ConcurrentQueue is already thread-safe; no lock needed
+        if (!BufferedReturn.TryDequeue(out segment) || segment.Length != segmentSize)
+            segment = new float[segmentSize];
+        else
+            Array.Clear(segment, 0, segmentSize);
 
-        lock (bufferLock)
-        {
-            int currentSize = Interlocked.CompareExchange(ref size, 0, 0);
-            int itemsToRemove = Math.Min(segmentSize, currentSize);
+        int currentSize = Interlocked.CompareExchange(ref size, 0, 0);
+        int itemsToRemove = Math.Min(segmentSize, currentSize);
 
-            int firstPart = Math.Min(itemsToRemove, Capacity - tail);
-            Array.Copy(buffer, tail, segment, 0, firstPart);
+        int tail = Volatile.Read(ref _tail);
 
-            int remaining = itemsToRemove - firstPart;
-            if (remaining > 0)
-                Array.Copy(buffer, 0, segment, firstPart, remaining);
+        int firstPart = Math.Min(itemsToRemove, Capacity - tail);
+        Array.Copy(buffer, tail, segment, 0, firstPart);
 
-            int removedReal = CountTrueAndClear(tail, itemsToRemove);
-            if (removedReal != 0) Interlocked.Add(ref realCount, -removedReal);
+        int remaining = itemsToRemove - firstPart;
+        if (remaining > 0)
+            Array.Copy(buffer, 0, segment, firstPart, remaining);
 
-            tail = (tail + itemsToRemove) % Capacity;
-            Interlocked.Add(ref size, -itemsToRemove);
+        int removedReal = CountTrueAndClear(tail, itemsToRemove);
+        if (removedReal != 0) Interlocked.Add(ref realCount, -removedReal);
 
-            // segment is already zero-filled from itemsToRemove..end
-        }
+        Volatile.Write(ref _tail, (tail + itemsToRemove) % Capacity);
+        Interlocked.Add(ref size, -itemsToRemove);
+
+        // segment is already zero-filled from itemsToRemove..end
     }
 
     private void SetMaskRange(int start, int count, bool value)

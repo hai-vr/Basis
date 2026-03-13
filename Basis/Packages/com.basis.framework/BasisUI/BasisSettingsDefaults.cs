@@ -43,6 +43,11 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> InvertMouse => new("invertmouse", new BasisPlatformDefault<bool>(false));
 
+        /// <summary>
+        /// Dominant hand preference. "right" or "left". Affects placement raycast and pickup priority.
+        /// </summary>
+        public static BasisSettingsBinding<string> DominantHand => new("dominanthand", new BasisPlatformDefault<string>("right"));
+
         public static BasisSettingsBinding<bool> usesnapturn => new("usesnapturn", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> QualityLevel => new("qualitylevel", new BasisPlatformDefault<string>
@@ -515,6 +520,7 @@ namespace Basis.BasisUI
             SnapTurnAngle.LoadBindingValue();
             mousesensitivty.LoadBindingValue();
             InvertMouse.LoadBindingValue();
+            DominantHand.LoadBindingValue();
             usesnapturn.LoadBindingValue();
 
             // Avatar / IK / Body
