@@ -180,6 +180,13 @@ namespace Basis.Scripts.BasisSdk.Interactions
         /// </summary>
         public float InteractRange = 1f;
 
+        [Header("Direct Grab")]
+        [Tooltip("Whether this object can be directly grabbed by hand proximity")]
+        public bool AllowDirectGrab = true;
+
+        [Tooltip("Radius around the hand for direct grab detection (meters)")]
+        public float GrabRadius = 0.15f;
+
         /// <summary>
         /// Called during object initialization.
         /// Sets up inputs when the local player is ready.
@@ -500,6 +507,23 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public virtual bool IsInfluencable(BasisInput input)
         {
             return InteractableEnabled && (CanHover(input) || CanInteract(input));
+        }
+
+        /// <summary>
+        /// Determines if the input can directly grab this object via hand proximity.
+        /// Only applicable to hand inputs (LeftHand/RightHand).
+        /// </summary>
+        public virtual bool CanDirectGrab(BasisInput input)
+        {
+            if (!AllowDirectGrab || !InteractableEnabled) return false;
+            if (input.BasisUIRaycast != null && input.BasisUIRaycast.HadRaycastUITarget) return false;
+            if (!Inputs.IsInputAdded(input)) return false;
+            if (!input.TryGetRole(out TransformBinders.BoneControl.BasisBoneTrackedRole role)) return false;
+            if (role != TransformBinders.BoneControl.BasisBoneTrackedRole.LeftHand &&
+                role != TransformBinders.BoneControl.BasisBoneTrackedRole.RightHand) return false;
+            if (!Inputs.TryGetByRole(role, out BasisInputWrapper found)) return false;
+            var state = found.GetState();
+            return state == BasisInteractInputState.Ignored || state == BasisInteractInputState.Hovering;
         }
 
         private bool _interactGateOpen = true;

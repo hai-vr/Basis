@@ -56,6 +56,12 @@ public class BasisFrameRateVisualization : MonoBehaviour
             idx = AppendInt(peer.Ping, idx);
             idx = Append(buffer, " CCU:", idx);
             idx = AppendInt(BasisNetworkPlayers.ReceiverCount + 1, idx);
+            int peerLimit = BasisNetworkManagement.ServerMetaDataMessage.PeerLimit;
+            if (peerLimit > 0)
+            {
+                buffer[idx++] = '/';
+                idx = AppendInt(peerLimit, idx);
+            }
         }
 
         idx = Append(buffer, " FPS:", idx);
