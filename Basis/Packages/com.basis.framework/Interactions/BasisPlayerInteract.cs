@@ -111,6 +111,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 return;
             }
 
+            // Guard against duplicate additions
+            if (InteractInputs.Any(x => x.input.UniqueDeviceIdentifier == input.UniqueDeviceIdentifier))
+            {
+                return;
+            }
+
             var interactInput = new BasisInteractInput
             {
                 input = input,
@@ -124,10 +130,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         private void OnInputRemoved(BasisInput input)
         {
-            if (input.HasRaycaster)
-            {
-                RemoveInput(input.UniqueDeviceIdentifier);
-            }
+            // Always attempt removal regardless of current HasRaycaster state.
+            // The raycaster state may have changed between when the input was added
+            // and when it is being removed (e.g., OpenXR eye tracking detected late).
+            RemoveInput(input.UniqueDeviceIdentifier);
         }
 
         // Simulate after IK update
@@ -521,7 +527,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             if (length == 0)
             {
-                BasisDebug.LogError($"Interact Inputs did not include {uid}. Please report this bug.");
+                // Not an error: the device may never have been a raycaster when it was
+                // added (e.g., OpenXR headset whose eye tracking was detected after
+                // the input was registered). See issue #389.
                 return;
             }
 
