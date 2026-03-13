@@ -79,6 +79,20 @@ public class BasisSceneSDKInspector : Editor
             SpawnPointField.value = BasisScene.SpawnPoint;
             SpawnPointField.RegisterCallback<ChangeEvent<UnityEngine.Object>>(OnSpawnPointChanged);
 
+            // Main camera field
+            ObjectField MainCameraField = uiElementsRoot.Q<ObjectField>(BasisSDKConstants.MainCameraField);
+            MainCameraField.allowSceneObjects = true;
+            MainCameraField.value = BasisScene.MainCamera;
+            MainCameraField.RegisterCallback<ChangeEvent<UnityEngine.Object>>(OnMainCameraChanged);
+
+            // Audio mixer group (read-only display)
+            ObjectField AudioMixerGroupField = uiElementsRoot.Q<ObjectField>(BasisSDKConstants.AudioMixerGroupField);
+            AudioMixerGroupField.value = BasisScene.Group;
+
+            // Is ready (read-only display)
+            Toggle IsReadyField = uiElementsRoot.Q<Toggle>(BasisSDKConstants.IsReadyField);
+            IsReadyField.value = BasisScene.IsReady;
+
             // Respawn settings
             FloatField RespawnHeightField = uiElementsRoot.Q<FloatField>(BasisSDKConstants.RespawnHeightField);
             FloatField RespawnCheckTimerField = uiElementsRoot.Q<FloatField>(BasisSDKConstants.RespawnCheckTimerField);
@@ -134,6 +148,13 @@ public class BasisSceneSDKInspector : Editor
     {
         Undo.RecordObject(BasisScene, "Change Spawn Point");
         BasisScene.SpawnPoint = evt.newValue as Transform;
+        EditorUtility.SetDirty(BasisScene);
+    }
+
+    private void OnMainCameraChanged(ChangeEvent<UnityEngine.Object> evt)
+    {
+        Undo.RecordObject(BasisScene, "Change Main Camera");
+        BasisScene.MainCamera = evt.newValue as Camera;
         EditorUtility.SetDirty(BasisScene);
     }
 
