@@ -82,6 +82,8 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void Compute(double unscaledDeltaTime)
         {
+            AudioReceiverModule?.DrainAndDecode();
+
             // expected briefly on join
             if (Player.BasisAvatar == null)
             {
@@ -424,7 +426,7 @@ namespace Basis.Scripts.Networking.Receivers
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage msg)
         {
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, msg.audioSegmentData.LengthUsed);
-            AudioReceiverModule.InsertAndDrain(msg.audioSegmentData);
+            AudioReceiverModule.Insert(msg.audioSegmentData);
             Player.AudioReceived?.Invoke();
         }
 
