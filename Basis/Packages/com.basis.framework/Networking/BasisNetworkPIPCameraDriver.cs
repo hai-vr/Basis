@@ -15,7 +15,7 @@ using static SerializableBasis;
 /// Fully static - driven by BasisLocalPlayer.AfterSimulateOnLate via Simulate().
 /// Uses Unity Jobs (Burst-compiled IJobParallelFor) for smoothing remote camera positions.
 /// </summary>
-public static class BasisNetworkPIPCameraManager
+public static class BasisNetworkPIPCameraDriver
 {
     /// <summary>
     /// Fired when a remote player's PIP camera is created.
