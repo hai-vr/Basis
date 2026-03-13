@@ -87,6 +87,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Maintained incrementally via ProcessMessage/ProcessPendingRemovals instead of rebuilt every tick.
         private static readonly List<(int id, PlayerState state)> _activePlayers = new();
         private static readonly object _activePlayersLock = new();
+        private static (int id, PlayerState state)[] _activePlayersSnapshot = Array.Empty<(int, PlayerState)>();
+        private static volatile bool _activePlayersDirty = false;
 
         private static readonly ConcurrentQueue<int> playersToRemove = new();
 
@@ -225,6 +227,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                             if (_activePlayers[i].id == id)
                             {
                                 _activePlayers.RemoveAt(i);
+                                _activePlayersDirty = true;
                                 break;
                             }
                         }
@@ -254,13 +257,19 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static void UpdateCommunicationAndDistances(long nowTicks)
         {
-            // Take a snapshot of active players under lock for thread-safe iteration.
-            // The list is maintained incrementally, so this is just a copy.
-            (int id, PlayerState state)[] activeCopy;
-            lock (_activePlayersLock)
+            // Double-buffered snapshot: only rebuild when dirty
+            if (_activePlayersDirty)
             {
-                activeCopy = _activePlayers.ToArray();
+                lock (_activePlayersLock)
+                {
+                    if (_activePlayersDirty)
+                    {
+                        _activePlayersSnapshot = _activePlayers.ToArray();
+                        _activePlayersDirty = false;
+                    }
+                }
             }
+            var activeCopy = _activePlayersSnapshot;
 
             int playerCount = activeCopy.Length;
             if (playerCount == 0) return;
@@ -553,6 +562,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 lock (_activePlayersLock)
                 {
                     _activePlayers.Add((id, state));
+                    _activePlayersDirty = true;
                 }
             }
             else
