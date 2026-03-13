@@ -15,7 +15,6 @@ public class BasisJitterBuffer
     private const int BufferSize = 64;
     private const int BufferMask = BufferSize - 1;
     private const int MaxAheadDistance = BufferSize / 2;
-    private const int PreallocSlotSize = 256;
 
     private readonly Slot[] _slots = new Slot[BufferSize];
     private readonly object _lock = new object();
@@ -26,14 +25,6 @@ public class BasisJitterBuffer
     private bool _hasHighest;
     private int _bufferedCount;
     private int _receivedSinceStart;
-
-    public BasisJitterBuffer()
-    {
-        for (int i = 0; i < BufferSize; i++)
-        {
-            _slots[i].EncodedData = new byte[PreallocSlotSize];
-        }
-    }
 
     public int InitialBufferDepth => RemoteOpusSettings.JitterBufferSize;
 
