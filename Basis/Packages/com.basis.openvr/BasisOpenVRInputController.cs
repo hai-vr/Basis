@@ -224,7 +224,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
             UpdateRaycastOffset();
             ComputeRaycastDirection(
-                wristWorldPos + (UnscaledDeviceCoord.rotation * (isLeft ? LeftRaycastOffset : RightRaycastOffset * Scale)),
+                wristWorldPos + (UnscaledDeviceCoord.rotation * ((isLeft ? LeftRaycastOffset : RightRaycastOffset) * Scale)),
                 HandFinal.rotation,
                 ActiveRaycastOffset
             );
