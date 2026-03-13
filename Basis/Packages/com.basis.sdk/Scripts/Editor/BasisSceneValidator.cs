@@ -172,6 +172,7 @@ public class BasisSceneValidator
     private void FixSetDefaultBundleName()
     {
         if (Scene == null) return;
+        Undo.RecordObject(Scene, "Set Default Bundle Name");
         string name = Scene.gameObject.name.Trim();
         foreach (char c in Path.GetInvalidFileNameChars())
             name = name.Replace(c, '_');
@@ -182,6 +183,7 @@ public class BasisSceneValidator
     private void FixSetDefaultDescription()
     {
         if (Scene == null) return;
+        Undo.RecordObject(Scene, "Set Default Description");
         Scene.BasisBundleDescription.AssetBundleDescription =
             $"Scene \"{Scene.gameObject.name}\"";
         EditorUtility.SetDirty(Scene);
@@ -190,6 +192,7 @@ public class BasisSceneValidator
     private void FixAssignSpawnPoint()
     {
         if (Scene == null) return;
+        Undo.RecordObject(Scene, "Assign Spawn Point");
         Scene.SpawnPoint = Scene.transform;
         EditorUtility.SetDirty(Scene);
     }
