@@ -39,7 +39,7 @@ namespace Basis.BasisUI
         private void AnimateMenuEntrance()
         {
             // Fade in the hotbar panel
-            UIAnimations.FadeIn(HotbarMenu, 0.2f, 0f, Easing.OutCubic);
+           // UIAnimations.FadeIn(HotbarMenu, 0.2f, 0f, Easing.OutCubic);
 
             // Stagger the hotbar buttons with fade + slide up
             if (ProviderButtons.Count > 0)

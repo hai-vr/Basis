@@ -38,7 +38,7 @@ namespace Basis.BTween
         {
             if (!Application.isPlaying || target == null) return;
 
-            FadeIn(target, duration, delay, Easing.OutCubic);
+           // FadeIn(target, duration, delay, Easing.OutCubic);
             ScaleIn(target.transform, duration, 0.9f, delay, Easing.OutBack);
         }
 
@@ -49,7 +49,7 @@ namespace Basis.BTween
         {
             if (!Application.isPlaying || target == null) return;
 
-            FadeIn(target, 0.2f, delay, Easing.OutCubic);
+          //  FadeIn(target, 0.2f, delay, Easing.OutCubic);
             ScaleIn(target.transform, 0.25f, 0.97f, delay, Easing.OutCubic);
         }
 
@@ -97,7 +97,7 @@ namespace Basis.BTween
                 if (target == null) continue;
 
                 float delay = i * staggerDelay;
-                FadeIn(target, duration, delay, Easing.OutCubic);
+             //  FadeIn(target, duration, delay, Easing.OutCubic);
                 SlideIn(target, new Vector2(0, slideOffset), duration + 0.05f, delay, Easing.OutCubic);
             }
         }
