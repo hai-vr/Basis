@@ -940,7 +940,22 @@ w20, w54;
                 return;
 
             // Normalize reach ratio (0 = at rest, 1 = fully extended)
-            float reachRatio = Mathf.Clamp01(reachLen / (tposeArmLength * 1.1f));
+            float rawReachRatio = Mathf.Clamp01(reachLen / (tposeArmLength * 1.1f));
+
+            // HVR-IK inspired: don't engage shoulder rotation until hand is at 70% of arm length
+            // This prevents premature shoulder movement for close-to-body motions
+            const float shoulderEngageThreshold = 0.7f;
+            float reachRatio;
+            if (rawReachRatio < shoulderEngageThreshold)
+            {
+                reachRatio = 0f;
+            }
+            else
+            {
+                // Remap 0.7-1.0 range to 0.0-1.0 with smooth start
+                float t = (rawReachRatio - shoulderEngageThreshold) / (1f - shoulderEngageThreshold);
+                reachRatio = t * t; // quadratic ease-in for natural engagement
+            }
 
             // Transform hand direction into chest-local space
             Quaternion invChest = Quaternion.Inverse(chestRot);
