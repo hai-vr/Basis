@@ -373,7 +373,7 @@ namespace Basis.BasisUI
                             CancellationToken cancel = default;
 
                             Scene scene = await BasisLoadHandler.LoadSceneBundle(
-                                false, // for local do not set as the active scene
+                                true, // set as active scene so skybox and RenderSettings apply
                                 bundle,
                                 report,
                                 cancel
