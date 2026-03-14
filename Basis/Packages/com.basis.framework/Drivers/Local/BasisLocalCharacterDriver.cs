@@ -329,7 +329,8 @@ namespace Basis.Scripts.BasisCharacterController
 
         public void UpdateCrouchBlend(float delta)
         {
-            CrouchBlend = CrouchingLock ? 1f : math.clamp(CrouchBlend + delta * CrouchDeltaCoefficient, 0, 1);
+            if (CrouchingLock) return;
+            CrouchBlend = math.clamp(CrouchBlend + delta * CrouchDeltaCoefficient, 0, 1);
             UpdateMovementSpeed(UseMaxSpeed);
         }
 

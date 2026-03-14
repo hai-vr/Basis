@@ -258,8 +258,10 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             rotationPitch = Mathf.Clamp(rotationPitch, minimumPitch, maximumPitch);
             Quaternion targetRot = Quaternion.Euler(rotationPitch, rotationYaw, 0);
 
-            // Handle crouching adjustment
-            if (!CrouchingLock)
+            // Handle crouching adjustment — always apply the current crouch visual
+            // offset. The CrouchingLock only prevents *input* from changing CrouchBlend;
+            // skipping this block when locked caused the camera to snap to standing height
+            // while the player was still crouched (see issue #637).
             {
                 BasisLocalPlayer Player = BasisLocalPlayer.Instance;
                 var crouchMinimum = Player.LocalCharacterDriver.MinimumCrouchPercent;
