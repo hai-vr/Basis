@@ -849,6 +849,7 @@ w20, w54;
             Vector3 headTargetPos = targetPositionHead.Get(stream);
             Vector3 hipsTargetPos = targetPositionHips.Get(stream);
 
+            Quaternion headTargetRot = V4ToQuat(targetRotationHead.Get(stream));
             Quaternion hipsTargetRot = V4ToQuat(targetRotationHips.Get(stream));
             Quaternion offsetHips = V4ToQuat(offsetRotationHips.Get(stream));
             Quaternion chestTargetRot = V4ToQuat(targetChestRotation.Get(stream));
@@ -873,8 +874,17 @@ w20, w54;
                     break;
 
                 default: // LockBoth (2) - original behavior: clamp hips relative to head
+                    // 1) Anti-contortionist: enforce facing-direction-aware minimum distance
+                    hipsTargetPos = AntiContortionist(headTargetPos, headTargetRot, hipsTargetPos, hipDesired, restDist);
+
+                    // 2) Spine buckling mitigation: prevent FABRIK S-curve oscillation when compressed
+                    hipsTargetPos = MitigateSpineBuckling(headTargetPos, hipDesired, hipsTargetPos, restDist);
+
+                    // 3) Enforce spine bend limit
                     float MaxBendDeg = maxBendDeg.Get(stream);
                     hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, MaxBendDeg);
+
+                    // 4) Clamp hips around head with struggle-aware blending
                     hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
                     break;
             }
@@ -1113,6 +1123,61 @@ w20, w54;
 
             Vector3 newDiff = newVerticalVec + (lateralLen > k_MinMag ? lateral.normalized * lateralLen : Vector3.zero);
             return headPos + newDiff;
+        }
+        /// <summary>
+        /// Anti-contortionist: enforces minimum hip-to-head distance based on angular similarity
+        /// between head and hip facing directions. When facing same direction, min distance is near
+        /// full rest length; facing opposite, it can compress more. From HVR-IK's HIKSpineSolver.
+        /// </summary>
+        static Vector3 AntiContortionist(Vector3 headPos, Quaternion headRot, Vector3 hipsPos, Quaternion hipsRot, float restDistance)
+        {
+            // Compute angular similarity: dot product of forward vectors
+            Vector3 headFwd = headRot * Vector3.forward;
+            Vector3 hipsFwd = hipsRot * Vector3.forward;
+            float facingSimilarity = Vector3.Dot(headFwd, hipsFwd); // 1 = same dir, -1 = opposite
+
+            // When facing same direction, enforce near-full rest distance
+            // When facing opposite (contorted), allow compression down to 20% rest
+            float minDistFactor = Mathf.Lerp(0.2f, 0.85f, Mathf.Clamp01((facingSimilarity + 1f) * 0.5f));
+            float minDist = restDistance * minDistFactor;
+
+            Vector3 diff = hipsPos - headPos;
+            float currentDist = diff.magnitude;
+
+            if (currentDist < minDist && currentDist > k_Epsilon)
+            {
+                // Push hips away from head to maintain minimum distance
+                return headPos + diff * (minDist / currentDist);
+            }
+            return hipsPos;
+        }
+        /// <summary>
+        /// Spine buckling fix: when the body is upright but the hip-to-head distance is shorter
+        /// than rest pose, the FABRIK chain can buckle into unnatural S-curves. This pushes the
+        /// hips downward to prevent oscillation. From HVR-IK's HIKSpineSolver.
+        /// </summary>
+        static Vector3 MitigateSpineBuckling(Vector3 headPos, Quaternion hipsRot, Vector3 hipsPos, float restDistance)
+        {
+            Vector3 diff = hipsPos - headPos;
+            float currentDist = diff.magnitude;
+
+            // Only act when spine is compressed (current < rest)
+            if (currentDist >= restDistance || currentDist < k_Epsilon)
+                return hipsPos;
+
+            // Check if body is roughly upright: hip's spine direction should be roughly vertical
+            Vector3 hipsUp = hipsRot * Vector3.up;
+            Vector3 spineDir = (headPos - hipsPos).normalized;
+
+            // Tension = how upright the spine is (dot between hip up and actual spine direction)
+            float tension = Mathf.Clamp01(Vector3.Dot(hipsUp, spineDir));
+
+            // Compression ratio: how much shorter than rest we are
+            float compression = 1f - (currentDist / restDistance);
+
+            // Push hips downward proportional to tension and compression
+            float pushAmount = compression * tension * restDistance * 0.5f;
+            return hipsPos + Vector3.down * pushAmount;
         }
         static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
