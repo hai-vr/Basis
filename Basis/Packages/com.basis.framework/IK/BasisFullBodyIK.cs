@@ -734,6 +734,11 @@ o0, o1, o2, o3, o4, o5, o6, o7, o8, o9,
 o10, o11, o12, o13, o14, o15, o16, o17, o18, o19,
 o20, o54;
 
+        // Arm bend lookup tables (HVR-IK inspired)
+        public NativeArray<Vector3> ArmBendLookupLeft;
+        public NativeArray<Vector3> ArmBendLookupRight;
+        public bool HasArmBendLookup;
+
         public Quaternion targetOffsetNeck, targetOffsetHead, targetOffsetChest, targetOffsetLeftToe,
             targetOffsetRightToe, targetOffsetLeftShoulder, targetOffsetRightShoulder, targetOffsetLeftFoot,
             targetOffsetRightFoot, targetOffsetLeftHand, targetOffsetRightHand;
@@ -1395,6 +1400,37 @@ w20, w54;
 
             tip.SetRotation(stream, tRotation);
         }
+        /// <summary>
+        /// Computes arm bend direction using the 3D lookup table.
+        /// Converts hand position to chest-relative normalized space, then samples the table.
+        /// </summary>
+        Vector3 ComputeArmBendFromLookup(AnimationStream stream, Vector3 shoulderPos, Vector3 handTargetPos, float armLength, bool isLeft)
+        {
+            if (!HandleChest.IsValid(stream) || armLength < k_Epsilon)
+                return isLeft ? Vector3.left : Vector3.right;
+
+            Quaternion chestRot = HandleChest.GetRotation(stream);
+            Quaternion invChest = Quaternion.Inverse(chestRot);
+
+            // Transform hand position to chest-local, shoulder-centered, arm-length-normalized space
+            Vector3 shoulderToHand = handTargetPos - shoulderPos;
+            Vector3 localPos = invChest * shoulderToHand / armLength;
+
+            // Mirror X for left arm (lookup table is generated for right arm perspective)
+            if (isLeft)
+                localPos.x = -localPos.x;
+
+            // Sample the lookup table
+            NativeArray<Vector3> table = isLeft ? ArmBendLookupLeft : ArmBendLookupRight;
+            Vector3 localBend = BasisArmBendLookup.SampleTrilinear(table, localPos);
+
+            // Mirror result back for left arm
+            if (isLeft)
+                localBend.x = -localBend.x;
+
+            // Transform bend direction back to world space
+            return (chestRot * localBend).normalized;
+        }
         public static Vector3 ClosestPointOnSegment(Vector3 p, Vector3 a, Vector3 b)
         {
             Vector3 ab = b - a;
@@ -1701,6 +1737,21 @@ w20, w54;
             var hint = new AffineTransform(hintPos, hintRot);
             bool hasHint = hintWeightProp.Get(stream);
 
+            // Use lookup table for arm bend direction when available
+            if (HasArmBendLookup)
+            {
+                Vector3 shoulderPos = root.GetPosition(stream);
+                float upperLen = (mid.GetPosition(stream) - shoulderPos).magnitude;
+                float lowerLen = (tip.GetPosition(stream) - mid.GetPosition(stream)).magnitude;
+                float armLen = upperLen + lowerLen;
+                bool isLeft = Vector3.Dot(shoulderPos - HandleChest.GetPosition(stream), HandleChest.GetRotation(stream) * Vector3.right) < 0f;
+
+                Vector3 lookupBend = ComputeArmBendFromLookup(stream, shoulderPos, tgtPos, armLen, isLeft);
+                // Blend lookup direction with existing hint (70% lookup, 30% original hint)
+                Vector3 blendedHint = Vector3.Lerp(hintPos, shoulderPos + lookupBend * armLen * 0.5f, 0.7f);
+                hint = new AffineTransform(blendedHint, hintRot);
+            }
+
             // First solve (arms variant to preserve wrist)
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
 
@@ -1986,6 +2037,13 @@ w20, w54;
             GenerateHeadToSpine(animator, ref job, ref data);
             GenerateChestToHead(animator, ref job, ref data);
 
+            // Generate arm bend lookup tables
+            var leftTable = BasisArmBendLookup.GenerateDefaultTable(true);
+            var rightTable = BasisArmBendLookup.GenerateDefaultTable(false);
+            job.ArmBendLookupLeft = new NativeArray<Vector3>(leftTable, Allocator.Persistent);
+            job.ArmBendLookupRight = new NativeArray<Vector3>(rightTable, Allocator.Persistent);
+            job.HasArmBendLookup = true;
+
             var cacheBuilder = new AnimationJobCacheBuilder();
 
             job.spineMaxIterationsIdx = cacheBuilder.Add(10);
@@ -2061,6 +2119,9 @@ w20, w54;
             if (job.ChainChestToHead.IsCreated) job.ChainChestToHead.Dispose();
             if (job.ChainChestToHeadLengths.IsCreated) job.ChainChestToHeadLengths.Dispose();
             if (job.ChainChestToHeadLinkPositions.IsCreated) job.ChainChestToHeadLinkPositions.Dispose();
+
+            if (job.ArmBendLookupLeft.IsCreated) job.ArmBendLookupLeft.Dispose();
+            if (job.ArmBendLookupRight.IsCreated) job.ArmBendLookupRight.Dispose();
 
             job.spineCache.Dispose();
         }
