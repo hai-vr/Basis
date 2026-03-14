@@ -12,7 +12,7 @@ namespace Basis.BTween
         {
             TweenGraphicColor tween = TweenGraphicColor.GetAvailableTween()
                 .SetTarget(image)
-                .Start(duration, endPosition);
+                .Start(duration, image.color, endPosition);
             return tween;
         }
 
