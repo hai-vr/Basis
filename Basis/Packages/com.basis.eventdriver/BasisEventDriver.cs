@@ -205,6 +205,8 @@ public class BasisEventDriver : MonoBehaviour
             BasisLocalPlayer.Instance.Simulate(DeltaTime);//update local player
             BasisLocalCameraDriver.Instance.Simulate();
         }
+        BasisBlendShapeDriver.Simulate(); // capture + encode local face-tracking blendshapes
+        BasisBlendShapeDriver.Apply();    // apply remote face-tracking blendshapes to meshes
         BasisAvatarDriver.ScheduleReadBlendShapes();
         // JigglePhysics: schedule/complete passes
         JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime); //schedule jiggles

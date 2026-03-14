@@ -489,6 +489,32 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
 
         /// <summary>
+        /// Propagates AdditionalAvatarData from the high quality message to lower quality variants.
+        /// BuildAllLowerFromHighInto only handles the muscle/position/rotation payload;
+        /// additional data (blendshapes, custom avatar behaviours) must be propagated separately.
+        /// VeryLow quality strips additional data entirely — face/detail data is invisible at 20m+.
+        /// </summary>
+        private static void PropagateAdditionalData(
+            in LocalAvatarSyncMessage high,
+            ref LocalAvatarSyncMessage medium,
+            ref LocalAvatarSyncMessage low,
+            ref LocalAvatarSyncMessage veryLow)
+        {
+            // Medium and Low receive the same additional data as High
+            medium.AdditionalAvatarDatas = high.AdditionalAvatarDatas;
+            medium.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
+            medium.LinkedAvatarIndex = high.LinkedAvatarIndex;
+
+            low.AdditionalAvatarDatas = high.AdditionalAvatarDatas;
+            low.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
+            low.LinkedAvatarIndex = high.LinkedAvatarIndex;
+
+            // VeryLow: strip additional data for bandwidth savings at distance
+            veryLow.AdditionalAvatarDatas = null;
+            veryLow.AdditionalAvatarDataSize = 0;
+        }
+
+        /// <summary>
         /// Ensures a flat array is large enough for the given player id.
         /// </summary>
         private static void EnsureArrayCapacity(ref long[] array, int requiredIndex)
@@ -556,6 +582,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     state.AvatarVeryLow = high;
                 }
 
+                // Propagate additional avatar data (e.g. blendshapes) to quality variants.
+                // BuildAllLowerFromHighInto only handles muscle/position payload;
+                // additional data must be copied separately.
+                // VeryLow strips additional data — face details invisible at 20m+.
+                PropagateAdditionalData(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
+
                 // First frame: pre-serialize
                 PreSerializeAll(state);
 
@@ -608,6 +640,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     state.AvatarLow = high;
                     state.AvatarVeryLow = high;
                 }
+
+                // Propagate additional avatar data to quality variants
+                PropagateAdditionalData(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
 
                 // Keep SyncMessage in sync (shell)
                 state.SyncMessage.avatarSerialization = high;
