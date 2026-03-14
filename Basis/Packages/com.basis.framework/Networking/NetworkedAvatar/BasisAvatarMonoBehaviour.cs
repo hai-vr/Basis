@@ -78,6 +78,12 @@ namespace Basis.Scripts.Behaviour
                 BasisDebug.LogError("Network Is Not Ready!", this.gameObject, BasisDebug.LogTag.Avatar);
             }
         }
+        /// <summary>
+        /// Whether this behaviour type is visible in the Avatar SDK inspector's
+        /// Network Behaviours section. Subclasses shadow with <c>new public static bool VisibleInAvatarMenu = false;</c> to hide.
+        /// The inspector reads this per-type via reflection.
+        /// </summary>
+        public static bool VisibleInAvatarMenu = true;
 #if UNITY_EDITOR
         /// <summary>
         /// Called in-editor when this component is added via the Avatar SDK inspector.

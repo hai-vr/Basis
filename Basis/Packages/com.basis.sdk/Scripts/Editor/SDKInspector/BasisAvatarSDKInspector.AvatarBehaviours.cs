@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Basis.Scripts.Behaviour;
 using UnityEditor;
 using UnityEngine;
@@ -10,6 +11,7 @@ using UnityEngine.UIElements;
 /// "Network Behaviours" UXML foldout with discovered BasisAvatarMonoBehaviour types.
 /// Shows attached components with Select/Remove, and available types with Add buttons.
 /// Adding a component calls OnEditorSetup for auto-configuration.
+/// Types can hide from this menu by shadowing: <c>new public static bool VisibleInAvatarMenu = false;</c>
 /// </summary>
 public partial class BasisAvatarSDKInspector
 {
@@ -34,12 +36,27 @@ public partial class BasisAvatarSDKInspector
         RefreshNetworkBehaviours();
     }
 
+    /// <summary>
+    /// Reads the static VisibleInAvatarMenu field on a BasisAvatarMonoBehaviour subclass.
+    /// Uses reflection so subclasses can shadow the base field with their own value.
+    /// Returns true if the field is missing (visible by default).
+    /// </summary>
+    private static bool IsVisibleInAvatarMenu(Type type)
+    {
+        FieldInfo field = type.GetField("VisibleInAvatarMenu", BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+        if (field != null && field.FieldType == typeof(bool))
+        {
+            return (bool)field.GetValue(null);
+        }
+        return true;
+    }
+
     private void RefreshNetworkBehaviours()
     {
         _attachedContainer.Clear();
         _availableContainer.Clear();
 
-        // ---- Discover all concrete subclasses ----
+        // ---- Discover all concrete subclasses that are visible in the menu ----
         var availableTypes = new List<Type>();
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
@@ -49,8 +66,12 @@ public partial class BasisAvatarSDKInspector
 
             foreach (var type in types)
             {
-                if (!type.IsAbstract && type.IsSubclassOf(typeof(BasisAvatarMonoBehaviour)))
+                if (!type.IsAbstract
+                    && type.IsSubclassOf(typeof(BasisAvatarMonoBehaviour))
+                    && IsVisibleInAvatarMenu(type))
+                {
                     availableTypes.Add(type);
+                }
             }
         }
 
@@ -111,12 +132,10 @@ public partial class BasisAvatarSDKInspector
             var addBtn = new Button(() =>
             {
                 var comp = Undo.AddComponent(Avatar.gameObject, capturedType);
-#if UNITY_EDITOR
                 if (comp is BasisAvatarMonoBehaviour basisComp)
                 {
                     basisComp.OnEditorSetup(Avatar.gameObject);
                 }
-#endif
                 EditorUtility.SetDirty(Avatar);
                 RefreshNetworkBehaviours();
             });
