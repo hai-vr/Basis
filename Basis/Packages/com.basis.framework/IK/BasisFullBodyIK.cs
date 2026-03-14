@@ -775,6 +775,11 @@ w20, w54;
         public Quaternion TposeLeftShoulderRot, TposeRightShoulderRot;
         public Quaternion TposeChestRot;
         public float TposeShoulderToHandLeft, TposeShoulderToHandRight;
+        // HVR-IK spine curvature encoding: captures reference-pose spine shape
+        // x = parallel component, y = perpendicular component relative to spine→head axis
+        public Vector2 RefPoseChestRelation;
+        public Vector2 RefPoseNeckRelation;
+        public float RefPoseHipToHeadLength;
         public FloatProperty jobWeight { get; set; }
         const float maxHorizontalFactor = 0.35f;
         public void ProcessRootMotion(AnimationStream stream) { }
@@ -889,12 +894,15 @@ w20, w54;
             }
             if (HandleChest.IsValid(stream) & HandleNeck.IsValid(stream) & HandleHead.IsValid(stream))
             {
-                // Build target + hint transforms
-                var tRot = V4ToQuat(targetRotationHead.Get(stream));
-                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-                var bendNormal = bendNormalHead.Get(stream);
-
-                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+                // Use FABRIK for chest→head chain when available, fall back to two-bone
+                Quaternion headTargetRot = V4ToQuat(targetRotationHead.Get(stream));
+                bool usedFabrik = SolveChestToHeadFABRIK(stream, headTargetPos);
+                if (!usedFabrik)
+                {
+                    var target = new AffineTransform(headTargetPos, headTargetRot);
+                    var bendNormal = bendNormalHead.Get(stream);
+                    SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+                }
             }
             if (HasChestTracker.Get(stream) && HandleChest.IsValid(stream))
             {
@@ -911,12 +919,15 @@ w20, w54;
 
                 HandleChest.SetRotation(stream, clampedChestRot);
 
-                // Build target + hint transforms
-                var tRot = V4ToQuat(targetRotationHead.Get(stream));
-                var target = new AffineTransform(targetPositionHead.Get(stream), tRot);
-                var bendNormal = bendNormalHead.Get(stream);
-
-                SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+                // Use FABRIK for chest→head chain when available, fall back to two-bone
+                Quaternion headTargetRotChest = V4ToQuat(targetRotationHead.Get(stream));
+                bool usedFabrikChest = SolveChestToHeadFABRIK(stream, headTargetPos);
+                if (!usedFabrikChest)
+                {
+                    var target = new AffineTransform(headTargetPos, headTargetRotChest);
+                    var bendNormal = bendNormalHead.Get(stream);
+                    SolveTwoBoneSpine(stream, HandleChest, HandleNeck, HandleHead, target, targetOffsetHead, bendNormal);
+                }
             }
         }
         public void SolveShoulder(AnimationStream stream, ReadWriteTransformHandle shoulderHandle,
@@ -1179,6 +1190,10 @@ w20, w54;
             if (Mathf.Abs(b - a) < 1e-6f) return 1f;
             return Saturate((x - a) / (b - a));
         }
+        /// <summary>
+        /// HVR-IK inspired FABRIK spine solver with curvature priming and proper rotation solving.
+        /// Uses custom forward/backward passes instead of Unity’s AnimationRuntimeUtils.SolveFABRIK.
+        /// </summary>
         public bool SolveChestToHeadFABRIK(AnimationStream stream, Vector3 headTargetPos)
         {
             if (!ChainChestToHead.IsCreated || ChainChestToHead.Length < 2)
@@ -1188,79 +1203,128 @@ w20, w54;
                 return false;
             }
 
-            int n = ChainChestToHead.Length;
+            int n = ChainChestToHead.Length; // 3: chest(0), neck(1), head(2)
             int tipIndex = n - 1;
 
             // Cache current positions
             for (int i = 0; i < n; i++)
                 ChainChestToHeadLinkPositions[i] = ChainChestToHead[i].GetPosition(stream);
 
-            Vector3 b0 = ChainChestToHeadLinkPositions[0];
-            Vector3 b1 = ChainChestToHeadLinkPositions[1];
-            Vector3 b2 = (n > 2) ? ChainChestToHeadLinkPositions[2] : Vector3.zero;
+            Vector3 rootPos = ChainChestToHeadLinkPositions[0]; // chest
+            Vector3 targetPos = headTargetPos;
 
-            float tol = spineCache.GetRaw(spineToleranceIdx);
-            int iters = (int)spineCache.GetRaw(spineMaxIterationsIdx);
-
-            // --- Continuous reach handling (prevents solved/unsolved toggling) ---
-            Vector3 chestPos = ChainChestToHeadLinkPositions[0];
-            float maxReach = MaxReachHeadToChest;
-
-            // tiny slack so we don’t sit exactly on the boundary (reduces numeric flapping)
-            const float reachSlack = 1e-4f;
-            Vector3 reachableTarget = ClampToReach(chestPos, headTargetPos, Mathf.Max(0f, maxReach - reachSlack));
-
-            bool solved = AnimationRuntimeUtils.SolveFABRIK(
-                ref ChainChestToHeadLinkPositions,
-                ref ChainChestToHeadLengths,
-                reachableTarget,
-                tol,
-                MaxReachHeadToChest,
-                iters
-            );
-
-            // If FABRIK still fails, do a deterministic “stretch line” fallback
-            if (!solved)
+            // --- Curvature priming: estimate intermediate positions before FABRIK ---
+            // This preserves the artist-intended spine curve instead of letting FABRIK straighten it
+            if (n >= 3)
             {
-                Vector3 dir = reachableTarget - chestPos;
-                float d = dir.magnitude;
-                dir = (d > 1e-6f) ? (dir / d) : Vector3.forward;
+                Vector3 rootToTarget = targetPos - rootPos;
+                float rootToTargetLen = rootToTarget.magnitude;
 
-                ChainChestToHeadLinkPositions[0] = chestPos;
-                for (int i = 1; i < n; i++)
-                    ChainChestToHeadLinkPositions[i] = ChainChestToHeadLinkPositions[i - 1] + dir * ChainChestToHeadLengths[i - 1];
+                if (rootToTargetLen > k_Epsilon)
+                {
+                    Vector3 axis = rootToTarget / rootToTargetLen;
+                    // Build perpendicular basis
+                    Vector3 perp = Vector3.Cross(axis, Vector3.up);
+                    if (perp.sqrMagnitude < k_SqrEpsilon)
+                        perp = Vector3.Cross(axis, Vector3.right);
+                    perp = perp.normalized;
+
+                    // Prime neck position using curvature encoding
+                    // RefPoseNeckRelation.x = parallel distance ratio, .y = perpendicular offset ratio
+                    float neckParallel = RefPoseNeckRelation.x * rootToTargetLen;
+                    float neckPerp = RefPoseNeckRelation.y * rootToTargetLen;
+                    Vector3 primedNeck = rootPos + axis * neckParallel + perp * neckPerp;
+
+                    // Blend primed position with current (don’t fully override)
+                    ChainChestToHeadLinkPositions[1] = Vector3.Lerp(ChainChestToHeadLinkPositions[1], primedNeck, 0.7f);
+                }
             }
 
-            // Write positions back (neck/head)
+            // --- Custom FABRIK iteration (Aristidou & Lasenby 2011) ---
+            int maxIter = (int)spineCache.GetRaw(spineMaxIterationsIdx);
+            float tolerance = spineCache.GetRaw(spineToleranceIdx);
+
+            // Clamp target to reachable range
+            float maxReach = MaxReachHeadToChest;
+            Vector3 reachVec = targetPos - rootPos;
+            float reachDist = reachVec.magnitude;
+            if (reachDist > maxReach && reachDist > k_Epsilon)
+                targetPos = rootPos + reachVec * (maxReach / reachDist);
+
+            for (int iter = 0; iter < maxIter; iter++)
+            {
+                // Check convergence
+                Vector3 tipToTarget = targetPos - ChainChestToHeadLinkPositions[tipIndex];
+                if (tipToTarget.sqrMagnitude < tolerance * tolerance)
+                    break;
+
+                // --- Backward pass: start from target, work toward root ---
+                ChainChestToHeadLinkPositions[tipIndex] = targetPos;
+                for (int i = tipIndex - 1; i >= 0; i--)
+                {
+                    Vector3 dir = ChainChestToHeadLinkPositions[i] - ChainChestToHeadLinkPositions[i + 1];
+                    float len = dir.magnitude;
+                    if (len > k_Epsilon)
+                        ChainChestToHeadLinkPositions[i] = ChainChestToHeadLinkPositions[i + 1] + dir * (ChainChestToHeadLengths[i] / len);
+                    else
+                        ChainChestToHeadLinkPositions[i] = ChainChestToHeadLinkPositions[i + 1] + Vector3.up * ChainChestToHeadLengths[i];
+                }
+
+                // --- Forward pass: start from root, work toward target ---
+                ChainChestToHeadLinkPositions[0] = rootPos; // pin root
+                for (int i = 0; i < tipIndex; i++)
+                {
+                    Vector3 dir = ChainChestToHeadLinkPositions[i + 1] - ChainChestToHeadLinkPositions[i];
+                    float len = dir.magnitude;
+                    if (len > k_Epsilon)
+                        ChainChestToHeadLinkPositions[i + 1] = ChainChestToHeadLinkPositions[i] + dir * (ChainChestToHeadLengths[i] / len);
+                    else
+                        ChainChestToHeadLinkPositions[i + 1] = ChainChestToHeadLinkPositions[i] + Vector3.forward * ChainChestToHeadLengths[i];
+                }
+            }
+
+            // --- Write positions and solve rotations ---
             for (int i = 1; i < n; i++)
                 ChainChestToHead[i].SetPosition(stream, ChainChestToHeadLinkPositions[i]);
 
-            // Rotate links to match new segment directions
+            // Rotation solving: each bone looks toward the next bone
+            // Uses HVR-IK’s approach for up-vector: interpolate based on spine bend to avoid flipping
             for (int i = 0; i < tipIndex; i++)
             {
-                Vector3 beforeA = (i == 0) ? b0 : b1;
-                Vector3 beforeB = (i == 0) ? b1 : b2;
-
-                Vector3 afterA = ChainChestToHeadLinkPositions[i];
-                Vector3 afterB = ChainChestToHeadLinkPositions[i + 1];
-
-                Vector3 prevDir = beforeB - beforeA;
-                Vector3 newDir = afterB - afterA;
-
-                if (prevDir.sqrMagnitude < k_SqrEpsilon || newDir.sqrMagnitude < k_SqrEpsilon)
+                Vector3 boneDir = ChainChestToHeadLinkPositions[i + 1] - ChainChestToHeadLinkPositions[i];
+                if (boneDir.sqrMagnitude < k_SqrEpsilon)
                     continue;
 
-                Quaternion rot = ChainChestToHead[i].GetRotation(stream);
-                Quaternion delta = QuaternionExt.FromToRotation(prevDir, newDir);
-                ChainChestToHead[i].SetRotation(stream, delta * rot);
+                // Smart up-vector: use hip rotation’s up, but handle extreme bends
+                Quaternion hipsRot = HandleHips.IsValid(stream) ? HandleHips.GetRotation(stream) : Quaternion.identity;
+                Vector3 hipsUp = hipsRot * Vector3.up;
+                Vector3 boneDirNorm = boneDir.normalized;
+
+                // When spine bends past 90 degrees relative to hips-up,
+                // blend toward a perpendicular reference to prevent rotation flipping
+                float upDot = Mathf.Abs(Vector3.Dot(boneDirNorm, hipsUp));
+                Vector3 upRef;
+                if (upDot > 0.95f)
+                {
+                    // Nearly collinear with up - use hip forward as up reference
+                    upRef = hipsRot * Vector3.forward;
+                }
+                else
+                {
+                    upRef = hipsUp;
+                }
+
+                Quaternion lookRot = Quaternion.LookRotation(boneDir, upRef);
+                // Blend with current rotation to avoid harsh snapping
+                Quaternion currentRot = ChainChestToHead[i].GetRotation(stream);
+                ChainChestToHead[i].SetRotation(stream, Quaternion.Slerp(currentRot, lookRot, 0.85f));
             }
 
-            // Final: you may pin the head to the *true* target for tracker truth,
-            // but NOW the chain has a coherent pose (no snapping between two modes).
+            // Pin tip to target position
             if (ChainChestToHead[tipIndex].IsValid(stream))
-                ChainChestToHead[tipIndex].SetPosition(stream, reachableTarget);
+                ChainChestToHead[tipIndex].SetPosition(stream, targetPos);
 
-            return true; // returning “true” avoids external code branching too
+            return true;
         }
         public void SolveSpineFABRIK(AnimationStream stream, Vector3 Target)
         {
@@ -2049,6 +2113,54 @@ w20, w54;
             else
             {
                 job.TposeLengthHeadToChest = Vector3.zero;
+            }
+
+            // Compute HVR-IK style curvature encoding for spine priming
+            if (data.chest != null && data.neck != null && data.head != null)
+            {
+                Vector3 chestPos = data.chest.position;
+                Vector3 neckPos = data.neck.position;
+                Vector3 headPos = data.head.position;
+
+                Vector3 chestToHead = headPos - chestPos;
+                float chestToHeadLen = chestToHead.magnitude;
+
+                if (chestToHeadLen > 1e-6f)
+                {
+                    Vector3 axis = chestToHead / chestToHeadLen;
+                    Vector3 chestToNeck = neckPos - chestPos;
+
+                    // Project neck onto chest→head axis to get parallel/perpendicular components
+                    float parallel = Vector3.Dot(chestToNeck, axis) / chestToHeadLen;
+                    Vector3 perpVec = chestToNeck - axis * Vector3.Dot(chestToNeck, axis);
+                    float perp = perpVec.magnitude / chestToHeadLen;
+                    // Preserve sign using cross product
+                    if (Vector3.Dot(Vector3.Cross(axis, perpVec), Vector3.right) < 0f)
+                        perp = -perp;
+
+                    job.RefPoseNeckRelation = new Vector2(parallel, perp);
+                }
+                else
+                {
+                    job.RefPoseNeckRelation = new Vector2(0.5f, 0f);
+                }
+
+                job.RefPoseChestRelation = Vector2.zero; // chest is the root, no encoding needed
+            }
+            else
+            {
+                job.RefPoseChestRelation = Vector2.zero;
+                job.RefPoseNeckRelation = new Vector2(0.5f, 0f);
+            }
+
+            // Store reference hip-to-head length for the spine solver
+            if (data.hips != null && data.head != null)
+            {
+                job.RefPoseHipToHeadLength = Vector3.Distance(data.hips.position, data.head.position);
+            }
+            else
+            {
+                job.RefPoseHipToHeadLength = 0.5f;
             }
         }
         static ReadWriteTransformHandle BindHandle(Animator animator, Transform t) => (t != null) ? ReadWriteTransformHandle.Bind(animator, t) : default;
