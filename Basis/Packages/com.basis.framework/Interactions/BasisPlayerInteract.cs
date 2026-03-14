@@ -205,32 +205,18 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     interactInput.HasvalidRay = false;
                     if (interactInput.lastTarget != null)
                     {
-                        if (interactInput.lastTarget.IsInteractingWith(interactInput.input))
+                        // Implementation could allow for hovering and holding of the same object, clear independently
+                        bool autoHold = BasisDeviceManagement.IsUserInDesktop() && interactInput.lastTarget.AutoHold == BasisAutoHold.Yes;
+
+                        // Drop logic: only drop when not triggered
+                        if (!interactInput.lastTarget.IsInteractTriggered(interactInput.input) && interactInput.lastTarget.IsInteractingWith(interactInput.input) && !autoHold)
                         {
-                            // Keep interaction alive while grip is held (detection may resume).
-                            if (interactInput.lastTarget.IsInteractTriggered(interactInput.input))
-                            {
-                                interactInput.timeSinceGripConfirmed = 0f;
-                            }
-                            else
-                            {
-                                // Grace period before dropping: prevents false drops during
-                                // fast VR hand movement where tracking can briefly glitch
-                                interactInput.timeSinceGripConfirmed += Time.deltaTime;
-                                if (interactInput.timeSinceGripConfirmed > 0.1f)
-                                {
-                                    interactInput.lastTarget.OnInteractEnd(interactInput.input);
-                                    interactInput.lastTarget = null;
-                                    interactInput.timeSinceGripConfirmed = 0f;
-                                }
-                            }
+                            interactInput.lastTarget.OnInteractEnd(interactInput.input);
                         }
-                        else
+
+                        if (interactInput.lastTarget.IsHoveredBy(interactInput.input))
                         {
-                            if (interactInput.lastTarget.IsHoveredBy(interactInput.input))
-                            {
-                                interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
-                            }
+                            interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
                         }
                     }
                 }
@@ -425,7 +411,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // -----------------------------
             if (hitInteractable.IsInteractTriggered(interactInput.input))
             {
-                interactInput.timeSinceGripConfirmed = 0f;
                 // If currently hovered, end hover before interaction
                 if (hitInteractable.IsHoveredBy(interactInput.input))
                 {
@@ -461,12 +446,7 @@ namespace Basis.Scripts.BasisSdk.Interactions
             // to prevent false drops during fast VR hand movement)
             if (hitInteractable.IsInteractingWith(interactInput.input) && autoHoldDroppedSameTarget)
             {
-                interactInput.timeSinceGripConfirmed += Time.deltaTime;
-                if (interactInput.timeSinceGripConfirmed > 0.1f)
-                {
-                    hitInteractable.OnInteractEnd(interactInput.input);
-                    interactInput.timeSinceGripConfirmed = 0f;
-                }
+                hitInteractable.OnInteractEnd(interactInput.input);
             }
 
             // ✅ Key part: Hover maintenance vs hover start

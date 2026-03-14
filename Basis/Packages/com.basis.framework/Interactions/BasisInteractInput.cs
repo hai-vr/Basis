@@ -15,14 +15,6 @@ namespace Basis.Scripts.BasisSdk.Interactions
         [SerializeField]
         public bool HasvalidRay;
 
-        /// <summary>
-        /// Tracks time since grip was last confirmed held. When detection is lost and grip
-        /// appears released, the object is only dropped after this exceeds the grace threshold.
-        /// Prevents false drops during fast VR hand movement.
-        /// </summary>
-        [System.NonSerialized]
-        public float timeSinceGripConfirmed;
-
         public bool IsInput(BasisInput IsInputInput)
         {
             return input.UniqueDeviceIdentifier == IsInputInput.UniqueDeviceIdentifier;
