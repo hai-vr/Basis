@@ -500,7 +500,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             ref LocalAvatarSyncMessage low,
             ref LocalAvatarSyncMessage veryLow)
         {
-            // Medium and Low receive the same additional data as High
             medium.AdditionalAvatarDatas = high.AdditionalAvatarDatas;
             medium.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
             medium.LinkedAvatarIndex = high.LinkedAvatarIndex;
@@ -509,9 +508,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             low.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
             low.LinkedAvatarIndex = high.LinkedAvatarIndex;
 
-            // VeryLow: strip additional data for bandwidth savings at distance
-            veryLow.AdditionalAvatarDatas = null;
-            veryLow.AdditionalAvatarDataSize = 0;
+            veryLow.AdditionalAvatarDatas = high.AdditionalAvatarDatas;
+            veryLow.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
+            veryLow.LinkedAvatarIndex = high.LinkedAvatarIndex;
         }
 
         /// <summary>
@@ -585,7 +584,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // Propagate additional avatar data (e.g. blendshapes) to quality variants.
                 // BuildAllLowerFromHighInto only handles muscle/position payload;
                 // additional data must be copied separately.
-                // VeryLow strips additional data — face details invisible at 20m+.
                 PropagateAdditionalData(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
 
                 // First frame: pre-serialize
