@@ -126,6 +126,7 @@ namespace Basis.Scripts.UI
             }
 
             bool removed = false;
+            float fadeDurationInv = 1f / (MessageDuration - FadeStartTime);
 
             for (int i = activeSlots.Count - 1; i >= 0; i--)
             {
@@ -142,7 +143,7 @@ namespace Basis.Scripts.UI
 
                 if (elapsed >= FadeStartTime)
                 {
-                    float alpha = 1f - (float)(elapsed - FadeStartTime) / (MessageDuration - FadeStartTime);
+                    float alpha = 1f - (float)(elapsed - FadeStartTime) * fadeDurationInv;
 
                     Color tc = slot.TextColor;
                     tc.a = alpha;
@@ -307,7 +308,7 @@ namespace Basis.Scripts.UI
             Vector2 textSize = slot.Text.GetRenderedValues(true);
 
             float halfWidth = (textSize.x / 2f) + BackgroundPadding;
-            float halfHeight = (TextRectHeight / 4f) + BackgroundPadding;
+            float halfHeight = (textSize.y / 2f) + BackgroundPadding * 0.5f;
             halfWidth = Mathf.Max(halfWidth, MinHalfWidth);
             halfHeight = Mathf.Max(halfHeight, MinHalfHeight);
 
