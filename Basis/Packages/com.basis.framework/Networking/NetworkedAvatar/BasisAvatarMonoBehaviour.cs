@@ -78,5 +78,14 @@ namespace Basis.Scripts.Behaviour
                 BasisDebug.LogError("Network Is Not Ready!", this.gameObject, BasisDebug.LogTag.Avatar);
             }
         }
+#if UNITY_EDITOR
+        /// <summary>
+        /// Called in-editor when this component is added via the Avatar SDK inspector.
+        /// Override to auto-configure serialized references (e.g., target meshes).
+        /// Stripped from player builds.
+        /// </summary>
+        /// <param name="avatarRoot">The GameObject containing the BasisAvatar component.</param>
+        public virtual void OnEditorSetup(GameObject avatarRoot) { }
+#endif
     }
 }
