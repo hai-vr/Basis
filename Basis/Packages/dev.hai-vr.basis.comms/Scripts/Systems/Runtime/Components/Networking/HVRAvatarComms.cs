@@ -12,6 +12,7 @@ namespace HVR.Basis.Comms
     [HelpURL("https://docs.hai-vr.dev/docs/basis/avatar-customization")]
     public class HVRAvatarComms : BasisAvatarMonoBehaviour
     {
+        new public static bool VisibleInAvatarMenu = false;
         [HideInInspector] [SerializeField] private BasisAvatar avatar;
         [SerializeField] private bool isFromPrefab = false;
 

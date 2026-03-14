@@ -15,6 +15,7 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/Eye Tracking Bone Actuation")]
     public class EyeTrackingBoneActuation : BasisAvatarMonoBehaviour, IHVRInitializable
     {
+        new public static bool VisibleInAvatarMenu = false;
         private const string EyeLeftX = "FT/v2/EyeLeftX";
         private const string EyeRightX = "FT/v2/EyeRightX";
         private const string EyeY = "FT/v2/EyeY";
