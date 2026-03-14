@@ -303,9 +303,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// Auto-configures TargetMesh from the avatar's FaceVisemeMesh or FaceBlinkMesh.
         /// Called by the Avatar SDK inspector when this component is added.
         /// </summary>
-        public override void OnEditorSetup(GameObject avatarRoot)
+        public override void OnEditorSetup(GameObject avatarRoot, BasisAvatar avatar)
         {
-            var avatar = avatarRoot.GetComponent<BasisAvatar>();
             if (avatar == null) return;
 
             if (avatar.FaceVisemeMesh != null)

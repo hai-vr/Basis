@@ -134,7 +134,7 @@ public partial class BasisAvatarSDKInspector
                 var comp = Undo.AddComponent(Avatar.gameObject, capturedType);
                 if (comp is BasisAvatarMonoBehaviour basisComp)
                 {
-                    basisComp.OnEditorSetup(Avatar.gameObject);
+                    basisComp.OnEditorSetup(Avatar.gameObject, Avatar);
                 }
                 EditorUtility.SetDirty(Avatar);
                 RefreshNetworkBehaviours();

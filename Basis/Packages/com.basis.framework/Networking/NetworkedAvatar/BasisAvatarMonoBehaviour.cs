@@ -1,4 +1,5 @@
 using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.BasisSdk;
 using Basis.Network.Core;
 using UnityEngine;
 namespace Basis.Scripts.Behaviour
@@ -91,7 +92,8 @@ namespace Basis.Scripts.Behaviour
         /// Stripped from player builds.
         /// </summary>
         /// <param name="avatarRoot">The GameObject containing the BasisAvatar component.</param>
-        public virtual void OnEditorSetup(GameObject avatarRoot) { }
+        /// <param name="avatar">The BasisAvatar component on the root.</param>
+        public virtual void OnEditorSetup(GameObject avatarRoot, BasisAvatar avatar) { }
 #endif
     }
 }
