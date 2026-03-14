@@ -1127,14 +1127,68 @@ w20, w54;
             float t = maxAngleDeg / Mathf.Max(angle, k_Epsilon);
             return Quaternion.Slerp(reference, current, t);
         }
+        /// <summary>
+        /// Clamps target within reach, applying a 4th-power ease-out "struggle curve"
+        /// over the last portion of extension to prevent harsh snap-to-straight artifacts.
+        /// Inspired by HVR-IK's HIKTwoBoneAlgorithms.ApplyCorrections.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static Vector3 ClampToReach(Vector3 root, Vector3 target, float maxReach)
         {
             Vector3 d = target - root;
             float dist = d.magnitude;
-            if (dist <= maxReach) return target;
             if (dist < 1e-6f) return root;
+            if (dist <= maxReach)
+            {
+                // Apply struggle curve in the last 5% of reach
+                float ratio = dist / maxReach;
+                const float struggleThreshold = 0.95f;
+                if (ratio > struggleThreshold)
+                {
+                    float t = (ratio - struggleThreshold) / (1f - struggleThreshold);
+                    // 4th-power ease-out: rapid start, smooth approach to limit
+                    float curved = 1f - (1f - t) * (1f - t) * (1f - t) * (1f - t);
+                    float newRatio = struggleThreshold + (1f - struggleThreshold) * curved;
+                    return root + d * (newRatio * maxReach / dist);
+                }
+                return target;
+            }
+            // Beyond max reach - clamp and apply max struggle
             return root + d * (maxReach / dist);
+        }
+        /// <summary>
+        /// Clamps target within reach with configurable struggle curve parameters.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static Vector3 ClampToReachWithStruggle(Vector3 root, Vector3 target, float maxReach, float struggleStart, float struggleEnd)
+        {
+            Vector3 d = target - root;
+            float dist = d.magnitude;
+            if (dist < 1e-6f) return root;
+
+            float ratio = dist / maxReach;
+
+            if (struggleEnd > struggleStart && struggleStart > 0f && ratio > struggleStart)
+            {
+                float t;
+                if (ratio >= struggleEnd)
+                {
+                    t = 1f;
+                }
+                else
+                {
+                    t = (ratio - struggleStart) / (struggleEnd - struggleStart);
+                }
+                // 4th-power ease-out curve
+                float curved = 1f - (1f - t) * (1f - t) * (1f - t) * (1f - t);
+                float newRatio = struggleStart + (struggleEnd - struggleStart) * curved;
+                return root + d * (newRatio * maxReach / dist);
+            }
+
+            if (dist > maxReach)
+                return root + d * (maxReach / dist);
+
+            return target;
         }
         // Twist is a rotation *around axis*. We clamp its signed angle around that axis.
         static Quaternion ClampTwistAroundAxis(Quaternion twist, Vector3 axis, float maxDegrees)
