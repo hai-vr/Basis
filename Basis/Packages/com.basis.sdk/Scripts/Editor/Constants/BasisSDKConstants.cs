@@ -34,6 +34,10 @@ public class BasisSDKConstants
 
     public static readonly string AvatarDoNotAutoRenameBonesField = "AvatarDoNotAutoRenameBonesField";
     public static readonly string AvatarAutomaticallyRemoveBlendshapesField = "AvatarAutomaticallyRemoveBlendshapesField";
+
+    public static readonly string NetworkBehavioursFoldout = "NetworkBehavioursFoldout";
+    public static readonly string NetworkBehavioursAttached = "NetworkBehavioursAttached";
+    public static readonly string NetworkBehavioursAvailable = "NetworkBehavioursAvailable";
     #endregion
     #region Prop
     public static readonly string PropuxmlPath = $"{BasePath}{PropFile}";

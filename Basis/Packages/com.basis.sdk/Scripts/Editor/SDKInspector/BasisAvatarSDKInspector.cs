@@ -66,7 +66,7 @@ public partial class BasisAvatarSDKInspector : Editor
             BasisAutomaticSetupAvatarEditor.TryToAutomatic(this);
             SetupItems();
             AvatarSDKVisemes.Initialize(this);
-            BuildAvatarBehavioursSection();
+            SetupNetworkBehaviours();
             InspectorGuiCreated?.Invoke(this);
         }
         else
