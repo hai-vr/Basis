@@ -220,14 +220,6 @@ public static class SettingsProviderIK
         colliderGroup.SetDescription("Controls for IK collision detection and spine/shoulder tuning parameters");
         colliderGroup.SetIcon(AddressableAssets.Sprites.Settings);
 
-        colliderGroup.gameObject.SetActive(BasisSettingsDefaults.FBIKAdvancedVisible.RawValue);
-        advancedToggle.OnValueChanged += visible =>
-        {
-            colliderGroup.gameObject.SetActive(visible);
-            tabDesc.ForceRebuild();
-
-        };
-
         var colliderParent = colliderGroup.ContentParent;
 
         // --- Collider toggles ---
@@ -333,6 +325,15 @@ public static class SettingsProviderIK
 
         // ONE RESET BUTTON FOR THIS PAGE
         SettingsProvider.AddResetPageButton(tabDesc.ContentParent, "Body Tracking", ResetIkDefaults);
+
+
+        colliderGroup.gameObject.SetActive(BasisSettingsDefaults.FBIKAdvancedVisible.RawValue);
+        advancedToggle.OnValueChanged += visible =>
+        {
+            colliderGroup.gameObject.SetActive(visible);
+            tabDesc.ForceRebuild();
+            colliderGroup.GetComponentInParent<PanelElementDescriptor>()?.ForceRebuild();
+        };
 
         tabDesc.ForceRebuild();
         return tabPage;
