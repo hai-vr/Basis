@@ -32,6 +32,7 @@ namespace Cilbox
 			"Basis.SafeUtil",
 			"Basis.Scripts.BasisSdk.Players.BasisLocalPlayer",
 			"Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer",
+			"Basis.VideoPlayerShim",
 
 			// Cilbox types
 			"Cilbox.CilboxPublicUtils",
@@ -59,6 +60,7 @@ namespace Cilbox
 			"System.Single",
 			"System.String",
 			"System.TimeSpan",
+			"System.Text.Encoding",
 			"System.UInt16",
 			"System.UInt32",
 			"System.UInt64",
@@ -94,6 +96,7 @@ namespace Cilbox
 			"UnityEngine.Transform",
 			"UnityEngine.Quaternion",
 			"UnityEngine.Rigidbody",
+			"UnityEngine.RenderTexture",
 			"UnityEngine.UI.Button",
 			"UnityEngine.UI.Button+ButtonClickedEvent",
 			"UnityEngine.UI.InputField",
@@ -174,5 +177,18 @@ namespace Cilbox
 
 			return true;
 		}
+
+        public override bool GetComponentTypeOverride(string sType, out Type t)
+        {
+			switch(sType)
+			{
+				case "UnityEngine.Video.VideoPlayer":
+					t = typeof(Basis.VideoPlayerShim);
+					return true;
+				default:
+					t = null;
+					return false;
+			}
+        }
 	}
 }
