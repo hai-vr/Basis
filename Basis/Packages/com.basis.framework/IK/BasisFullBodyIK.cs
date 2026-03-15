@@ -1887,92 +1887,53 @@ w20, w54;
                 return;
             }
 
-            // Read inputs
+            // Read inputs — tgtPos is the controller position and must NEVER be moved away from it.
+            // Moving the hand target breaks 1:1 VR tracking and detaches the hand from the controller.
             Vector3 tgtPos = targetPosProp.Get(stream);
             Quaternion tgtRot = V4ToQuat(targetRotProp.Get(stream));
             Vector3 hintPos = hintPosProp.Get(stream);
             Quaternion hintRot = V4ToQuat(hintRotProp.Get(stream));
             bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
+
+            // Pre-solve: only steer the elbow hint away from chest, never move the hand target
             if (doCollisions)
             {
                 Vector3 a = chestStart.GetPosition(stream);
                 Vector3 b = chestEnd.GetPosition(stream);
                 float chestR = Mathf.Max(0f, chestRadius.Get(stream) + collisionSkin.Get(stream));
 
-                if (useHandCapsule.Get(stream))
-                {
-                    float hRad = Mathf.Max(0f, handRadius.Get(stream) + handSkin.Get(stream));
-
-                    // Use the actual current mid & tip positions as the hand capsule ends
-                    Vector3 handA = mid.GetPosition(stream);
-                    Vector3 handB = tip.GetPosition(stream);
-
-                    Vector3 correction = CapsuleCapsuleResolve(handA, handB, hRad, a, b, chestR);
-                    if (correction.sqrMagnitude > 0f)
-                    {
-                        // Move the IK target & hint by the same correction
-                        tgtPos += correction;
-                        hintPos += correction * 0.25f; // steer elbow slightly
-                    }
-                }
-                else
-                {
-                    tgtPos = PushOutFromCapsule(tgtPos, a, b, chestR);
-                    Vector3 nudgedHint = PushOutFromCapsule(hintPos, a, b, chestR * 0.9f);
-                    hintPos = Vector3.Lerp(hintPos, nudgedHint, 0.6f);
-                }
+                // Nudge the elbow hint away from chest to bias the solve toward non-penetrating poses
+                Vector3 nudgedHint = PushOutFromCapsule(hintPos, a, b, chestR * 0.85f);
+                // Smooth blend to prevent snapping
+                hintPos = Vector3.Lerp(hintPos, nudgedHint, 0.4f);
             }
+
             var target = new AffineTransform(tgtPos, tgtRot);
             var hint = new AffineTransform(hintPos, hintRot);
             bool hasHint = hintWeightProp.Get(stream);
 
-            // First solve (arms variant to preserve wrist)
+            // Solve with the true controller target — hand stays at controller position
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
 
-            if (doCollisions)
+            // Post-solve: only swing the elbow around the shoulder→hand axis.
+            // This changes elbow position WITHOUT moving the hand, preserving 1:1 tracking.
+            if (doCollisions && protectElbow.Get(stream))
             {
                 Vector3 a = chestStart.GetPosition(stream);
                 Vector3 b = chestEnd.GetPosition(stream);
                 float chestR = Mathf.Max(0f, chestRadius.Get(stream) + collisionSkin.Get(stream));
 
-                // Elbow protection: push elbow out of chest capsule
-                if (protectElbow.Get(stream))
-                {
-                    Vector3 B = mid.GetPosition(stream);
-                    Vector3 pushedB = PushOutFromCapsule(B, a, b, chestR);
-                    if ((pushedB - B).sqrMagnitude > 1e-10f)
-                    {
-                        SwingElbowAroundAC(stream, root, mid, tip, pushedB);
-                        SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
-                    }
-                }
+                Vector3 elbowPos = mid.GetPosition(stream);
+                Vector3 pushedElbow = PushOutFromCapsule(elbowPos, a, b, chestR);
+                Vector3 elbowDelta = pushedElbow - elbowPos;
 
-                // Post-solve collision: check ACTUAL solved positions and correct if still penetrating
-                if (useHandCapsule.Get(stream))
+                if (elbowDelta.sqrMagnitude > k_SqrEpsilon)
                 {
-                    float hRad = Mathf.Max(0f, handRadius.Get(stream) + handSkin.Get(stream));
-                    Vector3 solvedMid = mid.GetPosition(stream);
-                    Vector3 solvedTip = tip.GetPosition(stream);
-
-                    Vector3 postCorrection = CapsuleCapsuleResolve(solvedMid, solvedTip, hRad, a, b, chestR);
-                    if (postCorrection.sqrMagnitude > k_SqrEpsilon)
-                    {
-                        // Shift target by remaining penetration and re-solve
-                        var correctedTarget = new AffineTransform(tgtPos + postCorrection, tgtRot);
-                        var correctedHint = new AffineTransform(hintPos + postCorrection * 0.25f, hintRot);
-                        SolveTwoBoneIKArms(stream, root, mid, tip, correctedTarget, correctedHint, hasHint, targetOffset);
-                    }
-                }
-                else
-                {
-                    // Point check: verify tip isn't still inside chest
-                    Vector3 solvedTip = tip.GetPosition(stream);
-                    Vector3 pushedTip = PushOutFromCapsule(solvedTip, a, b, chestR);
-                    if ((pushedTip - solvedTip).sqrMagnitude > k_SqrEpsilon)
-                    {
-                        var correctedTarget = new AffineTransform(pushedTip, tgtRot);
-                        SolveTwoBoneIKArms(stream, root, mid, tip, correctedTarget, hint, hasHint, targetOffset);
-                    }
+                    // Smooth the correction to prevent snapping (max 60% per frame)
+                    Vector3 smoothedTarget = elbowPos + elbowDelta * 0.6f;
+                    SwingElbowAroundAC(stream, root, mid, tip, smoothedTarget);
+                    // Re-solve to maintain hand at controller position after elbow swing
+                    SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
                 }
             }
         }
