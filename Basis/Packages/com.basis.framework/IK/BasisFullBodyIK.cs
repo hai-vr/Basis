@@ -488,15 +488,19 @@ namespace UnityEngine.Animations.Rigging
             m_LeftToeEnabled = false;
             m_RightToeEnabled = false;
 
-            // Chest/hand capsule defaults (left)
+            // Chest/hand capsule defaults — read from persisted settings
             m_chest = m_neck = null;
-            m_ChestRadius = 0.18f; m_CollisionSkin = 0.02f; m_CollisionsEnabled = true;
-            m_HandRadius = 0.05f; m_HandSkin = 0.01f; m_UseHandCapsule = true;
-            m_ProtectElbow = true;
+            m_ChestRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKChestRadius.RawValue;
+            m_CollisionSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionSkin.RawValue;
+            m_CollisionsEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionsEnabled.RawValue;
+            m_HandRadius = Basis.BasisUI.BasisSettingsDefaults.FBIKHandRadius.RawValue;
+            m_HandSkin = Basis.BasisUI.BasisSettingsDefaults.FBIKHandSkin.RawValue;
+            m_UseHandCapsule = Basis.BasisUI.BasisSettingsDefaults.FBIKUseHandCapsule.RawValue;
+            m_ProtectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
 
-            m_ShoulderSolveEnabled = true;
-            m_ShoulderElevationFactor = 0.4f;
-            m_ShoulderProtractionFactor = 0.3f;
+            m_ShoulderSolveEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderSolveEnabled.RawValue;
+            m_ShoulderElevationFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderElevation.RawValue;
+            m_ShoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
 
             // Positions
             TargetPosition0 = TargetPosition1 = TargetPosition2 = TargetPosition3 = TargetPosition4 =
