@@ -1887,53 +1887,49 @@ w20, w54;
                 return;
             }
 
-            // Read inputs — tgtPos is the controller position and must NEVER be moved away from it.
-            // Moving the hand target breaks 1:1 VR tracking and detaches the hand from the controller.
+            // Read inputs
             Vector3 tgtPos = targetPosProp.Get(stream);
             Quaternion tgtRot = V4ToQuat(targetRotProp.Get(stream));
             Vector3 hintPos = hintPosProp.Get(stream);
             Quaternion hintRot = V4ToQuat(hintRotProp.Get(stream));
-            bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
-
-            // Pre-solve: only steer the elbow hint away from chest, never move the hand target
-            if (doCollisions)
-            {
-                Vector3 a = chestStart.GetPosition(stream);
-                Vector3 b = chestEnd.GetPosition(stream);
-                float chestR = Mathf.Max(0f, chestRadius.Get(stream) + collisionSkin.Get(stream));
-
-                // Nudge the elbow hint away from chest to bias the solve toward non-penetrating poses
-                Vector3 nudgedHint = PushOutFromCapsule(hintPos, a, b, chestR * 0.85f);
-                // Smooth blend to prevent snapping
-                hintPos = Vector3.Lerp(hintPos, nudgedHint, 0.4f);
-            }
 
             var target = new AffineTransform(tgtPos, tgtRot);
             var hint = new AffineTransform(hintPos, hintRot);
             bool hasHint = hintWeightProp.Get(stream);
 
-            // Solve with the true controller target — hand stays at controller position
+            // Solve arm with unmodified inputs — hand lands exactly at controller position.
+            // Collision NEVER influences the IK solve. The hand must match the controller 1:1.
             SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
 
-            // Post-solve: only swing the elbow around the shoulder→hand axis.
-            // This changes elbow position WITHOUT moving the hand, preserving 1:1 tracking.
+            // Post-solve cosmetic push: gently nudge the elbow outward if it's inside the chest.
+            // SwingElbowAroundAC rotates the shoulder around the shoulder→hand axis,
+            // which moves the elbow without moving the hand (hand is on the rotation axis).
+            // No re-solve needed — this is a push, not a wall. The arm CAN enter the chest.
+            bool doCollisions = collisionsEnabled.Get(stream) && chestStart.IsValid(stream) && chestEnd.IsValid(stream);
             if (doCollisions && protectElbow.Get(stream))
             {
-                Vector3 a = chestStart.GetPosition(stream);
-                Vector3 b = chestEnd.GetPosition(stream);
+                Vector3 chestA = chestStart.GetPosition(stream);
+                Vector3 chestB = chestEnd.GetPosition(stream);
                 float chestR = Mathf.Max(0f, chestRadius.Get(stream) + collisionSkin.Get(stream));
 
                 Vector3 elbowPos = mid.GetPosition(stream);
-                Vector3 pushedElbow = PushOutFromCapsule(elbowPos, a, b, chestR);
-                Vector3 elbowDelta = pushedElbow - elbowPos;
+                Vector3 closest = ClosestPointOnSegment(elbowPos, chestA, chestB);
+                Vector3 toElbow = elbowPos - closest;
+                float dist = toElbow.magnitude;
 
-                if (elbowDelta.sqrMagnitude > k_SqrEpsilon)
+                // Only push if elbow is inside the capsule radius
+                if (dist < chestR && dist > k_Epsilon)
                 {
-                    // Smooth the correction to prevent snapping (max 60% per frame)
-                    Vector3 smoothedTarget = elbowPos + elbowDelta * 0.6f;
-                    SwingElbowAroundAC(stream, root, mid, tip, smoothedTarget);
-                    // Re-solve to maintain hand at controller position after elbow swing
-                    SolveTwoBoneIKArms(stream, root, mid, tip, target, hint, hasHint, targetOffset);
+                    // Push strength: gentle and proportional to penetration depth
+                    // At the surface (dist == chestR): no push
+                    // At the center (dist == 0): max push
+                    float penetration = chestR - dist;
+                    float pushStrength = penetration / chestR; // 0 at surface, 1 at center
+                    pushStrength *= 0.35f; // cap — never fully resolve in one frame
+
+                    Vector3 pushDir = toElbow / dist; // outward from capsule axis
+                    Vector3 desiredElbow = elbowPos + pushDir * (penetration * pushStrength);
+                    SwingElbowAroundAC(stream, root, mid, tip, desiredElbow);
                 }
             }
         }
