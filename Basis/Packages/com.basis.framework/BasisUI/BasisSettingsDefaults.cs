@@ -427,7 +427,7 @@ namespace Basis.BasisUI
 
         // Listener Directional Dampening
         public static BasisSettingsBinding<float> RAListenerConeAngle => new("ra_listenerconeangle", new BasisPlatformDefault<float>(150f));
-        public static BasisSettingsBinding<float> RAListenerDampenAmount => new("ra_listenerdampenamount", new BasisPlatformDefault<float>(15f));
+        public static BasisSettingsBinding<float> RAListenerDampenAmount => new("ra_listenerdampenamount", new BasisPlatformDefault<float>(75f));
 
         // Steam Audio - Attenuation Input
         public static BasisSettingsBinding<string> RADistanceAttenuationInput => new("ra_distanceattenuationinput", new BasisPlatformDefault<string>("curve driven"));
