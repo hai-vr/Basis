@@ -221,7 +221,12 @@ public static class SettingsProviderIK
         colliderGroup.SetIcon(AddressableAssets.Sprites.Settings);
 
         colliderGroup.gameObject.SetActive(BasisSettingsDefaults.FBIKAdvancedVisible.RawValue);
-        advancedToggle.OnValueChanged += visible => colliderGroup.gameObject.SetActive(visible);
+        advancedToggle.OnValueChanged += visible =>
+        {
+            colliderGroup.gameObject.SetActive(visible);
+            tabDesc.ForceRebuild();
+
+        };
 
         var colliderParent = colliderGroup.ContentParent;
 
