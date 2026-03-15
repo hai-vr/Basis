@@ -867,13 +867,13 @@ namespace Basis.Scripts.Drivers
                 data.SetOffsetRotation(slot, t.rotation);
                 data.SetTargetRotation(slot, t.rotation);
             }
-            data.MaxBendDeg = 90;
+            data.MaxBendDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxBendDeg.RawValue;
             data.MinFactor = 1f;
             data.MaxFactor = 1f;
-            data.StruggleStart = 0.9f;
-            data.StruggleEnd = 1;
-            data.MaxChestDelta = 90;
-            data.MaxHipDelta = 90;
+            data.StruggleStart = Basis.BasisUI.BasisSettingsDefaults.FBIKStruggleStart.RawValue;
+            data.StruggleEnd = Basis.BasisUI.BasisSettingsDefaults.FBIKStruggleEnd.RawValue;
+            data.MaxChestDelta = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxChestDelta.RawValue;
+            data.MaxHipDelta = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxHipDelta.RawValue;
 
             BasisFullIKConstraint.data = data;
         }
