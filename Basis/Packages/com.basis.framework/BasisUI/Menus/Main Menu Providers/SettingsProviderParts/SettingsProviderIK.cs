@@ -203,6 +203,129 @@ public static class SettingsProviderIK
         AddFBIKTogglesCompact(ikParent);
 
         SyncMasterEuroFromChildren();
+
+        // ------------------
+        // Advanced IK toggle
+        // ------------------
+        var advancedToggle = PanelToggle.CreateNewEntry(tabDesc.ContentParent);
+        advancedToggle.Descriptor.SetTitle("Advanced IK Settings");
+        advancedToggle.Descriptor.SetDescription("Show advanced collider, shoulder, and spine tuning parameters.");
+        advancedToggle.AssignBinding(BasisSettingsDefaults.FBIKAdvancedVisible);
+
+        var colliderGroup = PanelElementDescriptor.CreateNew(
+            PanelElementDescriptor.ElementStyles.Group,
+            tabDesc.ContentParent);
+
+        colliderGroup.SetTitle("IK Colliders & Tuning");
+        colliderGroup.SetDescription("Controls for IK collision detection and spine/shoulder tuning parameters");
+        colliderGroup.SetIcon(AddressableAssets.Sprites.Settings);
+
+        colliderGroup.gameObject.SetActive(BasisSettingsDefaults.FBIKAdvancedVisible.RawValue);
+        advancedToggle.OnValueChanged += visible => colliderGroup.gameObject.SetActive(visible);
+
+        var colliderParent = colliderGroup.ContentParent;
+
+        // --- Collider toggles ---
+        var collisionsToggle = PanelToggle.CreateNewEntry(colliderParent);
+        collisionsToggle.Descriptor.SetTitle("Collisions Enabled");
+        collisionsToggle.AssignBinding(BasisSettingsDefaults.FBIKCollisionsEnabled);
+        collisionsToggle.Descriptor.SetDescription("Enables virtual capsule collision between elbows and chest to prevent arm clipping through the body.");
+
+        var protectElbowToggle = PanelToggle.CreateNewEntry(colliderParent);
+        protectElbowToggle.Descriptor.SetTitle("Protect Elbow");
+        protectElbowToggle.AssignBinding(BasisSettingsDefaults.FBIKProtectElbow);
+        protectElbowToggle.Descriptor.SetDescription("Pushes elbows outward when they penetrate the chest capsule.");
+
+        var handCapsuleToggle = PanelToggle.CreateNewEntry(colliderParent);
+        handCapsuleToggle.Descriptor.SetTitle("Use Hand Capsule");
+        handCapsuleToggle.AssignBinding(BasisSettingsDefaults.FBIKUseHandCapsule);
+        handCapsuleToggle.Descriptor.SetDescription("Enables the hand collision capsule for IK solving.");
+
+        // --- Collider size sliders ---
+        var chestRadiusSlider = PanelSlider.CreateAndBind(
+            colliderParent,
+            PanelSlider.SliderSettings.Advanced("Chest Radius", 0.01f, 0.5f, false, 3, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKChestRadius);
+        if (chestRadiusSlider != null)
+            chestRadiusSlider.Descriptor.SetDescription("Radius of the virtual chest capsule used for elbow collision. Default: 0.18");
+
+        var collisionSkinSlider = PanelSlider.CreateAndBind(
+            colliderParent,
+            PanelSlider.SliderSettings.Advanced("Collision Skin", 0f, 0.1f, false, 3, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKCollisionSkin);
+        if (collisionSkinSlider != null)
+            collisionSkinSlider.Descriptor.SetDescription("Extra buffer padding around the chest capsule. Default: 0.02");
+
+        var handRadiusSlider = PanelSlider.CreateAndBind(
+            colliderParent,
+            PanelSlider.SliderSettings.Advanced("Hand Radius", 0f, 0.2f, false, 3, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKHandRadius);
+        if (handRadiusSlider != null)
+            handRadiusSlider.Descriptor.SetDescription("Radius of the virtual hand target capsule. Default: 0.05");
+
+        var handSkinSlider = PanelSlider.CreateAndBind(
+            colliderParent,
+            PanelSlider.SliderSettings.Advanced("Hand Skin", 0f, 0.1f, false, 3, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKHandSkin);
+        if (handSkinSlider != null)
+            handSkinSlider.Descriptor.SetDescription("Extra buffer around hand capsule. Default: 0.01");
+
+        // --- Shoulder ---
+        var shoulderSolveToggle = PanelToggle.CreateNewEntry(colliderParent);
+        shoulderSolveToggle.Descriptor.SetTitle("Shoulder Pre-Solve");
+        shoulderSolveToggle.AssignBinding(BasisSettingsDefaults.FBIKShoulderSolveEnabled);
+        shoulderSolveToggle.Descriptor.SetDescription("Raises and protracts shoulders based on hand target position before arm IK runs.");
+
+        var shoulderElevSlider = PanelSlider.CreateAndBind(
+            colliderParent,
+            PanelSlider.SliderSettings.Advanced("Shoulder Elevation", 0f, 1f, false, 2, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKShoulderElevation);
+        if (shoulderElevSlider != null)
+            shoulderElevSlider.Descriptor.SetDescription("How much the shoulder raises when the hand is above it. Default: 0.4");
+
+        var shoulderProtSlider = PanelSlider.CreateAndBind(
+            colliderParent,
+            PanelSlider.SliderSettings.Advanced("Shoulder Protraction", 0f, 1f, false, 2, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKShoulderProtraction);
+        if (shoulderProtSlider != null)
+            shoulderProtSlider.Descriptor.SetDescription("How much the shoulder moves forward when the hand reaches out. Default: 0.3");
+
+        // --- Spine tuning ---
+        var maxBendSlider = PanelSlider.CreateAndBind(
+            colliderParent,
+            PanelSlider.SliderSettings.Advanced("Max Spine Bend (deg)", 0f, 180f, false, 0, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKMaxBendDeg);
+        if (maxBendSlider != null)
+            maxBendSlider.Descriptor.SetDescription("Maximum bend angle for the spine chain. Default: 90");
+
+        var struggleStartSlider = PanelSlider.CreateAndBind(
+            colliderParent,
+            PanelSlider.SliderSettings.Advanced("Struggle Start", 0f, 1f, false, 2, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKStruggleStart);
+        if (struggleStartSlider != null)
+            struggleStartSlider.Descriptor.SetDescription("Arm extension ratio where struggle blending begins. Default: 0.9");
+
+        var struggleEndSlider = PanelSlider.CreateAndBind(
+            colliderParent,
+            PanelSlider.SliderSettings.Advanced("Struggle End", 0f, 1f, false, 2, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKStruggleEnd);
+        if (struggleEndSlider != null)
+            struggleEndSlider.Descriptor.SetDescription("Arm extension ratio where struggle is fully applied. Default: 1.0");
+
+        var maxChestDeltaSlider = PanelSlider.CreateAndBind(
+            colliderParent,
+            PanelSlider.SliderSettings.Advanced("Max Chest Delta (deg)", 0f, 180f, false, 0, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKMaxChestDelta);
+        if (maxChestDeltaSlider != null)
+            maxChestDeltaSlider.Descriptor.SetDescription("Maximum rotation delta allowed for the chest bone per frame. Default: 90");
+
+        var maxHipDeltaSlider = PanelSlider.CreateAndBind(
+            colliderParent,
+            PanelSlider.SliderSettings.Advanced("Max Hip Delta (deg)", 0f, 180f, false, 0, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.FBIKMaxHipDelta);
+        if (maxHipDeltaSlider != null)
+            maxHipDeltaSlider.Descriptor.SetDescription("Maximum rotation delta allowed for the hip bone per frame. Default: 90");
+
         // ONE RESET BUTTON FOR THIS PAGE
         SettingsProvider.AddResetPageButton(tabDesc.ContentParent, "Body Tracking", ResetIkDefaults);
 
@@ -233,6 +356,24 @@ public static class SettingsProviderIK
         // If you have master toggles / global helpers:
         // This binding is set by SyncMasterEuroFromChildren(), but reset it anyway.
         BasisSettingsDefaults.FBIKEuroAll.ResetToDefault();
+
+        // IK Collider & Tuning
+        BasisSettingsDefaults.FBIKAdvancedVisible.ResetToDefault();
+        BasisSettingsDefaults.FBIKCollisionsEnabled.ResetToDefault();
+        BasisSettingsDefaults.FBIKProtectElbow.ResetToDefault();
+        BasisSettingsDefaults.FBIKUseHandCapsule.ResetToDefault();
+        BasisSettingsDefaults.FBIKChestRadius.ResetToDefault();
+        BasisSettingsDefaults.FBIKCollisionSkin.ResetToDefault();
+        BasisSettingsDefaults.FBIKHandRadius.ResetToDefault();
+        BasisSettingsDefaults.FBIKHandSkin.ResetToDefault();
+        BasisSettingsDefaults.FBIKShoulderSolveEnabled.ResetToDefault();
+        BasisSettingsDefaults.FBIKShoulderElevation.ResetToDefault();
+        BasisSettingsDefaults.FBIKShoulderProtraction.ResetToDefault();
+        BasisSettingsDefaults.FBIKMaxBendDeg.ResetToDefault();
+        BasisSettingsDefaults.FBIKStruggleStart.ResetToDefault();
+        BasisSettingsDefaults.FBIKStruggleEnd.ResetToDefault();
+        BasisSettingsDefaults.FBIKMaxChestDelta.ResetToDefault();
+        BasisSettingsDefaults.FBIKMaxHipDelta.ResetToDefault();
 
         // Per-bone toggles and calibration sphere scale
         foreach (var b in _bones)

@@ -464,6 +464,24 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> CalibSphereScaleLeftShoulder => new("calibspherescaleleftshoulder", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> CalibSphereScaleRightShoulder => new("calibspherescalerightshoulder", new BasisPlatformDefault<float>(1f));
 
+        // ---------------- IK COLLIDER & TUNING ----------------
+        public static BasisSettingsBinding<bool> FBIKAdvancedVisible => new("fbikadvancedvisible", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> FBIKCollisionsEnabled => new("fbikcollisionsenabled", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> FBIKProtectElbow => new("fbikprotectelbow", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> FBIKUseHandCapsule => new("fbikusehandcapsule", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> FBIKChestRadius => new("fbikchestradius", new BasisPlatformDefault<float>(0.18f));
+        public static BasisSettingsBinding<float> FBIKCollisionSkin => new("fbikcollisionskin", new BasisPlatformDefault<float>(0.02f));
+        public static BasisSettingsBinding<float> FBIKHandRadius => new("fbikhandradius", new BasisPlatformDefault<float>(0.05f));
+        public static BasisSettingsBinding<float> FBIKHandSkin => new("fbikhandskin", new BasisPlatformDefault<float>(0.01f));
+        public static BasisSettingsBinding<bool> FBIKShoulderSolveEnabled => new("fbikshouldersolveenabled", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<float> FBIKShoulderElevation => new("fbikshoulderelevation", new BasisPlatformDefault<float>(0.4f));
+        public static BasisSettingsBinding<float> FBIKShoulderProtraction => new("fbikshoulderprotraction", new BasisPlatformDefault<float>(0.3f));
+        public static BasisSettingsBinding<float> FBIKMaxBendDeg => new("fbikmaxbenddeg", new BasisPlatformDefault<float>(90f));
+        public static BasisSettingsBinding<float> FBIKStruggleStart => new("fbikstrugglestart", new BasisPlatformDefault<float>(0.9f));
+        public static BasisSettingsBinding<float> FBIKStruggleEnd => new("fbikstruggleend", new BasisPlatformDefault<float>(1f));
+        public static BasisSettingsBinding<float> FBIKMaxChestDelta => new("fbikmaxchestdelta", new BasisPlatformDefault<float>(90f));
+        public static BasisSettingsBinding<float> FBIKMaxHipDelta => new("fbikmaxhipdelta", new BasisPlatformDefault<float>(90f));
+
         // ---------------- REMOTE NAMEPLATE ----------------
         public static BasisSettingsBinding<bool> NPEnabled => new("np_enabled", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> NPMenuOnly => new("np_menuonly", new BasisPlatformDefault<bool>(false));
@@ -688,6 +706,24 @@ namespace Basis.BasisUI
             CalibSphereScaleRightToes.LoadBindingValue();
             CalibSphereScaleLeftShoulder.LoadBindingValue();
             CalibSphereScaleRightShoulder.LoadBindingValue();
+
+            // IK Collider & Tuning
+            FBIKAdvancedVisible.LoadBindingValue();
+            FBIKCollisionsEnabled.LoadBindingValue();
+            FBIKProtectElbow.LoadBindingValue();
+            FBIKUseHandCapsule.LoadBindingValue();
+            FBIKChestRadius.LoadBindingValue();
+            FBIKCollisionSkin.LoadBindingValue();
+            FBIKHandRadius.LoadBindingValue();
+            FBIKHandSkin.LoadBindingValue();
+            FBIKShoulderSolveEnabled.LoadBindingValue();
+            FBIKShoulderElevation.LoadBindingValue();
+            FBIKShoulderProtraction.LoadBindingValue();
+            FBIKMaxBendDeg.LoadBindingValue();
+            FBIKStruggleStart.LoadBindingValue();
+            FBIKStruggleEnd.LoadBindingValue();
+            FBIKMaxChestDelta.LoadBindingValue();
+            FBIKMaxHipDelta.LoadBindingValue();
 
             // Remote Nameplate
             NPEnabled.LoadBindingValue();
