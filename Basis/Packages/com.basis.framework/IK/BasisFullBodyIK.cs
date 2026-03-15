@@ -2074,7 +2074,7 @@ w20, w54;
 
             var cacheBuilder = new AnimationJobCacheBuilder();
 
-            job.spineMaxIterationsIdx = cacheBuilder.Add(10);
+            job.spineMaxIterationsIdx = cacheBuilder.Add(20);
             job.spineToleranceIdx = cacheBuilder.Add(0.001f);
             job.spineCache = cacheBuilder.Build();
 
