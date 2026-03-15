@@ -168,8 +168,8 @@ namespace Basis.BasisUI
         });
 
         // ---------------- NOTIFICATIONS ----------------
-        public static BasisSettingsBinding<bool> JoinNotifications => new("joinnotifications", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<bool> LeaveNotifications => new("leavenotifications", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> JoinNotifications => new("joinnotifications", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> LeaveNotifications => new("leavenotifications", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<bool> FalseBinding => new("falsebinding", new BasisPlatformDefault<bool>(false));
 
