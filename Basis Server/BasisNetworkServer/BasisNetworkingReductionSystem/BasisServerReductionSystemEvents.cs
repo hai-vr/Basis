@@ -375,7 +375,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         int qi = Math.Min(GetQualityIndex(distSq), maxQi);
 
                         // Always send full keyframe
-                        SendPreSerialized(peer, stateJ, qi, startAtZeroInterval,
+                        SendPreSerialized(peer, qi, startAtZeroInterval,
                             BasisNetworkCommons.PlayerAvatarChannel,
                             stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
 
@@ -390,7 +390,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Sends a pre-serialized message, patching the interval byte at offset 2.
         /// Uses a thread-local writer to avoid shared pool contention.
         /// </summary>
-        private static void SendPreSerialized(NetPeer peer, PlayerState sourceState, int qi,byte interval, byte channel, byte[][] serializedArray, int[] lengthArray)
+        private static void SendPreSerialized(NetPeer peer, int qi,byte interval, byte channel, byte[][] serializedArray, int[] lengthArray)
         {
             int len = lengthArray[qi];
             byte[] src = serializedArray[qi];
