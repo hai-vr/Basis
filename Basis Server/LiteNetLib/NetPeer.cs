@@ -1510,9 +1510,13 @@ namespace LiteNetLib
         /// <returns>packets count in channel queue</returns>
         public int GetPacketsCountInQueue(byte channelNumber, DeliveryMethod deliveryMethod)
         {
+            if (deliveryMethod == DeliveryMethod.Unreliable)
+                return 0;
             int idx = (byte)(channelNumber * NetConstants.ChannelTypeCount + (byte)deliveryMethod);
+            if (idx >= _channels.Length)
+                return 0;
             var channel = _channels[idx];
-            return channel != null ? _channels[idx].PacketsInQueue : 0;
+            return channel != null ? channel.PacketsInQueue : 0;
         }
     }
 }
