@@ -499,7 +499,7 @@ public partial class BasisTransmissionResults
             return;
         }
 
-        float dampenPercent = Mathf.Clamp(BasisSettingsDefaults.RAListenerDampenAmount.RawValue, 1f, 45f);
+        float dampenPercent = Mathf.Clamp(BasisSettingsDefaults.RAListenerDampenAmount.RawValue, 1f, 95f);
         float minVolume = 1f - (dampenPercent / 100f);
 
         float halfConeRad = (coneAngle * 0.5f) * Mathf.Deg2Rad;

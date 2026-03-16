@@ -1,3 +1,4 @@
+using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
@@ -257,6 +258,9 @@ namespace Basis.Scripts.UI
 
         private static void OnRemotePlayerJoined(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
         {
+            if (!BasisSettingsDefaults.JoinNotifications.RawValue)
+                return;
+
             string name = networkPlayer.displayName;
             if (string.IsNullOrEmpty(name))
             {
@@ -268,6 +272,9 @@ namespace Basis.Scripts.UI
 
         private static void OnRemotePlayerLeft(BasisNetworkPlayer networkPlayer, BasisRemotePlayer remotePlayer)
         {
+            if (!BasisSettingsDefaults.LeaveNotifications.RawValue)
+                return;
+
             string name = networkPlayer.displayName;
             if (string.IsNullOrEmpty(name))
             {
