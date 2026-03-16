@@ -19,6 +19,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public LocalAvatarSyncMessage AvatarMessage;
     }
 
+    /// <summary>
+    /// Combined per-peer tracking data. Two longs in one struct = one cache line fetch
+    /// instead of two parallel array accesses in the O(N²) send loop.
+    /// </summary>
+    public struct PeerTrackingData
+    {
+        public long LastSentTime;
+        public long LastSeenGeneration;
+    }
+
     public class PlayerState
     {
         public NetPeer Peer;
@@ -30,17 +40,17 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Base message shell (we swap avatarSerialization before send)
         public ServerSideSyncPlayerMessage SyncMessage;
 
-        // Per-target last sent tick — flat array indexed by player id for O(1) access
-        public long[] LastSentTimes;
+        // Combined per-peer tracking: last sent tick + last seen generation in one struct
+        // for cache-friendly O(1) access in the send loop. Indexed by player id.
+        public PeerTrackingData[] PeerTracking;
 
         // Generation counter: incremented each time this player receives new avatar data.
         // Receivers compare against their LastSeenGeneration to know if there is new data.
         // Access via Interlocked.Read/Increment for thread safety on 32-bit or cross-core visibility.
         public long DataGeneration;
 
-        // Per-receiver: the DataGeneration value of each sender when we last sent to this receiver.
-        // Indexed by sender player id.
-        public long[] LastSeenGeneration;
+        // Cached during ProcessMessage to avoid dereference chain in the inner send loop.
+        public bool HasAdditionalData;
 
         // Cached per-quality payloads (payload bytes only, plus DataQualityLevel)
         public LocalAvatarSyncMessage AvatarHigh;
@@ -64,7 +74,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
     public partial class BasisServerReductionSystemEvents
     {
         private static readonly CancellationTokenSource cts = new();
-        // Initial capacity for flat arrays on PlayerState (LastSentTimes, LastSeenGeneration).
+        // Initial capacity for PeerTracking array on PlayerState.
         // Grows if a player ID exceeds this.
         private const int InitialPlayerArrayCapacity = 2048;
 
@@ -105,6 +115,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Thread-local NetDataWriter for serialization — eliminates shared pool contention.
         [ThreadStatic]
         private static NetDataWriter t_serializeWriter;
+
+        // Cached muscle+tail byte counts for the position-only fast path (skip repack).
+        private static readonly int HighMuscleAndTailBytes = MuscleBytes(BitQuality.High) + TailBytes;
 
         static BasisServerReductionSystemEvents()
         {
@@ -240,14 +253,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     foreach (var kvp in playerStates)
                     {
                         var otherState = kvp.Value;
-                        if (id < otherState.LastSeenGeneration.Length)
+                        if (id < otherState.PeerTracking.Length)
                         {
-                            otherState.LastSeenGeneration[id] = 0;
-                        }
-
-                        if (id < otherState.LastSentTimes.Length)
-                        {
-                            otherState.LastSentTimes[id] = 0;
+                            otherState.PeerTracking[id] = default;
                         }
                     }
                     BNL.Log($"Player {id} removed and cleaned up.");
@@ -325,9 +333,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     intervalMultiplier = 1;
                 }
 
-                var sentTimes = stateI.LastSentTimes;
-                var seenGens = stateI.LastSeenGeneration;
-                if (sentTimes == null || seenGens == null) return;
+                var tracking = stateI.PeerTracking;
+                if (tracking == null) return;
 
                 for (int index = 0; index < playerCount; index++)
                 {
@@ -340,20 +347,17 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     var stateJ = playerJ.state;
                     int jId = playerJ.id;
 
-                    // Bounds check — grow arrays if needed (rare, only when IDs exceed capacity)
-                    if (jId >= sentTimes.Length)
+                    // Bounds check — grow array if needed (rare, only when IDs exceed capacity)
+                    if (jId >= tracking.Length)
                     {
                         lock (stateI)
                         {
-                            // Re-check after acquiring lock
-                            if (jId >= stateI.LastSentTimes.Length)
+                            if (jId >= stateI.PeerTracking.Length)
                             {
-                                int newLen = Math.Max(stateI.LastSentTimes.Length * 2, jId + 1);
-                                Array.Resize(ref stateI.LastSentTimes, newLen);
-                                Array.Resize(ref stateI.LastSeenGeneration, newLen);
+                                int newLen = Math.Max(stateI.PeerTracking.Length * 2, jId + 1);
+                                Array.Resize(ref stateI.PeerTracking, newLen);
                             }
-                            sentTimes = stateI.LastSentTimes;
-                            seenGens = stateI.LastSeenGeneration;
+                            tracking = stateI.PeerTracking;
                         }
                     }
 
@@ -361,30 +365,29 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                     CalculateIntervalFromDistanceSq(distSq, out byte startAtZeroInterval, out int actualInterval);
 
-                    long lastSent = sentTimes[jId];
+                    long lastSent = tracking[jId].LastSentTime;
                     long elapsed = nowTicks - lastSent;
-                    elapsed = Math.Max(0, elapsed);
+                    if (elapsed < 0) elapsed = 0;
 
                     long required = (long)((actualInterval * intervalMultiplier) * MsToTick);
 
                     // Generation-based new data check: compare sender's generation with what we last saw
                     long senderGen = Interlocked.Read(ref stateJ.DataGeneration);
-                    bool hasNewData = senderGen > seenGens[jId];
+                    bool hasNewData = senderGen > tracking[jId].LastSeenGeneration;
 
                     if (hasNewData && elapsed >= required)
                     {
                         // Pick quality by distance, capped by congestion
                         int qi = Math.Min(GetQualityIndex(distSq), maxQi);
 
-                        // Route to quality + additional-data-specific channel
-                        bool hasAdditional = stateJ.AvatarHigh.AdditionalAvatarDatas != null && stateJ.AvatarHigh.AdditionalAvatarDatas.Length > 0;
-                        byte avatarChannel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, hasAdditional);
+                        // Route to quality + additional-data-specific channel (cached bool, no dereference)
+                        byte avatarChannel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, stateJ.HasAdditionalData);
                         SendPreSerialized(peer, qi, startAtZeroInterval,
                             avatarChannel,
                             stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
 
-                        sentTimes[jId] = nowTicks;
-                        seenGens[jId] = senderGen;
+                        tracking[jId].LastSentTime = nowTicks;
+                        tracking[jId].LastSeenGeneration = senderGen;
                     }
                 }
             });
@@ -526,8 +529,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         avatarSerialization = high
                     },
                     AvatarHigh = high,
-                    LastSentTimes = new long[InitialPlayerArrayCapacity],
-                    LastSeenGeneration = new long[InitialPlayerArrayCapacity],
+                    PeerTracking = new PeerTrackingData[InitialPlayerArrayCapacity],
                     DataGeneration = 1,
                     LastInboundSequence = inboundSeq,
                     HasReceivedFirst = true,
@@ -552,6 +554,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // BuildAllLowerFromHighInto only handles muscle/position payload;
                 // additional data must be copied separately.
                 PropagateAdditionalData(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
+                state.HasAdditionalData = high.AdditionalAvatarDatas != null && high.AdditionalAvatarDatas.Length > 0;
 
                 // First frame: pre-serialize
                 PreSerializeAll(state);
@@ -591,24 +594,47 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // Increment outbound sequence for this sender's new update
                 unchecked { state.OutboundSequence++; }
 
+                // Check if muscles+tail changed (skip expensive bit repacking if only position moved).
+                // Muscle+tail region starts at WritePosition (12) and runs to end of array.
+                byte[] prevArray = state.AvatarHigh.array;
+                bool musclesOrTailChanged = prevArray == null
+                    || prevArray.Length != high.array.Length
+                    || !high.array.AsSpan(WritePosition, HighMuscleAndTailBytes)
+                        .SequenceEqual(prevArray.AsSpan(WritePosition, HighMuscleAndTailBytes));
+
                 // Update high quality
                 state.AvatarHigh = high;
 
-                // Build lower qualities reusing existing buffers (zero-alloc after warmup)
-                try
+                if (musclesOrTailChanged)
                 {
-                    AvatarQualityRepacker.BuildAllLowerFromHighInto(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
+                    // Full repack needed — muscles or rotation/scale changed
+                    try
+                    {
+                        AvatarQualityRepacker.BuildAllLowerFromHighInto(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
+                    }
+                    catch (Exception ex)
+                    {
+                        BNL.LogError($"[ProcessMessage] Repack failed: {ex}");
+                        state.AvatarMedium = high;
+                        state.AvatarLow = high;
+                        state.AvatarVeryLow = high;
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    BNL.LogError($"[ProcessMessage] Repack failed: {ex}");
-                    state.AvatarMedium = high;
-                    state.AvatarLow = high;
-                    state.AvatarVeryLow = high;
+                    // Position-only change — just copy position bytes to lower quality arrays.
+                    // Muscles and tail are unchanged, no bit repacking needed.
+                    if (state.AvatarMedium.array != null)
+                        Buffer.BlockCopy(high.array, 0, state.AvatarMedium.array, 0, WritePosition);
+                    if (state.AvatarLow.array != null)
+                        Buffer.BlockCopy(high.array, 0, state.AvatarLow.array, 0, WritePosition);
+                    if (state.AvatarVeryLow.array != null)
+                        Buffer.BlockCopy(high.array, 0, state.AvatarVeryLow.array, 0, WritePosition);
                 }
 
                 // Propagate additional avatar data to quality variants
                 PropagateAdditionalData(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
+                state.HasAdditionalData = high.AdditionalAvatarDatas != null && high.AdditionalAvatarDatas.Length > 0;
 
                 // Keep SyncMessage in sync (shell)
                 state.SyncMessage.avatarSerialization = high;
