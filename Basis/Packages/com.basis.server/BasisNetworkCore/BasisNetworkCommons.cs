@@ -15,7 +15,7 @@ namespace Basis.Network.Core
         /// when adding a new message we need to increase this
         /// will function up to 64
         /// </summary>
-        public const byte TotalChannels = 30;
+        public const byte TotalChannels = 38;
         /// <summary>
         /// channel zero is only used for unreliable methods
         /// we fall it through to stop bugs
@@ -138,5 +138,42 @@ namespace Basis.Network.Core
         /// PIP camera position updates (sequenced, position only - no rotation).
         /// </summary>
         public const byte CameraPIPPositionChannel = 29;
+        // ── Per-quality avatar channels (server→client) ──────────────────
+        // Layout: quality * 2 + hasAdditional
+        //   30 = VeryLow              31 = VeryLow + Additional
+        //   32 = Low                  33 = Low + Additional
+        //   34 = Medium               35 = Medium + Additional
+        //   36 = High                 37 = High + Additional
+        public const byte PlayerAvatarVeryLowChannel = 30;
+        public const byte PlayerAvatarVeryLowAdditionalChannel = 31;
+        public const byte PlayerAvatarLowChannel = 32;
+        public const byte PlayerAvatarLowAdditionalChannel = 33;
+        public const byte PlayerAvatarMediumChannel = 34;
+        public const byte PlayerAvatarMediumAdditionalChannel = 35;
+        public const byte PlayerAvatarHighChannel = 36;
+        public const byte PlayerAvatarHighAdditionalChannel = 37;
+
+        /// <summary>
+        /// Maps quality index (0‑3) + additional data presence → channel.
+        /// </summary>
+        public static byte GetPlayerAvatarChannelForQuality(int qualityIndex, bool hasAdditionalData)
+        {
+            return (byte)(PlayerAvatarVeryLowChannel + qualityIndex * 2 + (hasAdditionalData ? 1 : 0));
+        }
+
+        /// <summary>
+        /// All 8 per-quality avatar channels for aggregate congestion checks.
+        /// </summary>
+        public static readonly byte[] PlayerAvatarQualityChannels = new byte[]
+        {
+            PlayerAvatarVeryLowChannel,
+            PlayerAvatarVeryLowAdditionalChannel,
+            PlayerAvatarLowChannel,
+            PlayerAvatarLowAdditionalChannel,
+            PlayerAvatarMediumChannel,
+            PlayerAvatarMediumAdditionalChannel,
+            PlayerAvatarHighChannel,
+            PlayerAvatarHighAdditionalChannel,
+        };
     }
 }

@@ -128,6 +128,14 @@ public static class BasisNetworkEvents
 #endif
                 break;
             case BasisNetworkCommons.PlayerAvatarChannel:
+            case BasisNetworkCommons.PlayerAvatarVeryLowChannel:
+            case BasisNetworkCommons.PlayerAvatarVeryLowAdditionalChannel:
+            case BasisNetworkCommons.PlayerAvatarLowChannel:
+            case BasisNetworkCommons.PlayerAvatarLowAdditionalChannel:
+            case BasisNetworkCommons.PlayerAvatarMediumChannel:
+            case BasisNetworkCommons.PlayerAvatarMediumAdditionalChannel:
+            case BasisNetworkCommons.PlayerAvatarHighChannel:
+            case BasisNetworkCommons.PlayerAvatarHighAdditionalChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
                 {
                     Reader.Recycle();

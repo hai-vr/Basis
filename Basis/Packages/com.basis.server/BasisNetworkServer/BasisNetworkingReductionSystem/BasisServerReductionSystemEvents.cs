@@ -292,8 +292,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 var stateI = playerI.state;
                 var peer = stateI.Peer;
 
-                // Congestion check
-                int queueDepth = peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Unreliable);
+                // Congestion check — aggregate across all per-quality avatar channels
+                int queueDepth = 0;
+                for (int ch = 0; ch < BasisNetworkCommons.PlayerAvatarQualityChannels.Length; ch++)
+                    queueDepth += peer.GetPacketsCountInQueue(BasisNetworkCommons.PlayerAvatarQualityChannels[ch], DeliveryMethod.Unreliable);
 
                 // Severe congestion — skip this peer entirely
                 if (queueDepth > 512) return;
@@ -373,9 +375,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         // Pick quality by distance, capped by congestion
                         int qi = Math.Min(GetQualityIndex(distSq), maxQi);
 
-                        // Always send full keyframe
+                        // Route to quality + additional-data-specific channel
+                        var avatarMsg = GetAvatarForQuality(stateJ, qi);
+                        bool hasAdditional = avatarMsg.AdditionalAvatarDatas != null && avatarMsg.AdditionalAvatarDatas.Length > 0;
+                        byte avatarChannel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, hasAdditional);
                         SendPreSerialized(peer, stateJ, qi, startAtZeroInterval,
-                            BasisNetworkCommons.PlayerAvatarChannel,
+                            avatarChannel,
                             stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
 
                         sentTimes[jId] = nowTicks;

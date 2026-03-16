@@ -13,9 +13,9 @@ namespace BasisServerTests
         }
 
         [Fact]
-        public void TotalChannels_Is27()
+        public void TotalChannels_Is38()
         {
-            Assert.Equal(27, BasisNetworkCommons.TotalChannels);
+            Assert.Equal(38, BasisNetworkCommons.TotalChannels);
         }
 
         [Fact]
@@ -50,6 +50,17 @@ namespace BasisServerTests
                 BasisNetworkCommons.RequestStoreDatabaseChannel,
                 BasisNetworkCommons.ServerStatisticsChannel,
                 BasisNetworkCommons.ServerIsAdminChannel,
+                BasisNetworkCommons.ChatChannel,
+                BasisNetworkCommons.CameraPIPStateChannel,
+                BasisNetworkCommons.CameraPIPPositionChannel,
+                BasisNetworkCommons.PlayerAvatarVeryLowChannel,
+                BasisNetworkCommons.PlayerAvatarVeryLowAdditionalChannel,
+                BasisNetworkCommons.PlayerAvatarLowChannel,
+                BasisNetworkCommons.PlayerAvatarLowAdditionalChannel,
+                BasisNetworkCommons.PlayerAvatarMediumChannel,
+                BasisNetworkCommons.PlayerAvatarMediumAdditionalChannel,
+                BasisNetworkCommons.PlayerAvatarHighChannel,
+                BasisNetworkCommons.PlayerAvatarHighAdditionalChannel,
             };
 
             Assert.Equal(BasisNetworkCommons.TotalChannels, channels.Count);
@@ -59,7 +70,7 @@ namespace BasisServerTests
         public void AllChannels_AreLessThanTotalChannels()
         {
             Assert.True(BasisNetworkCommons.FallChannel < BasisNetworkCommons.TotalChannels);
-            Assert.True(BasisNetworkCommons.ServerIsAdminChannel < BasisNetworkCommons.TotalChannels);
+            Assert.True(BasisNetworkCommons.PlayerAvatarHighAdditionalChannel < BasisNetworkCommons.TotalChannels);
         }
 
         [Fact]
@@ -67,7 +78,20 @@ namespace BasisServerTests
         {
             // Channels should range from 0 to TotalChannels-1
             Assert.Equal(0, BasisNetworkCommons.FallChannel);
-            Assert.Equal(26, BasisNetworkCommons.ServerIsAdminChannel);
+            Assert.Equal(37, BasisNetworkCommons.PlayerAvatarHighAdditionalChannel);
+        }
+
+        [Fact]
+        public void GetPlayerAvatarChannelForQuality_MapsCorrectly()
+        {
+            Assert.Equal(BasisNetworkCommons.PlayerAvatarVeryLowChannel, BasisNetworkCommons.GetPlayerAvatarChannelForQuality(0, false));
+            Assert.Equal(BasisNetworkCommons.PlayerAvatarVeryLowAdditionalChannel, BasisNetworkCommons.GetPlayerAvatarChannelForQuality(0, true));
+            Assert.Equal(BasisNetworkCommons.PlayerAvatarLowChannel, BasisNetworkCommons.GetPlayerAvatarChannelForQuality(1, false));
+            Assert.Equal(BasisNetworkCommons.PlayerAvatarLowAdditionalChannel, BasisNetworkCommons.GetPlayerAvatarChannelForQuality(1, true));
+            Assert.Equal(BasisNetworkCommons.PlayerAvatarMediumChannel, BasisNetworkCommons.GetPlayerAvatarChannelForQuality(2, false));
+            Assert.Equal(BasisNetworkCommons.PlayerAvatarMediumAdditionalChannel, BasisNetworkCommons.GetPlayerAvatarChannelForQuality(2, true));
+            Assert.Equal(BasisNetworkCommons.PlayerAvatarHighChannel, BasisNetworkCommons.GetPlayerAvatarChannelForQuality(3, false));
+            Assert.Equal(BasisNetworkCommons.PlayerAvatarHighAdditionalChannel, BasisNetworkCommons.GetPlayerAvatarChannelForQuality(3, true));
         }
     }
 

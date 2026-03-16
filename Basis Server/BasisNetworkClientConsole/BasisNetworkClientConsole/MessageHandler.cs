@@ -25,6 +25,14 @@ namespace Basis.Network
                     message.Deserialize(reader);
                     break;
                 case BasisNetworkCommons.PlayerAvatarChannel:
+                case BasisNetworkCommons.PlayerAvatarVeryLowChannel:
+                case BasisNetworkCommons.PlayerAvatarVeryLowAdditionalChannel:
+                case BasisNetworkCommons.PlayerAvatarLowChannel:
+                case BasisNetworkCommons.PlayerAvatarLowAdditionalChannel:
+                case BasisNetworkCommons.PlayerAvatarMediumChannel:
+                case BasisNetworkCommons.PlayerAvatarMediumAdditionalChannel:
+                case BasisNetworkCommons.PlayerAvatarHighChannel:
+                case BasisNetworkCommons.PlayerAvatarHighAdditionalChannel:
                     // Full avatar update — just consume it
                     break;
                 case BasisNetworkCommons.DisconnectionChannel:
