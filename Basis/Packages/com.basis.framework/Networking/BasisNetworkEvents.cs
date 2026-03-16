@@ -14,24 +14,8 @@ public static class BasisNetworkEvents
     {
         switch (channel)
         {
-            case BasisNetworkCommons.FallChannel:
-                if (deliveryMethod == DeliveryMethod.Unreliable)
-                {
-                    if (Reader.TryGetByte(out byte Byte))
-                    {
-                        NetworkReceiveEvent(peer, Reader, Byte, deliveryMethod);
-                    }
-                    else
-                    {
-                        BNL.LogError($"Unknown channel no data remains: {channel} " + Reader.AvailableBytes);
-                        Reader.Recycle();
-                    }
-                }
-                else
-                {
-                    BNL.LogError($"Unknown channel: {channel} " + Reader.AvailableBytes);
-                    Reader.Recycle();
-                }
+            case BasisNetworkCommons.DeprecatedChannel:
+                BNL.LogError($"DeprecatedChannel no data remains: {channel} " + Reader.AvailableBytes);
                 break;
             case BasisNetworkCommons.AuthIdentityChannel:
                 AuthIdentityMessage(peer, Reader, channel);

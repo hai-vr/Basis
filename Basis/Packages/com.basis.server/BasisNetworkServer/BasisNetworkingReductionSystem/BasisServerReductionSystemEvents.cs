@@ -1,6 +1,5 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
-using BasisNetworkServer;
 using BasisNetworkServer.BasisNetworking;
 using System;
 using System.Collections.Concurrent;
@@ -8,7 +7,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using static BasisNetworkServer.BasisNetworkingReductionSystem.BasisServerReductionSystemEvents;
 using static SerializableBasis;
 using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 
@@ -66,8 +64,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
     public partial class BasisServerReductionSystemEvents
     {
         private static readonly CancellationTokenSource cts = new();
-        private static readonly int MaxConcurrentPlayers = ushort.MaxValue;
-
         // Initial capacity for flat arrays on PlayerState (LastSentTimes, LastSeenGeneration).
         // Grows if a player ID exceeds this.
         private const int InitialPlayerArrayCapacity = 2048;
@@ -245,9 +241,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     {
                         var otherState = kvp.Value;
                         if (id < otherState.LastSeenGeneration.Length)
+                        {
                             otherState.LastSeenGeneration[id] = 0;
+                        }
+
                         if (id < otherState.LastSentTimes.Length)
+                        {
                             otherState.LastSentTimes[id] = 0;
+                        }
                     }
                     BNL.Log($"Player {id} removed and cleaned up.");
                 }
@@ -376,10 +377,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         int qi = Math.Min(GetQualityIndex(distSq), maxQi);
 
                         // Route to quality + additional-data-specific channel
-                        var avatarMsg = GetAvatarForQuality(stateJ, qi);
-                        bool hasAdditional = avatarMsg.AdditionalAvatarDatas != null && avatarMsg.AdditionalAvatarDatas.Length > 0;
+                        bool hasAdditional = stateJ.AvatarHigh.AdditionalAvatarDatas != null && stateJ.AvatarHigh.AdditionalAvatarDatas.Length > 0;
                         byte avatarChannel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, hasAdditional);
-                        SendPreSerialized(peer, stateJ, qi, startAtZeroInterval,
+                        SendPreSerialized(peer, qi, startAtZeroInterval,
                             avatarChannel,
                             stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
 
@@ -394,8 +394,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Sends a pre-serialized message, patching the interval byte at offset 2.
         /// Uses a thread-local writer to avoid shared pool contention.
         /// </summary>
-        private static void SendPreSerialized(NetPeer peer, PlayerState sourceState, int qi,
-            byte interval, byte channel, byte[][] serializedArray, int[] lengthArray)
+        private static void SendPreSerialized(NetPeer peer, int qi,byte interval, byte channel, byte[][] serializedArray, int[] lengthArray)
         {
             int len = lengthArray[qi];
             byte[] src = serializedArray[qi];
@@ -444,31 +443,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (distSq <= LowDistanceSq) return 1;     // Low
             return 0;                                   // VeryLow
         }
-
-        /// <summary>
-        /// Gets the LocalAvatarSyncMessage for a given quality index.
-        /// </summary>
-        private static LocalAvatarSyncMessage GetAvatarForQuality(PlayerState state, int qi)
-        {
-            return qi switch
-            {
-                3 => state.AvatarHigh,
-                2 => state.AvatarMedium,
-                1 => state.AvatarLow,
-                _ => state.AvatarVeryLow,
-            };
-        }
-
-        public static NetDataWriter RentWriter()
-        {
-            return NetworkServer.RentWriter();
-        }
-
-        public static void ReturnWriter(NetDataWriter writer)
-        {
-            NetworkServer.ReturnWriter(writer);
-        }
-
         private static float DistanceSquared(Basis.Scripts.Networking.Compression.Vector3 a, Basis.Scripts.Networking.Compression.Vector3 b)
         {
             float dx = a.x - b.x;
@@ -494,15 +468,29 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
 
         /// <summary>
-        /// Ensures a flat array is large enough for the given player id.
+        /// Propagates AdditionalAvatarData from the high quality message to lower quality variants.
+        /// BuildAllLowerFromHighInto only handles the muscle/position/rotation payload;
+        /// additional data (blendshapes, custom avatar behaviours) must be propagated separately.
+        /// VeryLow quality strips additional data entirely — face/detail data is invisible at 20m+.
         /// </summary>
-        private static void EnsureArrayCapacity(ref long[] array, int requiredIndex)
+        private static void PropagateAdditionalData(
+            in LocalAvatarSyncMessage high,
+            ref LocalAvatarSyncMessage medium,
+            ref LocalAvatarSyncMessage low,
+            ref LocalAvatarSyncMessage veryLow)
         {
-            if (requiredIndex < array.Length) return;
-            int newLen = Math.Max(array.Length * 2, requiredIndex + 1);
-            Array.Resize(ref array, newLen);
-        }
+            medium.AdditionalAvatarDatas = high.AdditionalAvatarDatas;
+            medium.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
+            medium.LinkedAvatarIndex = high.LinkedAvatarIndex;
 
+            low.AdditionalAvatarDatas = high.AdditionalAvatarDatas;
+            low.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
+            low.LinkedAvatarIndex = high.LinkedAvatarIndex;
+
+            veryLow.AdditionalAvatarDatas = high.AdditionalAvatarDatas;
+            veryLow.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
+            veryLow.LinkedAvatarIndex = high.LinkedAvatarIndex;
+        }
         private static void ProcessMessage(QueuedMessage message)
         {
             int id = message.FromPeer.Id;
@@ -550,8 +538,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // First call allocates the arrays; subsequent calls reuse them.
                 try
                 {
-                    AvatarQualityRepacker.BuildAllLowerFromHighInto(
-                        high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
+                    AvatarQualityRepacker.BuildAllLowerFromHighInto(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
                 }
                 catch (Exception ex)
                 {
@@ -560,6 +547,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     state.AvatarLow = high;
                     state.AvatarVeryLow = high;
                 }
+
+                // Propagate additional avatar data (e.g. blendshapes) to quality variants.
+                // BuildAllLowerFromHighInto only handles muscle/position payload;
+                // additional data must be copied separately.
+                PropagateAdditionalData(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
 
                 // First frame: pre-serialize
                 PreSerializeAll(state);
@@ -590,7 +582,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 state.HasReceivedFirst = true;
 
                 if (!state.IsActive)
+                {
                     state.IsActive = true;
+                }
 
                 state.Position = pos;
 
@@ -603,8 +597,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // Build lower qualities reusing existing buffers (zero-alloc after warmup)
                 try
                 {
-                    AvatarQualityRepacker.BuildAllLowerFromHighInto(
-                        high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
+                    AvatarQualityRepacker.BuildAllLowerFromHighInto(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
                 }
                 catch (Exception ex)
                 {
@@ -613,6 +606,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     state.AvatarLow = high;
                     state.AvatarVeryLow = high;
                 }
+
+                // Propagate additional avatar data to quality variants
+                PropagateAdditionalData(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
 
                 // Keep SyncMessage in sync (shell)
                 state.SyncMessage.avatarSerialization = high;
@@ -646,7 +642,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static void PreSerializeKeyframe(PlayerState state, int qi, LocalAvatarSyncMessage msg, ushort playerId)
         {
-            if (msg.array == null) return;
+            if (msg.array == null)
+            {
+                return;
+            }
 
             var quality = (BitQuality)msg.DataQualityLevel;
             int expectedPayload = BasisAvatarBitPacking.ConvertToSize(quality);
@@ -672,7 +671,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int totalSize = 2 + 1 + 1 + 1 + expectedPayload + 1 + additionalSize;
 
             if (state.SerializedKeyframe[qi] == null || state.SerializedKeyframe[qi].Length < totalSize)
+            {
                 state.SerializedKeyframe[qi] = new byte[totalSize];
+            }
 
             NetDataWriter writer = GetThreadWriter();
             writer.Put(playerId);

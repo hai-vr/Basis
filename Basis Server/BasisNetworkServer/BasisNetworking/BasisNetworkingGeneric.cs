@@ -41,11 +41,6 @@ namespace Basis.Network.Server.Generic
 
             byte Channel = BasisNetworkCommons.SceneChannel;
             NetDataWriter Writer = NetworkServer.RentWriter();
-            if (DeliveryMethod == DeliveryMethod.Unreliable)
-            {
-                Writer.Put(Channel);
-                Channel = BasisNetworkCommons.FallChannel;
-            }
             serverSceneDataMessage.Serialize(Writer);
             if (SceneDataMessage.recipientsSize != 0)
             {
@@ -97,11 +92,6 @@ namespace Basis.Network.Server.Generic
             };
             byte Channel = BasisNetworkCommons.AvatarChannel;
             NetDataWriter Writer = NetworkServer.RentWriter();
-            if (DeliveryMethod == DeliveryMethod.Unreliable)
-            {
-                Writer.Put(Channel);
-                Channel = BasisNetworkCommons.FallChannel;
-            }
             serverAvatarDataMessage.Serialize(Writer);
             if (avatarDataMessage.recipientsSize != 0)
             {

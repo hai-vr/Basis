@@ -23,7 +23,7 @@ namespace BasisServerTests
         {
             var channels = new HashSet<byte>
             {
-                BasisNetworkCommons.FallChannel,
+                BasisNetworkCommons.DeprecatedChannel,
                 BasisNetworkCommons.AuthIdentityChannel,
                 BasisNetworkCommons.PlayerAvatarChannel,
                 BasisNetworkCommons.VoiceChannel,
@@ -69,7 +69,7 @@ namespace BasisServerTests
         [Fact]
         public void AllChannels_AreLessThanTotalChannels()
         {
-            Assert.True(BasisNetworkCommons.FallChannel < BasisNetworkCommons.TotalChannels);
+            Assert.True(BasisNetworkCommons.DeprecatedChannel < BasisNetworkCommons.TotalChannels);
             Assert.True(BasisNetworkCommons.PlayerAvatarHighAdditionalChannel < BasisNetworkCommons.TotalChannels);
         }
 
@@ -77,7 +77,7 @@ namespace BasisServerTests
         public void ChannelConstants_AreSequential()
         {
             // Channels should range from 0 to TotalChannels-1
-            Assert.Equal(0, BasisNetworkCommons.FallChannel);
+            Assert.Equal(0, BasisNetworkCommons.DeprecatedChannel);
             Assert.Equal(37, BasisNetworkCommons.PlayerAvatarHighAdditionalChannel);
         }
 

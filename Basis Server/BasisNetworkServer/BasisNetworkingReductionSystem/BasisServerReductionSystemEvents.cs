@@ -268,7 +268,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 {
                     if (_activePlayersDirty)
                     {
-                        _activePlayersSnapshot = [.. _activePlayers];
+                        _activePlayersSnapshot = _activePlayers.ToArray();
                         _activePlayersDirty = false;
                     }
                 }

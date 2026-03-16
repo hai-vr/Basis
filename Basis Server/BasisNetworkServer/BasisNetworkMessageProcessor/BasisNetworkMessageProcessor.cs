@@ -17,9 +17,6 @@ public static class BasisNetworkMessageProcessor
     {
         try
         {
-            if (TryRedirectFallChannel(peer, reader, ref channel, deliveryMethod))
-                return;
-
             switch (channel)
             {
                 case BasisNetworkCommons.AuthIdentityChannel:
@@ -194,25 +191,6 @@ public static class BasisNetworkMessageProcessor
             );
             reader.Recycle();
         }
-    }
-
-    private static bool TryRedirectFallChannel(NetPeer peer, NetPacketReader reader, ref byte channel, DeliveryMethod deliveryMethod)
-    {
-        if (channel == BasisNetworkCommons.FallChannel && deliveryMethod == DeliveryMethod.Unreliable)
-        {
-            if (reader.TryGetByte(out byte newChannel))
-            {
-                ProcessMessage(peer, reader, newChannel, deliveryMethod);
-            }
-            else
-            {
-                BNL.LogError($"FallChannel redirection failed, no data remains: {reader.AvailableBytes}");
-                reader.Recycle();
-            }
-            return true;
-        }
-
-        return false;
     }
 
     private static void HandleAdminResourceAction(NetPeer peer, NetPacketReader reader, Action<NetPacketReader, NetPeer,string> action, string permNode)

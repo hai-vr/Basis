@@ -170,17 +170,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 recipientsSize = 0,
             };
             NetDataWriter netDataWriter = new NetDataWriter();
-            if (DeliveryMethod == DeliveryMethod.Unreliable)
-            {
-                netDataWriter.Put(BasisNetworkCommons.AvatarChannel);
-                AvatarDataMessage.Serialize(netDataWriter);
-                BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.FallChannel, DeliveryMethod);
-            }
-            else
-            {
-                AvatarDataMessage.Serialize(netDataWriter);
-                BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.AvatarChannel, DeliveryMethod);
-            }
+            AvatarDataMessage.Serialize(netDataWriter);
+            BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.AvatarChannel, DeliveryMethod);
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AvatarDataMessage, netDataWriter.Length);
         }
         public static bool AvatarToPlayer(BasisAvatar Avatar, out BasisPlayer BasisPlayer)

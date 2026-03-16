@@ -199,17 +199,8 @@ public static class BasisNetworkGenericMessages
             recipients = recipients
         };
 
-        if (deliveryMethod == DeliveryMethod.Unreliable)
-        {
-            netDataWriter.Put(BasisNetworkCommons.SceneChannel);
-            sceneDataMessage.Serialize(netDataWriter);
-            BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.FallChannel, deliveryMethod);
-        }
-        else
-        {
-            sceneDataMessage.Serialize(netDataWriter);
-            BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.SceneChannel, deliveryMethod);
-        }
+        sceneDataMessage.Serialize(netDataWriter);
+        BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.SceneChannel, deliveryMethod);
 
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.SceneData, netDataWriter.Length);
     }

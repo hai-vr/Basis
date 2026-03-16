@@ -17,10 +17,9 @@ namespace Basis.Network.Core
         /// </summary>
         public const byte TotalChannels = 38;
         /// <summary>
-        /// channel zero is only used for unreliable methods
-        /// we fall it through to stop bugs
+        /// ready to be reused.
         /// </summary>
-        public const byte FallChannel = 0;
+        public const byte DeprecatedChannel = 0;
         /// <summary>
         /// Auth Identity Message
         /// </summary>
