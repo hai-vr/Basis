@@ -21,8 +21,6 @@ namespace Basis.Network
                     AuthIdentityMessage(peer, reader, channel);
                     return; // already recycled inside
                 case BasisNetworkCommons.metaDataChannel:
-                    var message = new ServerMetaDataMessage();
-                    message.Deserialize(reader);
                     break;
                 case BasisNetworkCommons.PlayerAvatarChannel:
                 case BasisNetworkCommons.PlayerAvatarVeryLowChannel:
