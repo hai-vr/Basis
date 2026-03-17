@@ -201,13 +201,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 long phaseTick = profiling ? Stopwatch.GetTimestamp() : 0;
 
                 // ── Phase 1: Drain ──
+                // Atomically swap in a fresh dictionary so inbound threads write to the new one.
+                // ConcurrentDictionary's enumerator is NOT a point-in-time snapshot — items added
+                // during iteration can be seen, causing duplicate messages for the same peer to be
+                // drained and then processed in parallel, racing on the shared PlayerState.
+                var batch = Interlocked.Exchange(ref currentMessages, new ConcurrentDictionary<int, QueuedMessage>());
                 _messagesSnapshot.Clear();
-                foreach (var kvp in currentMessages)
+                foreach (var kvp in batch)
                 {
-                    if (currentMessages.TryRemove(kvp.Key, out var msg))
-                    {
-                        _messagesSnapshot.Add(msg);
-                    }
+                    _messagesSnapshot.Add(kvp.Value);
                 }
                 if (profiling) { BSRProfiler.drainTicks += Stopwatch.GetTimestamp() - phaseTick; phaseTick = Stopwatch.GetTimestamp(); }
 
@@ -613,6 +615,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
         private static void ProcessMessage(QueuedMessage message)
         {
+            if (message.FromPeer == null)
+            {
+                QueuedMessagePool.Return(message);
+                return;
+            }
+
             int id = message.FromPeer.Id;
             byte inboundSeq = message.Sequence;
 
@@ -791,7 +799,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         #region Pre-serialization
 
         /// <summary>
-        /// Pre-serializes keyframe messages only for quality levels that had receivers last tick.
+        /// Pre-serializes keyframe messages only for quality levels that have receivers.
+        /// UsedQualities bits accumulate from the send loop (never reset) so that tick slicing
+        /// doesn't cause quality oscillation � each slice contributes its needed bits and they
+        /// persist across ticks. Converges to the correct set within a few ticks.
         /// Quality levels with no receivers get SerializedKeyframeLength set to 0 so the send loop
         /// skips them and marks them as needed for next tick (one-tick catch-up delay, ~4ms).
         /// First frame for a player serializes all 4 levels.
@@ -800,10 +811,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         {
             ushort playerId = state.SyncMessage.playerIdMessage.playerID;
 
-            // Read which qualities had receivers last tick, then reset for next tick.
+            // Read accumulated quality bits. Bits are sticky � set by MarkQualityUsed in the
+            // send loop and never reset. With tick slicing (32 slices), each slice's receivers
+            // contribute their needed quality bits over successive ticks. NOT resetting prevents
+            // oscillation where each tick only has bits from 1/32 of receivers.
             int mask = Volatile.Read(ref state.UsedQualities);
             if (mask == 0) mask = 0xF; // new player or no sends yet: serialize all
-            Volatile.Write(ref state.UsedQualities, 0);
 
             LocalAvatarSyncMessage msg;
             for (int qi = 0; qi < 4; qi++)
