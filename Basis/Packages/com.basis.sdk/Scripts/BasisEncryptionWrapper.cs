@@ -171,7 +171,13 @@ public static partial class BasisEncryptionWrapper
 
             int bufferSize = CalculateBufferSize(encryptedData.Length);
 
-            using var msInput = new MemoryStream(encryptedData, writable: false);
+            // Defensive copy — the caller's buffer may be pooled/reused by concurrent downloads.
+            // Without this, another async download completing between our awaits can overwrite the
+            // ciphertext mid-decryption, causing PKCS7 padding failures under load.
+            byte[] localCopy = new byte[encryptedData.Length];
+            Buffer.BlockCopy(encryptedData, 0, localCopy, 0, encryptedData.Length);
+
+            using var msInput = new MemoryStream(localCopy, writable: false);
 
             byte[] salt = new byte[SaltSize];
             byte[] iv = new byte[IvSize];
