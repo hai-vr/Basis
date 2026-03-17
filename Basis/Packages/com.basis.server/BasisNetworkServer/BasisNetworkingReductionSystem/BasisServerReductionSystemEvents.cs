@@ -683,6 +683,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             var quality = (BitQuality)msg.DataQualityLevel;
+
+            // Validate: msg.DataQualityLevel must match the slot we're writing to.
+            // A mismatch means the error fallback in ProcessMessage assigned 'high' to
+            // a lower-quality slot — the payload is still packed for the original quality,
+            // so we must use msg.DataQualityLevel (not qi) to size/tag correctly.
+            if ((int)quality != qi)
+            {
+                BNL.LogError($"[PreSerializeKeyframe] Quality mismatch: slot qi={qi} but msg.DataQualityLevel={(int)quality}");
+            }
+
             int expectedPayload = BasisAvatarBitPacking.ConvertToSize(quality);
 
             // Skip if the array is undersized (e.g. client sent wrong quality level)
@@ -693,11 +703,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             // [PlayerID:2][interval:1][sequence:1][quality:1][array:N][additionalSize:1][additional...]
+            // Unify pre-calc and write guard: only account for additional data when it will actually be written.
+            int additionalCount = 0;
             int additionalSize = 0;
-            if (msg.AdditionalAvatarDatas != null && msg.AdditionalAvatarDatas.Length > 0)
+            if (msg.AdditionalAvatarDatas != null && msg.AdditionalAvatarDatas.Length > 0 && msg.AdditionalAvatarDatas.Length <= 255)
             {
+                additionalCount = msg.AdditionalAvatarDatas.Length;
                 additionalSize = 1; // LinkedAvatarIndex
-                for (int i = 0; i < msg.AdditionalAvatarDatas.Length; i++)
+                for (int i = 0; i < additionalCount; i++)
                 {
                     additionalSize += 1 + 1 + (msg.AdditionalAvatarDatas[i].array?.Length ?? 0); // PayloadSize + messageIndex + data
                 }
@@ -717,16 +730,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             writer.Put(msg.DataQualityLevel);
             writer.Put(msg.array, 0, expectedPayload);
 
-            // Additional avatar data (from current msg)
-            if (msg.AdditionalAvatarDatas == null || msg.AdditionalAvatarDatas.Length == 0 || msg.AdditionalAvatarDatas.Length > 256)
+            // Additional avatar data
+            if (additionalCount == 0)
             {
                 writer.Put((byte)0);
             }
             else
             {
-                writer.Put((byte)msg.AdditionalAvatarDatas.Length);
+                writer.Put((byte)additionalCount);
                 writer.Put(msg.LinkedAvatarIndex);
-                for (int i = 0; i < msg.AdditionalAvatarDatas.Length; i++)
+                for (int i = 0; i < additionalCount; i++)
                 {
                     msg.AdditionalAvatarDatas[i].Serialize(writer);
                 }

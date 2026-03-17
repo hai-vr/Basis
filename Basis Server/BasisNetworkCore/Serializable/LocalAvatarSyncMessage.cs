@@ -126,7 +126,7 @@ public static partial class SerializableBasis
             writer.Put(array, 0, expected);
 
             // Additional data
-            if (AdditionalAvatarDatas == null || AdditionalAvatarDatas.Length == 0 || AdditionalAvatarDatas.Length > 256)
+            if (AdditionalAvatarDatas == null || AdditionalAvatarDatas.Length == 0 || AdditionalAvatarDatas.Length > 255)
             {
                 writer.Put((byte)0);
                 return;
