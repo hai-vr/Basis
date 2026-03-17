@@ -17,15 +17,15 @@ namespace Basis
             var clientManager = new ClientManager();
             await clientManager.StartClientsAsync();
 
-            AppDomain.CurrentDomain.ProcessExit += async (_, __) =>
+            AppDomain.CurrentDomain.ProcessExit += (_, __) =>
             {
                 Console.WriteLine("Shutting down...");
-                await clientManager.StopClientsAsync();
+                clientManager.StopClientsAsync().GetAwaiter().GetResult();
             };
 
             MovementSender.Initialize(clientManager.ClientCount);
 
-            // Start smooth independent movement loops
+            // Start batched movement loops (one per CPU core instead of one per peer)
             StartSmoothMovementLoops(clientManager.FinalPeers);
 
             // Start random reconnects
@@ -36,7 +36,7 @@ namespace Basis
 
         public static void StopClient(ClientManager manager, int index)
         {
-            var peer = manager.FinalPeers[index];
+            var peer = Volatile.Read(ref manager.FinalPeers[index]);
             if (peer != null)
             {
                 peer.Disconnect();
@@ -44,38 +44,36 @@ namespace Basis
         }
 
         /// <summary>
-        /// One independent movement loop per peer.
-        /// This avoids traffic spikes and creates smooth network flow.
+        /// Batched movement loops — one worker per CPU core instead of one per peer.
+        /// Each worker processes a slice of the peer array using PeriodicTimer
+        /// to avoid 250+ concurrent async state machines and timer allocations.
         /// </summary>
         private static void StartSmoothMovementLoops(NetPeer[] peers)
         {
-            for (int Index = 0; Index < peers.Length; Index++)
+            int workerCount = Math.Min(Environment.ProcessorCount, peers.Length);
+            int chunkSize = (peers.Length + workerCount - 1) / workerCount;
+
+            for (int w = 0; w < workerCount; w++)
             {
-                int peerIndex = Index;
+                int start = w * chunkSize;
+                int end = Math.Min(start + chunkSize, peers.Length);
 
                 _ = Task.Run(async () =>
                 {
-                    // Unique RNG per peer to avoid sync
-                    var rng = new Random(Guid.NewGuid().GetHashCode());
+                    // Stagger worker startup to spread initial traffic
+                    await Task.Delay(start * 2);
 
-                    // Stable base interval per peer (ms)
-                    int baseInterval = rng.Next(60, 120);
-
-                    // Initial offset so peers don’t align at startup
-                    await Task.Delay(rng.Next(0, baseInterval));
-
-                    while (true)
+                    using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(90));
+                    while (await timer.WaitForNextTickAsync())
                     {
-                        var peer = peers[peerIndex];
-
-                        if (peer != null)
+                        for (int i = start; i < end; i++)
                         {
-                            MovementSender.ProcessSingle(peer, peerIndex);
+                            var peer = Volatile.Read(ref peers[i]);
+                            if (peer != null)
+                            {
+                                MovementSender.ProcessSingle(peer, i);
+                            }
                         }
-
-                        // Small jitter keeps it natural but stable
-                        int jitter = rng.Next(-5, 6);
-                        await Task.Delay(baseInterval + jitter);
                     }
                 });
             }
@@ -83,15 +81,14 @@ namespace Basis
 
         private static async Task StartRandomReconnectLoop(ClientManager clientManager)
         {
-            var rng = new Random();
             int totalClients = clientManager.ClientCount;
 
             while (true)
             {
-                int waitMinutes = rng.Next(1, 21); // 1–20 minutes
+                int waitMinutes = Random.Shared.Next(1, 21); // 1–20 minutes
                 await Task.Delay(TimeSpan.FromMinutes(waitMinutes));
 
-                int indexToRestart = rng.Next(0, totalClients);
+                int indexToRestart = Random.Shared.Next(0, totalClients);
                 BNL.Log($"Randomly restarting client at index {indexToRestart}");
 
                 await clientManager.ReconnectClientAsync(indexToRestart);
