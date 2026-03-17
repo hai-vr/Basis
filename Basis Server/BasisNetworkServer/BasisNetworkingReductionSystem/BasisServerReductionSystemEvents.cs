@@ -201,13 +201,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 long phaseTick = profiling ? Stopwatch.GetTimestamp() : 0;
 
                 // ── Phase 1: Drain ──
+                // Atomically swap in a fresh dictionary so inbound threads write to the new one.
+                // ConcurrentDictionary's enumerator is NOT a point-in-time snapshot — items added
+                // during iteration can be seen, causing duplicate messages for the same peer to be
+                // drained and then processed in parallel, racing on the shared PlayerState.
+                var batch = Interlocked.Exchange(ref currentMessages, new ConcurrentDictionary<int, QueuedMessage>());
                 _messagesSnapshot.Clear();
-                foreach (var kvp in currentMessages)
+                foreach (var kvp in batch)
                 {
-                    if (currentMessages.TryRemove(kvp.Key, out var msg))
-                    {
-                        _messagesSnapshot.Add(msg);
-                    }
+                    _messagesSnapshot.Add(kvp.Value);
                 }
                 if (profiling) { BSRProfiler.drainTicks += Stopwatch.GetTimestamp() - phaseTick; phaseTick = Stopwatch.GetTimestamp(); }
 
@@ -613,6 +615,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
         private static void ProcessMessage(QueuedMessage message)
         {
+            if (message.FromPeer == null)
+            {
+                QueuedMessagePool.Return(message);
+                return;
+            }
+
             int id = message.FromPeer.Id;
             byte inboundSeq = message.Sequence;
 
