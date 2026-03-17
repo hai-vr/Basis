@@ -26,16 +26,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Counters (reset each print interval)
         public static long tickCount;
         public static long messagesProcessed;
-        private static long _sends;
+        // Public so thread-local counters can aggregate via Interlocked.Add after Parallel.For
+        public static long SendCount;
         private static long _preSerializations;
         private static long _preSerializationsSkipped;
-
-        // Thread-safe increments for hot-path counters called from parallel loops
-        public static void IncrementSends()
-        {
-            if (!Enabled) return;
-            Interlocked.Increment(ref _sends);
-        }
 
         public static void IncrementPreSerializations()
         {
@@ -61,7 +55,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (ticks == 0) return;
 
             long msgs = Interlocked.Exchange(ref messagesProcessed, 0);
-            long sends = Interlocked.Exchange(ref _sends, 0);
+            long sends = Interlocked.Exchange(ref SendCount, 0);
             long preSer = Interlocked.Exchange(ref _preSerializations, 0);
             long preSkip = Interlocked.Exchange(ref _preSerializationsSkipped, 0);
 
