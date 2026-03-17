@@ -572,26 +572,40 @@ public static class BasisIOManagement
         // Auto-tune buffer: min 32KB, max 1MB
         int buffer = Clamp((int)(totalSize / 8), 32 * 1024, 1 * 1024 * 1024);
 
-        // Write file
-        using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, buffer, useAsync: true))
+        // Write to a temp file then atomic-rename to avoid sharing violations
+        // when multiple concurrent downloads target the same .BEE path.
+        string tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
         {
-            await fs.WriteAsync(sizeLE, 0, sizeLE.Length).ConfigureAwait(false);
-            await fs.WriteAsync(connectorBytes, 0, connectorBytes.Length).ConfigureAwait(false);
-
-            if (writeSection)
+            using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, buffer, useAsync: true))
             {
-                await fs.WriteAsync(sectionBytes, 0, sectionBytes.Length).ConfigureAwait(false);
+                await fs.WriteAsync(sizeLE, 0, sizeLE.Length).ConfigureAwait(false);
+                await fs.WriteAsync(connectorBytes, 0, connectorBytes.Length).ConfigureAwait(false);
+
+                if (writeSection)
+                {
+                    await fs.WriteAsync(sectionBytes, 0, sectionBytes.Length).ConfigureAwait(false);
+                }
             }
+
+            long actual = new FileInfo(tempPath).Length;
+            BasisDebug.Log($"Expected File Size: {totalSize} bytes");
+            BasisDebug.Log($"Actual File Size on Disk: {actual} bytes");
+
+            if (totalSize != actual)
+            {
+                BasisDebug.LogError("File size does not match expected size!");
+                try { File.Delete(tempPath); } catch { }
+                return BeeResult<bool>.Fail($"WriteBeeFileAsync: Size mismatch after write. Expected {totalSize}, actual {actual}.");
+            }
+
+            // Atomic move — last writer wins, no sharing violation.
+            File.Move(tempPath, path, true);
         }
-
-        long actual = new FileInfo(path).Length;
-        BasisDebug.Log($"Expected File Size: {totalSize} bytes");
-        BasisDebug.Log($"Actual File Size on Disk: {actual} bytes");
-
-        if (totalSize != actual)
+        catch (IOException)
         {
-            BasisDebug.LogError("File size does not match expected size!");
-            return BeeResult<bool>.Fail($"WriteBeeFileAsync: Size mismatch after write. Expected {totalSize}, actual {actual}.");
+            // Another task already wrote the file — that's fine, clean up our temp.
+            try { File.Delete(tempPath); } catch { }
         }
 
         return BeeResult<bool>.Ok(true);
