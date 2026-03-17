@@ -72,6 +72,7 @@ public static class NetworkServer
         BasisServerReductionSystemEvents.BSRBaseMultiplier = Configuration.BSRBaseMultiplier;
         BasisServerReductionSystemEvents.BSRSMillisecondDefaultInterval = Configuration.BSRSMillisecondDefaultInterval;
         BasisServerReductionSystemEvents.BSRSIncreaseRate = Configuration.BSRSIncreaseRate;
+        BSRProfiler.Enabled = Configuration.EnableBSRProfiling;
     }
 
     private static void InitializeAuth()
