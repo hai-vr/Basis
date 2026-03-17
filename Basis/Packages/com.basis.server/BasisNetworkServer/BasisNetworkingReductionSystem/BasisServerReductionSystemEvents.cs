@@ -131,6 +131,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Eliminates Interlocked.Read per pair (N² memory fences → N).
         private static long[] _generationSnapshot = Array.Empty<long>();
 
+        // Position snapshots: contiguous arrays for cache-friendly reads in the inner loop.
+        // Avoids pointer-chasing through scattered heap PlayerState objects per pair.
+        private static float[] _posXSnapshot = Array.Empty<float>();
+        private static float[] _posYSnapshot = Array.Empty<float>();
+        private static float[] _posZSnapshot = Array.Empty<float>();
+
+
         static BasisServerReductionSystemEvents()
         {
             _ = StartBackgroundProcessingAsync();
@@ -325,20 +332,32 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int playerCount = activeCopy.Length;
             if (playerCount == 0) return;
 
-            // Snapshot all generation counters once (N Interlocked.Reads instead of N² in the inner loop).
+            // Snapshot all hot data into contiguous arrays (N reads instead of N² pointer chases).
             int maxId = 0;
             for (int i = 0; i < playerCount; i++)
             {
                 if (activeCopy[i].id > maxId) maxId = activeCopy[i].id;
             }
-            if (_generationSnapshot.Length <= maxId)
+            int snapshotLen = maxId + 1;
+            if (_generationSnapshot.Length < snapshotLen)
             {
-                _generationSnapshot = new long[maxId + 1];
+                _generationSnapshot = new long[snapshotLen];
+                _posXSnapshot = new float[snapshotLen];
+                _posYSnapshot = new float[snapshotLen];
+                _posZSnapshot = new float[snapshotLen];
             }
             for (int i = 0; i < playerCount; i++)
             {
-                _generationSnapshot[activeCopy[i].id] = Interlocked.Read(ref activeCopy[i].state.DataGeneration);
+                int id = activeCopy[i].id;
+                var state = activeCopy[i].state;
+                _generationSnapshot[id] = Interlocked.Read(ref state.DataGeneration);
+                _posXSnapshot[id] = state.Position.x;
+                _posYSnapshot[id] = state.Position.y;
+                _posZSnapshot[id] = state.Position.z;
             }
+
+            // Pre-compute minimum interval in ticks — cheapest early-exit threshold.
+            long minIntervalTicks = (long)(BSRSMillisecondDefaultInterval * BSRBaseMultiplier * MsToTick);
 
             // Tick slicing: only process a slice of receivers per tick
             int sliceSize = (playerCount + _sliceCount - 1) / _sliceCount;
@@ -397,16 +416,19 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 var tracking = stateI.PeerTracking;
                 if (tracking == null) return;
 
+                // Cache receiver position from snapshot for distance calc
+                float iX = _posXSnapshot[playerI.id];
+                float iY = _posYSnapshot[playerI.id];
+                float iZ = _posZSnapshot[playerI.id];
+
+                // Thread-local send counter — no Interlocked in the hot loop
+                long localSends = 0;
+
                 for (int index = 0; index < playerCount; index++)
                 {
-                    var playerJ = activeCopy[index];
-                    if (playerI.id == playerJ.id)
-                    {
+                    int jId = activeCopy[index].id;
+                    if (playerI.id == jId)
                         continue;
-                    }
-
-                    var stateJ = playerJ.state;
-                    int jId = playerJ.id;
 
                     // Bounds check — grow array if needed (rare, only when IDs exceed capacity)
                     if (jId >= tracking.Length)
@@ -422,48 +444,59 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         }
                     }
 
-                    float distSq = DistanceSquared(stateI.Position, stateJ.Position);
+                    // ── Reordered checks: cheapest first, skip distance calc when possible ──
 
+                    // 1. New data check — plain array read, no pointer chase
+                    long senderGen = _generationSnapshot[jId];
+                    if (senderGen <= tracking[jId].LastSeenGeneration)
+                        continue;
+
+                    // 2. Minimum interval check — skip without distance calc
+                    long elapsed = nowTicks - tracking[jId].LastSentTime;
+                    if (elapsed < minIntervalTicks)
+                        continue;
+
+                    // 3. Distance from contiguous snapshot arrays (cache-friendly)
+                    float dx = iX - _posXSnapshot[jId];
+                    float dy = iY - _posYSnapshot[jId];
+                    float dz = iZ - _posZSnapshot[jId];
+                    float distSq = dx * dx + dy * dy + dz * dz;
+
+                    // 4. Full interval check with distance
                     CalculateIntervalFromDistanceSq(distSq, out byte startAtZeroInterval, out int actualInterval);
-
-                    long lastSent = tracking[jId].LastSentTime;
-                    long elapsed = nowTicks - lastSent;
-                    if (elapsed < 0) elapsed = 0;
-
                     long required = (long)((actualInterval * intervalMultiplier) * MsToTick);
 
-                    // Plain array read — no memory fence. Snapshot taken before Parallel.For barrier.
-                    long senderGen = _generationSnapshot[jId];
-                    bool hasNewData = senderGen > tracking[jId].LastSeenGeneration;
+                    if (elapsed < required)
+                        continue;
 
-                    if (hasNewData && elapsed >= required)
+                    // 5. Quality + send
+                    int qi = Math.Min(GetQualityIndex(distSq), maxQi);
+
+                    var stateJ = activeCopy[index].state;
+
+                    // Lazy pre-serialization: skip if not serialized, mark needed for next tick
+                    if (stateJ.SerializedKeyframeLength[qi] == 0)
                     {
-                        // Pick quality by distance, capped by congestion
-                        int qi = Math.Min(GetQualityIndex(distSq), maxQi);
-
-                        // Check lazy pre-serialization: if this quality wasn't serialized this
-                        // generation, skip the send and mark it as needed for next tick.
-                        if (stateJ.SerializedKeyframeLength[qi] == 0)
-                        {
-                            MarkQualityUsed(ref stateJ.UsedQualities, qi);
-                            continue;
-                        }
-
-                        // Route to quality + additional-data-specific channel (cached bool, no dereference)
-                        byte avatarChannel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, stateJ.HasAdditionalData);
-                        SendPreSerialized(peer, qi, startAtZeroInterval,
-                            avatarChannel,
-                            stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
-
-                        // Mark this quality as needed for next tick's pre-serialization
                         MarkQualityUsed(ref stateJ.UsedQualities, qi);
-
-                        tracking[jId].LastSentTime = nowTicks;
-                        tracking[jId].LastSeenGeneration = senderGen;
-
-                        BSRProfiler.IncrementSends();
+                        continue;
                     }
+
+                    byte avatarChannel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, stateJ.HasAdditionalData);
+                    SendPreSerialized(peer, qi, startAtZeroInterval,
+                        avatarChannel,
+                        stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
+
+                    MarkQualityUsed(ref stateJ.UsedQualities, qi);
+
+                    tracking[jId].LastSentTime = nowTicks;
+                    tracking[jId].LastSeenGeneration = senderGen;
+
+                    localSends++;
                 }
+
+                // One Interlocked.Add per receiver (not per send) — ~25 atomics/tick instead of ~32K
+                if (localSends > 0 && BSRProfiler.Enabled)
+                    Interlocked.Add(ref BSRProfiler.SendCount, localSends);
             });
         }
 
@@ -538,14 +571,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (distSq <= LowDistanceSq) return 1;     // Low
             return 0;                                   // VeryLow
         }
-        private static float DistanceSquared(Basis.Scripts.Networking.Compression.Vector3 a, Basis.Scripts.Networking.Compression.Vector3 b)
-        {
-            float dx = a.x - b.x;
-            float dy = a.y - b.y;
-            float dz = a.z - b.z;
-            return dx * dx + dy * dy + dz * dz;
-        }
-
         private static void CalculateIntervalFromDistanceSq(float distanceSq, out byte offsetByte, out int actualInterval)
         {
             int rawInterval = (int)(BSRSMillisecondDefaultInterval * (BSRBaseMultiplier + (distanceSq * BSRSIncreaseRate)));
@@ -812,16 +837,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             var quality = (BitQuality)msg.DataQualityLevel;
-
-            // Validate: msg.DataQualityLevel must match the slot we're writing to.
-            // A mismatch means the error fallback in ProcessMessage assigned 'high' to
-            // a lower-quality slot — the payload is still packed for the original quality,
-            // so we must use msg.DataQualityLevel (not qi) to size/tag correctly.
-            if ((int)quality != qi)
-            {
-                BNL.LogError($"[PreSerializeKeyframe] Quality mismatch: slot qi={qi} but msg.DataQualityLevel={(int)quality}");
-            }
-
             int expectedPayload = BasisAvatarBitPacking.ConvertToSize(quality);
 
             // Skip if the array is undersized (e.g. client sent wrong quality level)
@@ -832,14 +847,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             // [PlayerID:2][interval:1][sequence:1][quality:1][array:N][additionalSize:1][additional...]
-            // Unify pre-calc and write guard: only account for additional data when it will actually be written.
-            int additionalCount = 0;
             int additionalSize = 0;
-            if (msg.AdditionalAvatarDatas != null && msg.AdditionalAvatarDatas.Length > 0 && msg.AdditionalAvatarDatas.Length <= 255)
+            if (msg.AdditionalAvatarDatas != null && msg.AdditionalAvatarDatas.Length > 0)
             {
-                additionalCount = msg.AdditionalAvatarDatas.Length;
                 additionalSize = 1; // LinkedAvatarIndex
-                for (int i = 0; i < additionalCount; i++)
+                for (int i = 0; i < msg.AdditionalAvatarDatas.Length; i++)
                 {
                     additionalSize += 1 + 1 + (msg.AdditionalAvatarDatas[i].array?.Length ?? 0); // PayloadSize + messageIndex + data
                 }
@@ -859,16 +871,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             writer.Put(msg.DataQualityLevel);
             writer.Put(msg.array, 0, expectedPayload);
 
-            // Additional avatar data
-            if (additionalCount == 0)
+            // Additional avatar data (from current msg)
+            if (msg.AdditionalAvatarDatas == null || msg.AdditionalAvatarDatas.Length == 0 || msg.AdditionalAvatarDatas.Length > 256)
             {
                 writer.Put((byte)0);
             }
             else
             {
-                writer.Put((byte)additionalCount);
+                writer.Put((byte)msg.AdditionalAvatarDatas.Length);
                 writer.Put(msg.LinkedAvatarIndex);
-                for (int i = 0; i < additionalCount; i++)
+                for (int i = 0; i < msg.AdditionalAvatarDatas.Length; i++)
                 {
                     msg.AdditionalAvatarDatas[i].Serialize(writer);
                 }
