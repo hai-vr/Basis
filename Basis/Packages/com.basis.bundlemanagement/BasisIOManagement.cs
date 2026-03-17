@@ -600,7 +600,7 @@ public static class BasisIOManagement
             }
 
             // Atomic move — last writer wins, no sharing violation.
-            File.Move(tempPath, path, true);
+            File.Move(tempPath, path);
         }
         catch (IOException)
         {
