@@ -519,10 +519,20 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
-            if (high.DataQualityLevel != (byte)BitQuality.High)
+            var incomingQuality = (BitQuality)high.DataQualityLevel;
+            bool isHighQuality = incomingQuality == BitQuality.High;
+
+            if (!BasisAvatarBitPacking.IsValidQuality(incomingQuality))
             {
-                BNL.LogError($"Quality Level was {high.DataQualityLevel}");
-                high.DataQualityLevel = (byte)BitQuality.High;
+                QueuedMessagePool.Return(message);
+                return;
+            }
+
+            int expectedPayloadSize = BasisAvatarBitPacking.ConvertToSize(incomingQuality);
+            if (high.array.Length < expectedPayloadSize)
+            {
+                QueuedMessagePool.Return(message);
+                return;
             }
 
             var pos = BasisNetworkCompressionExtensions.ReadPosition(ref high.array);
@@ -547,15 +557,22 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     OutboundSequence = 0,
                 };
 
-                // Build lower qualities using the zero-alloc Into variant.
-                // First call allocates the arrays; subsequent calls reuse them.
-                try
+                if (isHighQuality)
                 {
-                    AvatarQualityRepacker.BuildAllLowerFromHighInto(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
+                    try
+                    {
+                        AvatarQualityRepacker.BuildAllLowerFromHighInto(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
+                    }
+                    catch (Exception ex)
+                    {
+                        BNL.LogError($"[ProcessMessage] Repack failed: {ex}");
+                        state.AvatarMedium = high;
+                        state.AvatarLow = high;
+                        state.AvatarVeryLow = high;
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    BNL.LogError($"[ProcessMessage] Repack failed: {ex}");
                     state.AvatarMedium = high;
                     state.AvatarLow = high;
                     state.AvatarVeryLow = high;
@@ -605,40 +622,47 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 // Increment outbound sequence for this sender's new update
                 unchecked { state.OutboundSequence++; }
 
-                // Check if muscles+tail changed (skip expensive bit repacking if only position moved).
                 byte[] prevArray = state.AvatarHigh.array;
-                bool musclesOrTailChanged = prevArray == null
-                    || prevArray.Length != high.array.Length
-                    || !high.array.AsSpan(WritePosition, HighMuscleAndTailBytes)
-                        .SequenceEqual(prevArray.AsSpan(WritePosition, HighMuscleAndTailBytes));
-
-                // Update high quality
                 state.AvatarHigh = high;
 
-                if (musclesOrTailChanged)
+                if (isHighQuality)
                 {
-                    // Full repack needed — muscles or rotation/scale changed
-                    try
+                    // Check if muscles+tail changed (skip expensive bit repacking if only position moved).
+                    int muscleAndTailBytes = HighMuscleAndTailBytes;
+                    bool musclesOrTailChanged = prevArray == null
+                        || prevArray.Length != high.array.Length
+                        || !high.array.AsSpan(WritePosition, muscleAndTailBytes)
+                            .SequenceEqual(prevArray.AsSpan(WritePosition, muscleAndTailBytes));
+
+                    if (musclesOrTailChanged)
                     {
-                        AvatarQualityRepacker.BuildAllLowerFromHighInto(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
+                        try
+                        {
+                            AvatarQualityRepacker.BuildAllLowerFromHighInto(high, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
+                        }
+                        catch (Exception ex)
+                        {
+                            BNL.LogError($"[ProcessMessage] Repack failed: {ex}");
+                            state.AvatarMedium = high;
+                            state.AvatarLow = high;
+                            state.AvatarVeryLow = high;
+                        }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        BNL.LogError($"[ProcessMessage] Repack failed: {ex}");
-                        state.AvatarMedium = high;
-                        state.AvatarLow = high;
-                        state.AvatarVeryLow = high;
+                        if (state.AvatarMedium.array != null)
+                            Buffer.BlockCopy(high.array, 0, state.AvatarMedium.array, 0, WritePosition);
+                        if (state.AvatarLow.array != null)
+                            Buffer.BlockCopy(high.array, 0, state.AvatarLow.array, 0, WritePosition);
+                        if (state.AvatarVeryLow.array != null)
+                            Buffer.BlockCopy(high.array, 0, state.AvatarVeryLow.array, 0, WritePosition);
                     }
                 }
                 else
                 {
-                    // Position-only change — just copy position bytes to lower quality arrays.
-                    if (state.AvatarMedium.array != null)
-                        Buffer.BlockCopy(high.array, 0, state.AvatarMedium.array, 0, WritePosition);
-                    if (state.AvatarLow.array != null)
-                        Buffer.BlockCopy(high.array, 0, state.AvatarLow.array, 0, WritePosition);
-                    if (state.AvatarVeryLow.array != null)
-                        Buffer.BlockCopy(high.array, 0, state.AvatarVeryLow.array, 0, WritePosition);
+                    state.AvatarMedium = high;
+                    state.AvatarLow = high;
+                    state.AvatarVeryLow = high;
                 }
 
                 // Propagate additional avatar data to quality variants
