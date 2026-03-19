@@ -61,8 +61,10 @@
     <assembly fullname="Unity.InputSystem" preserve="all" />
     <assembly fullname="Unity.InputSystem.ForUI" preserve="all" />
     <assembly fullname="Unity.InternalAPIEngineBridge.004" preserve="all" />
+    <assembly fullname="Unity.InternalAPIEngineBridge.RenderPipelines.Core.Runtime.Shared" preserve="all" />
     <assembly fullname="Unity.Mathematics" preserve="all" />
     <assembly fullname="Unity.MemoryProfiler" preserve="all" />
+    <assembly fullname="Unity.PathTracing.Runtime" preserve="all" />
     <assembly fullname="Unity.Profiling.Core" preserve="all" />
     <assembly fullname="Unity.RenderPipeline.Universal.ShaderLibrary" preserve="all" />
     <assembly fullname="Unity.RenderPipelines.Core.Runtime" preserve="all" />
@@ -91,6 +93,7 @@
     <assembly fullname="Unity.Services.Core.Scheduler" preserve="all" />
     <assembly fullname="Unity.Services.Core.Telemetry" preserve="all" />
     <assembly fullname="Unity.Services.Core.Threading" preserve="all" />
+    <assembly fullname="Unity.SurfaceCache.Runtime" preserve="all" />
     <assembly fullname="Unity.TextMeshPro" preserve="all" />
     <assembly fullname="Unity.Timeline" preserve="all" />
     <assembly fullname="Unity.UnifiedRayTracing.Runtime" preserve="all" />
