@@ -34,6 +34,7 @@
   <Project Path="SteamVR.csproj" />
   <Project Path="com.gator-dragon-games.jigglephysics.editor.csproj" />
   <Project Path="Unity.XR.CoreUtils.csproj" />
+  <Project Path="Unity.RenderPipelines.Universal.Editor.Tests.csproj" />
   <Project Path="Unity.Searcher.Editor.csproj" />
   <Project Path="Unity.XR.Hands.csproj" />
   <Project Path="Unity.ResourceManager.csproj" />
@@ -117,6 +118,7 @@
   <Project Path="BasisExampleEditor.csproj" />
   <Project Path="Unity.Services.Core.Analytics.csproj" />
   <Project Path="Unity.EditorCoroutines.Editor.csproj" />
+  <Project Path="Unity.RenderPipelines.Universal.Runtime.Tests.csproj" />
   <Project Path="Unity.SurfaceCache.Runtime.csproj" />
   <Project Path="SteamAudioUnityEditor.csproj" />
   <Project Path="Unity.InternalAPIEngineBridge.RenderPipelines.Core.Runtime.Shared.csproj" />
