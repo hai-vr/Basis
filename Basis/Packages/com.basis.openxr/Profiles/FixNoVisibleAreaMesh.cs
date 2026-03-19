@@ -347,7 +347,7 @@ namespace UnityEngine.XR.OpenXR.Features
             {
                 int result = d_OriginalXrGetVisibilityMaskKHR.Invoke(session, viewType, viewIndex, maskType, ref visMaskPtr);
 
-                if (true || visMaskPtr.indexCountOutput == 0 || visMaskPtr.vertexCountOutput == 0)
+                if (visMaskPtr.indexCountOutput == 0 || visMaskPtr.vertexCountOutput == 0)
                 {
                     visMaskPtr.indexCountOutput = s_indexCapacityInput;
                     visMaskPtr.vertexCountOutput = s_vertexCapacityInput;
