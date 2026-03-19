@@ -263,3 +263,48 @@ public struct AvatarCapEntry
     public int Index;
     public float EffectiveDistSq;
 }
+
+/// <summary>
+/// Burst parallel job: computes per-player directional dampening multipliers.
+/// Reads targetPositions (shared [ReadOnly] with the distance job) so it can
+/// run fully in parallel with distance, reduce, and cap jobs.
+/// Output is written to a NativeArray; the caller copies to managed AudioReceiverModule
+/// in a trivial main-thread loop.
+/// </summary>
+[BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Standard)]
+public struct BasisDirectionalDampenJob : IJobParallelFor
+{
+    public float3 ListenerPosition;
+    public float3 ListenerForward;
+    public float CosHalfCone;
+    public float CosRange;
+    public float MinVolume;
+
+    [ReadOnly] public NativeArray<float3> TargetPositions;
+    [WriteOnly] public NativeArray<float> Multipliers;
+
+    public void Execute(int i)
+    {
+        float3 toSource = TargetPositions[i] - ListenerPosition;
+        float sqrMag = math.lengthsq(toSource);
+
+        if (sqrMag < 0.001f)
+        {
+            Multipliers[i] = 1f;
+            return;
+        }
+
+        float3 dir = toSource * math.rsqrt(sqrMag);
+        float dot = math.dot(ListenerForward, dir);
+
+        if (dot >= CosHalfCone)
+        {
+            Multipliers[i] = 1f;
+        }
+        else
+        {
+            float t = (CosHalfCone - dot) / CosRange;
+            Multipliers[i] = math.lerp(1f, MinVolume, t);
+        }
+    }
+}

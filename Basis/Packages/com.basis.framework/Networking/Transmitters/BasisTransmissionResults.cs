@@ -21,10 +21,12 @@ public partial class BasisTransmissionResults
     public BasisDistanceJobParallel distanceJob;
     public BasisDistanceReduceJob reduceJob;
     public BasisAvatarCapJob avatarCapJob;
+    public BasisDirectionalDampenJob dampenJob;
 
     public JobHandle distanceJobHandle;
     public JobHandle reduceJobHandle;
     public JobHandle avatarCapJobHandle;
+    public JobHandle dampenJobHandle;
 
     // Timing / interval control
     public float intervalSeconds = 0.05f;
@@ -59,9 +61,14 @@ public partial class BasisTransmissionResults
 
     /// <summary>
     /// Scratch buffer for avatar-cap sorting. Sized to capacity, reused each tick.
-    /// Sorted via NativeArray.Sort() which uses Burst-optimized introsort.
     /// </summary>
     private NativeArray<AvatarCapEntry> avatarCapEntries;
+
+    /// <summary>
+    /// Per-index directional dampening multiplier computed by the Burst parallel job.
+    /// Copied to managed AudioReceiverModule after the job completes.
+    /// </summary>
+    private NativeArray<float> directionalDampening;
 
     // State
     public bool IndexChanged;
@@ -190,12 +197,39 @@ public partial class BasisTransmissionResults
             avatarCapJobHandle = distanceJobHandle;
         }
 
+        // Directional dampening job: only reads targetPositions (shared ReadOnly
+        // with distance job) — no dependencies, runs in parallel with everything.
+        float coneAngle = BasisSettingsDefaults.RAListenerConeAngle.RawValue;
+        bool dampenEnabled = coneAngle < 360f;
+        if (dampenEnabled)
+        {
+            float dampenPercent = Mathf.Clamp(BasisSettingsDefaults.RAListenerDampenAmount.RawValue, 1f, 95f);
+            float halfConeRad = coneAngle * 0.5f * Mathf.Deg2Rad;
+            float cosHalfCone = Mathf.Cos(halfConeRad);
+
+            dampenJob.ListenerPosition = BasisLocalCameraDriver.Position;
+            dampenJob.ListenerForward = BasisLocalCameraDriver.Forward();
+            dampenJob.CosHalfCone = cosHalfCone;
+            dampenJob.CosRange = cosHalfCone + 1f;
+            dampenJob.MinVolume = 1f - (dampenPercent / 100f);
+
+            dampenJobHandle = dampenJob.Schedule(receiverCount, 64);
+        }
+        else
+        {
+            dampenJobHandle = default;
+        }
+
         // Do work that doesn't depend on distance results
         BasisNetworkAvatarCompressor.Compress(BasisNetworkTransmitter, avatar.Animator);
 
-        // Finish before consuming results (both reduce and cap must complete)
+        // Finish before consuming results
         reduceJobHandle.Complete();
         avatarCapJobHandle.Complete();
+        if (dampenEnabled)
+        {
+            dampenJobHandle.Complete();
+        }
 
         int mask = changeMask[0];
         AnyMicrophoneRangeChanged = (mask & 1) != 0;
@@ -259,8 +293,21 @@ public partial class BasisTransmissionResults
             }
         }
 
-        // Apply listener directional dampening
-        ApplyListenerDirectionalDampening(snapshot, receiverCount);
+        // Apply directional dampening results (computed by Burst job above)
+        if (dampenEnabled)
+        {
+            for (int i = 0; i < receiverCount; i++)
+            {
+                snapshot[i].AudioReceiverModule.DirectionalDampeningMultiplier = directionalDampening[i];
+            }
+        }
+        else
+        {
+            for (int i = 0; i < receiverCount; i++)
+            {
+                snapshot[i].AudioReceiverModule.DirectionalDampeningMultiplier = 1f;
+            }
+        }
 
         // Apply avatar load toggles only when needed
         if (avatarChange)
@@ -421,6 +468,7 @@ public partial class BasisTransmissionResults
 
         hasRealAvatarLoaded = new NativeArray<bool>(newCap, Allocator.Persistent);
         avatarCapEntries = new NativeArray<AvatarCapEntry>(newCap, Allocator.Persistent);
+        directionalDampening = new NativeArray<float>(newCap, Allocator.Persistent);
 
         if (!smallestD2.IsCreated) smallestD2 = new NativeArray<float>(1, Allocator.Persistent);
         if (!changeMask.IsCreated) changeMask = new NativeArray<int>(1, Allocator.Persistent);
@@ -454,6 +502,9 @@ public partial class BasisTransmissionResults
         avatarCapJob.AvatarRange = AvatarRange;
         avatarCapJob.Entries = avatarCapEntries;
         avatarCapJob.StickinessBonus = 0.75f;
+
+        dampenJob.TargetPositions = targetPositions;
+        dampenJob.Multipliers = directionalDampening;
 
         LengthOfArrays = -1; // will be set on next Simulate call
     }
@@ -506,6 +557,7 @@ public partial class BasisTransmissionResults
         if (!distanceJobHandle.IsCompleted) distanceJobHandle.Complete();
         if (!reduceJobHandle.IsCompleted) reduceJobHandle.Complete();
         if (!avatarCapJobHandle.IsCompleted) avatarCapJobHandle.Complete();
+        if (!dampenJobHandle.IsCompleted) dampenJobHandle.Complete();
 
         if (targetPositions.IsCreated) targetPositions.Dispose();
         if (distanceSq.IsCreated) distanceSq.Dispose();
@@ -527,6 +579,7 @@ public partial class BasisTransmissionResults
 
         if (hasRealAvatarLoaded.IsCreated) hasRealAvatarLoaded.Dispose();
         if (avatarCapEntries.IsCreated) avatarCapEntries.Dispose();
+        if (directionalDampening.IsCreated) directionalDampening.Dispose();
 
         // Note: smallestD2/changeMask are 1-length arrays kept across reallocs; disposed in DeInitalize.
         capacity = 0;
@@ -540,63 +593,4 @@ public partial class BasisTransmissionResults
         b = tmp;
     }
 
-    /// <summary>
-    /// Reduces PCM volume for remote players outside the listener's forward cone.
-    /// Sets <see cref="BasisAudioReceiver.DirectionalDampeningMultiplier"/> which is
-    /// applied per-sample inside OnAudioFilterRead, bypassing AudioSource.volume
-    /// (which Steam Audio's spatializer ignores for filter-written audio).
-    /// </summary>
-    private void ApplyListenerDirectionalDampening(IReadOnlyList<BasisNetworkReceiver> snapshot, int receiverCount)
-    {
-        float coneAngle = BasisSettingsDefaults.RAListenerConeAngle.RawValue;
-
-        // 360 means no dampening
-        if (coneAngle >= 360f)
-        {
-            for (int i = 0; i < receiverCount; i++)
-            {
-                var module = snapshot[i].AudioReceiverModule;
-                module.DirectionalDampeningMultiplier = 1f;
-            }
-            return;
-        }
-
-        float dampenPercent = Mathf.Clamp(BasisSettingsDefaults.RAListenerDampenAmount.RawValue, 1f, 95f);
-        float minVolume = 1f - (dampenPercent / 100f);
-
-        float halfConeRad = (coneAngle * 0.5f) * Mathf.Deg2Rad;
-        float cosHalfCone = Mathf.Cos(halfConeRad);
-        float cosRange = cosHalfCone - (-1f); // cosHalfCone + 1
-
-        Vector3 listenerPos = BasisLocalCameraDriver.Position;
-        Vector3 listenerFwd = BasisLocalCameraDriver.Forward();
-
-        for (int i = 0; i < receiverCount; i++)
-        {
-            var module = snapshot[i].AudioReceiverModule;
-
-            Vector3 toSource = ((Vector3)targetPositions[i]) - listenerPos;
-            float sqrMag = toSource.sqrMagnitude;
-
-            if (sqrMag < 0.001f)
-            {
-                module.DirectionalDampeningMultiplier = 1f;
-                continue;
-            }
-
-            float invMag = 1f / Mathf.Sqrt(sqrMag);
-            Vector3 dir = toSource * invMag;
-            float dot = Vector3.Dot(listenerFwd, dir);
-
-            if (dot >= cosHalfCone)
-            {
-                module.DirectionalDampeningMultiplier = 1f;
-            }
-            else
-            {
-                float t = (cosHalfCone - dot) / cosRange;
-                module.DirectionalDampeningMultiplier = Mathf.Lerp(1f, minVolume, t);
-            }
-        }
-    }
 }
