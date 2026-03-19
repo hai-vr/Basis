@@ -23,6 +23,10 @@ namespace Basis.Scripts.Networking.Receivers
         private const int EyesAndMouthCount = 6;
         public const int EyeAndMouthCountInBytes = EyesAndMouthCount * sizeof(float);
 
+        // Cached delegates — created once, avoids per-frame Action/Comparison heap allocations.
+        private static readonly Action<BasisAvatarBuffer> s_releaseBuffer = BasisAvatarBufferPool.Release;
+        private static readonly Comparison<BasisAvatarBuffer> s_sequenceCompare = static (a, b) => (sbyte)(a.Sequence - b.Sequence);
+
         private double _serverClockSeconds;
         private bool _serverClockSeeded;
         /// <summary>
@@ -148,7 +152,7 @@ namespace Basis.Scripts.Networking.Receivers
             // Sort by sequence so out-of-order arrivals are staged in correct order
             if (_pendingSort.Count > 1)
             {
-                _pendingSort.Sort((a, b) => ((sbyte)(a.Sequence - b.Sequence)));
+                _pendingSort.Sort(s_sequenceCompare);
             }
 
             // Enqueue sorted items into staging ring with monotonic server clock
@@ -165,7 +169,7 @@ namespace Basis.Scripts.Networking.Receivers
                 _serverClockSeconds += buffer.SecondsInterval;
                 buffer.ServerTimeSeconds = _serverClockSeconds;
 
-                _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: BasisAvatarBufferPool.Release);
+                _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: s_releaseBuffer);
             }
             StagedCount = _stagedRing.Count;
             // 2) Ensure we have a valid interpolation window (Current -> Next)
