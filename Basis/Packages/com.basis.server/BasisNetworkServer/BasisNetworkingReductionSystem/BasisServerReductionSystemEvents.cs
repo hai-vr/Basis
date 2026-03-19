@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using static SerializableBasis;
@@ -136,6 +137,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static float[] _posXSnapshot = Array.Empty<float>();
         private static float[] _posYSnapshot = Array.Empty<float>();
         private static float[] _posZSnapshot = Array.Empty<float>();
+
+        // Spatial cell snapshots: integer grid cell per player for cheap far-field pre-filter.
+        // Avoids tracking[] cache misses for distant players on non-sweep ticks.
+        private static int[] _cellXSnapshot = Array.Empty<int>();
+        private static int[] _cellZSnapshot = Array.Empty<int>();
+        private static long _tickCounter;
 
 
         static BasisServerReductionSystemEvents()
@@ -345,16 +352,26 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 _posXSnapshot = new float[snapshotLen];
                 _posYSnapshot = new float[snapshotLen];
                 _posZSnapshot = new float[snapshotLen];
+                _cellXSnapshot = new int[snapshotLen];
+                _cellZSnapshot = new int[snapshotLen];
             }
+            // Cell size matches LowQualityDistance so 3x3 cells covers all High/Medium/Low quality.
+            float gridCellSize = (float)Math.Sqrt(LowDistanceSq);
+            float invGridCellSize = gridCellSize > 0f ? 1f / gridCellSize : 1f;
             for (int i = 0; i < playerCount; i++)
             {
                 int id = activeCopy[i].id;
                 var state = activeCopy[i].state;
                 _generationSnapshot[id] = Interlocked.Read(ref state.DataGeneration);
-                _posXSnapshot[id] = state.Position.x;
+                float px = state.Position.x;
+                float pz = state.Position.z;
+                _posXSnapshot[id] = px;
                 _posYSnapshot[id] = state.Position.y;
-                _posZSnapshot[id] = state.Position.z;
+                _posZSnapshot[id] = pz;
+                _cellXSnapshot[id] = (int)Math.Floor(px * invGridCellSize);
+                _cellZSnapshot[id] = (int)Math.Floor(pz * invGridCellSize);
             }
+            _tickCounter++;
 
             // Pre-compute minimum interval in ticks — cheapest early-exit threshold.
             long minIntervalTicks = (long)(BSRSMillisecondDefaultInterval * BSRBaseMultiplier * MsToTick);
@@ -421,6 +438,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 float iY = _posYSnapshot[playerI.id];
                 float iZ = _posZSnapshot[playerI.id];
 
+                // Cell-based far-field pre-filter: skip distant players on non-sweep ticks.
+                // Near-field = within 3x3 grid cells (covers all High/Medium/Low quality).
+                // Stagger sweep across receivers so not all do a full sweep the same tick.
+                int recCellX = _cellXSnapshot[playerI.id];
+                int recCellZ = _cellZSnapshot[playerI.id];
+                bool doFarSweep = ((_tickCounter + (uint)playerI.id) & 15) == 0;
+
                 // Thread-local send counter — no Interlocked in the hot loop
                 long localSends = 0;
 
@@ -429,6 +453,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     int jId = activeCopy[index].id;
                     if (playerI.id == jId)
                         continue;
+
+                    // Cell pre-filter: skip far-field senders on non-sweep ticks.
+                    // Avoids tracking[] cache miss for ~70-80% of pairs at scale.
+                    if (!doFarSweep)
+                    {
+                        int cdx = _cellXSnapshot[jId] - recCellX;
+                        int cdz = _cellZSnapshot[jId] - recCellZ;
+                        if (cdx < -1 || cdx > 1 || cdz < -1 || cdz > 1)
+                            continue;
+                    }
 
                     // Bounds check — grow array if needed (rare, only when IDs exceed capacity)
                     if (jId >= tracking.Length)
@@ -504,6 +538,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Atomically sets a quality bit in the UsedQualities bitmask.
         /// Called from parallel send loop threads — lock-free via CAS.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void MarkQualityUsed(ref int usedQualities, int qi)
         {
             int bit = 1 << qi;
@@ -522,6 +557,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Sends a pre-serialized message, patching the interval byte at offset 2.
         /// Uses a thread-local writer to avoid shared pool contention.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void SendPreSerialized(NetPeer peer, int qi,byte interval, byte channel, byte[][] serializedArray, int[] lengthArray)
         {
             int len = lengthArray[qi];
@@ -546,6 +582,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Returns a thread-local NetDataWriter, creating one if needed.
         /// Avoids contention on the shared ConcurrentQueue writer pool.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static NetDataWriter GetThreadWriter()
         {
             var w = t_serializeWriter;
@@ -564,6 +601,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// <summary>
         /// Maps squared distance to quality index (matches BitQuality enum values).
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GetQualityIndex(float distSq)
         {
             if (distSq <= HighDistanceSq) return 3;   // High
@@ -571,6 +609,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (distSq <= LowDistanceSq) return 1;     // Low
             return 0;                                   // VeryLow
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CalculateIntervalFromDistanceSq(float distanceSq, out byte offsetByte, out int actualInterval)
         {
             int rawInterval = (int)(BSRSMillisecondDefaultInterval * (BSRBaseMultiplier + (distanceSq * BSRSIncreaseRate)));
