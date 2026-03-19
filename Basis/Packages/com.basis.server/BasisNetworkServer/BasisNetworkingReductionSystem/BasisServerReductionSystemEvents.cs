@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using static SerializableBasis;
@@ -136,6 +137,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static float[] _posXSnapshot = Array.Empty<float>();
         private static float[] _posYSnapshot = Array.Empty<float>();
         private static float[] _posZSnapshot = Array.Empty<float>();
+
 
 
         static BasisServerReductionSystemEvents()
@@ -506,6 +508,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Atomically sets a quality bit in the UsedQualities bitmask.
         /// Called from parallel send loop threads — lock-free via CAS.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void MarkQualityUsed(ref int usedQualities, int qi)
         {
             int bit = 1 << qi;
@@ -524,6 +527,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Sends a pre-serialized message, patching the interval byte at offset 2.
         /// Uses a thread-local writer to avoid shared pool contention.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void SendPreSerialized(NetPeer peer, int qi,byte interval, byte channel, byte[][] serializedArray, int[] lengthArray)
         {
             int len = lengthArray[qi];
@@ -548,6 +552,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Returns a thread-local NetDataWriter, creating one if needed.
         /// Avoids contention on the shared ConcurrentQueue writer pool.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static NetDataWriter GetThreadWriter()
         {
             var w = t_serializeWriter;
@@ -566,6 +571,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// <summary>
         /// Maps squared distance to quality index (matches BitQuality enum values).
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GetQualityIndex(float distSq)
         {
             if (distSq <= HighDistanceSq) return 3;   // High
@@ -573,6 +579,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             if (distSq <= LowDistanceSq) return 1;     // Low
             return 0;                                   // VeryLow
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CalculateIntervalFromDistanceSq(float distanceSq, out byte offsetByte, out int actualInterval)
         {
             int rawInterval = (int)(BSRSMillisecondDefaultInterval * (BSRBaseMultiplier + (distanceSq * BSRSIncreaseRate)));
