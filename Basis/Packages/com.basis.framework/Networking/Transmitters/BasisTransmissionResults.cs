@@ -20,9 +20,11 @@ public partial class BasisTransmissionResults
     // Jobs
     public BasisDistanceJobParallel distanceJob;
     public BasisDistanceReduceJob reduceJob;
+    public BasisAvatarCapJob avatarCapJob;
 
     public JobHandle distanceJobHandle;
     public JobHandle reduceJobHandle;
+    public JobHandle avatarCapJobHandle;
 
     // Timing / interval control
     public float intervalSeconds = 0.05f;
@@ -171,14 +173,29 @@ public partial class BasisTransmissionResults
         // Schedule distance job (parallel)
         distanceJobHandle = distanceJob.Schedule(receiverCount, 64);
 
-        // Reduce depends on distance job
+        // Reduce depends on distance job (reads PerIndexMinD2/PerIndexMask)
         reduceJobHandle = reduceJob.Schedule(distanceJobHandle);
+
+        // Avatar cap job depends on distance job (reads AvatarRange/DistanceSq).
+        // Runs in parallel with reduce — they touch disjoint arrays.
+        int maxVisible = SMModuleDistanceBasedReductions.MaxVisibleAvatars;
+        if (maxVisible > 0)
+        {
+            avatarCapJob.MaxVisible = maxVisible;
+            avatarCapJob.ReceiverCount = receiverCount;
+            avatarCapJobHandle = avatarCapJob.Schedule(distanceJobHandle);
+        }
+        else
+        {
+            avatarCapJobHandle = distanceJobHandle;
+        }
 
         // Do work that doesn't depend on distance results
         BasisNetworkAvatarCompressor.Compress(BasisNetworkTransmitter, avatar.Animator);
 
-        // Finish before consuming results
+        // Finish before consuming results (both reduce and cap must complete)
         reduceJobHandle.Complete();
+        avatarCapJobHandle.Complete();
 
         int mask = changeMask[0];
         AnyMicrophoneRangeChanged = (mask & 1) != 0;
@@ -191,11 +208,6 @@ public partial class BasisTransmissionResults
         {
             SquaredSmallestDistance = 0f;
         }
-
-        // Enforce max-visible-avatars cap before checking for changes.
-        // This may flip some AvatarRange[i] from true to false, which
-        // the change detection below will pick up naturally.
-        EnforceMaxVisibleAvatars(receiverCount);
 
         bool microphoneChange = IndexChanged || AnyMicrophoneRangeChanged;
         bool hearingChange = IndexChanged || AnyHearingRangeChanged;
@@ -317,6 +329,7 @@ public partial class BasisTransmissionResults
 
         distanceJob.AvatarRange = AvatarRange;
         distanceJob.PrevInAvatarRange = PrevInAvatarRange;
+        avatarCapJob.AvatarRange = AvatarRange;
 
         distanceJob.MeshLodLevel = MeshLodLevel;
         distanceJob.PrevMeshLodLevel = prevMeshLodLevel;
@@ -358,64 +371,6 @@ public partial class BasisTransmissionResults
             DeliveryMethod.ReliableOrdered);
 
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, VRMWriter.Length);
-    }
-
-    /// <summary>
-    /// After the distance job has determined who is in avatar range, this method
-    /// enforces the MaxVisibleAvatars cap. If more players are in range than the cap
-    /// allows, only the closest N keep AvatarRange[i]=true; the rest are set to false
-    /// so they fall back to the default avatar.
-    ///
-    /// Uses a NativeArray with Burst-optimized introsort for 1000+ player scalability.
-    /// Stickiness flags are pre-computed into hasRealAvatarLoaded during the positions
-    /// loop so this method never touches managed objects during the sort.
-    /// </summary>
-    private void EnforceMaxVisibleAvatars(int receiverCount)
-    {
-        int maxVisible = SMModuleDistanceBasedReductions.MaxVisibleAvatars;
-        if (maxVisible <= 0)
-        {
-            return;
-        }
-
-        // Build the candidate list into the pre-allocated NativeArray.
-        // Apply stickiness: players with their real avatar loaded get a 25% distance
-        // bonus (d² * 0.75 for ranking only), so a newcomer must be meaningfully
-        // closer to displace a currently-visible avatar — prevents pulsing.
-        const float StickinessBonus = 0.75f;
-        int candidateCount = 0;
-
-        for (int i = 0; i < receiverCount; i++)
-        {
-            if (!AvatarRange[i])
-            {
-                continue;
-            }
-
-            float d2 = distanceSq[i];
-            float effective = hasRealAvatarLoaded[i] ? d2 * StickinessBonus : d2;
-
-            avatarCapEntries[candidateCount] = new AvatarCapEntry
-            {
-                Index = i,
-                EffectiveDistSq = effective,
-            };
-            candidateCount++;
-        }
-
-        if (candidateCount <= maxVisible)
-        {
-            return;
-        }
-
-        // Burst-optimized introsort on the filled sub-array (no GC, cache-friendly).
-        avatarCapEntries.GetSubArray(0, candidateCount).Sort();
-
-        // Everyone past the cap gets forced out of avatar range
-        for (int i = maxVisible; i < candidateCount; i++)
-        {
-            AvatarRange[avatarCapEntries[i].Index] = false;
-        }
     }
 
     private void UpdateSendInterval(float smallestD2)
@@ -494,6 +449,12 @@ public partial class BasisTransmissionResults
         reduceJob.SmallestD2 = smallestD2;
         reduceJob.ChangeMask = changeMask;
 
+        avatarCapJob.DistanceSq = distanceSq;
+        avatarCapJob.HasRealAvatarLoaded = hasRealAvatarLoaded;
+        avatarCapJob.AvatarRange = AvatarRange;
+        avatarCapJob.Entries = avatarCapEntries;
+        avatarCapJob.StickinessBonus = 0.75f;
+
         LengthOfArrays = -1; // will be set on next Simulate call
     }
 
@@ -541,9 +502,10 @@ public partial class BasisTransmissionResults
     /// </summary>
     public void ReleaseResults()
     {
-        // Wait for in-flight jobs (both handles)
+        // Wait for in-flight jobs
         if (!distanceJobHandle.IsCompleted) distanceJobHandle.Complete();
         if (!reduceJobHandle.IsCompleted) reduceJobHandle.Complete();
+        if (!avatarCapJobHandle.IsCompleted) avatarCapJobHandle.Complete();
 
         if (targetPositions.IsCreated) targetPositions.Dispose();
         if (distanceSq.IsCreated) distanceSq.Dispose();
@@ -636,20 +598,5 @@ public partial class BasisTransmissionResults
                 module.DirectionalDampeningMultiplier = Mathf.Lerp(1f, minVolume, t);
             }
         }
-    }
-}
-
-/// <summary>
-/// Sortable entry for the avatar visibility cap. Sorted by effective squared
-/// distance (with stickiness bonus baked in) via NativeArray.Sort().
-/// </summary>
-public struct AvatarCapEntry : System.IComparable<AvatarCapEntry>
-{
-    public int Index;
-    public float EffectiveDistSq;
-
-    public int CompareTo(AvatarCapEntry other)
-    {
-        return EffectiveDistSq.CompareTo(other.EffectiveDistSq);
     }
 }
