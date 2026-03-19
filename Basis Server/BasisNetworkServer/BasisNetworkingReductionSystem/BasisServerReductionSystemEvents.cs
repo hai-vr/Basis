@@ -21,7 +21,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
     /// <summary>
     /// Combined per-peer tracking data. Two longs in one struct = one cache line fetch
-    /// instead of two parallel array accesses in the O(N²) send loop.
+    /// instead of two parallel array accesses in the O(NÂ²) send loop.
     /// </summary>
     public struct PeerTrackingData
     {
@@ -58,7 +58,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public LocalAvatarSyncMessage AvatarLow;
         public LocalAvatarSyncMessage AvatarVeryLow;
 
-        // Inbound sequence tracking for unreliable client→server packets
+        // Inbound sequence tracking for unreliable clientâ†’server packets
         public byte LastInboundSequence;
         public bool HasReceivedFirst;
 
@@ -107,7 +107,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static readonly ConcurrentQueue<int> playersToRemove = new();
 
-        // Reusable snapshot list for draining currentMessages each tick — avoids allocation per tick.
+        // Reusable snapshot list for draining currentMessages each tick  avoids allocation per tick.
         private static readonly List<QueuedMessage> _messagesSnapshot = new(1024);
 
         // Distance -> Quality thresholds (squared meters)
@@ -115,20 +115,21 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         public static float MediumDistanceSq = 100f;    // 10m
         public static float LowDistanceSq = 400f;       // 20m
 
-        // Tick slicing: only process a subset of receivers each tick to spread the O(N²) work.
+        public static long intervalMs = 4;
+        // Tick slicing: only process a subset of receivers each tick to spread the O(NÂ²) work.
         // Adaptive: increases when ticks take too long, decreases when under budget.
         private static int _sliceCount = 1;
         private static int _sliceIndex = 0;
 
-        // Thread-local NetDataWriter for serialization — eliminates shared pool contention.
+        // Thread-local NetDataWriter for serialization  eliminates shared pool contention.
         [ThreadStatic]
         private static NetDataWriter t_serializeWriter;
 
         // Cached muscle+tail byte counts for the position-only fast path (skip repack).
         private static readonly int HighMuscleAndTailBytes = MuscleBytes(BitQuality.High) + TailBytes;
 
-        // Generation snapshot: populated once per tick before the O(N²) send loop.
-        // Eliminates Interlocked.Read per pair (N² memory fences → N).
+        // Generation snapshot: populated once per tick before the O(NÂ²) send loop.
+        // Eliminates Interlocked.Read per pair (NÂ² memory fences â†’ N).
         private static long[] _generationSnapshot = Array.Empty<long>();
 
         // Position snapshots: contiguous arrays for cache-friendly reads in the inner loop.
@@ -192,17 +193,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         private static async Task StartBackgroundProcessingAsync()
         {
-            long intervalMs = 4;
-
             while (!cts.Token.IsCancellationRequested)
             {
                 long startTick = Stopwatch.GetTimestamp();
                 bool profiling = BSRProfiler.Enabled;
                 long phaseTick = profiling ? Stopwatch.GetTimestamp() : 0;
 
-                // ── Phase 1: Drain ──
+                // Phase 1: Drain
                 // Atomically swap in a fresh dictionary so inbound threads write to the new one.
-                // ConcurrentDictionary's enumerator is NOT a point-in-time snapshot — items added
+                // ConcurrentDictionary's enumerator is NOT a point-in-time snapshot  items added
                 // during iteration can be seen, causing duplicate messages for the same peer to be
                 // drained and then processed in parallel, racing on the shared PlayerState.
                 var batch = Interlocked.Exchange(ref currentMessages, new ConcurrentDictionary<int, QueuedMessage>());
@@ -213,7 +212,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 }
                 if (profiling) { BSRProfiler.drainTicks += Stopwatch.GetTimestamp() - phaseTick; phaseTick = Stopwatch.GetTimestamp(); }
 
-                // ── Phase 2: Process messages ──
+                // Phase 2: Process messages
                 Parallel.ForEach(_messagesSnapshot, parallelOptions, msg =>
                 {
                     try
@@ -229,12 +228,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                 ProcessPendingRemovals();
 
-                // ── Phase 3: Send loop ──
+                //Phase 3: Send loop
                 long now = Stopwatch.GetTimestamp();
                 UpdateCommunicationAndDistances(now);
                 if (profiling) { BSRProfiler.updateTicks += Stopwatch.GetTimestamp() - phaseTick; phaseTick = Stopwatch.GetTimestamp(); }
 
-                // ── Phase 4: Network I/O ──
+                //Phase 4: Network I/O
                 BasisNetworkPIPCamera.UpdatePIPPositions(now);
                 if (NetworkServer.Server != null && NetworkServer.Server.manager != null)
                 {
@@ -247,7 +246,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     BSRProfiler.messagesProcessed += _messagesSnapshot.Count;
                 }
 
-                // ── Tick bookkeeping ──
+                //Tick bookkeeping
                 long elapsedTicks = Stopwatch.GetTimestamp() - startTick;
                 double elapsedMs = elapsedTicks / MsToTick;
                 long remainingMs = intervalMs - (long)elapsedMs;
@@ -256,9 +255,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                 // Adaptive slice count: if tick took > 3ms, increase slicing; if < 1ms, decrease.
                 if (elapsedMs > 3.0 && _sliceCount < 32)
+                {
                     _sliceCount++;
+                }
                 else if (elapsedMs < 1.0 && _sliceCount > 1)
+                {
                     _sliceCount--;
+                }
 
                 if (remainingMs > 0)
                 {
@@ -332,9 +335,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             var activeCopy = _activePlayersSnapshot;
 
             int playerCount = activeCopy.Length;
-            if (playerCount == 0) return;
+            if (playerCount == 0)
+            {
+                return;
+            }
 
-            // Snapshot all hot data into contiguous arrays (N reads instead of N² pointer chases).
+            // Snapshot all hot data into contiguous arrays (N reads instead of NÂ² pointer chases).
             int maxId = 0;
             for (int i = 0; i < playerCount; i++)
             {
@@ -358,7 +364,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 _posZSnapshot[id] = state.Position.z;
             }
 
-            // Pre-compute minimum interval in ticks — cheapest early-exit threshold.
+            // Pre-compute minimum interval in ticks cheapest early-exit threshold.
             long minIntervalTicks = (long)(BSRSMillisecondDefaultInterval * BSRBaseMultiplier * MsToTick);
 
             // Tick slicing: only process a slice of receivers per tick
@@ -367,29 +373,43 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int end = Math.Min(start + sliceSize, playerCount);
             _sliceIndex = (_sliceIndex + 1) % _sliceCount;
 
-            if (start >= playerCount) return;
+            if (start >= playerCount)
+            {
+                return;
+            }
 
             Parallel.For(start, end, parallelOptions, i =>
             {
-                var playerI = activeCopy[i];
-                var stateI = playerI.state;
+                var (id, state) = activeCopy[i];
+                var stateI = state;
                 var peer = stateI.Peer;
 
-                // RTT-based congestion detection — single field read, no method call overhead
+                // RTT-based congestion detection single field read, no method call overhead
                 int rtt = peer.RoundTripTime;
                 float baseline = stateI.BaselineRtt;
                 if (baseline < 1f)
+                {
                     baseline = rtt;
+                }
                 else
+                {
                     baseline += (rtt - baseline) * 0.05f;
+                }
+
                 stateI.BaselineRtt = baseline;
 
                 // excess: how far above the smoothed baseline (clamped non-negative)
                 float excess = rtt - baseline;
-                if (excess < 0f) excess = 0f;
+                if (excess < 0f)
+                {
+                    excess = 0f;
+                }
 
-                // Severe congestion — skip this peer entirely
-                if (rtt > 400 || excess > 150f) return;
+                // Severe congestion  skip this peer entirely
+                if (rtt > 400 || excess > 150f)
+                {
+                    return;
+                }
 
                 // Graduated quality cap: absolute RTT floor + relative spike detection
                 int maxQi;
@@ -416,23 +436,28 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 }
 
                 var tracking = stateI.PeerTracking;
-                if (tracking == null) return;
+                if (tracking == null)
+                {
+                    return;
+                }
 
                 // Cache receiver position from snapshot for distance calc
-                float iX = _posXSnapshot[playerI.id];
-                float iY = _posYSnapshot[playerI.id];
-                float iZ = _posZSnapshot[playerI.id];
+                float iX = _posXSnapshot[id];
+                float iY = _posYSnapshot[id];
+                float iZ = _posZSnapshot[id];
 
-                // Thread-local send counter — no Interlocked in the hot loop
+                // Thread-local send counter no Interlocked in the hot loop
                 long localSends = 0;
 
                 for (int index = 0; index < playerCount; index++)
                 {
                     int jId = activeCopy[index].id;
-                    if (playerI.id == jId)
+                    if (id == jId)
+                    {
                         continue;
+                    }
 
-                    // Bounds check — grow array if needed (rare, only when IDs exceed capacity)
+                    // Bounds check grow array if needed (rare, only when IDs exceed capacity)
                     if (jId >= tracking.Length)
                     {
                         lock (stateI)
@@ -446,17 +471,21 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         }
                     }
 
-                    // ── Reordered checks: cheapest first, skip distance calc when possible ──
+                    // Reordered checks: cheapest first, skip distance calc when possible
 
-                    // 1. New data check — plain array read, no pointer chase
+                    // 1. New data check plain array read, no pointer chase
                     long senderGen = _generationSnapshot[jId];
                     if (senderGen <= tracking[jId].LastSeenGeneration)
+                    {
                         continue;
+                    }
 
-                    // 2. Minimum interval check — skip without distance calc
+                    // 2. Minimum interval check skip without distance calc
                     long elapsed = nowTicks - tracking[jId].LastSentTime;
                     if (elapsed < minIntervalTicks)
+                    {
                         continue;
+                    }
 
                     // 3. Distance from contiguous snapshot arrays (cache-friendly)
                     float dx = iX - _posXSnapshot[jId];
@@ -469,12 +498,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     long required = (long)((actualInterval * intervalMultiplier) * MsToTick);
 
                     if (elapsed < required)
+                    {
                         continue;
+                    }
 
                     // 5. Quality + send
                     int qi = Math.Min(GetQualityIndex(distSq), maxQi);
 
-                    var stateJ = activeCopy[index].state;
+                    PlayerState stateJ = activeCopy[index].state;
 
                     // Lazy pre-serialization: skip if not serialized, mark needed for next tick
                     if (stateJ.SerializedKeyframeLength[qi] == 0)
@@ -484,9 +515,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     }
 
                     byte avatarChannel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, stateJ.HasAdditionalData);
-                    SendPreSerialized(peer, qi, startAtZeroInterval,
-                        avatarChannel,
-                        stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
+                    SendPreSerialized(peer, qi, startAtZeroInterval, avatarChannel,stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
 
                     MarkQualityUsed(ref stateJ.UsedQualities, qi);
 
@@ -496,15 +525,17 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     localSends++;
                 }
 
-                // One Interlocked.Add per receiver (not per send) — ~25 atomics/tick instead of ~32K
+                // One Interlocked.Add per receiver (not per send) ~25 atomics/tick instead of ~32K
                 if (localSends > 0 && BSRProfiler.Enabled)
+                {
                     Interlocked.Add(ref BSRProfiler.SendCount, localSends);
+                }
             });
         }
 
         /// <summary>
         /// Atomically sets a quality bit in the UsedQualities bitmask.
-        /// Called from parallel send loop threads — lock-free via CAS.
+        /// Called from parallel send loop threads lock-free via CAS.
         /// </summary>
         private static void MarkQualityUsed(ref int usedQualities, int qi)
         {
@@ -512,10 +543,18 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int cur = Volatile.Read(ref usedQualities);
             while (true)
             {
-                if ((cur & bit) != 0) return; // already set
+                if ((cur & bit) != 0)
+                {
+                    return; // already set
+                }
+
                 int updated = cur | bit;
                 int was = Interlocked.CompareExchange(ref usedQualities, updated, cur);
-                if (was == cur) return;
+                if (was == cur)
+                {
+                    return;
+                }
+
                 cur = was;
             }
         }
@@ -529,7 +568,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int len = lengthArray[qi];
             byte[] src = serializedArray[qi];
             if (src == null || len == 0)
+            {
                 return;
+            }
 
             NetDataWriter writer = GetThreadWriter();
             writer.Put(src, 0, len);
@@ -593,7 +634,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Propagates AdditionalAvatarData from the high quality message to lower quality variants.
         /// BuildAllLowerFromHighInto only handles the muscle/position/rotation payload;
         /// additional data (blendshapes, custom avatar behaviours) must be propagated separately.
-        /// VeryLow quality strips additional data entirely — face/detail data is invisible at 20m+.
+        /// VeryLow quality strips additional data entirely  face/detail data is invisible at 20m+.
         /// </summary>
         private static void PropagateAdditionalData(
             in LocalAvatarSyncMessage high,
@@ -718,7 +759,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     byte delta = unchecked((byte)(inboundSeq - state.LastInboundSequence));
                     if (delta == 0 || delta >= 128)
                     {
-                        // Duplicate or stale — discard
+                        // Duplicate or stale  discard
                         QueuedMessagePool.Return(message);
                         return;
                     }
@@ -765,11 +806,19 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     else
                     {
                         if (state.AvatarMedium.array != null)
+                        {
                             Buffer.BlockCopy(high.array, 0, state.AvatarMedium.array, 0, WritePosition);
+                        }
+
                         if (state.AvatarLow.array != null)
+                        {
                             Buffer.BlockCopy(high.array, 0, state.AvatarLow.array, 0, WritePosition);
+                        }
+
                         if (state.AvatarVeryLow.array != null)
+                        {
                             Buffer.BlockCopy(high.array, 0, state.AvatarVeryLow.array, 0, WritePosition);
+                        }
                     }
                 }
                 else
@@ -801,7 +850,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// <summary>
         /// Pre-serializes keyframe messages only for quality levels that have receivers.
         /// UsedQualities bits accumulate from the send loop (never reset) so that tick slicing
-        /// doesn't cause quality oscillation � each slice contributes its needed bits and they
+        /// doesn't cause quality oscillation — each slice contributes its needed bits and they
         /// persist across ticks. Converges to the correct set within a few ticks.
         /// Quality levels with no receivers get SerializedKeyframeLength set to 0 so the send loop
         /// skips them and marks them as needed for next tick (one-tick catch-up delay, ~4ms).
@@ -811,7 +860,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         {
             ushort playerId = state.SyncMessage.playerIdMessage.playerID;
 
-            // Read accumulated quality bits. Bits are sticky � set by MarkQualityUsed in the
+            // Read accumulated quality bits. Bits are sticky — set by MarkQualityUsed in the
             // send loop and never reset. With tick slicing (32 slices), each slice's receivers
             // contribute their needed quality bits over successive ticks. NOT resetting prevents
             // oscillation where each tick only has bits from 1/32 of receivers.
@@ -835,7 +884,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 }
                 else
                 {
-                    // Mark as not available — send loop will skip and request it for next tick.
+                    // Mark as not available  send loop will skip and request it for next tick.
                     state.SerializedKeyframeLength[qi] = 0;
                     BSRProfiler.IncrementPreSerializationsSkipped();
                 }
