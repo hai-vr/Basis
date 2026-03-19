@@ -43,7 +43,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         };
         [SerializeField]
         public HumanPoseHandler PoseHandler;
-        public BasisPlayer Player;
+        public BasisPlayer Player {get; set; }
         public bool hasID = false;
         public bool HasReasonToSendAudio
         {
@@ -500,6 +500,21 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 if (Player != null)
                 {
                     return Player.DisplayName;
+                }
+                else
+                {
+                    return string.Empty;
+                }
+            }
+        }
+        
+        public string SafeDisplayName
+        {
+            get
+            {
+                if (Player != null)
+                {
+                    return Player.SafeDisplayName;
                 }
                 else
                 {

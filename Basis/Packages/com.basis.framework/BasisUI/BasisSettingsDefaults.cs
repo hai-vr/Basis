@@ -37,6 +37,14 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<float> AvatarRange => new("avatarrange", new BasisPlatformDefault<float>(25));
 
+        /// <summary>
+        /// Maximum number of remote players allowed to show their real avatar at once.
+        /// 0 = unlimited (all in-range players show real avatars).
+        /// Players beyond this limit fall back to the default avatar.
+        /// Closest players get priority; currently-visible avatars are sticky to prevent pulsing.
+        /// </summary>
+        public static BasisSettingsBinding<float> MaxVisibleAvatars => new("maxvisibleavatars", new BasisPlatformDefault<float>(0));
+
         public static BasisSettingsBinding<float> SnapTurnAngle => new("snapturnangle", new BasisPlatformDefault<float>(25f));
 
         public static BasisSettingsBinding<float> mousesensitivty => new("mousesensitivty", new BasisPlatformDefault<float>(1));
@@ -550,6 +558,7 @@ namespace Basis.BasisUI
             realworldeyeheight.LoadBindingValue();
             CustomScale.LoadBindingValue();
             AvatarRange.LoadBindingValue();
+            MaxVisibleAvatars.LoadBindingValue();
             SelectedBone.LoadBindingValue();
             IKMode.LoadBindingValue();
             IKLockMode.LoadBindingValue();

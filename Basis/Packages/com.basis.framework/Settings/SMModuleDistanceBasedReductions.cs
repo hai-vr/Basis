@@ -8,15 +8,18 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     private static float _hearingRange = 25f;
     private static float _avatarRange = 25f;
     private static float _meshLod = 25f;
+    private static int _maxVisibleAvatars = 0;
     private static string K_MIC_RANGE => BasisSettingsDefaults.MicrophoneRange.BindingKey;   // "microphonerange"
     private static string K_HEARING_RANGE => BasisSettingsDefaults.HearingRange.BindingKey;     // "hearingrange"
     private static string K_AVATAR_RANGE => BasisSettingsDefaults.AvatarRange.BindingKey;      // "avatarrange"
     private static string K_AVATAR_MESH_LOD => BasisSettingsDefaults.AvatarMeshLOD.BindingKey;    // "avatarmeshlod"
     private static string K_GLOBAL_MESH_LOD => BasisSettingsDefaults.GlobalMeshLOD.BindingKey;    // "global meshlod" (note space!)
+    private static string K_MAX_VISIBLE_AVATARS => BasisSettingsDefaults.MaxVisibleAvatars.BindingKey; // "maxvisibleavatars"
     public static event Action<float> OnMicrophoneRangeChanged;
     public static event Action<float> OnHearingRangeChanged;
     public static event Action<float> OnAvatarRangeChanged;
     public static event Action<float> OnMeshLodChanged;
+    public static event Action<int> OnMaxVisibleAvatarsChanged;
     public static float MicrophoneRange
     {
         get => _microphoneRange;
@@ -36,6 +39,22 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     {
         get => _meshLod;
         private set => SetAndNotify(ref _meshLod, value, OnMeshLodChanged);
+    }
+    /// <summary>
+    /// Maximum number of remote avatars allowed to show their real model.
+    /// 0 = unlimited. Players beyond this cap use the fallback avatar.
+    /// </summary>
+    public static int MaxVisibleAvatars
+    {
+        get => _maxVisibleAvatars;
+        private set
+        {
+            if (_maxVisibleAvatars != value)
+            {
+                _maxVisibleAvatars = value;
+                OnMaxVisibleAvatarsChanged?.Invoke(value);
+            }
+        }
     }
     private static void SetAndNotify(ref float field, float value, Action<float> changedEvent)
     {
@@ -78,6 +97,14 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 {
                     QualitySettings.meshLodThreshold = globalLod;
                     LogDistanceSetting("Global Mesh LOD", globalLod);
+                }
+                break;
+
+            case var s when s == K_MAX_VISIBLE_AVATARS:
+                if (TryReadSlider(optionValue, out var maxAv))
+                {
+                    MaxVisibleAvatars = (int)maxAv;
+                    LogDistanceSetting("MaxVisibleAvatars", maxAv);
                 }
                 break;
         }
