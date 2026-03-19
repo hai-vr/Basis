@@ -163,6 +163,12 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Distance("Avatar Visibility Range", 100),
                 BasisSettingsDefaults.AvatarRange);
 
+            PanelSlider sliderMaxVisibleAvatars = PanelSlider.CreateEntryAndBind(
+                rangeGroup,
+                PanelSlider.SliderSettings.Advanced("Max Visible Avatars", 0, 100, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MaxVisibleAvatars);
+            sliderMaxVisibleAvatars.Descriptor.SetDescription("Limit how many real avatars are shown at once. 0 = unlimited. Others use the default avatar.");
+
             PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
                 rangeGroup,
                 PanelSlider.SliderSettings.Distance("Hearing Range", 25),
@@ -253,6 +259,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.SnapTurnAngle.ResetToDefault();
 
             BasisSettingsDefaults.AvatarRange.ResetToDefault();
+            BasisSettingsDefaults.MaxVisibleAvatars.ResetToDefault();
             BasisSettingsDefaults.HearingRange.ResetToDefault();
 #if !BASIS_DISABLE_MICROPHONE
             BasisSettingsDefaults.MicrophoneRange.ResetToDefault();

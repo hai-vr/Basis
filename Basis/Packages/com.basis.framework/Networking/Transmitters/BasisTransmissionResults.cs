@@ -48,6 +48,19 @@ public partial class BasisTransmissionResults
     public int LengthOfArrays = -1;
     private int capacity = 0;
 
+    /// <summary>
+    /// Pre-computed per-index flag: true when the remote player currently has their
+    /// real avatar loaded (InAvatarRange and not fallback). Filled in the positions
+    /// loop so managed objects are never touched during sorting.
+    /// </summary>
+    private NativeArray<bool> hasRealAvatarLoaded;
+
+    /// <summary>
+    /// Scratch buffer for avatar-cap sorting. Sized to capacity, reused each tick.
+    /// Sorted via NativeArray.Sort() which uses Burst-optimized introsort.
+    /// </summary>
+    private NativeArray<AvatarCapEntry> avatarCapEntries;
+
     // State
     public bool IndexChanged;
 
@@ -114,7 +127,9 @@ public partial class BasisTransmissionResults
         EnsureCapacity(receiverCount);
         LengthOfArrays = receiverCount;
 
-        // Fill target positions aligned to snapshot order
+        // Fill target positions aligned to snapshot order.
+        // Also pre-compute stickiness flags for the avatar cap so the
+        // NativeArray sort never needs to touch managed objects.
         for (int Index = 0; Index < receiverCount; Index++)
         {
             BasisNetworkReceiver remote = snapshot[Index];
@@ -129,6 +144,8 @@ public partial class BasisTransmissionResults
                 targetPositions[Index] = BasisLocalCameraDriver.Position + new Vector3(900, 900, 900);//shove it way outside of our understanding.
             }
 
+            var remotePlayer = remote.RemotePlayer;
+            hasRealAvatarLoaded[Index] = remotePlayer.InAvatarRange && !remotePlayer.IsConsideredFallBackAvatar;
         }
         var CurrentHearingRange = SMModuleDistanceBasedReductions.HearingRange;
         if (LastHearingRange != CurrentHearingRange)
@@ -175,10 +192,29 @@ public partial class BasisTransmissionResults
             SquaredSmallestDistance = 0f;
         }
 
+        // Enforce max-visible-avatars cap before checking for changes.
+        // This may flip some AvatarRange[i] from true to false, which
+        // the change detection below will pick up naturally.
+        EnforceMaxVisibleAvatars(receiverCount);
+
         bool microphoneChange = IndexChanged || AnyMicrophoneRangeChanged;
         bool hearingChange = IndexChanged || AnyHearingRangeChanged;
-        bool avatarChange = IndexChanged || AnyAvatarRangeChanged;
         bool lodChange = IndexChanged || AnyLodRangeChanged;
+
+        // Re-check avatar changes: the cap enforcement may have changed
+        // AvatarRange entries beyond what the distance job flagged.
+        bool avatarChange = IndexChanged || AnyAvatarRangeChanged;
+        if (!avatarChange && SMModuleDistanceBasedReductions.MaxVisibleAvatars > 0)
+        {
+            for (int i = 0; i < receiverCount; i++)
+            {
+                if (AvatarRange[i] != snapshot[i].RemotePlayer.InAvatarRange)
+                {
+                    avatarChange = true;
+                    break;
+                }
+            }
+        }
 
         // Apply hearing toggles only when needed
         if (hearingChange)
@@ -324,6 +360,64 @@ public partial class BasisTransmissionResults
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, VRMWriter.Length);
     }
 
+    /// <summary>
+    /// After the distance job has determined who is in avatar range, this method
+    /// enforces the MaxVisibleAvatars cap. If more players are in range than the cap
+    /// allows, only the closest N keep AvatarRange[i]=true; the rest are set to false
+    /// so they fall back to the default avatar.
+    ///
+    /// Uses a NativeArray with Burst-optimized introsort for 1000+ player scalability.
+    /// Stickiness flags are pre-computed into hasRealAvatarLoaded during the positions
+    /// loop so this method never touches managed objects during the sort.
+    /// </summary>
+    private void EnforceMaxVisibleAvatars(int receiverCount)
+    {
+        int maxVisible = SMModuleDistanceBasedReductions.MaxVisibleAvatars;
+        if (maxVisible <= 0)
+        {
+            return;
+        }
+
+        // Build the candidate list into the pre-allocated NativeArray.
+        // Apply stickiness: players with their real avatar loaded get a 25% distance
+        // bonus (d² * 0.75 for ranking only), so a newcomer must be meaningfully
+        // closer to displace a currently-visible avatar — prevents pulsing.
+        const float StickinessBonus = 0.75f;
+        int candidateCount = 0;
+
+        for (int i = 0; i < receiverCount; i++)
+        {
+            if (!AvatarRange[i])
+            {
+                continue;
+            }
+
+            float d2 = distanceSq[i];
+            float effective = hasRealAvatarLoaded[i] ? d2 * StickinessBonus : d2;
+
+            avatarCapEntries[candidateCount] = new AvatarCapEntry
+            {
+                Index = i,
+                EffectiveDistSq = effective,
+            };
+            candidateCount++;
+        }
+
+        if (candidateCount <= maxVisible)
+        {
+            return;
+        }
+
+        // Burst-optimized introsort on the filled sub-array (no GC, cache-friendly).
+        avatarCapEntries.GetSubArray(0, candidateCount).Sort();
+
+        // Everyone past the cap gets forced out of avatar range
+        for (int i = maxVisible; i < candidateCount; i++)
+        {
+            AvatarRange[avatarCapEntries[i].Index] = false;
+        }
+    }
+
     private void UpdateSendInterval(float smallestD2)
     {
         ServerMetaDataMessage meta = BasisNetworkManagement.ServerMetaDataMessage;
@@ -369,6 +463,9 @@ public partial class BasisTransmissionResults
 
         perIndexMinD2 = new NativeArray<float>(newCap, Allocator.Persistent);
         perIndexMask = new NativeArray<int>(newCap, Allocator.Persistent);
+
+        hasRealAvatarLoaded = new NativeArray<bool>(newCap, Allocator.Persistent);
+        avatarCapEntries = new NativeArray<AvatarCapEntry>(newCap, Allocator.Persistent);
 
         if (!smallestD2.IsCreated) smallestD2 = new NativeArray<float>(1, Allocator.Persistent);
         if (!changeMask.IsCreated) changeMask = new NativeArray<int>(1, Allocator.Persistent);
@@ -466,6 +563,9 @@ public partial class BasisTransmissionResults
         if (perIndexMinD2.IsCreated) perIndexMinD2.Dispose();
         if (perIndexMask.IsCreated) perIndexMask.Dispose();
 
+        if (hasRealAvatarLoaded.IsCreated) hasRealAvatarLoaded.Dispose();
+        if (avatarCapEntries.IsCreated) avatarCapEntries.Dispose();
+
         // Note: smallestD2/changeMask are 1-length arrays kept across reallocs; disposed in DeInitalize.
         capacity = 0;
         LengthOfArrays = -1;
@@ -536,5 +636,20 @@ public partial class BasisTransmissionResults
                 module.DirectionalDampeningMultiplier = Mathf.Lerp(1f, minVolume, t);
             }
         }
+    }
+}
+
+/// <summary>
+/// Sortable entry for the avatar visibility cap. Sorted by effective squared
+/// distance (with stickiness bonus baked in) via NativeArray.Sort().
+/// </summary>
+public struct AvatarCapEntry : System.IComparable<AvatarCapEntry>
+{
+    public int Index;
+    public float EffectiveDistSq;
+
+    public int CompareTo(AvatarCapEntry other)
+    {
+        return EffectiveDistSq.CompareTo(other.EffectiveDistSq);
     }
 }
