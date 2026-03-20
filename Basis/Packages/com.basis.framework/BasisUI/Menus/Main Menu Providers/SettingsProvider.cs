@@ -9,6 +9,8 @@ namespace Basis.BasisUI
 {
     public partial class SettingsProvider : BasisMenuActionProvider<BasisMainMenu>
     {
+        private static string _pendingTabName;
+
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
         {
@@ -23,6 +25,38 @@ namespace Basis.BasisUI
         public override string IconAddress => AddressableAssets.Sprites.Settings;
         public override int Order => 0;
         public override bool Hidden => false;
+
+        /// <summary>
+        /// Opens the Settings menu and navigates directly to the specified tab by name.
+        /// </summary>
+        public static void OpenToTab(string tabName)
+        {
+            _pendingTabName = tabName;
+            BasisMainMenu.OpenWithProvider(StaticTitle);
+        }
+
+        /// <summary>
+        /// Opens the Settings menu and navigates directly to the Body Tracking tab.
+        /// </summary>
+        public static void OpenBodyTrackingTab()
+        {
+            OpenToTab("Body Tracking");
+        }
+
+        private static void NavigateToTab(PanelTabGroup tabGroup, string tabName)
+        {
+            for (int i = 0; i < tabGroup.SelectionButtons.Count; i++)
+            {
+                PanelButton button = tabGroup.SelectionButtons[i];
+                if (button != null && button.Descriptor != null &&
+                    button.Descriptor.TitleLabel != null &&
+                    button.Descriptor.TitleLabel.text == tabName)
+                {
+                    button.OnClicked?.Invoke();
+                    return;
+                }
+            }
+        }
 
         public override void RunAction()
         {
@@ -55,6 +89,13 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "Downloads & Cache", () => SettingsProviderStorage.StorageTab(tabGroup));
             AddLazyTab(tabGroup, "Developer", () => DeveloperTab(tabGroup));
             AddLazyTab(tabGroup, "Admin", () => SettingsProviderAdminTab.AdminTab(tabGroup));
+
+            // Navigate to a specific tab if requested via OpenToTab
+            if (!string.IsNullOrEmpty(_pendingTabName))
+            {
+                NavigateToTab(tabGroup, _pendingTabName);
+                _pendingTabName = null;
+            }
 
             panel.Descriptor.ForceRebuild();
         }

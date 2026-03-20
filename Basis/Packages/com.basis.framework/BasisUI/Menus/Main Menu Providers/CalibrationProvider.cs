@@ -61,8 +61,8 @@ namespace Basis.BasisUI
                 new BasisMenuPanel.PanelData
                 {
                     Title = this.Title,
-                    PanelSize = new Vector2(440, 680),
-                    PanelPosition = new Vector3(530, -170, 0),
+                    PanelSize = new Vector2(440, 720),
+                    PanelPosition = new Vector3(530, -150, 0),
                 },
                 BasisMenuPanel.PanelStyles.Page);
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
@@ -95,6 +95,11 @@ namespace Basis.BasisUI
             _pitchToggleButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             _pitchToggleButton.OnClicked += TogglePitchCalibration;
             UpdatePitchToggleLabel();
+
+            // Navigate to Body Tracking settings
+            var bodyTrackingSettingsButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
+            bodyTrackingSettingsButton.Descriptor.SetTitle("Body Tracking Settings");
+            bodyTrackingSettingsButton.OnClicked += () => SettingsProvider.OpenBodyTrackingTab();
         }
         /// <summary>
         /// tracker balls

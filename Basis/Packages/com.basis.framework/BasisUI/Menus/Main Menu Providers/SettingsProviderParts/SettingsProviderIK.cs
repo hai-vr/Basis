@@ -335,8 +335,147 @@ public static class SettingsProviderIK
             colliderGroup.GetComponentInParent<PanelElementDescriptor>()?.ForceRebuild();
         };
 
+        // ------------------
+        // Debug Section
+        // ------------------
+        BuildDebugSection(tabDesc);
+
         tabDesc.ForceRebuild();
         return tabPage;
+    }
+
+    // ------------------
+    // Debug Info
+    // ------------------
+    private static readonly List<(string label, PanelElementDescriptor descriptor)> _debugEntries = new();
+
+    private static void BuildDebugSection(PanelElementDescriptor tabDesc)
+    {
+        var debugToggle = PanelToggle.CreateNewEntry(tabDesc.ContentParent);
+        debugToggle.Descriptor.SetTitle("Debug Info");
+        debugToggle.Descriptor.SetDescription("Show live height, scaling, and calibration data.");
+
+        var debugGroup = PanelElementDescriptor.CreateNew(
+            PanelElementDescriptor.ElementStyles.Group,
+            tabDesc.ContentParent);
+
+        debugGroup.SetTitle("Height & Calibration Debug");
+        debugGroup.SetDescription("Current values from the height driver and calibration system.");
+        debugGroup.SetIcon(AddressableAssets.Sprites.Settings);
+
+        var debugParent = debugGroup.ContentParent;
+
+        _debugEntries.Clear();
+
+        // Player Metrics
+        AddDebugHeader(debugParent, "Player Metrics");
+        AddDebugEntry(debugParent, "Player Eye Height");
+        AddDebugEntry(debugParent, "Player Arm Span");
+        AddDebugEntry(debugParent, "Additional Player Height");
+
+        // Avatar Metrics
+        AddDebugHeader(debugParent, "Avatar Metrics");
+        AddDebugEntry(debugParent, "Avatar Eye Height");
+        AddDebugEntry(debugParent, "Avatar Arm Span");
+
+        // Scaled Heights
+        AddDebugHeader(debugParent, "Scaled Heights");
+        AddDebugEntry(debugParent, "Scaled Player Height");
+        AddDebugEntry(debugParent, "Scaled Avatar Height");
+
+        // Unscaled Heights
+        AddDebugHeader(debugParent, "Unscaled Heights");
+        AddDebugEntry(debugParent, "Unscaled Player Height");
+        AddDebugEntry(debugParent, "Unscaled Avatar Height");
+
+        // Ratios & Scaling
+        AddDebugHeader(debugParent, "Ratios & Scaling");
+        AddDebugEntry(debugParent, "Player to Avatar Ratio");
+        AddDebugEntry(debugParent, "Avatar to Player Ratio");
+        AddDebugEntry(debugParent, "Device Scale");
+        AddDebugEntry(debugParent, "Applied Up Scale");
+        AddDebugEntry(debugParent, "Scaled to Match Value");
+
+        // Calibration State
+        AddDebugHeader(debugParent, "Calibration State");
+        AddDebugEntry(debugParent, "Height Mode");
+        AddDebugEntry(debugParent, "Seated Mode");
+        AddDebugEntry(debugParent, "Seated Height Delta");
+        AddDebugEntry(debugParent, "Pitch Calibration Enabled");
+        AddDebugEntry(debugParent, "Has Pitch Calibrated Height");
+        AddDebugEntry(debugParent, "Pitch Calibrated Eye Height");
+
+        // Refresh button
+        var refreshButton = PanelButton.CreateNew(debugParent);
+        refreshButton.Descriptor.SetTitle("Refresh Debug Data");
+        refreshButton.OnClicked += RefreshDebugData;
+
+        RefreshDebugData();
+
+        // Start hidden, toggle controls visibility
+        debugGroup.gameObject.SetActive(false);
+        debugToggle.SetValueWithoutNotify(false);
+        debugToggle.OnValueChanged += visible =>
+        {
+            debugGroup.gameObject.SetActive(visible);
+            if (visible)
+            {
+                RefreshDebugData();
+            }
+            tabDesc.ForceRebuild();
+        };
+    }
+
+    private static void AddDebugHeader(RectTransform parent, string title)
+    {
+        var header = PanelElementDescriptor.CreateNew(
+            PanelElementDescriptor.ElementStyles.Group,
+            parent);
+        header.SetTitle(title);
+        header.SetDescription("");
+    }
+
+    private static void AddDebugEntry(RectTransform parent, string label)
+    {
+        var entry = PanelElementDescriptor.CreateNew(
+            PanelElementDescriptor.ElementStyles.Group,
+            parent);
+        entry.SetTitle(label);
+        entry.SetDescription("--");
+        _debugEntries.Add((label, entry));
+    }
+
+    private static void RefreshDebugData()
+    {
+        foreach (var (label, descriptor) in _debugEntries)
+        {
+            string value = label switch
+            {
+                "Player Eye Height" => $"{BasisHeightDriver.PlayerEyeHeight:F4} m",
+                "Player Arm Span" => $"{BasisHeightDriver.PlayerArmSpan:F4} m",
+                "Additional Player Height" => $"{BasisHeightDriver.AdditionalPlayerHeight:F4} m",
+                "Avatar Eye Height" => $"{BasisHeightDriver.AvatarEyeHeight:F4} m",
+                "Avatar Arm Span" => $"{BasisHeightDriver.AvatarArmSpan:F4} m",
+                "Scaled Player Height" => $"{BasisHeightDriver.SelectedScaledPlayerHeight:F4} m",
+                "Scaled Avatar Height" => $"{BasisHeightDriver.SelectedScaledAvatarHeight:F4} m",
+                "Unscaled Player Height" => $"{BasisHeightDriver.SelectedUnScaledPlayerHeight:F4} m",
+                "Unscaled Avatar Height" => $"{BasisHeightDriver.SelectedUnScaledAvatarHeight:F4} m",
+                "Player to Avatar Ratio" => $"{BasisHeightDriver.PlayerToAvatarRatioScaled:F4}",
+                "Avatar to Player Ratio" => $"{BasisHeightDriver.AvatarToPlayerRatioScaled:F4}",
+                "Device Scale" => $"{BasisHeightDriver.DeviceScale:F4}",
+                "Applied Up Scale" => $"{BasisHeightDriver.AppliedUpScale:F4}",
+                "Scaled to Match Value" => $"{BasisHeightDriver.ScaledToMatchValue:F4}",
+                "Height Mode" => $"{SMModuleCalibration.HeightMode}",
+                "Seated Mode" => SMModuleSitStand.IsSteatedMode ? "Seated" : "Standing",
+                "Seated Height Delta" => $"{SMModuleSitStand.MissingHeightDelta:F4} m",
+                "Pitch Calibration Enabled" => SMModuleCalibration.PitchCalibrationEnabled ? "Yes" : "No",
+                "Has Pitch Calibrated Height" => BasisHeightDriver.HasPitchCalibratedHeight ? "Yes" : "No",
+                "Pitch Calibrated Eye Height" => $"{BasisHeightDriver.PitchCalibratedEyeHeight:F4} m",
+                _ => "--"
+            };
+
+            descriptor.SetDescription(value);
+        }
     }
 
     private static void ResetIkDefaults()
