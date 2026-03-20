@@ -156,10 +156,14 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.gameObject.SetActive(true);
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
 
-        // Share the shutter clip so remote shutter events can play it
+        // Share clips so remote events can reuse the same audio
         if (shutterSound != null)
         {
             BasisNetworkPIPCameraDriver.ShutterSoundClip = shutterSound;
+        }
+        if (countdownTickSound != null)
+        {
+            BasisNetworkPIPCameraDriver.CountdownTickClip = countdownTickSound;
         }
 
         // Notify network that PIP camera was created
@@ -425,6 +429,11 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Starts a 5-second countdown and triggers a capture at the end.</summary>
     public void Timer()
     {
+        // Notify remote clients so they replay the same tick/shutter timing
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            BasisNetworkPIPCameraDriver.SendCountdown(5);
+        }
         StartCoroutine(DelayedAction(5));
     }
 
@@ -460,16 +469,10 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             renderFormat = RenderTextureFormat.ARGB32;
         }
 
-        // Play shutter sound and send network event at the moment of capture
+        // Play shutter sound locally (network was already notified via SendCountdown)
         if (shutterSound != null && shutterAudioSource != null)
         {
             shutterAudioSource.PlayOneShot(shutterSound);
-        }
-
-        if (BasisNetworkConnection.LocalPlayerPeer != null)
-        {
-            Vector3 camPos = captureCamera.transform.position;
-            BasisNetworkPIPCameraDriver.SendShutterSound(camPos);
         }
 
         StartCoroutine(TakeScreenshot(format, renderFormat));
@@ -519,8 +522,7 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         // Send shutter sound event over the network
         if (BasisNetworkConnection.LocalPlayerPeer != null)
         {
-            Vector3 camPos = captureCamera.transform.position;
-            BasisNetworkPIPCameraDriver.SendShutterSound(camPos);
+            BasisNetworkPIPCameraDriver.SendShutterSound();
         }
 
         StartCoroutine(TakeScreenshot(format, renderFormat));

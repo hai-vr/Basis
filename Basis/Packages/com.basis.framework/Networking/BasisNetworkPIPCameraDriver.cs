@@ -3,6 +3,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Collections;
@@ -41,6 +42,12 @@ public static class BasisNetworkPIPCameraDriver
     /// Used to play the sound for remote shutter events.
     /// </summary>
     public static AudioClip ShutterSoundClip;
+
+    /// <summary>
+    /// Shared countdown tick AudioClip set by the local BasisHandHeldCamera.
+    /// Used to play each tick during remote countdown events.
+    /// </summary>
+    public static AudioClip CountdownTickClip;
 
     // Addressable path for the remote PIP prefab
     private const string RemotePIPPrefabPath = "Packages/com.basis.sdk/Prefabs/UI/Camera Prefab/BasisCameraRemotePip.prefab";
@@ -291,37 +298,87 @@ public static class BasisNetworkPIPCameraDriver
     }
 
     /// <summary>
+    /// Try to get the world position of a remote PIP camera by player ID.
+    /// </summary>
+    public static bool TryGetPIPPosition(ushort playerId, out Vector3 position)
+    {
+        if (pipTransforms.TryGetValue(playerId, out Transform t) && t != null)
+        {
+            position = t.position;
+            return true;
+        }
+        position = Vector3.zero;
+        return false;
+    }
+
+    /// <summary>
     /// Send a camera shutter sound event to the server for broadcast to other clients.
     /// </summary>
-    public static void SendShutterSound(Vector3 cameraPosition)
+    public static void SendShutterSound()
     {
-        ClientCameraShutterSoundMessage msg = new ClientCameraShutterSoundMessage
+        NetDataWriter writer = new NetDataWriter();
+        writer.Put(BasisNetworkCommons.EventType_CameraShutterSound);
+        BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.EventsChannel, DeliveryMethod.Sequenced);
+    }
+
+    /// <summary>
+    /// Send a camera countdown event to the server for broadcast to other clients.
+    /// </summary>
+    public static void SendCountdown(byte seconds)
+    {
+        ClientCameraCountdownMessage msg = new ClientCameraCountdownMessage
         {
-            PositionX = cameraPosition.x,
-            PositionY = cameraPosition.y,
-            PositionZ = cameraPosition.z,
+            Seconds = seconds,
         };
 
         NetDataWriter writer = new NetDataWriter();
-        writer.Put(BasisNetworkCommons.EventType_CameraShutterSound);
+        writer.Put(BasisNetworkCommons.EventType_CameraCountdown);
         msg.Serialize(writer);
         BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.EventsChannel, DeliveryMethod.Sequenced);
     }
 
     /// <summary>
     /// Called from BasisNetworkEvents when a remote player's shutter sound message arrives.
-    /// Plays the shutter sound at the remote camera position.
+    /// Plays the shutter sound at the remote PIP camera position.
     /// </summary>
     public static void OnRemoteShutterSound(CameraShutterSoundMessage msg)
     {
-        Vector3 position = new Vector3(msg.PositionX, msg.PositionY, msg.PositionZ);
-
-        if (ShutterSoundClip != null)
+        if (ShutterSoundClip != null && TryGetPIPPosition(msg.PlayerID, out Vector3 position))
         {
             AudioSource.PlayClipAtPoint(ShutterSoundClip, position);
         }
 
-        OnRemoteShutterSoundReceived?.Invoke(msg.PlayerID, position);
+        OnRemoteShutterSoundReceived?.Invoke(msg.PlayerID, TryGetPIPPosition(msg.PlayerID, out Vector3 pos) ? pos : Vector3.zero);
+    }
+
+    /// <summary>
+    /// Called from BasisNetworkEvents when a remote player starts a countdown.
+    /// Replays the same tick/shutter timing at the remote PIP camera position.
+    /// </summary>
+    public static void OnRemoteCountdown(CameraCountdownMessage msg)
+    {
+        if (!initialized) return;
+        BasisDeviceManagement.Instance.StartCoroutine(RemoteCountdownCoroutine(msg.PlayerID, msg.Seconds));
+    }
+
+    private static IEnumerator RemoteCountdownCoroutine(ushort playerId, int seconds)
+    {
+        for (int i = seconds; i > 0; i--)
+        {
+            if (CountdownTickClip != null && TryGetPIPPosition(playerId, out Vector3 tickPos))
+            {
+                AudioSource.PlayClipAtPoint(CountdownTickClip, tickPos);
+            }
+            yield return new WaitForSeconds(1f);
+        }
+
+        // Match the 0.5s pause before capture
+        yield return new WaitForSeconds(0.5f);
+
+        if (ShutterSoundClip != null && TryGetPIPPosition(playerId, out Vector3 shutterPos))
+        {
+            AudioSource.PlayClipAtPoint(ShutterSoundClip, shutterPos);
+        }
     }
 
     /// <summary>

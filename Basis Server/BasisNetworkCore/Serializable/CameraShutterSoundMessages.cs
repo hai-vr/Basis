@@ -3,55 +3,61 @@ using Basis.Network.Core;
 public static partial class SerializableBasis
 {
     /// <summary>
-    /// Server -> clients: a player took a photo. Includes position for spatial audio.
-    /// Serialized after the EventType byte has already been written by the event router.
+    /// Server -> clients: a player took a photo. No position needed —
+    /// receivers look up the PIP camera transform they already track.
     /// </summary>
     public struct CameraShutterSoundMessage
     {
         public ushort PlayerID;
-        public float PositionX;
-        public float PositionY;
-        public float PositionZ;
 
         public void Serialize(NetDataWriter writer)
         {
             writer.Put(PlayerID);
-            writer.Put(PositionX);
-            writer.Put(PositionY);
-            writer.Put(PositionZ);
         }
 
         public void Deserialize(NetDataReader reader)
         {
             PlayerID = reader.GetUShort();
-            PositionX = reader.GetFloat();
-            PositionY = reader.GetFloat();
-            PositionZ = reader.GetFloat();
         }
     }
 
     /// <summary>
-    /// Client -> server: local player took a photo. Position for spatial audio on other clients.
-    /// Serialized after the EventType byte has already been written by the sender.
+    /// Server -> clients: a player started a countdown timer.
+    /// Receivers replay the same tick/shutter timing locally.
     /// </summary>
-    public struct ClientCameraShutterSoundMessage
+    public struct CameraCountdownMessage
     {
-        public float PositionX;
-        public float PositionY;
-        public float PositionZ;
+        public ushort PlayerID;
+        public byte Seconds;
 
         public void Serialize(NetDataWriter writer)
         {
-            writer.Put(PositionX);
-            writer.Put(PositionY);
-            writer.Put(PositionZ);
+            writer.Put(PlayerID);
+            writer.Put(Seconds);
         }
 
         public void Deserialize(NetDataReader reader)
         {
-            PositionX = reader.GetFloat();
-            PositionY = reader.GetFloat();
-            PositionZ = reader.GetFloat();
+            PlayerID = reader.GetUShort();
+            Seconds = reader.GetByte();
+        }
+    }
+
+    /// <summary>
+    /// Client -> server: local player started a countdown timer.
+    /// </summary>
+    public struct ClientCameraCountdownMessage
+    {
+        public byte Seconds;
+
+        public void Serialize(NetDataWriter writer)
+        {
+            writer.Put(Seconds);
+        }
+
+        public void Deserialize(NetDataReader reader)
+        {
+            Seconds = reader.GetByte();
         }
     }
 }

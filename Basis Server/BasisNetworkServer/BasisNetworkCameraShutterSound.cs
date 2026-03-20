@@ -17,7 +17,12 @@ namespace BasisNetworkServer
             switch (eventType)
             {
                 case BasisNetworkCommons.EventType_CameraShutterSound:
-                    HandleCameraShutterSound(reader, peer, eventType);
+                    HandleCameraShutterSound(peer, eventType);
+                    reader.Recycle();
+                    break;
+
+                case BasisNetworkCommons.EventType_CameraCountdown:
+                    HandleCameraCountdown(reader, peer, eventType);
                     break;
 
                 default:
@@ -27,12 +32,8 @@ namespace BasisNetworkServer
             }
         }
 
-        private static void HandleCameraShutterSound(NetPacketReader reader, NetPeer peer, byte eventType)
+        private static void HandleCameraShutterSound(NetPeer peer, byte eventType)
         {
-            ClientCameraShutterSoundMessage clientMsg = new ClientCameraShutterSoundMessage();
-            clientMsg.Deserialize(reader);
-            reader.Recycle();
-
             ushort peerId = (ushort)peer.Id;
 
             NetDataWriter writer = NetworkServer.RentWriter();
@@ -41,9 +42,28 @@ namespace BasisNetworkServer
             CameraShutterSoundMessage outMsg = new CameraShutterSoundMessage
             {
                 PlayerID = peerId,
-                PositionX = clientMsg.PositionX,
-                PositionY = clientMsg.PositionY,
-                PositionZ = clientMsg.PositionZ,
+            };
+            outMsg.Serialize(writer);
+
+            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.EventsChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.Sequenced);
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        private static void HandleCameraCountdown(NetPacketReader reader, NetPeer peer, byte eventType)
+        {
+            ClientCameraCountdownMessage clientMsg = new ClientCameraCountdownMessage();
+            clientMsg.Deserialize(reader);
+            reader.Recycle();
+
+            ushort peerId = (ushort)peer.Id;
+
+            NetDataWriter writer = NetworkServer.RentWriter();
+            writer.Put(eventType);
+
+            CameraCountdownMessage outMsg = new CameraCountdownMessage
+            {
+                PlayerID = peerId,
+                Seconds = clientMsg.Seconds,
             };
             outMsg.Serialize(writer);
 

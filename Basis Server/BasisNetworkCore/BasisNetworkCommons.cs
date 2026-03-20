@@ -147,5 +147,7 @@ namespace Basis.Network.Core
         // ── Event type sub-bytes for EventsChannel ──
         /// <summary>Camera shutter sound fired when a player takes a photo.</summary>
         public const byte EventType_CameraShutterSound = 0;
+        /// <summary>Camera countdown started — remote clients replay the tick/shutter timing.</summary>
+        public const byte EventType_CameraCountdown = 1;
     }
 }

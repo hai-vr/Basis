@@ -355,6 +355,15 @@ public static class BasisNetworkEvents
                                 BasisNetworkPIPCameraDriver.OnRemoteShutterSound(shutterMsg);
                             });
                             break;
+                        case BasisNetworkCommons.EventType_CameraCountdown:
+                            CameraCountdownMessage countdownMsg = new CameraCountdownMessage();
+                            countdownMsg.Deserialize(Reader);
+                            Reader.Recycle();
+                            BasisDeviceManagement.EnqueueOnMainThread(() =>
+                            {
+                                BasisNetworkPIPCameraDriver.OnRemoteCountdown(countdownMsg);
+                            });
+                            break;
                         default:
                             BNL.LogError($"Unknown EventsChannel event type: {eventType}");
                             Reader.Recycle();
