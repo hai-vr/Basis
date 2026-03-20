@@ -38,9 +38,9 @@ public static class BasisNetworkPreloadManager
     }
 
     /// <summary>
-    /// Downloads the BEE file and caches it to disk without loading the asset bundle.
-    /// When the content is eventually spawned, the normal load path will find it on disk.
-    /// Used internally by HandleSynchronizedPreload.
+    /// Downloads the full BEE file and loads the asset bundle into memory.
+    /// The content is NOT instantiated/spawned - that happens later when the
+    /// spawn signal arrives. Used internally by HandleSynchronizedPreload.
     /// </summary>
     private static async Task HandlePreload(LocalLoadResource resource)
     {
@@ -75,14 +75,14 @@ public static class BasisNetworkPreloadManager
             BasisProgressReport report = new BasisProgressReport();
             CancellationToken cancel = default;
 
-            // Only download and cache the BEE file to disk, read metadata.
-            // Does NOT decrypt or load the asset bundle into memory.
-            bool success = await BasisBeeManagement.HandleMetaOnlyLoad(wrapper, report, cancel);
+            // Download the full BEE file and load the asset bundle into memory.
+            // This ensures everything is ready so spawning is instant when the signal arrives.
+            await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancel);
 
             preloaded.BundleWrapper = wrapper;
-            preloaded.IsReady = success;
+            preloaded.IsReady = true;
 
-            BasisDebug.Log($"PreloadManager: {(success ? "Successfully" : "Failed to")} preload {resource.CombinedURL} (NetID={netId})", BasisDebug.LogTag.Networking);
+            BasisDebug.Log($"PreloadManager: Successfully preloaded {resource.CombinedURL} (NetID={netId})", BasisDebug.LogTag.Networking);
         }
         catch (Exception ex)
         {
