@@ -48,18 +48,19 @@ public static class SettingsProviderPlatform
             foreach (string mode in availableModes)
             {
                 string capturedMode = mode;
+                string displayName = GetModeDisplayName(capturedMode);
                 bool isActive = string.Equals(currentMode, capturedMode, System.StringComparison.Ordinal);
                 string suffix = isActive ? " [ACTIVE]" : "";
 
                 PanelButton modeButton = PanelButton.CreateNew(infoGroup.ContentParent);
-                modeButton.Descriptor.SetTitle($"Switch To {capturedMode}{suffix}");
+                modeButton.Descriptor.SetTitle($"Switch To {displayName}{suffix}");
                 modeButton.Descriptor.SetDescription(GetModeDescription(capturedMode));
                 modeButton.OnClicked += () =>
                 {
                     if (isActive) return;
-                    BasisMainMenu.Instance.OpenDialogue($"Switch To {capturedMode}",
-                        $"Are you sure you want to switch to {capturedMode}?",
-                        $"Switch To {capturedMode}",
+                    BasisMainMenu.Instance.OpenDialogue($"Switch To {displayName}",
+                        $"Are you sure you want to switch to {displayName}?",
+                        $"Switch To {displayName}",
                         "Cancel",
                         async value =>
                         {
@@ -71,11 +72,18 @@ public static class SettingsProviderPlatform
         }
     }
 
+    private static string GetModeDisplayName(string mode)
+    {
+        if (mode == BasisConstants.OpenVRLoader) return "OpenVR (SteamVR)";
+        if (mode == BasisConstants.OpenXRLoader) return "OpenXR";
+        return mode;
+    }
+
     private static string GetModeDescription(string mode)
     {
-        if (mode == BasisConstants.Desktop) return "Desktop mode (no VR).";
-        if (mode == BasisConstants.OpenVRLoader) return "SteamVR / OpenVR runtime.";
-        if (mode == BasisConstants.OpenXRLoader) return "OpenXR runtime.";
+        if (mode == BasisConstants.Desktop) return "Desktop mode (no VR). Shortcut: F9";
+        if (mode == BasisConstants.OpenVRLoader) return "SteamVR / OpenVR runtime. Shortcut: F11";
+        if (mode == BasisConstants.OpenXRLoader) return "OpenXR runtime. Shortcut: F10";
         return mode;
     }
 }
