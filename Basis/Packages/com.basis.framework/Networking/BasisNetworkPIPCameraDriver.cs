@@ -31,6 +31,17 @@ public static class BasisNetworkPIPCameraDriver
     /// </summary>
     public static event Action<ushort> OnRemotePIPDestroyed;
 
+    /// <summary>
+    /// Fired when a remote player takes a photo. Passes (playerID, worldPosition).
+    /// </summary>
+    public static event Action<ushort, Vector3> OnRemoteShutterSoundReceived;
+
+    /// <summary>
+    /// Shared shutter AudioClip set by the local BasisHandHeldCamera.
+    /// Used to play the sound for remote shutter events.
+    /// </summary>
+    public static AudioClip ShutterSoundClip;
+
     // Addressable path for the remote PIP prefab
     private const string RemotePIPPrefabPath = "Packages/com.basis.sdk/Prefabs/UI/Camera Prefab/BasisCameraRemotePip.prefab";
 
@@ -277,6 +288,39 @@ public static class BasisNetworkPIPCameraDriver
         NetDataWriter writer = new NetDataWriter();
         msg.Serialize(writer);
         BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.CameraPIPPositionChannel, DeliveryMethod.Sequenced);
+    }
+
+    /// <summary>
+    /// Send a camera shutter sound event to the server for broadcast to other clients.
+    /// </summary>
+    public static void SendShutterSound(Vector3 cameraPosition)
+    {
+        ClientCameraShutterSoundMessage msg = new ClientCameraShutterSoundMessage
+        {
+            PositionX = cameraPosition.x,
+            PositionY = cameraPosition.y,
+            PositionZ = cameraPosition.z,
+        };
+
+        NetDataWriter writer = new NetDataWriter();
+        msg.Serialize(writer);
+        BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.CameraShutterSoundChannel, DeliveryMethod.Sequenced);
+    }
+
+    /// <summary>
+    /// Called from BasisNetworkEvents when a remote player's shutter sound message arrives.
+    /// Plays the shutter sound at the remote camera position.
+    /// </summary>
+    public static void OnRemoteShutterSound(CameraShutterSoundMessage msg)
+    {
+        Vector3 position = new Vector3(msg.PositionX, msg.PositionY, msg.PositionZ);
+
+        if (ShutterSoundClip != null)
+        {
+            AudioSource.PlayClipAtPoint(ShutterSoundClip, position);
+        }
+
+        OnRemoteShutterSoundReceived?.Invoke(msg.PlayerID, position);
     }
 
     /// <summary>

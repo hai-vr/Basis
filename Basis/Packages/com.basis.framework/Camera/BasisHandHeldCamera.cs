@@ -76,6 +76,13 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     [Tooltip("Instance ID for multi-camera setups")]
     public int InstanceID;
 
+    [Header("Shutter Sound")]
+    /// <summary>AudioSource used to play the shutter sound locally.</summary>
+    public AudioSource shutterAudioSource;
+
+    /// <summary>Audio clip played when a photo is captured (locally and networked to others).</summary>
+    public AudioClip shutterSound;
+
     [Header("Advanced/Debug")]
     /// <summary>If true and not on desktop, camera renders to display instead of RT.</summary>
     public bool enableRecordingView = false;
@@ -145,6 +152,12 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.targetTexture = renderTexture;
         captureCamera.gameObject.SetActive(true);
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
+
+        // Share the shutter clip so remote shutter events can play it
+        if (shutterSound != null)
+        {
+            BasisNetworkPIPCameraDriver.ShutterSoundClip = shutterSound;
+        }
 
         // Notify network that PIP camera was created
         if (BasisNetworkConnection.LocalPlayerPeer != null)
@@ -474,6 +487,19 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             format = TextureFormat.RGBA32;
             renderFormat = RenderTextureFormat.ARGB32;
+        }
+
+        // Play shutter sound locally
+        if (shutterSound != null && shutterAudioSource != null)
+        {
+            shutterAudioSource.PlayOneShot(shutterSound);
+        }
+
+        // Send shutter sound event over the network
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            Vector3 camPos = captureCamera.transform.position;
+            BasisNetworkPIPCameraDriver.SendShutterSound(camPos);
         }
 
         StartCoroutine(TakeScreenshot(format, renderFormat));

@@ -336,6 +336,22 @@ public static class BasisNetworkEvents
                     });
                 }
                 break;
+            case BasisNetworkCommons.CameraShutterSoundChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                {
+                    CameraShutterSoundMessage shutterMsg = new CameraShutterSoundMessage();
+                    shutterMsg.Deserialize(Reader);
+                    Reader.Recycle();
+                    BasisDeviceManagement.EnqueueOnMainThread(() =>
+                    {
+                        BasisNetworkPIPCameraDriver.OnRemoteShutterSound(shutterMsg);
+                    });
+                }
+                break;
             default:
                 BNL.LogError($"this Channel was not been implemented {channel}");
                 Reader.Recycle();
