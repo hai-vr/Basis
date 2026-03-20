@@ -518,6 +518,9 @@ namespace Basis.Scripts.Device_Management.Devices
                 case "press":
                     AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.pressUI, transform.position, Volume);
                     break;
+                case "chat":
+                    AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.ChatNotificationUI, transform.position, Volume);
+                    break;
             }
         }
 

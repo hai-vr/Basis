@@ -115,7 +115,8 @@ public static class BasisNetworkHandleChat
     }
 
     /// <summary>
-    /// Plays the chat notification audio clip at the local listener position.
+    /// Plays the chat notification audio clip through BasisDeviceManagement,
+    /// matching the pattern used by other UI sounds (hover, press).
     /// </summary>
     private static void PlayChatNotification()
     {
@@ -124,8 +125,7 @@ public static class BasisNetworkHandleChat
             return;
         }
 
-        Vector3 listenerPos = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
-        AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.ChatNotificationUI, listenerPos, NotificationVolume);
+        AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.ChatNotificationUI, BasisDeviceManagement.Instance.transform.position, NotificationVolume);
     }
 
     private static void ApplyChatToNamePlate(ushort senderPlayerId, string message)
