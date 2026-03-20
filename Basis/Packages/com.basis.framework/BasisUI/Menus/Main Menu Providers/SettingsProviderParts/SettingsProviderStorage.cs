@@ -49,7 +49,7 @@ public static class SettingsProviderStorage
         };
 
         // One reset button for this whole page
-        SettingsProvider.AddResetPageButton(container, "Storage", ResetStorageDefaults);
+        SettingsProvider.AddResetPageButton(container, "Storage Settings", ResetStorageDefaults);
 
         descriptor.ForceRebuild();
         return tab;
