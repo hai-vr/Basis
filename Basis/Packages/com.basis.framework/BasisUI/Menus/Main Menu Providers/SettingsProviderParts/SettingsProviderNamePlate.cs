@@ -25,16 +25,14 @@ namespace Basis.BasisUI
 
             RectTransform container = descriptor.ContentParent;
 
-            // ─────────────── VISIBILITY TOGGLES ───────────────
-            PanelToggle toggleEnabled = PanelToggle.CreateNewEntry(container);
-            toggleEnabled.Descriptor.SetTitle("Show Nameplates");
-            toggleEnabled.AssignBinding(BasisSettingsDefaults.NPEnabled);
-
-            // ─────────────── NAMEPLATE APPEARANCE GROUP ───────────────
             PanelElementDescriptor nameplateGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            nameplateGroup.SetTitle("Nameplate Appearance");
-            nameplateGroup.SetDescription("Adjust the width, size, and transparency of remote player nameplates.");
+            nameplateGroup.SetTitle("Nameplates");
+            nameplateGroup.SetDescription("Controls the appearance of nameplates above other players.");
+
+            PanelToggle toggleEnabled = PanelToggle.CreateNewEntry(nameplateGroup);
+            toggleEnabled.Descriptor.SetTitle("Show Nameplates");
+            toggleEnabled.AssignBinding(BasisSettingsDefaults.NPEnabled);
 
             PanelToggle toggleMenuOnly = PanelToggle.CreateNewEntry(nameplateGroup);
             toggleMenuOnly.Descriptor.SetTitle("Only Show When Menu Open");
@@ -55,13 +53,19 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Transparency", 0f, 1f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.NPTransparency);
 
-            // Appearance group only visible when nameplates are enabled
+            // Hide appearance settings when nameplates are disabled
             bool isEnabled = BasisSettingsDefaults.NPEnabled.RawValue;
-            nameplateGroup.SetActive(isEnabled);
+            toggleMenuOnly.Descriptor.SetActive(isEnabled);
+            sliderWidth.Descriptor.SetActive(isEnabled);
+            sliderSize.Descriptor.SetActive(isEnabled);
+            sliderTransparency.Descriptor.SetActive(isEnabled);
             toggleEnabled.OnValueChanged += (val) =>
             {
-                nameplateGroup.SetActive(val);
-                container.GetComponentInParent<PanelElementDescriptor>()?.ForceRebuild();
+                toggleMenuOnly.Descriptor.SetActive(val);
+                sliderWidth.Descriptor.SetActive(val);
+                sliderSize.Descriptor.SetActive(val);
+                sliderTransparency.Descriptor.SetActive(val);
+                nameplateGroup.ForceRebuild();
             };
 
             // ─────────────── RESET BUTTON ───────────────

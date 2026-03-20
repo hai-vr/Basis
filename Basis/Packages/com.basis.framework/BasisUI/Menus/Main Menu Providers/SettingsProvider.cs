@@ -541,23 +541,20 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.MicrophoneIconOffsetY);
 
             // Hide advanced groups by default
-            bool advancedVisible = false;
             limiterGroup.SetActive(false);
             denoiseGroup.SetActive(false);
             agcGroup.SetActive(false);
             micIconGroup.SetActive(false);
 
-            PanelButton advancedButton = PanelButton.CreateNew(container);
-            advancedButton.Descriptor.SetTitle("Advanced");
-            advancedButton.Descriptor.SetDescription("Show advanced microphone DSP settings.");
-            advancedButton.OnClicked += () =>
+            PanelToggle toggleAdvanced = PanelToggle.CreateNewEntry(microphoneGroup);
+            toggleAdvanced.Descriptor.SetTitle("Advanced");
+            toggleAdvanced.SetValueWithoutNotify(false);
+            toggleAdvanced.OnValueChanged += (val) =>
             {
-                advancedVisible = !advancedVisible;
-                limiterGroup.SetActive(advancedVisible);
-                denoiseGroup.SetActive(advancedVisible);
-                agcGroup.SetActive(advancedVisible);
-                micIconGroup.SetActive(advancedVisible);
-                advancedButton.Descriptor.SetTitle(advancedVisible ? "Hide Advanced" : "Advanced");
+                limiterGroup.SetActive(val);
+                denoiseGroup.SetActive(val);
+                agcGroup.SetActive(val);
+                micIconGroup.SetActive(val);
                 descriptor.ForceRebuild();
             };
 

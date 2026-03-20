@@ -21,13 +21,32 @@ namespace Basis.BasisUI
 
         public static void BuildRemoteAudioUI(RectTransform container)
         {
-            // ─────────────── REMOTE PLAYERS WRAPPER ───────────────
-            PanelElementDescriptor remotePlayersGroup =
+            // ─────────────── LISTENER DIRECTIONAL DAMPENING (always visible) ───────────────
+            PanelElementDescriptor listenerDampenGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            remotePlayersGroup.SetTitle("Remote Players");
-            remotePlayersGroup.SetDescription("Controls how you hear other players' voices in 3D space.");
+            listenerDampenGroup.SetTitle("Remote Players");
+            listenerDampenGroup.SetDescription("Reduces volume of players behind you. Helps in crowded environments.");
 
-            // ─────────────── AUDIO SOURCE GROUP ───────────────
+            PanelSlider sliderListenerConeAngle = PanelSlider.CreateEntryAndBind(
+                listenerDampenGroup,
+                PanelSlider.SliderSettings.Degrees("Cone of Influence", 30f, 360f, true, 0),
+                BasisSettingsDefaults.RAListenerConeAngle);
+
+            PanelSlider sliderListenerDampenAmount = PanelSlider.CreateEntryAndBind(
+                listenerDampenGroup,
+                PanelSlider.SliderSettings.Advanced("Max Dampening", 1f, 45f, true, 0, ValueDisplayMode.Percentage),
+                BasisSettingsDefaults.RAListenerDampenAmount);
+
+            // Dampen amount only visible when cone angle < 360 (otherwise no dampening occurs)
+            bool dampeningActive = BasisSettingsDefaults.RAListenerConeAngle.RawValue < 360f;
+            sliderListenerDampenAmount.Descriptor.SetActive(dampeningActive);
+            sliderListenerConeAngle.OnValueChanged += (val) =>
+            {
+                sliderListenerDampenAmount.Descriptor.SetActive(val < 360f);
+                listenerDampenGroup.ForceRebuild();
+            };
+
+            // ─────────────── AUDIO SOURCE GROUP (advanced) ───────────────
             PanelElementDescriptor audioSourceGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             audioSourceGroup.SetTitle("Audio Source");
@@ -113,32 +132,7 @@ PanelSlider sliderPriority = PanelSlider.CreateEntryAndBind(
     BasisSettingsDefaults.RAPriority);
             */
 
-            // ─────────────── LISTENER DIRECTIONAL DAMPENING GROUP ───────────────
-            PanelElementDescriptor listenerDampenGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            listenerDampenGroup.SetTitle("Listener Directional Dampening");
-            listenerDampenGroup.SetDescription("Reduces volume of players behind you. Helps in crowded environments.");
-
-            PanelSlider sliderListenerConeAngle = PanelSlider.CreateEntryAndBind(
-                listenerDampenGroup,
-                PanelSlider.SliderSettings.Degrees("Cone of Influence", 30f, 360f, true, 0),
-                BasisSettingsDefaults.RAListenerConeAngle);
-
-            PanelSlider sliderListenerDampenAmount = PanelSlider.CreateEntryAndBind(
-                listenerDampenGroup,
-                PanelSlider.SliderSettings.Advanced("Max Dampening", 1f, 45f, true, 0, ValueDisplayMode.Percentage),
-                BasisSettingsDefaults.RAListenerDampenAmount);
-
-            // Dampen amount only visible when cone angle < 360 (otherwise no dampening occurs)
-            bool dampeningActive = BasisSettingsDefaults.RAListenerConeAngle.RawValue < 360f;
-            sliderListenerDampenAmount.Descriptor.SetActive(dampeningActive);
-            sliderListenerConeAngle.OnValueChanged += (val) =>
-            {
-                sliderListenerDampenAmount.Descriptor.SetActive(val < 360f);
-                listenerDampenGroup.ForceRebuild();
-            };
-
-            // ─────────────── STEAM AUDIO - HRTF GROUP ───────────────
+            // ─────────────── STEAM AUDIO - HRTF GROUP (advanced) ───────────────
             PanelElementDescriptor hrtfGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             hrtfGroup.SetTitle("HRTF / Binaural");
@@ -385,6 +379,30 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
                 reflectionsGroup.ForceRebuild();
             };
             */
+
+            // Hide all advanced groups by default
+            bool advancedVisible = false;
+            audioSourceGroup.SetActive(false);
+            hrtfGroup.SetActive(false);
+            propagationGroup.SetActive(false);
+            directivityGroup.SetActive(false);
+            occlusionGroup.SetActive(false);
+            transmissionGroup.SetActive(false);
+
+            PanelButton advancedButton = PanelButton.CreateNew(container);
+            advancedButton.Descriptor.SetTitle("Advanced");
+            advancedButton.Descriptor.SetDescription("Show advanced spatial audio settings.");
+            advancedButton.OnClicked += () =>
+            {
+                advancedVisible = !advancedVisible;
+                audioSourceGroup.SetActive(advancedVisible);
+                hrtfGroup.SetActive(advancedVisible);
+                propagationGroup.SetActive(advancedVisible);
+                directivityGroup.SetActive(advancedVisible);
+                occlusionGroup.SetActive(advancedVisible);
+                transmissionGroup.SetActive(advancedVisible);
+                advancedButton.Descriptor.SetTitle(advancedVisible ? "Hide Advanced" : "Advanced");
+            };
         }
 
         public static void ResetRemoteAudioToDefaults()
