@@ -683,7 +683,8 @@ namespace Basis.BasisUI
                 }
                 catch (Exception ex)
                 {
-                    BasisDebug.LogError(ex);
+                    BasisDebug.LogError($"Item '{item?.Url}' failed to open and will be removed: {ex.Message}");
+                    _ = HandleBadItem(item);
                 }
             };
         }
@@ -711,19 +712,28 @@ namespace Basis.BasisUI
             return item.PinnedSettings.IsPinned ? "Pinned" : "Pin";
         }
 
+        private static async Task HandleBadItem(BasisDataStoreItemKeys.ItemKey item)
+        {
+            BasisStorageManagement.DeleteStoredFile(item.Url);
+            await BasisDataStoreItemKeys.RemoveKey(item);
+            await RefreshCurrentTab();
+        }
+
         public static void ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item)
         {
             #region ITEM OVERLAY SETUP
 
             Vector2 overlaySize = new Vector2(1200, 960);
 
-            // grab the content from the cache 
+            // grab the content from the cache
             CachedMetaData.CachedContent metadata;
-            CachedMetaData.TryGetMeta(item.Url, out metadata);
+            bool hasMeta = CachedMetaData.TryGetMeta(item.Url, out metadata);
 
-            // the network type of the item
-            BundledContentHolder.NetworkType desiredNetworkType = BundledContentHolder.NetworkType.Local;
-            bool ephemeral = true;  // the persistence behavior of the item 
+            // the network type of the item - default to networked when connected
+            BundledContentHolder.NetworkType desiredNetworkType = BasisNetworkConnection.LocalPlayerIsConnected
+                ? BundledContentHolder.NetworkType.Networked
+                : BundledContentHolder.NetworkType.Local;
+            bool ephemeral = false;  // the persistence behavior of the item
             BasisBundleConnector.BasisMetaData basisMetaData; // grab the meta data
             BasisBundleDescription description; // grab the description data
             Sprite targetSprite = null;   // target sprite
@@ -743,6 +753,13 @@ namespace Basis.BasisUI
 
                 targetSprite = EmbeddedItems.GetSpriteForEmbeddedItem(item);
 
+            }
+            else if (!hasMeta || metadata?.BasisBundleConnector == null || metadata.BasisBundleConnector.BasisBundleDescription == null)
+            {
+                // Bad or missing file - show error, remove from disk, and refresh
+                BasisDebug.LogError($"Item '{item.Url}' has invalid or missing metadata. Removing from library.");
+                _ = HandleBadItem(item);
+                return;
             }
             else
             {
