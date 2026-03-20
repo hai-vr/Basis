@@ -42,6 +42,12 @@ public static class BasisNetworkModeration
 
     private static void SendAdminRequest(AdminRequestMode mode, params Action<NetDataWriter>[] dataWriters)
     {
+        if (BasisNetworkConnection.LocalPlayerPeer == null)
+        {
+            BasisDebug.LogWarning("Cannot send admin request: not connected to a server.");
+            return;
+        }
+
         var writer = new NetDataWriter();
         new AdminRequest().Serialize(writer, mode);
 
