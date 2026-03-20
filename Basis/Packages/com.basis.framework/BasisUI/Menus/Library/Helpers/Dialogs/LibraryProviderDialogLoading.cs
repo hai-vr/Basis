@@ -1,6 +1,7 @@
 
 using System;
 using System.Threading.Tasks;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.UI.UI_Panels;
 using UnityEngine;
 using static Basis.BasisUI.LibraryProvider;
@@ -19,13 +20,25 @@ namespace Basis.BasisUI
             bool modifyScale = false
         )
         {
-            DialogBox<bool> contentLoadingDialogBox = DialogBox<bool>.Create(panel, new Vector2(830, 120),
+            DialogBox<bool> contentLoadingDialogBox = DialogBox<bool>.Create(panel, new Vector2(830, 150),
                 "Please wait",
                 "Your content is currently loading standby...",
                 AddressableAssets.Sprites.HourGlass,
                 true
             );
 
+            void OnProgress(string uniqueID, float progress, string info)
+            {
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    if (contentLoadingDialogBox.Descriptor != null)
+                    {
+                        contentLoadingDialogBox.Descriptor.SetDescription($"Loading {progress:F0}% - {info}");
+                    }
+                });
+            }
+
+            ContentLoader.LibraryLoadProgress.OnProgressReport += OnProgress;
             try
             {
                 await LoadSelectedItem(item, networkType, persistence, modifyScale);
@@ -33,6 +46,10 @@ namespace Basis.BasisUI
             catch (Exception ex)
             {
                 BasisDebug.LogError($"Content loading failed: {ex}");
+            }
+            finally
+            {
+                ContentLoader.LibraryLoadProgress.OnProgressReport -= OnProgress;
             }
 
             // Close the loading dialog

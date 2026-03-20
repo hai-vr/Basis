@@ -29,6 +29,17 @@ namespace Basis.BasisUI
         /// </summary>
         public static string LastAvatarReachabilityWarning { get; private set; }
 
+        /// <summary>
+        /// Static progress report forwarded during library content loading.
+        /// Subscribe to OnProgressReport to receive loading progress updates.
+        /// </summary>
+        public static readonly BasisProgressReport LibraryLoadProgress = new BasisProgressReport();
+
+        private static void ForwardProgress(string uniqueID, float progress, string eventDescription)
+        {
+            LibraryLoadProgress.ReportProgress(uniqueID, progress, eventDescription);
+        }
+
         public static async Task LoadAvatar(BasisDataStoreItemKeys.ItemKey item)
         {
             LastAvatarReachabilityWarning = null;
@@ -44,6 +55,8 @@ namespace Basis.BasisUI
                 BasisDebug.LogError($"LoadAvatar({item.Url}) -> failed to get cached meta");
                 return;
             }
+
+            BasisLocalPlayer.Instance.ProgressReportAvatarLoad.OnProgressReport += ForwardProgress;
 
             BasisLoadableBundle bundle = cachedMeta.BasisLoadableBundle;
             BasisDebug.Log($"LoadAvatar({item.Url}) -> bundle = {bundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}");
@@ -96,6 +109,8 @@ namespace Basis.BasisUI
                     BasisDebug.LogWarning(LastAvatarReachabilityWarning);
                 }
             }
+
+            BasisLocalPlayer.Instance.ProgressReportAvatarLoad.OnProgressReport -= ForwardProgress;
         }
 
         public static async Task<GameObject> HandleLoadGameObjectWithBundle(BasisDataStoreItemKeys.ItemKey item, CachedMetaData.CachedContent cached, BundledContentHolder.NetworkType desiredNetworkType, Vector3 finalPos, Quaternion finalRot, Vector3 finalScale, Transform parentTarget, bool admin = false, bool modifyScale = false, bool local = false,bool ChangeColidersToCorrectLayer = false)
@@ -103,6 +118,7 @@ namespace Basis.BasisUI
             BasisLoadableBundle bundle = cached.BasisLoadableBundle;
 
             BasisProgressReport report = new BasisProgressReport();
+            report.OnProgressReport += ForwardProgress;
             CancellationToken cancel = default;
 
             var selector = item.Mode switch
@@ -138,6 +154,7 @@ namespace Basis.BasisUI
                 BasisDebug.LogError($"Library provider failed to create desired with networking: {desiredNetworkType} with LoadSelectedItem of url {item.Url}");
             }
 
+            report.OnProgressReport -= ForwardProgress;
             return createdObject;
         }
 
@@ -391,6 +408,7 @@ namespace Basis.BasisUI
                             BasisLoadableBundle bundle = cached.BasisLoadableBundle;
 
                             BasisProgressReport report = new BasisProgressReport();
+                            report.OnProgressReport += ForwardProgress;
                             CancellationToken cancel = default;
 
                             Scene scene = await BasisLoadHandler.LoadSceneBundle(
@@ -423,6 +441,7 @@ namespace Basis.BasisUI
                                 BasisDebug.LogError($"Library provider failed to create desired scene with networking: {desiredNetworkType} with of url {item.Url}");
                             }
 
+                            report.OnProgressReport -= ForwardProgress;
                         }
                         else
                         {
