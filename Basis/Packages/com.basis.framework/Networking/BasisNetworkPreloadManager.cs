@@ -38,9 +38,10 @@ public static class BasisNetworkPreloadManager
     }
 
     /// <summary>
-    /// Downloads the full BEE file and loads the asset bundle into memory.
-    /// The content is NOT instantiated/spawned - that happens later when the
-    /// spawn signal arrives. Used internally by HandleSynchronizedPreload.
+    /// Downloads the full BEE file to disk so it is ready to be loaded from disc later.
+    /// Does NOT create an AssetBundle - that happens when the spawn signal arrives
+    /// through the normal load path which will find the file already on disk.
+    /// Used internally by HandleSynchronizedPreload.
     /// </summary>
     private static async Task HandlePreload(LocalLoadResource resource)
     {
@@ -75,14 +76,54 @@ public static class BasisNetworkPreloadManager
             BasisProgressReport report = new BasisProgressReport();
             CancellationToken cancel = default;
 
-            // Download the full BEE file and load the asset bundle into memory.
-            // This ensures everything is ready so spawning is instant when the signal arrives.
-            await BasisBeeManagement.HandleBundleAndMetaLoading(wrapper, report, cancel);
+            // Check if the full BEE file is already on disk
+            bool isOnDisc = BasisLoadHandler.IsMetaDataOnDisc(resource.CombinedURL, out BasisBEEExtensionMeta metaInfo);
+
+            (BasisBundleGenerated Generated, byte[] BundleBytes, string ErrorMessage) output;
+
+            if (isOnDisc)
+            {
+                // Already downloaded - just read connector + bundle bytes to verify integrity
+                output = await BasisBundleManagement.LocalLoadBundleConnector(wrapper, metaInfo.StoredLocal, report, cancel);
+            }
+            else
+            {
+                // Download the full BEE file to disk
+                output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancel);
+            }
+
+            // Retry if local read returned empty data
+            if (output.BundleBytes == null || output.BundleBytes.Length == 0)
+            {
+                output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancel);
+                isOnDisc = false; // was re-downloaded
+            }
+
+            if (output.Generated == null || output.ErrorMessage != string.Empty)
+            {
+                throw new Exception($"Failed to download BEE file: {output.ErrorMessage}");
+            }
+
+            // Save metadata to disk so the normal load path finds the file later
+            if (!isOnDisc)
+            {
+                BasisBEEExtensionMeta newDiscInfo = new BasisBEEExtensionMeta
+                {
+                    StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted,
+                    StoredLocal = wrapper.LoadableBundle.BasisLocalEncryptedBundle,
+                    UniqueVersion = wrapper.LoadableBundle.BasisBundleConnector.UniqueVersion,
+                };
+                await BasisLoadHandler.AddDiscInfo(newDiscInfo);
+                BasisStorageManagement.EnforceCacheSizeLimit();
+            }
+
+            // Do NOT create an AssetBundle here - the file is on disk and ready.
+            // The normal load path will find it and load from disk when spawn signal arrives.
 
             preloaded.BundleWrapper = wrapper;
             preloaded.IsReady = true;
 
-            BasisDebug.Log($"PreloadManager: Successfully preloaded {resource.CombinedURL} (NetID={netId})", BasisDebug.LogTag.Networking);
+            BasisDebug.Log($"PreloadManager: Successfully downloaded {resource.CombinedURL} to disk (NetID={netId})", BasisDebug.LogTag.Networking);
         }
         catch (Exception ex)
         {
