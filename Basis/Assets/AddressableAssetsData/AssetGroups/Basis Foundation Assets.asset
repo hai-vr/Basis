@@ -274,11 +274,6 @@ MonoBehaviour:
     m_ReadOnly: 0
     m_SerializedLabels: []
     FlaggedDuringContentUpdateRestriction: 0
-  - m_GUID: dd1db054b177db7459cc81633b86e525
-    m_Address: Assets/Scenes/initialization.unity
-    m_ReadOnly: 0
-    m_SerializedLabels: []
-    FlaggedDuringContentUpdateRestriction: 0
   - m_GUID: ebe88bc64d28a8e4586b89098577937f
     m_Address: Interactable/InteractLineMat.mat
     m_ReadOnly: 0
