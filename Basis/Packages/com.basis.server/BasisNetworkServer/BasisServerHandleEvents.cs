@@ -623,9 +623,24 @@ namespace BasisServerHandle
             LocalLoadResource.IsAdminLocked = NetworkServer.AuthIdentity.IsNetPeerAdmin(uuid);
             LocalLoadResource.UUIDOfCreator = UUID;
             Reader.Recycle();
-            //returns a message with the ushort back to the client, or it sends it to everyone if its new.
-            BasisNetworkResourceManagement.LoadResource(LocalLoadResource);
-            //we need to convert the string int a  ushort.
+
+            // Route based on load strategy
+            switch (LocalLoadResource.LoadStrategy)
+            {
+                case 2: // Synchronized
+                    BasisNetworkPreloadResourceManagement.StartSynchronizedLoad(LocalLoadResource);
+                    break;
+                default: // 0 = Immediate (existing behavior)
+                    BasisNetworkResourceManagement.LoadResource(LocalLoadResource);
+                    break;
+            }
+        }
+        public static void HandlePreloadReady(NetPacketReader Reader, NetPeer Peer)
+        {
+            PreloadReadyMessage readyMsg = new PreloadReadyMessage();
+            readyMsg.Deserialize(Reader);
+            Reader.Recycle();
+            BasisNetworkPreloadResourceManagement.HandleClientReady(readyMsg.LoadedNetID, Peer.Id, readyMsg.IsReady);
         }
         public static void UnloadResource(NetPacketReader Reader, NetPeer Peer, string UUID)
         {

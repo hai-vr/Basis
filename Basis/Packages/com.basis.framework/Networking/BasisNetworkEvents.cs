@@ -333,6 +333,18 @@ public static class BasisNetworkEvents
                     });
                 }
                 break;
+            case BasisNetworkCommons.SpawnPreloadedChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(async () =>
+                {
+                    await BasisNetworkGenericMessages.SpawnPreloadedMessage(Reader, deliveryMethod);
+                    Reader.Recycle();
+                });
+                break;
             default:
                 BNL.LogError($"this Channel was not been implemented {channel}");
                 Reader.Recycle();

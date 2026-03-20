@@ -17,7 +17,7 @@ using static BundledContentHolder;
 using static SerializableBasis;
 public static class BasisNetworkSpawnItem
 {
-    public static bool RequestSceneLoad(string UnlockPassword, string CombinedURL, bool Persist, bool Admin, out LocalLoadResource localLoadResource)
+    public static bool RequestSceneLoad(string UnlockPassword, string CombinedURL, bool Persist, bool Admin, out LocalLoadResource localLoadResource, byte loadStrategy = 0)
     {
         if (string.IsNullOrEmpty(CombinedURL) || string.IsNullOrEmpty(UnlockPassword))
         {
@@ -26,7 +26,7 @@ public static class BasisNetworkSpawnItem
             return false;
         }
 
-        BasisDebug.Log("Requesting scene load...", BasisDebug.LogTag.Networking);
+        BasisDebug.Log($"Requesting scene load (strategy={loadStrategy})...", BasisDebug.LogTag.Networking);
 
         localLoadResource = new LocalLoadResource
         {
@@ -36,7 +36,8 @@ public static class BasisNetworkSpawnItem
             UnlockPassword = UnlockPassword,
             UUIDOfCreator = BasisLocalPlayer.Instance.UUID,
             IsAdminLocked = Admin,
-            Persist = Persist
+            Persist = Persist,
+            LoadStrategy = loadStrategy,
         };
 
         NetDataWriter writer = new NetDataWriter();
@@ -48,7 +49,7 @@ public static class BasisNetworkSpawnItem
         return true;
     }
 
-    public static bool RequestGameObjectLoad(string UnlockPassword, string CombinedURL, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool Persistent, bool Admin, bool ModifysScale, out LocalLoadResource LocalLoadResource)
+    public static bool RequestGameObjectLoad(string UnlockPassword, string CombinedURL, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool Persistent, bool Admin, bool ModifysScale, out LocalLoadResource LocalLoadResource, byte loadStrategy = 0)
     {
         if (string.IsNullOrEmpty(CombinedURL) || string.IsNullOrEmpty(UnlockPassword))
         {
@@ -57,7 +58,7 @@ public static class BasisNetworkSpawnItem
             return false;
         }
 
-        BasisDebug.Log("Requesting GameObject load...", BasisDebug.LogTag.Networking);
+        BasisDebug.Log($"Requesting GameObject load (strategy={loadStrategy})...", BasisDebug.LogTag.Networking);
 
         LocalLoadResource = new LocalLoadResource
         {
@@ -69,6 +70,7 @@ public static class BasisNetworkSpawnItem
             IsAdminLocked = Admin,
             Persist = Persistent,
             ModifyScale = ModifysScale,
+            LoadStrategy = loadStrategy,
             PositionX = Position.x,
             PositionY = Position.y,
             PositionZ = Position.z,

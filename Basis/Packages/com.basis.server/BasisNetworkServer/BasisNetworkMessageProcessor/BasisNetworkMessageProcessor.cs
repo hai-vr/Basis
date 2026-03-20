@@ -183,6 +183,11 @@ public static class BasisNetworkMessageProcessor
                     BasisNetworkPIPCamera.HandlePIPPositionUpdate(reader, peer); // recycles inside
                     break;
 
+                case BasisNetworkCommons.PreloadReadyChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.PreloadReadyChannel, reader.AvailableBytes);
+                    BasisServerHandleEvents.HandlePreloadReady(reader, peer); // recycles inside
+                    break;
+
                 default:
                     BNL.LogError($"Unknown channel: {channel} ({reader.AvailableBytes} bytes remaining)");
                     reader.Recycle(); // prevent leaks on unknown messages

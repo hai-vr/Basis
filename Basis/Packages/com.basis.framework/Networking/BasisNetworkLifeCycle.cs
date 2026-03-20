@@ -72,6 +72,7 @@ public static class BasisNetworkLifeCycle
             BasisNetworkPlayers.ClearAllRegistries();//remove players
             Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DeInitialize();//remove shout audio sources
             await BasisNetworkSpawnItem.Reset();//remove items
+            BasisNetworkPreloadManager.Reset();//remove preloaded resources
             BasisContentShareManager.Reset();//remove content spheres
             BasisNetworkIdResolver.KnownIdMap.Clear();
             BasisNetworkIdResolver.PendingResolutions.Clear();
@@ -115,6 +116,7 @@ public static class BasisNetworkLifeCycle
         BasisNetworkPlayers.ClearAllRegistries();//remove players
         Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DeInitialize();//remove shout audio sources
         await BasisNetworkSpawnItem.Reset();//remove items
+        BasisNetworkPreloadManager.Reset();//remove preloaded resources
         BasisContentShareManager.Reset();//remove content spheres
         BasisNetworkIdResolver.KnownIdMap.Clear();
         BasisNetworkIdResolver.PendingResolutions.Clear();

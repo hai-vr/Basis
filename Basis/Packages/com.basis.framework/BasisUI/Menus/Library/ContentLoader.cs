@@ -242,6 +242,27 @@ namespace Basis.BasisUI
 
                 switch (desiredNetworkType)
                 {
+                    case BundledContentHolder.NetworkType.Synchronized:
+                        {
+                            try
+                            {
+                                bool ok = BasisNetworkSpawnItem.RequestGameObjectLoad(item.Pass, item.Url, finalPos, finalRot, finalScale, persistent, admin, modifyScale, out LocalLoadResource syncResource, loadStrategy: 2);
+                                if (ok)
+                                {
+                                    BasisDebug.Log($"Requested synchronized load for {item.Url}, NetID={syncResource.LoadedNetID}", BasisDebug.LogTag.Networking);
+                                }
+                                else
+                                {
+                                    BasisDebug.LogError($"Failed to request synchronized load for {item.Url}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                BasisDebug.LogError(ex);
+                            }
+                            break;
+                        }
+
                     case BundledContentHolder.NetworkType.Local:
                         {
                             Transform parentTarget = BasisDeviceManagement.Instance.transform;
@@ -421,6 +442,24 @@ namespace Basis.BasisUI
                             else
                             {
                                 BasisDebug.LogError($"Failed to request networked SceneLoad for {item.Url}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            BasisDebug.LogError(ex);
+                        }
+                        break;
+                    case BundledContentHolder.NetworkType.Synchronized:
+                        try
+                        {
+                            bool ok = BasisNetworkSpawnItem.RequestSceneLoad(item.Pass, item.Url, persistent, admin, out LocalLoadResource syncResource, loadStrategy: 2);
+                            if (ok)
+                            {
+                                BasisDebug.Log($"Requested synchronized SceneLoad for {item.Url}, NetID={syncResource.LoadedNetID}", BasisDebug.LogTag.Networking);
+                            }
+                            else
+                            {
+                                BasisDebug.LogError($"Failed to request synchronized SceneLoad for {item.Url}");
                             }
                         }
                         catch (Exception ex)

@@ -729,9 +729,9 @@ namespace Basis.BasisUI
             CachedMetaData.CachedContent metadata;
             bool hasMeta = CachedMetaData.TryGetMeta(item.Url, out metadata);
 
-            // the network type of the item - default to networked when connected
+            // the network type of the item - default to synchronized when connected
             BundledContentHolder.NetworkType desiredNetworkType = BasisNetworkConnection.LocalPlayerIsConnected
-                ? BundledContentHolder.NetworkType.Networked
+                ? BundledContentHolder.NetworkType.Synchronized
                 : BundledContentHolder.NetworkType.Local;
             bool ephemeral = false;  // the persistence behavior of the item
             BasisBundleConnector.BasisMetaData basisMetaData; // grab the meta data
@@ -1132,6 +1132,10 @@ namespace Basis.BasisUI
 
             // };
 
+            // declared here so the dropdown callback can reference them
+            PanelButton loadPanelButton = null;
+            bool replaceLoad = false;
+
             // only do this menu for props & worlds
             if (item.Mode == BundledContentHolder.Mode.Prop || item.Mode == BundledContentHolder.Mode.World)
             {
@@ -1141,11 +1145,11 @@ namespace Basis.BasisUI
 
                 // content sync mode dropdown determines whether the new item is flagged as networked or local, which affects filtering and how the item is loaded later
                 PanelDropdown contentSyncModeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.Entry, advancedActionsPanel.TabButtonParent);
-                string[] contentSyncModes = Enum.GetNames(typeof(BundledContentHolder.NetworkType));
+                List<string> contentSyncModeDisplayNames = GetNetworkTypeDisplayNames();
                 contentSyncModeDropDown.Descriptor.SetTitle("Network Type");
-                contentSyncModeDropDown.Descriptor.SetDescription("If the item is set to local, it will only be visible and interactive for you.");
+                contentSyncModeDropDown.Descriptor.SetDescription(GetNetworkTypeDescription(desiredNetworkType));
                 contentSyncModeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
-                contentSyncModeDropDown.AssignEntries(contentSyncModes.ToList());
+                contentSyncModeDropDown.AssignEntries(contentSyncModeDisplayNames);
                 contentSyncModeDropDown.Descriptor.SetSize(new Vector2(700, 80));
 
                 // disable network type selection
@@ -1162,17 +1166,23 @@ namespace Basis.BasisUI
                 }
 
                 // set the default network type
-                contentSyncModeDropDown.SetValueWithoutNotify(desiredNetworkType.ToString());
+                contentSyncModeDropDown.SetValueWithoutNotify(GetNetworkTypeDisplayName(desiredNetworkType));
                 contentSyncModeDropDown.OnValueChanged = (val) =>
                 {
-                    if (Enum.TryParse(contentSyncModeDropDown.SelectedString, out BundledContentHolder.NetworkType selectedNetType))
+                    if (TryParseNetworkTypeFromDisplayName(val, out BundledContentHolder.NetworkType selectedNetType))
                     {
                         desiredNetworkType = selectedNetType;
-                        //BasisDebug.Log($"Selected Network Type: {desiredNetworkType}");
+                        contentSyncModeDropDown.Descriptor.SetDescription(GetNetworkTypeDescription(selectedNetType));
+
+                        // update the load button title for props to reflect the selected mode
+                        if (item.Mode == BundledContentHolder.Mode.Prop && !replaceLoad)
+                        {
+                            loadPanelButton.Descriptor.SetTitle(GetPropLoadButtonTitle(selectedNetType));
+                        }
                     }
                     else
                     {
-                        BasisDebug.LogError("Coudnt Parse BundledContentHolder.NetworkType!");
+                        BasisDebug.LogError($"Could not parse NetworkType from display name: {val}");
                     }
                 };
 
@@ -1274,7 +1284,6 @@ namespace Basis.BasisUI
             };
 
             // this logic checks if we have spawned an embedded item that is addressable
-            bool replaceLoad = false;
             if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 bool exists = BasisRuntimeSpawnRegistry.HasAny(item.Url);
@@ -1284,7 +1293,7 @@ namespace Basis.BasisUI
                 }
             }
 
-            PanelButton loadPanelButton = PanelButton.CreateNew(replaceLoad ? ButtonStyles.CancelButton : ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
+            loadPanelButton = PanelButton.CreateNew(replaceLoad ? ButtonStyles.CancelButton : ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
 
             switch (item.Mode)
             {
@@ -1309,7 +1318,7 @@ namespace Basis.BasisUI
                     loadPanelButton.Descriptor.SetTitle(worldAlreadyExists ? "You can only load 1 instance of a scene." : "Load");
                     break;
                 case BundledContentHolder.Mode.Prop:
-                    loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : "Spawn");
+                    loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : GetPropLoadButtonTitle(desiredNetworkType));
                     break;
             }
 
@@ -1356,6 +1365,65 @@ namespace Basis.BasisUI
             desc.SetTitle(LibraryProviderStrUtil.TitleToCase(!string.IsNullOrEmpty(cachedMeta.Name) ? cachedMeta.Name : urlKey));
             desc.SetDescription(urlKey);
             desc.ForceRebuild();
+        }
+
+        #endregion
+
+        #region NetworkType Descriptions
+
+        private static readonly Dictionary<BundledContentHolder.NetworkType, string> NetworkTypeDisplayNames = new()
+        {
+            [BundledContentHolder.NetworkType.Local] = "Only Me",
+            [BundledContentHolder.NetworkType.Networked] = "Everyone (Instant)",
+            [BundledContentHolder.NetworkType.Synchronized] = "Everyone (Wait & Spawn Together)",
+        };
+
+        private static string GetNetworkTypeDisplayName(BundledContentHolder.NetworkType networkType)
+        {
+            return NetworkTypeDisplayNames.TryGetValue(networkType, out string name) ? name : networkType.ToString();
+        }
+
+        private static List<string> GetNetworkTypeDisplayNames()
+        {
+            return new List<string>(NetworkTypeDisplayNames.Values);
+        }
+
+        private static bool TryParseNetworkTypeFromDisplayName(string displayName, out BundledContentHolder.NetworkType networkType)
+        {
+            foreach (var kvp in NetworkTypeDisplayNames)
+            {
+                if (kvp.Value == displayName)
+                {
+                    networkType = kvp.Key;
+                    return true;
+                }
+            }
+            networkType = default;
+            return false;
+        }
+
+        private static string GetNetworkTypeDescription(BundledContentHolder.NetworkType networkType)
+        {
+            return networkType switch
+            {
+                BundledContentHolder.NetworkType.Local =>
+                    "If the item is set to local, it will only be visible and interactive for you.",
+                BundledContentHolder.NetworkType.Networked =>
+                    "The item will be spawned on all connected players immediately.",
+                BundledContentHolder.NetworkType.Synchronized =>
+                    "Downloads to all players, then spawns simultaneously once everyone is ready. Has a 5 minute timeout for slow connections.",
+                _ =>
+                    "Unknown network type.",
+            };
+        }
+
+        private static string GetPropLoadButtonTitle(BundledContentHolder.NetworkType networkType)
+        {
+            return networkType switch
+            {
+                BundledContentHolder.NetworkType.Synchronized => "Sync Spawn",
+                _ => "Spawn",
+            };
         }
 
         #endregion

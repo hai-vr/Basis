@@ -21,6 +21,12 @@ public partial class BundledContentHolder
     {
         Local = 0,
         Networked = 1,
+        /// <summary>
+        /// Downloads to all connected players, each reports readiness to the server,
+        /// then the server signals everyone to spawn simultaneously.
+        /// Has a 5-minute timeout; players that fail to load are skipped.
+        /// </summary>
+        Synchronized = 2,
     }
 
     // used to determine the way an item can be placed into a world

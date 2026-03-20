@@ -15,7 +15,7 @@ namespace Basis.Network.Core
         /// when adding a new message we need to increase this
         /// will function up to 64
         /// </summary>
-        public const byte TotalChannels = 38;
+        public const byte TotalChannels = 40;
         /// <summary>
         /// Shout mode voice channel. Non-spatialized audio broadcast to all clients.
         /// Reuses the formerly deprecated channel 0.
@@ -152,6 +152,14 @@ namespace Basis.Network.Core
         public const byte PlayerAvatarMediumAdditionalChannel = 35;
         public const byte PlayerAvatarHighChannel = 36;
         public const byte PlayerAvatarHighAdditionalChannel = 37;
+        /// <summary>
+        /// Client tells server it has finished preloading a resource (ready or failed).
+        /// </summary>
+        public const byte PreloadReadyChannel = 38;
+        /// <summary>
+        /// Server tells all clients to spawn a previously preloaded resource.
+        /// </summary>
+        public const byte SpawnPreloadedChannel = 39;
 
         /// <summary>
         /// Maps quality index (0‑3) + additional data presence → channel.
