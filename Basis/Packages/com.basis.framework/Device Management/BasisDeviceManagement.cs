@@ -182,9 +182,9 @@ namespace Basis.Scripts.Device_Management
         public bool IsSoftSwapped = false;
 
         /// <summary>
-        /// Manages automatic VR/Desktop switching based on headset presence.
+        /// Guard flag to prevent overlapping auto swap operations.
         /// </summary>
-        public BasisAutoSwapManager AutoSwapManager;
+        private bool _autoSwapInProgress = false;
 
         #region Unity Lifecycle
 
@@ -902,58 +902,61 @@ namespace Basis.Scripts.Device_Management
         #region Auto Swap Management
 
         /// <summary>
-        /// Creates the <see cref="BasisAutoSwapManager"/> and starts monitoring if conditions are met.
-        /// Called once during initialization.
+        /// Subscribes to <see cref="BasisHMDPresence.OnPresenceChanged"/> so the system can
+        /// auto-swap between VR and Desktop when the headset is put on or taken off.
+        /// The VR SDKs (OpenVR / OpenXR) report presence into the static hub every frame;
+        /// this code only reacts when the debounced value actually changes.
         /// </summary>
         private void SetupAutoSwap()
         {
-            // Always create the manager — it self-gates on the setting value each frame
-            if (AutoSwapManager == null)
-            {
-                AutoSwapManager = gameObject.AddComponent<BasisAutoSwapManager>();
-            }
-
-            bool autoSwap = BasisSettingsSystem.LoadBool("autoswap_enabled", false);
-            if (autoSwap && IsCurrentModeVR())
-            {
-                AutoSwapManager.StartMonitoring();
-            }
-
-            // Listen for mode changes so we can start/stop monitoring
-            OnBootModeChanged += OnModeChangedForAutoSwap;
+            BasisHMDPresence.OnPresenceChanged += OnHMDPresenceChanged;
         }
 
         /// <summary>
-        /// Cleans up auto swap resources during shutdown.
+        /// Unsubscribes from presence events during shutdown.
         /// </summary>
         private void CleanupAutoSwap()
         {
-            OnBootModeChanged -= OnModeChangedForAutoSwap;
-
-            if (AutoSwapManager != null)
-            {
-                AutoSwapManager.StopMonitoring();
-                Destroy(AutoSwapManager);
-                AutoSwapManager = null;
-            }
+            BasisHMDPresence.OnPresenceChanged -= OnHMDPresenceChanged;
+            BasisHMDPresence.Reset();
         }
 
         /// <summary>
-        /// When the mode changes, start monitoring if auto swap is enabled and we're in VR (or soft-swapped).
+        /// Reacts to headset presence changes. Only acts when the Auto Swap setting is enabled.
+        /// Each VR SDK polls presence natively (OpenVR activity level / OpenXR userPresence)
+        /// and reports into <see cref="BasisHMDPresence"/>; this handler triggers the soft swap.
         /// </summary>
-        private void OnModeChangedForAutoSwap(string newMode)
+        private async void OnHMDPresenceChanged(bool isPresent)
         {
-            if (AutoSwapManager == null) return;
+            if (_autoSwapInProgress) return;
+            if (!BasisSettingsSystem.LoadBool("autoswap_enabled", false)) return;
 
-            bool autoSwap = BasisSettingsSystem.LoadBool("autoswap_enabled", false);
-            if (!autoSwap) return;
+            bool shouldSwitchToDesktop = !isPresent && IsCurrentModeVR();
+            bool shouldSwitchToVR = isPresent && IsSoftSwapped;
 
-            bool isVR = string.Equals(newMode, BasisConstants.OpenVRLoader, StringComparison.Ordinal) ||
-                        string.Equals(newMode, BasisConstants.OpenXRLoader, StringComparison.Ordinal);
+            if (!shouldSwitchToDesktop && !shouldSwitchToVR) return;
 
-            if (isVR || IsSoftSwapped)
+            _autoSwapInProgress = true;
+            try
             {
-                AutoSwapManager.StartMonitoring();
+                if (shouldSwitchToDesktop)
+                {
+                    BasisDebug.Log("AutoSwap: Headset removed — switching to Desktop", BasisDebug.LogTag.Device);
+                    await SoftSwitchToDesktop();
+                }
+                else
+                {
+                    BasisDebug.Log("AutoSwap: Headset detected — switching to VR", BasisDebug.LogTag.Device);
+                    await SoftSwitchToVR();
+                }
+            }
+            catch (Exception e)
+            {
+                BasisDebug.LogError($"AutoSwap: Swap failed — {e}", BasisDebug.LogTag.Device);
+            }
+            finally
+            {
+                _autoSwapInProgress = false;
             }
         }
 

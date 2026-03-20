@@ -38,15 +38,18 @@ public static class SettingsProviderPlatform
 
         BasisDeviceManagement dm = BasisDeviceManagement.Instance;
 
-        // Soft-swap status
+#if BASIS_HAS_OPENVR || BASIS_HAS_OPENXR
+        // Soft-swap status (only relevant when VR SDKs are compiled in)
         if (dm != null && dm.IsSoftSwapped)
         {
             PanelPasswordField softSwapField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
             softSwapField.Descriptor.SetTitle("VR Runtime");
             softSwapField.SetPassword($"{dm.AutoSwapPreviousVRMode} (kept alive)");
         }
+#endif
 
-        // ---- Auto Swap settings group ----
+#if BASIS_HAS_OPENVR || BASIS_HAS_OPENXR
+        // ---- Auto Swap settings group (only shown when a VR SDK is compiled in) ----
         PanelElementDescriptor autoSwapGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         autoSwapGroup.SetTitle("Auto Swap");
@@ -67,6 +70,7 @@ public static class SettingsProviderPlatform
             "ON = current behavior (full restart). OFF = keep runtime alive during manual swap.\n" +
             "Ignored when Auto Swap is enabled.");
         toggleShutdownRuntime.AssignBinding(BasisSettingsDefaults.ShutdownRuntimeOnSwap);
+#endif
 
         // Discover available modes from registered BaseTypes
         List<string> availableModes = new List<string>();

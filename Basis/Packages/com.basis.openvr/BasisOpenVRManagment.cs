@@ -1,5 +1,6 @@
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices.OpenVR.Structs;
 using Basis.Scripts.Device_Management.Devices.Unity_Spatial_Tracking;
 using Basis.Scripts.Drivers;
@@ -470,6 +471,21 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
             {
                 SteamVR_Render.Simulate();
             }
+            PollHMDPresence();
+        }
+
+        /// <summary>
+        /// Queries OpenVR's activity level for device 0 (HMD) to determine user presence.
+        /// Reports into the static <see cref="BasisHMDPresence"/> hub every frame.
+        /// Runs even when <see cref="IsSuspended"/> — the runtime is alive during soft swap.
+        /// </summary>
+        private void PollHMDPresence()
+        {
+            if (Valve.VR.OpenVR.System == null) return;
+            var level = Valve.VR.OpenVR.System.GetTrackedDeviceActivityLevel(0);
+            bool present = level == EDeviceActivityLevel.k_EDeviceActivityLevel_UserInteraction ||
+                           level == EDeviceActivityLevel.k_EDeviceActivityLevel_UserInteraction_Timeout;
+            BasisHMDPresence.ReportPresence(present);
         }
     }
 }

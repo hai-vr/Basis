@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System;
@@ -302,6 +303,38 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
                 else
                 {
                     BasisDebug.LogError($"No matching usage found for tracker: {addedTracker.name}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Per-frame simulation. Polls headset presence even during soft swap
+        /// (XR runtime stays alive so the query still works).
+        /// </summary>
+        public override void Simulate()
+        {
+            PollHMDPresence();
+        }
+
+        /// <summary>
+        /// Cached list to avoid allocation every frame.
+        /// </summary>
+        private static readonly List<UnityEngine.XR.InputDevice> _headDevices = new List<UnityEngine.XR.InputDevice>();
+
+        /// <summary>
+        /// Queries the OpenXR subsystem for <see cref="UnityEngine.XR.CommonUsages.userPresence"/>
+        /// on the head-mounted device. Reports into <see cref="BasisHMDPresence"/>.
+        /// </summary>
+        private void PollHMDPresence()
+        {
+            _headDevices.Clear();
+            UnityEngine.XR.InputDevices.GetDevicesAtXRNode(UnityEngine.XR.XRNode.Head, _headDevices);
+            for (int i = 0; i < _headDevices.Count; i++)
+            {
+                if (_headDevices[i].TryGetFeatureValue(UnityEngine.XR.CommonUsages.userPresence, out bool present))
+                {
+                    BasisHMDPresence.ReportPresence(present);
+                    return;
                 }
             }
         }
