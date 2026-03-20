@@ -31,11 +31,6 @@ public static class BasisNetworkHandleChat
     public const float NotificationVolume = 0.5f;
 
     /// <summary>
-    /// Cached fallback notification clip generated at runtime when no custom clip is assigned.
-    /// </summary>
-    private static AudioClip fallbackNotificationClip;
-
-    /// <summary>
     /// Fired on the main thread when a chat message is received from a remote player.
     /// Parameters: senderPlayerId, message text.
     /// </summary>
@@ -121,54 +116,16 @@ public static class BasisNetworkHandleChat
 
     /// <summary>
     /// Plays the chat notification audio clip at the local listener position.
-    /// Uses the custom clip from BasisDeviceManagement if assigned, otherwise a generated fallback tone.
     /// </summary>
     private static void PlayChatNotification()
     {
-        AudioClip clip = null;
-
-        if (BasisDeviceManagement.Instance != null && BasisDeviceManagement.Instance.ChatNotificationUI != null)
+        if (BasisDeviceManagement.Instance == null || BasisDeviceManagement.Instance.ChatNotificationUI == null)
         {
-            clip = BasisDeviceManagement.Instance.ChatNotificationUI;
-        }
-        else
-        {
-            if (fallbackNotificationClip == null)
-            {
-                fallbackNotificationClip = CreateFallbackNotificationClip();
-            }
-            clip = fallbackNotificationClip;
+            return;
         }
 
-        if (clip != null)
-        {
-            Vector3 listenerPos = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
-            AudioSource.PlayClipAtPoint(clip, listenerPos, NotificationVolume);
-        }
-    }
-
-    /// <summary>
-    /// Generates a short notification beep tone (A5, 880Hz, 0.15s) as a fallback
-    /// when no custom ChatNotificationUI clip is assigned.
-    /// </summary>
-    private static AudioClip CreateFallbackNotificationClip()
-    {
-        int sampleRate = 44100;
-        float duration = 0.15f;
-        int sampleCount = (int)(sampleRate * duration);
-        float[] samples = new float[sampleCount];
-        float frequency = 880f;
-
-        for (int i = 0; i < sampleCount; i++)
-        {
-            float t = (float)i / sampleRate;
-            float envelope = 1f - (t / duration);
-            samples[i] = Mathf.Sin(2f * Mathf.PI * frequency * t) * envelope * 0.5f;
-        }
-
-        AudioClip clip = AudioClip.Create("ChatNotificationFallback", sampleCount, 1, sampleRate, false);
-        clip.SetData(samples, 0);
-        return clip;
+        Vector3 listenerPos = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
+        AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.ChatNotificationUI, listenerPos, NotificationVolume);
     }
 
     private static void ApplyChatToNamePlate(ushort senderPlayerId, string message)
