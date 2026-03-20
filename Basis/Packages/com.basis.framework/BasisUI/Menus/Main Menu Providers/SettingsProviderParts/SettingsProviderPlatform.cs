@@ -36,9 +36,40 @@ public static class SettingsProviderPlatform
         currentModeField.Descriptor.SetTitle("Active Mode");
         currentModeField.SetPassword(currentMode);
 
+        BasisDeviceManagement dm = BasisDeviceManagement.Instance;
+
+        // Soft-swap status
+        if (dm != null && dm.IsSoftSwapped)
+        {
+            PanelPasswordField softSwapField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
+            softSwapField.Descriptor.SetTitle("VR Runtime");
+            softSwapField.SetPassword($"{dm.AutoSwapPreviousVRMode} (kept alive)");
+        }
+
+        // ---- Auto Swap settings group ----
+        PanelElementDescriptor autoSwapGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        autoSwapGroup.SetTitle("Auto Swap");
+        autoSwapGroup.SetDescription(
+            "Automatically switch between VR and Desktop based on headset presence.\n" +
+            "When enabled, the XR runtime stays alive so swapping is instant.");
+
+        PanelToggle toggleAutoSwap = PanelToggle.CreateNewEntry(autoSwapGroup);
+        toggleAutoSwap.Descriptor.SetTitle("Enable Auto Swap");
+        toggleAutoSwap.Descriptor.SetDescription(
+            "Uses headset proximity sensor to swap between VR and Desktop without restarting the runtime.");
+        toggleAutoSwap.AssignBinding(BasisSettingsDefaults.AutoSwapEnabled);
+
+        PanelToggle toggleShutdownRuntime = PanelToggle.CreateNewEntry(autoSwapGroup);
+        toggleShutdownRuntime.Descriptor.SetTitle("Shutdown Runtime On Swap");
+        toggleShutdownRuntime.Descriptor.SetDescription(
+            "When Auto Swap is OFF: controls whether switching modes shuts down OpenXR/OpenVR.\n" +
+            "ON = current behavior (full restart). OFF = keep runtime alive during manual swap.\n" +
+            "Ignored when Auto Swap is enabled.");
+        toggleShutdownRuntime.AssignBinding(BasisSettingsDefaults.ShutdownRuntimeOnSwap);
+
         // Discover available modes from registered BaseTypes
         List<string> availableModes = new List<string>();
-        BasisDeviceManagement dm = BasisDeviceManagement.Instance;
         if (dm != null)
         {
             foreach (string mode in AllModes)

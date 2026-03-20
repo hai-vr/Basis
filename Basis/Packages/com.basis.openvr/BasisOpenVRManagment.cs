@@ -23,6 +23,11 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         public SteamVR SteamVR;
         public Dictionary<string, OpenVRDevice> TypicalDevices = new Dictionary<string, OpenVRDevice>();
         public bool IsInUse = false;
+        /// <summary>
+        /// When true, device creation/destruction from SteamVR events is suppressed.
+        /// Used during soft swap to keep the runtime alive without processing device changes.
+        /// </summary>
+        public bool IsSuspended = false;
         public static string SteamVRBehaviour = "SteamVR_Behaviour";
         private void OnDeviceConnected(uint deviceIndex, bool deviceConnected)
         {
@@ -42,6 +47,8 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
 
         private void DelayedOnDeviceConnected(uint deviceIndex, bool deviceConnected)
         {
+            if (IsSuspended) return;
+
             BasisDebug.Log($"Device index {deviceIndex} is connected: {deviceConnected}");
 
             var error = new ETrackedPropertyError();
@@ -309,8 +316,50 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
                 }
             }
         }
+        /// <summary>
+        /// Destroys all tracked device inputs but keeps SteamVR runtime, event listeners, and rendering alive.
+        /// </summary>
+        public override void SoftStopDevices()
+        {
+            IsSuspended = true;
+            foreach (var device in TypicalDevices.Keys.ToList())
+            {
+                DestroyPhysicalTrackedDevice(device);
+            }
+            BasisDebug.Log("OpenVR: Soft-stopped input devices (runtime kept alive)", BasisDebug.LogTag.Device);
+        }
+
+        /// <summary>
+        /// Re-enumerates all connected SteamVR devices and recreates their input components.
+        /// Assumes the SteamVR runtime is still active from a prior soft stop.
+        /// </summary>
+        public override void SoftStartDevices()
+        {
+            if (!IsInUse || SteamVR == null)
+            {
+                BasisDebug.LogError("OpenVR: Cannot soft-start, runtime is not active", BasisDebug.LogTag.Device);
+                return;
+            }
+
+            IsSuspended = false;
+            BasisLocalCameraDriver.AllowXRRenderering(true);
+
+            // Re-enumerate all connected devices
+            for (uint i = 0; i < 64; i++)
+            {
+                if (Valve.VR.OpenVR.System != null && Valve.VR.OpenVR.System.IsTrackedDeviceConnected(i))
+                {
+                    OnDeviceConnected(i, true);
+                }
+            }
+
+            BasisCursorManagement.UnlockCursorBypassChecks("Forceful Unlock OPENVR SoftStart");
+            BasisDebug.Log("OpenVR: Soft-started input devices", BasisDebug.LogTag.Device);
+        }
+
         public override void StopSDK()
         {
+            IsSuspended = false;
             SteamVR.SafeDispose();
 
             if (SteamVR_BehaviourGameobject != null)

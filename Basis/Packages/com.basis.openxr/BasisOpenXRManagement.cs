@@ -22,6 +22,11 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
         public List<BasisOpenxrDeviceTrackedInfo> Trackers = new List<BasisOpenxrDeviceTrackedInfo>();
         [NonSerialized]
         private Dictionary<int, InputDevice> trackedDevices = new Dictionary<int, InputDevice>();
+        /// <summary>
+        /// When true, device creation/destruction from InputSystem events is suppressed.
+        /// Used during soft swap to keep the XR runtime alive without processing device changes.
+        /// </summary>
+        public bool IsSuspended = false;
         public string[] HTCOpenXRViveTracker = new string[] { "HTC Vive Tracker (OpenXR)" };
         public string[] CommonUsagesWeAccept = new string[]
         {
@@ -40,8 +45,66 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
             }
             return false;
         }
+        /// <summary>
+        /// Destroys all tracked device inputs but keeps the OpenXR runtime and subsystems alive.
+        /// Unsubscribes hand tracking to avoid null-reference while hands are destroyed.
+        /// </summary>
+        public override void SoftStopDevices()
+        {
+            IsSuspended = true;
+
+            // Unsubscribe hand tracking to prevent null-ref on destroyed hand inputs
+            if (m_Subsystem != null)
+            {
+                m_Subsystem.updatedHands -= OnHandUpdate;
+            }
+
+            foreach (var device in controls.ToList())
+            {
+                if (device != null)
+                {
+                    DestroyPhysicalTrackedDevice(device.UniqueDeviceIdentifier);
+                }
+            }
+            controls.Clear();
+            OpenXRTrackers.Clear();
+
+            BasisDebug.Log("OpenXR: Soft-stopped input devices (runtime kept alive)", BasisDebug.LogTag.Device);
+        }
+
+        /// <summary>
+        /// Recreates head, hand, and body tracker inputs. Assumes the OpenXR runtime is still active.
+        /// </summary>
+        public override void SoftStartDevices()
+        {
+            IsSuspended = false;
+            BasisLocalCameraDriver.AllowXRRenderering(true);
+
+            CreatePhysicalHeadTracker("Head OPENXR", "Head OPENXR");
+            LeftHand = CreatePhysicalHandTracker("Left Hand OPENXR", "Left Hand OPENXR", BasisBoneTrackedRole.LeftHand);
+            RightHand = CreatePhysicalHandTracker("Right Hand OPENXR", "Right Hand OPENXR", BasisBoneTrackedRole.RightHand);
+
+            // Resubscribe to hand tracking
+            if (m_Subsystem != null)
+            {
+                m_Subsystem.updatedHands += OnHandUpdate;
+            }
+
+            // Re-scan for full body trackers
+            int count = InputSystem.devices.Count;
+            for (int i = 0; i < count; i++)
+            {
+                TryAddTracker(InputSystem.devices[i]);
+            }
+            trackerscount = Trackers.Count;
+
+            BasisCursorManagement.UnlockCursorBypassChecks("Forceful Unlock OPENXR SoftStart");
+            BasisDebug.Log("OpenXR: Soft-started input devices", BasisDebug.LogTag.Device);
+        }
+
         public override void StopSDK()
         {
+            IsSuspended = false;
             BasisDebug.Log("Stopping SDK for BasisOpenXRManagement");
 
             foreach (var device in controls)
@@ -156,6 +219,8 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
 
         private void onDeviceChange(InputDevice device, InputDeviceChange change)
         {
+            if (IsSuspended) return;
+
             int count = InputSystem.devices.Count;
             for (int Index = 0; Index < count; Index++)
             {
@@ -167,6 +232,8 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
         public int trackerscount;
         public void CheckTrackersPulse()
         {
+            if (IsSuspended) return;
+
             for (int Index = 0; Index < trackerscount; Index++)
             {
                 BasisOpenxrDeviceTrackedInfo device = Trackers[Index];

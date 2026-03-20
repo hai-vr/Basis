@@ -170,6 +170,22 @@ namespace Basis.Scripts.Device_Management
         /// </summary>
         public Profile LipSyncProfile;
 
+        /// <summary>
+        /// The VR mode that was active before a soft swap switched to Desktop.
+        /// Used to restore the correct VR mode when the headset is detected again.
+        /// </summary>
+        public string AutoSwapPreviousVRMode = string.Empty;
+
+        /// <summary>
+        /// True when the system is in Desktop mode via a soft swap, with the XR runtime still alive.
+        /// </summary>
+        public bool IsSoftSwapped = false;
+
+        /// <summary>
+        /// Manages automatic VR/Desktop switching based on headset presence.
+        /// </summary>
+        public BasisAutoSwapManager AutoSwapManager;
+
         #region Unity Lifecycle
 
         /// <summary>
@@ -201,6 +217,7 @@ namespace Basis.Scripts.Device_Management
         /// </summary>
         private void OnDestroy()
         {
+            CleanupAutoSwap();
             BasisXRManagement.DeInitalize();
             BasisPlayerFactory.DeInitalize();
             StopAllDevices();
@@ -267,6 +284,7 @@ namespace Basis.Scripts.Device_Management
 
             await BasisActionDriver.LoadBindings();
 
+            SetupAutoSwap();
             OnInitializationCompleted?.Invoke();
             OnInitializationComplete = true;
         }
@@ -307,6 +325,34 @@ namespace Basis.Scripts.Device_Management
                 return;
             }
 
+            // Check whether we should use a soft swap (keep the XR runtime alive)
+            bool autoSwap = BasisSettingsSystem.LoadBool("autoswap_enabled", false);
+            bool shutdownRuntime = BasisSettingsSystem.LoadBool("shutdown_runtime_on_swap", true);
+            bool useSoftSwap = autoSwap || !shutdownRuntime;
+
+            if (useSoftSwap)
+            {
+                bool currentIsVR = IsCurrentModeVR();
+                bool newIsDesktop = string.Equals(newMode, BasisConstants.Desktop, StringComparison.Ordinal);
+                bool newIsVR = string.Equals(newMode, BasisConstants.OpenVRLoader, StringComparison.Ordinal) ||
+                               string.Equals(newMode, BasisConstants.OpenXRLoader, StringComparison.Ordinal);
+
+                // VR → Desktop: soft switch, keeping XR runtime alive
+                if (currentIsVR && newIsDesktop)
+                {
+                    await SoftSwitchToDesktop();
+                    return;
+                }
+
+                // Desktop (soft-swapped) → original VR mode: soft switch back
+                if (IsSoftSwapped && newIsVR && string.Equals(newMode, AutoSwapPreviousVRMode, StringComparison.Ordinal))
+                {
+                    await SoftSwitchToVR();
+                    return;
+                }
+            }
+
+            // Full swap (current default behavior)
             if (!string.Equals(StaticCurrentMode, BasisConstants.None, StringComparison.Ordinal))
             {
                 BasisDebug.Log($"Shutting down mode: {StaticCurrentMode}", BasisDebug.LogTag.Device);
@@ -368,6 +414,8 @@ namespace Basis.Scripts.Device_Management
                 BaseTypes[i]?.AttemptStopSDK();
             }
 
+            IsSoftSwapped = false;
+            AutoSwapPreviousVRMode = string.Empty;
             StaticCurrentMode = BasisConstants.None;
             ShutDownXR();
         }
@@ -763,6 +811,151 @@ namespace Basis.Scripts.Device_Management
         public static bool IsCurrentModeVR() =>
             string.Equals(StaticCurrentMode, BasisConstants.OpenVRLoader, StringComparison.Ordinal) ||
             string.Equals(StaticCurrentMode, BasisConstants.OpenXRLoader, StringComparison.Ordinal);
+
+        #endregion
+
+        #region Soft Swap (Auto Swap / Keep Runtime Alive)
+
+        /// <summary>
+        /// Switches from VR to Desktop without shutting down the XR runtime.
+        /// The VR SDK keeps running in the background; only input devices are destroyed.
+        /// Desktop input is created to drive the avatar with mouse/keyboard.
+        /// </summary>
+        public async Task SoftSwitchToDesktop()
+        {
+            if (IsUserInDesktop())
+            {
+                BasisDebug.LogError("Already in Desktop — cannot soft-switch.", BasisDebug.LogTag.Device);
+                return;
+            }
+
+            AutoSwapPreviousVRMode = StaticCurrentMode;
+            IsSoftSwapped = true;
+
+            BasisDebug.Log($"Soft-switching from {AutoSwapPreviousVRMode} to Desktop (keeping runtime alive)", BasisDebug.LogTag.Device);
+
+            // Soft-stop VR input devices — runtime stays alive
+            for (int i = 0; i < BaseTypes.Count; i++)
+            {
+                var bt = BaseTypes[i];
+                if (bt != null && bt.IsDeviceBooted && bt.IsDeviceBootable(AutoSwapPreviousVRMode))
+                {
+                    bt.SoftStopDevices();
+                }
+            }
+
+            // Do NOT call ShutDownXR() — the XR loader stays initialized
+
+            // Start desktop devices (sets StaticCurrentMode, reloads settings, etc.)
+            await StartDevices(BasisConstants.Desktop);
+        }
+
+        /// <summary>
+        /// Restores VR mode from a soft swap without re-initializing the XR runtime.
+        /// Desktop input is destroyed and VR input devices are recreated.
+        /// </summary>
+        public async Task SoftSwitchToVR()
+        {
+            if (!IsSoftSwapped || string.IsNullOrEmpty(AutoSwapPreviousVRMode))
+            {
+                BasisDebug.LogError("Not in a soft-swapped state — cannot restore VR.", BasisDebug.LogTag.Device);
+                return;
+            }
+
+            string vrMode = AutoSwapPreviousVRMode;
+            IsSoftSwapped = false;
+            AutoSwapPreviousVRMode = string.Empty;
+
+            BasisDebug.Log($"Soft-switching from Desktop back to {vrMode}", BasisDebug.LogTag.Device);
+
+            // Stop desktop devices normally
+            for (int i = 0; i < BaseTypes.Count; i++)
+            {
+                var bt = BaseTypes[i];
+                if (bt != null && bt.IsDeviceBooted && bt.IsDeviceBootable(BasisConstants.Desktop))
+                {
+                    bt.AttemptStopSDK();
+                }
+            }
+
+            // Soft-start VR input devices — runtime is already alive
+            for (int i = 0; i < BaseTypes.Count; i++)
+            {
+                var bt = BaseTypes[i];
+                if (bt != null && bt.IsDeviceBooted && bt.IsDeviceBootable(vrMode))
+                {
+                    bt.SoftStartDevices();
+                }
+            }
+
+            StaticCurrentMode = vrMode;
+            BasisSettingsSystem.LoadAllSettings();
+#if !BASIS_DISABLE_MICROPHONE
+            SMDMicrophone.LoadInMicrophoneData(vrMode);
+#endif
+            await BasisActionDriver.LoadBindings();
+            BasisDebug.Log($"Soft-switch to {vrMode} complete", BasisDebug.LogTag.Device);
+        }
+
+        #endregion
+
+        #region Auto Swap Management
+
+        /// <summary>
+        /// Creates the <see cref="BasisAutoSwapManager"/> and starts monitoring if conditions are met.
+        /// Called once during initialization.
+        /// </summary>
+        private void SetupAutoSwap()
+        {
+            // Always create the manager — it self-gates on the setting value each frame
+            if (AutoSwapManager == null)
+            {
+                AutoSwapManager = gameObject.AddComponent<BasisAutoSwapManager>();
+            }
+
+            bool autoSwap = BasisSettingsSystem.LoadBool("autoswap_enabled", false);
+            if (autoSwap && IsCurrentModeVR())
+            {
+                AutoSwapManager.StartMonitoring();
+            }
+
+            // Listen for mode changes so we can start/stop monitoring
+            OnBootModeChanged += OnModeChangedForAutoSwap;
+        }
+
+        /// <summary>
+        /// Cleans up auto swap resources during shutdown.
+        /// </summary>
+        private void CleanupAutoSwap()
+        {
+            OnBootModeChanged -= OnModeChangedForAutoSwap;
+
+            if (AutoSwapManager != null)
+            {
+                AutoSwapManager.StopMonitoring();
+                Destroy(AutoSwapManager);
+                AutoSwapManager = null;
+            }
+        }
+
+        /// <summary>
+        /// When the mode changes, start monitoring if auto swap is enabled and we're in VR (or soft-swapped).
+        /// </summary>
+        private void OnModeChangedForAutoSwap(string newMode)
+        {
+            if (AutoSwapManager == null) return;
+
+            bool autoSwap = BasisSettingsSystem.LoadBool("autoswap_enabled", false);
+            if (!autoSwap) return;
+
+            bool isVR = string.Equals(newMode, BasisConstants.OpenVRLoader, StringComparison.Ordinal) ||
+                        string.Equals(newMode, BasisConstants.OpenXRLoader, StringComparison.Ordinal);
+
+            if (isVR || IsSoftSwapped)
+            {
+                AutoSwapManager.StartMonitoring();
+            }
+        }
 
         #endregion
     }
