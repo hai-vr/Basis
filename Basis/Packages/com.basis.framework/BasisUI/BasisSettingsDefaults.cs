@@ -178,6 +178,20 @@ namespace Basis.BasisUI
         // ---------------- NETWORKING ----------------
         public static BasisSettingsBinding<bool> AutoConnect = new("autoconnect", new BasisPlatformDefault<bool>(false));
 
+        // ---------------- DEVICE AUTO SWAP ----------------
+        /// <summary>
+        /// When enabled, monitors VR headset presence (isPresent/proximity sensor) and automatically
+        /// swaps between VR and Desktop input without shutting down the XR runtime.
+        /// </summary>
+        public static BasisSettingsBinding<bool> AutoSwapEnabled => new("autoswap_enabled", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
+        /// When Auto Swap is OFF and this is ON, switching between VR and Desktop shuts down the
+        /// XR runtime (OpenXR/OpenVR) — the current default behavior. When OFF, the runtime stays alive.
+        /// This setting is ignored when Auto Swap is enabled.
+        /// </summary>
+        public static BasisSettingsBinding<bool> ShutdownRuntimeOnSwap => new("shutdown_runtime_on_swap", new BasisPlatformDefault<bool>(true));
+
         // ---------------- NOTIFICATIONS ----------------
         public static BasisSettingsBinding<bool> JoinNotifications = new("joinnotifications", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> LeaveNotifications = new("leavenotifications", new BasisPlatformDefault<bool>(false));
@@ -590,6 +604,10 @@ namespace Basis.BasisUI
 
             // Networking
             AutoConnect.LoadBindingValue();
+
+            // Device Auto Swap
+            AutoSwapEnabled.LoadBindingValue();
+            ShutdownRuntimeOnSwap.LoadBindingValue();
 
             // Notifications
             JoinNotifications.LoadBindingValue();
