@@ -136,3 +136,175 @@ public struct BasisDistanceReduceJob : IJob
         ChangeMask[0] = mask;
     }
 }
+
+/// <summary>
+/// Burst job that enforces the MaxVisibleAvatars cap.
+/// Scheduled after the distance job (reads its outputs), runs in parallel with the reduce job.
+/// Uses quickselect (O(n) average) to partition the closest N candidates from the rest,
+/// then flips AvatarRange to false for everyone beyond the cap.
+/// </summary>
+[BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Standard)]
+public struct BasisAvatarCapJob : IJob
+{
+    public int MaxVisible;
+    public int ReceiverCount;
+    public float StickinessBonus;
+
+    [ReadOnly] public NativeArray<float> DistanceSq;
+    [ReadOnly] public NativeArray<bool> HasRealAvatarLoaded;
+
+    public NativeArray<bool> AvatarRange;
+    public NativeArray<AvatarCapEntry> Entries;
+
+    public void Execute()
+    {
+        if (MaxVisible <= 0 || ReceiverCount <= 0)
+        {
+            return;
+        }
+
+        // Build candidate list with effective distances (stickiness baked in).
+        int count = 0;
+        for (int i = 0; i < ReceiverCount; i++)
+        {
+            if (!AvatarRange[i])
+            {
+                continue;
+            }
+
+            float d2 = DistanceSq[i];
+            Entries[count++] = new AvatarCapEntry
+            {
+                Index = i,
+                EffectiveDistSq = HasRealAvatarLoaded[i] ? d2 * StickinessBonus : d2,
+            };
+        }
+
+        if (count <= MaxVisible)
+        {
+            return;
+        }
+
+        // Quickselect: partition so the MaxVisible closest are in [0..MaxVisible-1].
+        // O(n) average — no full sort needed since we only care about the boundary.
+        NthElement(0, count - 1, MaxVisible);
+
+        // Everything from MaxVisible onward loses avatar range.
+        for (int i = MaxVisible; i < count; i++)
+        {
+            AvatarRange[Entries[i].Index] = false;
+        }
+    }
+
+    private void NthElement(int left, int right, int n)
+    {
+        while (left < right)
+        {
+            int pivot = Partition(left, right);
+            if (pivot == n)
+            {
+                return;
+            }
+            if (pivot < n)
+            {
+                left = pivot + 1;
+            }
+            else
+            {
+                right = pivot - 1;
+            }
+        }
+    }
+
+    private int Partition(int left, int right)
+    {
+        // Median-of-three pivot for better average performance.
+        int mid = left + (right - left) / 2;
+        if (Entries[mid].EffectiveDistSq < Entries[left].EffectiveDistSq)
+        {
+            SwapEntries(left, mid);
+        }
+        if (Entries[right].EffectiveDistSq < Entries[left].EffectiveDistSq)
+        {
+            SwapEntries(left, right);
+        }
+        if (Entries[mid].EffectiveDistSq < Entries[right].EffectiveDistSq)
+        {
+            SwapEntries(mid, right);
+        }
+
+        float pivotVal = Entries[right].EffectiveDistSq;
+        int store = left;
+        for (int j = left; j < right; j++)
+        {
+            if (Entries[j].EffectiveDistSq <= pivotVal)
+            {
+                SwapEntries(store, j);
+                store++;
+            }
+        }
+        SwapEntries(store, right);
+        return store;
+    }
+
+    private void SwapEntries(int a, int b)
+    {
+        AvatarCapEntry tmp = Entries[a];
+        Entries[a] = Entries[b];
+        Entries[b] = tmp;
+    }
+}
+
+/// <summary>
+/// Sortable entry for the avatar visibility cap.
+/// </summary>
+public struct AvatarCapEntry
+{
+    public int Index;
+    public float EffectiveDistSq;
+}
+
+/// <summary>
+/// Burst parallel job: computes per-player directional dampening multipliers.
+/// Reads targetPositions (shared [ReadOnly] with the distance job) so it can
+/// run fully in parallel with distance, reduce, and cap jobs.
+/// Output is written to a NativeArray; the caller copies to managed AudioReceiverModule
+/// in a trivial main-thread loop.
+/// </summary>
+[BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Standard)]
+public struct BasisDirectionalDampenJob : IJobParallelFor
+{
+    public float3 ListenerPosition;
+    public float3 ListenerForward;
+    public float CosHalfCone;
+    public float CosRange;
+    public float MinVolume;
+
+    [ReadOnly] public NativeArray<float3> TargetPositions;
+    [WriteOnly] public NativeArray<float> Multipliers;
+
+    public void Execute(int i)
+    {
+        float3 toSource = TargetPositions[i] - ListenerPosition;
+        float sqrMag = math.lengthsq(toSource);
+
+        if (sqrMag < 0.001f)
+        {
+            Multipliers[i] = 1f;
+            return;
+        }
+
+        float3 dir = toSource * math.rsqrt(sqrMag);
+        float dot = math.dot(ListenerForward, dir);
+
+        if (dot >= CosHalfCone)
+        {
+            Multipliers[i] = 1f;
+        }
+        else
+        {
+            float t = (CosHalfCone - dot) / CosRange;
+            Multipliers[i] = math.lerp(1f, MinVolume, t);
+        }
+    }
+}

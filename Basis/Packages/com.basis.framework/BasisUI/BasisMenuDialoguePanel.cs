@@ -1,4 +1,5 @@
 using System;
+using Basis.BTween;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -69,6 +70,10 @@ namespace Basis.BasisUI
             panel.LoadData(DialoguePanelData);
             panel.Callback = callback;
             panel.FillDialogue(title, description, accept, deny);
+
+            // Pop-in animation for dialogues
+            UIAnimations.PopIn(panel);
+
             return panel;
         }
 
@@ -92,6 +97,10 @@ namespace Basis.BasisUI
             panel.LoadData(DialoguePanelData);
             panel.Callback = callback;
             panel.FillDialogue(title, description, accept);
+
+            // Pop-in animation for dialogues
+            UIAnimations.PopIn(panel);
+
             return panel;
         }
 

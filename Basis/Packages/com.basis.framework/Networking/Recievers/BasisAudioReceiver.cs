@@ -9,6 +9,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using UnityEngine;
+using static SerializableBasis;
 namespace Basis.Scripts.Networking.Receivers
 {
     /// <summary>
@@ -38,6 +39,8 @@ namespace Basis.Scripts.Networking.Receivers
         /// Ring buffer used to maintain correct ordering of decoded audio samples.
         /// </summary>
         public BasisVoiceRingBuffer InOrderRead = new BasisVoiceRingBuffer();
+
+        public BasisJitterBuffer JitterBuffer = new BasisJitterBuffer();
 
         /// <summary>
         /// Decode destination buffer (mono) sized to one network frame.
@@ -158,7 +161,52 @@ namespace Basis.Scripts.Networking.Receivers
                 AudioSourceSet();
             }
         }
+        public void Insert(AudioSegmentDataMessage msg)
+        {
+            JitterBuffer.Insert(msg.SequenceNumber, msg.buffer, msg.LengthUsed, msg.TotalPlayedInSilence);
+        }
 
+        public void DrainAndDecode()
+        {
+            while (JitterBuffer.TryConsume(out byte[] data, out int length, out byte silenceUnits, out bool isMissing))
+            {
+                if (isMissing)
+                {
+                    OnDecodePLC();
+                }
+                else
+                {
+                    if (silenceUnits > 0)
+                    {
+                        int localUnits = System.Threading.Interlocked.Exchange(ref _silentUnits20ms, 0);
+                        int missing = silenceUnits - localUnits;
+                        for (int i = 0; i < missing; i++)
+                            OnDecodeSilence();
+                    }
+                    OnDecode(data, length);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Generates a Packet Loss Concealment frame using the Opus decoder internal state.
+        /// </summary>
+        public void OnDecodePLC()
+        {
+            if (HasAudioSource)
+            {
+                try
+                {
+                    pcmLength = decoder.Decode(Span<byte>.Empty, 0, new Span<float>(pcmBuffer), RemoteOpusSettings.FrameSize, false);
+                    InOrderRead.Add(pcmBuffer, pcmLength, true);
+                }
+                catch
+                {
+                    InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
+                }
+                AudioSourceSet();
+            }
+        }
         /// <summary>
         /// Creates/attaches an <see cref="AudioSource"/> and begins playback for the given player.
         /// Also initializes viseme driving and applies per-player volume settings.
@@ -313,6 +361,23 @@ namespace Basis.Scripts.Networking.Receivers
             return;
 #endif
             UnloadAudioSource();
+        }
+
+
+        /// <summary>
+        /// Initializes scratch buffers and resampling state for audio playback.
+        /// Call this before setting HasAudioSource = true so that OnAudioFilterRead
+        /// has valid buffers when it first runs. Used by BasisShoutAudioDriver
+        /// which manages its own AudioSource lifecycle.
+        /// </summary>
+        public void InitializeForPlayback()
+        {
+            const int BufferSize = 1024;
+
+            _inputScratch = new float[BufferSize];
+            _resampleScratch = new float[BufferSize];
+            _cachedOutputRate = outputSampleRate;
+            _resampleRatio = (float)RemoteOpusSettings.NetworkSampleRate / _cachedOutputRate;
         }
 
         /// <summary>

@@ -125,6 +125,17 @@ public static class BasisPlayerSettingsManager
         await WriteUnderLockAsync(key, data).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Non-blocking cache lookup. Returns true if the settings are already loaded in memory.
+    /// Useful for hot-path code that cannot await (e.g., incoming chat message handling).
+    /// </summary>
+    public static bool TryGetCachedPlayerSettings(string uuid, out BasisPlayerSettingsData settings)
+    {
+        settings = null;
+        if (string.IsNullOrWhiteSpace(uuid)) return false;
+        return cache.TryGetValue(Sanitize(uuid), out settings);
+    }
+
     // ---- internals ---------------------------------------------------------
 
     private static async Task<BasisPlayerSettingsData> LoadOrCreateAndCacheAsync(string key, string originalUuid)
@@ -228,6 +239,20 @@ public static class BasisPlayerSettingsManager
         }
     }
 
+    /// <summary>
+    /// Upgrades settings from older schema versions.
+    /// Fields added in newer versions are missing from old JSON and default to
+    /// their CLR zero-value (false for bool), so we explicitly set correct defaults here.
+    /// </summary>
+    private static void MigrateIfNeeded(BasisPlayerSettingsData data)
+    {
+        if (data.Version < 3)
+        {
+            data.ChatVisible = true;
+            data.Version = 3;
+        }
+    }
+
     private static async Task<BasisPlayerSettingsData> TryLoad(string p, string orig)
     {
         try
@@ -239,6 +264,7 @@ public static class BasisPlayerSettingsManager
                 if (data != null)
                 {
                     if (string.IsNullOrEmpty(data.UUID)) data.UUID = orig;
+                    MigrateIfNeeded(data);
                     return data;
                 }
             }

@@ -15,6 +15,7 @@ public static class BasisBeeManagement
     public static async Task HandleBundleAndMetaLoading(BasisTrackedBundleWrapper wrapper, BasisProgressReport report, CancellationToken cancellationToken, long MaxDownloadSizeInBytes = 4L * 1024 * 1024 * 1024)
     {
         bool IsMetaOnDisc = BasisLoadHandler.IsMetaDataOnDisc(wrapper.LoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation, out BasisBEEExtensionMeta MetaInfo);
+        bool didForceRedownload = false;
 
         (BasisBundleGenerated, byte[], string) output;
         if (IsMetaOnDisc)
@@ -27,22 +28,24 @@ public static class BasisBeeManagement
             BasisDebug.Log("Download Store Meta And Bundle", BasisDebug.LogTag.Event);
             output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancellationToken, MaxDownloadSizeInBytes);
         }
-        if(output.Item2 == null)
+        if(output.Item2 == null || output.Item2.Length == 0)
         {
             //lets force download it again. this guards against partial file, corrupt file or reattempt at downloading if it fails.
+            BasisDebug.Log("Local load returned null section data, forcing re-download", BasisDebug.LogTag.Event);
             output = await BasisBundleManagement.DownloadLoadBundleConnector(wrapper, report, cancellationToken, MaxDownloadSizeInBytes);
+            didForceRedownload = true;
         }
 
         if (output.Item1 == null || output.Item3 != string.Empty)
         {
-            new Exception($"missing Bundle Bytes Array Error Message {output.Item3}");
+            throw new Exception($"missing Bundle Bytes Array Error Message {output.Item3}");
         }
         IEnumerable<AssetBundle> AssetBundles = AssetBundle.GetAllLoadedAssetBundles();
         foreach (AssetBundle assetBundle in AssetBundles)
         {
             if (output.Item1 == null || output.Item1.AssetToLoadName == null)
             {
-                new Exception($"Missing AssetToName! in obtained file! corrupted?");
+                throw new Exception($"Missing AssetToName! in obtained file! corrupted?");
             }
             else
             {
@@ -51,18 +54,7 @@ public static class BasisBeeManagement
                 {
                     wrapper.AssetBundle = assetBundle;
                     BasisDebug.Log($"we already have this AssetToLoadName in our loaded bundles using that instead! {AssetToLoadName}");
-                    if (IsMetaOnDisc == false)
-                    {
-                        BasisBEEExtensionMeta newDiscInfo = new BasisBEEExtensionMeta
-                        {
-                            StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted,
-                            StoredLocal = wrapper.LoadableBundle.BasisLocalEncryptedBundle,
-                            UniqueVersion = wrapper.LoadableBundle.BasisBundleConnector.UniqueVersion,
-                        };
-
-                        await BasisLoadHandler.AddDiscInfo(newDiscInfo);
-                        BasisStorageManagement.EnforceCacheSizeLimit();
-                    }
+                    await SaveMetaIfNeeded(wrapper, IsMetaOnDisc, didForceRedownload);
                     return;
                 }
             }
@@ -74,22 +66,29 @@ public static class BasisBeeManagement
 
             wrapper.AssetBundle = bundleRequest.assetBundle;
 
-            if (IsMetaOnDisc == false)
-            {
-                BasisBEEExtensionMeta newDiscInfo = new BasisBEEExtensionMeta
-                {
-                    StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted,
-                    StoredLocal = wrapper.LoadableBundle.BasisLocalEncryptedBundle,
-                    UniqueVersion = wrapper.LoadableBundle.BasisBundleConnector.UniqueVersion,
-                };
-
-                await BasisLoadHandler.AddDiscInfo(newDiscInfo);
-                BasisStorageManagement.EnforceCacheSizeLimit();
-            }
+            await SaveMetaIfNeeded(wrapper, IsMetaOnDisc, didForceRedownload);
         }
         catch (Exception ex)
         {
             BasisDebug.LogError(ex);
+        }
+    }
+    /// <summary>
+    /// Saves or updates on-disc metadata when it is missing or was refreshed by a forced re-download.
+    /// </summary>
+    private static async Task SaveMetaIfNeeded(BasisTrackedBundleWrapper wrapper, bool wasMetaOnDisc, bool didForceRedownload)
+    {
+        if (!wasMetaOnDisc || didForceRedownload)
+        {
+            BasisBEEExtensionMeta newDiscInfo = new BasisBEEExtensionMeta
+            {
+                StoredRemote = wrapper.LoadableBundle.BasisRemoteBundleEncrypted,
+                StoredLocal = wrapper.LoadableBundle.BasisLocalEncryptedBundle,
+                UniqueVersion = wrapper.LoadableBundle.BasisBundleConnector.UniqueVersion,
+            };
+
+            await BasisLoadHandler.AddDiscInfo(newDiscInfo);
+            BasisStorageManagement.EnforceCacheSizeLimit();
         }
     }
     /// <summary>

@@ -45,6 +45,17 @@
     ],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "com.basis.openvr",
+            "expression": "",
+            "define": "BASIS_HAS_OPENVR"
+        },
+        {
+            "name": "com.basis.openxr",
+            "expression": "",
+            "define": "BASIS_HAS_OPENXR"
+        }
+    ],
     "noEngineReferences": false
 }

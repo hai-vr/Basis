@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
+
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.NetworkedAvatar;
@@ -21,9 +21,12 @@ namespace Basis.Scripts.Networking
         public static readonly ConcurrentDictionary<string, ushort> OwnershipPairing = new();
 
         // Receiver snapshot for multi-threaded compute/apply phases.
+        // Reusable buffer — grows on demand, never shrinks (avoids per-frame allocation).
         public static BasisNetworkReceiver[] ReceiversSnapshot = Array.Empty<BasisNetworkReceiver>();
         public static int ReceiverCount;
         public static ushort LargestNetworkReceiverID;
+        private static BasisNetworkReceiver[] _snapshotBuffer = Array.Empty<BasisNetworkReceiver>();
+
         // --- Lifecycle helpers ---------------------------------------------
         public static void ClearAllRegistries()
         {
@@ -36,10 +39,45 @@ namespace Basis.Scripts.Networking
             JoiningPlayers.Clear();
             OwnershipPairing.Clear();
         }
+
+        /// <summary>
+        /// Copies remote players into a reusable array. Zero allocation in steady state
+        /// (only allocates when player count exceeds previous capacity).
+        /// </summary>
         public static void PublishReceiversSnapshot()
         {
-            ReceiversSnapshot = RemotePlayers.Count == 0 ? Array.Empty<BasisNetworkReceiver>() : RemotePlayers.Values.ToArray();
-            ReceiverCount = ReceiversSnapshot.Length;
+            int count = RemotePlayers.Count;
+            if (count == 0)
+            {
+                ReceiverCount = 0;
+                return;
+            }
+
+            // Grow-only buffer: power-of-2 sizing avoids realloc churn on join/leave
+            if (_snapshotBuffer.Length < count)
+            {
+                int newSize = 16;
+                while (newSize < count) newSize <<= 1;
+                _snapshotBuffer = new BasisNetworkReceiver[newSize];
+            }
+
+            // Enumerate directly (struct enumerator) — no Values/ToArray allocation
+            int i = 0;
+            foreach (var kvp in RemotePlayers)
+            {
+                if (i >= _snapshotBuffer.Length) break;
+                _snapshotBuffer[i++] = kvp.Value;
+            }
+
+            // Null out stale trailing references from a previous larger snapshot
+            int prevCount = ReceiverCount;
+            for (int j = i; j < prevCount && j < _snapshotBuffer.Length; j++)
+            {
+                _snapshotBuffer[j] = default;
+            }
+
+            ReceiversSnapshot = _snapshotBuffer;
+            ReceiverCount = i;
         }
 
         // --- Registry APIs --------------------------------------------------

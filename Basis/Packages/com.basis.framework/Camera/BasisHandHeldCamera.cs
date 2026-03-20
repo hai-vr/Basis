@@ -4,6 +4,7 @@ using Basis.Scripts.BasisSdk.Interactions;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.Networking;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -144,6 +145,13 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.targetTexture = renderTexture;
         captureCamera.gameObject.SetActive(true);
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
+
+        // Notify network that PIP camera was created
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            captureCamera.transform.GetPositionAndRotation(out Vector3 pipPos, out Quaternion pipRot);
+            BasisNetworkPIPCameraDriver.SendPIPState(true, pipPos, pipRot);
+        }
     }
     public void InitalizeVolumetrics()
     {
@@ -160,6 +168,12 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// </summary>
     public new async void OnDestroy()
     {
+        // Notify network that PIP camera was destroyed
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            BasisNetworkPIPCameraDriver.SendPIPState(false, Vector3.zero, Quaternion.identity);
+        }
+
         string myLoadedNetId = gameObject.name;
         UnRegisterLoadedNetID(myLoadedNetId);
 
@@ -395,6 +409,11 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Starts a 5-second countdown and triggers a capture at the end.</summary>
     public void Timer()
     {
+        // Notify remote clients so they replay the same tick/shutter timing
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            BasisNetworkPIPCameraDriver.SendCountdown(5);
+        }
         StartCoroutine(DelayedAction(5));
     }
 
@@ -404,6 +423,12 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         for (int i = (int)delaySeconds; i > 0; i--)
         {
             countdownText.text = i.ToString();
+
+            if (BasisDeviceManagement.Instance.CameraCountdownTickSound != null)
+            {
+                AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.CameraCountdownTickSound, captureCamera.transform.position);
+            }
+
             yield return new WaitForSeconds(1f);
         }
 
@@ -422,6 +447,12 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             format = TextureFormat.RGBA32;
             renderFormat = RenderTextureFormat.ARGB32;
+        }
+
+        // Play shutter sound locally (network was already notified via SendCountdown)
+        if (BasisDeviceManagement.Instance.CameraShutterSound != null)
+        {
+            AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.CameraShutterSound, captureCamera.transform.position);
         }
 
         StartCoroutine(TakeScreenshot(format, renderFormat));
@@ -462,6 +493,18 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
             renderFormat = RenderTextureFormat.ARGB32;
         }
 
+        // Play shutter sound locally at the camera position
+        if (BasisDeviceManagement.Instance.CameraShutterSound != null)
+        {
+            AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.CameraShutterSound, captureCamera.transform.position);
+        }
+
+        // Send shutter sound event over the network
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            BasisNetworkPIPCameraDriver.SendShutterSound();
+        }
+
         StartCoroutine(TakeScreenshot(format, renderFormat));
     }
     bool IsOverridingDesktopView = false;
@@ -471,6 +514,13 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             actualMaterial.mainTexture = CopyCameraColorToStaticRTFeature.OutputRT;
             actualMaterial.SetTexture("_MainTex", CopyCameraColorToStaticRTFeature.OutputRT);
+        }
+
+        // Send PIP camera position to network
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            captureCamera.transform.GetPositionAndRotation(out Vector3 pos, out Quaternion rot);
+            BasisNetworkPIPCameraDriver.SendPIPPosition(pos, rot);
         }
     }
     /// <summary>

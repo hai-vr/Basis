@@ -403,40 +403,7 @@ spiperf.Begin();
 
 								if( ctorAsNewObj )
 								{
-									CilboxHeapInstance newObj = new CilboxHeapInstance();
-									newObj.className = targetClass.className;
-									newObj.cls = targetClass;
-									newObj.fields = new StackElement[targetClass.instanceFieldNames.Length];
-									for( int i = 0; i < targetClass.instanceFieldNames.Length; i++ )
-									{
-										Type fieldType = targetClass.instanceFieldTypes[i];
-										if( fieldType == null )
-										{
-											newObj.fields[i].LoadObject( null );
-											continue;
-										}
-
-										StackType fieldStackType = StackElement.StackTypeFromType( fieldType );
-										if( fieldStackType < StackType.Object )
-										{
-											newObj.fields[i].type = fieldStackType;
-										}
-										else if( fieldType.IsValueType )
-										{
-											try
-											{
-												newObj.fields[i].LoadObject( Activator.CreateInstance( fieldType ) );
-											}
-											catch
-											{
-												newObj.fields[i].LoadObject( null );
-											}
-										}
-										else
-										{
-											newObj.fields[i].LoadObject( null );
-										}
-									}
+									CilboxHeapInstance newObj = CreateDefaultInternalObject( targetClass );
 									stackBuffer[nextParameterStart].LoadObject( newObj );
 									try
 									{
@@ -965,6 +932,7 @@ spiperf.Begin();
 					case 0x6E: { StackElement se = stackBuffer[sp]; stackBuffer[sp].LoadUlong( ( se.type <= StackType.Int ? (ulong)se.i   : se.type == StackType.Uint ? (ulong)se.u  : se.type == StackType.Long ? (ulong)se.l  : se.type == StackType.Ulong ? (ulong)se.e  : (ulong)se.CoerceToObject(typeof(ulong)))); break; } // conv.u8
 					case 0xD1: { StackElement se = stackBuffer[sp]; stackBuffer[sp].LoadUshort(((se.type < StackType.Float) ? (ushort)se.u : (ushort)se.CoerceToObject(typeof(ushort)))); break; } // conv.u2
 					case 0xD2: { StackElement se = stackBuffer[sp]; stackBuffer[sp].LoadByte(  ((se.type < StackType.Float) ? (byte)se.u   : (byte)se.CoerceToObject(typeof(byte)))    ); break; } // conv.u1
+					case 0xD3: { StackElement se = stackBuffer[sp]; stackBuffer[sp].LoadNint(  ( se.type <= StackType.Int ? (nint)se.i    : se.type == StackType.Uint ? (nint)se.u   : se.type == StackType.Long ? (nint)se.l  : se.type == StackType.Ulong ? (nint)se.e  : (nint)Convert.ToInt64(se.CoerceToObject(typeof(long)))) ); break; } // conv.i
 
 					case 0x72:
 					{
@@ -1374,8 +1342,20 @@ spiperf.Begin();
 						{
 						case 0: asArr.SetValue( (nint)valSE.l, index ); break; // stelem.i
 						case 1: asArr.SetValue( (byte)(SByte)valSE.i, index ); break; // stelem.i1
-						case 2: asArr.SetValue( (short)valSE.i, index ); break; // stelem.i2
-						case 3: asArr.SetValue( valSE.i, index ); break; // stelem.i4
+						case 2: // stelem.i2 (used for Int16/UInt16/Char element arrays)
+							if( arrSE.o is ushort[] ushortArr )
+								ushortArr[index] = (ushort)valSE.u;
+							else if( arrSE.o is char[] charArr )
+								charArr[index] = (char)valSE.u;
+							else
+								asArr.SetValue( (short)valSE.i, index );
+							break;
+						case 3: // stelem.i4 (used for Int32/UInt32 element arrays)
+							if( arrSE.o is uint[] uintArr )
+								uintArr[index] = valSE.u;
+							else
+								asArr.SetValue( valSE.i, index );
+							break;
 						case 4: asArr.SetValue( valSE.l, index ); break; // stelem.i8
 						case 5: ((float[])arrSE.AsObject())[index] = valSE.f; break; // stelem.r4
 						case 6: ((double[])arrSE.AsObject())[index] = valSE.d; break; // stelem.r8
@@ -1400,8 +1380,16 @@ spiperf.Begin();
 							interpretedThrow(pc - 1, new IndexOutOfRangeException());
 							break;
 						}
-						Type t = box.metadatas[otyp].nativeType;
-						array[index] = Convert.ChangeType( valSE.AsObject(), t );  // This shouldn't be type changing.s
+						CilMetadataTokenInfo elemMeta = box.metadatas[otyp];
+						if( elemMeta.nativeTypeIsCilboxProxy || elemMeta.nativeType == null )
+						{
+							// This actually gets the value in valSE, and converts it to the int/float/native handle, etc. based on "this" box.
+							array[index] = valSE.AsObject( box );
+						}
+						else
+						{
+							array[index] = Convert.ChangeType( valSE.AsObject(), elemMeta.nativeType );  // This shouldn't be type changing.s
+						}
 						break;
 					}
 					case 0xA5: // unbox.any
@@ -1529,6 +1517,27 @@ spiperf.Begin();
 								throw new CilboxInterpreterRuntimeException($"Cannot create references to functions outside this cilbox ({dt.Name})", parentClass.className, methodName, pc);
 							stackBuffer[++sp].LoadObject( box.classesList[dt.interpretiveMethodClass].methods[dt.interpretiveMethod] );
 							break;
+						case 0x15: // initobj <typeTok>
+						{
+							uint typeToken = BytecodeAsU32( ref pc );
+							CilMetadataTokenInfo initMeta = box.metadatas[typeToken];
+							StackElement addr = stackBuffer[sp--];
+							object defaultValue = CreateDefaultValueForType( initMeta );
+
+							if( addr.type == StackType.Address )
+							{
+								addr.DereferenceLoadAddress( defaultValue );
+							}
+							else if( addr.type == StackType.NativeHandle )
+							{
+								addr.DereferenceLoadNativeHandle( box, defaultValue );
+							}
+							else
+							{
+								throw new CilboxInterpreterRuntimeException("Invalid stack type for initobj instruction", parentClass.className, methodName, pc);
+							}
+							break;
+						}
 						case 0x16: // constrained.
 							constrainedMeta = box.metadatas[BytecodeAsU32( ref pc )];
 							break;
@@ -1569,6 +1578,73 @@ spiperf.End();
 			//box.InterpreterExit();
 
 			return ( sp == -1 ) ? StackElement.nil : stackBuffer[sp--];
+
+			object CreateDefaultValueForType( CilMetadataTokenInfo typeMeta )
+			{
+				if( typeMeta.nativeTypeIsCilboxProxy )
+				{
+					if( !box.classes.TryGetValue( typeMeta.Name, out int classId ) )
+						throw new CilboxInterpreterRuntimeException($"Could not find internal type for initobj: {typeMeta.Name}", parentClass.className, methodName, pc);
+					return CreateDefaultInternalObject( box.classesList[classId] );
+				}
+
+				if( typeMeta.nativeType != null )
+				{
+					if( !typeMeta.nativeType.IsValueType )
+						return null;
+					try
+					{
+						return Activator.CreateInstance( typeMeta.nativeType );
+					}
+					catch
+					{
+						return null;
+					}
+				}
+
+				return null;
+			}
+
+			CilboxHeapInstance CreateDefaultInternalObject( CilboxClass cls )
+			{
+				CilboxHeapInstance newObj = new CilboxHeapInstance();
+				newObj.className = cls.className;
+				newObj.cls = cls;
+				newObj.fields = new StackElement[cls.instanceFieldNames.Length];
+
+				for( int i = 0; i < cls.instanceFieldNames.Length; i++ )
+				{
+					Type fieldType = cls.instanceFieldTypes[i];
+					if( fieldType == null )
+					{
+						newObj.fields[i].LoadObject( null );
+						continue;
+					}
+
+					StackType fieldStackType = StackElement.StackTypeFromType( fieldType );
+					if( fieldStackType < StackType.Object )
+					{
+						newObj.fields[i].type = fieldStackType;
+					}
+					else if( fieldType.IsValueType )
+					{
+						try
+						{
+							newObj.fields[i].LoadObject( Activator.CreateInstance( fieldType ) );
+						}
+						catch
+						{
+							newObj.fields[i].LoadObject( null );
+						}
+					}
+					else
+					{
+						newObj.fields[i].LoadObject( null );
+					}
+				}
+
+				return newObj;
+			}
 
 			void interpretedThrow(int currentInstruction, object thrownObj)
 			{
@@ -1971,6 +2047,11 @@ spiperf.End();
 		abstract public bool CheckMethodAllowed( out MethodInfo mi, Type declaringType, String name, Serializee [] parametersIn, Serializee [] genericArgumentsIn, String fullSignature );
 		abstract public bool CheckTypeAllowed( String sType );
 		abstract public bool CheckFieldAllowed( String sType, String sFieldName );
+		abstract public bool GetComponentTypeOverride( String sType, out Type t );
+
+		public delegate void CilboxDisabledEvent( Cilbox box, string reason );
+
+		public static CilboxDisabledEvent OnCilboxDisabled;
 
 		public void ForceReinit()
 		{
@@ -2353,6 +2434,7 @@ spiperf.End();
 			this.disabledReason = reason;
 			this.disabled = true;
 			//this.InterpreterExit();
+			OnCilboxDisabled?.Invoke(this, reason);
 		}
 	}
 
@@ -2409,14 +2491,14 @@ spiperf.End();
 	}
 	public class CilboxScenePostprocessor {
 		//[PostProcessSceneAttribute (2)] This is actually called by IProcessSceneWithReport
-		public static void OnPostprocessScene(UnityEngine.SceneManagement.Scene scene) {
+		public static void OnPostprocessScene(UnityEngine.SceneManagement.Scene? scene) {
 
 			ProfilerMarker perf = new ProfilerMarker("Initial Setup"); perf.Begin();
 
-			MonoBehaviour [] allBehavioursThatNeedCilboxing = CilboxUtil.GetAllBehavioursThatNeedCilboxing();
-
+			MonoBehaviour [] allBehavioursThatNeedCilboxing = CilboxUtil.GetAllBehavioursThatNeedCilboxing(scene);
 			Debug.Log( $"Postprocessing scene. Cilbox scripts to do: {allBehavioursThatNeedCilboxing.Length}" );
-			if( allBehavioursThatNeedCilboxing.Length == 0 ) return;
+			if( allBehavioursThatNeedCilboxing.Length == 0 )
+					return;
 
 
 			Dictionary< String, Serializee > assemblyMetadata = new Dictionary< String, Serializee >();
@@ -2441,7 +2523,7 @@ spiperf.End();
 
 			if( scene != null )
 			{
-				GameObject[] rootObjects = scene.GetRootGameObjects();
+				GameObject[] rootObjects =((UnityEngine.SceneManagement.Scene) scene).GetRootGameObjects();
 				foreach (GameObject root in rootObjects)
 				{
 					MonoBehaviour[] components = root.GetComponentsInChildren<MonoBehaviour>(true);
@@ -2463,7 +2545,6 @@ spiperf.End();
 			else
 			{
 				// Collect ALL cilboxable classes if no scene active.
-
 				foreach( System.Reflection.Assembly proxyAssembly in assys )
 				{
 					foreach (Type t in proxyAssembly.GetTypes())
@@ -2476,7 +2557,6 @@ spiperf.End();
 					}
 				}
 			}
-
 			{
 				for( int typeIndex = 0; typeIndex < TypesInUseInSceneList.Count; typeIndex++ )
 				{
@@ -2687,6 +2767,16 @@ spiperf.End();
 											{
 												writebackToken = mdcount;
 												FieldInfo rf = proxyAssembly.ManifestModule.ResolveField( (int)operand );
+
+												// Field references can pull in nested/internal value types that are not
+												// directly attached to a scene object. Make sure we serialize those
+												// declaring types just like we already do for referenced methods.
+												if( !TypesInUseInScene.Contains( rf.DeclaringType ) )
+												{
+													TypesInUseInScene.Add( rf.DeclaringType );
+													TypesInUseInSceneList.Add( rf.DeclaringType );
+													changeOperand = true; // We need to rewrite the operand to point to our new metadata for the field, which will have a reference to the declaring type.
+												}
 
 												Dictionary<String, Serializee> fieldProps = new Dictionary<String, Serializee>();
 												fieldProps["mt"] = new Serializee( ((int)MetaTokenType.mtField).ToString() );
@@ -3003,24 +3093,19 @@ spiperf.End();
 			perf.End(); perf = new ProfilerMarker( "Updating Game Objects" ); perf.Begin();
 
 			// Iterate over all GameObjects, and find the ones that have Cilboxable scripts.
-			object[] obj = GameObject.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-			foreach (object o in obj)
+			foreach (MonoBehaviour m in allBehavioursThatNeedCilboxing)
 			{
-				GameObject g = (GameObject) o;
-				MonoBehaviour [] scripts = g.GetComponents<MonoBehaviour>();
-				foreach (MonoBehaviour m in scripts )
-				{
-					// Skip null objects.
-					if (m == null)
-						continue;
-					if( !CilboxUtil.HasCilboxableAttribute( m.GetType() ) )
-						continue;
+				GameObject g = m.gameObject;
+				// Skip null objects.
+				if (m == null)
+					continue;
+				if( !CilboxUtil.HasCilboxableAttribute( m.GetType() ) )
+					continue;
 
-					CilboxProxy p = g.AddComponent<CilboxProxy>();
-					refProxies.Add( p );
-					refProxiesOrig.Add( m );
-					refToProxyMap[m] = p;
-				}
+				CilboxProxy p = g.AddComponent<CilboxProxy>();
+				refProxies.Add( p );
+				refProxiesOrig.Add( m );
+				refToProxyMap[m] = p;
 			}
 			perf.End(); perf = new ProfilerMarker( "Setting Up Proxies" ); perf.Begin();
 

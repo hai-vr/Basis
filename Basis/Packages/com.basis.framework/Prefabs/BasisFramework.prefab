@@ -83,9 +83,7 @@ MonoBehaviour:
   IsHostMode: 0
   LocalAccessTransmitter:
     LastLinkedAvatarIndex: 0
-    Player: {fileID: 0}
     hasID: 0
-    playerId: 0
     NetworkBehaviourCount: 0
     NetworkBehaviours: []
     HasEvents: 0
@@ -93,10 +91,12 @@ MonoBehaviour:
       Local: {fileID: 0}
       HasEvents: 0
       Segment:
+        SequenceNumber: 0
         TotalPlayedInSilence: 0
         buffer: 
         TotalLength: 0
         LengthUsed: 0
+      _sequenceNumber: 0
       SilentForHowLong: 0
     TransmissionResults:
       intervalSeconds: 0.5
@@ -885,6 +885,9 @@ MonoBehaviour:
   BakedInCommandLineArgs: []
   HoverUI: {fileID: 8300000, guid: 273db99ef8423064ebdc96442f286a95, type: 3}
   pressUI: {fileID: 8300000, guid: fa511589a725a1a4c98781edd2f0f176, type: 3}
+  ChatNotificationUI: {fileID: 8300000, guid: ccdb6b8ce45691e4394eeef9fe8af29c, type: 3}
+  CameraShutterSound: {fileID: 8300000, guid: 273db99ef8423064ebdc96442f286a95, type: 3}
+  CameraCountdownTickSound: {fileID: 8300000, guid: 273db99ef8423064ebdc96442f286a95, type: 3}
   AllInputDevices:
     _list: []
   BasisXRManagement:
@@ -906,6 +909,8 @@ MonoBehaviour:
   BasisDeviceNameMatcher: {fileID: 11400000, guid: 9b8e3db83cb310c40afaa430d0071a18, type: 2}
   ForcedDefault: 
   LipSyncProfile: {fileID: 11400000, guid: 0beeb56a431ea1646bb55ff6c6fc5a62, type: 2}
+  AutoSwapPreviousVRMode: 
+  IsSoftSwapped: 0
   BasisNetworking: {fileID: 1872085853221644195}
 --- !u!114 &-3484738083713026149
 MonoBehaviour:
@@ -923,6 +928,7 @@ MonoBehaviour:
   DeviceMode: 0
   controls: []
   Trackers: []
+  IsSuspended: 0
   HTCOpenXRViveTracker:
   - HTC Vive Tracker (OpenXR)
   CommonUsagesWeAccept:
@@ -958,6 +964,7 @@ MonoBehaviour:
   SteamVR_BehaviourGameobject: {fileID: 0}
   SteamVR_Render: {fileID: 0}
   IsInUse: 0
+  IsSuspended: 0
 --- !u!114 &-1434852531052301144
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1035,6 +1042,7 @@ MonoBehaviour:
       BasisBundleDescription:
         AssetBundleName: 
         AssetBundleDescription: 
+        AssetBundleIcon: {fileID: 0}
       BasisBundleGenerated: []
       ImageBase64: 
       DateOfCreation: 
@@ -1057,6 +1065,7 @@ MonoBehaviour:
       BasisBundleDescription:
         AssetBundleName: 
         AssetBundleDescription: 
+        AssetBundleIcon: {fileID: 0}
       BasisBundleGenerated: []
       ImageBase64: 
       DateOfCreation: 

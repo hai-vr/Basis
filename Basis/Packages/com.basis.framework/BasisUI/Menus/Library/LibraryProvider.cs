@@ -12,6 +12,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
+using static SerializableBasis;
 using static Basis.BasisUI.PanelPasswordField;
 using static Basis.BasisUI.PanelTextField;
 
@@ -682,7 +683,8 @@ namespace Basis.BasisUI
                 }
                 catch (Exception ex)
                 {
-                    BasisDebug.LogError(ex);
+                    BasisDebug.LogError($"Item '{item?.Url}' failed to open and will be removed: {ex.Message}");
+                    _ = HandleBadItem(item);
                 }
             };
         }
@@ -710,19 +712,31 @@ namespace Basis.BasisUI
             return item.PinnedSettings.IsPinned ? "Pinned" : "Pin";
         }
 
+        private static async Task HandleBadItem(BasisDataStoreItemKeys.ItemKey item)
+        {
+            BasisStorageManagement.DeleteStoredFile(item.Url);
+            await BasisDataStoreItemKeys.RemoveKey(item);
+            await RefreshCurrentTab();
+        }
+
         public static void ShowItemOverlay(BasisDataStoreItemKeys.ItemKey item)
         {
             #region ITEM OVERLAY SETUP
 
             Vector2 overlaySize = new Vector2(1200, 960);
 
-            // grab the content from the cache 
+            // grab the content from the cache
             CachedMetaData.CachedContent metadata;
-            CachedMetaData.TryGetMeta(item.Url, out metadata);
+            bool hasMeta = CachedMetaData.TryGetMeta(item.Url, out metadata);
 
-            // the network type of the item
-            BundledContentHolder.NetworkType desiredNetworkType = BundledContentHolder.NetworkType.Local;
-            bool ephemeral = true;  // the persistence behavior of the item 
+            // embedded items are always local, otherwise default to synchronized when connected
+            bool isEmbedded = item.EmbeddedSettings.IsEmbedded;
+            BundledContentHolder.NetworkType desiredNetworkType = isEmbedded
+                ? BundledContentHolder.NetworkType.Local
+                : BasisNetworkConnection.LocalPlayerIsConnected
+                    ? BundledContentHolder.NetworkType.Synchronized
+                    : BundledContentHolder.NetworkType.Local;
+            bool ephemeral = false;  // the persistence behavior of the item
             BasisBundleConnector.BasisMetaData basisMetaData; // grab the meta data
             BasisBundleDescription description; // grab the description data
             Sprite targetSprite = null;   // target sprite
@@ -742,6 +756,13 @@ namespace Basis.BasisUI
 
                 targetSprite = EmbeddedItems.GetSpriteForEmbeddedItem(item);
 
+            }
+            else if (!hasMeta || metadata?.BasisBundleConnector == null || metadata.BasisBundleConnector.BasisBundleDescription == null)
+            {
+                // Bad or missing file - show error, remove from disk, and refresh
+                BasisDebug.LogError($"Item '{item.Url}' has invalid or missing metadata. Removing from library.");
+                _ = HandleBadItem(item);
+                return;
             }
             else
             {
@@ -1114,6 +1135,10 @@ namespace Basis.BasisUI
 
             // };
 
+            // declared here so the dropdown callback can reference them
+            PanelButton loadPanelButton = null;
+            bool replaceLoad = false;
+
             // only do this menu for props & worlds
             if (item.Mode == BundledContentHolder.Mode.Prop || item.Mode == BundledContentHolder.Mode.World)
             {
@@ -1123,11 +1148,11 @@ namespace Basis.BasisUI
 
                 // content sync mode dropdown determines whether the new item is flagged as networked or local, which affects filtering and how the item is loaded later
                 PanelDropdown contentSyncModeDropDown = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.Entry, advancedActionsPanel.TabButtonParent);
-                string[] contentSyncModes = Enum.GetNames(typeof(BundledContentHolder.NetworkType));
+                List<string> contentSyncModeDisplayNames = GetNetworkTypeDisplayNames();
                 contentSyncModeDropDown.Descriptor.SetTitle("Network Type");
-                contentSyncModeDropDown.Descriptor.SetDescription("If the item is set to local, it will only be visible and interactive for you.");
+                contentSyncModeDropDown.Descriptor.SetDescription(GetNetworkTypeDescription(desiredNetworkType));
                 contentSyncModeDropDown.Descriptor.SetIcon(AddressableAssets.Sprites.Network);
-                contentSyncModeDropDown.AssignEntries(contentSyncModes.ToList());
+                contentSyncModeDropDown.AssignEntries(contentSyncModeDisplayNames);
                 contentSyncModeDropDown.Descriptor.SetSize(new Vector2(700, 80));
 
                 // disable network type selection
@@ -1144,17 +1169,23 @@ namespace Basis.BasisUI
                 }
 
                 // set the default network type
-                contentSyncModeDropDown.SetValueWithoutNotify(desiredNetworkType.ToString());
+                contentSyncModeDropDown.SetValueWithoutNotify(GetNetworkTypeDisplayName(desiredNetworkType));
                 contentSyncModeDropDown.OnValueChanged = (val) =>
                 {
-                    if (Enum.TryParse(contentSyncModeDropDown.SelectedString, out BundledContentHolder.NetworkType selectedNetType))
+                    if (TryParseNetworkTypeFromDisplayName(val, out BundledContentHolder.NetworkType selectedNetType))
                     {
                         desiredNetworkType = selectedNetType;
-                        //BasisDebug.Log($"Selected Network Type: {desiredNetworkType}");
+                        contentSyncModeDropDown.Descriptor.SetDescription(GetNetworkTypeDescription(selectedNetType));
+
+                        // update the load button title for props to reflect the selected mode
+                        if (item.Mode == BundledContentHolder.Mode.Prop && !replaceLoad)
+                        {
+                            loadPanelButton.Descriptor.SetTitle(GetPropLoadButtonTitle(selectedNetType));
+                        }
                     }
                     else
                     {
-                        BasisDebug.LogError("Coudnt Parse BundledContentHolder.NetworkType!");
+                        BasisDebug.LogError($"Could not parse NetworkType from display name: {val}");
                     }
                 };
 
@@ -1223,8 +1254,39 @@ namespace Basis.BasisUI
                 }
             };
 
+            // Share button - only enabled when connected to a server
+            PanelButton sharePanelButton = PanelButton.CreateNew(ButtonStyles.StandardButton, actionsPanel.TabButtonParent);
+            sharePanelButton.Descriptor.SetTitle("Share");
+            sharePanelButton.Descriptor.SetWidth(150);
+            sharePanelButton.Descriptor.SetHeight(60);
+            if (sharePanelButton.Descriptor.gameObject.TryGetComponent<Button>(out Button shareButtonComponent))
+            {
+                shareButtonComponent.interactable = BasisNetworkConnection.LocalPlayerIsConnected;
+            }
+            sharePanelButton.OnClicked += async () =>
+            {
+                if (!BasisNetworkConnection.LocalPlayerIsConnected) return;
+                ContentShareType shareType;
+                switch (item.Mode)
+                {
+                    case BundledContentHolder.Mode.Avatar:
+                        shareType = ContentShareType.Avatar;
+                        break;
+                    case BundledContentHolder.Mode.World:
+                        shareType = ContentShareType.World;
+                        break;
+                    case BundledContentHolder.Mode.Prop:
+                        shareType = ContentShareType.Prop;
+                        break;
+                    default:
+                        return;
+                }
+                bool confirmed = await LibraryProviderDialogShare.PromptUserForShare(panel, item, description);
+                if (!confirmed) return;
+                BasisContentShareManager.DropContentSphere(item.Url, item.Pass, shareType);
+            };
+
             // this logic checks if we have spawned an embedded item that is addressable
-            bool replaceLoad = false;
             if (item.EmbeddedSettings.IsEmbedded && item.EmbeddedSettings.SourceType == BasisDataStoreItemKeys.EmbeddedSource.Addressable)
             {
                 bool exists = BasisRuntimeSpawnRegistry.HasAny(item.Url);
@@ -1234,7 +1296,7 @@ namespace Basis.BasisUI
                 }
             }
 
-            PanelButton loadPanelButton = PanelButton.CreateNew(replaceLoad ? ButtonStyles.CancelButton : ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
+            loadPanelButton = PanelButton.CreateNew(replaceLoad ? ButtonStyles.CancelButton : ButtonStyles.AcceptButton, actionsPanel.TabButtonParent);
 
             switch (item.Mode)
             {
@@ -1259,7 +1321,7 @@ namespace Basis.BasisUI
                     loadPanelButton.Descriptor.SetTitle(worldAlreadyExists ? "You can only load 1 instance of a scene." : "Load");
                     break;
                 case BundledContentHolder.Mode.Prop:
-                    loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : "Spawn");
+                    loadPanelButton.Descriptor.SetTitle(replaceLoad ? "Despawn" : GetPropLoadButtonTitle(desiredNetworkType));
                     break;
             }
 
@@ -1306,6 +1368,65 @@ namespace Basis.BasisUI
             desc.SetTitle(LibraryProviderStrUtil.TitleToCase(!string.IsNullOrEmpty(cachedMeta.Name) ? cachedMeta.Name : urlKey));
             desc.SetDescription(urlKey);
             desc.ForceRebuild();
+        }
+
+        #endregion
+
+        #region NetworkType Descriptions
+
+        private static readonly Dictionary<BundledContentHolder.NetworkType, string> NetworkTypeDisplayNames = new()
+        {
+            [BundledContentHolder.NetworkType.Local] = "Only Me",
+            [BundledContentHolder.NetworkType.Networked] = "Everyone (Instant)",
+            [BundledContentHolder.NetworkType.Synchronized] = "Everyone (Wait & Spawn Together)",
+        };
+
+        private static string GetNetworkTypeDisplayName(BundledContentHolder.NetworkType networkType)
+        {
+            return NetworkTypeDisplayNames.TryGetValue(networkType, out string name) ? name : networkType.ToString();
+        }
+
+        private static List<string> GetNetworkTypeDisplayNames()
+        {
+            return new List<string>(NetworkTypeDisplayNames.Values);
+        }
+
+        private static bool TryParseNetworkTypeFromDisplayName(string displayName, out BundledContentHolder.NetworkType networkType)
+        {
+            foreach (var kvp in NetworkTypeDisplayNames)
+            {
+                if (kvp.Value == displayName)
+                {
+                    networkType = kvp.Key;
+                    return true;
+                }
+            }
+            networkType = default;
+            return false;
+        }
+
+        private static string GetNetworkTypeDescription(BundledContentHolder.NetworkType networkType)
+        {
+            return networkType switch
+            {
+                BundledContentHolder.NetworkType.Local =>
+                    "If the item is set to local, it will only be visible and interactive for you.",
+                BundledContentHolder.NetworkType.Networked =>
+                    "The item will be spawned on all connected players immediately.",
+                BundledContentHolder.NetworkType.Synchronized =>
+                    "Downloads to all players, then spawns simultaneously once everyone is ready. Has a 5 minute timeout for slow connections.",
+                _ =>
+                    "Unknown network type.",
+            };
+        }
+
+        private static string GetPropLoadButtonTitle(BundledContentHolder.NetworkType networkType)
+        {
+            return networkType switch
+            {
+                BundledContentHolder.NetworkType.Synchronized => "Sync Spawn",
+                _ => "Spawn",
+            };
         }
 
         #endregion

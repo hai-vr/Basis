@@ -428,6 +428,32 @@ namespace BasisPermissions
             SaveToXmlDebounced();
         }
 
+        public bool DeleteGroup(string groupName)
+        {
+            if (string.IsNullOrWhiteSpace(groupName)) return false;
+
+            _lock.EnterWriteLock();
+            try
+            {
+                if (!_store.Groups.Remove(groupName))
+                    return false;
+
+                // Remove this group from all users that reference it
+                foreach (var u in _store.Users.Values)
+                    u.Groups.Remove(groupName);
+
+                // Remove this group as a parent from other groups
+                foreach (var g in _store.Groups.Values)
+                    g.Parents.Remove(groupName);
+
+                TouchAll();
+            }
+            finally { _lock.ExitWriteLock(); }
+
+            SaveToXmlDebounced();
+            return true;
+        }
+
         // Snapshot store for saving or admin viewing
         public PermissionStore Snapshot()
         {

@@ -32,6 +32,11 @@ namespace Basis.Scripts.BasisSdk.Interactions
         public static int k_MaxPhysicHitCount = 128;
         public static bool OnlySortClosest = true;
 
+        [Tooltip("Search radius for direct grab detection around hand bones")]
+        public static float grabSearchRadius = 0.25f;
+
+        private static readonly Collider[] _grabHitBuffer = new Collider[32];
+
         [SerializeField]
         public BasisInteractInput[] InteractInputs = new BasisInteractInput[] { };
 
@@ -106,6 +111,12 @@ namespace Basis.Scripts.BasisSdk.Interactions
                 return;
             }
 
+            // Guard against duplicate additions
+            if (InteractInputs.Any(x => x.input.UniqueDeviceIdentifier == input.UniqueDeviceIdentifier))
+            {
+                return;
+            }
+
             var interactInput = new BasisInteractInput
             {
                 input = input,
@@ -119,10 +130,10 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
         private void OnInputRemoved(BasisInput input)
         {
-            if (input.HasRaycaster)
-            {
-                RemoveInput(input.UniqueDeviceIdentifier);
-            }
+            // Always attempt removal regardless of current HasRaycaster state.
+            // The raycaster state may have changed between when the input was added
+            // and when it is being removed (e.g., OpenXR eye tracking detected late).
+            RemoveInput(input.UniqueDeviceIdentifier);
         }
 
         // Simulate after IK update
@@ -183,22 +194,30 @@ namespace Basis.Scripts.BasisSdk.Interactions
                         BasisDebug.LogWarning("Player Interact expected a registered hit but found null. This is a bug, please report.");
                     }
                 }
+                // Direct grab detection: hand-proximity grab for VR hands
+                else if (TryDetectDirectGrab(interactInput, out BasisInteractableObject grabTarget))
+                {
+                    HandleDirectGrab(grabTarget, ref interactInput);
+                }
                 // Hover missed entirely. Test for drop & clear hover
                 else
                 {
                     interactInput.HasvalidRay = false;
                     if (interactInput.lastTarget != null)
                     {
-                        // If the object is currently being interacted with, keep the interaction alive.
-                        // Dropping will be handled by UpdatePickupState when hover detection resumes.
-                        // This prevents objects from getting stuck when their colliders temporarily
-                        // block hover sphere detection (e.g. pool cue body colliders).
-                        if (!interactInput.lastTarget.IsInteractingWith(interactInput.input))
+                        // Implementation could allow for hovering and holding of the same object, clear independently
+                        bool autoHold = BasisDeviceManagement.IsUserInDesktop() && interactInput.lastTarget.AutoHold == BasisAutoHold.Yes;
+                        bool holdDropTriggered = interactInput.lastTarget.IsHoldDropTriggered(interactInput.input);
+
+                        // Drop logic: drop when not triggered, or when autohold drop is pressed
+                        if (!interactInput.lastTarget.IsInteractTriggered(interactInput.input) && interactInput.lastTarget.IsInteractingWith(interactInput.input) && (!autoHold || holdDropTriggered))
                         {
-                            if (interactInput.lastTarget.IsHoveredBy(interactInput.input))
-                            {
-                                interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
-                            }
+                            interactInput.lastTarget.OnInteractEnd(interactInput.input);
+                        }
+
+                        if (interactInput.lastTarget.IsHoveredBy(interactInput.input))
+                        {
+                            interactInput.lastTarget.OnHoverEnd(interactInput.input, false);
                         }
                     }
                 }
@@ -424,7 +443,8 @@ namespace Basis.Scripts.BasisSdk.Interactions
                      hitInteractable.IsHoldDropTriggered(interactInput.input));
             }
 
-            // End interaction if we’re not holding and we should drop
+            // End interaction if grip is confirmed released (with grace period
+            // to prevent false drops during fast VR hand movement)
             if (hitInteractable.IsInteractingWith(interactInput.input) && autoHoldDroppedSameTarget)
             {
                 hitInteractable.OnInteractEnd(interactInput.input);
@@ -504,7 +524,9 @@ namespace Basis.Scripts.BasisSdk.Interactions
 
             if (length == 0)
             {
-                BasisDebug.LogError($"Interact Inputs did not include {uid}. Please report this bug.");
+                // Not an error: the device may never have been a raycaster when it was
+                // added (e.g., OpenXR headset whose eye tracking was detected after
+                // the input was registered). See issue #389.
                 return;
             }
 
@@ -529,6 +551,99 @@ namespace Basis.Scripts.BasisSdk.Interactions
                     .Where(x => x.input.UniqueDeviceIdentifier != input.input.UniqueDeviceIdentifier)
                     .ToArray();
             }
+        }
+
+        /// <summary>
+        /// Attempts to find a directly grabbable interactable near the hand bone position.
+        /// Only activates for hand inputs when grip is pressed.
+        /// </summary>
+        private bool TryDetectDirectGrab(BasisInteractInput interactInput, out BasisInteractableObject grabTarget)
+        {
+            grabTarget = null;
+            BasisInput input = interactInput.input;
+
+            // Don't try to grab if already interacting with something
+            if (interactInput.lastTarget != null && interactInput.lastTarget.IsInteractingWith(input))
+                return false;
+
+            // Only for hand roles with grip pressed
+            if (!input.TryGetRole(out BasisBoneTrackedRole role)) return false;
+            if (role != BasisBoneTrackedRole.LeftHand && role != BasisBoneTrackedRole.RightHand) return false;
+            if (!input.CurrentInputState.GripButton) return false;
+
+            // Get the hand bone world position
+            if (!input.HasControl || input.Control == null) return false;
+            Vector3 handPos = input.Control.OutgoingWorldData.position;
+
+            // Overlap sphere at hand position to find nearby colliders
+            int hitCount = Physics.OverlapSphereNonAlloc(handPos, grabSearchRadius, _grabHitBuffer, Mask, TriggerInteraction);
+
+            float closestDist = float.MaxValue;
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                Collider col = _grabHitBuffer[i];
+                if (col == null) continue;
+
+                // Find interactable on collider or parent (matching existing lookup pattern)
+                BasisInteractableObject obj = col.GetComponent<BasisInteractableObject>();
+                if (obj == null)
+                {
+                    obj = col.GetComponentInParent<BasisInteractableObject>();
+                    if (obj != null)
+                    {
+                        Collider[] colliders = obj.GetColliders();
+                        if (colliders == null || !colliders.Contains(col))
+                            continue;
+                    }
+                }
+                if (obj == null) continue;
+
+                // Check distance against object's specific grab radius
+                float dist = Vector3.Distance(obj.GetClosestPoint(handPos), handPos);
+                if (dist > obj.GrabRadius) continue;
+
+                // Check if object allows direct grab from this input
+                if (!obj.CanDirectGrab(input)) continue;
+
+                if (dist < closestDist)
+                {
+                    closestDist = dist;
+                    grabTarget = obj;
+                }
+            }
+
+            return grabTarget != null;
+        }
+
+        /// <summary>
+        /// Executes a direct grab: transitions the interactable from Ignored → Hovering → Interacting in a single frame.
+        /// </summary>
+        private void HandleDirectGrab(BasisInteractableObject target, ref BasisInteractInput interactInput)
+        {
+            BasisInput input = interactInput.input;
+
+            // Clean up any existing hover/interaction on the previous target
+            if (interactInput.lastTarget != null && interactInput.lastTarget != target)
+            {
+                if (interactInput.lastTarget.IsHoveredBy(input))
+                    interactInput.lastTarget.OnHoverEnd(input, false);
+                if (interactInput.lastTarget.IsInteractingWith(input))
+                    interactInput.lastTarget.OnInteractEnd(input);
+            }
+
+            // Only start hover if not already hovering (avoid redundant state transitions)
+            if (!target.IsHoveredBy(input))
+            {
+                target.OnHoverStart(input);
+            }
+            // End hover with willInteract=true (keeps state at Hovering for OnInteractStart)
+            target.OnHoverEnd(input, true);
+            // Transition: Hovering → Interacting
+            target.OnInteractStart(input);
+
+            interactInput.lastTarget = target;
+            interactInput.HasvalidRay = true;
         }
 
         public static void DrawAll()
@@ -628,9 +743,27 @@ namespace Basis.Scripts.BasisSdk.Interactions
             {
                 ref var hit = ref hoverSphere.Results[index];
 
-                if (hit.collider != null &&
-                    hit.collider.TryGetComponent(out BasisInteractableObject component) &&
-                    component.IsInfluencable(input))
+                if (hit.collider == null) continue;
+
+                // Check the collider itself first, then check parent GameObjects.
+                // This matches PointRaycasterFindInteractable behavior — interactables
+                // often live on a parent with colliders on child objects.
+                BasisInteractableObject component = hit.collider.GetComponent<BasisInteractableObject>();
+                if (component == null)
+                {
+                    component = hit.collider.GetComponentInParent<BasisInteractableObject>();
+                    // Verify the hit collider belongs to this interactable
+                    if (component != null)
+                    {
+                        Collider[] colliders = component.GetColliders();
+                        if (colliders == null || !colliders.Contains(hit.collider))
+                        {
+                            component = null;
+                        }
+                    }
+                }
+
+                if (component != null && component.IsInfluencable(input))
                 {
                     result = hit;
                     interactable = component;

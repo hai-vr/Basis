@@ -57,7 +57,7 @@ public static class NetworkServer
         InitializePulseSettings();
         InitializeAuth();
         SetupServer(configuration);
-        SubscribeEvents();
+        SubscribeEvents(Configuration);
 
         if (configuration.EnableStatistics)
         {
@@ -72,6 +72,10 @@ public static class NetworkServer
         BasisServerReductionSystemEvents.BSRBaseMultiplier = Configuration.BSRBaseMultiplier;
         BasisServerReductionSystemEvents.BSRSMillisecondDefaultInterval = Configuration.BSRSMillisecondDefaultInterval;
         BasisServerReductionSystemEvents.BSRSIncreaseRate = Configuration.BSRSIncreaseRate;
+        BasisServerReductionSystemEvents.HighDistanceSq = Configuration.HighQualityDistance * Configuration.HighQualityDistance;
+        BasisServerReductionSystemEvents.MediumDistanceSq = Configuration.MediumQualityDistance * Configuration.MediumQualityDistance;
+        BasisServerReductionSystemEvents.LowDistanceSq = Configuration.LowQualityDistance * Configuration.LowQualityDistance;
+        BSRProfiler.Enabled = Configuration.EnableBSRProfiling;
     }
 
     private static void InitializeAuth()
@@ -99,11 +103,11 @@ public static class NetworkServer
         }
     }
 
-    private static void SubscribeEvents()
+    private static void SubscribeEvents(Configuration Configuration)
     {
         BasisServerHandleEvents.SubscribeServerEvents();
         BasisPlayerModeration.LoadBannedPlayers();
-        BasisNetworkChat.LoadWordFilter();
+        BasisNetworkChat.LoadWordFilter(Configuration);
     }
 
     #endregion

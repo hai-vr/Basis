@@ -46,6 +46,9 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         // We lock the wire format to HIGH
         static readonly BitQuality WireQuality = BitQuality.High;
 
+        // Outbound sequence counter for unreliable avatar packets (wraps at 255→0)
+        static byte sLocalSequence;
+
         public static void Compress(BasisNetworkTransmitter transmitter, Animator animator)
         {
             Transform t = animator.transform;
@@ -60,11 +63,15 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             var data = transmitter.SendingOutAvatarData.Count == 0 ? null : transmitter.SendingOutAvatarData.Values.ToArray();
             transmitter.storedAvatarData.LASM.AdditionalAvatarDatas = data;
 
+            // Write sequence byte before the LASM payload
+            transmitter.AvatarSendWriter.Put(sLocalSequence);
+            unchecked { sLocalSequence++; }
+
             transmitter.storedAvatarData.LASM.Serialize(transmitter.AvatarSendWriter, WireQuality);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
 
-            BasisNetworkConnection.LocalPlayerPeer.Send(transmitter.AvatarSendWriter, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Sequenced);
+            BasisNetworkConnection.LocalPlayerPeer.Send(transmitter.AvatarSendWriter, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Unreliable);
 
             transmitter.AvatarSendWriter.Reset();
             transmitter.ClearAdditional();

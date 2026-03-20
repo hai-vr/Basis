@@ -199,17 +199,8 @@ public static class BasisNetworkGenericMessages
             recipients = recipients
         };
 
-        if (deliveryMethod == DeliveryMethod.Unreliable)
-        {
-            netDataWriter.Put(BasisNetworkCommons.SceneChannel);
-            sceneDataMessage.Serialize(netDataWriter);
-            BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.FallChannel, deliveryMethod);
-        }
-        else
-        {
-            sceneDataMessage.Serialize(netDataWriter);
-            BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.SceneChannel, deliveryMethod);
-        }
+        sceneDataMessage.Serialize(netDataWriter);
+        BasisNetworkConnection.LocalPlayerPeer.Send(netDataWriter, BasisNetworkCommons.SceneChannel, deliveryMethod);
 
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.SceneData, netDataWriter.Length);
     }
@@ -233,6 +224,16 @@ public static class BasisNetworkGenericMessages
     {
         LocalLoadResource LocalLoadResource = new LocalLoadResource();
         LocalLoadResource.Deserialize(reader);
+
+        // Check the load strategy before spawning
+        switch (LocalLoadResource.LoadStrategy)
+        {
+            case 2: // Synchronized - download, report readiness, wait for spawn signal
+                await BasisNetworkPreloadManager.HandleSynchronizedPreload(LocalLoadResource);
+                return;
+        }
+
+        // LoadStrategy 0 (Immediate) - existing behavior
         switch (LocalLoadResource.Mode)
         {
             case 0:
@@ -248,6 +249,17 @@ public static class BasisNetworkGenericMessages
                 BNL.LogError($"tried to Load Mode {LocalLoadResource.Mode}");
                 break;
         }
+    }
+
+    /// <summary>
+    /// Handles the SpawnPreloaded message from the server, signaling that a
+    /// previously preloaded synchronized resource should now be spawned.
+    /// </summary>
+    public static async Task SpawnPreloadedMessage(NetPacketReader reader, DeliveryMethod Method)
+    {
+        SpawnPreloadedMessage spawnMsg = new SpawnPreloadedMessage();
+        spawnMsg.Deserialize(reader);
+        await BasisNetworkPreloadManager.HandleSpawnPreloaded(spawnMsg);
     }
     public static async Task UnloadResourceMessage(NetPacketReader reader, DeliveryMethod Method)
     {

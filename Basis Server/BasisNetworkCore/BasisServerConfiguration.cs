@@ -39,6 +39,9 @@ public class Configuration
     public int BSRBaseMultiplier = 1;
     public float BSRSIncreaseRate = 0.005f;
     public float BSRSlowestSendRate = 2.55f;
+    public float HighQualityDistance = 3f;
+    public float MediumQualityDistance = 10f;
+    public float LowQualityDistance = 20f;
     public bool OverrideAutoDiscoveryOfIpv = false;
     public string IPv4Address = "0.0.0.0";
     public string IPv6Address = "::1";
@@ -52,6 +55,7 @@ public class Configuration
     public bool DisableWriteUnlessAdminPersistentFlag = true;
     public bool DisableReadUnlessAdminPersistentFlag = false;
     public bool UseNetworkFinalCompression = false;
+    public bool EnableBSRProfiling = false;
     /// <summary>
     /// Read config from file. If no file is found create a default config file at filePath
     /// </summary>

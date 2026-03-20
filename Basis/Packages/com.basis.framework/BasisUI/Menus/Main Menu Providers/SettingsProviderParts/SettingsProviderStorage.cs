@@ -1,4 +1,5 @@
 using Basis.BasisUI;
+using System.Collections.Generic;
 using UnityEngine;
 
 public static class SettingsProviderStorage
@@ -8,30 +9,22 @@ public static class SettingsProviderStorage
         PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
         PanelElementDescriptor descriptor = tab.Descriptor;
         descriptor.SetIcon(AddressableAssets.Sprites.Settings);
-        descriptor.SetTitle("Storage Settings");
+        descriptor.SetTitle("Downloads & Cache");
 
         RectTransform container = descriptor.ContentParent;
 
-        // Cache size info group
-        PanelElementDescriptor infoGroup =
+        // Download limits
+        PanelElementDescriptor downloadGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        infoGroup.SetTitle("Cache Info");
+        downloadGroup.SetTitle("Download Limits");
+        downloadGroup.SetDescription("Configure download size limits.");
 
-        long totalBytes = BasisStorageManagement.GetTotalCacheSizeBytes();
-        string sizeText = BasisStorageManagement.FormatBytes(totalBytes);
-        string limitText = BasisStorageManagement.FormatBytes(BasisStorageManagement.MaxCacheSizeBytes);
+        PanelSlider avatarDownloadSize = PanelSlider.CreateEntryAndBind(
+            downloadGroup.ContentParent,
+            PanelSlider.SliderSettings.Advanced("Avatar Download Size", 5, 1024, false, 0, ValueDisplayMode.MemorySize),
+            BasisSettingsDefaults.AvatarDownloadSize);
 
-        PanelPasswordField cacheInfoField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
-        cacheInfoField.Descriptor.SetTitle("Total Cache Size");
-        cacheInfoField.SetPassword($"{sizeText} / {limitText}");
-
-        var storedFiles = BasisStorageManagement.GetAllStoredFiles();
-
-        PanelPasswordField fileCountField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
-        fileCountField.Descriptor.SetTitle("Stored Files");
-        fileCountField.SetPassword($"{storedFiles.Count} files");
-
-        // Cache size limit slider
+        // Cache size limit slider (lightweight, no file I/O)
         PanelElementDescriptor limitGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         limitGroup.SetTitle("Cache Settings");
@@ -41,6 +34,47 @@ public static class SettingsProviderStorage
             limitGroup.ContentParent,
             PanelSlider.SliderSettings.Advanced("Max Cache Size (GB)", 1, 512, true, 0, ValueDisplayMode.Raw),
             BasisSettingsDefaults.CacheMaxSizeGB);
+
+        // Button to load and display all storage data on demand
+        PanelButton loadDataButton = PanelButton.CreateNew(container);
+        loadDataButton.Descriptor.SetTitle("Load Storage Data");
+        loadDataButton.Descriptor.SetDescription("Scan disk for cached BEE files. This may take a moment.");
+        loadDataButton.OnClicked += () =>
+        {
+            // Remove the load button itself
+            Object.Destroy(loadDataButton.gameObject);
+
+            PopulateStorageData(container);
+            descriptor.ForceRebuild();
+        };
+
+        // One reset button for this whole page
+        SettingsProvider.AddResetPageButton(container, "Storage Settings", ResetStorageDefaults);
+
+        descriptor.ForceRebuild();
+        return tab;
+    }
+
+    private static void PopulateStorageData(RectTransform container)
+    {
+        long totalBytes = BasisStorageManagement.GetTotalCacheSizeBytes();
+        string sizeText = BasisStorageManagement.FormatBytes(totalBytes);
+        string limitText = BasisStorageManagement.FormatBytes(BasisStorageManagement.MaxCacheSizeBytes);
+
+        List<BasisStorageManagement.StoredBeeFileInfo> storedFiles = BasisStorageManagement.GetAllStoredFiles();
+
+        // Cache size info group
+        PanelElementDescriptor infoGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        infoGroup.SetTitle("Cache Info");
+
+        PanelPasswordField cacheInfoField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
+        cacheInfoField.Descriptor.SetTitle("Total Cache Size");
+        cacheInfoField.SetPassword($"{sizeText} / {limitText}");
+
+        PanelPasswordField fileCountField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
+        fileCountField.Descriptor.SetTitle("Stored Files");
+        fileCountField.SetPassword($"{storedFiles.Count} files");
 
         // Clear all cache button
         PanelButton clearAllButton = PanelButton.CreateNew(container);
@@ -97,16 +131,11 @@ public static class SettingsProviderStorage
                 };
             }
         }
-
-        // One reset button for this whole page
-        SettingsProvider.AddResetPageButton(container, "Storage", ResetStorageDefaults);
-
-        descriptor.ForceRebuild();
-        return tab;
     }
 
     private static void ResetStorageDefaults()
     {
+        BasisSettingsDefaults.AvatarDownloadSize.ResetToDefault();
         BasisSettingsDefaults.CacheMaxSizeGB.ResetToDefault();
     }
 }

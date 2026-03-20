@@ -37,6 +37,9 @@ namespace LiteNetLib
             {
                 switch ((PacketProperty)i)
                 {
+                    case PacketProperty.Unreliable:
+                        HeaderSizes[i] = NetConstants.UnreliableHeaderSize;
+                        break;
                     case PacketProperty.Channeled:
                     case PacketProperty.Ack:
                         HeaderSizes[i] = NetConstants.ChanneledHeaderSize;

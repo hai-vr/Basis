@@ -40,13 +40,14 @@ public static partial class SerializableBasis
             {
                 PayloadSize = 0;
                 writer.Put(PayloadSize);
-                writer.Put(messageIndex);
                 return;
             }
 
-            if (array.Length > 256)
+            if (array.Length > 255)
             {
-                BNL.LogError("Larger then 256 cannot send this Additional Avatar Data");
+                BNL.LogError("Larger than 255 cannot send this Additional Avatar Data");
+                PayloadSize = 0;
+                writer.Put(PayloadSize);
                 return;
             }
             PayloadSize = (byte)array.Length;

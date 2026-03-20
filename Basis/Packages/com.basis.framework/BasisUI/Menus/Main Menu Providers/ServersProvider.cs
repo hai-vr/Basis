@@ -52,10 +52,18 @@ namespace Basis.BasisUI
             usernameField.Descriptor.SetTitle("Username");
             usernameField.SetValueWithoutNotify(BasisDataStore.LoadString(LoadFileName, string.Empty));
 
+            connectButton = PanelButton.CreateNew(container);
+            connectButton.Descriptor.SetTitle("Connect");
+            connectButton.Descriptor.SetHeight(80);
+            connectButton.OnClicked += () => _ = OnConnectButton();
+
+            advancedToggle = PanelToggle.CreateNewEntry(container);
+            advancedToggle.Descriptor.SetTitle("Advanced");
+            advancedToggle.SetValueWithoutNotify(false);
+
+            // Advanced options created below the toggle so they appear under it
             ipAddressField = PanelTextField.CreateNewEntry(container);
             ipAddressField.Descriptor.SetTitle("IP Address");
-
-
 
             useLocalhost = PanelButton.CreateNew(container);
             useLocalhost.Descriptor.SetTitle("Use \"Localhost\"");
@@ -70,62 +78,77 @@ namespace Basis.BasisUI
 
             hostModeToggle = PanelToggle.CreateNewEntry(container);
             hostModeToggle.Descriptor.SetTitle("Host Mode");
+            hostModeToggle.Descriptor.SetDescription("Run a local server and connect to it.");
             hostModeToggle.OnValueChanged += UseHostMode;
 
-            connectButton = PanelButton.CreateNew(container);
-            connectButton.Descriptor.SetTitle("Connect");
-            connectButton.Descriptor.SetHeight(80);
-            connectButton.OnClicked += () => _ = OnConnectButton();
+            autoConnectToggle = PanelToggle.CreateNewEntry(container);
+            autoConnectToggle.Descriptor.SetTitle("Auto Connect");
+            autoConnectToggle.Descriptor.SetDescription("Automatically connect to the last server on startup.");
+            autoConnectToggle.AssignBinding(BasisSettingsDefaults.AutoConnect);
 
-            ShowAdvancedSettings = PanelButton.CreateNew(container);
-
-            ShowAdvancedSettings.Descriptor.SetTitle("Show Advanced Settings");
-            ShowAdvancedSettings.OnClicked += ShowAdvancedOptions;
-
-            Info = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group,container);
-
-            portField.gameObject.SetActive(false);
+            ipAddressField.gameObject.SetActive(false);
             useLocalhost.gameObject.SetActive(false);
+            portField.gameObject.SetActive(false);
             passwordField.gameObject.SetActive(false);
             hostModeToggle.gameObject.SetActive(false);
-            ipAddressField.gameObject.SetActive(false);
+            autoConnectToggle.gameObject.SetActive(false);
+
+            advancedToggle.OnValueChanged += (val) =>
+            {
+                ipAddressField.gameObject.SetActive(val);
+                useLocalhost.gameObject.SetActive(val);
+                portField.gameObject.SetActive(val);
+                passwordField.gameObject.SetActive(val);
+                hostModeToggle.gameObject.SetActive(val);
+                autoConnectToggle.gameObject.SetActive(val);
+            };
+
+            Info = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group,container);
             if (BasisNetworkManagement.Instance)
             {
                 LoadCurrentSettings();
+                TryAutoConnect();
             }
             else
             {
-                BasisNetworkManagement.OnIstanceCreated += LoadCurrentSettings;
+                BasisNetworkManagement.OnIstanceCreated += () =>
+                {
+                    LoadCurrentSettings();
+                    TryAutoConnect();
+                };
             }
         }
-        public void ShowAdvancedOptions()
+
+        private static bool _autoConnectAttempted;
+
+        private void TryAutoConnect()
         {
+            if (_autoConnectAttempted)
+                return;
+            _autoConnectAttempted = true;
 
-            bool State = useLocalhost.gameObject.activeSelf;
-            bool Opposite = !State;
+            if (!BasisSettingsDefaults.AutoConnect.RawValue)
+                return;
 
-            if(Opposite)
-            {
-                ShowAdvancedSettings.Descriptor.SetTitle("Hide Advanced Settings");
-            }
-            else
-            {
-                ShowAdvancedSettings.Descriptor.SetTitle("Show Advanced Settings");
-            }
-            useLocalhost.gameObject.SetActive(Opposite);
-            passwordField.gameObject.SetActive(Opposite);
-            hostModeToggle.gameObject.SetActive(Opposite);
-            portField.gameObject.SetActive(Opposite);
-            ipAddressField.gameObject.SetActive(Opposite);
+            if (BasisNetworkConnection.LocalPlayerIsConnected)
+                return;
+
+            string cachedUsername = BasisDataStore.LoadString(LoadFileName, string.Empty);
+            if (string.IsNullOrEmpty(cachedUsername))
+                return;
+
+            usernameField.SetValueWithoutNotify(cachedUsername);
+            _ = OnConnectButton();
         }
         private PanelElementDescriptor Info;
-        private PanelButton ShowAdvancedSettings;
+        private PanelToggle advancedToggle;
         private PanelTextField usernameField;
         private PanelTextField ipAddressField;
         private PanelButton useLocalhost;
         private PanelTextField portField;
         private PanelPasswordField passwordField;
         private PanelToggle hostModeToggle;
+        private PanelToggle autoConnectToggle;
         private PanelButton connectButton;
 
         public static string LoadFileName = "CachedUserName.BAS";

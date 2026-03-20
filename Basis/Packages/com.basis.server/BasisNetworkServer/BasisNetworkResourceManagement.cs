@@ -29,9 +29,9 @@ public static class BasisNetworkResourceManagement
                 unloadResource.Serialize(writer);
                 NetworkServer.BroadcastMessageToClients(
                     writer,
-                    BasisNetworkCommons.LoadResourceChannel,
+                    BasisNetworkCommons.UnloadResourceChannel,
                     NetworkServer.PeerSnapshot,
-                    DeliveryMethod.ReliableSequenced
+                    DeliveryMethod.ReliableOrdered
                 );
                 NetworkServer.ReturnWriter(writer);
 

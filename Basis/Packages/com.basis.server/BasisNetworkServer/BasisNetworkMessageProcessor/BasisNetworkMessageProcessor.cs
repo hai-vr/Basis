@@ -1,6 +1,7 @@
 using Basis.Network.Core;
 using Basis.Network.Server.Generic;
 using Basis.Network.Server.Ownership;
+using BasisNetworkServer;
 using BasisNetworkServer.BasisNetworking;
 using BasisNetworkServer.BasisNetworkingReductionSystem;
 using BasisNetworkServer.Security;
@@ -16,11 +17,13 @@ public static class BasisNetworkMessageProcessor
     {
         try
         {
-            if (TryRedirectFallChannel(peer, reader, ref channel, deliveryMethod))
-                return;
-
             switch (channel)
             {
+                case BasisNetworkCommons.ShoutVoiceChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ShoutVoiceChannel, reader.AvailableBytes);
+                    BasisServerHandleEvents.HandleShoutVoiceMessage(reader, peer); // recycles inside
+                    break;
+
                 case BasisNetworkCommons.AuthIdentityChannel:
                     BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AuthIdentityChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.HandleAuth(reader, peer); // recycles inside
@@ -100,11 +103,14 @@ public static class BasisNetworkMessageProcessor
                     BasisPlayerModeration.OnAdminMessage(peer, reader); // recycles inside
                     break;
 
-                case BasisNetworkCommons.AvatarCloneRequestChannel:
-                case BasisNetworkCommons.AvatarCloneResponseChannel:
-                    // Placeholder for AvatarCloneMessage handlers
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AvatarCloneResponseChannel, reader.AvailableBytes);
-                    reader.Recycle(); // recycles here
+                case BasisNetworkCommons.ContentShareChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ContentShareChannel, reader.AvailableBytes);
+                    BasisNetworkContentShare.HandleContentShareDrop(reader, peer); // recycles inside
+                    break;
+
+                case BasisNetworkCommons.ContentShareCleanupChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ContentShareCleanupChannel, reader.AvailableBytes);
+                    BasisNetworkContentShare.HandleContentShareCleanup(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.ServerBoundChannel:
@@ -167,6 +173,26 @@ public static class BasisNetworkMessageProcessor
                     BasisNetworkChat.HandleChatMessage(reader, peer); // recycles inside
                     break;
 
+                case BasisNetworkCommons.CameraPIPStateChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.CameraPIPStateChannel, reader.AvailableBytes);
+                    BasisNetworkPIPCamera.HandlePIPStateChange(reader, peer); // recycles inside
+                    break;
+
+                case BasisNetworkCommons.CameraPIPPositionChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.CameraPIPPositionChannel, reader.AvailableBytes);
+                    BasisNetworkPIPCamera.HandlePIPPositionUpdate(reader, peer); // recycles inside
+                    break;
+
+                case BasisNetworkCommons.PreloadReadyChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.PreloadReadyChannel, reader.AvailableBytes);
+                    BasisServerHandleEvents.HandlePreloadReady(reader, peer); // recycles inside
+                    break;
+
+                case BasisNetworkCommons.EventsChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.EventsChannel, reader.AvailableBytes);
+                    BasisNetworkEvents.HandleEvent(reader, peer); // reads event type byte, routes, recycles inside
+                    break;
+
                 default:
                     BNL.LogError($"Unknown channel: {channel} ({reader.AvailableBytes} bytes remaining)");
                     reader.Recycle(); // prevent leaks on unknown messages
@@ -180,25 +206,6 @@ public static class BasisNetworkMessageProcessor
             );
             reader.Recycle();
         }
-    }
-
-    private static bool TryRedirectFallChannel(NetPeer peer, NetPacketReader reader, ref byte channel, DeliveryMethod deliveryMethod)
-    {
-        if (channel == BasisNetworkCommons.FallChannel && deliveryMethod == DeliveryMethod.Unreliable)
-        {
-            if (reader.TryGetByte(out byte newChannel))
-            {
-                ProcessMessage(peer, reader, newChannel, deliveryMethod);
-            }
-            else
-            {
-                BNL.LogError($"FallChannel redirection failed, no data remains: {reader.AvailableBytes}");
-                reader.Recycle();
-            }
-            return true;
-        }
-
-        return false;
     }
 
     private static void HandleAdminResourceAction(NetPeer peer, NetPacketReader reader, Action<NetPacketReader, NetPeer,string> action, string permNode)

@@ -156,8 +156,11 @@ public static class BasisRemoteNetworkDriver
     {
         if (!_initialized) return;
 
-        if (!oneEuroJob.IsCompleted)
-            oneEuroJob.Complete();
+        // Complete all possibly in-flight jobs before disposing NativeArrays.
+        // Destroy() can be called mid-frame (e.g. from a UI button) after
+        // Compute() scheduled jobs but before Apply() completed them.
+        // Complete the combined tail handle which chains all intermediate jobs.
+        oneEuroJob.Complete();
 
         DisposeAll();
         _muscleCount = 0;

@@ -302,6 +302,7 @@ namespace BasisServerTests
         {
             var msg = new AudioSegmentDataMessage
             {
+                SequenceNumber = 42,
                 TotalPlayedInSilence = 5,
                 buffer = new byte[] { 1, 2, 3, 4 },
                 LengthUsed = 4
@@ -314,6 +315,7 @@ namespace BasisServerTests
             var result = new AudioSegmentDataMessage();
             result.Deserialize(reader);
 
+            Assert.Equal((byte)42, result.SequenceNumber);
             Assert.Equal(5, result.TotalPlayedInSilence);
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, result.buffer);
             Assert.Equal(4, result.LengthUsed);
@@ -324,6 +326,7 @@ namespace BasisServerTests
         {
             var msg = new AudioSegmentDataMessage
             {
+                SequenceNumber = 100,
                 TotalPlayedInSilence = 10,
                 buffer = null,
                 LengthUsed = 0
@@ -336,6 +339,7 @@ namespace BasisServerTests
             var result = new AudioSegmentDataMessage();
             result.Deserialize(reader);
 
+            Assert.Equal((byte)100, result.SequenceNumber);
             Assert.Equal(10, result.TotalPlayedInSilence);
             Assert.Equal(0, result.LengthUsed);
         }

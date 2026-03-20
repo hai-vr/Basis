@@ -4,6 +4,7 @@ using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Network.Core;
 using System;
 using System.Collections;
+using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 using static BasisNetworkCommon;
@@ -99,8 +100,11 @@ namespace Basis
                 //convert GUID into Ushort for network transport.
                 BasisIdResolutionResult IDResolverResult = await IDResolverAsync;
                 var InitalOwnershipStatus = await output;
-                CurrentOwnerId = InitalOwnershipStatus.PlayerId;
-                BasisNetworkPlayers.GetPlayerById(CurrentOwnerId, out currentOwnedPlayer);
+                if (InitalOwnershipStatus.Success)
+                {
+                    CurrentOwnerId = InitalOwnershipStatus.PlayerId;
+                    BasisNetworkPlayers.GetPlayerById(CurrentOwnerId, out currentOwnedPlayer);
+                }
                 HasNetworkID = IDResolverResult.Success;
                 NetworkID = IDResolverResult.Id;
                 if (HasNetworkID)
@@ -226,20 +230,49 @@ namespace Basis
         }
         public static string LowLevelGetHierarchyPath(BasisNetworkContentBase obj)
         {
+            StringBuilder pathBuilder = new StringBuilder();
             // Get the index of the component on the GameObject
             Component[] components = obj.gameObject.GetComponents(obj.GetType());
             int index = System.Array.IndexOf(components, obj);
 
-            string path = obj.gameObject.name + obj.GetType() + index;
+            pathBuilder.Append($"{obj.gameObject.name}{SiblingIndexIfNeeded(obj.transform)}:{obj.GetType().FullName}_{index}");
             Transform current = obj.transform.parent;
 
             while (current != null)
             {
-                path = current.name + "/" + path;
+                pathBuilder.Insert(0, $"{current.name}{SiblingIndexIfNeeded(current)}/");
                 current = current.parent;
             }
 
-            return path;
+            return pathBuilder.ToString();
+        }
+        private static string SiblingIndexIfNeeded(Transform t)
+        {
+            Transform parent = t.parent;
+            string name = t.name;
+            if (parent == null)
+            {
+                foreach (var go in t.gameObject.scene.GetRootGameObjects())
+                {
+                    if (go != t.gameObject && go.name == name)
+                    {
+                        return $"[{t.GetSiblingIndex()}]";
+                    }
+                }
+            }
+            else
+            {
+                int childCount = parent.childCount;
+                for (int i = 0; i < childCount; i++)
+                {
+                    Transform sibling = parent.GetChild(i);
+                    if (sibling != t && sibling.name == name)
+                    {
+                        return $"[{t.GetSiblingIndex()}]";
+                    }
+                }
+            }
+            return string.Empty;
         }
         public async void TakeOwnership()
         {

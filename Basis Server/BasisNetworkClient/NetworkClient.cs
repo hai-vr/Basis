@@ -6,8 +6,8 @@ public class NetworkClient
 {
     public  NetManager client;
     public EventBasedNetListener listener;
-    private static NetPeer peer;
-    private static bool IsInUse;
+    private NetPeer peer;
+    private bool IsInUse;
     /// <summary>
     /// inital data is typically the 
     /// </summary> 

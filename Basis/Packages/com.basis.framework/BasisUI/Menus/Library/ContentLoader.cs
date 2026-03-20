@@ -22,46 +22,95 @@ namespace Basis.BasisUI
     /// </summary>
     public static class ContentLoader
     {
+        /// <summary>
+        /// A reachability warning from the last avatar load attempt, if any.
+        /// Set when the remote file could not be reached but the load was still attempted.
+        /// Cleared on each new load attempt.
+        /// </summary>
+        public static string LastAvatarReachabilityWarning { get; private set; }
+
+        /// <summary>
+        /// Static progress report forwarded during library content loading.
+        /// Subscribe to OnProgressReport to receive loading progress updates.
+        /// </summary>
+        public static readonly BasisProgressReport LibraryLoadProgress = new BasisProgressReport();
+
+        private static void ForwardProgress(string uniqueID, float progress, string eventDescription)
+        {
+            LibraryLoadProgress.ReportProgress(uniqueID, progress, eventDescription);
+        }
+
         public static async Task LoadAvatar(BasisDataStoreItemKeys.ItemKey item)
         {
-            if (BasisLocalPlayer.Instance)
+            LastAvatarReachabilityWarning = null;
+
+            if (!BasisLocalPlayer.Instance)
             {
-                CachedMetaData.CachedContent cachedMeta;
-                if (CachedMetaData.TryGetMeta(item.Url, out cachedMeta))
-                {
-                    BasisLoadableBundle bundle = cachedMeta.BasisLoadableBundle;
+                BasisDebug.LogError("Attempted to LoadAvatar without a BasisLocalPlayer.Instance.");
+                return;
+            }
 
-                    BasisDebug.Log($"LoadAvatar({item.Url}) -> bundle = {bundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}");
+            if (!CachedMetaData.TryGetMeta(item.Url, out CachedMetaData.CachedContent cachedMeta))
+            {
+                BasisDebug.LogError($"LoadAvatar({item.Url}) -> failed to get cached meta");
+                return;
+            }
 
-                    if (cachedMeta.BasisBundleConnector.GetPlatform(out BasisBundleGenerated platformBundle))
-                    {
-                        string assetMode = platformBundle.AssetMode;
-                        byte mode = !string.IsNullOrEmpty(assetMode) && byte.TryParse(assetMode, out byte result)
-                            ? result
-                            : (byte)0;
-                        await BasisLocalPlayer.Instance.CreateAvatar(mode, bundle);
-                    }
-                    else
-                    {
-                        if (bundle.UnlockPassword == BasisBeeConstants.DefaultAvatar)
-                        {
-                            await BasisLocalPlayer.Instance.CreateAvatar(1, bundle);
-                        }
-                        else
-                        {
-                            BasisDebug.LogError("LoadAvatar -> Missing Platform " + Application.platform);
-                        }
-                    }
-                }
-                else
-                {
-                    BasisDebug.LogError($"LoadAvatar({item.Url}) -> failed to get cached meta");
-                }
+            BasisLocalPlayer.Instance.ProgressReportAvatarLoad.OnProgressReport += ForwardProgress;
+
+            BasisLoadableBundle bundle = cachedMeta.BasisLoadableBundle;
+            BasisDebug.Log($"LoadAvatar({item.Url}) -> bundle = {bundle.BasisBundleConnector.BasisBundleDescription.AssetBundleName}");
+
+            // Fire reachability check in parallel with the avatar load
+            Task<BeeResult<bool>> reachabilityTask = null;
+            string remoteUrl = bundle.BasisRemoteBundleEncrypted?.RemoteBeeFileLocation;
+            if (!string.IsNullOrEmpty(remoteUrl) && Uri.TryCreate(remoteUrl, UriKind.Absolute, out _))
+            {
+                BasisDebug.Log($"Checking avatar file reachability: {remoteUrl}", BasisDebug.LogTag.Avatar);
+                reachabilityTask = BasisIOManagement.CheckRemoteFileReachable(remoteUrl);
+            }
+
+            // Load the avatar immediately without waiting for the reachability check
+            if (cachedMeta.BasisBundleConnector.GetPlatform(out BasisBundleGenerated platformBundle))
+            {
+                string assetMode = platformBundle.AssetMode;
+                byte mode = !string.IsNullOrEmpty(assetMode) && byte.TryParse(assetMode, out byte result)
+                    ? result
+                    : (byte)0;
+                await BasisLocalPlayer.Instance.CreateAvatar(mode, bundle);
             }
             else
             {
-                BasisDebug.LogError("Attempted to LoadAvatar without a BasisLocalPlayer.Instance.");
+                if (bundle.UnlockPassword == BasisBeeConstants.DefaultAvatar)
+                {
+                    await BasisLocalPlayer.Instance.CreateAvatar(1, bundle);
+                }
+                else
+                {
+                    BasisDebug.LogError("LoadAvatar -> Missing Platform " + Application.platform);
+                }
             }
+
+            // Collect the reachability result after the load finishes
+            if (reachabilityTask != null)
+            {
+                try
+                {
+                    var reachResult = await reachabilityTask;
+                    if (!reachResult.IsSuccess)
+                    {
+                        LastAvatarReachabilityWarning = $"Could not reach avatar file at URL: {reachResult.Error}";
+                        BasisDebug.LogWarning(LastAvatarReachabilityWarning);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LastAvatarReachabilityWarning = $"Could not reach avatar file at URL: {ex.Message}";
+                    BasisDebug.LogWarning(LastAvatarReachabilityWarning);
+                }
+            }
+
+            BasisLocalPlayer.Instance.ProgressReportAvatarLoad.OnProgressReport -= ForwardProgress;
         }
 
         public static async Task<GameObject> HandleLoadGameObjectWithBundle(BasisDataStoreItemKeys.ItemKey item, CachedMetaData.CachedContent cached, BundledContentHolder.NetworkType desiredNetworkType, Vector3 finalPos, Quaternion finalRot, Vector3 finalScale, Transform parentTarget, bool admin = false, bool modifyScale = false, bool local = false,bool ChangeColidersToCorrectLayer = false)
@@ -69,6 +118,7 @@ namespace Basis.BasisUI
             BasisLoadableBundle bundle = cached.BasisLoadableBundle;
 
             BasisProgressReport report = new BasisProgressReport();
+            report.OnProgressReport += ForwardProgress;
             CancellationToken cancel = default;
 
             var selector = item.Mode switch
@@ -104,6 +154,7 @@ namespace Basis.BasisUI
                 BasisDebug.LogError($"Library provider failed to create desired with networking: {desiredNetworkType} with LoadSelectedItem of url {item.Url}");
             }
 
+            report.OnProgressReport -= ForwardProgress;
             return createdObject;
         }
 
@@ -120,8 +171,8 @@ namespace Basis.BasisUI
                     case BundledContentHolder.PlacementType.SpawnAtRaycast:
                         BasisDeviceManagement deviceInstance = BasisDeviceManagement.Instance;
 
-                        if (!deviceInstance.FindDevice(out BasisInput input, BasisBoneTrackedRole.LeftHand) &&
-                            !deviceInstance.FindDevice(out input, BasisBoneTrackedRole.RightHand) &&
+                        if (!deviceInstance.FindDevice(out BasisInput input, BasisDominantHand.DominantRole) &&
+                            !deviceInstance.FindDevice(out input, BasisDominantHand.NonDominantRole) &&
                             !deviceInstance.FindDevice(out input, BasisBoneTrackedRole.CenterEye))
                         {
                             BasisDebug.LogError("LoadProp failed: no suitable device found (LeftHand/RightHand/CenterEye).");
@@ -208,6 +259,27 @@ namespace Basis.BasisUI
 
                 switch (desiredNetworkType)
                 {
+                    case BundledContentHolder.NetworkType.Synchronized:
+                        {
+                            try
+                            {
+                                bool ok = BasisNetworkSpawnItem.RequestGameObjectLoad(item.Pass, item.Url, finalPos, finalRot, finalScale, persistent, admin, modifyScale, out LocalLoadResource syncResource, loadStrategy: 2);
+                                if (ok)
+                                {
+                                    BasisDebug.Log($"Requested synchronized load for {item.Url}, NetID={syncResource.LoadedNetID}", BasisDebug.LogTag.Networking);
+                                }
+                                else
+                                {
+                                    BasisDebug.LogError($"Failed to request synchronized load for {item.Url}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                BasisDebug.LogError(ex);
+                            }
+                            break;
+                        }
+
                     case BundledContentHolder.NetworkType.Local:
                         {
                             Transform parentTarget = BasisDeviceManagement.Instance.transform;
@@ -336,10 +408,11 @@ namespace Basis.BasisUI
                             BasisLoadableBundle bundle = cached.BasisLoadableBundle;
 
                             BasisProgressReport report = new BasisProgressReport();
+                            report.OnProgressReport += ForwardProgress;
                             CancellationToken cancel = default;
 
                             Scene scene = await BasisLoadHandler.LoadSceneBundle(
-                                false, // for local do not set as the active scene
+                                true, // set as active scene so skybox and RenderSettings apply
                                 bundle,
                                 report,
                                 cancel
@@ -368,6 +441,7 @@ namespace Basis.BasisUI
                                 BasisDebug.LogError($"Library provider failed to create desired scene with networking: {desiredNetworkType} with of url {item.Url}");
                             }
 
+                            report.OnProgressReport -= ForwardProgress;
                         }
                         else
                         {
@@ -387,6 +461,24 @@ namespace Basis.BasisUI
                             else
                             {
                                 BasisDebug.LogError($"Failed to request networked SceneLoad for {item.Url}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            BasisDebug.LogError(ex);
+                        }
+                        break;
+                    case BundledContentHolder.NetworkType.Synchronized:
+                        try
+                        {
+                            bool ok = BasisNetworkSpawnItem.RequestSceneLoad(item.Pass, item.Url, persistent, admin, out LocalLoadResource syncResource, loadStrategy: 2);
+                            if (ok)
+                            {
+                                BasisDebug.Log($"Requested synchronized SceneLoad for {item.Url}, NetID={syncResource.LoadedNetID}", BasisDebug.LogTag.Networking);
+                            }
+                            else
+                            {
+                                BasisDebug.LogError($"Failed to request synchronized SceneLoad for {item.Url}");
                             }
                         }
                         catch (Exception ex)

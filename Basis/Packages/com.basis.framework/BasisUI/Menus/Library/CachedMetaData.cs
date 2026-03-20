@@ -177,11 +177,28 @@ namespace Basis.BasisUI
                     cached = await CacheNewItem(item);
                 }
 
+                if (cached == null || cached.BasisBundleConnector == null)
+                {
+                    BasisDebug.LogError($"Item '{urlKey}' has corrupt or invalid data. Removing from library.");
+                    BasisStorageManagement.DeleteStoredFile(urlKey);
+                    await BasisDataStoreItemKeys.RemoveKey(item);
+                    return;
+                }
+
                 SetMetaData(urlKey, cached);
             }
             catch (Exception ex)
             {
-                LogError(ex);
+                BasisDebug.LogError($"Failed to load metadata for '{item?.Url}'. Removing from library. Error: {ex.Message}");
+                try
+                {
+                    BasisStorageManagement.DeleteStoredFile(item?.Url);
+                    await BasisDataStoreItemKeys.RemoveKey(item);
+                }
+                catch (Exception cleanupEx)
+                {
+                    BasisDebug.LogError(cleanupEx);
+                }
             }
         }
         [HideInCallstack]

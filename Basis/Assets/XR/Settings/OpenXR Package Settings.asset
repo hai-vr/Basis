@@ -607,6 +607,28 @@ MonoBehaviour:
   customRuntimeLoaderName: 
   cacheSize: 1048576
   perThreadCacheSize: 51200
+--- !u!114 &-2656986249713310751
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 494177e5549bfa144a1dc45218231d1f, type: 3}
+  m_Name: FixNoVisibleAreaMesh Standalone
+  m_EditorClassIdentifier: BasisOpenXR::UnityEngine.XR.OpenXR.Features.FixNoVisibleAreaMesh
+  m_enabled: 1
+  nameUi: Fix No Visible Area Mesh
+  version: 0.0.1
+  featureIdInternal: com.stresslevelzero.fixnovisiblemesh
+  openxrExtensionStrings: XR_KHR_visibility_mask
+  company: Stress Level Zero
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
 --- !u!114 &-2546553118739243343
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -675,6 +697,28 @@ MonoBehaviour:
   required: 0
   m_XrInstanceCreated: 0
   m_XrSessionCreated: 0
+--- !u!114 &-2018307807013111431
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 494177e5549bfa144a1dc45218231d1f, type: 3}
+  m_Name: FixNoVisibleAreaMesh Android
+  m_EditorClassIdentifier: BasisOpenXR::UnityEngine.XR.OpenXR.Features.FixNoVisibleAreaMesh
+  m_enabled: 0
+  nameUi: Fix No Visible Area Mesh
+  version: 0.0.1
+  featureIdInternal: com.stresslevelzero.fixnovisiblemesh
+  openxrExtensionStrings: XR_KHR_visibility_mask
+  company: Stress Level Zero
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
 --- !u!114 &-1968614616690116649
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1024,6 +1068,7 @@ MonoBehaviour:
   - {fileID: -5306176883744656445}
   - {fileID: -3753664232341013626}
   - {fileID: 5806727535284400695}
+  - {fileID: -2018307807013111431}
   - {fileID: 1037941242733295319}
   - {fileID: -8806581250835264744}
   - {fileID: -7821391695787243210}
@@ -1602,6 +1647,7 @@ MonoBehaviour:
   - {fileID: -4823766194161132787}
   - {fileID: 1818262454267888816}
   - {fileID: 2776206606949624213}
+  - {fileID: -2656986249713310751}
   - {fileID: -3764107326657577408}
   - {fileID: -7502029321421986309}
   - {fileID: -537972378157693835}

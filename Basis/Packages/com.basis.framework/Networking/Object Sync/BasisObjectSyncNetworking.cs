@@ -76,16 +76,17 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
         {
             return true;
         }
-        // NOTE: this is called 2 times per frame on interact start, once to tell HoverEnd that it will be interacting, and again for the actual interact check
-        if (CanNetworkSteal && (pendingStealRequest == null || pendingStealRequest == input))
-        {
-            pendingStealRequest = input;
-            return true;
-        }
-        return false;
+        // Allow if stealing is enabled and no other input has a steal in progress
+        // NOTE: pendingStealRequest is only set in OnInteractStartEvent to avoid
+        // side effects when this is called speculatively (e.g. via IsInfluencable)
+        return CanNetworkSteal && (pendingStealRequest == null || pendingStealRequest == input);
     }
     private void OnInteractStartEvent(BasisInput input)
     {
+        if (!IsOwnedLocallyOnClient)
+        {
+            pendingStealRequest = input;
+        }
         CanInteractAsync(); // ControlState handles the ownership transfer logic here
     }
     private async void CanInteractAsync()
@@ -114,14 +115,26 @@ public class BasisObjectSyncNetworking : BasisNetworkBehaviour
         {
             BasisObjectSyncDriver.AddLocalOwner(this);
             BasisObjectSyncDriver.RemoveRemoteOwner(this);
-            // Delayed InteractStart when local user gets ownership
             if (pendingStealRequest != null)
             {
+                // Set non-kinematic before ForceSetInteracting so that OnInteractStart
+                // saves the correct _previousKinematicValue (false) for restore on drop
+                SetIsKinematicOnPickup(false);
                 BasisPlayerInteract.Instance.ForceSetInteracting(BasisPickupInteractable, pendingStealRequest);
-                // still reset the request, we dont care if we actually picked up
                 pendingStealRequest = null;
+                // ForceSetInteracting -> OnInteractStart re-applies isKinematic = true
+                // when KinematicWhileInteracting is enabled, so don't override after
             }
-            SetIsKinematicOnPickup(false);
+            else if (BasisPickupInteractable != null
+                && BasisPickupInteractable.KinematicWhileInteracting
+                && BasisPickupInteractable.RequiresUpdateLoop)
+            {
+                // Currently held with KinematicWhileInteracting - preserve kinematic state
+            }
+            else
+            {
+                SetIsKinematicOnPickup(false);
+            }
         }
         else
         {

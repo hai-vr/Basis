@@ -11,6 +11,7 @@ namespace HVR.Basis.Comms
     [AddComponentMenu("HVR.Basis/Comms/Object State Actuation")]
     public class ObjectStateActuation : BasisAvatarMonoBehaviour
     {
+        new public static bool VisibleInAvatarMenu = false;
         public ActivationSource activationSource;
         public string address;
 

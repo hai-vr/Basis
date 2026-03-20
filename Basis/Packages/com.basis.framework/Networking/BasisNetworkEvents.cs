@@ -14,24 +14,13 @@ public static class BasisNetworkEvents
     {
         switch (channel)
         {
-            case BasisNetworkCommons.FallChannel:
-                if (deliveryMethod == DeliveryMethod.Unreliable)
-                {
-                    if (Reader.TryGetByte(out byte Byte))
-                    {
-                        NetworkReceiveEvent(peer, Reader, Byte, deliveryMethod);
-                    }
-                    else
-                    {
-                        BNL.LogError($"Unknown channel no data remains: {channel} " + Reader.AvailableBytes);
-                        Reader.Recycle();
-                    }
-                }
-                else
-                {
-                    BNL.LogError($"Unknown channel: {channel} " + Reader.AvailableBytes);
-                    Reader.Recycle();
-                }
+            case BasisNetworkCommons.ShoutVoiceChannel:
+#if UNITY_SERVER
+                Reader.Recycle();
+#else
+                //released inside
+                await BasisNetworkHandleVoice.HandleShoutAudioUpdate(Reader);
+#endif
                 break;
             case BasisNetworkCommons.AuthIdentityChannel:
                 AuthIdentityMessage(peer, Reader, channel);
@@ -128,6 +117,14 @@ public static class BasisNetworkEvents
 #endif
                 break;
             case BasisNetworkCommons.PlayerAvatarChannel:
+            case BasisNetworkCommons.PlayerAvatarVeryLowChannel:
+            case BasisNetworkCommons.PlayerAvatarVeryLowAdditionalChannel:
+            case BasisNetworkCommons.PlayerAvatarLowChannel:
+            case BasisNetworkCommons.PlayerAvatarLowAdditionalChannel:
+            case BasisNetworkCommons.PlayerAvatarMediumChannel:
+            case BasisNetworkCommons.PlayerAvatarMediumAdditionalChannel:
+            case BasisNetworkCommons.PlayerAvatarHighChannel:
+            case BasisNetworkCommons.PlayerAvatarHighAdditionalChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
                 {
                     Reader.Recycle();
@@ -220,6 +217,30 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                 });
                 break;
+            case BasisNetworkCommons.ContentShareChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    BasisContentShareManager.HandleContentShareMessage(Reader);
+                    Reader.Recycle();
+                });
+                break;
+            case BasisNetworkCommons.ContentShareCleanupChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    BasisContentShareManager.HandleContentShareCleanup(Reader);
+                    Reader.Recycle();
+                });
+                break;
             case BasisNetworkCommons.ChatChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
                 {
@@ -281,6 +302,83 @@ public static class BasisNetworkEvents
                     //
                     Reader.Recycle();
                 });
+                break;
+            case BasisNetworkCommons.CameraPIPStateChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(() =>
+                {
+                    CameraPIPStateMessage pipState = new CameraPIPStateMessage();
+                    pipState.Deserialize(Reader);
+                    Reader.Recycle();
+                    BasisNetworkPIPCameraDriver.OnRemotePIPState(pipState);
+                });
+                break;
+            case BasisNetworkCommons.CameraPIPPositionChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                {
+                    CameraPIPPositionMessage pipPos = new CameraPIPPositionMessage();
+                    pipPos.Deserialize(Reader);
+                    Reader.Recycle();
+                    BasisDeviceManagement.EnqueueOnMainThread(() =>
+                    {
+                        BasisNetworkPIPCameraDriver.OnRemotePIPPosition(pipPos);
+                    });
+                }
+                break;
+            case BasisNetworkCommons.SpawnPreloadedChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                BasisDeviceManagement.EnqueueOnMainThread(async () =>
+                {
+                    await BasisNetworkGenericMessages.SpawnPreloadedMessage(Reader, deliveryMethod);
+                    Reader.Recycle();
+                });
+                break;
+            case BasisNetworkCommons.EventsChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                {
+                    byte eventType = Reader.GetByte();
+                    switch (eventType)
+                    {
+                        case BasisNetworkCommons.EventType_CameraShutterSound:
+                            CameraShutterSoundMessage shutterMsg = new CameraShutterSoundMessage();
+                            shutterMsg.Deserialize(Reader);
+                            Reader.Recycle();
+                            BasisDeviceManagement.EnqueueOnMainThread(() =>
+                            {
+                                BasisNetworkPIPCameraDriver.OnRemoteShutterSound(shutterMsg);
+                            });
+                            break;
+                        case BasisNetworkCommons.EventType_CameraCountdown:
+                            CameraCountdownMessage countdownMsg = new CameraCountdownMessage();
+                            countdownMsg.Deserialize(Reader);
+                            Reader.Recycle();
+                            BasisDeviceManagement.EnqueueOnMainThread(() =>
+                            {
+                                BasisNetworkPIPCameraDriver.OnRemoteCountdown(countdownMsg);
+                            });
+                            break;
+                        default:
+                            BNL.LogError($"Unknown EventsChannel event type: {eventType}");
+                            Reader.Recycle();
+                            break;
+                    }
+                }
                 break;
             default:
                 BNL.LogError($"this Channel was not been implemented {channel}");

@@ -1,5 +1,6 @@
 using Basis.Network.Core;
 using BasisNetworkCore;
+using BasisPermissions;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -9,13 +10,14 @@ using System.Reflection;
 using System.Text;
 using System.Xml.Serialization;
 using static BasisNetworkCore.Serializable.SerializableBasis;
+using static BasisPermissions.PermissionManager;
 
 namespace BasisNetworkServer.Security
 {
     public static class BasisPlayerModeration
     {
         private static readonly ConcurrentDictionary<string, BannedPlayer> BannedPlayers = new ConcurrentDictionary<string, BannedPlayer>();
-        private static readonly HashSet<string> BannedUUIDs = new();
+        private static readonly ConcurrentDictionary<string, byte> BannedUUIDs = new();
         private static readonly string BanFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Configuration.ConfigFolderName, "banned_players.xml");
         public static bool UseFileOnDisc = true;
         public class BannedPlayer
@@ -83,7 +85,7 @@ namespace BasisNetworkServer.Security
                 foreach (var player in loadedList)
                 {
                     BannedPlayers[player.UUID] = player;
-                    BannedUUIDs.Add(player.UUID);
+                    BannedUUIDs.TryAdd(player.UUID, 0);
                 }
             }
             catch (Exception ex)
@@ -103,13 +105,16 @@ namespace BasisNetworkServer.Security
             {
                 return $"[Error] Unable to find player: {UUID}";
             }
-            NetworkServer.AuthenticatedPeers.TryGetValue(peer, out var peers);
+            if (!NetworkServer.AuthenticatedPeers.TryGetValue(peer, out var peers) || peers == null)
+            {
+                return $"[Error] Peer not found for player: {UUID}";
+            }
 
             peers.Disconnect(Encoding.UTF8.GetBytes(reason));
 
-            if (BannedUUIDs.Contains(UUID))
+            if (BannedUUIDs.ContainsKey(UUID))
             {
-                BannedUUIDs.Remove(UUID);
+                BannedUUIDs.TryRemove(UUID, out _);
             }
 
             BannedPlayer bannedPlayer = new BannedPlayer
@@ -122,7 +127,7 @@ namespace BasisNetworkServer.Security
             };
 
             BannedPlayers[UUID] = bannedPlayer;
-            BannedUUIDs.Add(UUID);
+            BannedUUIDs.TryAdd(UUID, 0);
             SaveBannedPlayers();
 
             return $"Player {UUID} banned successfully for reason: {reason}";
@@ -138,12 +143,15 @@ namespace BasisNetworkServer.Security
             if (!NetworkServer.AuthIdentity.UUIDToNetID(UUID, out int peer))
                 return $"[Error] Unable to find player: {UUID}";
 
-            NetworkServer.AuthenticatedPeers.TryGetValue(peer, out var peers);
+            if (!NetworkServer.AuthenticatedPeers.TryGetValue(peer, out var peers) || peers == null)
+            {
+                return $"[Error] Peer not found for player: {UUID}";
+            }
 
             peers.Disconnect(Encoding.UTF8.GetBytes(reason));
             string ip = peers.Address.ToString();
 
-            if (BannedUUIDs.Contains(UUID))
+            if (BannedUUIDs.ContainsKey(UUID))
                 return $"[Info] Player {UUID} is already banned.";
 
             BannedPlayer bannedPlayer = new BannedPlayer
@@ -156,7 +164,7 @@ namespace BasisNetworkServer.Security
             };
 
             BannedPlayers[UUID] = bannedPlayer;
-            BannedUUIDs.Add(UUID);
+            BannedUUIDs.TryAdd(UUID, 0);
             SaveBannedPlayers();
 
             return $"Player {UUID} and IP {ip} banned successfully for reason: {reason}";
@@ -172,7 +180,10 @@ namespace BasisNetworkServer.Security
             if (!NetworkServer.AuthIdentity.UUIDToNetID(UUID, out int peer))
                 return $"[Error] Unable to find player: {UUID}";
 
-            NetworkServer.AuthenticatedPeers.TryGetValue(peer, out var peers);
+            if (!NetworkServer.AuthenticatedPeers.TryGetValue(peer, out var peers) || peers == null)
+            {
+                return $"[Error] Peer not found for player: {UUID}";
+            }
 
             peers.Disconnect(Encoding.UTF8.GetBytes(reason));
             return $"Player {UUID} kicked successfully.";
@@ -183,7 +194,7 @@ namespace BasisNetworkServer.Security
             if (string.IsNullOrEmpty(UUID))
                 throw new ArgumentException("[Error] UUID cannot be null or empty.");
 
-            return BannedUUIDs.Contains(UUID);
+            return BannedUUIDs.ContainsKey(UUID);
         }
 
         public static bool Unban(string UUID)
@@ -191,11 +202,11 @@ namespace BasisNetworkServer.Security
             if (string.IsNullOrEmpty(UUID))
                 throw new ArgumentException("[Error] UUID cannot be null or empty.");
 
-            if (!BannedUUIDs.Contains(UUID))
+            if (!BannedUUIDs.ContainsKey(UUID))
                 return false;
 
             BannedPlayers.TryRemove(UUID, out _);
-            BannedUUIDs.Remove(UUID);
+            BannedUUIDs.TryRemove(UUID, out _);
             SaveBannedPlayers();
             return true;
         }
@@ -212,7 +223,7 @@ namespace BasisNetworkServer.Security
             foreach (var player in toRemoveList)
             {
                 BannedPlayers.TryRemove(player.UUID, out _);
-                BannedUUIDs.Remove(player.UUID);
+                BannedUUIDs.TryRemove(player.UUID, out _);
             }
 
             SaveBannedPlayers();
@@ -250,16 +261,29 @@ namespace BasisNetworkServer.Security
                 SendBackMessage(peer, msg);
                 return;
             }
+
+            AdminRequest AdminRequest = new AdminRequest();
+            AdminRequest.Deserialize(reader);
+            AdminRequestMode Mode = AdminRequest.GetAdminRequestMode();
+
+            // GetPermissions is allowed for all authenticated users (read-only view)
+            if (Mode == AdminRequestMode.GetPermissions)
+            {
+                HandleGetPermissions(peer, UUID);
+                reader.Recycle();
+                return;
+            }
+
+            // All other admin operations require admin privileges
             if (!NetworkServer.AuthIdentity.IsNetPeerAdmin(UUID))
             {
                 string msg = $"Was not admin! {UUID}";
                 BNL.LogError(msg);
                 SendBackMessage(peer, msg);
+                reader.Recycle();
                 return;
             }
-            AdminRequest AdminRequest = new AdminRequest();
-            AdminRequest.Deserialize(reader);
-            AdminRequestMode Mode = AdminRequest.GetAdminRequestMode();
+
             switch (Mode)
             {
                 case AdminRequestMode.Ban:
@@ -315,10 +339,6 @@ namespace BasisNetworkServer.Security
                     }
                     SendBackMessage(peer, ReturnMessage);
                     break;
-                //  case AdminRequestMode.RequestBannedPlayers:
-                //      break;
-                // case AdminRequestMode.TeleportTo:
-                //    break;
                 case AdminRequestMode.TeleportAll:
 
                     Writer = NetworkServer.RentWriter();
@@ -362,6 +382,34 @@ namespace BasisNetworkServer.Security
                     NetworkServer.TrySend(peer, Writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
                     NetworkServer.ReturnWriter(Writer);
                     break;
+
+                // --- Permission management ---
+                case AdminRequestMode.SetUserGroup:
+                    HandleSetUserGroup(peer, reader);
+                    break;
+                case AdminRequestMode.SetUserNode:
+                    HandleSetUserNode(peer, reader);
+                    break;
+                case AdminRequestMode.SetGroupNode:
+                    HandleSetGroupNode(peer, reader);
+                    break;
+                case AdminRequestMode.CreateGroup:
+                    HandleCreateGroup(peer, reader);
+                    break;
+                case AdminRequestMode.DeleteGroup:
+                    HandleDeleteGroup(peer, reader);
+                    break;
+                case AdminRequestMode.SetGroupParent:
+                    HandleSetGroupParent(peer, reader);
+                    break;
+
+                case AdminRequestMode.EnableShoutMode:
+                    HandleShoutMode(peer, reader, true);
+                    break;
+                case AdminRequestMode.DisableShoutMode:
+                    HandleShoutMode(peer, reader, false);
+                    break;
+
                 default:
                     BNL.LogError("Missing Mode!");
                     ReturnMessage = "Missing mode";
@@ -370,6 +418,141 @@ namespace BasisNetworkServer.Security
             }
             reader.Recycle();
         }
+
+        #region Permission Handlers
+
+        /// <summary>
+        /// Serializes the full permission store snapshot and sends it back to the requesting peer.
+        /// Any authenticated user can call this (read-only).
+        /// Also includes a bool indicating whether the requesting user is an admin.
+        /// </summary>
+        private static void HandleGetPermissions(NetPeer peer, string requestingUUID)
+        {
+            PermissionStore snapshot = PermissionIntegration.Manager.Snapshot();
+            bool isAdmin = NetworkServer.AuthIdentity.IsNetPeerAdmin(requestingUUID);
+
+            NetDataWriter writer = NetworkServer.RentWriter();
+            AdminRequest outRequest = new AdminRequest();
+            outRequest.Serialize(writer, AdminRequestMode.GetPermissions);
+            writer.Put(isAdmin);
+
+            // Serialize groups
+            writer.Put(snapshot.Groups.Count);
+            foreach (var g in snapshot.Groups.Values)
+            {
+                writer.Put(g.Name);
+                writer.Put(g.Nodes.Count);
+                foreach (string node in g.Nodes)
+                    writer.Put(node);
+                writer.Put(g.Parents.Count);
+                foreach (string parent in g.Parents)
+                    writer.Put(parent);
+            }
+
+            // Serialize users
+            writer.Put(snapshot.Users.Count);
+            foreach (var u in snapshot.Users.Values)
+            {
+                writer.Put(u.Uuid);
+                writer.Put(u.Groups.Count);
+                foreach (string group in u.Groups)
+                    writer.Put(group);
+                writer.Put(u.Nodes.Count);
+                foreach (string node in u.Nodes)
+                    writer.Put(node);
+            }
+
+            NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            NetworkServer.ReturnWriter(writer);
+            BNL.Log($"Sent permission snapshot to {requestingUUID} (admin={isAdmin})");
+        }
+
+        private static void HandleSetUserGroup(NetPeer peer, NetPacketReader reader)
+        {
+            string uuid = reader.GetString();
+            string group = reader.GetString();
+            bool add = reader.GetBool();
+
+            if (add)
+                PermissionIntegration.Manager.AddUserToGroup(uuid, group);
+            else
+                PermissionIntegration.Manager.RemoveUserFromGroup(uuid, group);
+
+            SendBackMessage(peer, $"{(add ? "Added" : "Removed")} user {uuid} {(add ? "to" : "from")} group '{group}'");
+        }
+
+        private static void HandleSetUserNode(NetPeer peer, NetPacketReader reader)
+        {
+            string uuid = reader.GetString();
+            string node = reader.GetString();
+            bool add = reader.GetBool();
+
+            if (add)
+                PermissionIntegration.Manager.AddUserNode(uuid, node);
+            else
+                PermissionIntegration.Manager.RemoveUserNode(uuid, node);
+
+            SendBackMessage(peer, $"{(add ? "Added" : "Removed")} node '{node}' {(add ? "to" : "from")} user {uuid}");
+        }
+
+        private static void HandleSetGroupNode(NetPeer peer, NetPacketReader reader)
+        {
+            string groupName = reader.GetString();
+            string node = reader.GetString();
+            bool add = reader.GetBool();
+
+            if (add)
+                PermissionIntegration.Manager.AddGroupNode(groupName, node);
+            else
+                PermissionIntegration.Manager.RemoveGroupNode(groupName, node);
+
+            SendBackMessage(peer, $"{(add ? "Added" : "Removed")} node '{node}' {(add ? "to" : "from")} group '{groupName}'");
+        }
+
+        private static void HandleCreateGroup(NetPeer peer, NetPacketReader reader)
+        {
+            string groupName = reader.GetString();
+            PermissionIntegration.Manager.GetOrCreateGroup(groupName);
+            SendBackMessage(peer, $"Created group '{groupName}'");
+        }
+
+        private static void HandleDeleteGroup(NetPeer peer, NetPacketReader reader)
+        {
+            string groupName = reader.GetString();
+            if (PermissionIntegration.Manager.DeleteGroup(groupName))
+                SendBackMessage(peer, $"Deleted group '{groupName}'");
+            else
+                SendBackMessage(peer, $"Failed to delete group '{groupName}' (not found)");
+        }
+
+        private static void HandleSetGroupParent(NetPeer peer, NetPacketReader reader)
+        {
+            string groupName = reader.GetString();
+            string parentName = reader.GetString();
+            bool add = reader.GetBool();
+
+            if (add)
+                PermissionIntegration.Manager.AddGroupParent(groupName, parentName);
+            else
+                PermissionIntegration.Manager.RemoveGroupParent(groupName, parentName);
+
+            SendBackMessage(peer, $"{(add ? "Added" : "Removed")} parent '{parentName}' {(add ? "to" : "from")} group '{groupName}'");
+        }
+
+        private static void HandleShoutMode(NetPeer peer, NetPacketReader reader, bool enable)
+        {
+            ushort targetPlayerId = reader.GetUShort();
+
+            Basis.Network.Server.Generic.BasisSavedState.SetShoutMode(targetPlayerId, enable);
+            BasisServerHandle.BasisServerHandleEvents.BroadcastShoutModeState(targetPlayerId, enable);
+
+            string state = enable ? "enabled" : "disabled";
+            BNL.Log($"Shout mode {state} for player {targetPlayerId} by admin {peer.Id}");
+            SendBackMessage(peer, $"Shout mode {state} for player {targetPlayerId}");
+        }
+
+        #endregion
+
         public static void SendBackMessage(NetPeer Peer, string ReturnMessage)
         {
             if (string.IsNullOrEmpty(ReturnMessage))

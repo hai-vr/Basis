@@ -16,7 +16,13 @@ namespace Basis.Scripts.Networking.Transmitters
         public bool HasEvents = false;
         public AudioSegmentDataMessage Segment = new AudioSegmentDataMessage();
         public NetDataWriter writer = new NetDataWriter();
+        public byte _sequenceNumber = 0;
         public int SilentForHowLong = 0;
+        /// <summary>
+        /// When true, voice is sent on ShoutVoiceChannel (channel 0) instead of VoiceChannel (channel 3).
+        /// Set by admin via BasisNetworkModeration when shout mode is granted to the local player.
+        /// </summary>
+        public static volatile bool IsInShoutMode = false;
         public void Initialize(BasisNetworkPlayer networkedPlayer)
         {
             NetworkedPlayer = networkedPlayer;
@@ -102,7 +108,9 @@ namespace Basis.Scripts.Networking.Transmitters
         }
         public void OnAudioReady()
         {
-            if (!NetworkedPlayer.HasReasonToSendAudio)
+            // In shout mode we always send (everyone hears us).
+            // In normal mode we only send if someone is in range.
+            if (!IsInShoutMode && !NetworkedPlayer.HasReasonToSendAudio)
             {
                 return;
             }
@@ -115,6 +123,8 @@ namespace Basis.Scripts.Networking.Transmitters
             Segment.LengthUsed = encoder.Encode(BasisLocalMicrophoneDriver.processBufferArray,BasisLocalMicrophoneDriver.SampleRate,Segment.buffer,Segment.TotalLength);
 #endif
 
+            Segment.SequenceNumber = _sequenceNumber++;
+
             if(SilentForHowLong > 256)
             {
                 Segment.TotalPlayedInSilence = 0;
@@ -125,8 +135,9 @@ namespace Basis.Scripts.Networking.Transmitters
             }
             Segment.Serialize(writer);
 
+            byte channel = IsInShoutMode ? BasisNetworkCommons.ShoutVoiceChannel : BasisNetworkCommons.VoiceChannel;
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioSegmentData, Segment.LengthUsed);
-            BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Sequenced);
+            BasisNetworkConnection.LocalPlayerPeer.Send(writer, channel, DeliveryMethod.Unreliable);
             if (BasisLocalPlayer.Instance != null)
             {
                 BasisLocalPlayer.Instance.AudioReceived?.Invoke();
@@ -136,7 +147,7 @@ namespace Basis.Scripts.Networking.Transmitters
 
         private void SendSilenceOverNetwork()
         {
-            if (!NetworkedPlayer.HasReasonToSendAudio)
+            if (!IsInShoutMode && !NetworkedPlayer.HasReasonToSendAudio)
             {
                 return;
             }

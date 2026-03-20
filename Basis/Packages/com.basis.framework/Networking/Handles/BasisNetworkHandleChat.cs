@@ -1,10 +1,12 @@
 using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using System;
 using System.Text;
 using System.Threading;
+using UnityEngine;
 using static SerializableBasis;
 
 /// <summary>
@@ -22,6 +24,7 @@ public static class BasisNetworkHandleChat
     /// How long a chat message stays visible (in seconds) before auto-clearing.
     /// </summary>
     public const float MessageDisplayDuration = 10f;
+
 
     /// <summary>
     /// Fired on the main thread when a chat message is received from a remote player.
@@ -100,6 +103,25 @@ public static class BasisNetworkHandleChat
 
         OnChatMessageReceived?.Invoke(senderPlayerId, message);
         ApplyChatToNamePlate(senderPlayerId, message);
+
+        if (!string.IsNullOrEmpty(message))
+        {
+            PlayChatNotification();
+        }
+    }
+
+    /// <summary>
+    /// Plays the chat notification audio clip through BasisDeviceManagement,
+    /// matching the pattern used by other UI sounds (hover, press).
+    /// </summary>
+    private static void PlayChatNotification()
+    {
+        if (BasisDeviceManagement.Instance == null || BasisDeviceManagement.Instance.ChatNotificationUI == null)
+        {
+            return;
+        }
+
+        AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.ChatNotificationUI, BasisDeviceManagement.Instance.transform.position, SMModuleAudio.ActiveMenusVolume);
     }
 
     private static void ApplyChatToNamePlate(ushort senderPlayerId, string message)
@@ -108,6 +130,12 @@ public static class BasisNetworkHandleChat
         {
             if (networkPlayer.Player is BasisRemotePlayer remotePlayer && remotePlayer.RemoteNamePlate != null)
             {
+                // Check per-player chat visibility setting
+                if (BasisPlayerSettingsManager.TryGetCachedPlayerSettings(remotePlayer.UUID, out var settings) && !settings.ChatVisible)
+                {
+                    return;
+                }
+
                 remotePlayer.RemoteNamePlate.SetChatText(message);
             }
         }

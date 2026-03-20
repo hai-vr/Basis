@@ -23,6 +23,10 @@ namespace Basis.Scripts.Networking.Receivers
         private const int EyesAndMouthCount = 6;
         public const int EyeAndMouthCountInBytes = EyesAndMouthCount * sizeof(float);
 
+        // Cached delegates — created once, avoids per-frame Action/Comparison heap allocations.
+        private static readonly Action<BasisAvatarBuffer> s_releaseBuffer = BasisAvatarBufferPool.Release;
+        private static readonly Comparison<BasisAvatarBuffer> s_sequenceCompare = static (a, b) => (sbyte)(a.Sequence - b.Sequence);
+
         private double _serverClockSeconds;
         private bool _serverClockSeeded;
         /// <summary>
@@ -43,6 +47,16 @@ namespace Basis.Scripts.Networking.Receivers
         private double interpolationTime = 0f; // 0..1 over current->next window
 
         public bool HasBufferHolds;
+
+        // ---------------- sequence tracking for unreliable delivery ----------------
+        private byte _highestSequence;
+        /// <summary>
+        /// 0 = no packets seen, 1 = initial data only (seq unset), 2+ = stale-check active.
+        /// The first packet (initial join data, seq=0) doesn't seed the tracker;
+        /// the second packet (first streaming update with real sequence) does.
+        /// </summary>
+        private int _seenPackets;
+        private readonly List<BasisAvatarBuffer> _pendingSort = new List<BasisAvatarBuffer>(16);
 
         // ---------------- staging (ring buffer) ----------------
         private const int MaxStage = 64;
@@ -72,6 +86,8 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void Compute(double unscaledDeltaTime)
         {
+            AudioReceiverModule?.DrainAndDecode();
+
             // expected briefly on join
             if (Player.BasisAvatar == null)
             {
@@ -99,21 +115,61 @@ namespace Basis.Scripts.Networking.Receivers
                 return;
             }
             hasRequiredData = true;
-            // 1) Pull network packets to main-thread staging ring (bounded)
+            // 1) Pull network packets, drop stale, sort by sequence, then stage
+            _pendingSort.Clear();
             while (PayloadQueue.TryDequeue(out BasisAvatarBuffer buffer))
             {
-                // Stamp monotonic server time *here* (single-threaded)
+                if (_seenPackets >= 2)
+                {
+                    // Forward distance from highest to buffer:
+                    // [1,127] = buffer is newer, [128,255] = buffer is behind (stale)
+                    byte fwd = unchecked((byte)(buffer.Sequence - _highestSequence));
+                    if (fwd >= 128)
+                    {
+                        BasisAvatarBufferPool.Release(buffer);
+                        continue;
+                    }
+                    if (fwd > 0)
+                    {
+                        _highestSequence = buffer.Sequence;
+                    }
+                }
+                else
+                {
+                    // Warmup: skip stale checking, seed highest from second packet.
+                    // First packet is initial join data with an unset sequence (0);
+                    // second packet is the first streaming update with a real server sequence.
+                    if (_seenPackets == 1)
+                    {
+                        _highestSequence = buffer.Sequence;
+                    }
+                    _seenPackets++;
+                }
+
+                _pendingSort.Add(buffer);
+            }
+
+            // Sort by sequence so out-of-order arrivals are staged in correct order
+            if (_pendingSort.Count > 1)
+            {
+                _pendingSort.Sort(s_sequenceCompare);
+            }
+
+            // Enqueue sorted items into staging ring with monotonic server clock
+            for (int i = 0; i < _pendingSort.Count; i++)
+            {
+                var buffer = _pendingSort[i];
+
                 if (!_serverClockSeeded)
                 {
                     _serverClockSeconds = 0.0;
                     _serverClockSeeded = true;
                 }
 
-                // secondsInterval already validated/clamped by decompressor
                 _serverClockSeconds += buffer.SecondsInterval;
                 buffer.ServerTimeSeconds = _serverClockSeconds;
 
-                _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: BasisAvatarBufferPool.Release);
+                _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: s_releaseBuffer);
             }
             StagedCount = _stagedRing.Count;
             // 2) Ensure we have a valid interpolation window (Current -> Next)
@@ -270,6 +326,8 @@ namespace Basis.Scripts.Networking.Receivers
         {
             _serverClockSeconds = 0.0;
             _serverClockSeeded = false;
+            _highestSequence = 0;
+            _seenPackets = 0;
             RemotePlayer = (BasisRemotePlayer)Player;
             AudioReceiverModule.Initialize(this);
 
@@ -341,6 +399,8 @@ namespace Basis.Scripts.Networking.Receivers
         {
             _serverClockSeconds = 0.0;
             _serverClockSeeded = false;
+            _highestSequence = 0;
+            _seenPackets = 0;
             // _stagedRing can be null if Initialize never completed, so don't Assert here—guard.
             if (_stagedRing != null)
             {
@@ -369,22 +429,11 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void ReceiveNetworkAudio(ServerAudioSegmentMessage msg)
         {
-            int serverSilentUnits = msg.audioSegmentData.TotalPlayedInSilence; // 20ms units
-
-            if (serverSilentUnits > 0)
-            {
-                int localUnits = System.Threading.Interlocked.Exchange(ref AudioReceiverModule._silentUnits20ms, 0);
-                int missing = serverSilentUnits - localUnits;
-                if (missing > 0)
-                {
-                    for (int Index = 0; Index < missing; Index++)
-                        AudioReceiverModule.OnDecodeSilence();
-                }
-            }
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerAudioSegment, msg.audioSegmentData.LengthUsed);
-            AudioReceiverModule.OnDecode(msg.audioSegmentData.buffer, msg.audioSegmentData.LengthUsed);
+            AudioReceiverModule.Insert(msg.audioSegmentData);
             Player.AudioReceived?.Invoke();
         }
+
 
         public async void ReceiveAvatarChangeRequest(ServerAvatarChangeMessage SACM)
         {

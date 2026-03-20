@@ -15,12 +15,12 @@ namespace Basis.Network.Core
         /// when adding a new message we need to increase this
         /// will function up to 64
         /// </summary>
-        public const byte TotalChannels = 28;
+        public const byte TotalChannels = 42;
         /// <summary>
-        /// channel zero is only used for unreliable methods
-        /// we fall it through to stop bugs
+        /// Shout mode voice channel. Non-spatialized audio broadcast to all clients.
+        /// Reuses the formerly deprecated channel 0.
         /// </summary>
-        public const byte FallChannel = 0;
+        public const byte ShoutVoiceChannel = 0;
         /// <summary>
         /// Auth Identity Message
         /// </summary>
@@ -94,13 +94,13 @@ namespace Basis.Network.Core
         /// </summary>
         public const byte AdminChannel = 18;
         /// <summary>
-        /// Avatar Request Channel
+        /// Content Share Channel - used to drop content spheres
         /// </summary>
-        public const byte AvatarCloneRequestChannel = 19;
+        public const byte ContentShareChannel = 19;
         /// <summary>
-        /// Avatar Response Channel
+        /// Content Share Cleanup Channel - used to remove content spheres
         /// </summary>
-        public const byte AvatarCloneResponseChannel = 20;
+        public const byte ContentShareCleanupChannel = 20;
         /// <summary>
         /// requires implementation from a developer,
         /// ground work for hooking in code that only gets delivered to the server
@@ -130,5 +130,69 @@ namespace Basis.Network.Core
         /// chat text messages displayed above player nameplates
         /// </summary>
         public const byte ChatChannel = 27;
+        /// <summary>
+        /// PIP camera created/destroyed state (reliable, per-player).
+        /// </summary>
+        public const byte CameraPIPStateChannel = 28;
+        /// <summary>
+        /// PIP camera position updates (sequenced, position only - no rotation).
+        /// </summary>
+        public const byte CameraPIPPositionChannel = 29;
+        // ── Per-quality avatar channels (server→client) ──────────────────
+        // Layout: quality * 2 + hasAdditional
+        //   30 = VeryLow              31 = VeryLow + Additional
+        //   32 = Low                  33 = Low + Additional
+        //   34 = Medium               35 = Medium + Additional
+        //   36 = High                 37 = High + Additional
+        public const byte PlayerAvatarVeryLowChannel = 30;
+        public const byte PlayerAvatarVeryLowAdditionalChannel = 31;
+        public const byte PlayerAvatarLowChannel = 32;
+        public const byte PlayerAvatarLowAdditionalChannel = 33;
+        public const byte PlayerAvatarMediumChannel = 34;
+        public const byte PlayerAvatarMediumAdditionalChannel = 35;
+        public const byte PlayerAvatarHighChannel = 36;
+        public const byte PlayerAvatarHighAdditionalChannel = 37;
+        /// <summary>
+        /// Client tells server it has finished preloading a resource (ready or failed).
+        /// </summary>
+        public const byte PreloadReadyChannel = 38;
+        /// <summary>
+        /// Server tells all clients to spawn a previously preloaded resource.
+        /// </summary>
+        public const byte SpawnPreloadedChannel = 39;
+        /// <summary>
+        /// Generic low-priority events channel. The first byte of the payload
+        /// identifies the event type (see EventType constants below).
+        /// </summary>
+        public const byte EventsChannel = 40;
+
+        // ── Event type sub-bytes for EventsChannel ──
+        /// <summary>Camera shutter sound fired when a player takes a photo.</summary>
+        public const byte EventType_CameraShutterSound = 0;
+        /// <summary>Camera countdown started — remote clients replay the tick/shutter timing.</summary>
+        public const byte EventType_CameraCountdown = 1;
+
+        /// <summary>
+        /// Maps quality index (0‑3) + additional data presence → channel.
+        /// </summary>
+        public static byte GetPlayerAvatarChannelForQuality(int qualityIndex, bool hasAdditionalData)
+        {
+            return (byte)(PlayerAvatarVeryLowChannel + qualityIndex * 2 + (hasAdditionalData ? 1 : 0));
+        }
+
+        /// <summary>
+        /// All 8 per-quality avatar channels for aggregate congestion checks.
+        /// </summary>
+        public static readonly byte[] PlayerAvatarQualityChannels = new byte[]
+        {
+            PlayerAvatarVeryLowChannel,
+            PlayerAvatarVeryLowAdditionalChannel,
+            PlayerAvatarLowChannel,
+            PlayerAvatarLowAdditionalChannel,
+            PlayerAvatarMediumChannel,
+            PlayerAvatarMediumAdditionalChannel,
+            PlayerAvatarHighChannel,
+            PlayerAvatarHighAdditionalChannel,
+        };
     }
 }

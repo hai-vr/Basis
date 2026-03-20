@@ -19,7 +19,7 @@ namespace Basis.BasisUI
             BasisMenuBase<BasisMainMenu>.AddProvider(new CalibrationProvider());
         }
 
-        public override string Title => "Calibrate";
+        public override string Title => "Calibration";
         public override string IconAddress => AddressableAssets.Sprites.Calibrate;
         public override int Order => 50;
 
@@ -61,8 +61,8 @@ namespace Basis.BasisUI
                 new BasisMenuPanel.PanelData
                 {
                     Title = this.Title,
-                    PanelSize = new Vector2(440, 680),
-                    PanelPosition = new Vector3(530, -170, 0),
+                    PanelSize = new Vector2(440, 720),
+                    PanelPosition = new Vector3(530, -150, 0),
                 },
                 BasisMenuPanel.PanelStyles.Page);
             BoundButton?.BindActiveStateToAddressablesInstance(panel);
@@ -85,16 +85,21 @@ namespace Basis.BasisUI
 
             var MinusButton = PanelButton.CreateNew(Description.ContentParent);
             MinusButton.OnClicked += DecreasePlayerSize;
-            MinusButton.Descriptor.SetTitle("Remove 0.01f Height");
+            MinusButton.Descriptor.SetTitle("Decrease Height");
 
             var PlusButton = PanelButton.CreateNew(Description.ContentParent);
             PlusButton.OnClicked += IncreasePlayerSize;
-            PlusButton.Descriptor.SetTitle("Add 0.01f Height");
+            PlusButton.Descriptor.SetTitle("Increase Height");
 
             // Pitch calibration toggle
             _pitchToggleButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
             _pitchToggleButton.OnClicked += TogglePitchCalibration;
             UpdatePitchToggleLabel();
+
+            // Navigate to Body Tracking settings
+            var bodyTrackingSettingsButton = PanelButton.CreateNew(PanelButton.ButtonStyles.Default, container);
+            bodyTrackingSettingsButton.Descriptor.SetTitle("Body Tracking Settings");
+            bodyTrackingSettingsButton.OnClicked += () => SettingsProvider.OpenBodyTrackingTab();
         }
         /// <summary>
         /// tracker balls

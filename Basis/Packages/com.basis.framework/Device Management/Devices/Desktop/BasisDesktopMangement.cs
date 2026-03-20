@@ -135,7 +135,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
             return BasisInput;
         }
-
         /// <summary>
         /// Stops the Basis SDK for desktop mode.
         /// Removes the desktop eye input device from <see cref="BasisDeviceManagement"/> and destroys its component.
@@ -164,7 +163,6 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             UnityEngine.InputSystem.EnhancedTouch.Touch.onFingerUp -= onFingerUp;
             EnhancedTouchSupport.Disable();
         }
-
         /// <summary>
         /// Determines whether the desktop device can boot based on the provided request string.
         /// </summary>

@@ -107,7 +107,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.RenderObjects
   m_Active: 1
   settings:
-    passTag: UI OverlayUI Before Post Processing
+    passTag: UI Elements Before Post Processing
     Event: 550
     filterSettings:
       RenderQueueType: 1

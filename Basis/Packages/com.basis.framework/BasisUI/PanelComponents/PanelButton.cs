@@ -1,4 +1,5 @@
 using System;
+using Basis.BTween;
 using Basis.BasisUI.Styling;
 using UnityEngine;
 using UnityEngine.UI;
@@ -57,6 +58,7 @@ namespace Basis.BasisUI
 
         public virtual void OnClick()
         {
+            UIAnimations.PunchScale(transform);
             OnClicked?.Invoke();
         }
 
