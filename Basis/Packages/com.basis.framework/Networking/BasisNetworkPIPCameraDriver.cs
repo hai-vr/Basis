@@ -303,8 +303,9 @@ public static class BasisNetworkPIPCameraDriver
         };
 
         NetDataWriter writer = new NetDataWriter();
+        writer.Put(BasisNetworkCommons.EventType_CameraShutterSound);
         msg.Serialize(writer);
-        BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.CameraShutterSoundChannel, DeliveryMethod.Sequenced);
+        BasisNetworkConnection.LocalPlayerPeer.Send(writer, BasisNetworkCommons.EventsChannel, DeliveryMethod.Sequenced);
     }
 
     /// <summary>

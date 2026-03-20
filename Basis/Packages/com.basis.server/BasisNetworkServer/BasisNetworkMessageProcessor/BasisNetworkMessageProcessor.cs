@@ -181,9 +181,9 @@ public static class BasisNetworkMessageProcessor
                     BasisNetworkPIPCamera.HandlePIPPositionUpdate(reader, peer); // recycles inside
                     break;
 
-                case BasisNetworkCommons.CameraShutterSoundChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.CameraShutterSoundChannel, reader.AvailableBytes);
-                    BasisNetworkCameraShutterSound.HandleShutterSound(reader, peer); // recycles inside
+                case BasisNetworkCommons.EventsChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.EventsChannel, reader.AvailableBytes);
+                    BasisNetworkEvents.HandleEvent(reader, peer); // reads event type byte, routes, recycles inside
                     break;
 
                 default:

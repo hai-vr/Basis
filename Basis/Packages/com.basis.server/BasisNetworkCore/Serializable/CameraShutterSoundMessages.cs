@@ -4,6 +4,7 @@ public static partial class SerializableBasis
 {
     /// <summary>
     /// Server -> clients: a player took a photo. Includes position for spatial audio.
+    /// Serialized after the EventType byte has already been written by the event router.
     /// </summary>
     public struct CameraShutterSoundMessage
     {
@@ -31,6 +32,7 @@ public static partial class SerializableBasis
 
     /// <summary>
     /// Client -> server: local player took a photo. Position for spatial audio on other clients.
+    /// Serialized after the EventType byte has already been written by the sender.
     /// </summary>
     public struct ClientCameraShutterSoundMessage
     {

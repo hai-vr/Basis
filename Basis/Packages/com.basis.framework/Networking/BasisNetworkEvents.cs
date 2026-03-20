@@ -336,20 +336,30 @@ public static class BasisNetworkEvents
                     });
                 }
                 break;
-            case BasisNetworkCommons.CameraShutterSoundChannel:
+            case BasisNetworkCommons.EventsChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
                 {
                     Reader.Recycle();
                     return;
                 }
                 {
-                    CameraShutterSoundMessage shutterMsg = new CameraShutterSoundMessage();
-                    shutterMsg.Deserialize(Reader);
-                    Reader.Recycle();
-                    BasisDeviceManagement.EnqueueOnMainThread(() =>
+                    byte eventType = Reader.GetByte();
+                    switch (eventType)
                     {
-                        BasisNetworkPIPCameraDriver.OnRemoteShutterSound(shutterMsg);
-                    });
+                        case BasisNetworkCommons.EventType_CameraShutterSound:
+                            CameraShutterSoundMessage shutterMsg = new CameraShutterSoundMessage();
+                            shutterMsg.Deserialize(Reader);
+                            Reader.Recycle();
+                            BasisDeviceManagement.EnqueueOnMainThread(() =>
+                            {
+                                BasisNetworkPIPCameraDriver.OnRemoteShutterSound(shutterMsg);
+                            });
+                            break;
+                        default:
+                            BNL.LogError($"Unknown EventsChannel event type: {eventType}");
+                            Reader.Recycle();
+                            break;
+                    }
                 }
                 break;
             default:

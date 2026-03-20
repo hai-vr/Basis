@@ -139,8 +139,13 @@ namespace Basis.Network.Core
         /// </summary>
         public const byte CameraPIPPositionChannel = 29;
         /// <summary>
-        /// Camera shutter sound event, broadcast to nearby players when a photo is taken.
+        /// Generic low-priority events channel. The first byte of the payload
+        /// identifies the event type (see EventType constants below).
         /// </summary>
-        public const byte CameraShutterSoundChannel = 30;
+        public const byte EventsChannel = 30;
+
+        // ── Event type sub-bytes for EventsChannel ──
+        /// <summary>Camera shutter sound fired when a player takes a photo.</summary>
+        public const byte EventType_CameraShutterSound = 0;
     }
 }

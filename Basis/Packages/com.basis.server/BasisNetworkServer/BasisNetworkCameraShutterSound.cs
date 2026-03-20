@@ -4,18 +4,39 @@ using static SerializableBasis;
 
 namespace BasisNetworkServer
 {
-    public static class BasisNetworkCameraShutterSound
+    /// <summary>
+    /// Routes incoming messages on <see cref="BasisNetworkCommons.EventsChannel"/>.
+    /// The first byte is the event type; the rest is event-specific payload.
+    /// </summary>
+    public static class BasisNetworkEvents
     {
-        /// <summary>
-        /// Client says they took a photo. Broadcast the shutter sound event to all other peers.
-        /// </summary>
-        public static void HandleShutterSound(NetPacketReader reader, NetPeer peer)
+        public static void HandleEvent(NetPacketReader reader, NetPeer peer)
+        {
+            byte eventType = reader.GetByte();
+
+            switch (eventType)
+            {
+                case BasisNetworkCommons.EventType_CameraShutterSound:
+                    HandleCameraShutterSound(reader, peer, eventType);
+                    break;
+
+                default:
+                    BNL.LogError($"Unknown EventsChannel event type: {eventType}");
+                    reader.Recycle();
+                    break;
+            }
+        }
+
+        private static void HandleCameraShutterSound(NetPacketReader reader, NetPeer peer, byte eventType)
         {
             ClientCameraShutterSoundMessage clientMsg = new ClientCameraShutterSoundMessage();
             clientMsg.Deserialize(reader);
             reader.Recycle();
 
             ushort peerId = (ushort)peer.Id;
+
+            NetDataWriter writer = NetworkServer.RentWriter();
+            writer.Put(eventType);
 
             CameraShutterSoundMessage outMsg = new CameraShutterSoundMessage
             {
@@ -24,10 +45,9 @@ namespace BasisNetworkServer
                 PositionY = clientMsg.PositionY,
                 PositionZ = clientMsg.PositionZ,
             };
-
-            NetDataWriter writer = NetworkServer.RentWriter();
             outMsg.Serialize(writer);
-            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.CameraShutterSoundChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.Sequenced);
+
+            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.EventsChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.Sequenced);
             NetworkServer.ReturnWriter(writer);
         }
     }
