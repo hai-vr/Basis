@@ -299,6 +299,9 @@ namespace Basis.BasisUI
                     BasisNetworkModeration.SendMessageAll(msg);
                 });
 
+            // Permissions section
+            SettingsProviderPermissionsTab.BuildPermissionsUI(container, tab.gameObject);
+
             descriptor.ForceRebuild();
             return tab;
         }

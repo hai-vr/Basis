@@ -13,18 +13,9 @@ namespace Basis.BasisUI
     /// </summary>
     public static class SettingsProviderPermissionsTab
     {
-        public static PanelTabPage PermissionsTab(PanelTabGroup tabGroup)
+        public static void BuildPermissionsUI(RectTransform container, GameObject controllerHost)
         {
-            PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
-            PanelElementDescriptor descriptor = tab.Descriptor;
-
-            descriptor.SetIcon(AddressableAssets.Sprites.Settings);
-            descriptor.SetTitle("Permissions");
-            descriptor.SetDescription("View and manage server permission groups and user roles.");
-
-            RectTransform container = descriptor.ContentParent;
-
-            PermissionsTabController controller = tab.gameObject.AddComponent<PermissionsTabController>();
+            PermissionsTabController controller = controllerHost.AddComponent<PermissionsTabController>();
             controller.Container = container;
 
             // Status / info group
@@ -224,9 +215,6 @@ namespace Basis.BasisUI
 
             // Auto-fetch on open
             BasisNetworkModeration.RequestPermissions();
-
-            descriptor.ForceRebuild();
-            return tab;
         }
 
         /// <summary>
@@ -282,6 +270,9 @@ namespace Basis.BasisUI
 
             private void RebuildDisplay(BasisNetworkModeration.PermissionSnapshot snapshot)
             {
+                if (this == null || GroupsGroup == null || UsersGroup == null)
+                    return;
+
                 ClearEntries(_groupEntries);
                 ClearEntries(_userEntries);
 
