@@ -9,9 +9,20 @@ public static class SettingsProviderStorage
         PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
         PanelElementDescriptor descriptor = tab.Descriptor;
         descriptor.SetIcon(AddressableAssets.Sprites.Settings);
-        descriptor.SetTitle("Storage Settings");
+        descriptor.SetTitle("Downloads & Cache");
 
         RectTransform container = descriptor.ContentParent;
+
+        // Download limits
+        PanelElementDescriptor downloadGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        downloadGroup.SetTitle("Download Limits");
+        downloadGroup.SetDescription("Configure download size limits.");
+
+        PanelSlider avatarDownloadSize = PanelSlider.CreateEntryAndBind(
+            downloadGroup.ContentParent,
+            PanelSlider.SliderSettings.Advanced("Avatar Download Size", 5, 1024, false, 0, ValueDisplayMode.MemorySize),
+            BasisSettingsDefaults.AvatarDownloadSize);
 
         // Cache size limit slider (lightweight, no file I/O)
         PanelElementDescriptor limitGroup =
@@ -124,6 +135,7 @@ public static class SettingsProviderStorage
 
     private static void ResetStorageDefaults()
     {
+        BasisSettingsDefaults.AvatarDownloadSize.ResetToDefault();
         BasisSettingsDefaults.CacheMaxSizeGB.ResetToDefault();
     }
 }

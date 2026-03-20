@@ -30,15 +30,15 @@ namespace Basis.BasisUI
             toggleEnabled.Descriptor.SetTitle("Show Nameplates");
             toggleEnabled.AssignBinding(BasisSettingsDefaults.NPEnabled);
 
-            PanelToggle toggleMenuOnly = PanelToggle.CreateNewEntry(container);
-            toggleMenuOnly.Descriptor.SetTitle("Only Show When Menu Open");
-            toggleMenuOnly.AssignBinding(BasisSettingsDefaults.NPMenuOnly);
-
             // ─────────────── NAMEPLATE APPEARANCE GROUP ───────────────
             PanelElementDescriptor nameplateGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
             nameplateGroup.SetTitle("Nameplate Appearance");
             nameplateGroup.SetDescription("Adjust the width, size, and transparency of remote player nameplates.");
+
+            PanelToggle toggleMenuOnly = PanelToggle.CreateNewEntry(nameplateGroup);
+            toggleMenuOnly.Descriptor.SetTitle("Only Show When Menu Open");
+            toggleMenuOnly.AssignBinding(BasisSettingsDefaults.NPMenuOnly);
 
             PanelSlider sliderWidth = PanelSlider.CreateEntryAndBind(
                 nameplateGroup,
@@ -55,13 +55,11 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Advanced("Transparency", 0f, 1f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.NPTransparency);
 
-            // Menu-only toggle and appearance group only visible when nameplates are enabled
+            // Appearance group only visible when nameplates are enabled
             bool isEnabled = BasisSettingsDefaults.NPEnabled.RawValue;
-            toggleMenuOnly.Descriptor.SetActive(isEnabled);
             nameplateGroup.SetActive(isEnabled);
             toggleEnabled.OnValueChanged += (val) =>
             {
-                toggleMenuOnly.Descriptor.SetActive(val);
                 nameplateGroup.SetActive(val);
                 container.GetComponentInParent<PanelElementDescriptor>()?.ForceRebuild();
             };

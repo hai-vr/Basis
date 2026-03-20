@@ -58,23 +58,16 @@ namespace Basis.BasisUI
             }
         }
 
-        public static PanelTabPage ConsoleTab(PanelTabGroup tabGroup)
+        public static void BuildConsoleUI(RectTransform container)
         {
             BasisLogManager.LoadLogsFromDisk();
-
-            PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
-            PanelElementDescriptor descriptor = tab.Descriptor;
-            descriptor.SetTitle("Console");
-            descriptor.SetDescription("Runtime log viewer (filters, collapse, crash reports).");
-
-            RectTransform container = descriptor.ContentParent;
 
             // -----------------------
             // Controls group
             // -----------------------
             PanelElementDescriptor controlsGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            controlsGroup.SetTitle("Log Settings");
+            controlsGroup.SetTitle("Console");
 
             PanelToggle collapseToggle = PanelToggle.CreateNewEntry(controlsGroup.ContentParent);
             collapseToggle.Descriptor.SetTitle("Collapse");
@@ -114,7 +107,7 @@ namespace Basis.BasisUI
             crashBtn.OnClicked += OpenLatestCrashReportFolder;
 
             // -----------------------
-            // Output group + ScrollViewVertical
+            // Output group
             // -----------------------
             PanelElementDescriptor outputGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -122,14 +115,12 @@ namespace Basis.BasisUI
 
             EnsureSingleText(outputGroup.ContentParent);
 
-            // Attach updater
-            tab.gameObject.AddComponent<ConsoleTabUpdater>();
+            // Attach updater for live log refresh
+            if (controlsGroup.GetComponent<ConsoleTabUpdater>() == null)
+                controlsGroup.gameObject.AddComponent<ConsoleTabUpdater>();
 
             // Initial build
             RebuildOutput();
-
-            descriptor.ForceRebuild();
-            return tab;
         }
         private static void EnsureSingleText(RectTransform parent)
         {

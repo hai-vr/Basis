@@ -175,6 +175,9 @@ namespace Basis.BasisUI
             other = true
         });
 
+        // ---------------- NETWORKING ----------------
+        public static BasisSettingsBinding<bool> AutoConnect = new("autoconnect", new BasisPlatformDefault<bool>(false));
+
         // ---------------- NOTIFICATIONS ----------------
         public static BasisSettingsBinding<bool> JoinNotifications = new("joinnotifications", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> LeaveNotifications = new("leavenotifications", new BasisPlatformDefault<bool>(false));
@@ -584,6 +587,9 @@ namespace Basis.BasisUI
             CacheMaxSizeGB.LoadBindingValue();
             AvatarMeshLOD.LoadBindingValue();
             GlobalMeshLOD.LoadBindingValue();
+
+            // Networking
+            AutoConnect.LoadBindingValue();
 
             // Notifications
             JoinNotifications.LoadBindingValue();

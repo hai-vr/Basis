@@ -13,13 +13,116 @@ public static class SettingsProviderControllerConfig
     {
         PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
         PanelElementDescriptor descriptor = tab.Descriptor;
+        RectTransform container = descriptor.ContentParent;
+
+        // Gameplay & Input
+        PanelElementDescriptor generalGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        generalGroup.SetTitle("Gameplay & Input");
+        generalGroup.SetDescription("General controls and comfort settings.");
+
+        PanelDropdown dropdownDominantHand = PanelDropdown.CreateNewEntry(generalGroup);
+        dropdownDominantHand.Descriptor.SetTitle("Dominant Hand");
+        dropdownDominantHand.AssignEntries(new List<string> { BasisDominantHand.Right, BasisDominantHand.Left });
+        dropdownDominantHand.AssignBinding(BasisSettingsDefaults.DominantHand);
+
+        PanelToggle toggleInvertMouse = PanelToggle.CreateNewEntry(generalGroup);
+        toggleInvertMouse.Descriptor.SetTitle("Invert Mouse");
+        toggleInvertMouse.AssignBinding(BasisSettingsDefaults.InvertMouse);
+
+        PanelSlider mousesensitivty = PanelSlider.CreateEntryAndBind(
+            generalGroup,
+            PanelSlider.SliderSettings.Advanced("Mouse Sensitivity", 0, 2f, false, 2, ValueDisplayMode.Percentage),
+            BasisSettingsDefaults.mousesensitivty);
+
+        PanelToggle smoothlocomotion = PanelToggle.CreateNewEntry(generalGroup);
+        smoothlocomotion.Descriptor.SetTitle("Use Snap Turn Locomotion");
+        smoothlocomotion.AssignBinding(BasisSettingsDefaults.usesnapturn);
+
+        PanelSlider sliderSnapTurnAngle = PanelSlider.CreateEntryAndBind(
+            generalGroup,
+            PanelSlider.SliderSettings.Advanced("Snap Turn Angle", 0, 120, true, 0, ValueDisplayMode.Degrees),
+            BasisSettingsDefaults.SnapTurnAngle);
+
+        // Deadzone - General
+        PanelElementDescriptor generalGroupDeadZone =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        generalGroupDeadZone.SetTitle("General");
+        generalGroupDeadZone.SetDescription("Basic filtering applied to the whole stick. (excluding look)");
+
+        PanelSlider controllerDeadZoneSlider = PanelSlider.CreateEntryAndBind(
+            generalGroupDeadZone,
+            PanelSlider.SliderSettings.Advanced("Radial Dead Zone", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+            BasisSettingsDefaults.ControllerDeadZone);
+
+        // Horizontal Comfort
+        PanelElementDescriptor horizontalGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        horizontalGroup.SetTitle("Horizontal (Yaw) Comfort");
+        horizontalGroup.SetDescription("Prevents forward/back stick pressure from causing accidental left/right drift (\"butterfly wings\").");
+
+        PanelSlider minHorizontalDeadZoneSlider = PanelSlider.CreateEntryAndBind(
+            horizontalGroup,
+            PanelSlider.SliderSettings.Advanced("X Dead Zone (Min)", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+            BasisSettingsDefaults.Basexdeadzone);
+
+        PanelSlider horizontalGateStrengthSlider = PanelSlider.CreateEntryAndBind(
+            horizontalGroup,
+            PanelSlider.SliderSettings.Advanced("X Gate (At Full Y)", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+            BasisSettingsDefaults.Extraxdeadzoneatfully);
+
+        PanelSlider wingCurveSlider = PanelSlider.CreateEntryAndBind(
+            horizontalGroup,
+            PanelSlider.SliderSettings.Advanced("Gate Curve", 0f, 3f, false, 3, ValueDisplayMode.Percentage),
+            BasisSettingsDefaults.Wingexponent);
+
+        // Vertical
+        PanelElementDescriptor verticalGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        verticalGroup.SetTitle("Vertical (Pitch / Other)");
+        verticalGroup.SetDescription("look joystick Y Dead Zone");
+
+        PanelSlider verticalDeadZoneSlider = PanelSlider.CreateEntryAndBind(
+            verticalGroup,
+            PanelSlider.SliderSettings.Advanced("Look Y Dead Zone", 0f, 1f, false, 3, ValueDisplayMode.Percentage),
+            BasisSettingsDefaults.Ydeadzone);
+
+        controllerDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
+        minHorizontalDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
+        horizontalGateStrengthSlider.OnValueChanged += _ => UpdatePreview();
+        verticalDeadZoneSlider.OnValueChanged += _ => UpdatePreview();
+        wingCurveSlider.OnValueChanged += _ => UpdatePreview();
+
+        // Action Bindings
         BuildBindingsUI(tab);
 
-        RectTransform container = descriptor.ContentParent;
-        SettingsProvider.AddResetPageButton(container, "Controls", BasisActionDriver.ResetBindingsToDefaultsAsyncIgnored);
+        SettingsProvider.AddResetPageButton(container, "Controls", () =>
+        {
+            ResetControlsDefaults();
+            BasisActionDriver.ResetBindingsToDefaultsAsyncIgnored();
+        });
 
         descriptor.ForceRebuild();
         return tab;
+    }
+
+    private static void UpdatePreview()
+    {
+        // wire up to butterflygatepreview one day
+    }
+
+    private static void ResetControlsDefaults()
+    {
+        BasisSettingsDefaults.DominantHand.ResetToDefault();
+        BasisSettingsDefaults.InvertMouse.ResetToDefault();
+        BasisSettingsDefaults.mousesensitivty.ResetToDefault();
+        BasisSettingsDefaults.usesnapturn.ResetToDefault();
+        BasisSettingsDefaults.SnapTurnAngle.ResetToDefault();
+        BasisSettingsDefaults.ControllerDeadZone.ResetToDefault();
+        BasisSettingsDefaults.Basexdeadzone.ResetToDefault();
+        BasisSettingsDefaults.Extraxdeadzoneatfully.ResetToDefault();
+        BasisSettingsDefaults.Wingexponent.ResetToDefault();
+        BasisSettingsDefaults.Ydeadzone.ResetToDefault();
     }
     private static void BuildBindingsUI(PanelTabPage tab)
     {

@@ -92,11 +92,38 @@ namespace Basis.BasisUI
             if (BasisNetworkManagement.Instance)
             {
                 LoadCurrentSettings();
+                TryAutoConnect();
             }
             else
             {
-                BasisNetworkManagement.OnIstanceCreated += LoadCurrentSettings;
+                BasisNetworkManagement.OnIstanceCreated += () =>
+                {
+                    LoadCurrentSettings();
+                    TryAutoConnect();
+                };
             }
+        }
+
+        private static bool _autoConnectAttempted;
+
+        private void TryAutoConnect()
+        {
+            if (_autoConnectAttempted)
+                return;
+            _autoConnectAttempted = true;
+
+            if (!BasisSettingsDefaults.AutoConnect.RawValue)
+                return;
+
+            if (BasisNetworkConnection.LocalPlayerIsConnected)
+                return;
+
+            string cachedUsername = BasisDataStore.LoadString(LoadFileName, string.Empty);
+            if (string.IsNullOrEmpty(cachedUsername))
+                return;
+
+            usernameField.SetValueWithoutNotify(cachedUsername);
+            _ = OnConnectButton();
         }
         public void ShowAdvancedOptions()
         {
