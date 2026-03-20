@@ -909,17 +909,23 @@ namespace Basis.BasisUI
 
             PanelElementDescriptor debugGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            debugGroup.SetTitle("Debug Visuals");
-            debugGroup.SetDescription("Debug Systems running through visuals in 3D space");
+            debugGroup.SetTitle("Visual Helpers");
+            debugGroup.SetDescription("Toggle individual debug visualizations.");
 
-            PanelToggle toggleDebugVisuals = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
-            toggleDebugVisuals.Descriptor.SetTitle("Debug Visuals Enabled");
-            toggleDebugVisuals.AssignBinding(BasisSettingsDefaults.DebugVisuals);
+            PanelToggle toggleBoneTracking = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
+            toggleBoneTracking.Descriptor.SetTitle("Bone Tracking");
+            toggleBoneTracking.Descriptor.SetDescription("Show sphere gizmos at tracked bone positions.");
+            toggleBoneTracking.AssignBinding(BasisSettingsDefaults.DebugVisuals);
 
-            PanelDropdown Visual = PanelDropdown.CreateNewEntry(debugGroup.ContentParent);
-            Visual.Descriptor.SetTitle("Visual Helpers");
-            Visual.AssignEntries(new List<string> { "Off", "All Visuals", "Only Avatar Distance" });
-            Visual.AssignBinding(BasisSettingsDefaults.VisualState);
+            PanelToggle toggleAvatarDistance = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
+            toggleAvatarDistance.Descriptor.SetTitle("Avatar Distance");
+            toggleAvatarDistance.Descriptor.SetDescription("Show avatar visibility range circle at your feet.");
+            bool avatarDistOn = !string.Equals(BasisSettingsDefaults.VisualState.RawValue, "off", StringComparison.OrdinalIgnoreCase);
+            toggleAvatarDistance.SetValueWithoutNotify(avatarDistOn);
+            toggleAvatarDistance.OnValueChanged += (val) =>
+            {
+                BasisSettingsDefaults.VisualState.SetValue(val ? "only avatar distance" : "off");
+            };
 
             PanelElementDescriptor infoGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -941,7 +947,7 @@ namespace Basis.BasisUI
         private static void ResetDeveloperDefaults()
         {
             BasisSettingsDefaults.DebugVisuals.ResetToDefault();
-            BasisSettingsDefaults.VisualState.ResetToDefault();
+            BasisSettingsDefaults.VisualState.SetValue("off");
         }
 
         private static void CreateBuildInfoSection(RectTransform parent)
