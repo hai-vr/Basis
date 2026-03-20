@@ -83,9 +83,7 @@ MonoBehaviour:
   IsHostMode: 0
   LocalAccessTransmitter:
     LastLinkedAvatarIndex: 0
-    Player: {fileID: 0}
     hasID: 0
-    playerId: 0
     NetworkBehaviourCount: 0
     NetworkBehaviours: []
     HasEvents: 0
@@ -93,10 +91,12 @@ MonoBehaviour:
       Local: {fileID: 0}
       HasEvents: 0
       Segment:
+        SequenceNumber: 0
         TotalPlayedInSilence: 0
         buffer: 
         TotalLength: 0
         LengthUsed: 0
+      _sequenceNumber: 0
       SilentForHowLong: 0
     TransmissionResults:
       intervalSeconds: 0.5
@@ -885,6 +885,7 @@ MonoBehaviour:
   BakedInCommandLineArgs: []
   HoverUI: {fileID: 8300000, guid: 273db99ef8423064ebdc96442f286a95, type: 3}
   pressUI: {fileID: 8300000, guid: fa511589a725a1a4c98781edd2f0f176, type: 3}
+  ChatNotificationUI: {fileID: 8300000, guid: ccdb6b8ce45691e4394eeef9fe8af29c, type: 3}
   AllInputDevices:
     _list: []
   BasisXRManagement:
@@ -1035,6 +1036,7 @@ MonoBehaviour:
       BasisBundleDescription:
         AssetBundleName: 
         AssetBundleDescription: 
+        AssetBundleIcon: {fileID: 0}
       BasisBundleGenerated: []
       ImageBase64: 
       DateOfCreation: 
@@ -1057,6 +1059,7 @@ MonoBehaviour:
       BasisBundleDescription:
         AssetBundleName: 
         AssetBundleDescription: 
+        AssetBundleIcon: {fileID: 0}
       BasisBundleGenerated: []
       ImageBase64: 
       DateOfCreation: 
