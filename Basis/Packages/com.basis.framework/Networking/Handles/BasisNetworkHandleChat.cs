@@ -25,10 +25,6 @@ public static class BasisNetworkHandleChat
     /// </summary>
     public const float MessageDisplayDuration = 10f;
 
-    /// <summary>
-    /// Volume for the chat notification sound (0-1 range).
-    /// </summary>
-    public const float NotificationVolume = 0.5f;
 
     /// <summary>
     /// Fired on the main thread when a chat message is received from a remote player.
@@ -125,7 +121,7 @@ public static class BasisNetworkHandleChat
             return;
         }
 
-        AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.ChatNotificationUI, BasisDeviceManagement.Instance.transform.position, NotificationVolume);
+        AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.ChatNotificationUI, BasisDeviceManagement.Instance.transform.position, SMModuleAudio.ActiveMenusVolume);
     }
 
     private static void ApplyChatToNamePlate(ushort senderPlayerId, string message)

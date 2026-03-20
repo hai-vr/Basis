@@ -729,10 +729,13 @@ namespace Basis.BasisUI
             CachedMetaData.CachedContent metadata;
             bool hasMeta = CachedMetaData.TryGetMeta(item.Url, out metadata);
 
-            // the network type of the item - default to synchronized when connected
-            BundledContentHolder.NetworkType desiredNetworkType = BasisNetworkConnection.LocalPlayerIsConnected
-                ? BundledContentHolder.NetworkType.Synchronized
-                : BundledContentHolder.NetworkType.Local;
+            // embedded items are always local, otherwise default to synchronized when connected
+            bool isEmbedded = item.EmbeddedSettings.IsEmbedded;
+            BundledContentHolder.NetworkType desiredNetworkType = isEmbedded
+                ? BundledContentHolder.NetworkType.Local
+                : BasisNetworkConnection.LocalPlayerIsConnected
+                    ? BundledContentHolder.NetworkType.Synchronized
+                    : BundledContentHolder.NetworkType.Local;
             bool ephemeral = false;  // the persistence behavior of the item
             BasisBundleConnector.BasisMetaData basisMetaData; // grab the meta data
             BasisBundleDescription description; // grab the description data
