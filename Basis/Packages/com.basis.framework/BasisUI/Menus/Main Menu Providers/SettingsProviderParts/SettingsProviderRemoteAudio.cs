@@ -19,15 +19,13 @@ namespace Basis.BasisUI
             BasisSettingsSystem.OnSettingsFinishedChanges += ApplyRemoteAudioToAll;
         }
 
-        public static PanelTabPage RemoteAudioTab(PanelTabGroup tabGroup)
+        public static void BuildRemoteAudioUI(RectTransform container)
         {
-            PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
-            PanelElementDescriptor descriptor = tab.Descriptor;
-
-            descriptor.SetTitle("Spatial Audio");
-            descriptor.SetDescription("Controls how you hear other players' voices in 3D space.");
-
-            RectTransform container = descriptor.ContentParent;
+            // ─────────────── REMOTE PLAYERS WRAPPER ───────────────
+            PanelElementDescriptor remotePlayersGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            remotePlayersGroup.SetTitle("Remote Players");
+            remotePlayersGroup.SetDescription("Controls how you hear other players' voices in 3D space.");
 
             // ─────────────── AUDIO SOURCE GROUP ───────────────
             PanelElementDescriptor audioSourceGroup =
@@ -387,14 +385,9 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
                 reflectionsGroup.ForceRebuild();
             };
             */
-            // ─────────────── RESET BUTTON ───────────────
-            SettingsProvider.AddResetPageButton(container, "Spatial Audio", ResetRemoteAudioDefaults);
-
-            descriptor.ForceRebuild();
-            return tab;
         }
 
-        private static void ResetRemoteAudioDefaults()
+        public static void ResetRemoteAudioToDefaults()
         {
             // AudioSource
             BasisSettingsDefaults.RAMinDistance.ResetToDefault();

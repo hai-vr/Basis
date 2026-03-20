@@ -15,21 +15,14 @@ public static class SettingsProviderPlatform
         BasisConstants.OpenXRLoader,
     };
 
-    public static PanelTabPage DeviceModeTab(PanelTabGroup tabGroup)
+    public static void BuildDeviceModeUI(RectTransform container)
     {
-        PanelTabPage tab = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
-        PanelElementDescriptor descriptor = tab.Descriptor;
-        descriptor.SetIcon(AddressableAssets.Sprites.Settings);
-        descriptor.SetTitle("Device Mode");
-
-        RectTransform container = descriptor.ContentParent;
-
         string currentMode = BasisDeviceManagement.StaticCurrentMode ?? BasisConstants.None;
 
         // Current mode info
         PanelElementDescriptor infoGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        infoGroup.SetTitle("Current Mode");
+        infoGroup.SetTitle("Device Mode");
         infoGroup.SetDescription("The active device mode for this session.");
 
         PanelPasswordField currentModeField = PanelPasswordField.CreateNew(infoGroup.ContentParent);
@@ -50,19 +43,7 @@ public static class SettingsProviderPlatform
             }
         }
 
-        // Switch mode group
-        PanelElementDescriptor switchGroup =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        switchGroup.SetTitle("Switch Mode");
-        switchGroup.SetDescription("Available device modes. Switch will reload the session.");
-
-        if (availableModes.Count == 0)
-        {
-            PanelPasswordField noModes = PanelPasswordField.CreateNew(switchGroup.ContentParent);
-            noModes.Descriptor.SetTitle("No Modes Available");
-            noModes.SetPassword("No device managers registered.");
-        }
-        else
+        if (availableModes.Count > 0)
         {
             foreach (string mode in availableModes)
             {
@@ -70,7 +51,7 @@ public static class SettingsProviderPlatform
                 bool isActive = string.Equals(currentMode, capturedMode, System.StringComparison.Ordinal);
                 string suffix = isActive ? " [ACTIVE]" : "";
 
-                PanelButton modeButton = PanelButton.CreateNew(switchGroup.ContentParent);
+                PanelButton modeButton = PanelButton.CreateNew(infoGroup.ContentParent);
                 modeButton.Descriptor.SetTitle($"Switch To {capturedMode}{suffix}");
                 modeButton.Descriptor.SetDescription(GetModeDescription(capturedMode));
                 modeButton.OnClicked += () =>
@@ -88,9 +69,6 @@ public static class SettingsProviderPlatform
                 };
             }
         }
-
-        descriptor.ForceRebuild();
-        return tab;
     }
 
     private static string GetModeDescription(string mode)
