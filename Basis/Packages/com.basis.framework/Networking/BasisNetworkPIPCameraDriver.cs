@@ -37,17 +37,6 @@ public static class BasisNetworkPIPCameraDriver
     /// </summary>
     public static event Action<ushort, Vector3> OnRemoteShutterSoundReceived;
 
-    /// <summary>
-    /// Shared shutter AudioClip set by the local BasisHandHeldCamera.
-    /// Used to play the sound for remote shutter events.
-    /// </summary>
-    public static AudioClip ShutterSoundClip;
-
-    /// <summary>
-    /// Shared countdown tick AudioClip set by the local BasisHandHeldCamera.
-    /// Used to play each tick during remote countdown events.
-    /// </summary>
-    public static AudioClip CountdownTickClip;
 
     // Addressable path for the remote PIP prefab
     private const string RemotePIPPrefabPath = "Packages/com.basis.sdk/Prefabs/UI/Camera Prefab/BasisCameraRemotePip.prefab";
@@ -343,9 +332,9 @@ public static class BasisNetworkPIPCameraDriver
     /// </summary>
     public static void OnRemoteShutterSound(CameraShutterSoundMessage msg)
     {
-        if (ShutterSoundClip != null && TryGetPIPPosition(msg.PlayerID, out Vector3 position))
+        if (BasisDeviceManagement.Instance.CameraShutterSound != null && TryGetPIPPosition(msg.PlayerID, out Vector3 position))
         {
-            AudioSource.PlayClipAtPoint(ShutterSoundClip, position);
+            AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.CameraShutterSound, position);
         }
 
         OnRemoteShutterSoundReceived?.Invoke(msg.PlayerID, TryGetPIPPosition(msg.PlayerID, out Vector3 pos) ? pos : Vector3.zero);
@@ -365,9 +354,9 @@ public static class BasisNetworkPIPCameraDriver
     {
         for (int i = seconds; i > 0; i--)
         {
-            if (CountdownTickClip != null && TryGetPIPPosition(playerId, out Vector3 tickPos))
+            if (BasisDeviceManagement.Instance.CameraCountdownTickSound != null && TryGetPIPPosition(playerId, out Vector3 tickPos))
             {
-                AudioSource.PlayClipAtPoint(CountdownTickClip, tickPos);
+                AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.CameraCountdownTickSound, tickPos);
             }
             yield return new WaitForSeconds(1f);
         }
@@ -375,9 +364,9 @@ public static class BasisNetworkPIPCameraDriver
         // Match the 0.5s pause before capture
         yield return new WaitForSeconds(0.5f);
 
-        if (ShutterSoundClip != null && TryGetPIPPosition(playerId, out Vector3 shutterPos))
+        if (BasisDeviceManagement.Instance.CameraShutterSound != null && TryGetPIPPosition(playerId, out Vector3 shutterPos))
         {
-            AudioSource.PlayClipAtPoint(ShutterSoundClip, shutterPos);
+            AudioSource.PlayClipAtPoint(BasisDeviceManagement.Instance.CameraShutterSound, shutterPos);
         }
     }
 

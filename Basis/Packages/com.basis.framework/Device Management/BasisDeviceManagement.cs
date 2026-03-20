@@ -132,6 +132,16 @@ namespace Basis.Scripts.Device_Management
         [SerializeField] public AudioClip ChatNotificationUI;
 
         /// <summary>
+        /// Camera shutter sound played when a photo is captured.
+        /// </summary>
+        [SerializeField] public AudioClip CameraShutterSound;
+
+        /// <summary>
+        /// Countdown tick sound played each second during the camera timer.
+        /// </summary>
+        [SerializeField] public AudioClip CameraCountdownTickSound;
+
+        /// <summary>
         /// Live collection of all input devices currently managed by this system.
         /// </summary>
         [SerializeField] public BasisObservableList<BasisInput> AllInputDevices = new();
