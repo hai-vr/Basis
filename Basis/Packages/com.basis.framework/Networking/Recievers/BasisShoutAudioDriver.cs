@@ -1,9 +1,8 @@
 using Basis.Scripts.BasisSdk.Helpers;
+using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using OpusSharp.Core;
-using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using UnityEngine;
 using static SerializableBasis;
@@ -14,8 +13,8 @@ namespace Basis.Scripts.Networking.Receivers
     /// Global driver for shout-mode audio sources.
     /// Shout audio sources are NOT parented to remote players and are NOT
     /// affected by distance culling, LOD, avatar unloading, or spatialization.
-    /// Each shouting player gets one non-spatialized (2D) AudioSource that
-    /// lives under a persistent root GameObject.
+    /// Each shouting player gets one non-spatialized (2D) AudioSource parented
+    /// to BasisDeviceManagement.Instance so it persists across scene loads.
     /// </summary>
     public static class BasisShoutAudioDriver
     {
@@ -26,30 +25,15 @@ namespace Basis.Scripts.Networking.Receivers
         {
             public ushort PlayerId;
             public BasisAudioReceiver Receiver;
-            public GameObject AudioObject;
             public AudioSource AudioSource;
             public BasisRemoteAudioDriver Driver;
         }
 
         private static readonly Dictionary<ushort, ShoutAudioEntry> _entries = new Dictionary<ushort, ShoutAudioEntry>();
-        private static GameObject _root;
-
-        private static GameObject Root
-        {
-            get
-            {
-                if (_root == null)
-                {
-                    _root = new GameObject("[Shout Audio Driver]");
-                    GameObject.DontDestroyOnLoad(_root);
-                }
-                return _root;
-            }
-        }
 
         /// <summary>
         /// Enables shout mode for a player. Creates a non-spatialized audio source
-        /// under a persistent root, completely independent of the remote player hierarchy.
+        /// on BasisDeviceManagement.Instance, independent of the remote player hierarchy.
         /// </summary>
         public static void EnableShoutMode(ushort playerId)
         {
@@ -58,13 +42,19 @@ namespace Basis.Scripts.Networking.Receivers
                 return; // already active
             }
 
+            if (BasisDeviceManagement.Instance == null)
+            {
+                BasisDebug.LogError("BasisDeviceManagement.Instance is null, cannot create shout audio source.");
+                return;
+            }
+
             var entry = new ShoutAudioEntry();
             entry.PlayerId = playerId;
 
             // Create a new BasisAudioReceiver for the shout channel
             entry.Receiver = new BasisAudioReceiver();
 
-            // Initialize the decoder (needed for Opus decoding)
+            // Initialize the decoder
             BasisAudioReceiver.outputSampleRate = AudioSettings.outputSampleRate;
             BasisAudioReceiver.silentData ??= new float[RemoteOpusSettings.FrameSize];
 
@@ -74,12 +64,9 @@ namespace Basis.Scripts.Networking.Receivers
             entry.Receiver.decoder = new OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels, use_static: false);
 #endif
 
-            // Create the audio source using the existing prefab
-            entry.AudioObject = BasisAudioRemoteSource.RequestAudio(Root.transform);
-            entry.AudioObject.name = $"[Shout] Player {playerId}";
-            entry.AudioObject.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-
-            entry.AudioSource = BasisHelpers.GetOrAddComponent<AudioSource>(entry.AudioObject);
+            // Add AudioSource directly to BasisDeviceManagement.Instance
+            Transform parent = BasisDeviceManagement.Instance.transform;
+            entry.AudioSource = parent.gameObject.AddComponent<AudioSource>();
             entry.AudioSource.clip = BasisAudioClipPool.Get(playerId);
             entry.AudioSource.loop = true;
 
@@ -95,11 +82,11 @@ namespace Basis.Scripts.Networking.Receivers
             entry.AudioSource.volume = 1f;
 
             // Wire up the audio driver so OnAudioFilterRead fires
-            entry.Driver = BasisHelpers.GetOrAddComponent<BasisRemoteAudioDriver>(entry.AudioObject);
+            entry.Driver = parent.gameObject.AddComponent<BasisRemoteAudioDriver>();
             entry.Driver.BasisAudioReceiver = entry.Receiver;
 
             entry.Receiver.audioSource = entry.AudioSource;
-            entry.Receiver.AudioSourceTransform = entry.AudioObject.transform;
+            entry.Receiver.AudioSourceTransform = parent;
             entry.Receiver.DirectionalDampeningMultiplier = 1f;
 
             // Initialize audio processing buffers BEFORE setting HasAudioSource.
@@ -116,7 +103,7 @@ namespace Basis.Scripts.Networking.Receivers
         }
 
         /// <summary>
-        /// Disables shout mode for a player. Destroys their global audio source.
+        /// Disables shout mode for a player. Destroys their audio components.
         /// </summary>
         public static void DisableShoutMode(ushort playerId)
         {
@@ -127,21 +114,25 @@ namespace Basis.Scripts.Networking.Receivers
 
             entry.Receiver.HasAudioSource = false;
 
-            if (entry.AudioSource != null && entry.AudioSource.clip != null)
-            {
-                entry.AudioSource.Stop();
-                BasisAudioClipPool.Return(entry.AudioSource.clip);
-            }
-
             if (entry.Receiver.decoder != null)
             {
                 entry.Receiver.decoder.Dispose();
                 entry.Receiver.decoder = null;
             }
 
-            if (entry.AudioObject != null)
+            if (entry.AudioSource != null)
             {
-                BasisAudioRemoteSource.Return(entry.AudioObject);
+                entry.AudioSource.Stop();
+                if (entry.AudioSource.clip != null)
+                {
+                    BasisAudioClipPool.Return(entry.AudioSource.clip);
+                }
+                Object.Destroy(entry.AudioSource);
+            }
+
+            if (entry.Driver != null)
+            {
+                Object.Destroy(entry.Driver);
             }
 
             _entries.Remove(playerId);
@@ -177,7 +168,6 @@ namespace Basis.Scripts.Networking.Receivers
 
         /// <summary>
         /// Must be called each frame to drain jitter buffers and decode audio.
-        /// Call from a central update loop (e.g., BasisNetworkManagement).
         /// </summary>
         public static void DrainAll()
         {
@@ -204,12 +194,6 @@ namespace Basis.Scripts.Networking.Receivers
             foreach (var key in keys)
             {
                 DisableShoutMode(key);
-            }
-
-            if (_root != null)
-            {
-                GameObject.Destroy(_root);
-                _root = null;
             }
 
             // Reset local player shout state
