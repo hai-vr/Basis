@@ -126,6 +126,12 @@ namespace Basis.Scripts.Device_Management
         [SerializeField] public AudioClip pressUI;
 
         /// <summary>
+        /// Audio played when a chat text message is received from another player.
+        /// If left unassigned, a default notification tone is generated at runtime.
+        /// </summary>
+        [SerializeField] public AudioClip ChatNotificationUI;
+
+        /// <summary>
         /// Live collection of all input devices currently managed by this system.
         /// </summary>
         [SerializeField] public BasisObservableList<BasisInput> AllInputDevices = new();
