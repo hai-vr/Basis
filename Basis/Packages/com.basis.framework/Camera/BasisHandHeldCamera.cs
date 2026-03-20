@@ -76,6 +76,16 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     [Tooltip("Instance ID for multi-camera setups")]
     public int InstanceID;
 
+    [Header("Shutter Sound")]
+    /// <summary>AudioSource used to play camera sounds locally.</summary>
+    public AudioSource shutterAudioSource;
+
+    /// <summary>Audio clip played when a photo is captured (locally and networked to others).</summary>
+    public AudioClip shutterSound;
+
+    /// <summary>Audio clip played each second during the countdown timer.</summary>
+    public AudioClip countdownTickSound;
+
     [Header("Advanced/Debug")]
     /// <summary>If true and not on desktop, camera renders to display instead of RT.</summary>
     public bool enableRecordingView = false;
@@ -145,6 +155,16 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         captureCamera.targetTexture = renderTexture;
         captureCamera.gameObject.SetActive(true);
         BasisDeviceManagement.OnBootModeChanged += OnBootModeChanged;
+
+        // Share clips so remote events can reuse the same audio
+        if (shutterSound != null)
+        {
+            BasisNetworkPIPCameraDriver.ShutterSoundClip = shutterSound;
+        }
+        if (countdownTickSound != null)
+        {
+            BasisNetworkPIPCameraDriver.CountdownTickClip = countdownTickSound;
+        }
 
         // Notify network that PIP camera was created
         if (BasisNetworkConnection.LocalPlayerPeer != null)
@@ -409,6 +429,11 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     /// <summary>Starts a 5-second countdown and triggers a capture at the end.</summary>
     public void Timer()
     {
+        // Notify remote clients so they replay the same tick/shutter timing
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            BasisNetworkPIPCameraDriver.SendCountdown(5);
+        }
         StartCoroutine(DelayedAction(5));
     }
 
@@ -418,6 +443,12 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         for (int i = (int)delaySeconds; i > 0; i--)
         {
             countdownText.text = i.ToString();
+
+            if (countdownTickSound != null && shutterAudioSource != null)
+            {
+                shutterAudioSource.PlayOneShot(countdownTickSound);
+            }
+
             yield return new WaitForSeconds(1f);
         }
 
@@ -436,6 +467,12 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             format = TextureFormat.RGBA32;
             renderFormat = RenderTextureFormat.ARGB32;
+        }
+
+        // Play shutter sound locally (network was already notified via SendCountdown)
+        if (shutterSound != null && shutterAudioSource != null)
+        {
+            shutterAudioSource.PlayOneShot(shutterSound);
         }
 
         StartCoroutine(TakeScreenshot(format, renderFormat));
@@ -474,6 +511,18 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             format = TextureFormat.RGBA32;
             renderFormat = RenderTextureFormat.ARGB32;
+        }
+
+        // Play shutter sound locally
+        if (shutterSound != null && shutterAudioSource != null)
+        {
+            shutterAudioSource.PlayOneShot(shutterSound);
+        }
+
+        // Send shutter sound event over the network
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            BasisNetworkPIPCameraDriver.SendShutterSound();
         }
 
         StartCoroutine(TakeScreenshot(format, renderFormat));

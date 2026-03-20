@@ -345,6 +345,41 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                 });
                 break;
+            case BasisNetworkCommons.EventsChannel:
+                if (ValidateSize(Reader, peer, channel) == false)
+                {
+                    Reader.Recycle();
+                    return;
+                }
+                {
+                    byte eventType = Reader.GetByte();
+                    switch (eventType)
+                    {
+                        case BasisNetworkCommons.EventType_CameraShutterSound:
+                            CameraShutterSoundMessage shutterMsg = new CameraShutterSoundMessage();
+                            shutterMsg.Deserialize(Reader);
+                            Reader.Recycle();
+                            BasisDeviceManagement.EnqueueOnMainThread(() =>
+                            {
+                                BasisNetworkPIPCameraDriver.OnRemoteShutterSound(shutterMsg);
+                            });
+                            break;
+                        case BasisNetworkCommons.EventType_CameraCountdown:
+                            CameraCountdownMessage countdownMsg = new CameraCountdownMessage();
+                            countdownMsg.Deserialize(Reader);
+                            Reader.Recycle();
+                            BasisDeviceManagement.EnqueueOnMainThread(() =>
+                            {
+                                BasisNetworkPIPCameraDriver.OnRemoteCountdown(countdownMsg);
+                            });
+                            break;
+                        default:
+                            BNL.LogError($"Unknown EventsChannel event type: {eventType}");
+                            Reader.Recycle();
+                            break;
+                    }
+                }
+                break;
             default:
                 BNL.LogError($"this Channel was not been implemented {channel}");
                 Reader.Recycle();

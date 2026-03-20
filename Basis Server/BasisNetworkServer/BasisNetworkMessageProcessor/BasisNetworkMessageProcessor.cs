@@ -188,6 +188,11 @@ public static class BasisNetworkMessageProcessor
                     BasisServerHandleEvents.HandlePreloadReady(reader, peer); // recycles inside
                     break;
 
+                case BasisNetworkCommons.EventsChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.EventsChannel, reader.AvailableBytes);
+                    BasisNetworkEvents.HandleEvent(reader, peer); // reads event type byte, routes, recycles inside
+                    break;
+
                 default:
                     BNL.LogError($"Unknown channel: {channel} ({reader.AvailableBytes} bytes remaining)");
                     reader.Recycle(); // prevent leaks on unknown messages

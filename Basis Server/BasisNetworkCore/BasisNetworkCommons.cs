@@ -15,7 +15,7 @@ namespace Basis.Network.Core
         /// when adding a new message we need to increase this
         /// will function up to 64
         /// </summary>
-        public const byte TotalChannels = 40;
+        public const byte TotalChannels = 42;
         /// <summary>
         /// Shout mode voice channel. Non-spatialized audio broadcast to all clients.
         /// Reuses the formerly deprecated channel 0.
@@ -160,6 +160,17 @@ namespace Basis.Network.Core
         /// Server tells all clients to spawn a previously preloaded resource.
         /// </summary>
         public const byte SpawnPreloadedChannel = 39;
+        /// <summary>
+        /// Generic low-priority events channel. The first byte of the payload
+        /// identifies the event type (see EventType constants below).
+        /// </summary>
+        public const byte EventsChannel = 40;
+
+        // ── Event type sub-bytes for EventsChannel ──
+        /// <summary>Camera shutter sound fired when a player takes a photo.</summary>
+        public const byte EventType_CameraShutterSound = 0;
+        /// <summary>Camera countdown started — remote clients replay the tick/shutter timing.</summary>
+        public const byte EventType_CameraCountdown = 1;
 
         /// <summary>
         /// Maps quality index (0‑3) + additional data presence → channel.
