@@ -56,6 +56,7 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "Storage", () => SettingsProviderStorage.StorageTab(tabGroup));
             AddLazyTab(tabGroup, "Console", () => SettingsProviderConsoleTab.ConsoleTab(tabGroup));
             AddLazyTab(tabGroup, "Developer", () => DeveloperTab(tabGroup));
+            AddLazyTab(tabGroup, "Permissions", () => SettingsProviderPermissionsTab.PermissionsTab(tabGroup));
             AddLazyTab(tabGroup, "Admin", () => SettingsProviderAdminTab.AdminTab(tabGroup));
 
             panel.Descriptor.ForceRebuild();
