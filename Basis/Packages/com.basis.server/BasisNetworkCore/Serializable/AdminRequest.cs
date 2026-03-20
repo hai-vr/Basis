@@ -45,6 +45,15 @@ namespace BasisNetworkCore.Serializable
             AddAdmin,
             RemoveAdmin,
             TeleportPlayer,
+
+            // Permission management (any user can request, only admins can modify)
+            GetPermissions,     // request full permission snapshot (read-only for non-admins)
+            SetUserGroup,       // admin: add/remove user from a group
+            SetUserNode,        // admin: add/remove permission node from a user
+            SetGroupNode,       // admin: add/remove permission node from a group
+            CreateGroup,        // admin: create a new permission group
+            DeleteGroup,        // admin: delete a permission group
+            SetGroupParent,     // admin: add/remove a parent group from a group
         }
     }
 }
