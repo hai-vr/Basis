@@ -77,11 +77,14 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     public int InstanceID;
 
     [Header("Shutter Sound")]
-    /// <summary>AudioSource used to play the shutter sound locally.</summary>
+    /// <summary>AudioSource used to play camera sounds locally.</summary>
     public AudioSource shutterAudioSource;
 
     /// <summary>Audio clip played when a photo is captured (locally and networked to others).</summary>
     public AudioClip shutterSound;
+
+    /// <summary>Audio clip played each second during the countdown timer.</summary>
+    public AudioClip countdownTickSound;
 
     [Header("Advanced/Debug")]
     /// <summary>If true and not on desktop, camera renders to display instead of RT.</summary>
@@ -431,6 +434,12 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         for (int i = (int)delaySeconds; i > 0; i--)
         {
             countdownText.text = i.ToString();
+
+            if (countdownTickSound != null && shutterAudioSource != null)
+            {
+                shutterAudioSource.PlayOneShot(countdownTickSound);
+            }
+
             yield return new WaitForSeconds(1f);
         }
 
@@ -449,6 +458,18 @@ public class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         {
             format = TextureFormat.RGBA32;
             renderFormat = RenderTextureFormat.ARGB32;
+        }
+
+        // Play shutter sound and send network event at the moment of capture
+        if (shutterSound != null && shutterAudioSource != null)
+        {
+            shutterAudioSource.PlayOneShot(shutterSound);
+        }
+
+        if (BasisNetworkConnection.LocalPlayerPeer != null)
+        {
+            Vector3 camPos = captureCamera.transform.position;
+            BasisNetworkPIPCameraDriver.SendShutterSound(camPos);
         }
 
         StartCoroutine(TakeScreenshot(format, renderFormat));
