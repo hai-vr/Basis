@@ -342,9 +342,8 @@ namespace Basis.Scripts.Device_Management
             }
 
             // Check whether we should use a soft swap (keep the XR runtime alive)
-            bool autoSwap = BasisSettingsSystem.LoadBool("autoswap_enabled", false);
-            bool shutdownRuntime = BasisSettingsSystem.LoadBool("shutdown_runtime_on_swap", true);
-            bool useSoftSwap = autoSwap || !shutdownRuntime;
+            string swapMode = BasisSettingsSystem.LoadString("swap_mode", BasisSettingsDefaults.SwapMode_Shutdown);
+            bool useSoftSwap = !string.Equals(swapMode, BasisSettingsDefaults.SwapMode_Shutdown, StringComparison.OrdinalIgnoreCase);
 
             if (useSoftSwap)
             {
@@ -945,7 +944,8 @@ namespace Basis.Scripts.Device_Management
         private async void OnHMDPresenceChanged(bool isPresent)
         {
             if (_autoSwapInProgress) return;
-            if (!BasisSettingsSystem.LoadBool("autoswap_enabled", false)) return;
+            string swapMode = BasisSettingsSystem.LoadString("swap_mode", BasisSettingsDefaults.SwapMode_Shutdown);
+            if (!string.Equals(swapMode, BasisSettingsDefaults.SwapMode_AutoSwap, StringComparison.OrdinalIgnoreCase)) return;
 
             bool shouldSwitchToDesktop = !isPresent && IsCurrentModeVR();
             bool shouldSwitchToVR = isPresent && IsSoftSwapped;

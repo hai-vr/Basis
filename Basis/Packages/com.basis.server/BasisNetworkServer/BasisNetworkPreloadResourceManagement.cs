@@ -142,6 +142,8 @@ public static class BasisNetworkPreloadResourceManagement
     /// Also broadcasts unload messages for existing scenes through the normal unload path
     /// so the server tracking stays consistent. The client-side HandleSpawnPreloaded
     /// also unloads scenes locally as a safety net against message ordering races.
+    /// The new scene is preserved in the database with LoadStrategy=0 so that
+    /// late-joining clients receive it via SendOutAllResources and load it immediately.
     /// </summary>
     private static void BroadcastSpawnSignal(string loadedNetId)
     {
@@ -155,8 +157,9 @@ public static class BasisNetworkPreloadResourceManagement
         var peerSnapshot = NetworkServer.PeerSnapshot;
 
         // Unload existing scenes through the normal unload path so the server
-        // database and all tracking systems stay in sync
-        UnloadAllSceneResources(peerSnapshot);
+        // database and all tracking systems stay in sync.
+        // Exclude the scene being spawned so it remains in the database.
+        UnloadAllSceneResources(peerSnapshot, loadedNetId);
 
         SpawnPreloadedMessage spawnMsg = new SpawnPreloadedMessage
         {
@@ -168,17 +171,28 @@ public static class BasisNetworkPreloadResourceManagement
         NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.SpawnPreloadedChannel, peerSnapshot, DeliveryMethod.ReliableOrdered);
         NetworkServer.ReturnWriter(writer);
 
+        // Update the resource in the database to LoadStrategy=0 so late-joining
+        // clients load it immediately instead of entering a synchronized preload
+        // whose session has already completed.
+        if (BasisNetworkResourceManagement.UshortNetworkDatabase.TryGetValue(loadedNetId, out LocalLoadResource resource))
+        {
+            resource.LoadStrategy = 0;
+            BasisNetworkResourceManagement.UshortNetworkDatabase[loadedNetId] = resource;
+        }
+
         BNL.Log($"PreloadResourceManagement: Spawn signal sent for {loadedNetId}");
     }
 
     /// <summary>
     /// Unloads all scene-type resources (Mode == 1) from the server database
     /// and broadcasts unload messages to all clients through the normal unload channel.
+    /// Optionally excludes a specific resource by LoadedNetID (used to preserve the
+    /// scene that is about to be spawned).
     /// </summary>
-    private static void UnloadAllSceneResources(NetPeer[] peerSnapshot)
+    private static void UnloadAllSceneResources(NetPeer[] peerSnapshot, string excludeNetId = null)
     {
         var sceneResources = BasisNetworkResourceManagement.UshortNetworkDatabase.Values
-            .Where(r => r.Mode == 1)
+            .Where(r => r.Mode == 1 && r.LoadedNetID != excludeNetId)
             .ToArray();
 
         if (sceneResources.Length == 0) return;

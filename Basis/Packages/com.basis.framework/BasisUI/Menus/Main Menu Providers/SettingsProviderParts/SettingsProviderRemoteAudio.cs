@@ -381,7 +381,6 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
             */
 
             // Hide all advanced groups by default
-            bool advancedVisible = false;
             audioSourceGroup.SetActive(false);
             hrtfGroup.SetActive(false);
             propagationGroup.SetActive(false);
@@ -389,19 +388,17 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
             occlusionGroup.SetActive(false);
             transmissionGroup.SetActive(false);
 
-            PanelButton advancedButton = PanelButton.CreateNew(container);
-            advancedButton.Descriptor.SetTitle("Advanced");
-            advancedButton.Descriptor.SetDescription("Show advanced spatial audio settings.");
-            advancedButton.OnClicked += () =>
+            PanelToggle advancedToggle = PanelToggle.CreateNewEntry(listenerDampenGroup);
+            advancedToggle.Descriptor.SetTitle("Advanced");
+            advancedToggle.SetValueWithoutNotify(false);
+            advancedToggle.OnValueChanged += (val) =>
             {
-                advancedVisible = !advancedVisible;
-                audioSourceGroup.SetActive(advancedVisible);
-                hrtfGroup.SetActive(advancedVisible);
-                propagationGroup.SetActive(advancedVisible);
-                directivityGroup.SetActive(advancedVisible);
-                occlusionGroup.SetActive(advancedVisible);
-                transmissionGroup.SetActive(advancedVisible);
-                advancedButton.Descriptor.SetTitle(advancedVisible ? "Hide Advanced" : "Advanced");
+                audioSourceGroup.SetActive(val);
+                hrtfGroup.SetActive(val);
+                propagationGroup.SetActive(val);
+                directivityGroup.SetActive(val);
+                occlusionGroup.SetActive(val);
+                transmissionGroup.SetActive(val);
             };
         }
 

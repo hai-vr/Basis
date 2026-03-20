@@ -178,19 +178,16 @@ namespace Basis.BasisUI
         // ---------------- NETWORKING ----------------
         public static BasisSettingsBinding<bool> AutoConnect = new("autoconnect", new BasisPlatformDefault<bool>(false));
 
-        // ---------------- DEVICE AUTO SWAP ----------------
+        // ---------------- DEVICE SWAP MODE ----------------
         /// <summary>
-        /// When enabled, monitors VR headset presence (isPresent/proximity sensor) and automatically
-        /// swaps between VR and Desktop input without shutting down the XR runtime.
+        /// Controls how the system handles switching between VR and Desktop modes.
+        /// "Shutdown Runtime" — full XR shutdown on swap (default).
+        /// "Auto Swap" — automatically swaps based on headset presence, keeping XR alive.
         /// </summary>
-        public static BasisSettingsBinding<bool> AutoSwapEnabled => new("autoswap_enabled", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<string> SwapMode = new("swap_mode", new BasisPlatformDefault<string>("Shutdown Runtime"));
 
-        /// <summary>
-        /// When Auto Swap is OFF and this is ON, switching between VR and Desktop shuts down the
-        /// XR runtime (OpenXR/OpenVR) — the current default behavior. When OFF, the runtime stays alive.
-        /// This setting is ignored when Auto Swap is enabled.
-        /// </summary>
-        public static BasisSettingsBinding<bool> ShutdownRuntimeOnSwap => new("shutdown_runtime_on_swap", new BasisPlatformDefault<bool>(true));
+        public const string SwapMode_Shutdown = "Shutdown Runtime";
+        public const string SwapMode_AutoSwap = "Auto Swap";
 
         // ---------------- NOTIFICATIONS ----------------
         public static BasisSettingsBinding<bool> JoinNotifications = new("joinnotifications", new BasisPlatformDefault<bool>(false));
@@ -605,9 +602,8 @@ namespace Basis.BasisUI
             // Networking
             AutoConnect.LoadBindingValue();
 
-            // Device Auto Swap
-            AutoSwapEnabled.LoadBindingValue();
-            ShutdownRuntimeOnSwap.LoadBindingValue();
+            // Device Swap Mode
+            SwapMode.LoadBindingValue();
 
             // Notifications
             JoinNotifications.LoadBindingValue();

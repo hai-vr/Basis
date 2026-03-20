@@ -41,30 +41,6 @@ public static class SettingsProviderPlatform
         }
 #endif
 
-#if BASIS_HAS_OPENVR || BASIS_HAS_OPENXR
-        // ---- Auto Swap settings group (only shown when a VR SDK is compiled in) ----
-        PanelElementDescriptor autoSwapGroup =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        autoSwapGroup.SetTitle("Auto Swap");
-        autoSwapGroup.SetDescription(
-            "Automatically switch between VR and Desktop based on headset presence.\n" +
-            "When enabled, the XR runtime stays alive so swapping is instant.");
-
-        PanelToggle toggleAutoSwap = PanelToggle.CreateNewEntry(autoSwapGroup);
-        toggleAutoSwap.Descriptor.SetTitle("Enable Auto Swap");
-        toggleAutoSwap.Descriptor.SetDescription(
-            "Uses headset proximity sensor to swap between VR and Desktop without restarting the runtime.");
-        toggleAutoSwap.AssignBinding(BasisSettingsDefaults.AutoSwapEnabled);
-
-        PanelToggle toggleShutdownRuntime = PanelToggle.CreateNewEntry(autoSwapGroup);
-        toggleShutdownRuntime.Descriptor.SetTitle("Shutdown Runtime On Swap");
-        toggleShutdownRuntime.Descriptor.SetDescription(
-            "When Auto Swap is OFF: controls whether switching modes shuts down OpenXR/OpenVR.\n" +
-            "ON = current behavior (full restart). OFF = keep runtime alive during manual swap.\n" +
-            "Ignored when Auto Swap is enabled.");
-        toggleShutdownRuntime.AssignBinding(BasisSettingsDefaults.ShutdownRuntimeOnSwap);
-#endif
-
         // Discover available modes from registered BaseTypes
         List<string> availableModes = new List<string>();
         if (dm != null)
@@ -105,6 +81,29 @@ public static class SettingsProviderPlatform
                 };
             }
         }
+    }
+
+    public static void BuildAutoSwapUI(RectTransform container)
+    {
+#if BASIS_HAS_OPENVR || BASIS_HAS_OPENXR
+        PanelElementDescriptor autoSwapGroup =
+            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+        autoSwapGroup.SetTitle("Swap Mode");
+        autoSwapGroup.SetDescription(
+            "Controls how the system handles switching between VR and Desktop modes.");
+
+        PanelDropdown dropdownSwapMode = PanelDropdown.CreateNewEntry(autoSwapGroup);
+        dropdownSwapMode.Descriptor.SetTitle("Swap Mode");
+        dropdownSwapMode.Descriptor.SetDescription(
+            "Shutdown Runtime: full XR restart on swap.\n" +
+            "Auto Swap: automatically swap based on headset presence.");
+        dropdownSwapMode.AssignEntries(new System.Collections.Generic.List<string>
+        {
+            BasisSettingsDefaults.SwapMode_Shutdown,
+            BasisSettingsDefaults.SwapMode_AutoSwap
+        });
+        dropdownSwapMode.AssignBinding(BasisSettingsDefaults.SwapMode);
+#endif
     }
 
     private static string GetModeDisplayName(string mode)

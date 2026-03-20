@@ -179,15 +179,7 @@ namespace Basis.BasisUI
                 BasisSettingsDefaults.MicrophoneRange);
 #endif
 
-            PanelElementDescriptor networkGroup =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            networkGroup.SetTitle("Networking");
-            networkGroup.SetDescription("Automatic connection settings.");
-
-            PanelToggle toggleAutoConnect = PanelToggle.CreateNewEntry(networkGroup);
-            toggleAutoConnect.Descriptor.SetTitle("Auto Connect");
-            toggleAutoConnect.Descriptor.SetDescription("Automatically connect to the last server on startup if a username exists.");
-            toggleAutoConnect.AssignBinding(BasisSettingsDefaults.AutoConnect);
+            SettingsProviderPlatform.BuildAutoSwapUI(container);
 
             // One reset button for this whole page
             AddResetPageButton(container, "General", ResetGeneralDefaults);
@@ -197,10 +189,10 @@ namespace Basis.BasisUI
 
         private static void ResetGeneralDefaults()
         {
-            BasisSettingsDefaults.AutoConnect.ResetToDefault();
             BasisSettingsDefaults.AvatarRange.ResetToDefault();
             BasisSettingsDefaults.MaxVisibleAvatars.ResetToDefault();
             BasisSettingsDefaults.HearingRange.ResetToDefault();
+            BasisSettingsDefaults.SwapMode.ResetToDefault();
 #if !BASIS_DISABLE_MICROPHONE
             BasisSettingsDefaults.MicrophoneRange.ResetToDefault();
 #endif
