@@ -1,6 +1,7 @@
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.Networking.Receivers;
 using System;
 using System.Collections.Generic;
 using TMPro;
@@ -299,6 +300,77 @@ namespace Basis.BasisUI
                     BasisNetworkModeration.SendMessageAll(msg);
                 });
 
+            // ------------------
+            // Shout mode actions
+            // ------------------
+            PanelElementDescriptor shoutGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            shoutGroup.SetTitle("Shout Mode");
+            shoutGroup.SetDescription("Non-spatialized broadcast voice. Everyone hears the player regardless of distance.");
+
+            // Show local player shout status
+            PanelButton shoutStatus = PanelButton.CreateNew(shoutGroup.ContentParent);
+            shoutStatus.Descriptor.SetTitle(BasisNetworkModeration.LocalPlayerInShoutMode
+                ? "You are in SHOUT MODE"
+                : "You are NOT in shout mode");
+            shoutStatus.Descriptor.SetDescription("Your current shout mode status.");
+            shoutStatus.OnClicked += () =>
+            {
+                shoutStatus.Descriptor.SetTitle(BasisNetworkModeration.LocalPlayerInShoutMode
+                    ? "You are in SHOUT MODE"
+                    : "You are NOT in shout mode");
+                shoutGroup.ForceRebuild();
+            };
+
+            // Listen for changes to update the status
+            BasisNetworkModeration.OnShoutModeChanged += (pid, enabled) =>
+            {
+                if (shoutStatus == null) return;
+                if (BasisNetworkPlayer.LocalPlayer != null && pid == BasisNetworkPlayer.LocalPlayer.playerId)
+                {
+                    shoutStatus.Descriptor.SetTitle(enabled
+                        ? "You are in SHOUT MODE"
+                        : "You are NOT in shout mode");
+                    shoutGroup.ForceRebuild();
+                }
+            };
+
+            PanelButton enableShout = PanelButton.CreateNew(shoutGroup.ContentParent);
+            enableShout.Descriptor.SetTitle("Enable Shout Mode (selected player)");
+            enableShout.Descriptor.SetDescription("Grants broadcast voice to the selected player.");
+            GuardedClick(
+                enableShout,
+                "Enable shout mode?",
+                "Enable non-spatialized broadcast voice for this player?",
+                "Enable",
+                () =>
+                {
+                    if (controller.SelectedPlayer == null)
+                    {
+                        BasisDebug.LogError("No target selected.");
+                        return;
+                    }
+                    BasisNetworkModeration.EnableShoutMode(controller.SelectedPlayer.playerId);
+                });
+
+            PanelButton disableShout = PanelButton.CreateNew(shoutGroup.ContentParent);
+            disableShout.Descriptor.SetTitle("Disable Shout Mode (selected player)");
+            disableShout.Descriptor.SetDescription("Removes broadcast voice from the selected player.");
+            GuardedClick(
+                disableShout,
+                "Disable shout mode?",
+                "Disable non-spatialized broadcast voice for this player?",
+                "Disable",
+                () =>
+                {
+                    if (controller.SelectedPlayer == null)
+                    {
+                        BasisDebug.LogError("No target selected.");
+                        return;
+                    }
+                    BasisNetworkModeration.DisableShoutMode(controller.SelectedPlayer.playerId);
+                });
+
             // Permissions section
             SettingsProviderPermissionsTab.BuildPermissionsUI(container, tab.gameObject);
 
@@ -413,7 +485,10 @@ namespace Basis.BasisUI
                 foreach (BasisNetworkPlayer player in BasisNetworkPlayers.Players.Values)
                 {
                     PanelButton b = PanelButton.CreateNew(PlayerListParent);
-                    b.Descriptor.SetTitle($"{player.playerId} > {player.Player.SafeDisplayName}");
+                    bool isLocal = BasisNetworkPlayer.LocalPlayer != null && player.playerId == BasisNetworkPlayer.LocalPlayer.playerId;
+                    bool isShouting = isLocal ? BasisNetworkModeration.LocalPlayerInShoutMode : BasisShoutAudioDriver.IsInShoutMode(player.playerId);
+                    string shoutTag = isShouting ? " [SHOUT]" : "";
+                    b.Descriptor.SetTitle($"{player.playerId} > {player.Player.SafeDisplayName}{shoutTag}");
                     b.OnClicked += () => SelectPlayer(player);
 
                     _playerButtons.Add(b);

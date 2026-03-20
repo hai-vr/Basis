@@ -17,9 +17,10 @@ namespace Basis.Network.Core
         /// </summary>
         public const byte TotalChannels = 38;
         /// <summary>
-        /// ready to be reused.
+        /// Shout mode voice channel. Non-spatialized audio broadcast to all clients.
+        /// Reuses the formerly deprecated channel 0.
         /// </summary>
-        public const byte DeprecatedChannel = 0;
+        public const byte ShoutVoiceChannel = 0;
         /// <summary>
         /// Auth Identity Message
         /// </summary>

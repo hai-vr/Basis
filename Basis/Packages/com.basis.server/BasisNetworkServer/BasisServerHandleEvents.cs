@@ -255,6 +255,7 @@ namespace BasisServerHandle
                 BasisNetworkOwnership.SendOutOwnershipInformation(newPeer);
                 BasisNetworkPIPCamera.SendPIPStateToPeer(newPeer);
                 BasisNetworkContentShare.SendAllSpheresToPeer(newPeer);
+                SendShoutStateToPeer(newPeer);
             }
             else
             {
@@ -310,6 +311,82 @@ namespace BasisServerHandle
             SendVoiceMessageToClients(serverAudio, BasisNetworkCommons.VoiceChannel, peer, DeliveryMethod.Unreliable);
 
             ThreadSafeMessagePool<AudioSegmentDataMessage>.Return(audioSegment);
+        }
+
+        /// <summary>
+        /// Handles shout voice sent by a client on ShoutVoiceChannel (channel 0).
+        /// Only processes if the sender is authorized for shout mode.
+        /// Broadcasts to ALL connected peers.
+        /// </summary>
+        public static void HandleShoutVoiceMessage(NetPacketReader reader, NetPeer peer)
+        {
+            if (!BasisSavedState.IsInShoutMode(peer.Id))
+            {
+                BNL.LogError($"Peer {peer.Id} sent shout voice but is not in shout mode. Ignoring.");
+                reader.Recycle();
+                return;
+            }
+
+            AudioSegmentDataMessage audioSegment = ThreadSafeMessagePool<AudioSegmentDataMessage>.Rent();
+            audioSegment.Deserialize(reader);
+            reader.Recycle();
+
+            ServerAudioSegmentMessage serverAudio = new ServerAudioSegmentMessage
+            {
+                audioSegmentData = audioSegment,
+                playerIdMessage = new PlayerIdMessage
+                {
+                    playerID = (ushort)peer.Id,
+                },
+            };
+
+            var writer = NetworkServer.RentWriter();
+            serverAudio.Serialize(writer);
+
+            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.ShoutVoiceChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.Unreliable);
+
+            NetworkServer.ReturnWriter(writer);
+            ThreadSafeMessagePool<AudioSegmentDataMessage>.Return(audioSegment);
+        }
+
+        /// <summary>
+        /// Broadcasts a shout mode state change to all clients via the AdminChannel.
+        /// </summary>
+        public static void BroadcastShoutModeState(ushort targetPlayerId, bool enabled)
+        {
+            var writer = NetworkServer.RentWriter();
+            AdminRequestMode mode = enabled ? AdminRequestMode.EnableShoutMode : AdminRequestMode.DisableShoutMode;
+            new AdminRequest().Serialize(writer, mode);
+            writer.Put(targetPlayerId);
+
+            NetPeer[] peers = NetworkServer.PeerSnapshot;
+            foreach (var client in peers)
+            {
+                BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.AdminChannel, writer.Length);
+                client.Send(writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            }
+
+            NetworkServer.ReturnWriter(writer);
+        }
+
+        /// <summary>
+        /// Sends current shout mode states to a newly connected peer.
+        /// </summary>
+        public static void SendShoutStateToPeer(NetPeer newPeer)
+        {
+            int[] shoutPlayers = BasisSavedState.GetAllShoutModePlayers();
+            if (shoutPlayers.Length == 0) return;
+
+            var writer = NetworkServer.RentWriter();
+            foreach (int peerId in shoutPlayers)
+            {
+                writer.Reset();
+                new AdminRequest().Serialize(writer, AdminRequestMode.EnableShoutMode);
+                writer.Put((ushort)peerId);
+                BasisNetworkStatistics.RecordOutbound(BasisNetworkCommons.AdminChannel, writer.Length);
+                newPeer.Send(writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            }
+            NetworkServer.ReturnWriter(writer);
         }
 
         [ThreadStatic] private static List<NetPeer> _voicePeerList;

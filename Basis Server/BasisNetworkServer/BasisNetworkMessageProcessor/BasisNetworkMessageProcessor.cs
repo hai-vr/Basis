@@ -19,6 +19,11 @@ public static class BasisNetworkMessageProcessor
         {
             switch (channel)
             {
+                case BasisNetworkCommons.ShoutVoiceChannel:
+                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ShoutVoiceChannel, reader.AvailableBytes);
+                    BasisServerHandleEvents.HandleShoutVoiceMessage(reader, peer); // recycles inside
+                    break;
+
                 case BasisNetworkCommons.AuthIdentityChannel:
                     BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AuthIdentityChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.HandleAuth(reader, peer); // recycles inside

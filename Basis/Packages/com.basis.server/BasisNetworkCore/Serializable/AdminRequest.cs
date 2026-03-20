@@ -54,6 +54,9 @@ namespace BasisNetworkCore.Serializable
             CreateGroup,        // admin: create a new permission group
             DeleteGroup,        // admin: delete a permission group
             SetGroupParent,     // admin: add/remove a parent group from a group
+
+            EnableShoutMode,    // admin: enable shout mode for a player (non-spatialized broadcast voice)
+            DisableShoutMode,   // admin: disable shout mode for a player
         }
     }
 }

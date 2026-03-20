@@ -403,6 +403,13 @@ namespace BasisNetworkServer.Security
                     HandleSetGroupParent(peer, reader);
                     break;
 
+                case AdminRequestMode.EnableShoutMode:
+                    HandleShoutMode(peer, reader, true);
+                    break;
+                case AdminRequestMode.DisableShoutMode:
+                    HandleShoutMode(peer, reader, false);
+                    break;
+
                 default:
                     BNL.LogError("Missing Mode!");
                     ReturnMessage = "Missing mode";
@@ -530,6 +537,18 @@ namespace BasisNetworkServer.Security
                 PermissionIntegration.Manager.RemoveGroupParent(groupName, parentName);
 
             SendBackMessage(peer, $"{(add ? "Added" : "Removed")} parent '{parentName}' {(add ? "to" : "from")} group '{groupName}'");
+        }
+
+        private static void HandleShoutMode(NetPeer peer, NetPacketReader reader, bool enable)
+        {
+            ushort targetPlayerId = reader.GetUShort();
+
+            Basis.Network.Server.Generic.BasisSavedState.SetShoutMode(targetPlayerId, enable);
+            BasisServerHandle.BasisServerHandleEvents.BroadcastShoutModeState(targetPlayerId, enable);
+
+            string state = enable ? "enabled" : "disabled";
+            BNL.Log($"Shout mode {state} for player {targetPlayerId} by admin {peer.Id}");
+            SendBackMessage(peer, $"Shout mode {state} for player {targetPlayerId}");
         }
 
         #endregion

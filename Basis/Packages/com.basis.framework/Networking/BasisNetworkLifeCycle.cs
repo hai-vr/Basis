@@ -68,7 +68,9 @@ public static class BasisNetworkLifeCycle
                 BasisNetworkConnection.BasisNetworkServerRunner = null;
             }
 
+            BasisRemoteNetworkDriver.Apply();//complete in-flight jobs before clearing players
             BasisNetworkPlayers.ClearAllRegistries();//remove players
+            Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DeInitialize();//remove shout audio sources
             await BasisNetworkSpawnItem.Reset();//remove items
             BasisContentShareManager.Reset();//remove content spheres
             BasisNetworkIdResolver.KnownIdMap.Clear();
@@ -109,13 +111,14 @@ public static class BasisNetworkLifeCycle
             BasisNetworkConnection.BasisNetworkServerRunner.Stop();
             BasisNetworkConnection.BasisNetworkServerRunner = null;
         }
+        BasisRemoteNetworkDriver.Shutdown();//complete in-flight jobs before disposing anything
         BasisNetworkPlayers.ClearAllRegistries();//remove players
+        Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DeInitialize();//remove shout audio sources
         await BasisNetworkSpawnItem.Reset();//remove items
         BasisContentShareManager.Reset();//remove content spheres
         BasisNetworkIdResolver.KnownIdMap.Clear();
         BasisNetworkIdResolver.PendingResolutions.Clear();
         BasisAudioRemoteSource.DeInitalize();//release memory for audio gameobject
-        BasisRemoteNetworkDriver.Shutdown();
         BasisNetworkManagement.Transmitter = null;
         // Clear delegates / events
         BasisNetworkPlayer.OnOwnershipTransfer = null;

@@ -66,4 +66,56 @@ public static class BasisNetworkHandleVoice
             BasisDebug.LogError("HandleAudioUpdate task canceled.");
         }
     }
+
+    private static readonly SemaphoreSlim shoutSemaphore = new SemaphoreSlim(1, 1);
+    public static ConcurrentQueue<ServerAudioSegmentMessage> ShoutMessage = new ConcurrentQueue<ServerAudioSegmentMessage>();
+
+    /// <summary>
+    /// Handles shout voice audio arriving on ShoutVoiceChannel (channel 0).
+    /// Routes to the non-spatialized shout audio receiver on the remote player.
+    /// </summary>
+    public static async Task HandleShoutAudioUpdate(NetPacketReader Reader)
+    {
+        try
+        {
+            await shoutSemaphore.WaitAsync(TimeoutMilliseconds);
+            try
+            {
+                if (ShoutMessage.TryDequeue(out ServerAudioSegmentMessage audioUpdate) == false)
+                {
+                    audioUpdate = new ServerAudioSegmentMessage();
+                }
+                audioUpdate.Deserialize(Reader);
+                if (audioUpdate.audioSegmentData.LengthUsed == 0)
+                {
+                    BasisDebug.LogError("Shout Audio Segment Data Length was zero", BasisDebug.LogTag.Voice);
+                }
+                else
+                {
+                    BasisShoutAudioDriver.ReceiveShoutAudio(audioUpdate.playerIdMessage.playerID, audioUpdate.audioSegmentData);
+                }
+                ShoutMessage.Enqueue(audioUpdate);
+                while (ShoutMessage.Count > MaxStoredServerAudioSegmentMessage)
+                {
+                    ShoutMessage.TryDequeue(out ServerAudioSegmentMessage seg);
+                }
+            }
+            catch (Exception ex)
+            {
+                BasisDebug.LogError($"Error in HandleShoutAudioUpdate:{ex.Message}{ex.StackTrace}");
+            }
+            finally
+            {
+                shoutSemaphore.Release();
+                if (Reader.IsNull == false)
+                {
+                    Reader.Recycle();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            BasisDebug.LogError("HandleShoutAudioUpdate task canceled.");
+        }
+    }
 }

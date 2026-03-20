@@ -434,6 +434,7 @@ namespace Basis.Scripts.Networking.Receivers
             Player.AudioReceived?.Invoke();
         }
 
+
         public async void ReceiveAvatarChangeRequest(ServerAvatarChangeMessage SACM)
         {
             RemotePlayer.CACM = SACM.clientAvatarChangeMessage;

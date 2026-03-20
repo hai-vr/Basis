@@ -363,6 +363,23 @@ namespace Basis.Scripts.Networking.Receivers
             UnloadAudioSource();
         }
 
+
+        /// <summary>
+        /// Initializes scratch buffers and resampling state for audio playback.
+        /// Call this before setting HasAudioSource = true so that OnAudioFilterRead
+        /// has valid buffers when it first runs. Used by BasisShoutAudioDriver
+        /// which manages its own AudioSource lifecycle.
+        /// </summary>
+        public void InitializeForPlayback()
+        {
+            const int BufferSize = 1024;
+
+            _inputScratch = new float[BufferSize];
+            _resampleScratch = new float[BufferSize];
+            _cachedOutputRate = outputSampleRate;
+            _resampleRatio = (float)RemoteOpusSettings.NetworkSampleRate / _cachedOutputRate;
+        }
+
         /// <summary>
         /// Starts audio playback, allocating scratch buffers and creating the source if needed.
         /// </summary>

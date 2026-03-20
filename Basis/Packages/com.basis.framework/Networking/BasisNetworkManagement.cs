@@ -189,6 +189,7 @@ namespace Basis.Scripts.Networking
                 }
             }
             BasisRemoteNetworkDriver.Compute();
+            Basis.Scripts.Networking.Receivers.BasisShoutAudioDriver.DrainAll();
             BasisNetworkProfiler.Update();
 
             if (HasRequested)

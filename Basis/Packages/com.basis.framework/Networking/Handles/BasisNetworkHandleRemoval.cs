@@ -2,6 +2,7 @@ using Basis.Scripts.Avatar;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.Networking.Receivers;
 using Basis.Network.Core;
 using UnityEngine;
 
@@ -63,6 +64,9 @@ public static class BasisNetworkHandleRemoval
                 BasisDebug.LogError($"Missing Player for removing ID {disconnectedID}");
             }
             BasisNetworkPlayer.OnPlayerLeft?.Invoke(network);
+
+            // Clean up any shout audio for this player
+            BasisShoutAudioDriver.RemovePlayer(disconnectedID);
 
             // Shutdown networking
             network.DeInitialize();

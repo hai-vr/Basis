@@ -14,8 +14,13 @@ public static class BasisNetworkEvents
     {
         switch (channel)
         {
-            case BasisNetworkCommons.DeprecatedChannel:
-                BNL.LogError($"DeprecatedChannel no data remains: {channel} " + Reader.AvailableBytes);
+            case BasisNetworkCommons.ShoutVoiceChannel:
+#if UNITY_SERVER
+                Reader.Recycle();
+#else
+                //released inside
+                await BasisNetworkHandleVoice.HandleShoutAudioUpdate(Reader);
+#endif
                 break;
             case BasisNetworkCommons.AuthIdentityChannel:
                 AuthIdentityMessage(peer, Reader, channel);

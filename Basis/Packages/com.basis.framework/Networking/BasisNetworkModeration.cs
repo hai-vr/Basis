@@ -3,6 +3,7 @@ using Basis.Network.Core;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using Basis.Scripts.Networking.Receivers;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -190,11 +191,88 @@ public static class BasisNetworkModeration
                 HandlePermissionsResponse(reader);
                 break;
 
+            case AdminRequestMode.EnableShoutMode:
+            case AdminRequestMode.DisableShoutMode:
+                HandleShoutModeChanged(reader, mode == AdminRequestMode.EnableShoutMode);
+                break;
+
             default:
                 BasisDebug.LogError($"Unhandled admin command: {mode}", BasisDebug.LogTag.Networking);
                 break;
         }
     }
+
+    #region Shout Mode
+
+    /// <summary>
+    /// Fired when a player's shout mode state changes.
+    /// </summary>
+    public static event Action<ushort, bool> OnShoutModeChanged;
+
+    /// <summary>
+    /// True if the local player is currently in shout mode.
+    /// </summary>
+    public static bool LocalPlayerInShoutMode => Basis.Scripts.Networking.Transmitters.BasisAudioTransmission.IsInShoutMode;
+
+    private static void HandleShoutModeChanged(NetDataReader reader, bool enabled)
+    {
+        ushort targetPlayerId = reader.GetUShort();
+        string state = enabled ? "enabled" : "disabled";
+        BasisDebug.Log($"Shout mode {state} for player {targetPlayerId}", BasisDebug.LogTag.Networking);
+
+        // Check if this is the local player
+        bool isLocalPlayer = BasisNetworkPlayer.LocalPlayer != null && targetPlayerId == BasisNetworkPlayer.LocalPlayer.playerId;
+        if (isLocalPlayer)
+        {
+            // Set the local transmission channel
+            Basis.Scripts.Networking.Transmitters.BasisAudioTransmission.IsInShoutMode = enabled;
+            BasisDebug.Log($"Local player shout mode {state}", BasisDebug.LogTag.Networking);
+
+            // Notify the local player with a visible dialogue
+            if (enabled)
+            {
+                DisplayMessage("Shout mode ENABLED - your voice is now broadcast to everyone.");
+            }
+            else
+            {
+                DisplayMessage("Shout mode DISABLED - your voice is back to normal.");
+            }
+        }
+        else
+        {
+            // For remote players, manage the global shout audio source
+            if (enabled)
+            {
+                BasisShoutAudioDriver.EnableShoutMode(targetPlayerId);
+            }
+            else
+            {
+                BasisShoutAudioDriver.DisableShoutMode(targetPlayerId);
+            }
+        }
+
+        OnShoutModeChanged?.Invoke(targetPlayerId, enabled);
+    }
+
+    /// <summary>
+    /// Admin: Enable shout mode for a player (non-spatialized broadcast voice).
+    /// </summary>
+    public static void EnableShoutMode(ushort playerId)
+    {
+        SendAdminRequest(AdminRequestMode.EnableShoutMode,
+            w => w.Put(playerId));
+    }
+
+    /// <summary>
+    /// Admin: Disable shout mode for a player.
+    /// </summary>
+    public static void DisableShoutMode(ushort playerId)
+    {
+        SendAdminRequest(AdminRequestMode.DisableShoutMode,
+            w => w.Put(playerId));
+    }
+
+    #endregion
 
     #region Permission Management
 
