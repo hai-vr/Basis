@@ -160,6 +160,10 @@ public static class BasisGizmoManager
             BasisDebug.LogError($"No LineGizmo found with ID {linkedID}. Use CreateLineGizmo first.", BasisDebug.LogTag.Gizmo);
             return false;
         }
+        if (gizmo == null || gizmo.LineRenderer == null)
+        {
+            return false;
+        }
         gizmo.LineRenderer.SetPosition(0, start);
         gizmo.LineRenderer.SetPosition(1, end);
         return true;
