@@ -184,23 +184,23 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
 
         private void DisableActions()
         {
-            PointerAction.action.Disable();
-            DesktopSwitch.action.Disable();
-            XRSwitch.action.Disable();
-            VRSwitch.action.Disable();
-            MoveAction.action.Disable();
-            LookAction.action.Disable();
-            JumpAction.action.Disable();
-            CrouchAction.action.Disable();
-            RunButton.action.Disable();
-            Escape.action.Disable();
-            Tab.action.Disable();
-            PrimaryButtonGetState.action.Disable();
-            LeftMousePressed.action.Disable();
-            RightMousePressed.action.Disable();
-            MiddleMouseScroll.action.Disable();
-            MiddleMouseScrollClick.action.Disable();
-            MoveLocalUpDown.action.Disable();
+            PointerAction?.action?.Disable();
+            DesktopSwitch?.action?.Disable();
+            XRSwitch?.action?.Disable();
+            VRSwitch?.action?.Disable();
+            MoveAction?.action?.Disable();
+            LookAction?.action?.Disable();
+            JumpAction?.action?.Disable();
+            CrouchAction?.action?.Disable();
+            RunButton?.action?.Disable();
+            Escape?.action?.Disable();
+            Tab?.action?.Disable();
+            PrimaryButtonGetState?.action?.Disable();
+            LeftMousePressed?.action?.Disable();
+            RightMousePressed?.action?.Disable();
+            MiddleMouseScroll?.action?.Disable();
+            MiddleMouseScrollClick?.action?.Disable();
+            MoveLocalUpDown?.action?.Disable();
         }
 
         private void AddCallbacks()
@@ -254,53 +254,34 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             BasisCursorManagement.OnCursorStateChange += OnCursorStateChanged;
         }
 
+        private static void SafeRemoveCallbacks(InputActionReference actionRef,
+            System.Action<InputAction.CallbackContext> performed,
+            System.Action<InputAction.CallbackContext> canceled = null)
+        {
+            if (actionRef == null || actionRef.action == null) return;
+            actionRef.action.performed -= performed;
+            if (canceled != null) actionRef.action.canceled -= canceled;
+        }
+
         private void RemoveCallbacks()
         {
             // Unregister all callbacks
-            PointerAction.action.performed -= OnPointerPerformed;
-            PointerAction.action.canceled -= OnPointerCancelled;
-
-            CrouchAction.action.performed -= OnCrouchPerformed;
-            CrouchAction.action.canceled -= OnCrouchCancelled;
-
-            MoveAction.action.performed -= OnMoveActionPerformed;
-            MoveAction.action.canceled -= OnMoveActionCancelled;
-
-            LookAction.action.performed -= OnLookActionPerformed;
-            LookAction.action.canceled -= OnLookActionCancelled;
-
-            JumpAction.action.performed -= OnJumpActionPerformed;
-            JumpAction.action.canceled -= OnJumpActionCancelled;
-
-            RunButton.action.performed -= OnRunStarted;
-            RunButton.action.canceled -= OnRunCancelled;
-
-            Escape.action.performed -= OnEscapePerformed;
-            Escape.action.canceled -= OnEscapeCancelled;
-
-            Tab.action.performed -= OnTabPerformed;
-            Tab.action.canceled -= OnTabCancelled;
-
-            PrimaryButtonGetState.action.performed -= OnPrimaryGet;
-            PrimaryButtonGetState.action.canceled -= OnCancelPrimaryGet;
-
-            LeftMousePressed.action.performed -= OnLeftMouse;
-            LeftMousePressed.action.canceled -= OnLeftMouse;
-
-            RightMousePressed.action.performed -= OnRightMouse;
-            RightMousePressed.action.canceled -= OnRightMouse;
-
-            MiddleMouseScroll.action.performed -= OnMouseScroll;
-            MiddleMouseScroll.action.canceled -= OnMouseScroll;
-
-            MiddleMouseScrollClick.action.performed -= OnMouseScrollClick;
-            MiddleMouseScrollClick.action.canceled -= OnMouseScrollClick;
-
-            DesktopSwitch.action.performed -= OnSwitchDesktop;
-            DesktopSwitch.action.canceled -= OnSwitchDesktop;
-
-            VRSwitch.action.performed -= OnSwitchOpenVR;
-            XRSwitch.action.performed -= OnSwitchOpenXR;
+            SafeRemoveCallbacks(PointerAction, OnPointerPerformed, OnPointerCancelled);
+            SafeRemoveCallbacks(CrouchAction, OnCrouchPerformed, OnCrouchCancelled);
+            SafeRemoveCallbacks(MoveAction, OnMoveActionPerformed, OnMoveActionCancelled);
+            SafeRemoveCallbacks(LookAction, OnLookActionPerformed, OnLookActionCancelled);
+            SafeRemoveCallbacks(JumpAction, OnJumpActionPerformed, OnJumpActionCancelled);
+            SafeRemoveCallbacks(RunButton, OnRunStarted, OnRunCancelled);
+            SafeRemoveCallbacks(Escape, OnEscapePerformed, OnEscapeCancelled);
+            SafeRemoveCallbacks(Tab, OnTabPerformed, OnTabCancelled);
+            SafeRemoveCallbacks(PrimaryButtonGetState, OnPrimaryGet, OnCancelPrimaryGet);
+            SafeRemoveCallbacks(LeftMousePressed, OnLeftMouse, OnLeftMouse);
+            SafeRemoveCallbacks(RightMousePressed, OnRightMouse, OnRightMouse);
+            SafeRemoveCallbacks(MiddleMouseScroll, OnMouseScroll, OnMouseScroll);
+            SafeRemoveCallbacks(MiddleMouseScrollClick, OnMouseScrollClick, OnMouseScrollClick);
+            SafeRemoveCallbacks(DesktopSwitch, OnSwitchDesktop, OnSwitchDesktop);
+            SafeRemoveCallbacks(VRSwitch, OnSwitchOpenVR);
+            SafeRemoveCallbacks(XRSwitch, OnSwitchOpenXR);
 
             BasisCursorManagement.OnCursorStateChange -= OnCursorStateChanged;
         }
