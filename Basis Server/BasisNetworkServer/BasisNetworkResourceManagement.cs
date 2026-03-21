@@ -51,6 +51,26 @@ public static class BasisNetworkResourceManagement
             {
                 Writer.Reset();
                 LocalLoadResource LLR = Resource[Index];
+
+                // For synchronized resources (LoadStrategy == 2), check if the session
+                // is still active. If it already completed, send as immediate (0) so
+                // the late joiner spawns right away instead of waiting for a spawn
+                // signal that will never come. If still active, add the late joiner
+                // to the session so they participate in the synchronized load.
+                if (LLR.LoadStrategy == 2)
+                {
+                    if (BasisNetworkPreloadResourceManagement.ActiveSessions.TryGetValue(LLR.LoadedNetID, out var session))
+                    {
+                        // Session still in progress - add late joiner to peer count
+                        session.TotalPeerCount++;
+                    }
+                    else
+                    {
+                        // Session already completed - send as immediate load
+                        LLR.LoadStrategy = 0;
+                    }
+                }
+
                 LLR.Serialize(Writer);
                 NetworkServer.TrySend(NewConnection, Writer, BasisNetworkCommons.LoadResourceChannel, DeliveryMethod.ReliableOrdered);
             }

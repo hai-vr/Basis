@@ -199,8 +199,12 @@ public static class BasisNetworkPreloadManager
             return;
         }
 
-        // Unload all existing scene content before spawning
-        await UnloadAllSceneContent();
+        // Only unload existing scene content when the synchronized resource is a scene.
+        // Props (Mode == 0) should never cause scene unloads.
+        if (preloaded.LoadResource.Mode == 1)
+        {
+            await UnloadAllSceneContent();
+        }
 
         BasisDebug.Log($"PreloadManager: Spawning preloaded resource {preloaded.LoadResource.CombinedURL} (NetID={netId})", BasisDebug.LogTag.Networking);
 

@@ -729,12 +729,12 @@ namespace Basis.BasisUI
             CachedMetaData.CachedContent metadata;
             bool hasMeta = CachedMetaData.TryGetMeta(item.Url, out metadata);
 
-            // embedded items are always local, otherwise default to synchronized when connected
+            // embedded items are always local, otherwise default to networked when connected
             bool isEmbedded = item.EmbeddedSettings.IsEmbedded;
             BundledContentHolder.NetworkType desiredNetworkType = isEmbedded
                 ? BundledContentHolder.NetworkType.Local
                 : BasisNetworkConnection.LocalPlayerIsConnected
-                    ? BundledContentHolder.NetworkType.Synchronized
+                    ? BundledContentHolder.NetworkType.Networked
                     : BundledContentHolder.NetworkType.Local;
             bool ephemeral = false;  // the persistence behavior of the item
             BasisBundleConnector.BasisMetaData basisMetaData; // grab the meta data
@@ -1378,7 +1378,8 @@ namespace Basis.BasisUI
         {
             [BundledContentHolder.NetworkType.Local] = "Only Me",
             [BundledContentHolder.NetworkType.Networked] = "Everyone (Instant)",
-            [BundledContentHolder.NetworkType.Synchronized] = "Everyone (Wait & Spawn Together)",
+            // TODO: Re-enable once synchronized loading is fully working (late joiner + prop unload bugs)
+            // [BundledContentHolder.NetworkType.Synchronized] = "Everyone (Wait & Spawn Together)",
         };
 
         private static string GetNetworkTypeDisplayName(BundledContentHolder.NetworkType networkType)
