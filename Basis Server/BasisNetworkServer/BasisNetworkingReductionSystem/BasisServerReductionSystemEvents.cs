@@ -66,9 +66,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Outbound sequence stamped into pre-serialized data (increments per new avatar update)
         public byte OutboundSequence;
 
-        // RTT baseline for congestion detection (exponential moving average, updated per tick)
-        public float BaselineRtt;
-
         // Pre-serialized keyframe bytes per quality [PlayerID:2][interval_placeholder:1][sequence:1][quality:1][array:N][additionalSize:1]
         // The interval byte at offset 2 is filled per-recipient in the send loop.
         public byte[][] SerializedKeyframe = new byte[4][];
@@ -386,57 +383,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 var stateI = state;
                 var peer = stateI.Peer;
 
-                // RTT-based congestion detection single field read, no method call overhead
-                int rtt = peer.RoundTripTime;
-                float baseline = stateI.BaselineRtt;
-                if (baseline < 1f)
-                {
-                    baseline = rtt;
-                }
-                else
-                {
-                    baseline += (rtt - baseline) * 0.05f;
-                }
-
-                stateI.BaselineRtt = baseline;
-
-                // excess: how far above the smoothed baseline (clamped non-negative)
-                float excess = rtt - baseline;
-                if (excess < 0f)
-                {
-                    excess = 0f;
-                }
-
-                // Severe congestion  skip this peer entirely
-                if (rtt > 400 || excess > 150f)
-                {
-                    return;
-                }
-
-                // Graduated quality cap: absolute RTT floor + relative spike detection
-                int maxQi;
-                int intervalMultiplier;
-                if (rtt > 300 || excess > 100f)
-                {
-                    maxQi = 0;            // force VeryLow
-                    intervalMultiplier = 2; // double intervals
-                }
-                else if (rtt > 200 || excess > 60f)
-                {
-                    maxQi = 1;            // cap at Low
-                    intervalMultiplier = 1;
-                }
-                else if (rtt > 120 || excess > 30f)
-                {
-                    maxQi = 2;            // cap at Medium
-                    intervalMultiplier = 1;
-                }
-                else
-                {
-                    maxQi = 3;            // normal quality
-                    intervalMultiplier = 1;
-                }
-
                 var tracking = stateI.PeerTracking;
                 if (tracking == null)
                 {
@@ -497,7 +443,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                     // 4. Full interval check with distance
                     CalculateIntervalFromDistanceSq(distSq, out byte startAtZeroInterval, out int actualInterval);
-                    long required = (long)((actualInterval * intervalMultiplier) * MsToTick);
+                    long required = (long)((actualInterval) * MsToTick);
 
                     if (elapsed < required)
                     {
@@ -505,7 +451,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     }
 
                     // 5. Quality + send
-                    int qi = Math.Min(GetQualityIndex(distSq), maxQi);
+                    int qi = GetQualityIndex(distSq);
 
                     PlayerState stateJ = activeCopy[index].state;
 
