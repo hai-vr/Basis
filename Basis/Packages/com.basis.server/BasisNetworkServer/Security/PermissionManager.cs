@@ -13,8 +13,14 @@ namespace BasisPermissions
         public const string All = "*";
         public const string ServerStats = "basis.server.stats";
 
-        public const string ResourceLoad = "basis.resource.load";
-        public const string ResourceUnload = "basis.resource.unload";
+        public const string ResourceLoadWorld = "basis.resource.load.world";
+        public const string ResourceUnloadWorld = "basis.resource.unload.world";
+
+        public const string ResourceLoadProp = "basis.resource.load.prop";
+        public const string ResourceUnloadProp = "basis.resource.unload.prop";
+
+        public const string ResourceLoadAvatar = "basis.resource.load.avatar";
+        public const string ResourceUnloadAvatar = "basis.resource.unload.avatar";
 
         public const string OwnershipTransfer = "basis.ownership.transfer";
         public const string OwnershipRemove = "basis.ownership.remove";
@@ -650,8 +656,10 @@ namespace BasisPermissions
                     def.Nodes.Add("basis.command.help");
 
                     // ✅ default users should have these
-                    def.Nodes.Add(PermNodes.ResourceLoad);
-                    def.Nodes.Add(PermNodes.ResourceUnload);
+                    def.Nodes.Add(PermNodes.ResourceLoadProp);
+                    def.Nodes.Add(PermNodes.ResourceUnloadProp);
+                    def.Nodes.Add(PermNodes.ResourceLoadAvatar);
+                    def.Nodes.Add(PermNodes.ResourceUnloadAvatar);
                     def.Nodes.Add(PermNodes.OwnershipTransfer);
                     def.Nodes.Add(PermNodes.OwnershipRemove);
                     def.Nodes.Add(PermNodes.OwnershipGet);
@@ -663,8 +671,10 @@ namespace BasisPermissions
                     // ✅ if it already exists, ensure it has them (won't duplicate)
                     var def = _store.Groups["default"];
 
-                    def.Nodes.Add(PermNodes.ResourceLoad);
-                    def.Nodes.Add(PermNodes.ResourceUnload);
+                    def.Nodes.Add(PermNodes.ResourceLoadProp);
+                    def.Nodes.Add(PermNodes.ResourceUnloadProp);
+                    def.Nodes.Add(PermNodes.ResourceLoadAvatar);
+                    def.Nodes.Add(PermNodes.ResourceUnloadAvatar);
                     def.Nodes.Add(PermNodes.OwnershipTransfer);
                     def.Nodes.Add(PermNodes.OwnershipRemove);
                     def.Nodes.Add(PermNodes.OwnershipGet);
@@ -928,11 +938,13 @@ namespace BasisPermissions
                 // Optional defaults if file was empty/nonexistent
                 Manager.EnsureDefaults();
             }
-
-            // Example: Gate an action given a uuid and perm node
             public static bool HasRequirement(string uuid, string permNode)
             {
                 return Manager.Has(uuid, permNode);
+            }
+            public static bool HasValidRequirement(string uuid, string permNode)
+            {
+                return Manager.Has(uuid, permNode) || Manager.Has(uuid, PermNodes.All);
             }
         }
     }

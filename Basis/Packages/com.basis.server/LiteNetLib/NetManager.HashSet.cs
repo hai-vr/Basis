@@ -64,15 +64,14 @@ namespace LiteNetLib
         private int _lastIndex;
         private int _freeList = -1;
         private NetPeer[] _peersArray = new NetPeer[32];
-        private SpinLock _peersLock = new SpinLock(false);
+        private readonly ReaderWriterLockSlim _peersLock = new ReaderWriterLockSlim();
         private volatile NetPeer _headPeer;
 
         private void ClearPeerSet()
         {
-            bool lockTaken = false;
+            _peersLock.EnterWriteLock();
             try
             {
-                _peersLock.Enter(ref lockTaken);
                 _headPeer = null;
                 if (_lastIndex > 0)
                 {
@@ -86,7 +85,7 @@ namespace LiteNetLib
             }
             finally
             {
-                if (lockTaken) _peersLock.Exit(false);
+                _peersLock.ExitWriteLock();
             }
         }
 
@@ -138,10 +137,9 @@ namespace LiteNetLib
                 NetDebug.WriteError($"Add peer null: {peer}");
                 return;
             }
-            bool lockTaken = false;
+            _peersLock.EnterWriteLock();
             try
             {
-                _peersLock.Enter(ref lockTaken);
                 if (_headPeer != null)
                 {
                     peer.NextPeer = _headPeer;
@@ -160,17 +158,16 @@ namespace LiteNetLib
             }
             finally
             {
-                if (lockTaken) _peersLock.Exit(false);
+                _peersLock.ExitWriteLock();
             }
         }
 
         private void RemovePeer(NetPeer peer, bool enableLock)
         {
-            bool lockTaken = false;
             try
             {
                 if (enableLock)
-                    _peersLock.Enter(ref lockTaken);
+                    _peersLock.EnterWriteLock();
                 if (!RemovePeerFromSet(peer))
                     return;
                 if (peer == _headPeer)
@@ -187,7 +184,7 @@ namespace LiteNetLib
             }
             finally
             {
-                if (lockTaken) _peersLock.Exit(false);
+                if (enableLock) _peersLock.ExitWriteLock();
             }
         }
 
@@ -236,10 +233,9 @@ namespace LiteNetLib
 #else
                 int hashCode = endPoint.GetHashCode() & Lower31BitMask;
 #endif
-                bool lockTaken = false;
+                _peersLock.EnterReadLock();
                 try
                 {
-                    _peersLock.Enter(ref lockTaken);
                     for (int i = _buckets[hashCode % _buckets.Length] - 1; i >= 0; i = _slots[i].Next)
                     {
                         if (_slots[i].HashCode == hashCode && _slots[i].Value.Equals(endPoint))
@@ -251,7 +247,7 @@ namespace LiteNetLib
                 }
                 finally
                 {
-                    if (lockTaken) _peersLock.Exit(false);
+                    _peersLock.ExitReadLock();
                 }
             }
             actualValue = null;
@@ -264,10 +260,9 @@ namespace LiteNetLib
             if (_buckets != null)
             {
                 int hashCode = saddr.GetHashCode() & Lower31BitMask;
-                bool lockTaken = false;
+                _peersLock.EnterReadLock();
                 try
                 {
-                    _peersLock.Enter(ref lockTaken);
                     for (int i = _buckets[hashCode % _buckets.Length] - 1; i >= 0; i = _slots[i].Next)
                     {
                         if (_slots[i].HashCode == hashCode && _slots[i].Value.Serialize().Equals(saddr))
@@ -279,7 +274,7 @@ namespace LiteNetLib
                 }
                 finally
                 {
-                    if (lockTaken) _peersLock.Exit(false);
+                    _peersLock.ExitReadLock();
                 }
             }
             actualValue = null;
