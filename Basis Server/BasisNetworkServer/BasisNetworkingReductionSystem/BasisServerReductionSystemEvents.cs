@@ -230,7 +230,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 //Phase 3: Send loop
                 long now = Stopwatch.GetTimestamp();
                 UpdateCommunicationAndDistances(now);
-                if (profiling) { BSRProfiler.updateTicks += Stopwatch.GetTimestamp() - phaseTick; phaseTick = Stopwatch.GetTimestamp(); }
+                if (profiling)
+                {
+                    BSRProfiler.updateTicks += Stopwatch.GetTimestamp() - phaseTick; phaseTick = Stopwatch.GetTimestamp();
+                }
 
                 //Phase 4: Network I/O
                 BasisNetworkPIPCamera.UpdatePIPPositions(now);
