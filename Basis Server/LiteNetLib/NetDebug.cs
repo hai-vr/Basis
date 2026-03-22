@@ -40,19 +40,9 @@ namespace LiteNetLib
     public static class NetDebug
     {
         public static INetLogger Logger = null;
-
-        /// <summary>
-        /// When false, all logging is suppressed and callers can skip string formatting.
-        /// Defaults to true.
-        /// </summary>
-        public static bool LogEnabled = true;
-
         private static readonly object DebugLogLock = new object();
         private static void WriteLogic(NetLogLevel logLevel, string str, params object[] args)
         {
-            if (!LogEnabled)
-                return;
-
             lock (DebugLogLock)
             {
                 if (Logger == null)

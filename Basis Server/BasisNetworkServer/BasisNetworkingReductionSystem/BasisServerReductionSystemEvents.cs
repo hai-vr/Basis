@@ -739,8 +739,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 if (isHighQuality)
                 {
                     // Check if muscles+tail changed (skip expensive bit repacking if only position moved).
+                    // ReferenceEquals guard: QueuedMessagePool preserves byte arrays for reuse,
+                    // so prevArray and high.array can be the same object (pool handed back the
+                    // same buffer). Comparing an array with itself always yields "equal", which
+                    // would permanently freeze rotation+muscles in lower quality buffers.
                     int muscleAndTailBytes = HighMuscleAndTailBytes;
                     bool musclesOrTailChanged = prevArray == null
+                        || ReferenceEquals(prevArray, high.array)
                         || prevArray.Length != high.array.Length
                         || !high.array.AsSpan(WritePosition, muscleAndTailBytes)
                             .SequenceEqual(prevArray.AsSpan(WritePosition, muscleAndTailBytes));

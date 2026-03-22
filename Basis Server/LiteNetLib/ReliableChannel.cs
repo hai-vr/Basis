@@ -41,6 +41,8 @@ namespace LiteNetLib
                 return true;
             }
 
+            public bool IsEmpty => _packet == null;
+
             public bool Clear(NetPeer peer)
             {
                 if (_packet != null)
@@ -143,7 +145,7 @@ namespace LiteNetLib
                     int currentBit = pendingIdx % BitsInByte;
                     if ((acksData[currentByte] & (1 << currentBit)) == 0)
                     {
-                        if (Peer.NetManager.EnableStatistics)
+                        if (Peer.NetManager.EnableStatistics && !_pendingPackets[pendingIdx].IsEmpty)
                         {
                             Peer.Statistics.IncrementPacketLoss();
                             Peer.NetManager.Statistics.IncrementPacketLoss();

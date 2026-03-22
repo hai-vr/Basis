@@ -61,7 +61,7 @@ namespace LiteNetLib
         private float _pingSendTimer;
         private float _rttResetTimer;
         private readonly Stopwatch _pingTimer = new Stopwatch();
-        private volatile float _timeSinceLastPacket;
+        private float _timeSinceLastPacket;
         private long _remoteDelta;
 
         //Common
@@ -1428,7 +1428,13 @@ namespace LiteNetLib
 
         internal void Update(float deltaTime)
         {
-            _timeSinceLastPacket = _timeSinceLastPacket + deltaTime;
+            //atomic increment: CAS loop to avoid racing with Interlocked.Exchange on receive thread
+            float original, updated;
+            do
+            {
+                original = _timeSinceLastPacket;
+                updated = original + deltaTime;
+            } while (Interlocked.CompareExchange(ref _timeSinceLastPacket, updated, original) != original);
             switch (_connectionState)
             {
                 case ConnectionState.Connected:

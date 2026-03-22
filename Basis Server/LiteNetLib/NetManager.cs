@@ -535,10 +535,9 @@ namespace LiteNetLib
                 case NetEvent.EType.PeerAddressChanged:
                     IPEndPoint previousAddress = null;
                     {
-                        bool lockTaken = false;
+                        _peersLock.EnterWriteLock();
                         try
                         {
-                            _peersLock.Enter(ref lockTaken);
                             if (ContainsPeer(evt.Peer))
                             {
                                 RemovePeerFromSet(evt.Peer);
@@ -549,7 +548,7 @@ namespace LiteNetLib
                         }
                         finally
                         {
-                            if (lockTaken) _peersLock.Exit(false);
+                            _peersLock.ExitWriteLock();
                         }
                     }
                     if (previousAddress != null && _peerAddressChangedListener != null)
@@ -592,12 +591,11 @@ namespace LiteNetLib
                     elapsed = elapsed <= 0.0f ? 0.001f : elapsed;
                     stopwatch.Restart();
 
-                    // 1. Snapshot peers under lock (reuse pre-allocated list)
+                    // 1. Snapshot peers under read lock (reuse pre-allocated list)
                     {
-                        bool lockTaken = false;
+                        _peersLock.EnterReadLock();
                         try
                         {
-                            _peersLock.Enter(ref lockTaken);
                             _updateSnapshot.Clear();
                             for (var netPeer = _headPeer; netPeer != null; netPeer = netPeer.NextPeer)
                             {
@@ -606,7 +604,7 @@ namespace LiteNetLib
                         }
                         finally
                         {
-                            if (lockTaken) _peersLock.Exit(false);
+                            _peersLock.ExitReadLock();
                         }
                     }
 
@@ -624,13 +622,12 @@ namespace LiteNetLib
                         }
                     });
 
-                    // 3. Remove peers under lock
+                    // 3. Remove peers under write lock
                     if (!_peersToRemoveQueue.IsEmpty)
                     {
-                        bool lockTaken = false;
+                        _peersLock.EnterWriteLock();
                         try
                         {
-                            _peersLock.Enter(ref lockTaken);
                             while (_peersToRemoveQueue.TryDequeue(out var peer))
                             {
                                 RemovePeer(peer, false);
@@ -638,7 +635,7 @@ namespace LiteNetLib
                         }
                         finally
                         {
-                            if (lockTaken) _peersLock.Exit(false);
+                            _peersLock.ExitWriteLock();
                         }
                     }
 
@@ -723,8 +720,9 @@ namespace LiteNetLib
             if (!_manualMode)
                 return;
 
-            for (var netPeer = _headPeer; netPeer != null; netPeer = netPeer.NextPeer)
+            for (var netPeer = _headPeer; netPeer != null;)
             {
+                var next = netPeer.NextPeer;
                 if (netPeer.ConnectionState == ConnectionState.Disconnected && netPeer.TimeSinceLastPacket > DisconnectTimeout)
                 {
                     RemovePeer(netPeer, false);
@@ -733,6 +731,7 @@ namespace LiteNetLib
                 {
                     netPeer.Update(elapsedMilliseconds);
                 }
+                netPeer = next;
             }
             ProcessNtpRequests(elapsedMilliseconds);
         }
@@ -1031,15 +1030,14 @@ namespace LiteNetLib
                             {
                                 NetPeer peer;
                                 {
-                                    bool lockTaken = false;
+                                    _peersLock.EnterReadLock();
                                     try
                                     {
-                                        _peersLock.Enter(ref lockTaken);
                                         peer = _peersArray[remoteData.PeerId];
                                     }
                                     finally
                                     {
-                                        if (lockTaken) _peersLock.Exit(false);
+                                        _peersLock.ExitReadLock();
                                     }
                                 }
                                 if (peer != null &&
@@ -1223,16 +1221,15 @@ namespace LiteNetLib
         /// <param name="options">Send options (reliable, unreliable, etc.)</param>
         public void SendToAll(byte[] data, int start, int length, byte channelNumber, DeliveryMethod options)
         {
-            bool lockTaken = false;
+            _peersLock.EnterReadLock();
             try
             {
-                _peersLock.Enter(ref lockTaken);
                 for (var netPeer = _headPeer; netPeer != null; netPeer = netPeer.NextPeer)
                     netPeer.Send(data, start, length, channelNumber, options);
             }
             finally
             {
-                if (lockTaken) _peersLock.Exit(false);
+                _peersLock.ExitReadLock();
             }
         }
 
@@ -1306,10 +1303,9 @@ namespace LiteNetLib
         /// <param name="excludePeer">Excluded peer</param>
         public void SendToAll(byte[] data, int start, int length, byte channelNumber, DeliveryMethod options, NetPeer excludePeer)
         {
-            bool lockTaken = false;
+            _peersLock.EnterReadLock();
             try
             {
-                _peersLock.Enter(ref lockTaken);
                 for (var netPeer = _headPeer; netPeer != null; netPeer = netPeer.NextPeer)
                 {
                     if (netPeer != excludePeer)
@@ -1318,7 +1314,7 @@ namespace LiteNetLib
             }
             finally
             {
-                if (lockTaken) _peersLock.Exit(false);
+                _peersLock.ExitReadLock();
             }
         }
         /// <summary>
@@ -1351,10 +1347,9 @@ namespace LiteNetLib
         /// <param name="excludePeer">Excluded peer</param>
         public void SendToAll(ReadOnlySpan<byte> data, byte channelNumber, DeliveryMethod options, NetPeer excludePeer)
         {
-            bool lockTaken = false;
+            _peersLock.EnterReadLock();
             try
             {
-                _peersLock.Enter(ref lockTaken);
                 for (var netPeer = _headPeer; netPeer != null; netPeer = netPeer.NextPeer)
                 {
                     if (netPeer != excludePeer)
@@ -1363,7 +1358,7 @@ namespace LiteNetLib
             }
             finally
             {
-                if (lockTaken) _peersLock.Exit(false);
+                _peersLock.ExitReadLock();
             }
         }
 
@@ -1560,8 +1555,24 @@ namespace LiteNetLib
                 ProcessEvent(pendingEvent);
                 pendingEvent = next;
                 counter++;
-                if (counter == maxProcessedEvents)
+                if (maxProcessedEvents > 0 && counter == maxProcessedEvents)
                     break;
+            }
+
+            //re-attach unprocessed events so they are not lost
+            if (pendingEvent != null)
+            {
+                lock (_eventLock)
+                {
+                    var remainingTail = pendingEvent;
+                    while (remainingTail.Next != null)
+                        remainingTail = remainingTail.Next;
+
+                    remainingTail.Next = _pendingEventHead;
+                    _pendingEventHead = pendingEvent;
+                    if (_pendingEventTail == null)
+                        _pendingEventTail = remainingTail;
+                }
             }
         }
 
@@ -1758,10 +1769,9 @@ namespace LiteNetLib
         public int GetPeersCount(ConnectionState peerState)
         {
             int count = 0;
-            bool lockTaken = false;
+            _peersLock.EnterReadLock();
             try
             {
-                _peersLock.Enter(ref lockTaken);
                 for (var netPeer = _headPeer; netPeer != null; netPeer = netPeer.NextPeer)
                 {
                     if ((netPeer.ConnectionState & peerState) != 0)
@@ -1770,7 +1780,7 @@ namespace LiteNetLib
             }
             finally
             {
-                if (lockTaken) _peersLock.Exit(false);
+                _peersLock.ExitReadLock();
             }
             return count;
         }
@@ -1783,10 +1793,9 @@ namespace LiteNetLib
         public void GetPeersNonAlloc(List<NetPeer> peers, ConnectionState peerState)
         {
             peers.Clear();
-            bool lockTaken = false;
+            _peersLock.EnterReadLock();
             try
             {
-                _peersLock.Enter(ref lockTaken);
                 for (var netPeer = _headPeer; netPeer != null; netPeer = netPeer.NextPeer)
                 {
                     if ((netPeer.ConnectionState & peerState) != 0)
@@ -1795,7 +1804,7 @@ namespace LiteNetLib
             }
             finally
             {
-                if (lockTaken) _peersLock.Exit(false);
+                _peersLock.ExitReadLock();
             }
         }
 
@@ -1816,10 +1825,9 @@ namespace LiteNetLib
         public void DisconnectAll(byte[] data, int start, int count)
         {
             //Send disconnect packets
-            bool lockTaken = false;
+            _peersLock.EnterReadLock();
             try
             {
-                _peersLock.Enter(ref lockTaken);
                 for (var netPeer = _headPeer; netPeer != null; netPeer = netPeer.NextPeer)
                 {
                     DisconnectPeer(
@@ -1835,7 +1843,7 @@ namespace LiteNetLib
             }
             finally
             {
-                if (lockTaken) _peersLock.Exit(false);
+                _peersLock.ExitReadLock();
             }
         }
 
