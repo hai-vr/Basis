@@ -15,47 +15,40 @@ public static class BasisNetworkMessageProcessor
 {
     public static void ProcessMessage(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
     {
+        BasisNetworkStatistics.RecordInbound(channel, reader.AvailableBytes);
         try
         {
             switch (channel)
             {
                 case BasisNetworkCommons.ShoutVoiceChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ShoutVoiceChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.HandleShoutVoiceMessage(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.AuthIdentityChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AuthIdentityChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.HandleAuth(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.PlayerAvatarChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.PlayerAvatarChannel, reader.AvailableBytes);
                     BasisServerReductionSystemEvents.HandleAvatarMovement(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.VoiceChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.VoiceChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.HandleVoiceMessage(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.AvatarChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AvatarChannel, reader.AvailableBytes);
                     BasisNetworkingGeneric.HandleAvatar(reader, deliveryMethod, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.SceneChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.SceneChannel, reader.AvailableBytes);
                     BasisNetworkingGeneric.HandleScene(reader, deliveryMethod, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.AvatarChangeMessageChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AvatarChangeMessageChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.SendAvatarMessageToClients(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.ChangeCurrentOwnerRequestChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ChangeCurrentOwnerRequestChannel, reader.AvailableBytes);
                     HandlePermitted(peer, reader, PermNodes.OwnershipTransfer, () =>
                     {
                         BasisNetworkOwnership.OwnershipTransfer(reader, peer); // recycles inside
@@ -63,7 +56,6 @@ public static class BasisNetworkMessageProcessor
                     break;
 
                 case BasisNetworkCommons.GetCurrentOwnerRequestChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.GetCurrentOwnerRequestChannel, reader.AvailableBytes);
                     HandlePermitted(peer, reader, PermNodes.OwnershipGet, () =>
                     {
                         BasisNetworkOwnership.OwnershipResponse(reader, peer); // recycles inside
@@ -71,7 +63,6 @@ public static class BasisNetworkMessageProcessor
                     break;
 
                 case BasisNetworkCommons.RemoveCurrentOwnerRequestChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.RemoveCurrentOwnerRequestChannel, reader.AvailableBytes);
                     HandlePermitted(peer, reader, PermNodes.OwnershipRemove, () =>
                     {
                         BasisNetworkOwnership.RemoveOwnership(reader, peer); // recycles inside
@@ -79,17 +70,14 @@ public static class BasisNetworkMessageProcessor
                     break;
 
                 case BasisNetworkCommons.AudioRecipientsChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AudioRecipientsChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.UpdateVoiceReceivers(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.netIDAssignChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.netIDAssignChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.NetIDAssign(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.LoadResourceChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.LoadResourceChannel, reader.AvailableBytes);
                     if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string LRuuid))
                     {
                         BNL.LogError($"User UUID not found for peer: {peer}");
@@ -100,7 +88,6 @@ public static class BasisNetworkMessageProcessor
                     break;
 
                 case BasisNetworkCommons.UnloadResourceChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.UnloadResourceChannel, reader.AvailableBytes);
                     if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string URCuuid))
                     {
                         BNL.LogError($"User UUID not found for peer: {peer}");
@@ -112,38 +99,31 @@ public static class BasisNetworkMessageProcessor
                     break;
 
                 case BasisNetworkCommons.AdminChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.AdminChannel, reader.AvailableBytes);
                     BasisPlayerModeration.OnAdminMessage(peer, reader); // recycles inside
                     break;
 
                 case BasisNetworkCommons.ContentShareChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ContentShareChannel, reader.AvailableBytes);
                     BasisNetworkContentShare.HandleContentShareDrop(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.ContentShareCleanupChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ContentShareCleanupChannel, reader.AvailableBytes);
                     BasisNetworkContentShare.HandleContentShareCleanup(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.ServerBoundChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ServerBoundChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.OnServerReceived?.Invoke(peer, reader, deliveryMethod);
                     reader.Recycle(); // recycles here
                     break;
 
                 case BasisNetworkCommons.StoreDatabaseChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.StoreDatabaseChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.HandleStoreDatabase(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.RequestStoreDatabaseChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.RequestStoreDatabaseChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.HandleRequestStoreDatabase(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.ServerIsAdminChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ServerIsAdminChannel, reader.AvailableBytes);
                     BasisPlayerModeration.CheckIsAdmin(peer);
                     reader.Recycle(); // recycles here
                     break;
@@ -158,7 +138,6 @@ public static class BasisNetworkMessageProcessor
                         {
                             BNL.Log("requested Server StatisticsChannel");
                             BasisNetworkStatistics.IsRecordingData = true;
-                            BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ServerStatisticsChannel, reader.AvailableBytes);
 
                             ServerStatisticMessage serverStatistic = new ServerStatisticMessage
                             {
@@ -182,27 +161,22 @@ public static class BasisNetworkMessageProcessor
                     }
 
                 case BasisNetworkCommons.ChatChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.ChatChannel, reader.AvailableBytes);
                     BasisNetworkChat.HandleChatMessage(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.CameraPIPStateChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.CameraPIPStateChannel, reader.AvailableBytes);
                     BasisNetworkPIPCamera.HandlePIPStateChange(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.CameraPIPPositionChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.CameraPIPPositionChannel, reader.AvailableBytes);
                     BasisNetworkPIPCamera.HandlePIPPositionUpdate(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.PreloadReadyChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.PreloadReadyChannel, reader.AvailableBytes);
                     BasisServerHandleEvents.HandlePreloadReady(reader, peer); // recycles inside
                     break;
 
                 case BasisNetworkCommons.EventsChannel:
-                    BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.EventsChannel, reader.AvailableBytes);
                     BasisNetworkEvents.HandleEvent(reader, peer); // reads event type byte, routes, recycles inside
                     break;
 

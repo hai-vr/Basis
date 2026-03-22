@@ -15,7 +15,7 @@ namespace Basis.Network.Core
         /// when adding a new message we need to increase this
         /// will function up to 64
         /// </summary>
-        public const byte TotalChannels = 42;
+        public const byte TotalChannels = 64;
         /// <summary>
         /// Shout mode voice channel. Non-spatialized audio broadcast to all clients.
         /// </summary>
