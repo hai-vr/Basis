@@ -90,12 +90,25 @@ public static class BasisNetworkMessageProcessor
 
                 case BasisNetworkCommons.LoadResourceChannel:
                     BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.LoadResourceChannel, reader.AvailableBytes);
-                    HandleAdminResourceAction(peer, reader, BasisServerHandleEvents.LoadResource, PermNodes.ResourceLoad); // recycles inside or here
+                    if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string LRuuid))
+                    {
+                        BNL.LogError($"User UUID not found for peer: {peer}");
+                        reader.Recycle();
+                        return;
+                    }
+                    BasisServerHandleEvents.LoadResource(reader, peer, LRuuid);
                     break;
 
                 case BasisNetworkCommons.UnloadResourceChannel:
                     BasisNetworkStatistics.RecordInbound(BasisNetworkCommons.UnloadResourceChannel, reader.AvailableBytes);
-                    HandleAdminResourceAction(peer, reader, BasisServerHandleEvents.UnloadResource, PermNodes.ResourceUnload); // recycles inside or here
+                    if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string URCuuid))
+                    {
+                        BNL.LogError($"User UUID not found for peer: {peer}");
+                        reader.Recycle();
+                        return;
+                    }
+                    BasisServerHandleEvents.UnloadResource(reader, peer, URCuuid);
+                   // HandleAdminResourceAction(peer, reader, BasisServerHandleEvents.UnloadResource, PermNodes.ResourceUnload); // recycles inside or here
                     break;
 
                 case BasisNetworkCommons.AdminChannel:
@@ -238,7 +251,7 @@ public static class BasisNetworkMessageProcessor
         }
 
         // Allow if they have the specific node, or admin, or global wildcard
-        if (PermissionIntegration.HasRequirement(uuid, permNode) || PermissionIntegration.HasRequirement(uuid, PermNodes.All))
+        if (PermissionIntegration.HasValidRequirement(uuid, permNode))
         {
             return true;
         }

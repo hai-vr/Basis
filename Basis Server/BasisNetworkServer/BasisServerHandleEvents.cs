@@ -3,10 +3,11 @@ using Basis.Network.Server.Generic;
 using Basis.Network.Server.Ownership;
 using BasisNetworkCore;
 using BasisNetworkCore.Pooling;
-using BasisNetworkServer.BasisNetworking;
 using BasisNetworkServer;
+using BasisNetworkServer.BasisNetworking;
 using BasisNetworkServer.BasisNetworkingReductionSystem;
 using BasisNetworkServer.Security;
+using BasisPermissions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +15,7 @@ using System.Net;
 using System.Net.Sockets;
 using static Basis.Network.Core.Serializable.SerializableBasis;
 using static BasisNetworkCore.Serializable.SerializableBasis;
+using static BasisPermissions.PermissionManager;
 using static SerializableBasis;
 
 namespace BasisServerHandle
@@ -624,6 +626,21 @@ namespace BasisServerHandle
             LocalLoadResource.UUIDOfCreator = UUID;
             Reader.Recycle();
 
+            switch (LocalLoadResource.Mode)
+            {
+                case 0:
+                    if (PermissionIntegration.HasValidRequirement(UUID, PermNodes.ResourceLoadProp) == false)
+                    {
+                        return;
+                    }
+                    break;
+                case 1:
+                    if (PermissionIntegration.HasValidRequirement(UUID, PermNodes.ResourceLoadWorld) == false)
+                    {
+                        return;
+                    }
+                    break;
+            }
             // Route based on load strategy
             switch (LocalLoadResource.LoadStrategy)
             {
@@ -647,6 +664,23 @@ namespace BasisServerHandle
             UnLoadResource UnLoadResource = new UnLoadResource();
             UnLoadResource.Deserialize(Reader);
             Reader.Recycle();
+
+            switch (UnLoadResource.Mode)
+            {
+                case 0:
+                    if (PermissionIntegration.HasValidRequirement(UUID, PermNodes.ResourceUnloadProp) == false)
+                    {
+                        return;
+                    }
+                    break;
+                case 1:
+                    if (PermissionIntegration.HasValidRequirement(UUID, PermNodes.ResourceUnloadWorld) == false)
+                    {
+                        return;
+                    }
+                    break;
+            }
+
             //returns a message with the ushort back to the client, or it sends it to everyone if its new.
             BasisNetworkResourceManagement.UnloadResource(UnLoadResource, Peer);
             //we need to convert the string int a  ushort.
