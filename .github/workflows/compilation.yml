@@ -82,6 +82,27 @@ jobs:
       - name: "Remove Meta XR Core when building for Linux"
         if: matrix.targetPlatform == 'StandaloneLinux64'
         run: rm -rf ${projectPath}/Packages/com.meta.xr.sdk.core
+      # Fix docker not ready on windows
+      - name: Ensure Docker service is running
+        if: matrix.buildPlatform == 'windows-2022'
+        shell: powershell
+        run: |
+          Start-Service docker
+      - name: Wait for Docker to be ready
+        if: matrix.buildPlatform == 'windows-2022'
+        shell: powershell
+        run: |
+          $maxAttempts = 40
+          for ($i=0; $i -lt $maxAttempts; $i++) {
+            docker info > $null 2>&1
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Docker is ready"
+              exit 0
+            }
+            Write-Host "Waiting for Docker..."
+            Start-Sleep -Seconds 3
+          }
+          throw "Docker did not become ready in time"
       - name: "Build Unity project"
         timeout-minutes: 100
         uses: BasisVR/unity-builder@main
@@ -178,7 +199,7 @@ jobs:
   build-server:
     name: Build server on Ubuntu
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -227,7 +248,7 @@ jobs:
   compile-unitypackages:
     name: Build .unitypackage files
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - name: "Checkout repository"
         timeout-minutes: 5
