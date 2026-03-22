@@ -88,13 +88,6 @@ namespace Basis.BasisUI
                 Pass = "1717b718e26eabb7d9ae1a8e2046f17d90ed4e81a548aea28e05a589ccae52e5",
                 EmbeddedSettings = EmbeddedSettings.BEEUrl,
             },
-            new ItemKey
-            {
-                Mode = BundledContentHolder.Mode.Avatar,
-                Url = "https://BasisFramework.b-cdn.net/Version2/Avatars/Public/leona/leona_noft/a95144717c494123a2998692dc261c2d20260226.BEE",
-                Pass = "f76d53b10777997fbed8600f32687e9f5bfcc4d27ff22643b9b59074e916abe9",
-                EmbeddedSettings = EmbeddedSettings.BEEUrl,
-            },
         };
 
         public static string GetAddressableSpriteForEmbeddedItem(ItemKey item)
