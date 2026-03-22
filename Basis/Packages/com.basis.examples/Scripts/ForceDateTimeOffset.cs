@@ -1,3 +1,6 @@
+using System;
+using UnityEngine;
+
 class ForceDateTimeOffset : MonoBehaviour
 {
     void Start()
