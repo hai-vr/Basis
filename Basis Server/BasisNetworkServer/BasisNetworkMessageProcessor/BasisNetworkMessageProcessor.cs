@@ -220,27 +220,6 @@ public static class BasisNetworkMessageProcessor
             reader.Recycle();
         }
     }
-
-    private static void HandleAdminResourceAction(NetPeer peer, NetPacketReader reader, Action<NetPacketReader, NetPeer,string> action, string permNode)
-    {
-        if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid))
-        {
-            BNL.LogError($"User UUID not found for peer: {peer}");
-            reader.Recycle();
-            return;
-        }
-
-        if (PermissionIntegration.HasRequirement(uuid, permNode) ||
-            PermissionIntegration.HasRequirement(uuid, PermNodes.All))
-        {
-            action(reader, peer, uuid); // recycles inside handler
-        }
-        else
-        {
-            BNL.LogError($"Unauthorized access attempt by UUID: {uuid} for {permNode}");
-            reader.Recycle();
-        }
-    }
     private static bool TryWithPermission(NetPeer peer, NetPacketReader reader, string permNode, out string uuid)
     {
         if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out uuid))
