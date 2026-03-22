@@ -18,7 +18,6 @@ namespace Basis.Network.Core
         public const byte TotalChannels = 42;
         /// <summary>
         /// Shout mode voice channel. Non-spatialized audio broadcast to all clients.
-        /// Reuses the formerly deprecated channel 0.
         /// </summary>
         public const byte ShoutVoiceChannel = 0;
         /// <summary>
@@ -138,6 +137,7 @@ namespace Basis.Network.Core
         /// PIP camera position updates (sequenced, position only - no rotation).
         /// </summary>
         public const byte CameraPIPPositionChannel = 29;
+
         // ── Per-quality avatar channels (server→client) ──────────────────
         // Layout: quality * 2 + hasAdditional
         //   30 = VeryLow              31 = VeryLow + Additional
@@ -152,6 +152,7 @@ namespace Basis.Network.Core
         public const byte PlayerAvatarMediumAdditionalChannel = 35;
         public const byte PlayerAvatarHighChannel = 36;
         public const byte PlayerAvatarHighAdditionalChannel = 37;
+
         /// <summary>
         /// Client tells server it has finished preloading a resource (ready or failed).
         /// </summary>

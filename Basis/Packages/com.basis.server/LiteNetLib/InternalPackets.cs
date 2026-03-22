@@ -24,7 +24,7 @@ namespace LiteNetLib
 
         public static int GetProtocolId(NetPacket packet)
         {
-            return BitConverter.ToInt32(packet.RawData, 1);
+            return FastBitConverter.Read<int>(packet.RawData, 1);
         }
 
         public static NetConnectRequestPacket FromData(NetPacket packet)
@@ -33,10 +33,10 @@ namespace LiteNetLib
                 return null;
 
             //Getting connection time for peer
-            long connectionTime = BitConverter.ToInt64(packet.RawData, 5);
+            long connectionTime = FastBitConverter.Read<long>(packet.RawData, 5);
 
             //Get peer id
-            int peerId = BitConverter.ToInt32(packet.RawData, 13);
+            int peerId = FastBitConverter.Read<int>(packet.RawData, 13);
 
             //Get target address
             int addrSize = packet.RawData[HeaderSize-1];
@@ -106,7 +106,7 @@ namespace LiteNetLib
             if (packet.Size != Size)
                 return null;
 
-            long connectionId = BitConverter.ToInt64(packet.RawData, 1);
+            long connectionId = FastBitConverter.Read<long>(packet.RawData, 1);
 
             //check connect num
             byte connectionNumber = packet.RawData[9];
@@ -119,7 +119,7 @@ namespace LiteNetLib
                 return null;
 
             //get remote peer id
-            int peerId = BitConverter.ToInt32(packet.RawData, 11);
+            int peerId = FastBitConverter.Read<int>(packet.RawData, 11);
             if (peerId < 0)
                 return null;
 

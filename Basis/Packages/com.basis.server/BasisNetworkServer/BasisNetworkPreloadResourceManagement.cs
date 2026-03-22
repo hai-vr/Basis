@@ -154,9 +154,12 @@ public static class BasisNetworkPreloadResourceManagement
 
         var peerSnapshot = NetworkServer.PeerSnapshot;
 
-        // Unload existing scenes through the normal unload path so the server
-        // database and all tracking systems stay in sync
-        UnloadAllSceneResources(peerSnapshot);
+        // Only unload existing scenes when the synchronized resource is itself a scene.
+        // Props (Mode == 0) should never cause scene unloads.
+        if (session.Resource.Mode == 1)
+        {
+            UnloadAllSceneResources(peerSnapshot);
+        }
 
         SpawnPreloadedMessage spawnMsg = new SpawnPreloadedMessage
         {

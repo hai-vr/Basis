@@ -70,6 +70,7 @@ namespace LiteNetLib
         private readonly int _windowSize;
         private const int BitsInByte = 8;
         private readonly byte _id;
+        private readonly NetPacket[] _dequeuedPackets;  // reusable buffer to avoid per-call allocation
 
         public ReliableChannel(NetPeer peer, bool ordered, byte id) : base(peer)
         {
@@ -96,6 +97,7 @@ namespace LiteNetLib
             _remoteSequence = 0;
             _remoteWindowStart = 0;
             _outgoingAcks = new NetPacket(PacketProperty.Ack, (_windowSize - 1) / BitsInByte + 2) {ChannelId = id};
+            _dequeuedPackets = new NetPacket[_windowSize];
         }
 
         //ProcessAck in packet
@@ -180,23 +182,42 @@ namespace LiteNetLib
             long currentTime = DateTime.UtcNow.Ticks;
             bool hasPendingPackets = false;
 
+            // Step 1: Compute how many packets we can accept (window capacity).
+            // _localSeqence is only advanced by this method (which does not run
+            // concurrently with itself), so reading it under _pendingPackets is
+            // safe and the value remains stable until we modify it below.
+            int capacity;
             lock (_pendingPackets)
             {
-                //get packets from queue
+                capacity = _windowSize - NetUtils.RelativeSequenceNumber(_localSeqence, _localWindowStart);
+            }
+
+            // Step 2: Dequeue up to 'capacity' packets under OutgoingQueue lock
+            // only -- no nesting with _pendingPackets.
+            int dequeued = 0;
+            if (capacity > 0)
+            {
                 lock (OutgoingQueue)
                 {
-                    while (OutgoingQueue.Count > 0)
+                    while (dequeued < capacity && OutgoingQueue.Count > 0)
                     {
-                        int relate = NetUtils.RelativeSequenceNumber(_localSeqence, _localWindowStart);
-                        if (relate >= _windowSize)
-                            break;
-
-                        var netPacket = OutgoingQueue.Dequeue();
-                        netPacket.Sequence = (ushort) _localSeqence;
-                        netPacket.ChannelId = _id;
-                        _pendingPackets[_localSeqence % _windowSize].Init(netPacket);
-                        _localSeqence = (_localSeqence + 1) % NetConstants.MaxSequence;
+                        _dequeuedPackets[dequeued++] = OutgoingQueue.Dequeue();
                     }
+                }
+            }
+
+            // Step 3: Assign sequences, init pending slots, and send -- under
+            // _pendingPackets lock only.
+            lock (_pendingPackets)
+            {
+                for (int i = 0; i < dequeued; i++)
+                {
+                    var netPacket = _dequeuedPackets[i];
+                    _dequeuedPackets[i] = null; // clear reference from buffer
+                    netPacket.Sequence = (ushort) _localSeqence;
+                    netPacket.ChannelId = _id;
+                    _pendingPackets[_localSeqence % _windowSize].Init(netPacket);
+                    _localSeqence = (_localSeqence + 1) % NetConstants.MaxSequence;
                 }
 
                 //send
