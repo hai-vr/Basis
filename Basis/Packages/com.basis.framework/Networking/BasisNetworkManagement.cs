@@ -83,6 +83,7 @@ namespace Basis.Scripts.Networking
         /// </summary>
         public static HashSet<string> LocalPermissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        public static Action OnlocalPermissionsChanged;
         /// <summary>
         /// Event fired when an instance of this manager is enabled and initialized.
         /// </summary>

@@ -49,7 +49,7 @@ namespace Basis
             public string Url;              // original spawn URL / key
             public string LoadedNetID;      // what you pass to RequestGameObjectUnLoad
             public string UUIDOfCreator; // reference to the creator of the spawn entity
-            public bool IsAdminLocked; // this determines if the item is admin protected
+            public bool isProtected; // this determines if the item is admin protected
             public bool Persistent;
             public DateTime SpawnedUtc;
             public BasisBundleConnector bundleConnector; // metadata for the spawned entity, assume it to be null when not present.
@@ -171,7 +171,7 @@ namespace Basis
                 Url = url,
                 LoadedNetID = loadedNetId,
                 UUIDOfCreator = creatorUUID,
-                IsAdminLocked = admin,
+                isProtected = admin,
                 Persistent = persistent,
                 SpawnedUtc = DateTime.UtcNow,
                 SpawnMethod = method,

@@ -1,20 +1,21 @@
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Threading.Tasks;
 using Basis.BasisUI.Styling;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.UI.UI_Panels;
+using BasisPermissions;
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using static Basis.BasisUI.PanelButton;
-using static SerializableBasis;
 using static Basis.BasisUI.PanelPasswordField;
 using static Basis.BasisUI.PanelTextField;
+using static SerializableBasis;
 
 namespace Basis.BasisUI
 {
@@ -52,14 +53,14 @@ namespace Basis.BasisUI
         public override void OnReleaseEvent()
         {
             BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
-            BasisNetworkEvents.IsLocalAdmin -= IsLocalAdmin;
+            BasisNetworkManagement.OnlocalPermissionsChanged -= ProtectionValidation;
         }
 
         public override string Title => "Library";
         public override string IconAddress => AddressableAssets.Sprites.Library;
         public override int Order => 1; // after Settings
         public override bool Hidden => false;
-        private static protected bool isUserAdmin = false; // we use this to determine if the user is admin for admin related queries on the library provider
+        private static protected bool IsProtected = false; // we use this to determine if the user is admin for admin related queries on the library provider
         public static BasisMenuPanel panel;
 
         // references to the search query elements
@@ -93,14 +94,9 @@ namespace Basis.BasisUI
             if (BasisMainMenu.ActiveMenuTitle == Title) return;
 
             // ensure admin hooks are here
-            BasisNetworkEvents.IsLocalAdmin -= IsLocalAdmin;
-            BasisNetworkEvents.IsLocalAdmin += IsLocalAdmin;
-
-            // before we build content perform the admin check on opening this menu
-            if(BasisNetworkConnection.LocalPlayerIsConnected)
-            {
-                BasisNetworkEvents.RequestIsAdminCheck();
-            }
+            BasisNetworkManagement.OnlocalPermissionsChanged -= ProtectionValidation;
+            ProtectionValidation();//run through it already
+            BasisNetworkManagement.OnlocalPermissionsChanged += ProtectionValidation;
 
             // this creates our panel
             panel = BasisMainMenu.CreateActiveMenu(
@@ -523,11 +519,6 @@ namespace Basis.BasisUI
                 // this will always be the instantiated tab when we fail to parse the correct page
                 if (_currentPage == Page.Instantiated) // sanity check
                 {
-                    // again perform admin check if they refresh this tab?
-                    if(BasisNetworkConnection.LocalPlayerIsConnected)
-                    {
-                        BasisNetworkEvents.RequestIsAdminCheck();
-                    }
 
                     BasisRuntimeSpawnRegistry.OnRegistryChanged -= OnRegistryChanged;
                     BasisRuntimeSpawnRegistry.OnRegistryChanged += OnRegistryChanged;
@@ -1456,10 +1447,10 @@ namespace Basis.BasisUI
                         await ContentLoader.LoadAvatar(item);
                         break;
                     case BundledContentHolder.Mode.Prop:
-                        await ContentLoader.LoadProp(item, networkType, persistence, isUserAdmin, modifyScale);
+                        await ContentLoader.LoadProp(item, networkType, persistence, IsProtected, modifyScale);
                         break;
                     case BundledContentHolder.Mode.World:
-                        await ContentLoader.LoadWorld(item, networkType, persistence, isUserAdmin);
+                        await ContentLoader.LoadWorld(item, networkType, persistence, IsProtected);
                         break;
                     default:
                         BasisDebug.LogError($"LoadSelectedItem was given an item with an unknown mode of {item.Mode}, cannot determine how to load!");
@@ -1577,7 +1568,7 @@ namespace Basis.BasisUI
                 case LibraryItemTypeFilter.AdminOnly:
                     collections = collections.Where(k =>
                     {
-                        return k.IsAdminLocked == true;
+                        return k.isProtected == true;
                     }).ToList();
                     break;
                 case LibraryItemTypeFilter.PersistentOnly:
@@ -1677,10 +1668,10 @@ namespace Basis.BasisUI
 
         }
 
-        private static void IsLocalAdmin(bool state)
+        private static void ProtectionValidation()
         {
-            isUserAdmin = state;
-            BasisDebug.Log($"LibraryProvider.cs -> IsLocalAdmin(state = {state})");
+            IsProtected = BasisNetworkManagement.LocalPermissions.Contains(PermNodes.protection);
+            BasisDebug.Log($"LibraryProvider.cs -> IsProtected(state = {IsProtected})");
         }
 
         private static void BuildItemsListForInstantiatedObjects(IReadOnlyCollection<BasisRuntimeSpawnRegistry.SpawnInstance> loadedItems, PanelTabPage tab)
@@ -1731,7 +1722,7 @@ namespace Basis.BasisUI
             // PERSISTENCE
 
             // if this list entry is admin show a shield
-            if(itemKey.IsAdminLocked)
+            if(itemKey.isProtected)
             {
                 // create an image for the list entry to show what type of spawn method was used
                 PanelImage adminPanelImage = PanelImage.CreateNew(PanelImage.ImageStyles.SimpleSquare, itemListPanel.TabButtonParent);
@@ -1893,7 +1884,7 @@ namespace Basis.BasisUI
                 if (removeItem.Descriptor.gameObject.TryGetComponent<Button>(out Button removeButtonComponent))
                 {
                     // if the item is embedded only allow an admin to interact
-                    removeButtonComponent.interactable = !itemKey.IsAdminLocked || isUserAdmin;
+                    removeButtonComponent.interactable = !itemKey.isProtected || IsProtected;
                 }
             }
 

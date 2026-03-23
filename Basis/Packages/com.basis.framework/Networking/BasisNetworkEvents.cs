@@ -267,7 +267,7 @@ public static class BasisNetworkEvents
                 BasisLocalPlayer.Instance.DisplayName = SMDM.ClientMetaDataMessage.playerDisplayName;
                 BasisNetworkManagement.ServerMetaDataMessage = SMDM;
                 BasisNetworkManagement.LocalPermissions = SMDM.GetPermissions();
-
+                BasisNetworkManagement.OnlocalPermissionsChanged?.Invoke();
                 break;
             case BasisNetworkCommons.StoreDatabaseChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
@@ -372,8 +372,6 @@ public static class BasisNetworkEvents
                 break;
         }
     }
-    public static Action<bool> IsLocalAdmin;
-
     public static Action<BasisNetworkStatistics.Snapshot> Snapshotdata;
     public static void IncomingData(NetPacketReader Reader)
     {
