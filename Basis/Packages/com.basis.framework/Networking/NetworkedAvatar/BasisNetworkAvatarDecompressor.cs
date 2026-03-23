@@ -158,17 +158,20 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             baseReceiver.EnQueueAvatarBuffer(avatarBuffer);
 
-            // (rest unchanged)
             if (message.AdditionalAvatarDataSize > 0 && message.AdditionalAvatarDatas != null)
             {
                 bool isDifferentAvatar = message.LinkedAvatarIndex != baseReceiver.LastLinkedAvatarIndex;
                 if (isDifferentAvatar) return;
 
+                var behaviours = baseReceiver.NetworkBehaviours;
+                int count = baseReceiver.NetworkBehaviourCount;
+                if (behaviours == null) return;
+
                 for (int Index = 0; Index < message.AdditionalAvatarDataSize; Index++)
                 {
                     AdditionalAvatarData data = message.AdditionalAvatarDatas[Index];
-                    if (data.messageIndex < baseReceiver.NetworkBehaviourCount)
-                        baseReceiver.NetworkBehaviours[data.messageIndex].OnNetworkMessageServerReductionSystem(data.array);
+                    if (data.messageIndex < count && data.messageIndex < behaviours.Length)
+                        behaviours[data.messageIndex].OnNetworkMessageServerReductionSystem(data.array);
                 }
             }
         }

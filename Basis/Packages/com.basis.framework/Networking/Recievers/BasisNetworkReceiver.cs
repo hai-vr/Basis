@@ -454,6 +454,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         public async void ReceiveAvatarChangeRequest(ServerAvatarChangeMessage SACM)
         {
+            LastLinkedAvatarIndex = SACM.clientAvatarChangeMessage.LocalAvatarIndex;
             RemotePlayer.CACM = SACM.clientAvatarChangeMessage;
             BasisLoadableBundle bundle = BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(SACM.clientAvatarChangeMessage.byteArray);
             await RemotePlayer.CreateAvatar(SACM.clientAvatarChangeMessage.loadMode, bundle);
