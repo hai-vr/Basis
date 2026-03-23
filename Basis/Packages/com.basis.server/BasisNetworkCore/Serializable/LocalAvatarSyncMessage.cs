@@ -153,7 +153,53 @@ public static partial class SerializableBasis
         }
 
         /// <summary>
-        /// Serialize for the channel-based path (client→server on quality channels).
+        /// Serialize with DataQualityLevel in the payload (initial player creation, non-quality channels).
+        /// </summary>
+        public void Serialize(NetDataWriter writer, BitQuality Quality)
+        {
+            DataQualityLevel = (byte)Quality;
+            if (!TryGetExpectedPayloadLength(DataQualityLevel, out ushort expected))
+            {
+                BNL.LogError($"Serialize invalid quality={Quality} (DataQualityLevel={DataQualityLevel})");
+                writer.Put(DataQualityLevel);
+                writer.Put((byte)0);
+                return;
+            }
+
+            writer.Put(DataQualityLevel);
+
+            if (array == null)
+            {
+                BNL.LogError("array was null!!");
+                writer.Put((byte)0);
+                return;
+            }
+
+            if (array.Length != expected)
+            {
+                array = new byte[expected];
+            }
+
+            writer.Put(array, 0, expected);
+
+            if (AdditionalAvatarDatas == null || AdditionalAvatarDatas.Length == 0 || AdditionalAvatarDatas.Length > 255)
+            {
+                writer.Put((byte)0);
+                return;
+            }
+
+            AdditionalAvatarDataSize = (byte)AdditionalAvatarDatas.Length;
+            writer.Put(AdditionalAvatarDataSize);
+            writer.Put(LinkedAvatarIndex);
+
+            for (int i = 0; i < AdditionalAvatarDataSize; i++)
+            {
+                AdditionalAvatarDatas[i].Serialize(writer);
+            }
+        }
+
+        /// <summary>
+        /// Serialize for the channel-based path (quality channels).
         /// Quality and additional-data presence are encoded in the channel — not written to the payload.
         /// </summary>
         public void SerializeForChannel(NetDataWriter writer, BitQuality Quality)

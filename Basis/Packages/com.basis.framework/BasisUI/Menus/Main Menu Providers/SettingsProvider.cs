@@ -191,7 +191,7 @@ namespace Basis.BasisUI
 
             PanelSlider sliderMaxVisibleAvatars = PanelSlider.CreateEntryAndBind(
                 rangeGroup,
-                PanelSlider.SliderSettings.Advanced("Max Avatars", 1, 100, true, 0, ValueDisplayMode.Raw),
+                PanelSlider.SliderSettings.Advanced("Max Avatars", 0, 250, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.MaxVisibleAvatars);
             if (isLimited)
                 sliderMaxVisibleAvatars.SetValueWithoutNotify(currentLimit);

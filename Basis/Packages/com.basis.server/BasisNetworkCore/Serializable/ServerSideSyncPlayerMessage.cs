@@ -29,7 +29,7 @@ public static partial class SerializableBasis
             playerIdMessage.Serialize(Writer);
             Writer.Put(interval);
             Writer.Put(sequence);
-            avatarSerialization.SerializeForChannel(Writer, (Basis.Network.Core.Compression.BasisAvatarBitPacking.BitQuality)avatarSerialization.DataQualityLevel);
+            avatarSerialization.Serialize(Writer, (Basis.Network.Core.Compression.BasisAvatarBitPacking.BitQuality)avatarSerialization.DataQualityLevel);
         }
     }
 }
