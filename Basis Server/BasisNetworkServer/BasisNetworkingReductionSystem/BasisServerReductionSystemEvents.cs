@@ -144,7 +144,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             _ = StartBackgroundProcessingAsync();
         }
 
-        public static void HandleAvatarMovement(NetPacketReader reader, NetPeer fromPeer)
+        public static void HandleAvatarMovement(NetPacketReader reader, NetPeer fromPeer, byte channel)
         {
             // Read the application-level sequence byte prepended by the client
             if (!reader.TryGetByte(out byte sequence))
@@ -153,11 +153,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
+            // Quality and additional-data presence are derived from the channel.
+            byte quality = BasisNetworkCommons.GetQualityFromChannel(channel);
+            bool hasAdditional = BasisNetworkCommons.ChannelHasAdditionalData(channel);
+
             // Rent BEFORE deserialize so the pooled byte[] is reused (avoids alloc per frame per player).
             var message = QueuedMessagePool.Rent();
             message.FromPeer = fromPeer;
             message.Sequence = sequence;
-            message.AvatarMessage.Deserialize(reader);
+            message.AvatarMessage.Deserialize(reader, quality, hasAdditional);
             reader.Recycle();
 
             if (message.AvatarMessage.array == null)
@@ -316,7 +320,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 }
                 else
                 {
-                    BNL.LogError("Missing Player From Index this is scary! " + id);
+                    BNL.LogError("Missing Player From Index, Normally Quick Disconnect after Connect " + id);
                 }
             }
         }

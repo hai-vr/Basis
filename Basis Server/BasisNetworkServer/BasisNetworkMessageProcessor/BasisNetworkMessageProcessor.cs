@@ -28,8 +28,9 @@ public static class BasisNetworkMessageProcessor
                     BasisServerHandleEvents.HandleAuth(reader, peer); // recycles inside
                     break;
 
-                case BasisNetworkCommons.PlayerAvatarChannel:
-                    BasisServerReductionSystemEvents.HandleAvatarMovement(reader, peer); // recycles inside
+                case BasisNetworkCommons.PlayerAvatarHighChannel:
+                case BasisNetworkCommons.PlayerAvatarHighAdditionalChannel:
+                    BasisServerReductionSystemEvents.HandleAvatarMovement(reader, peer, channel); // recycles inside
                     break;
 
                 case BasisNetworkCommons.VoiceChannel:

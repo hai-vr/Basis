@@ -99,14 +99,15 @@ namespace Basis.Network
 
             WritePosition(PlayersCurrentPosition[index], ref msg.array, ref offset);
 
-            // Serialize and send
+            // Serialize and send — channel encodes quality (High) and no additional data
             var writer = ActivePlayerData[index].Writer;
             writer.Reset();
             writer.Put(ActivePlayerData[index].SequenceByte);
             unchecked { ActivePlayerData[index].SequenceByte++; }
-            msg.Serialize(writer, BitQuality.High);
+            msg.SerializeForChannel(writer, BitQuality.High);
 
-            peer.Send(writer, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Unreliable);
+            byte channel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality((int)BitQuality.High, false);
+            peer.Send(writer, channel, DeliveryMethod.Unreliable);
 
             ActivePlayerData[index].Message = msg;
         }

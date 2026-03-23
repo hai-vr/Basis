@@ -63,15 +63,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             var data = transmitter.SendingOutAvatarData.Count == 0 ? null : transmitter.SendingOutAvatarData.Values.ToArray();
             transmitter.storedAvatarData.LASM.AdditionalAvatarDatas = data;
 
+            bool hasAdditional = data != null && data.Length > 0;
+            byte channel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality((int)WireQuality, hasAdditional);
+
             // Write sequence byte before the LASM payload
             transmitter.AvatarSendWriter.Put(sLocalSequence);
             unchecked { sLocalSequence++; }
 
-            transmitter.storedAvatarData.LASM.Serialize(transmitter.AvatarSendWriter, WireQuality);
+            transmitter.storedAvatarData.LASM.SerializeForChannel(transmitter.AvatarSendWriter, WireQuality);
 
             BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.LocalAvatarSync, transmitter.AvatarSendWriter.Length);
 
-            BasisNetworkConnection.LocalPlayerPeer.Send(transmitter.AvatarSendWriter, BasisNetworkCommons.PlayerAvatarChannel, DeliveryMethod.Unreliable);
+            BasisNetworkConnection.LocalPlayerPeer.Send(transmitter.AvatarSendWriter, channel, DeliveryMethod.Unreliable);
 
             transmitter.AvatarSendWriter.Reset();
             transmitter.ClearAdditional();

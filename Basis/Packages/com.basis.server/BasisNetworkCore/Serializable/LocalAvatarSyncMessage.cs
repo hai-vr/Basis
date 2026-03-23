@@ -152,54 +152,43 @@ public static partial class SerializableBasis
             }
         }
 
-        public void Serialize(NetDataWriter writer, BitQuality Quality)
+        /// <summary>
+        /// Serialize for the channel-based path (client→server on quality channels).
+        /// Quality and additional-data presence are encoded in the channel — not written to the payload.
+        /// </summary>
+        public void SerializeForChannel(NetDataWriter writer, BitQuality Quality)
         {
             DataQualityLevel = (byte)Quality;
             if (!TryGetExpectedPayloadLength(DataQualityLevel, out ushort expected))
             {
-                BNL.LogError($"Serialize invalid quality={Quality} (DataQualityLevel={DataQualityLevel})");
-                // Still write something minimally parseable:
-                writer.Put(DataQualityLevel);
-                writer.Put((byte)0); // AdditionalAvatarDataSize
+                BNL.LogError($"SerializeForChannel invalid quality={Quality}");
                 return;
             }
-
-            // Header
-            writer.Put(DataQualityLevel);
 
             if (array == null)
             {
                 BNL.LogError("array was null!!");
-                // Can't write payload; make message parseable:
-                writer.Put((byte)0); // AdditionalAvatarDataSize
                 return;
             }
 
-            // Strong validation: payload must match exactly
             if (array.Length != expected)
             {
                 array = new byte[expected];
             }
 
-            // Payload (no length on wire)
             writer.Put(array, 0, expected);
 
-            // Additional data
-            if (AdditionalAvatarDatas == null || AdditionalAvatarDatas.Length == 0 || AdditionalAvatarDatas.Length > 255)
+            // Additional data only written when present — the channel tells the receiver.
+            if (AdditionalAvatarDatas != null && AdditionalAvatarDatas.Length > 0 && AdditionalAvatarDatas.Length <= 255)
             {
-                writer.Put((byte)0);
-                return;
-            }
+                AdditionalAvatarDataSize = (byte)AdditionalAvatarDatas.Length;
+                writer.Put(AdditionalAvatarDataSize);
+                writer.Put(LinkedAvatarIndex);
 
-            AdditionalAvatarDataSize = (byte)AdditionalAvatarDatas.Length;
-            writer.Put(AdditionalAvatarDataSize);
-
-            // Only include linked avatar if there is additional data
-            writer.Put(LinkedAvatarIndex);
-
-            for (int i = 0; i < AdditionalAvatarDataSize; i++)
-            {
-                AdditionalAvatarDatas[i].Serialize(writer);
+                for (int i = 0; i < AdditionalAvatarDataSize; i++)
+                {
+                    AdditionalAvatarDatas[i].Serialize(writer);
+                }
             }
         }
     }
