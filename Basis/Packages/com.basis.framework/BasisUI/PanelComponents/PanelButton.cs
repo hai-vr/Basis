@@ -2,12 +2,28 @@ using System;
 using Basis.BTween;
 using Basis.BasisUI.Styling;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Basis.BasisUI
 {
-    public class PanelButton : PanelComponent
+    public class PanelButton : PanelComponent, IPointerEnterHandler, IPointerExitHandler
     {
+        private bool _isHovered;
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            if (_isHovered) return;
+            _isHovered = true;
+            UIAnimations.HoverLift(transform);
+        }
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            if (!_isHovered) return;
+            _isHovered = false;
+            UIAnimations.HoverReset(transform);
+        }
         public static class ButtonStyles
         {
             public static string Default => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Button.prefab";

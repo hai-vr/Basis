@@ -1,11 +1,28 @@
+using Basis.BTween;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using static UnityEngine.Rendering.DebugUI;
 
 namespace Basis.BasisUI
 {
-    public class PanelImage : PanelComponent
+    public class PanelImage : PanelComponent, IPointerEnterHandler, IPointerExitHandler
     {
+        private bool _isHovered;
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            if (_isHovered) return;
+            _isHovered = true;
+            UIAnimations.HoverLift(transform);
+        }
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            if (!_isHovered) return;
+            _isHovered = false;
+            UIAnimations.HoverReset(transform);
+        }
         public static class ImageStyles
         {
             public static string Default => "Packages/com.basis.sdk/Prefabs/Panel Elements/PE Image.prefab";

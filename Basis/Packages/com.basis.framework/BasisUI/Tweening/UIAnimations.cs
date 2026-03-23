@@ -102,6 +102,27 @@ namespace Basis.BTween
             }
         }
 
+        /// <summary>
+        /// Hover lift: scale up for a 3D pop-out feel in VR.
+        /// Uses scale instead of position so it works inside layout groups.
+        /// </summary>
+        public static void HoverLift(Transform target, float scaleAmount = 1.0125f, float duration = 0.15f)
+        {
+            if (!Application.isPlaying || target == null) return;
+
+            target.TweenScale(duration, Vector3.one * scaleAmount).SetEase(Easing.OutCubic);
+        }
+
+        /// <summary>
+        /// Reset hover: return to original scale.
+        /// </summary>
+        public static void HoverReset(Transform target, float duration = 0.15f)
+        {
+            if (!Application.isPlaying || target == null) return;
+
+            target.TweenScale(duration, Vector3.one).SetEase(Easing.OutCubic);
+        }
+
         private static CanvasGroup GetOrAddCanvasGroup(GameObject go)
         {
             if (!go.TryGetComponent<CanvasGroup>(out CanvasGroup cg))
