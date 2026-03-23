@@ -24,9 +24,9 @@ public static partial class SerializableBasis
         /// Populate bitset + extras from a collection of allowed permission node strings.
         /// Call this on the server before serializing.
         /// </summary>
-        public void SetPermissions(IReadOnlyCollection<string> allowedNodes)
+        public void SetPermissions(IReadOnlyCollection<string> allowedNodes, IReadOnlyCollection<string> deniedNodes = null)
         {
-            PermissionBitsetMap.Encode(allowedNodes, out PermissionsBitset, out ExtraPermissions);
+            PermissionBitsetMap.Encode(allowedNodes, out PermissionsBitset, out ExtraPermissions, deniedNodes);
         }
 
         /// <summary>

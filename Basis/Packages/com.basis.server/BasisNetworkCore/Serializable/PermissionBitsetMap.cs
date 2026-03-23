@@ -60,14 +60,23 @@ namespace Basis.Network.Core
         /// <summary>
         /// Splits allowed permission nodes into a compact bitset (known nodes)
         /// and a string array (unknown/dynamic nodes that don't have a bit index).
+        /// When "*" (wildcard) is in allowedNodes, all known bits are set.
+        /// Any nodes in deniedNodes are cleared from the bitset.
         /// </summary>
-        public static void Encode(IReadOnlyCollection<string> allowedNodes, out byte[] bitset, out string[] extras)
+        public static void Encode(IReadOnlyCollection<string> allowedNodes, out byte[] bitset, out string[] extras,
+                                   IReadOnlyCollection<string> deniedNodes = null)
         {
             bitset = new byte[ByteCount];
             List<string> extraList = null;
+            bool hasWildcard = false;
 
             foreach (string node in allowedNodes)
             {
+                if (string.Equals(node, "*", StringComparison.Ordinal))
+                {
+                    hasWildcard = true;
+                }
+
                 if (NodeToIndex.TryGetValue(node, out int idx))
                 {
                     bitset[idx >> 3] |= (byte)(1 << (idx & 7));
@@ -79,6 +88,27 @@ namespace Basis.Network.Core
                         extraList = new List<string>();
                     }
                     extraList.Add(node);
+                }
+            }
+
+            // Wildcard: set every known permission bit so the client sees all nodes explicitly
+            if (hasWildcard)
+            {
+                for (int i = 0; i < KnownCount; i++)
+                {
+                    bitset[i >> 3] |= (byte)(1 << (i & 7));
+                }
+            }
+
+            // Clear any explicitly denied nodes
+            if (deniedNodes != null)
+            {
+                foreach (string node in deniedNodes)
+                {
+                    if (NodeToIndex.TryGetValue(node, out int idx))
+                    {
+                        bitset[idx >> 3] &= (byte)~(1 << (idx & 7));
+                    }
                 }
             }
 

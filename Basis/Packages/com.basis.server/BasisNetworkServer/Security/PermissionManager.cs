@@ -305,6 +305,7 @@ namespace BasisPermissions
                     }
 
                     u = new PermissionUser { Uuid = uuid };
+                    u.Groups.Add("default");
                     _store.Users[uuid] = u;
                     TouchUser(uuid);
                     return u;
@@ -700,6 +701,7 @@ namespace BasisPermissions
                 return u;
 
             u = new PermissionUser { Uuid = uuid };
+            u.Groups.Add("default");
             _store.Users[uuid] = u;
             return u;
         }
@@ -1112,7 +1114,7 @@ namespace BasisPermissions
                     SlowestSendRate = config.BSRSlowestSendRate,
                     PeerLimit = config.PeerLimit,
                 };
-                msg.SetPermissions(Manager.GetAllAllowedRules(uuid));
+                msg.SetPermissions(Manager.GetAllAllowedRules(uuid), Manager.GetAllDeniedRules(uuid));
 
                 NetDataWriter writer = NetworkServer.RentWriter();
                 msg.Serialize(writer);
