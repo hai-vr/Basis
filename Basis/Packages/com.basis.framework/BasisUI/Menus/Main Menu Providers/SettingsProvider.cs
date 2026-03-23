@@ -1,4 +1,6 @@
 using Basis.Scripts.Device_Management;
+using Basis.Scripts.Networking;
+using BasisPermissions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -88,7 +90,12 @@ namespace Basis.BasisUI
          // AddLazyTab(tabGroup, "Face Tracking", () => SettingsProviderCameraTracking.CameraTrackingTab(tabGroup));
             AddLazyTab(tabGroup, "Downloads & Cache", () => SettingsProviderStorage.StorageTab(tabGroup));
             AddLazyTab(tabGroup, "Developer", () => DeveloperTab(tabGroup));
-            AddLazyTab(tabGroup, "Admin", () => SettingsProviderAdminTab.AdminTab(tabGroup));
+
+
+            if (BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsView))
+            {
+                AddLazyTab(tabGroup, "Admin", () => SettingsProviderAdminTab.AdminTab(tabGroup));
+            }
 
             // Navigate to a specific tab if requested via OpenToTab
             if (!string.IsNullOrEmpty(_pendingTabName))

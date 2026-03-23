@@ -95,7 +95,7 @@ namespace Basis.BasisUI
 
             // ensure admin hooks are here
             BasisNetworkManagement.OnlocalPermissionsChanged -= ProtectionValidation;
-            ProtectionValidation();//run through it already
+            ProtectionValidation();
             BasisNetworkManagement.OnlocalPermissionsChanged += ProtectionValidation;
 
             // this creates our panel

@@ -6,6 +6,7 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Profiler;
 using BasisNetworkClient;
 using BasisNetworkServer.BasisNetworking;
+using BasisPermissions;
 using System;
 using static SerializableBasis;
 public static class BasisNetworkEvents
