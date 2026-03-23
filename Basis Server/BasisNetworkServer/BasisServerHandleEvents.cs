@@ -10,7 +10,6 @@ using BasisNetworkServer.Security;
 using BasisPermissions;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using static Basis.Network.Core.Serializable.SerializableBasis;
@@ -65,6 +64,12 @@ namespace BasisServerHandle
                     return;
                 }
                 int id = peer.Id;
+
+                // Clean up stored metadata before the UUID mapping is removed
+                if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string disconnectedUuid))
+                {
+                    PermissionIntegration.RemovePlayerMeta(disconnectedUuid);
+                }
 
                 NetworkServer.AuthIdentity.RemoveConnection(id);
                 BasisNetworkOwnership.RemovePlayerOwnership(id);
@@ -216,6 +221,7 @@ namespace BasisServerHandle
                 //instead we can make sure all additional clients have them correct.
                 //this only occurs if the server is doing Auth checks.
                 ReadyMessage.playerMetaDataMessage.playerUUID = UUID;
+                PermissionIntegration.StorePlayerMeta(UUID, ReadyMessage.playerMetaDataMessage);
 
                Configuration Config = NetworkServer.Configuration;
                 //lets dump to the local client there data after the server has had its way
@@ -229,6 +235,7 @@ namespace BasisServerHandle
                     PeerLimit = Config.PeerLimit,
 
                 };
+                ServerMetaDataMessage.SetPermissions(PermissionIntegration.Manager.GetAllAllowedRules(UUID));
                 NetDataWriter Writer = NetworkServer.RentWriter();
                 ServerMetaDataMessage.Serialize(Writer);
                 NetworkServer.TrySend(newPeer, Writer, BasisNetworkCommons.metaDataChannel, DeliveryMethod.ReliableOrdered);

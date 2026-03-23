@@ -1,9 +1,11 @@
 using Basis.Network.Core;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Xml;
+using static SerializableBasis;
 namespace BasisPermissions
 {
     // =========================
@@ -32,7 +34,7 @@ namespace BasisPermissions
         public const string ContentShareCreate = "basis.contentshare.create";
 
         /// <summary>
-        /// used to indicate that this persons actions are protected from interferance
+        /// used to indicate that this persons actions are protected from interference
         /// </summary>
         public const string protection = "basis.protection";
 
@@ -181,6 +183,12 @@ namespace BasisPermissions
 
         // Tune this
         public int SaveDebounceMs { get; set; } = 750;
+
+        /// <summary>
+        /// Fired after a permission mutation, outside the write lock.
+        /// Argument is the affected UUID, or null when a group change affects all users.
+        /// </summary>
+        public Action<string> OnPermissionsChanged;
 
         // -------------
         // Public API
@@ -339,6 +347,7 @@ namespace BasisPermissions
                 return;
             }
 
+            bool changed = false;
             _lock.EnterWriteLock();
             try
             {
@@ -346,119 +355,156 @@ namespace BasisPermissions
                 if (u.Nodes.Add(node.Trim()))
                 {
                     TouchUser(uuid);
+                    changed = true;
                 }
             }
             finally { _lock.ExitWriteLock(); }
 
             SaveToXmlDebounced();
+            if (changed) OnPermissionsChanged?.Invoke(uuid);
         }
 
         public void RemoveUserNode(string uuid, string node)
         {
             if (string.IsNullOrWhiteSpace(uuid) || string.IsNullOrWhiteSpace(node)) return;
 
+            bool changed = false;
             _lock.EnterWriteLock();
             try
             {
                 if (_store.Users.TryGetValue(uuid, out var u) && u.Nodes.Remove(node.Trim()))
+                {
                     TouchUser(uuid);
+                    changed = true;
+                }
             }
             finally { _lock.ExitWriteLock(); }
 
             SaveToXmlDebounced();
+            if (changed) OnPermissionsChanged?.Invoke(uuid);
         }
 
         public void AddUserToGroup(string uuid, string group)
         {
             if (string.IsNullOrWhiteSpace(uuid) || string.IsNullOrWhiteSpace(group)) return;
 
+            bool changed = false;
             _lock.EnterWriteLock();
             try
             {
                 var u = GetOrCreateUser_NoLock(uuid);
                 if (u.Groups.Add(group.Trim()))
+                {
                     TouchUser(uuid);
+                    changed = true;
+                }
             }
             finally { _lock.ExitWriteLock(); }
 
             SaveToXmlDebounced();
+            if (changed) OnPermissionsChanged?.Invoke(uuid);
         }
 
         public void RemoveUserFromGroup(string uuid, string group)
         {
             if (string.IsNullOrWhiteSpace(uuid) || string.IsNullOrWhiteSpace(group)) return;
 
+            bool changed = false;
             _lock.EnterWriteLock();
             try
             {
                 if (_store.Users.TryGetValue(uuid, out var u) && u.Groups.Remove(group.Trim()))
+                {
                     TouchUser(uuid);
+                    changed = true;
+                }
             }
             finally { _lock.ExitWriteLock(); }
 
             SaveToXmlDebounced();
+            if (changed) OnPermissionsChanged?.Invoke(uuid);
         }
 
         public void AddGroupNode(string groupName, string node)
         {
             if (string.IsNullOrWhiteSpace(groupName) || string.IsNullOrWhiteSpace(node)) return;
 
+            bool changed = false;
             _lock.EnterWriteLock();
             try
             {
                 var g = GetOrCreateGroup_NoLock(groupName);
                 if (g.Nodes.Add(node.Trim()))
+                {
                     TouchAll();
+                    changed = true;
+                }
             }
             finally { _lock.ExitWriteLock(); }
 
             SaveToXmlDebounced();
+            if (changed) OnPermissionsChanged?.Invoke(null);
         }
 
         public void RemoveGroupNode(string groupName, string node)
         {
             if (string.IsNullOrWhiteSpace(groupName) || string.IsNullOrWhiteSpace(node)) return;
 
+            bool changed = false;
             _lock.EnterWriteLock();
             try
             {
                 if (_store.Groups.TryGetValue(groupName, out var g) && g.Nodes.Remove(node.Trim()))
+                {
                     TouchAll();
+                    changed = true;
+                }
             }
             finally { _lock.ExitWriteLock(); }
 
             SaveToXmlDebounced();
+            if (changed) OnPermissionsChanged?.Invoke(null);
         }
 
         public void AddGroupParent(string groupName, string parentName)
         {
             if (string.IsNullOrWhiteSpace(groupName) || string.IsNullOrWhiteSpace(parentName)) return;
 
+            bool changed = false;
             _lock.EnterWriteLock();
             try
             {
                 var g = GetOrCreateGroup_NoLock(groupName);
                 if (g.Parents.Add(parentName.Trim()))
+                {
                     TouchAll();
+                    changed = true;
+                }
             }
             finally { _lock.ExitWriteLock(); }
 
             SaveToXmlDebounced();
+            if (changed) OnPermissionsChanged?.Invoke(null);
         }
 
         public void RemoveGroupParent(string groupName, string parentName)
         {
             if (string.IsNullOrWhiteSpace(groupName) || string.IsNullOrWhiteSpace(parentName)) return;
 
+            bool changed = false;
             _lock.EnterWriteLock();
             try
             {
                 if (_store.Groups.TryGetValue(groupName, out var g) && g.Parents.Remove(parentName.Trim()))
+                {
                     TouchAll();
+                    changed = true;
+                }
             }
             finally { _lock.ExitWriteLock(); }
 
             SaveToXmlDebounced();
+            if (changed) OnPermissionsChanged?.Invoke(null);
         }
 
         public bool DeleteGroup(string groupName)
@@ -484,6 +530,7 @@ namespace BasisPermissions
             finally { _lock.ExitWriteLock(); }
 
             SaveToXmlDebounced();
+            OnPermissionsChanged?.Invoke(null);
             return true;
         }
 
@@ -696,17 +743,10 @@ namespace BasisPermissions
 
                     _store.Groups["default"] = def;
                 }
-
-                if (!_store.Groups.ContainsKey("admin"))
-                {
-                    var adm = new PermissionGroup { Name = "admin" };
-                    adm.Nodes.Add("*");
-                    _store.Groups["admin"] = adm;
-                }
                 if (!_store.Groups.ContainsKey("moderator"))
                 {
                     var adm = new PermissionGroup { Name = "moderator" };
-
+                    adm.Parents.Add("default");
                     adm.Nodes.Add(PermNodes.ModerationBan);
                     adm.Nodes.Add(PermNodes.ModerationKick);
                     adm.Nodes.Add(PermNodes.ModerationIpBan);
@@ -719,6 +759,13 @@ namespace BasisPermissions
                     adm.Nodes.Add(PermNodes.PermissionsView);
 
                     _store.Groups["moderator"] = adm;
+                }
+                if (!_store.Groups.ContainsKey("admin"))
+                {
+                    var adm = new PermissionGroup { Name = "admin" };
+                    adm.Nodes.Add("*");
+                    adm.Parents.Add("moderator");
+                    _store.Groups["admin"] = adm;
                 }
 
                 _version++;
@@ -953,6 +1000,10 @@ namespace BasisPermissions
             // Global singleton-style instance
             public static readonly PermissionManager Manager = new PermissionManager();
 
+            // Per-player metadata stored at connect, used to rebuild ServerMetaDataMessage on permission changes
+            private static readonly ConcurrentDictionary<string, ClientMetaDataMessage> _playerMeta =
+                new ConcurrentDictionary<string, ClientMetaDataMessage>(StringComparer.OrdinalIgnoreCase);
+
             // Call at server startup
             public static void Init(string xmlPath)
             {
@@ -966,12 +1017,33 @@ namespace BasisPermissions
 
                 // Ensure saved
                 Manager.SaveToXmlDebounced();
+
+                Manager.OnPermissionsChanged += HandlePermissionsChanged;
             }
             public static void InitWithoutDisc()
             {
                 // Optional defaults if file was empty/nonexistent
                 Manager.EnsureDefaults();
+
+                Manager.OnPermissionsChanged += HandlePermissionsChanged;
             }
+
+            /// <summary>
+            /// Store player metadata when they connect so we can rebuild ServerMetaDataMessage later.
+            /// </summary>
+            public static void StorePlayerMeta(string uuid, ClientMetaDataMessage meta)
+            {
+                _playerMeta[uuid] = meta;
+            }
+
+            /// <summary>
+            /// Remove stored metadata when a player disconnects.
+            /// </summary>
+            public static void RemovePlayerMeta(string uuid)
+            {
+                _playerMeta.TryRemove(uuid, out _);
+            }
+
             public static bool HasValidRequirement(string uuid, string permNode)
             {
                 bool hasPermission = Manager.Has(uuid, permNode);
@@ -1000,6 +1072,51 @@ namespace BasisPermissions
                     BNL.LogError($"UUID not found for peer: {peer.Id} ");
                     return false;
                 }
+            }
+
+            private static void HandlePermissionsChanged(string uuid)
+            {
+                if (uuid != null)
+                {
+                    SendPermissionUpdate(uuid);
+                }
+                else
+                {
+                    // Group-level change: resend to all connected players
+                    foreach (var kvp in _playerMeta)
+                    {
+                        SendPermissionUpdate(kvp.Key);
+                    }
+                }
+            }
+
+            /// <summary>
+            /// Rebuild and resend ServerMetaDataMessage to a connected player with their current permissions.
+            /// </summary>
+            public static void SendPermissionUpdate(string uuid)
+            {
+                if (!_playerMeta.TryGetValue(uuid, out ClientMetaDataMessage meta))
+                    return;
+
+                if (!NetworkServer.AuthIdentity.UUIDToNetID(uuid, out int netId) ||
+                    !NetworkServer.AuthenticatedPeers.TryGetValue(netId, out NetPeer peer))
+                    return;
+
+                Configuration config = NetworkServer.Configuration;
+                ServerMetaDataMessage msg = new ServerMetaDataMessage
+                {
+                    ClientMetaDataMessage = meta,
+                    SyncInterval = config.BSRSMillisecondDefaultInterval,
+                    BaseMultiplier = config.BSRBaseMultiplier,
+                    IncreaseRate = config.BSRSIncreaseRate,
+                    SlowestSendRate = config.BSRSlowestSendRate,
+                    PeerLimit = config.PeerLimit,
+                };
+                msg.SetPermissions(Manager.GetAllAllowedRules(uuid));
+
+                NetDataWriter writer = NetworkServer.RentWriter();
+                msg.Serialize(writer);
+                NetworkServer.TrySend(peer, writer, BasisNetworkCommons.metaDataChannel, DeliveryMethod.ReliableOrdered);
             }
         }
     }

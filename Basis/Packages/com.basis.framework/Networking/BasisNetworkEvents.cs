@@ -266,6 +266,7 @@ public static class BasisNetworkEvents
                 BasisLocalPlayer.Instance.UUID = SMDM.ClientMetaDataMessage.playerUUID;
                 BasisLocalPlayer.Instance.DisplayName = SMDM.ClientMetaDataMessage.playerDisplayName;
                 BasisNetworkManagement.ServerMetaDataMessage = SMDM;
+                BasisNetworkManagement.LocalPermissions = SMDM.GetPermissions();
 
                 break;
             case BasisNetworkCommons.StoreDatabaseChannel:

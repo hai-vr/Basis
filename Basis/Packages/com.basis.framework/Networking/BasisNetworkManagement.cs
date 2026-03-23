@@ -5,6 +5,7 @@ using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -76,6 +77,11 @@ namespace Basis.Scripts.Networking
         /// Metadata message received from the server at connect.
         /// </summary>
         public static ServerMetaDataMessage ServerMetaDataMessage = new ServerMetaDataMessage();
+
+        /// <summary>
+        /// Local player's effective permissions decoded from the server metadata.
+        /// </summary>
+        public static HashSet<string> LocalPermissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Event fired when an instance of this manager is enabled and initialized.
