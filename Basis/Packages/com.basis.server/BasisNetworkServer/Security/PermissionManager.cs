@@ -745,17 +745,10 @@ namespace BasisPermissions
 
                     _store.Groups["default"] = def;
                 }
-
-                if (!_store.Groups.ContainsKey("admin"))
-                {
-                    var adm = new PermissionGroup { Name = "admin" };
-                    adm.Nodes.Add("*");
-                    _store.Groups["admin"] = adm;
-                }
                 if (!_store.Groups.ContainsKey("moderator"))
                 {
                     var adm = new PermissionGroup { Name = "moderator" };
-
+                    adm.Parents.Add("default");
                     adm.Nodes.Add(PermNodes.ModerationBan);
                     adm.Nodes.Add(PermNodes.ModerationKick);
                     adm.Nodes.Add(PermNodes.ModerationIpBan);
@@ -768,6 +761,13 @@ namespace BasisPermissions
                     adm.Nodes.Add(PermNodes.PermissionsView);
 
                     _store.Groups["moderator"] = adm;
+                }
+                if (!_store.Groups.ContainsKey("admin"))
+                {
+                    var adm = new PermissionGroup { Name = "admin" };
+                    adm.Nodes.Add("*");
+                    adm.Parents.Add("moderator");
+                    _store.Groups["admin"] = adm;
                 }
 
                 _version++;
