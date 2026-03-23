@@ -38,6 +38,8 @@ namespace Basis.Scripts.Networking.Receivers
         public BasisAudioReceiver AudioReceiverModule = new BasisAudioReceiver();
         [SerializeField]
         public ConcurrentQueue<BasisAvatarBuffer> PayloadQueue = new ConcurrentQueue<BasisAvatarBuffer>();
+        // Volatile counter avoids ConcurrentQueue.TryDequeue on empty queues (1k volatile reads vs 1k TryDequeue).
+        private volatile int _pendingCount;
         public BasisRemotePlayer RemotePlayer;
 
         public bool hasEvents = false;
@@ -129,62 +131,65 @@ namespace Basis.Scripts.Networking.Receivers
                 DidLastAvatarTransformChanged = true;
             }
             // 1) Pull network packets, drop stale, sort by sequence, then stage
-            _pendingSort.Clear();
-            while (PayloadQueue.TryDequeue(out BasisAvatarBuffer buffer))
+            if (System.Threading.Interlocked.Exchange(ref _pendingCount, 0) > 0)
             {
-                if (_seenPackets >= 2)
+                _pendingSort.Clear();
+                while (PayloadQueue.TryDequeue(out BasisAvatarBuffer buffer))
                 {
-                    // Forward distance from highest to buffer:
-                    // [1,127] = buffer is newer, [128,255] = buffer is behind (stale)
-                    byte fwd = unchecked((byte)(buffer.Sequence - _highestSequence));
-                    if (fwd >= 128)
+                    if (_seenPackets >= 2)
                     {
-                        BasisAvatarBufferPool.Release(buffer);
-                        continue;
+                        // Forward distance from highest to buffer:
+                        // [1,127] = buffer is newer, [128,255] = buffer is behind (stale)
+                        byte fwd = unchecked((byte)(buffer.Sequence - _highestSequence));
+                        if (fwd >= 128)
+                        {
+                            BasisAvatarBufferPool.Release(buffer);
+                            continue;
+                        }
+                        if (fwd > 0)
+                        {
+                            _highestSequence = buffer.Sequence;
+                        }
                     }
-                    if (fwd > 0)
+                    else
                     {
-                        _highestSequence = buffer.Sequence;
+                        // Warmup: skip stale checking, seed highest from second packet.
+                        // First packet is initial join data with an unset sequence (0);
+                        // second packet is the first streaming update with a real server sequence.
+                        if (_seenPackets == 1)
+                        {
+                            _highestSequence = buffer.Sequence;
+                        }
+                        _seenPackets++;
                     }
-                }
-                else
-                {
-                    // Warmup: skip stale checking, seed highest from second packet.
-                    // First packet is initial join data with an unset sequence (0);
-                    // second packet is the first streaming update with a real server sequence.
-                    if (_seenPackets == 1)
-                    {
-                        _highestSequence = buffer.Sequence;
-                    }
-                    _seenPackets++;
-                }
 
-                _pendingSort.Add(buffer);
-            }
-
-            // Sort by sequence so out-of-order arrivals are staged in correct order
-            if (_pendingSort.Count > 1)
-            {
-                _pendingSort.Sort(s_sequenceCompare);
-            }
-
-            // Enqueue sorted items into staging ring with monotonic server clock
-            for (int i = 0; i < _pendingSort.Count; i++)
-            {
-                var buffer = _pendingSort[i];
-
-                if (!_serverClockSeeded)
-                {
-                    _serverClockSeconds = 0.0;
-                    _serverClockSeeded = true;
+                    _pendingSort.Add(buffer);
                 }
 
-                _serverClockSeconds += buffer.SecondsInterval;
-                buffer.ServerTimeSeconds = _serverClockSeconds;
+                // Sort by sequence so out-of-order arrivals are staged in correct order
+                if (_pendingSort.Count > 1)
+                {
+                    _pendingSort.Sort(s_sequenceCompare);
+                }
 
-                _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: s_releaseBuffer);
+                // Enqueue sorted items into staging ring with monotonic server clock
+                for (int i = 0; i < _pendingSort.Count; i++)
+                {
+                    var buffer = _pendingSort[i];
+
+                    if (!_serverClockSeeded)
+                    {
+                        _serverClockSeconds = 0.0;
+                        _serverClockSeeded = true;
+                    }
+
+                    _serverClockSeconds += buffer.SecondsInterval;
+                    buffer.ServerTimeSeconds = _serverClockSeconds;
+
+                    _stagedRing.EnqueueOverwriteOldest(buffer, onOverwrite: s_releaseBuffer);
+                }
+                StagedCount = _stagedRing.Count;
             }
-            StagedCount = _stagedRing.Count;
             // 2) Ensure we have a valid interpolation window (Current -> Next)
             if (!HasCurrentBuffer)
             {
@@ -253,18 +258,14 @@ namespace Basis.Scripts.Networking.Receivers
                 var last = Next;
 
                 double windowDuration = last.ServerTimeSeconds - first.ServerTimeSeconds;
-                if (!math.isfinite(windowDuration) || windowDuration <= 1e-6)
+                // Catches NaN (comparison is false), negative, zero, tiny, and huge/Inf values
+                if (!(windowDuration > 1e-6 && windowDuration < 1e6))
                 {
-                    // fallback if something goes weird
                     windowDuration = math.max(last.SecondsInterval, 1e-3);
                 }
                 float rate = 1f + CatchupGain * (StagedCount - TargetJitterDepth);
                 rate = Mathf.Clamp(rate, MinPlaybackRate, MaxPlaybackRate);
-                interpolationTime += ((double)unscaledDeltaTime / windowDuration * (double)rate);
-                if (!math.isfinite(interpolationTime))
-                {
-                    interpolationTime = 1;
-                }
+                interpolationTime += (unscaledDeltaTime / windowDuration * (double)rate);
                 double effectiveDt = unscaledDeltaTime * (double)rate;
                 BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, effectiveDt);
 
@@ -326,6 +327,7 @@ namespace Basis.Scripts.Networking.Receivers
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)
         {
             PayloadQueue.Enqueue(avatarBuffer);
+            System.Threading.Interlocked.Increment(ref _pendingCount);
         }
 
         public override void Initialize()
@@ -349,6 +351,7 @@ namespace Basis.Scripts.Networking.Receivers
                 Assert.IsNotNull(buf, "PayloadQueue contained null buffer during Initialize flush.");
                 BasisAvatarBufferPool.Release(buf);
             }
+            _pendingCount = 0;
 
             if (!hasEvents)
             {
@@ -424,6 +427,7 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 BasisAvatarBufferPool.Release(buffer);
             }
+            _pendingCount = 0;
 
             ClearAndRelease();
 

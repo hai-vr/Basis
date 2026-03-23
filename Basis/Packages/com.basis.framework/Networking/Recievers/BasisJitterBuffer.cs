@@ -21,7 +21,7 @@ public class BasisJitterBuffer
 
     private byte _nextPlaybackSeq;
     private byte _highestReceivedSeq;
-    private bool _started;
+    private volatile bool _started;
     private bool _hasHighest;
     private int _bufferedCount;
     private int _receivedSinceStart;
@@ -70,9 +70,11 @@ public class BasisJitterBuffer
 
     public bool TryConsume(out byte[] data, out int length, out byte silenceUnits, out bool isMissing)
     {
+        data = null; length = 0; silenceUnits = 0; isMissing = false;
+        // Lock-free fast path: most players have no buffered audio, skip lock entirely
+        if (!_started) return false;
         lock (_lock)
         {
-            data = null; length = 0; silenceUnits = 0; isMissing = false;
             if (!_started) return false;
             if (_receivedSinceStart < InitialBufferDepth) return false;
             int slotIndex = _nextPlaybackSeq & BufferMask;

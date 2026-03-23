@@ -118,7 +118,6 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.FrameSize, false);
                 InOrderRead.Add(pcmBuffer, pcmLength, true);
-                AudioSourceSet();
             }
         }
 
@@ -158,7 +157,6 @@ namespace Basis.Scripts.Networking.Receivers
             if (HasAudioSource)
             {
                 InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
-                AudioSourceSet();
             }
         }
         public void Insert(AudioSegmentDataMessage msg)
@@ -168,8 +166,10 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void DrainAndDecode()
         {
+            bool decoded = false;
             while (JitterBuffer.TryConsume(out byte[] data, out int length, out byte silenceUnits, out bool isMissing))
             {
+                decoded = true;
                 if (isMissing)
                 {
                     OnDecodePLC();
@@ -184,6 +184,17 @@ namespace Basis.Scripts.Networking.Receivers
                             OnDecodeSilence();
                     }
                     OnDecode(data, length);
+                }
+            }
+            // Single audio source state update after all packets are processed.
+            // We're already on the main thread — skip the lambda enqueue overhead
+            // that AudioSourceSet() would add per packet.
+            if (decoded && HasAudioSource)
+            {
+                bool shouldEnable = InOrderRead.HasRealAudio;
+                if (audioSource.enabled != shouldEnable)
+                {
+                    audioSource.enabled = shouldEnable;
                 }
             }
         }
@@ -204,7 +215,6 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
                 }
-                AudioSourceSet();
             }
         }
         /// <summary>

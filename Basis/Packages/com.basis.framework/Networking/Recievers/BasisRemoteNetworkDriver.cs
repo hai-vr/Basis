@@ -88,6 +88,19 @@ public static class BasisRemoteNetworkDriver
     static System.IntPtr _ptrEuroValues;
     static System.IntPtr _ptrOutScales;
 
+    // ---------------- CACHED WRITE POINTERS (set once per frame in BeginWrite) ----------------
+    static System.IntPtr _ptrInterpolationTimes;
+    static System.IntPtr _ptrDeltaTimes;
+    static System.IntPtr _ptrHumanScales;
+    static System.IntPtr _ptrPrevPositions;
+    static System.IntPtr _ptrTargetPositions;
+    static System.IntPtr _ptrPrevScales;
+    static System.IntPtr _ptrTargetScales;
+    static System.IntPtr _ptrPrevRotations;
+    static System.IntPtr _ptrTargetRotations;
+    static System.IntPtr _ptrPrevMuscles;
+    static System.IntPtr _ptrTargetMuscles;
+
     // ---------------- TUNING ----------------
     // Pose (position + rotation) smoothing: usually higher MinCutoff than muscles to reduce "floaty" lag.
     public static float PoseMinCutoff = 3.0f;
@@ -175,17 +188,39 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>
-    /// Write timing inputs for a given index (0..FixedCapacity-1).
-    /// interpolationTime is 0..1, deltaTimeSeconds is EFFECTIVE dt seconds (should include playback rate).
+    /// Caches raw write pointers from NativeArrays once per frame.
+    /// Must be called before any SetFrameTiming/SetFrameInputs calls.
+    /// Eliminates per-receiver NativeArray safety checks on the write path.
     /// </summary>
-    public static void SetFrameTiming(int index, double interpolationTime, double deltaTimeSeconds)
+    public static unsafe void BeginWrite()
     {
         if (!_initialized) return;
-        _interpolationTimes[index] = interpolationTime;
-        _deltaTimes[index] = deltaTimeSeconds;
+        _ptrInterpolationTimes = (System.IntPtr)_interpolationTimes.GetUnsafePtr();
+        _ptrDeltaTimes = (System.IntPtr)_deltaTimes.GetUnsafePtr();
+        _ptrHumanScales = (System.IntPtr)_humanScales.GetUnsafePtr();
+        _ptrPrevPositions = (System.IntPtr)_prevPositions.GetUnsafePtr();
+        _ptrTargetPositions = (System.IntPtr)_targetPositions.GetUnsafePtr();
+        _ptrPrevScales = (System.IntPtr)_prevScales.GetUnsafePtr();
+        _ptrTargetScales = (System.IntPtr)_targetScales.GetUnsafePtr();
+        _ptrPrevRotations = (System.IntPtr)_prevRotations.GetUnsafePtr();
+        _ptrTargetRotations = (System.IntPtr)_targetRotations.GetUnsafePtr();
+        _ptrPrevMuscles = (System.IntPtr)_prevMuscles.GetUnsafePtr();
+        _ptrTargetMuscles = (System.IntPtr)_targetMuscles.GetUnsafePtr();
     }
 
-    public static void SetFrameInputs(
+    /// <summary>
+    /// Write timing inputs for a given index (0..FixedCapacity-1).
+    /// Requires BeginWrite() called earlier this frame.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void SetFrameTiming(int index, double interpolationTime, double deltaTimeSeconds)
+    {
+        ((double*)(void*)_ptrInterpolationTimes)[index] = interpolationTime;
+        ((double*)(void*)_ptrDeltaTimes)[index] = deltaTimeSeconds;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void SetFrameInputs(
         int index,
         float humanScale,
         float3 prevPos, float3 targetPos,
@@ -193,31 +228,20 @@ public static class BasisRemoteNetworkDriver
         quaternion prevRot, quaternion targetRot,
         NativeArray<float> prevMuscles, NativeArray<float> targetMuscles)
     {
-        if (!_initialized) return;
+        ((float*)(void*)_ptrHumanScales)[index] = humanScale;
+        ((float3*)(void*)_ptrPrevPositions)[index] = prevPos;
+        ((float3*)(void*)_ptrTargetPositions)[index] = targetPos;
+        ((float3*)(void*)_ptrPrevScales)[index] = prevScale;
+        ((float3*)(void*)_ptrTargetScales)[index] = targetScale;
+        ((quaternion*)(void*)_ptrPrevRotations)[index] = prevRot;
+        ((quaternion*)(void*)_ptrTargetRotations)[index] = targetRot;
 
-        _humanScales[index] = humanScale;
-
-        _prevPositions[index] = prevPos;
-        _targetPositions[index] = targetPos;
-
-        _prevScales[index] = prevScale;
-        _targetScales[index] = targetScale;
-
-        _prevRotations[index] = prevRot;
-        _targetRotations[index] = targetRot;
-
+        int bytes = _muscleCount * sizeof(float);
         int baseOffset = index * _muscleCount;
-        FastCopyMuscles(prevMuscles, 0, _prevMuscles, baseOffset, _muscleCount);
-        FastCopyMuscles(targetMuscles, 0, _targetMuscles, baseOffset, _muscleCount);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    static unsafe void FastCopyMuscles(NativeArray<float> src, int srcStart, NativeArray<float> dst, int dstStart, int count)
-    {
-        var bytes = (long)count * sizeof(float);
-        var srcPtr = (byte*)src.GetUnsafeReadOnlyPtr() + (long)srcStart * sizeof(float);
-        var dstPtr = (byte*)dst.GetUnsafePtr() + (long)dstStart * sizeof(float);
-        UnsafeUtility.MemCpy(dstPtr, srcPtr, bytes);
+        float* srcPrev = (float*)prevMuscles.GetUnsafeReadOnlyPtr();
+        float* srcTarget = (float*)targetMuscles.GetUnsafeReadOnlyPtr();
+        UnsafeUtility.MemCpy((float*)(void*)_ptrPrevMuscles + baseOffset, srcPrev, bytes);
+        UnsafeUtility.MemCpy((float*)(void*)_ptrTargetMuscles + baseOffset, srcTarget, bytes);
     }
 
     /// <summary>Schedule jobs for the current frame (does not complete them).</summary>

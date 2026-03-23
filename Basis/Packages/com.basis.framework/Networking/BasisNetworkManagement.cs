@@ -185,6 +185,7 @@ namespace Basis.Scripts.Networking
                 return;
             }
 
+            BasisRemoteNetworkDriver.BeginWrite();
             for (int Index = 0; Index < BasisNetworkPlayers.ReceiverCount; Index++)
             {
                 var rec = BasisNetworkPlayers.ReceiversSnapshot[Index];

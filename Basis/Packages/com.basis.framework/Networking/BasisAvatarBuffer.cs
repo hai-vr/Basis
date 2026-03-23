@@ -164,14 +164,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             PoolAssert(!item.IsDisposed, "Attempted to release a disposed BasisAvatarBuffer. Do not pool disposed objects.");
             PoolAssert(item.NextInPool == null, "Releasing BasisAvatarBuffer with NextInPool already set. Possible double-release or corruption.");
 
-            // Double-release detection: if it was already 1, it's already in the pool.
+            // Double-release detection via PooledFlag.
+#if UNITY_ASSERTIONS
             if (Interlocked.Exchange(ref item.PooledFlag, 1) == 1)
             {
-#if UNITY_ASSERTIONS
                 UnityEngine.Debug.LogError("Double release detected for BasisAvatarBuffer (PooledFlag was already 1).");
-#endif
                 return;
             }
+#else
+            // In release builds, skip the expensive Interlocked.Exchange — use a plain write.
+            // Double-release is a bug caught during development; no need for atomic overhead in production.
+            item.PooledFlag = 1;
+#endif
 
             // IMPORTANT:
             // Do NOT call item.Reset/EnsureAllocated here.
