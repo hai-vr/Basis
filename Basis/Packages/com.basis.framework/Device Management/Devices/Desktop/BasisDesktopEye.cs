@@ -134,14 +134,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
             switch (cursor)
             {
                 case CursorLockMode.Locked:
-                    if (LookRotationLock.Remove(nameof(BasisCursorManagement)))
-                    {
-
-                    }
-                    else
-                    {
-                        BasisDebug.LogError("Failed to Remove Rotation Lock!");
-                    }
+                    LookRotationLock.Remove(nameof(BasisCursorManagement));
                     break;
                 case CursorLockMode.Confined:
                     LookRotationLock.Add(nameof(BasisCursorManagement));

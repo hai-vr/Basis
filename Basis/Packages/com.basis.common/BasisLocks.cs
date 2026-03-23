@@ -87,13 +87,22 @@ namespace Basis.Scripts.Common
             public bool Remove(string key)
             {
                 if (string.IsNullOrWhiteSpace(key))
+                {
+                    BasisDebug.LogError("Failed to Remove Lock no key provided!");
                     return false;
+                }
 
                 if (!States.TryGetValue(Context, out var state))
+                {
+                    BasisDebug.Log($"no lock exists for {state}");
                     return false;
+                }
 
                 lock (state.Sync)
+                {
+                    BasisDebug.Log($"removing lock for {state}");
                     return state.Owners.Remove(key);
+                }
             }
 
             public void Clear()
