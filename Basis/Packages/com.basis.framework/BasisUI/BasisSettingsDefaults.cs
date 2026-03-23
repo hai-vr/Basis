@@ -46,6 +46,20 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> MaxVisibleAvatars = new("maxvisibleavatars", new BasisPlatformDefault<float>(0));
         public static BasisSettingsBinding<bool> UseMaxVisibleAvatars = new("usemaxvisibleavatars", new BasisPlatformDefault<bool>(false));
 
+        /// <summary>
+        /// When enabled, only remote players within the local player's view cone
+        /// (based on camera forward direction) will show their real avatar.
+        /// Players outside the cone fall back to the default avatar.
+        /// </summary>
+        public static BasisSettingsBinding<bool> UseViewConeAvatars = new("useviewconeavatars", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
+        /// Full cone angle in degrees for view-cone avatar visibility.
+        /// 180 = hemisphere in front, 360 = disabled (everything visible).
+        /// Default 180 degrees.
+        /// </summary>
+        public static BasisSettingsBinding<float> ViewConeAngle = new("viewconeangle", new BasisPlatformDefault<float>(180f));
+
         public static BasisSettingsBinding<float> SnapTurnAngle = new("snapturnangle", new BasisPlatformDefault<float>(25f));
 
         public static BasisSettingsBinding<float> mousesensitivty = new("mousesensitivty", new BasisPlatformDefault<float>(1));
@@ -507,7 +521,14 @@ namespace Basis.BasisUI
 
         // ---------------- REMOTE NAMEPLATE ----------------
         public static BasisSettingsBinding<bool> NPEnabled = new("np_enabled", new BasisPlatformDefault<bool>(true));
-        public static BasisSettingsBinding<bool> NPMenuOnly = new("np_menuonly", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> NPMenuOnly = new("np_menuonly", new BasisPlatformDefault<bool>
+        {
+            android = true,
+            ios = true,
+            linux = false,
+            other = true,
+            windows = false,
+        });
         public static BasisSettingsBinding<float> NPWidth = new("np_width", new BasisPlatformDefault<float>(30f));
         public static BasisSettingsBinding<float> NPSize = new("np_size", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> NPTransparency = new("np_transparency", new BasisPlatformDefault<float>(0.45f));
@@ -575,6 +596,8 @@ namespace Basis.BasisUI
             AvatarRange.LoadBindingValue();
             UseMaxVisibleAvatars.LoadBindingValue();
             MaxVisibleAvatars.LoadBindingValue();
+            UseViewConeAvatars.LoadBindingValue();
+            ViewConeAngle.LoadBindingValue();
             SelectedBone.LoadBindingValue();
             IKMode.LoadBindingValue();
             IKLockMode.LoadBindingValue();

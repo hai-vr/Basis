@@ -256,6 +256,50 @@ public struct BasisAvatarCapJob : IJob
 }
 
 /// <summary>
+/// Burst job: filters AvatarRange based on view-cone direction.
+/// Only players within the specified cone angle (relative to the local
+/// camera forward) keep AvatarRange = true. Players outside the cone
+/// have AvatarRange set to false, causing a fallback avatar.
+/// Scheduled after distance + cap jobs so it acts as a final filter.
+/// </summary>
+[BurstCompile(FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Standard)]
+public struct BasisViewConeAvatarJob : IJobParallelFor
+{
+    public float3 ListenerPosition;
+    public float3 ListenerForward;
+    public float CosHalfCone;
+
+    [ReadOnly] public NativeArray<float3> TargetPositions;
+
+    [NativeDisableParallelForRestriction]
+    public NativeArray<bool> AvatarRange;
+
+    public void Execute(int i)
+    {
+        if (!AvatarRange[i])
+        {
+            return;
+        }
+
+        float3 toTarget = TargetPositions[i] - ListenerPosition;
+        float sqrMag = math.lengthsq(toTarget);
+
+        if (sqrMag < 0.001f)
+        {
+            return;
+        }
+
+        float3 dir = toTarget * math.rsqrt(sqrMag);
+        float dot = math.dot(ListenerForward, dir);
+
+        if (dot < CosHalfCone)
+        {
+            AvatarRange[i] = false;
+        }
+    }
+}
+
+/// <summary>
 /// Sortable entry for the avatar visibility cap.
 /// </summary>
 public struct AvatarCapEntry

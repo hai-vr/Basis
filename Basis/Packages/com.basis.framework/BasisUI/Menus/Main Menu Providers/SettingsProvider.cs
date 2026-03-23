@@ -200,6 +200,24 @@ namespace Basis.BasisUI
                 rangeGroup.ForceRebuild();
             };
 
+            PanelToggle toggleViewCone = PanelToggle.CreateNewEntry(rangeGroup);
+            toggleViewCone.AssignBinding(BasisSettingsDefaults.UseViewConeAvatars);
+            toggleViewCone.Descriptor.SetTitle("View Cone Avatars");
+            toggleViewCone.Descriptor.SetDescription("Only show avatars in the direction you are looking.");
+
+            PanelSlider sliderViewConeAngle = PanelSlider.CreateEntryAndBind(
+                rangeGroup,
+                PanelSlider.SliderSettings.Advanced("View Cone Angle", 30, 360, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.ViewConeAngle);
+
+            sliderViewConeAngle.Descriptor.SetActive(toggleViewCone.Value);
+
+            toggleViewCone.OnValueChanged += (val) =>
+            {
+                sliderViewConeAngle.Descriptor.SetActive(val);
+                rangeGroup.ForceRebuild();
+            };
+
             PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
                 rangeGroup,
                 PanelSlider.SliderSettings.Distance("Hearing Range", 25),
@@ -224,6 +242,8 @@ namespace Basis.BasisUI
         {
             BasisSettingsDefaults.AvatarRange.ResetToDefault();
             BasisSettingsDefaults.MaxVisibleAvatars.ResetToDefault();
+            BasisSettingsDefaults.UseViewConeAvatars.ResetToDefault();
+            BasisSettingsDefaults.ViewConeAngle.ResetToDefault();
             BasisSettingsDefaults.HearingRange.ResetToDefault();
             BasisSettingsDefaults.SwapMode.ResetToDefault();
 #if !BASIS_DISABLE_MICROPHONE

@@ -22,11 +22,13 @@ public partial class BasisTransmissionResults
     public BasisDistanceReduceJob reduceJob;
     public BasisAvatarCapJob avatarCapJob;
     public BasisDirectionalDampenJob dampenJob;
+    public BasisViewConeAvatarJob viewConeJob;
 
     public JobHandle distanceJobHandle;
     public JobHandle reduceJobHandle;
     public JobHandle avatarCapJobHandle;
     public JobHandle dampenJobHandle;
+    public JobHandle viewConeJobHandle;
 
     // Timing / interval control
     public float intervalSeconds = 0.05f;
@@ -197,6 +199,24 @@ public partial class BasisTransmissionResults
             avatarCapJobHandle = distanceJobHandle;
         }
 
+        // View cone avatar job: filters AvatarRange to only show avatars in the
+        // direction the player is looking. Depends on distance + cap jobs.
+        if (SMModuleDistanceBasedReductions.UseViewConeAvatars)
+        {
+            float viewAngle = SMModuleDistanceBasedReductions.ViewConeAngle;
+            float halfConeRad = viewAngle * 0.5f * Mathf.Deg2Rad;
+
+            viewConeJob.ListenerPosition = BasisLocalCameraDriver.Position;
+            viewConeJob.ListenerForward = BasisLocalCameraDriver.Forward();
+            viewConeJob.CosHalfCone = Mathf.Cos(halfConeRad);
+
+            viewConeJobHandle = viewConeJob.Schedule(receiverCount, 64, avatarCapJobHandle);
+        }
+        else
+        {
+            viewConeJobHandle = avatarCapJobHandle;
+        }
+
         // Directional dampening job: only reads targetPositions (shared ReadOnly
         // with distance job) — no dependencies, runs in parallel with everything.
         float coneAngle = BasisSettingsDefaults.RAListenerConeAngle.RawValue;
@@ -225,7 +245,7 @@ public partial class BasisTransmissionResults
 
         // Finish before consuming results
         reduceJobHandle.Complete();
-        avatarCapJobHandle.Complete();
+        viewConeJobHandle.Complete();
         if (dampenEnabled)
         {
             dampenJobHandle.Complete();
@@ -247,10 +267,10 @@ public partial class BasisTransmissionResults
         bool hearingChange = IndexChanged || AnyHearingRangeChanged;
         bool lodChange = IndexChanged || AnyLodRangeChanged;
 
-        // Re-check avatar changes: the cap enforcement may have changed
-        // AvatarRange entries beyond what the distance job flagged.
+        // Re-check avatar changes: the cap or view-cone enforcement may have
+        // changed AvatarRange entries beyond what the distance job flagged.
         bool avatarChange = IndexChanged || AnyAvatarRangeChanged;
-        if (!avatarChange && SMModuleDistanceBasedReductions.UseMaxVisibleAvatars)
+        if (!avatarChange && (SMModuleDistanceBasedReductions.UseMaxVisibleAvatars || SMModuleDistanceBasedReductions.UseViewConeAvatars))
         {
             for (int i = 0; i < receiverCount; i++)
             {
@@ -348,6 +368,7 @@ public partial class BasisTransmissionResults
         distanceJob.AvatarRange = AvatarRange;
         distanceJob.PrevInAvatarRange = PrevInAvatarRange;
         avatarCapJob.AvatarRange = AvatarRange;
+        viewConeJob.AvatarRange = AvatarRange;
 
         distanceJob.MeshLodLevel = MeshLodLevel;
         distanceJob.PrevMeshLodLevel = prevMeshLodLevel;
@@ -474,6 +495,9 @@ public partial class BasisTransmissionResults
         avatarCapJob.Entries = avatarCapEntries;
         avatarCapJob.StickinessBonus = 0.75f;
 
+        viewConeJob.TargetPositions = targetPositions;
+        viewConeJob.AvatarRange = AvatarRange;
+
         dampenJob.TargetPositions = targetPositions;
         dampenJob.Multipliers = directionalDampening;
 
@@ -528,6 +552,7 @@ public partial class BasisTransmissionResults
         if (!distanceJobHandle.IsCompleted) distanceJobHandle.Complete();
         if (!reduceJobHandle.IsCompleted) reduceJobHandle.Complete();
         if (!avatarCapJobHandle.IsCompleted) avatarCapJobHandle.Complete();
+        if (!viewConeJobHandle.IsCompleted) viewConeJobHandle.Complete();
         if (!dampenJobHandle.IsCompleted) dampenJobHandle.Complete();
 
         if (targetPositions.IsCreated) targetPositions.Dispose();
