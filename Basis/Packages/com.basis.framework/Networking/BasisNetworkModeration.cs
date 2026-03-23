@@ -4,7 +4,6 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
-using BasisPermissions;
 using System;
 using System.Collections.Generic;
 using UnityEngine;

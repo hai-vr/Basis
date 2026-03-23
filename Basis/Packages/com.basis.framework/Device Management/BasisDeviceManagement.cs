@@ -397,6 +397,10 @@ namespace Basis.Scripts.Device_Management
         /// <param name="mode">The target mode used to select matching <see cref="BasisBaseTypeManagement"/> entries.</param>
         public async Task StartDevices(string mode)
         {
+            // Set mode BEFORE starting devices so subsystems (e.g. cursor locking)
+            // see the correct mode during initialization.
+            StaticCurrentMode = mode;
+
             if (TryFindBasisBaseTypeManagement(mode, out var matched))
             {
                 // Safely iterate and await each start
@@ -414,7 +418,6 @@ namespace Basis.Scripts.Device_Management
 #if !BASIS_DISABLE_MICROPHONE
             SMDMicrophone.LoadInMicrophoneData(mode);
 #endif
-            StaticCurrentMode = mode;
             await BasisActionDriver.LoadBindings();
             BasisDebug.Log($"Loading mode: {mode}", BasisDebug.LogTag.Device);
         }
@@ -893,6 +896,11 @@ namespace Basis.Scripts.Device_Management
                 }
             }
 
+            // Set mode BEFORE starting devices and reset cursor state so VR subsystems
+            // see the correct mode and desktop cursor locks don't linger.
+            StaticCurrentMode = vrMode;
+            BasisCursorManagement.OnReset();
+
             // Soft-start VR input devices — runtime is already alive
             for (int i = 0; i < BaseTypes.Count; i++)
             {
@@ -903,7 +911,6 @@ namespace Basis.Scripts.Device_Management
                 }
             }
 
-            StaticCurrentMode = vrMode;
             BasisSettingsSystem.LoadAllSettings();
 #if !BASIS_DISABLE_MICROPHONE
             SMDMicrophone.LoadInMicrophoneData(vrMode);
