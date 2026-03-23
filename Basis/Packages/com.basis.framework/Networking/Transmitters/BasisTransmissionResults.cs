@@ -262,82 +262,53 @@ public partial class BasisTransmissionResults
             }
         }
 
-        // Apply hearing toggles only when needed
-        if (hearingChange)
+        // Single-pass post-processing: hearing, audio range, dampening, avatar, LOD.
+        // Merging these loops avoids repeated cache-miss traversals of the same
+        // managed snapshot[] objects (up to 6 separate passes before).
+        for (int i = 0; i < receiverCount; i++)
         {
-            for (int i = 0; i < receiverCount; i++)
+            var receiver = snapshot[i];
+            var audio = receiver.AudioReceiverModule;
+            var remote = receiver.RemotePlayer;
+
+            if (hearingChange)
             {
-                var receiver = snapshot[i];
                 bool canHear = hearingRange[i];
-                if (receiver.AudioReceiverModule.HasAudioSource != canHear)
+                if (audio.HasAudioSource != canHear)
                 {
                     if (canHear)
                     {
-                        receiver.AudioReceiverModule.StartAudio(ConvertedVoiceDistance);
-                        receiver.RemotePlayer.OutOfRangeFromLocal = false;
+                        audio.StartAudio(ConvertedVoiceDistance);
+                        remote.OutOfRangeFromLocal = false;
                     }
                     else
                     {
-                        receiver.AudioReceiverModule.StopAudio();
-                        receiver.RemotePlayer.OutOfRangeFromLocal = true;
+                        audio.StopAudio();
+                        remote.OutOfRangeFromLocal = true;
                     }
                 }
             }
-        }
-        if (RevaluteAudioRanges)
-        {
-            for (int i = 0; i < receiverCount; i++)
-            {
-                var receiver = snapshot[i];
-                receiver.AudioReceiverModule.ApplyRangeData(ConvertedVoiceDistance);
-            }
-        }
 
-        // Apply directional dampening results (computed by Burst job above)
-        if (dampenEnabled)
-        {
-            for (int i = 0; i < receiverCount; i++)
+            if (RevaluteAudioRanges)
             {
-                snapshot[i].AudioReceiverModule.DirectionalDampeningMultiplier = directionalDampening[i];
+                audio.ApplyRangeData(ConvertedVoiceDistance);
             }
-        }
-        else
-        {
-            for (int i = 0; i < receiverCount; i++)
-            {
-                snapshot[i].AudioReceiverModule.DirectionalDampeningMultiplier = 1f;
-            }
-        }
 
-        // Apply avatar load toggles only when needed
-        if (avatarChange)
-        {
-            for (int Index = 0; Index < receiverCount; Index++)
-            {
-                var receiver = snapshot[Index];
-                var remote = receiver.RemotePlayer;
+            audio.DirectionalDampeningMultiplier = dampenEnabled ? directionalDampening[i] : 1f;
 
-                bool inRange = AvatarRange[Index];
+            if (avatarChange)
+            {
+                bool inRange = AvatarRange[i];
                 if (!remote.IsLoadingAnAvatar && remote.InAvatarRange != inRange)
                 {
                     remote.InAvatarRange = inRange;
                     remote.ReloadAvatar();
                 }
             }
-        }
 
-        // Apply mesh LOD only for changed indices (cheap micro-optimization)
-        if (lodChange)
-        {
-            for (int i = 0; i < receiverCount; i++)
+            if (lodChange && MeshLodRange[i])
             {
-                if (!MeshLodRange[i])
-                {
-                    continue;
-                }
-
-                var receiver = snapshot[i];
-                receiver.RemotePlayer.ChangeMeshLOD(MeshLodLevel[i]);
+                remote.ChangeMeshLOD(MeshLodLevel[i]);
             }
         }
 

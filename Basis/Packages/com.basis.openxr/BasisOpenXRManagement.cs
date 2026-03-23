@@ -313,6 +313,7 @@ namespace Basis.Scripts.Device_Management.Devices.UnityInputSystem
         /// </summary>
         public override void Simulate()
         {
+            if (!IsDeviceBooted) return;
             PollHMDPresence();
         }
 

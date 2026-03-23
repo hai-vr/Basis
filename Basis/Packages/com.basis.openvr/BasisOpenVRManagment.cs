@@ -467,6 +467,7 @@ namespace Basis.Scripts.Device_Management.Devices.OpenVR
         }
         public override void Simulate()
         {
+            if (!IsDeviceBooted) return;
             if (SteamVR_Render != null)
             {
                 SteamVR_Render.Simulate();

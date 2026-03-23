@@ -81,6 +81,13 @@ public static class BasisRemoteNetworkDriver
 
     public static JobHandle oneEuroJob;
 
+    // ---------------- CACHED READ POINTERS (set once per frame in BeginRead) ----------------
+    static System.IntPtr _ptrScaleChange;
+    static System.IntPtr _ptrFilteredRotations;
+    static System.IntPtr _ptrScaledBodyPositions;
+    static System.IntPtr _ptrEuroValues;
+    static System.IntPtr _ptrOutScales;
+
     // ---------------- TUNING ----------------
     // Pose (position + rotation) smoothing: usually higher MinCutoff than muscles to reduce "floaty" lag.
     public static float PoseMinCutoff = 3.0f;
@@ -312,16 +319,34 @@ public static class BasisRemoteNetworkDriver
         oneEuroJob.Complete();
     }
 
+    /// <summary>
+    /// Caches raw read pointers from NativeArrays once per frame.
+    /// Must be called after Apply() (jobs complete) and before any GetMuscleArray/GetScaleOutput calls.
+    /// Eliminates per-receiver NativeArray safety checks and GetUnsafeReadOnlyPtr overhead.
+    /// </summary>
+    public static unsafe void BeginRead()
+    {
+        if (!_initialized) return;
+        _ptrScaleChange = (System.IntPtr)_HasScaleChange.GetUnsafeReadOnlyPtr();
+        _ptrFilteredRotations = (System.IntPtr)_filteredRotations.GetUnsafeReadOnlyPtr();
+        _ptrScaledBodyPositions = (System.IntPtr)_scaledBodyPositions.GetUnsafeReadOnlyPtr();
+        _ptrEuroValues = (System.IntPtr)euroValuesOutput.GetUnsafeReadOnlyPtr();
+        _ptrOutScales = (System.IntPtr)_outScales.GetUnsafeReadOnlyPtr();
+    }
+
     // ---------------- OUTPUT GETTERS ----------------
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void GetPositionOutput(int index, out float3 outPos) => outPos = _filteredPositions[index];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void GetScaleOutput(int index, out float3 outScale) => outScale = _outScales[index];
+    public static unsafe void GetScaleOutput(int index, out float3 outScale)
+    {
+        outScale = ((float3*)(void*)_ptrOutScales)[index];
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void GetMuscleArray(
+    public static unsafe void GetMuscleArray(
         int index,
         out bool outScale,
         out quaternion outRot,
@@ -331,31 +356,15 @@ public static class BasisRemoteNetworkDriver
         int eyesAndMouthOffsetFloats,
         int eyesAndMouthCountBytes)
     {
-        if (!_initialized)
-        {
-            // Silent return if driver uninitialized (expected during shutdown/reconnect)
-            outScale = false;
-            outRot = quaternion.identity;
-            BodyPosition = float3.zero;
-            return;
-        }
+        outScale = ((bool*)(void*)_ptrScaleChange)[index];
+        outRot = ((quaternion*)(void*)_ptrFilteredRotations)[index];
+        BodyPosition = ((float3*)(void*)_ptrScaledBodyPositions)[index];
 
-        outScale = _HasScaleChange[index];
-        outRot = _filteredRotations[index];
-        BodyPosition = _scaledBodyPositions[index];
-
-        int baseOffset = index * _muscleCount;
-        unsafe
+        float* src = (float*)(void*)_ptrEuroValues + index * _muscleCount;
+        fixed (float* dst = poseData.muscles, em = eyesAndMouth)
         {
-            float* src = (float*)euroValuesOutput.GetUnsafeReadOnlyPtr() + baseOffset;
-            fixed (float* dst = poseData.muscles)
-            {
-                UnsafeUtility.MemCpy(dst, src, _muscleCount * sizeof(float));
-                fixed (float* em = eyesAndMouth)
-                {
-                    UnsafeUtility.MemCpy(dst + eyesAndMouthOffsetFloats, em, eyesAndMouthCountBytes);
-                }
-            }
+            UnsafeUtility.MemCpy(dst, src, _muscleCount * sizeof(float));
+            UnsafeUtility.MemCpy(dst + eyesAndMouthOffsetFloats, em, eyesAndMouthCountBytes);
         }
     }
 

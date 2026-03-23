@@ -27,6 +27,10 @@ namespace Basis.Scripts.Networking
         public static ushort LargestNetworkReceiverID;
         private static BasisNetworkReceiver[] _snapshotBuffer = Array.Empty<BasisNetworkReceiver>();
 
+        // Dirty flag: only re-enumerate ConcurrentDictionary on player join/leave.
+        // ConcurrentDictionary enumeration acquires bucket locks and walks all nodes — too expensive per frame.
+        private static volatile bool _snapshotDirty = true;
+
         // --- Lifecycle helpers ---------------------------------------------
         public static void ClearAllRegistries()
         {
@@ -38,18 +42,28 @@ namespace Basis.Scripts.Networking
             RemotePlayers.Clear();
             JoiningPlayers.Clear();
             OwnershipPairing.Clear();
+            _snapshotDirty = true;
         }
 
         /// <summary>
-        /// Copies remote players into a reusable array. Zero allocation in steady state
-        /// (only allocates when player count exceeds previous capacity).
+        /// Copies remote players into a reusable array. Only re-enumerates the
+        /// ConcurrentDictionary when the player list has actually changed (dirty flag).
+        /// In steady state this is effectively free.
         /// </summary>
         public static void PublishReceiversSnapshot()
         {
+            if (!_snapshotDirty) return;
+
             int count = RemotePlayers.Count;
             if (count == 0)
             {
+                // Null out stale references so GC can collect departed receivers
+                for (int j = 0; j < ReceiverCount && j < _snapshotBuffer.Length; j++)
+                {
+                    _snapshotBuffer[j] = default;
+                }
                 ReceiverCount = 0;
+                _snapshotDirty = false;
                 return;
             }
 
@@ -78,6 +92,7 @@ namespace Basis.Scripts.Networking
 
             ReceiversSnapshot = _snapshotBuffer;
             ReceiverCount = i;
+            _snapshotDirty = false;
         }
 
         // --- Registry APIs --------------------------------------------------
@@ -121,6 +136,7 @@ namespace Basis.Scripts.Networking
                     BasisDebug.LogError($"Failed to add remote player {netPlayer.playerId} to RemotePlayers. Rolled back from Players.");
                     return false;
                 }
+                _snapshotDirty = true;
             }
 
             return true;
@@ -137,6 +153,7 @@ namespace Basis.Scripts.Networking
 
             Players.TryRemove(netId, out player);
             RemotePlayers.TryRemove(netId, out _);
+            _snapshotDirty = true;
             return true;
         }
 

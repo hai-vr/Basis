@@ -44,6 +44,11 @@ namespace Basis.Scripts.Networking.Receivers
         public float[] EyesAndMouth = new float[] { 0, 0, 0, 0, 1, 0 }; // default neutral eyes, mouth open=1 for breathing
         public float3 ApplyingScale;
 
+        // When true, forces re-validation of avatar/animator/transform references.
+        // Set on avatar change (CalibrationComplete), init, and deinit.
+        // Avoids 3000+ Unity null checks per frame with 1k receivers.
+        private bool _avatarDirty = true;
+
         private double interpolationTime = 0f; // 0..1 over current->next window
 
         public bool HasBufferHolds;
@@ -88,33 +93,41 @@ namespace Basis.Scripts.Networking.Receivers
         {
             AudioReceiverModule?.DrainAndDecode();
 
-            // expected briefly on join
-            if (Player.BasisAvatar == null)
+            // Re-validate avatar references only when dirty (avatar change, init, etc.)
+            // Avoids expensive Unity null checks (managed→native interop) every frame for all receivers.
+            if (_avatarDirty)
             {
-                hasRequiredData = false;
-                return;
+                // expected briefly on join — stay dirty so we retry next frame
+                if (Player.BasisAvatar == null)
+                {
+                    hasRequiredData = false;
+                    return;
+                }
+
+                if (Player.BasisAvatar.Animator == null)
+                {
+                    hasRequiredData = false;
+                    BasisDebug.LogError($"Animator for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
+                    return;
+                }
+
+                if (Player.AvatarTransform == null)
+                {
+                    hasRequiredData = false;
+                    BasisDebug.LogError($"AvatarTransform for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
+                    return;
+                }
+                hasRequiredData = true;
+                _avatarDirty = false;
             }
+
+            if (!hasRequiredData) return;
 
             if (LastAvatarsTransform != Player.AvatarTransform)
             {
                 LastAvatarsTransform = Player.AvatarTransform;
                 DidLastAvatarTransformChanged = true;
             }
-
-            if (Player.BasisAvatar.Animator == null)
-            {
-                hasRequiredData = false;
-                BasisDebug.LogError($"Animator for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
-                return;
-            }
-
-            if (Player.AvatarTransform == null)
-            {
-                hasRequiredData = false;
-                BasisDebug.LogError($"AvatarTransform for {Player.DisplayName} lost", BasisDebug.LogTag.Remote);
-                return;
-            }
-            hasRequiredData = true;
             // 1) Pull network packets, drop stale, sort by sequence, then stage
             _pendingSort.Clear();
             while (PayloadQueue.TryDequeue(out BasisAvatarBuffer buffer))
@@ -278,36 +291,29 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void Apply()
         {
-            if (IsDataReady)
-            {
-                // These outputs should be stable when simulate passed.
-                BasisRemoteNetworkDriver.GetMuscleArray(playerId, out bool outscale, out var ApplyingRotation, out float3 scaledBody, ref HumanPose, EyesAndMouth, EyesAndMouthOffset, EyeAndMouthCountInBytes);
-                HumanPose.bodyPosition = scaledBody;
-                HumanPose.bodyRotation = ApplyingRotation;
+            if (!IsDataReady || !hasRequiredData) return;
 
-                if (outscale)
-                {
-                    ApplyScale();
-                }
-                else
-                {
-                    if (DidLastAvatarTransformChanged)
-                    {
-                        ApplyScale();
-                        DidLastAvatarTransformChanged = false;
-                    }
-                }
-            }
-            if (IsDataReady && hasRequiredData)
+            BasisRemoteNetworkDriver.GetMuscleArray(playerId, out bool outscale, out var ApplyingRotation, out float3 scaledBody, ref HumanPose, EyesAndMouth, EyesAndMouthOffset, EyeAndMouthCountInBytes);
+            HumanPose.bodyPosition = scaledBody;
+            HumanPose.bodyRotation = ApplyingRotation;
+
+            if (outscale)
             {
-                PoseHandler.SetHumanPose(ref HumanPose);
-                if (HasOverridenDestination)
+                ApplyScale();
+            }
+            else if (DidLastAvatarTransformChanged)
+            {
+                ApplyScale();
+                DidLastAvatarTransformChanged = false;
+            }
+
+            PoseHandler.SetHumanPose(ref HumanPose);
+            if (HasOverridenDestination)
+            {
+                var References = RemotePlayer?.RemoteAvatarDriver?.References;
+                if (References.Hips != null)
                 {
-                    var References = RemotePlayer?.RemoteAvatarDriver?.References;
-                    if (References.Hips != null)
-                    {
-                        References.Hips.SetPositionAndRotation(OverridenPosition, OverridenRotation);
-                    }
+                    References.Hips.SetPositionAndRotation(OverridenPosition, OverridenRotation);
                 }
             }
         }
@@ -324,6 +330,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         public override void Initialize()
         {
+            _avatarDirty = true;
             _serverClockSeconds = 0.0;
             _serverClockSeeded = false;
             _highestSequence = 0;
@@ -352,6 +359,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void OnCalibration()
         {
+            _avatarDirty = true;
             AudioReceiverModule.AvatarChanged(this, true);
 
             List<byte> keysToRemove = new List<byte>();
@@ -397,6 +405,7 @@ namespace Basis.Scripts.Networking.Receivers
 
         public override void DeInitialize()
         {
+            _avatarDirty = true;
             _serverClockSeconds = 0.0;
             _serverClockSeeded = false;
             _highestSequence = 0;

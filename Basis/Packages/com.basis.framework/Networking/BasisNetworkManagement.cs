@@ -221,6 +221,7 @@ namespace Basis.Scripts.Networking
             }
 
             BasisRemoteNetworkDriver.Apply();
+            BasisRemoteNetworkDriver.BeginRead();
             for (int Index = 0; Index < BasisNetworkPlayers.ReceiverCount; Index++)
             {
                 BasisNetworkPlayers.ReceiversSnapshot[Index].Apply();
