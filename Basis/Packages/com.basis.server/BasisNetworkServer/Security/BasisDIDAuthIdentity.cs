@@ -15,6 +15,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 using static Basis.Network.Core.Serializable.SerializableBasis;
+using static BasisNetworkServer.Security.BasisPlayerModeration;
 using static SerializableBasis;
 using Challenge = Basis.Contrib.Auth.DecentralizedIds.Challenge;
 using CryptoRng = System.Security.Cryptography.RandomNumberGenerator;

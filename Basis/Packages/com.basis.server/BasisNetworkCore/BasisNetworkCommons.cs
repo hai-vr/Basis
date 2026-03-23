@@ -124,7 +124,7 @@ namespace Basis.Network.Core
         /// <summary>
         /// request is admin from client
         /// </summary>
-        public const byte ServerIsAdminChannel = 26;
+       // public const byte ServerIsAdminChannel = 26;
         /// <summary>
         /// chat text messages displayed above player nameplates
         /// </summary>

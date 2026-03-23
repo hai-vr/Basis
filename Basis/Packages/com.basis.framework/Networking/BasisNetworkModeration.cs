@@ -108,22 +108,6 @@ public static class BasisNetworkModeration
         }
     }
 
-    public static void AddAdmin(string uuid)
-    {
-        if (ValidateString(uuid, nameof(uuid)))
-        {
-            SendAdminRequest(AdminRequestMode.AddAdmin, w => w.Put(uuid));
-        }
-    }
-
-    public static void RemoveAdmin(string uuid)
-    {
-        if (ValidateString(uuid, nameof(uuid)))
-        {
-            SendAdminRequest(AdminRequestMode.RemoveAdmin, w => w.Put(uuid));
-        }
-    }
-
     public static void SendMessage(ushort uuid, string message)
     {
         if (ValidateString(message, nameof(message)))

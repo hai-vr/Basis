@@ -1,7 +1,9 @@
 using Basis.Network.Core;
+using BasisPermissions;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using static BasisPermissions.PermissionManager;
 using static SerializableBasis;
 
 public static class BasisNetworkResourceManagement
@@ -108,19 +110,9 @@ public static class BasisNetworkResourceManagement
         }
 
         // Admin lock validation
-        if (resource.IsAdminLocked)
+        if (resource.IsAdminLocked && !PermissionIntegration.HasValidRequirement(peer, PermNodes.protection))
         {
-            if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid))
-            {
-                BNL.LogError($"User UUID not found for peer: {peer}");
-                return;
-            }
-
-            if (!NetworkServer.AuthIdentity.IsNetPeerAdmin(uuid))
-            {
-                BNL.LogError($"User {uuid} tried to remove admin-only object");
-                return;
-            }
+            return;
         }
 
         // Only remove AFTER validation

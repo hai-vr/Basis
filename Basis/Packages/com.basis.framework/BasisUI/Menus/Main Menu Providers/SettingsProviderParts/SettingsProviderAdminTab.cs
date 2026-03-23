@@ -217,44 +217,6 @@ namespace Basis.BasisUI
                     BasisNetworkModeration.UnBan(uuid);
                 });
 
-            PanelButton addAdmin = PanelButton.CreateNew(actionsGroup.ContentParent);
-            addAdmin.Descriptor.SetTitle("Add Admin (UUID)");
-            addAdmin.Descriptor.SetDescription("Grants admin to UUID.");
-            GuardedClick(
-                addAdmin,
-                "Grant admin?",
-                "Grant admin privileges to this UUID?",
-                "Grant",
-                () =>
-                {
-                    string uuid = controller.GetUUIDText();
-                    if (string.IsNullOrWhiteSpace(uuid))
-                    {
-                        BasisDebug.LogError("UUID is empty.");
-                        return;
-                    }
-                    BasisNetworkModeration.AddAdmin(uuid);
-                });
-
-            PanelButton removeAdmin = PanelButton.CreateNew(actionsGroup.ContentParent);
-            removeAdmin.Descriptor.SetTitle("Remove Admin (UUID)");
-            removeAdmin.Descriptor.SetDescription("Revokes admin from UUID.");
-            GuardedClick(
-                removeAdmin,
-                "Revoke admin?",
-                "Remove admin privileges from this UUID?",
-                "Revoke",
-                () =>
-                {
-                    string uuid = controller.GetUUIDText();
-                    if (string.IsNullOrWhiteSpace(uuid))
-                    {
-                        BasisDebug.LogError("UUID is empty.");
-                        return;
-                    }
-                    BasisNetworkModeration.RemoveAdmin(uuid);
-                });
-
             // ------------------
             // Messaging actions
             // ------------------

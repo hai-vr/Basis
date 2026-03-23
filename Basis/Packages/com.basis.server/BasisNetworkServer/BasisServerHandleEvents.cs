@@ -622,7 +622,7 @@ namespace BasisServerHandle
                 return;
             }
             LocalLoadResource.Deserialize(Reader);
-            LocalLoadResource.IsAdminLocked = NetworkServer.AuthIdentity.IsNetPeerAdmin(uuid);
+            LocalLoadResource.IsAdminLocked = PermissionIntegration.HasValidRequirement(Peer, PermNodes.protection);
             LocalLoadResource.UUIDOfCreator = UUID;
             Reader.Recycle();
 
@@ -631,23 +631,32 @@ namespace BasisServerHandle
                 case 0:
                     if (PermissionIntegration.HasValidRequirement(UUID, PermNodes.ResourceLoadProp) == false)
                     {
+                        BNL.LogError($"Invalid Request To Load Gameobject From {UUID}");
                         return;
                     }
                     break;
                 case 1:
                     if (PermissionIntegration.HasValidRequirement(UUID, PermNodes.ResourceLoadWorld) == false)
                     {
+                        BNL.LogError($"Invalid Request To Load Scene From {UUID}");
                         return;
                     }
+                    break;
+                default:
+                    BNL.LogError($"Missing Mode {LocalLoadResource.Mode}");
                     break;
             }
             // Route based on load strategy
             switch (LocalLoadResource.LoadStrategy)
             {
+                case 0:
+                    BasisNetworkResourceManagement.LoadResource(LocalLoadResource);
+                    break;
                 case 2: // Synchronized
                     BasisNetworkPreloadResourceManagement.StartSynchronizedLoad(LocalLoadResource);
                     break;
-                default: // 0 = Immediate (existing behavior)
+                default:
+                    BNL.LogError("Falling Back to Resource Load, Unsupport Load Strategy");
                     BasisNetworkResourceManagement.LoadResource(LocalLoadResource);
                     break;
             }
@@ -659,7 +668,7 @@ namespace BasisServerHandle
             Reader.Recycle();
             BasisNetworkPreloadResourceManagement.HandleClientReady(readyMsg.LoadedNetID, Peer.Id, readyMsg.IsReady);
         }
-        public static void UnloadResource(NetPacketReader Reader, NetPeer Peer, string UUID)
+        public static void UnloadResource(NetPacketReader Reader, NetPeer Peer)
         {
             UnLoadResource UnLoadResource = new UnLoadResource();
             UnLoadResource.Deserialize(Reader);
@@ -668,16 +677,19 @@ namespace BasisServerHandle
             switch (UnLoadResource.Mode)
             {
                 case 0:
-                    if (PermissionIntegration.HasValidRequirement(UUID, PermNodes.ResourceUnloadProp) == false)
+                    if (PermissionIntegration.HasValidRequirement(Peer, PermNodes.ResourceUnloadProp) == false)
                     {
                         return;
                     }
                     break;
                 case 1:
-                    if (PermissionIntegration.HasValidRequirement(UUID, PermNodes.ResourceUnloadWorld) == false)
+                    if (PermissionIntegration.HasValidRequirement(Peer, PermNodes.ResourceUnloadWorld) == false)
                     {
                         return;
                     }
+                    break;
+                default:
+                    BNL.LogError($"Missing Mode {UnLoadResource.Mode}");
                     break;
             }
 
@@ -690,15 +702,8 @@ namespace BasisServerHandle
         {
             if (NetworkServer.Configuration.DisableWriteUnlessAdminPersistentFlag)
             {
-                if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid) == false)
+                if (PermissionIntegration.HasValidRequirement(peer, PermNodes.ConfigurationEditor))
                 {
-                    BNL.LogError($"User UUID not found for peer: {peer}");
-                    return;
-                }
-
-                if (NetworkServer.AuthIdentity.IsNetPeerAdmin(uuid) == false)
-                {
-                    BNL.LogError($"Unauthorized admin access attempt by UUID: {uuid}");
                     return;
                 }
             }
@@ -714,15 +719,8 @@ namespace BasisServerHandle
         {
             if(NetworkServer.Configuration.DisableReadUnlessAdminPersistentFlag)
             {
-                if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid) == false)
+                if(!PermissionIntegration.HasValidRequirement(peer, PermNodes.ConfigurationEditor))
                 {
-                    BNL.LogError($"User UUID not found for peer: {peer}");
-                    return;
-                }
-
-                if (NetworkServer.AuthIdentity.IsNetPeerAdmin(uuid) == false)
-                {
-                    BNL.LogError($"Unauthorized admin access attempt by UUID: {uuid}");
                     return;
                 }
             }

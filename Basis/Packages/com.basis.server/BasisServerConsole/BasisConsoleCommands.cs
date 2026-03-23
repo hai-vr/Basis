@@ -535,26 +535,6 @@ namespace BasisNetworkConsole
             consoleThread.IsBackground = true;
             consoleThread.Start();
         }
-        // Example command handlers
-        public static void HandleAddAdmin(string[] args)
-        {
-            if (args.Length >= 1)
-            {
-                string value = args[0];
-                if (NetworkServer.AuthIdentity.AddNetPeerAsAdmin(value))
-                {
-                    BNL.Log($"Added Admin {value}");
-                }
-                else
-                {
-                    BNL.Log("Already Have Admin Added");
-                }
-            }
-            else
-            {
-                BNL.Log("Usage: /admin add <username>");
-            }
-        }
         public static void HandleShowPlayers(string[] args)
         {
             string ConnectedPlayerNames = $"Connected Player count is {NetworkServer.AuthenticatedPeers.Count} ";

@@ -17,9 +17,6 @@ namespace Basis.Network.Server.Auth
         public void ProcessConnection(Configuration Configuration, ConnectionRequest ConnectionRequest, NetPeer NetPeer);
         public void DeInitialize();
         public void RemoveConnection(int NetPeer);
-        public bool IsNetPeerAdmin(string UUID);
-        public bool AddNetPeerAsAdmin(string UUID);
-        public bool RemoveNetPeerAsAdmin(string UUID);
         public bool NetIDToUUID(NetPeer Peer, out string UUID);
         public bool UUIDToNetID(string UUID, out int Peer);
 
