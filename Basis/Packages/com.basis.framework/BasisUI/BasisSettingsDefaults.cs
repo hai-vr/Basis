@@ -181,10 +181,10 @@ namespace Basis.BasisUI
         // ---------------- DEVICE SWAP MODE ----------------
         /// <summary>
         /// Controls how the system handles switching between VR and Desktop modes.
-        /// "Shutdown Runtime" — full XR shutdown on swap (default).
-        /// "Auto Swap" — automatically swaps based on headset presence, keeping XR alive.
+        /// "Shutdown Runtime" — full XR shutdown on swap.
+        /// "Auto Swap" — automatically swaps based on headset presence, keeping XR alive. (default).
         /// </summary>
-        public static BasisSettingsBinding<string> SwapMode = new("swap_mode", new BasisPlatformDefault<string>("Shutdown Runtime"));
+        public static BasisSettingsBinding<string> SwapMode = new("swap_mode", new BasisPlatformDefault<string>("Auto Swap"));
 
         public const string SwapMode_Shutdown = "Shutdown Runtime";
         public const string SwapMode_AutoSwap = "Auto Swap";

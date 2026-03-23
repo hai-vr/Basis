@@ -1,3 +1,4 @@
+using Basis.Network.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -25,6 +26,31 @@ namespace BasisPermissions
         public const string OwnershipTransfer = "basis.ownership.transfer";
         public const string OwnershipRemove = "basis.ownership.remove";
         public const string OwnershipGet = "basis.ownership.get";
+
+        public const string ContentShareDelete = "basis.contentshare.delete";
+        public const string ContentShareCreate = "basis.contentshare.create";
+
+        /// <summary>
+        /// used to indicate that this persons actions are protected from interferance
+        /// </summary>
+        public const string protection = "basis.protection";
+
+        public const string ConfigurationEditor = "basis.configuration";
+
+        public const string PlayerModeration = "basis.moderation";
+
+        public const string ModerationBan = "basis.moderation.ban";
+        public const string ModerationKick = "basis.moderation.kick";
+        public const string ModerationIpBan = "basis.moderation.ipban";
+        public const string ModerationUnban = "basis.moderation.unban";
+        public const string ModerationUnbanIp = "basis.moderation.unbanip";
+        public const string ModerationMessage = "basis.moderation.message";
+        public const string ModerationMessageAll = "basis.moderation.messageall";
+        public const string ModerationTeleport = "basis.moderation.teleport";
+        public const string ModerationShout = "basis.moderation.shout";
+
+        public const string PermissionsView = "basis.permissions.view";
+        public const string PermissionsEdit = "basis.permissions.edit";
     }
 
     // =========================
@@ -938,13 +964,34 @@ namespace BasisPermissions
                 // Optional defaults if file was empty/nonexistent
                 Manager.EnsureDefaults();
             }
-            public static bool HasRequirement(string uuid, string permNode)
-            {
-                return Manager.Has(uuid, permNode);
-            }
             public static bool HasValidRequirement(string uuid, string permNode)
             {
-                return Manager.Has(uuid, permNode) || Manager.Has(uuid, PermNodes.All);
+                bool hasPermission = Manager.Has(uuid, permNode);
+                bool isAdmin = Manager.Has(uuid, PermNodes.All);
+
+                return hasPermission || isAdmin;
+            }
+            public static bool HasValidRequirement(NetPeer peer, string permNode)
+            {
+                if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid))
+                {
+                    bool hasPermission = Manager.Has(uuid, permNode);
+                    bool isAdmin = Manager.Has(uuid, PermNodes.All);
+                    if (hasPermission || isAdmin)
+                    {
+                        return true;
+                    }
+                    else
+                    {
+                        BNL.LogError($"Permission not found for UUID: {uuid} for perm node {permNode}");
+                        return false;
+                    }
+                }
+                else
+                {
+                    BNL.LogError($"UUID not found for peer: {peer.Id} ");
+                    return false;
+                }
             }
         }
     }

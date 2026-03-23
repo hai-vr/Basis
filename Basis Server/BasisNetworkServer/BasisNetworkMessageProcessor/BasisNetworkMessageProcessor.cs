@@ -78,25 +78,19 @@ public static class BasisNetworkMessageProcessor
                     break;
 
                 case BasisNetworkCommons.LoadResourceChannel:
-                    if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string LRuuid))
+                    if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string LRuuid))
                     {
-                        BNL.LogError($"User UUID not found for peer: {peer}");
-                        reader.Recycle();
-                        return;
+                        BasisServerHandleEvents.LoadResource(reader, peer, LRuuid);
+                        break;
                     }
-                    BasisServerHandleEvents.LoadResource(reader, peer, LRuuid);
-                    break;
+                    BNL.LogError($"User UUID not found for peer: {peer}");
+                    reader.Recycle();
+                    return;
 
                 case BasisNetworkCommons.UnloadResourceChannel:
-                    if (!NetworkServer.AuthIdentity.NetIDToUUID(peer, out string URCuuid))
-                    {
-                        BNL.LogError($"User UUID not found for peer: {peer}");
-                        reader.Recycle();
-                        return;
-                    }
-                    BasisServerHandleEvents.UnloadResource(reader, peer, URCuuid);
-                   // HandleAdminResourceAction(peer, reader, BasisServerHandleEvents.UnloadResource, PermNodes.ResourceUnload); // recycles inside or here
-                    break;
+                    BasisServerHandleEvents.UnloadResource(reader, peer);
+                    reader.Recycle();
+                    return;
 
                 case BasisNetworkCommons.AdminChannel:
                     BasisPlayerModeration.OnAdminMessage(peer, reader); // recycles inside
@@ -123,16 +117,18 @@ public static class BasisNetworkMessageProcessor
                     BasisServerHandleEvents.HandleRequestStoreDatabase(reader, peer); // recycles inside
                     break;
 
-                case BasisNetworkCommons.ServerIsAdminChannel:
-                    BasisPlayerModeration.CheckIsAdmin(peer);
-                    reader.Recycle(); // recycles here
-                    break;
+              //  case BasisNetworkCommons.ServerIsAdminChannel:
+                ///    BasisPlayerModeration.CheckHasPermission(reader,peer);
+                ///    reader.Recycle(); // recycles here
+                //    break;
 
                 case BasisNetworkCommons.ServerStatisticsChannel:
                     {
                         // Permission-gated stats
                         if (!TryWithPermission(peer, reader, PermNodes.ServerStats, out _))
-                            return; // reader recycled inside helper on failure
+                        {
+                            return;
+                        }
 
                         if (reader.GetBool())
                         {

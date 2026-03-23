@@ -78,7 +78,6 @@ namespace Basis
             };
             if (config.EnableConsole)
             {
-                BasisConsoleCommands.RegisterCommand("/admin add", "Adds a user as an admin.", BasisConsoleCommands.HandleAddAdmin);
                 BasisConsoleCommands.RegisterCommand("/players", "Lists all connected players.", BasisConsoleCommands.HandleShowPlayers);
                 BasisConsoleCommands.RegisterCommand("/status", "Shows the current server status.", BasisConsoleCommands.HandleStatus);
                 BasisConsoleCommands.RegisterCommand("/shutdown", "Shuts down the server.", BasisConsoleCommands.HandleShutdown);

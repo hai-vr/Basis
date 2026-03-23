@@ -1,6 +1,8 @@
 using Basis.Network.Core;
+using BasisPermissions;
 using System.Collections.Concurrent;
 using System.Linq;
+using static BasisPermissions.PermissionManager;
 using static SerializableBasis;
 
 /// <summary>
@@ -25,6 +27,11 @@ public static class BasisNetworkContentShare
         ContentShareMessage msg = new ContentShareMessage();
         msg.Deserialize(reader);
         reader.Recycle();
+
+        if (!PermissionIntegration.HasValidRequirement(peer, PermNodes.ContentShareCreate))
+        {
+            return;
+        }
 
         ServerContentShareMessage serverMsg = new ServerContentShareMessage
         {
@@ -72,25 +79,10 @@ public static class BasisNetworkContentShare
             BNL.LogError($"Trying to remove content sphere that does not exist: {msg.SphereNetID}");
             return;
         }
-
-        // Only the creator or an admin can remove
-        if (existing.playerIdMessage.playerID != (ushort)peer.Id)
+        if (!PermissionIntegration.HasValidRequirement(peer, PermNodes.ContentShareDelete))
         {
-            if (NetworkServer.AuthIdentity.NetIDToUUID(peer, out string uuid))
-            {
-                if (!NetworkServer.AuthIdentity.IsNetPeerAdmin(uuid))
-                {
-                    BNL.LogError($"Peer {peer.Id} tried to remove sphere they did not create");
-                    return;
-                }
-            }
-            else
-            {
-                BNL.LogError($"UUID not found for peer: {peer.Id}");
-                return;
-            }
+            return;
         }
-
         if (ActiveSpheres.TryRemove(msg.SphereNetID, out _))
         {
             BNL.Log($"Content sphere removed: {msg.SphereNetID}");
