@@ -180,37 +180,23 @@ namespace Basis.BasisUI
                 rangeGroup,
                 PanelSlider.SliderSettings.Distance("Avatar Visibility Range", 100),
                 BasisSettingsDefaults.AvatarRange);
-
-            float currentLimit = BasisSettingsDefaults.MaxVisibleAvatars.RawValue;
-            bool isLimited = currentLimit > 0;
-            float lastNonZeroLimit = currentLimit > 0 ? currentLimit : 10;
-
+            
             PanelToggle toggleLimitAvatars = PanelToggle.CreateNewEntry(rangeGroup);
+            toggleLimitAvatars.AssignBinding(BasisSettingsDefaults.UseMaxVisibleAvatars);
+
             toggleLimitAvatars.Descriptor.SetTitle("Limit Avatars");
-            toggleLimitAvatars.SetValueWithoutNotify(isLimited);
+
 
             PanelSlider sliderMaxVisibleAvatars = PanelSlider.CreateEntryAndBind(
                 rangeGroup,
                 PanelSlider.SliderSettings.Advanced("Max Avatars", 0, 250, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.MaxVisibleAvatars);
-            if (isLimited)
-                sliderMaxVisibleAvatars.SetValueWithoutNotify(currentLimit);
-            sliderMaxVisibleAvatars.Descriptor.SetActive(isLimited);
+
+            sliderMaxVisibleAvatars.Descriptor.SetActive(toggleLimitAvatars.Value);
 
             toggleLimitAvatars.OnValueChanged += (val) =>
             {
                 sliderMaxVisibleAvatars.Descriptor.SetActive(val);
-                if (!val)
-                {
-                    if (BasisSettingsDefaults.MaxVisibleAvatars.RawValue > 0)
-                        lastNonZeroLimit = BasisSettingsDefaults.MaxVisibleAvatars.RawValue;
-                    BasisSettingsDefaults.MaxVisibleAvatars.SetValue(0);
-                }
-                else
-                {
-                    BasisSettingsDefaults.MaxVisibleAvatars.SetValue(lastNonZeroLimit);
-                    sliderMaxVisibleAvatars.SetValueWithoutNotify(lastNonZeroLimit);
-                }
                 rangeGroup.ForceRebuild();
             };
 

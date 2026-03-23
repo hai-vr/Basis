@@ -185,9 +185,9 @@ public partial class BasisTransmissionResults
 
         // Avatar cap job depends on distance job (reads AvatarRange/DistanceSq).
         // Runs in parallel with reduce — they touch disjoint arrays.
-        int maxVisible = SMModuleDistanceBasedReductions.MaxVisibleAvatars;
-        if (maxVisible > 0)
+        if (SMModuleDistanceBasedReductions.UseMaxVisibleAvatars)
         {
+            int maxVisible = SMModuleDistanceBasedReductions.MaxVisibleAvatars;
             avatarCapJob.MaxVisible = maxVisible;
             avatarCapJob.ReceiverCount = receiverCount;
             avatarCapJobHandle = avatarCapJob.Schedule(distanceJobHandle);
@@ -250,7 +250,7 @@ public partial class BasisTransmissionResults
         // Re-check avatar changes: the cap enforcement may have changed
         // AvatarRange entries beyond what the distance job flagged.
         bool avatarChange = IndexChanged || AnyAvatarRangeChanged;
-        if (!avatarChange && SMModuleDistanceBasedReductions.MaxVisibleAvatars > 0)
+        if (!avatarChange && SMModuleDistanceBasedReductions.UseMaxVisibleAvatars)
         {
             for (int i = 0; i < receiverCount; i++)
             {

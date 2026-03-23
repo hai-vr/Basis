@@ -44,6 +44,7 @@ namespace Basis.BasisUI
         /// Closest players get priority; currently-visible avatars are sticky to prevent pulsing.
         /// </summary>
         public static BasisSettingsBinding<float> MaxVisibleAvatars = new("maxvisibleavatars", new BasisPlatformDefault<float>(0));
+        public static BasisSettingsBinding<bool> UseMaxVisibleAvatars = new("usemaxvisibleavatars", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<float> SnapTurnAngle = new("snapturnangle", new BasisPlatformDefault<float>(25f));
 
@@ -572,6 +573,7 @@ namespace Basis.BasisUI
             realworldeyeheight.LoadBindingValue();
             CustomScale.LoadBindingValue();
             AvatarRange.LoadBindingValue();
+            UseMaxVisibleAvatars.LoadBindingValue();
             MaxVisibleAvatars.LoadBindingValue();
             SelectedBone.LoadBindingValue();
             IKMode.LoadBindingValue();

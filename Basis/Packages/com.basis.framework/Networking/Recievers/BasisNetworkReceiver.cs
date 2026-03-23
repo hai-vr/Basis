@@ -236,6 +236,7 @@ namespace Basis.Scripts.Networking.Receivers
 
             StagedCount = _stagedRing.Count;
 
+            int preCleanupCount = _stagedRing.Count;
             while (_stagedRing.Count > BufferCapacityBeforeCleanup)
             {
                 if (_stagedRing.TryDequeueOldest(out var buf))
@@ -248,6 +249,14 @@ namespace Basis.Scripts.Networking.Receivers
                 }
             }
             StagedCount = _stagedRing.Count;
+
+            // Frames were dropped — next window advance will jump to a newer frame.
+            // Reset the 1€ filter so it re-seeds at the new position instead of
+            // smoothing from the stale position (which causes visible teleporting).
+            if (StagedCount < preCleanupCount)
+            {
+                BasisRemoteNetworkDriver.ResetPoseFilter(playerId);
+            }
 
             HasBufferHolds = HasCurrentBuffer && HasNextBuffer;
 
@@ -271,6 +280,12 @@ namespace Basis.Scripts.Networking.Receivers
 
                 if (SentLatest)
                 {
+                    // First real data for this receiver — reset filter so it seeds
+                    // with the actual position instead of (0,0,0) from default init.
+                    if (!IsDataReady)
+                    {
+                        BasisRemoteNetworkDriver.ResetPoseFilter(playerId);
+                    }
 
                     BasisRemoteNetworkDriver.SetFrameInputs(
                         playerId,

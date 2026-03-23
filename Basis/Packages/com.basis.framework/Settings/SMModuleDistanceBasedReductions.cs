@@ -1,6 +1,8 @@
+using Basis.BasisUI;
 using System;
 using UnityEngine;
-using Basis.BasisUI;
+using static UnityEngine.Rendering.DebugUI;
+using static UnityEngine.UIElements.UxmlAttributeDescription;
 
 public class SMModuleDistanceBasedReductions : BasisSettingsBase
 {
@@ -9,17 +11,20 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     private static float _avatarRange = 25f;
     private static float _meshLod = 25f;
     private static int _maxVisibleAvatars = 0;
+    private static bool _UsemaxVisibleAvatars = false;
     private static string K_MIC_RANGE => BasisSettingsDefaults.MicrophoneRange.BindingKey;   // "microphonerange"
     private static string K_HEARING_RANGE => BasisSettingsDefaults.HearingRange.BindingKey;     // "hearingrange"
     private static string K_AVATAR_RANGE => BasisSettingsDefaults.AvatarRange.BindingKey;      // "avatarrange"
     private static string K_AVATAR_MESH_LOD => BasisSettingsDefaults.AvatarMeshLOD.BindingKey;    // "avatarmeshlod"
     private static string K_GLOBAL_MESH_LOD => BasisSettingsDefaults.GlobalMeshLOD.BindingKey;    // "global meshlod" (note space!)
     private static string K_MAX_VISIBLE_AVATARS => BasisSettingsDefaults.MaxVisibleAvatars.BindingKey; // "maxvisibleavatars"
+    private static string K_USEMAX_VISIBLE_AVATARS => BasisSettingsDefaults.UseMaxVisibleAvatars.BindingKey; // "usemaxvisibleavatars"
     public static event Action<float> OnMicrophoneRangeChanged;
     public static event Action<float> OnHearingRangeChanged;
     public static event Action<float> OnAvatarRangeChanged;
     public static event Action<float> OnMeshLodChanged;
     public static event Action<int> OnMaxVisibleAvatarsChanged;
+    public static event Action<bool> OnUseMaxVisibleAvatarsChanged;
     public static float MicrophoneRange
     {
         get => _microphoneRange;
@@ -39,6 +44,18 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     {
         get => _meshLod;
         private set => SetAndNotify(ref _meshLod, value, OnMeshLodChanged);
+    }
+    public static bool UseMaxVisibleAvatars
+    {
+        get => _UsemaxVisibleAvatars;
+        private set
+        {
+            if (_UsemaxVisibleAvatars != value)
+            {
+                _UsemaxVisibleAvatars = value;
+                OnUseMaxVisibleAvatarsChanged?.Invoke(value);
+            }
+        }
     }
     /// <summary>
     /// Maximum number of remote avatars allowed to show their real model.
@@ -105,6 +122,13 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 {
                     MaxVisibleAvatars = (int)maxAv;
                     LogDistanceSetting("MaxVisibleAvatars", maxAv);
+                }
+                break;
+            case var s when s == K_USEMAX_VISIBLE_AVATARS:
+                if (bool.TryParse(optionValue,out bool usemax))
+                {
+                    UseMaxVisibleAvatars = usemax;
+                    BasisDebug.Log($"Use Max Visible Avatars {usemax}");
                 }
                 break;
         }

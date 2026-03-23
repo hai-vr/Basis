@@ -88,6 +88,9 @@ public static class BasisRemoteNetworkDriver
     static System.IntPtr _ptrEuroValues;
     static System.IntPtr _ptrOutScales;
 
+    // ---------------- FILTER RESET ----------------
+    static System.IntPtr _ptrPoseFilterSeeded;
+
     // ---------------- CACHED WRITE POINTERS (set once per frame in BeginWrite) ----------------
     static System.IntPtr _ptrInterpolationTimes;
     static System.IntPtr _ptrDeltaTimes;
@@ -206,6 +209,19 @@ public static class BasisRemoteNetworkDriver
         _ptrTargetRotations = (System.IntPtr)_targetRotations.GetUnsafePtr();
         _ptrPrevMuscles = (System.IntPtr)_prevMuscles.GetUnsafePtr();
         _ptrTargetMuscles = (System.IntPtr)_targetMuscles.GetUnsafePtr();
+        _ptrPoseFilterSeeded = (System.IntPtr)_poseFilterSeeded.GetUnsafePtr();
+    }
+
+    /// <summary>
+    /// Resets the 1€ pose filter for a receiver so it re-seeds with the next real position.
+    /// Call when: (1) first real data arrives (avoids filter anchored at origin),
+    /// (2) buffer cleanup drops frames (avoids smoothing across a position gap).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void ResetPoseFilter(int index)
+    {
+        if (!_initialized) return;
+        ((byte*)(void*)_ptrPoseFilterSeeded)[index] = 0;
     }
 
     /// <summary>
@@ -215,6 +231,7 @@ public static class BasisRemoteNetworkDriver
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void SetFrameTiming(int index, double interpolationTime, double deltaTimeSeconds)
     {
+        if (!_initialized) return;
         ((double*)(void*)_ptrInterpolationTimes)[index] = interpolationTime;
         ((double*)(void*)_ptrDeltaTimes)[index] = deltaTimeSeconds;
     }
@@ -228,6 +245,7 @@ public static class BasisRemoteNetworkDriver
         quaternion prevRot, quaternion targetRot,
         NativeArray<float> prevMuscles, NativeArray<float> targetMuscles)
     {
+        if (!_initialized) return;
         ((float*)(void*)_ptrHumanScales)[index] = humanScale;
         ((float3*)(void*)_ptrPrevPositions)[index] = prevPos;
         ((float3*)(void*)_ptrTargetPositions)[index] = targetPos;
@@ -366,6 +384,7 @@ public static class BasisRemoteNetworkDriver
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void GetScaleOutput(int index, out float3 outScale)
     {
+        if (!_initialized) { outScale = new float3(1, 1, 1); return; }
         outScale = ((float3*)(void*)_ptrOutScales)[index];
     }
 
@@ -380,6 +399,14 @@ public static class BasisRemoteNetworkDriver
         int eyesAndMouthOffsetFloats,
         int eyesAndMouthCountBytes)
     {
+        if (!_initialized)
+        {
+            outScale = false;
+            outRot = quaternion.identity;
+            BodyPosition = float3.zero;
+            return;
+        }
+
         outScale = ((bool*)(void*)_ptrScaleChange)[index];
         outRot = ((quaternion*)(void*)_ptrFilteredRotations)[index];
         BodyPosition = ((float3*)(void*)_ptrScaledBodyPositions)[index];
