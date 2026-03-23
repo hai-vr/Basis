@@ -22,7 +22,6 @@ namespace Basis.Network
                     return; // already recycled inside
                 case BasisNetworkCommons.metaDataChannel:
                     break;
-                case BasisNetworkCommons.PlayerAvatarChannel:
                 case BasisNetworkCommons.PlayerAvatarVeryLowChannel:
                 case BasisNetworkCommons.PlayerAvatarVeryLowAdditionalChannel:
                 case BasisNetworkCommons.PlayerAvatarLowChannel:

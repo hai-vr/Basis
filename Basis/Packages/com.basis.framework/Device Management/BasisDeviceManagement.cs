@@ -864,6 +864,9 @@ namespace Basis.Scripts.Device_Management
 
             // Do NOT call ShutDownXR() — the XR loader stays initialized
 
+            // Clear stale VR cursor state before Desktop devices initialize
+            BasisCursorManagement.OnReset();
+
             // Start desktop devices (sets StaticCurrentMode, reloads settings, etc.)
             await StartDevices(BasisConstants.Desktop);
         }

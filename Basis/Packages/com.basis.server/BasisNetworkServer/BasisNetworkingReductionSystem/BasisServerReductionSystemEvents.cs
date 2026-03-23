@@ -66,8 +66,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Outbound sequence stamped into pre-serialized data (increments per new avatar update)
         public byte OutboundSequence;
 
-        // Pre-serialized keyframe bytes per quality [PlayerID:2][interval_placeholder:1][sequence:1][quality:1][array:N][additionalSize:1]
+        // Pre-serialized keyframe bytes per quality [PlayerID:2][interval_placeholder:1][sequence:1][array:N][additionalSize:1]
         // The interval byte at offset 2 is filled per-recipient in the send loop.
+        // Quality is derived from the channel number — not stored in the payload.
         public byte[][] SerializedKeyframe = new byte[4][];
         public int[] SerializedKeyframeLength = new int[4];
 
@@ -869,18 +870,25 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
-            // [PlayerID:2][interval:1][sequence:1][quality:1][array:N][additionalSize:1][additional...]
+            // Even channels (no additional):  [PlayerID:2][interval:1][sequence:1][array:N]
+            // Odd channels (has additional):   [PlayerID:2][interval:1][sequence:1][array:N][AdditionalSize:1][LinkedAvatarIndex:1][Additional...]
+            // Quality and additional-data presence are derived from the channel number.
+            bool hasAdditional = state.HasAdditionalData
+                && msg.AdditionalAvatarDatas != null
+                && msg.AdditionalAvatarDatas.Length > 0
+                && msg.AdditionalAvatarDatas.Length <= 255;
+
             int additionalSize = 0;
-            if (msg.AdditionalAvatarDatas != null && msg.AdditionalAvatarDatas.Length > 0)
+            if (hasAdditional)
             {
-                additionalSize = 1; // LinkedAvatarIndex
+                additionalSize = 1 + 1; // AdditionalSize + LinkedAvatarIndex
                 for (int i = 0; i < msg.AdditionalAvatarDatas.Length; i++)
                 {
                     additionalSize += 1 + 1 + (msg.AdditionalAvatarDatas[i].array?.Length ?? 0); // PayloadSize + messageIndex + data
                 }
             }
 
-            int totalSize = 2 + 1 + 1 + 1 + expectedPayload + 1 + additionalSize;
+            int totalSize = 2 + 1 + 1 + expectedPayload + additionalSize;
 
             if (state.SerializedKeyframe[qi] == null || state.SerializedKeyframe[qi].Length < totalSize)
             {
@@ -891,15 +899,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             writer.Put(playerId);
             writer.Put((byte)0); // interval placeholder
             writer.Put(state.OutboundSequence); // sequence byte
-            writer.Put(msg.DataQualityLevel);
             writer.Put(msg.array, 0, expectedPayload);
 
-            // Additional avatar data (from current msg)
-            if (msg.AdditionalAvatarDatas == null || msg.AdditionalAvatarDatas.Length == 0 || msg.AdditionalAvatarDatas.Length > 256)
-            {
-                writer.Put((byte)0);
-            }
-            else
+            // Additional avatar data only on odd channels (hasAdditional = true)
+            if (hasAdditional)
             {
                 writer.Put((byte)msg.AdditionalAvatarDatas.Length);
                 writer.Put(msg.LinkedAvatarIndex);

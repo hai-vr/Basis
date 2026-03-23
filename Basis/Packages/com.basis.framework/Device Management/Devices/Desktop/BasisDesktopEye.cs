@@ -122,6 +122,11 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         {
             LookRotationLock.Clear();
             BasisCursorManagement.LockCursor(nameof(BasisDesktopEye));
+            // If cursor didn't actually lock (e.g. stale unlock requests), block rotation
+            if (Cursor.lockState != CursorLockMode.Locked)
+            {
+                LookRotationLock.Add(nameof(BasisCursorManagement));
+            }
         }
 
         /// <summary>

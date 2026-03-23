@@ -182,6 +182,25 @@ namespace Basis.Network.Core
         }
 
         /// <summary>
+        /// Reverse mapping: channel → quality index (0‑3).
+        /// The channel already encodes quality and additional-data presence,
+        /// so we derive the quality instead of reading it from the payload.
+        /// </summary>
+        public static byte GetQualityFromChannel(byte channel)
+        {
+            return (byte)((channel - PlayerAvatarVeryLowChannel) / 2);
+        }
+
+        /// <summary>
+        /// Reverse mapping: channel → has additional data.
+        /// Odd channels carry additional data, even channels do not.
+        /// </summary>
+        public static bool ChannelHasAdditionalData(byte channel)
+        {
+            return ((channel - PlayerAvatarVeryLowChannel) & 1) == 1;
+        }
+
+        /// <summary>
         /// All 8 per-quality avatar channels for aggregate congestion checks.
         /// </summary>
         public static readonly byte[] PlayerAvatarQualityChannels = new byte[]

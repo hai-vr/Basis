@@ -117,7 +117,6 @@ public static class BasisNetworkEvents
                 await BasisNetworkHandleVoice.HandleAudioUpdate(Reader);
 #endif
                 break;
-            case BasisNetworkCommons.PlayerAvatarChannel:
             case BasisNetworkCommons.PlayerAvatarVeryLowChannel:
             case BasisNetworkCommons.PlayerAvatarVeryLowAdditionalChannel:
             case BasisNetworkCommons.PlayerAvatarLowChannel:
@@ -131,7 +130,7 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                     return;
                 }
-                BasisNetworkHandleAvatar.HandleAvatarUpdate(Reader, deliveryMethod);
+                BasisNetworkHandleAvatar.HandleAvatarUpdate(Reader, channel);
                 Reader.Recycle();
                 break;
             case BasisNetworkCommons.SceneChannel:

@@ -9,20 +9,17 @@ public static class BasisNetworkHandleAvatar
 {
     public static ConcurrentQueue<ServerSideSyncPlayerMessage> Message = new ConcurrentQueue<ServerSideSyncPlayerMessage>();
 
-    public static void HandleAvatarUpdate(NetPacketReader reader, DeliveryMethod deliveryMethod)
-    {
-        HandleFullAvatarUpdate(reader);
-    }
-
-    private static void HandleFullAvatarUpdate(NetPacketReader reader)
+    public static void HandleAvatarUpdate(NetPacketReader reader, byte channel)
     {
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, reader.AvailableBytes);
 
         if (!Message.TryDequeue(out ServerSideSyncPlayerMessage ssm))
             ssm = new ServerSideSyncPlayerMessage();
 
-        // Normal full deserialize – matches ServerSideSyncPlayerMessage.Serialize on server
-        ssm.Deserialize(reader);
+        // Quality and additional-data presence are derived from the channel number — not stored in the payload.
+        byte quality = BasisNetworkCommons.GetQualityFromChannel(channel);
+        bool hasAdditionalData = BasisNetworkCommons.ChannelHasAdditionalData(channel);
+        ssm.Deserialize(reader, quality, hasAdditionalData);
 
         ushort playerId = ssm.playerIdMessage.playerID;
 
