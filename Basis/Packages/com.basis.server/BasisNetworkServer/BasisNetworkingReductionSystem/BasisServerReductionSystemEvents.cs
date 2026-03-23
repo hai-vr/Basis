@@ -320,7 +320,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 }
                 else
                 {
-                    BNL.LogError("Missing Player From Index this is scary! " + id);
+                    BNL.LogError("Missing Player From Index, Normally Quick Disconnect after Connect " + id);
                 }
             }
         }
