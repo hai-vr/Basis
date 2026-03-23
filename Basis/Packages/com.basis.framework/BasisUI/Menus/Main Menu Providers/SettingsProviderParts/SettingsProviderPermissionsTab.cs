@@ -1,5 +1,6 @@
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
+using BasisPermissions;
 using System;
 using System.Collections.Generic;
 using TMPro;
@@ -278,7 +279,9 @@ namespace Basis.BasisUI
 
                 // Show/hide admin controls
                 if (AdminGroupRoot != null)
-                    AdminGroupRoot.SetActive(snapshot.IsAdmin);
+                {
+                    AdminGroupRoot.SetActive(BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsEdit));
+                }
 
                 // Build group display
                 GroupsGroup.SetDescription($"{snapshot.Groups.Count} group(s) on server.");
@@ -295,7 +298,7 @@ namespace Basis.BasisUI
                     _groupEntries.Add(entry.gameObject);
 
                     // Admin: quick actions per group
-                    if (snapshot.IsAdmin)
+                    if (BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsEdit))
                     {
                         PanelButton fillBtn = PanelButton.CreateNew(entry.ContentParent);
                         fillBtn.Descriptor.SetTitle("Select");
@@ -330,7 +333,7 @@ namespace Basis.BasisUI
                     _userEntries.Add(entry.gameObject);
 
                     // Admin: fill UUID into assign field
-                    if (snapshot.IsAdmin)
+                    if (BasisNetworkManagement.LocalPermissions.Contains(PermNodes.PermissionsEdit))
                     {
                         PanelButton fillBtn = PanelButton.CreateNew(entry.ContentParent);
                         fillBtn.Descriptor.SetTitle("Select");

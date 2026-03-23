@@ -4,6 +4,7 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
+using BasisPermissions;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -285,7 +286,6 @@ public static class BasisNetworkModeration
     /// </summary>
     public class PermissionSnapshot
     {
-        public bool IsAdmin;
         public List<PermGroupData> Groups = new List<PermGroupData>();
         public List<PermUserData> Users = new List<PermUserData>();
     }
@@ -303,7 +303,6 @@ public static class BasisNetworkModeration
     private static void HandlePermissionsResponse(NetDataReader reader)
     {
         var snapshot = new PermissionSnapshot();
-        snapshot.IsAdmin = reader.GetBool();
 
         int groupCount = reader.GetInt();
         for (int i = 0; i < groupCount; i++)
