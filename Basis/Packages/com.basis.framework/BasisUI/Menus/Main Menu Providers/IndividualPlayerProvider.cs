@@ -1,11 +1,13 @@
 using System;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Networking.NetworkedAvatar;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using Basis.Scripts.Device_Management;
 
 namespace Basis.BasisUI
 {
@@ -25,6 +27,107 @@ namespace Basis.BasisUI
 
         // ---- Context (who are we editing?) ----
         public static BasisRemotePlayer remotePlayer;
+
+        // ======== Static Highlight Beacon (persists across UI open/close) ========
+
+        private const float BeaconHeight = 20f;
+
+        private static GameObject s_beaconGO;
+        private static LineRenderer s_beaconLine;
+        private static BasisNetworkPlayer s_beaconTarget;
+        private static float s_beaconElapsed;
+
+        /// <summary>
+        /// Called each frame from BasisEventDriver.LateUpdate.
+        /// Updates the highlight beacon position using MouthTransform when available.
+        /// </summary>
+        public static void SimulateBeacon(float deltaTime)
+        {
+            if (s_beaconGO == null || s_beaconTarget == null) return;
+
+            s_beaconElapsed += deltaTime;
+
+            if (s_beaconTarget.Player == null)
+            {
+                ClearHighlight();
+                return;
+            }
+
+            Vector3 basePos;
+            if (s_beaconTarget.Player is BasisRemotePlayer remote && remote.MouthTransform != null)
+            {
+                basePos = remote.MouthTransform.position;
+            }
+            else
+            {
+                basePos = s_beaconTarget.Player.transform.position + Vector3.up * 1.5f;
+            }
+
+            Vector3 topPos = basePos + Vector3.up * BeaconHeight;
+            s_beaconLine.SetPosition(0, basePos);
+            s_beaconLine.SetPosition(1, topPos);
+
+            float pulse = 0.6f + 0.4f * Mathf.Sin(s_beaconElapsed * 3f);
+            s_beaconLine.startColor = new Color(0.2f, 0.8f, 1f, pulse);
+            s_beaconLine.endColor = new Color(0.2f, 0.8f, 1f, 0f);
+        }
+
+        /// <summary>
+        /// Sets or toggles the highlight beacon on the given player.
+        /// </summary>
+        public static void SetHighlight(BasisNetworkPlayer target)
+        {
+            if (s_beaconTarget != null && s_beaconTarget.playerId == target.playerId)
+            {
+                ClearHighlight();
+                return;
+            }
+
+            ClearHighlight();
+
+            s_beaconTarget = target;
+            s_beaconElapsed = 0f;
+
+            s_beaconGO = new GameObject("PlayerHighlightBeacon");
+            if (BasisDeviceManagement.Instance != null)
+            {
+                s_beaconGO.transform.SetParent(BasisDeviceManagement.Instance.transform, true);
+            }
+
+            s_beaconLine = s_beaconGO.AddComponent<LineRenderer>();
+            s_beaconLine.positionCount = 2;
+            s_beaconLine.startWidth = 0.15f;
+            s_beaconLine.endWidth = 0.02f;
+            s_beaconLine.useWorldSpace = true;
+            s_beaconLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            s_beaconLine.receiveShadows = false;
+
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader != null)
+            {
+                s_beaconLine.material = new Material(shader);
+            }
+
+            s_beaconLine.startColor = new Color(0.2f, 0.8f, 1f, 0.9f);
+            s_beaconLine.endColor = new Color(0.2f, 0.8f, 1f, 0f);
+        }
+
+        /// <summary>
+        /// Destroys the active highlight beacon.
+        /// </summary>
+        public static void ClearHighlight()
+        {
+            s_beaconTarget = null;
+            s_beaconElapsed = 0f;
+            if (s_beaconGO != null)
+            {
+                UnityEngine.Object.Destroy(s_beaconGO);
+                s_beaconGO = null;
+                s_beaconLine = null;
+            }
+        }
+
+        public static bool HasHighlight => s_beaconGO != null;
 
         // ========= Addressables Sprite (cached) =========
         private const string MeterSpriteAddress = "Packages/com.basis.sdk/Sprites/HalfCircle 512 Right.png";
@@ -219,6 +322,37 @@ namespace Basis.BasisUI
             var uuidField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, infoGroup.ContentParent);
             uuidField.SetTitle("UUID");
             uuidField.SetDescription(remotePlayer.UUID);
+
+            // ---- Highlight beacon controls ----
+            var locateGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            locateGroup.SetTitle("Locate");
+            locateGroup.SetDescription("Highlight this player with a visible beacon in the world.");
+
+            PanelButton highlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
+            highlightBtn.Descriptor.SetTitle(HasHighlight && s_beaconTarget?.Player == remotePlayer
+                ? "Remove Highlight" : "Highlight Player");
+            highlightBtn.Descriptor.SetDescription("Toggle a vertical beacon above this player.");
+
+            PanelButton clearHighlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
+            clearHighlightBtn.Descriptor.SetTitle("Clear Highlight");
+            clearHighlightBtn.Descriptor.SetDescription("Remove any active beacon.");
+
+            highlightBtn.OnClicked += () =>
+            {
+                if (Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
+                    remotePlayer, out BasisNetworkPlayer netPlayer))
+                {
+                    SetHighlight(netPlayer);
+                    highlightBtn.Descriptor.SetTitle(HasHighlight ? "Remove Highlight" : "Highlight Player");
+                }
+            };
+
+            clearHighlightBtn.OnClicked += () =>
+            {
+                ClearHighlight();
+                highlightBtn.Descriptor.SetTitle("Highlight Player");
+            };
+
             var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
             var audioGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             audioGroup.SetTitle("Audio");
