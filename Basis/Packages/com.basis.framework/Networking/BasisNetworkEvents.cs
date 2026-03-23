@@ -288,21 +288,6 @@ public static class BasisNetworkEvents
                 IncomingData(Reader);
                 Reader.Recycle();
                 break;
-                case BasisNetworkCommons.ServerIsAdminChannel:
-
-                BasisDeviceManagement.EnqueueOnMainThread(() =>
-                {
-                    if (ValidateSize(Reader, peer, channel) == false)
-                    {
-                        Reader.Recycle();
-                        return;
-                    }
-                    Reader.Get(out bool IsAdmin);
-                    IsLocalAdmin?.Invoke(IsAdmin);
-                    //
-                    Reader.Recycle();
-                });
-                break;
             case BasisNetworkCommons.CameraPIPStateChannel:
                 if (ValidateSize(Reader, peer, channel) == false)
                 {
@@ -385,13 +370,6 @@ public static class BasisNetworkEvents
                 Reader.Recycle();
                 break;
         }
-    }
-    /// <summary>
-    /// Requests Is Admin
-    /// </summary>
-    public static void RequestIsAdminCheck()
-    {
-        BasisNetworkConnection.LocalPlayerPeer.Send(new byte[] { } , BasisNetworkCommons.ServerIsAdminChannel, DeliveryMethod.ReliableOrdered);
     }
     public static Action<bool> IsLocalAdmin;
 

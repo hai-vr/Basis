@@ -12,6 +12,7 @@ namespace BasisPermissions
     public static class PermNodes
     {
         public const string All = "*";
+        public const string help = "basis.command.help";
         public const string ServerStats = "basis.server.stats";
 
         public const string ResourceLoadWorld = "basis.resource.load.world";
@@ -676,34 +677,24 @@ namespace BasisPermissions
             {
                 if (!_store.Groups.ContainsKey("default"))
                 {
-                    var def = new PermissionGroup { Name = "default" };
-
+                    PermissionGroup def = new PermissionGroup { Name = "default" };
                     // existing example
-                    def.Nodes.Add("basis.command.help");
-
+                    def.Nodes.Add(PermNodes.help);
                     // ✅ default users should have these
                     def.Nodes.Add(PermNodes.ResourceLoadProp);
                     def.Nodes.Add(PermNodes.ResourceUnloadProp);
+
                     def.Nodes.Add(PermNodes.ResourceLoadAvatar);
                     def.Nodes.Add(PermNodes.ResourceUnloadAvatar);
+
                     def.Nodes.Add(PermNodes.OwnershipTransfer);
                     def.Nodes.Add(PermNodes.OwnershipRemove);
                     def.Nodes.Add(PermNodes.OwnershipGet);
+
+                    def.Nodes.Add(PermNodes.ContentShareDelete);
+                    def.Nodes.Add(PermNodes.ContentShareCreate);
 
                     _store.Groups["default"] = def;
-                }
-                else
-                {
-                    // ✅ if it already exists, ensure it has them (won't duplicate)
-                    var def = _store.Groups["default"];
-
-                    def.Nodes.Add(PermNodes.ResourceLoadProp);
-                    def.Nodes.Add(PermNodes.ResourceUnloadProp);
-                    def.Nodes.Add(PermNodes.ResourceLoadAvatar);
-                    def.Nodes.Add(PermNodes.ResourceUnloadAvatar);
-                    def.Nodes.Add(PermNodes.OwnershipTransfer);
-                    def.Nodes.Add(PermNodes.OwnershipRemove);
-                    def.Nodes.Add(PermNodes.OwnershipGet);
                 }
 
                 if (!_store.Groups.ContainsKey("admin"))
@@ -711,6 +702,23 @@ namespace BasisPermissions
                     var adm = new PermissionGroup { Name = "admin" };
                     adm.Nodes.Add("*");
                     _store.Groups["admin"] = adm;
+                }
+                if (!_store.Groups.ContainsKey("moderator"))
+                {
+                    var adm = new PermissionGroup { Name = "moderator" };
+
+                    adm.Nodes.Add(PermNodes.ModerationBan);
+                    adm.Nodes.Add(PermNodes.ModerationKick);
+                    adm.Nodes.Add(PermNodes.ModerationIpBan);
+                    adm.Nodes.Add(PermNodes.ModerationUnban);
+                    adm.Nodes.Add(PermNodes.ModerationUnbanIp);
+                    adm.Nodes.Add(PermNodes.ModerationMessage);
+                    adm.Nodes.Add(PermNodes.ModerationMessageAll);
+                    adm.Nodes.Add(PermNodes.ModerationTeleport);
+                    adm.Nodes.Add(PermNodes.ModerationShout);
+                    adm.Nodes.Add(PermNodes.PermissionsView);
+
+                    _store.Groups["moderator"] = adm;
                 }
 
                 _version++;
