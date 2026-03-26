@@ -3,8 +3,10 @@ using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
+#if !UNITY_SERVER
 using OpusSharp.Core;
 using OpusSharp.Core.Extensions;
+#endif
 using System;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -97,7 +99,9 @@ namespace Basis.Scripts.Networking.Receivers
         /// Opus decoder used for network voice frames.
         /// </summary>
 
+#if !UNITY_SERVER
         public OpusDecoder decoder;
+#endif
 
         private float[] _inputScratch;    // big enough for the largest chunk we pull
         private int _cachedOutputRate = -1;
@@ -114,11 +118,15 @@ namespace Basis.Scripts.Networking.Receivers
         /// <param name="length">Payload length in bytes.</param>
         public void OnDecode(byte[] data, int length)
         {
+#if UNITY_SERVER
+            return;
+#else
             if (HasAudioSource)
             {
                 pcmLength = decoder.Decode(data, length, pcmBuffer, RemoteOpusSettings.FrameSize, false);
                 InOrderRead.Add(pcmBuffer, pcmLength, true);
             }
+#endif
         }
 
         /// <summary>
@@ -204,6 +212,9 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void OnDecodePLC()
         {
+#if UNITY_SERVER
+            return;
+#else
             if (HasAudioSource)
             {
                 try
@@ -216,6 +227,7 @@ namespace Basis.Scripts.Networking.Receivers
                     InOrderRead.Add(silentData, RemoteOpusSettings.FrameSize, false);
                 }
             }
+#endif
         }
         /// <summary>
         /// Creates/attaches an <see cref="AudioSource"/> and begins playback for the given player.
@@ -291,7 +303,7 @@ namespace Basis.Scripts.Networking.Receivers
         {
 #if UNITY_SERVER
             return;
-#endif
+#else
             outputSampleRate = AudioSettings.outputSampleRate;
 
             silentData ??= new float[RemoteOpusSettings.FrameSize];
@@ -304,6 +316,7 @@ namespace Basis.Scripts.Networking.Receivers
 #else
             decoder = new OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels, use_static: false);
 #endif
+#endif
         }
 
         /// <summary>
@@ -311,11 +324,13 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public void OnDestroy()
         {
+#if !UNITY_SERVER
             if (decoder != null)
             {
                 decoder.Dispose();
                 decoder = null;
             }
+#endif
 
             UnloadAudioSource();
         }
@@ -455,6 +470,7 @@ namespace Basis.Scripts.Networking.Receivers
         {
             if (audioSource == null)
             {
+#if !UNITY_SERVER
                 if (decoder != null)
                 {
                     try
@@ -466,6 +482,7 @@ namespace Basis.Scripts.Networking.Receivers
                         // SetGain may fail on some Opus builds - non-fatal
                     }
                 }
+#endif
                 BasisDebug.LogError("AudioSource is null. Cannot apply volume settings.", BasisDebug.LogTag.Remote);
                 return;
             }
@@ -487,6 +504,7 @@ namespace Basis.Scripts.Networking.Receivers
                 gain = (short)(db * 256f);
                 audioSource.volume = 1;
             }
+#if !UNITY_SERVER
             if (decoder != null)
             {
                 try
@@ -505,6 +523,7 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 BasisDebug.LogWarning("Decoder is null. Cannot apply gain.");
             }
+#endif
         }
 
         /// <summary>
