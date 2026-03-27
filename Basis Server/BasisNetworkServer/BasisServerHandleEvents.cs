@@ -352,10 +352,24 @@ namespace BasisServerHandle
                 },
             };
 
+            // Serialize once, then send raw to each peer — skips N writer→packet copies.
             var writer = NetworkServer.RentWriter();
             serverAudio.Serialize(writer);
+            int len = writer.Length;
+            byte[] data = writer.Data;
+            byte channel = BasisNetworkCommons.ShoutVoiceChannel;
+            int senderId = peer.Id;
 
-            NetworkServer.BroadcastMessageToClients(writer, BasisNetworkCommons.ShoutVoiceChannel, peer, NetworkServer.PeerSnapshot, DeliveryMethod.Unreliable);
+            var clients = NetworkServer.PeerSnapshot;
+            for (int i = 0; i < clients.Length; i++)
+            {
+                NetPeer client = clients[i];
+                if (client.Id != senderId)
+                {
+                    client.SendUnreliableRawMerge(data, 0, len, channel);
+                    BasisNetworkStatistics.RecordOutbound(channel, len);
+                }
+            }
 
             NetworkServer.ReturnWriter(writer);
             ThreadSafeMessagePool<AudioSegmentDataMessage>.Return(audioSegment);
@@ -416,11 +430,19 @@ namespace BasisServerHandle
             bool largeId = sender.Id > byte.MaxValue;
             byte channel = largeId ? BasisNetworkCommons.VoiceLargeChannel : BasisNetworkCommons.VoiceChannel;
 
+            // Serialize once into a byte[], then send raw to each peer — skips N writer→packet copies.
             var writer = NetworkServer.RentWriter();
-
             audioSegment.Serialize(writer, largeId);
+            int len = writer.Length;
+            byte[] data = writer.Data;
 
-            NetworkServer.BroadcastMessageToClients(writer, channel, ref targetPeers, method, 1024);
+            int count = targetPeers.Count;
+            for (int i = 0; i < count; i++)
+            {
+                NetPeer client = targetPeers[i];
+                client.SendUnreliableRawMerge(data, 0, len, channel);
+                BasisNetworkStatistics.RecordOutbound(channel, len);
+            }
 
             NetworkServer.ReturnWriter(writer);
         }

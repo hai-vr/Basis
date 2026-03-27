@@ -98,7 +98,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         };
 
         public static ConcurrentDictionary<int, PlayerState> playerStates = new();
+        // Double-buffered message dictionaries: swap and clear instead of allocating per tick.
         private static ConcurrentDictionary<int, QueuedMessage> currentMessages = new();
+        private static ConcurrentDictionary<int, QueuedMessage> _backMessages = new();
 
         public static float BSRBaseMultiplier = 1.0f;
         public static float BSRSIncreaseRate = 0.01f;
@@ -127,22 +129,19 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         private static int _sliceCount = 1;
         private static int _sliceIndex = 0;
 
-        // Thread-local NetDataWriter for serialization  eliminates shared pool contention.
-        [ThreadStatic]
-        private static NetDataWriter t_serializeWriter;
-
         // Cached muscle+tail byte counts for the position-only fast path (skip repack).
         private static readonly int HighMuscleAndTailBytes = MuscleBytes(BitQuality.High) + TailBytes;
 
-        // Generation snapshot: populated once per tick before the O(NÂ²) send loop.
-        // Eliminates Interlocked.Read per pair (NÂ² memory fences â†’ N).
-        private static long[] _generationSnapshot = Array.Empty<long>();
+        // Generation snapshot: populated once per tick before the O(N²) send loop.
+        // Eliminates Interlocked.Read per pair (N² memory fences → N).
+        // Pre-allocated to InitialPlayerArrayCapacity to avoid reallocation on early player joins.
+        private static long[] _generationSnapshot = new long[InitialPlayerArrayCapacity];
 
         // Position snapshots: contiguous arrays for cache-friendly reads in the inner loop.
         // Avoids pointer-chasing through scattered heap PlayerState objects per pair.
-        private static float[] _posXSnapshot = Array.Empty<float>();
-        private static float[] _posYSnapshot = Array.Empty<float>();
-        private static float[] _posZSnapshot = Array.Empty<float>();
+        private static float[] _posXSnapshot = new float[InitialPlayerArrayCapacity];
+        private static float[] _posYSnapshot = new float[InitialPlayerArrayCapacity];
+        private static float[] _posZSnapshot = new float[InitialPlayerArrayCapacity];
 
 
 
@@ -209,11 +208,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 long phaseTick = profiling ? Stopwatch.GetTimestamp() : 0;
 
                 // Phase 1: Drain
-                // Atomically swap in a fresh dictionary so inbound threads write to the new one.
-                // ConcurrentDictionary's enumerator is NOT a point-in-time snapshot  items added
-                // during iteration can be seen, causing duplicate messages for the same peer to be
-                // drained and then processed in parallel, racing on the shared PlayerState.
-                var batch = Interlocked.Exchange(ref currentMessages, new ConcurrentDictionary<int, QueuedMessage>());
+                // Swap to the back-buffer so inbound threads write to the cleared dictionary.
+                // No allocation per tick — just swap and drain.
+                _backMessages.Clear();
+                var batch = Interlocked.Exchange(ref currentMessages, _backMessages);
+                _backMessages = batch;
                 _messagesSnapshot.Clear();
                 foreach (var kvp in batch)
                 {
@@ -361,10 +360,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int snapshotLen = maxId + 1;
             if (_generationSnapshot.Length < snapshotLen)
             {
-                _generationSnapshot = new long[snapshotLen];
-                _posXSnapshot = new float[snapshotLen];
-                _posYSnapshot = new float[snapshotLen];
-                _posZSnapshot = new float[snapshotLen];
+                int newLen = Math.Max(snapshotLen, _generationSnapshot.Length * 2);
+                _generationSnapshot = new long[newLen];
+                _posXSnapshot = new float[newLen];
+                _posYSnapshot = new float[newLen];
+                _posZSnapshot = new float[newLen];
             }
             for (int i = 0; i < playerCount; i++)
             {
@@ -524,8 +524,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         }
 
         /// <summary>
-        /// Sends a pre-serialized message, patching the interval byte at offset 2.
-        /// Uses a thread-local writer to avoid shared pool contention.
+        /// Sends a pre-serialized message directly into the merge buffer, patching the
+        /// interval byte after the copy to avoid racing on the shared source array.
+        /// Eliminates the intermediate NetDataWriter copy.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void SendPreSerialized(NetPeer peer, int qi, byte interval, byte channel, byte[][] serializedArray, int[] lengthArray, bool smallId)
@@ -537,24 +538,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
-            NetDataWriter writer = GetThreadWriter();
-            writer.Put(src, 0, len);
-
             // Patch interval byte: offset 1 for byte playerID, offset 2 for ushort playerID
             int intervalOffset = smallId ? 1 : 2;
-            if (writer.Length > intervalOffset)
-            {
-                writer.Data[intervalOffset] = interval;
-            }
-
-            peer.Send(writer, channel, DeliveryMethod.Unreliable);
-            BasisNetworkStatistics.RecordOutbound(channel, writer.Length);
+            peer.SendUnreliableRawMerge(src, 0, len, channel, intervalOffset, interval);
+            BasisNetworkStatistics.RecordOutbound(channel, len);
         }
 
-        /// <summary>
-        /// Returns a thread-local NetDataWriter, creating one if needed.
-        /// Avoids contention on the shared ConcurrentQueue writer pool.
-        /// </summary>
+        // Thread-local NetDataWriter for keyframe serialization (ProcessMessage path).
+        [ThreadStatic]
+        private static NetDataWriter t_serializeWriter;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static NetDataWriter GetThreadWriter()
         {
