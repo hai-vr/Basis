@@ -16,10 +16,11 @@ public static class BasisNetworkHandleAvatar
         if (!Message.TryDequeue(out ServerSideSyncPlayerMessage ssm))
             ssm = new ServerSideSyncPlayerMessage();
 
-        // Quality and additional-data presence are derived from the channel number — not stored in the payload.
+        // Quality, additional-data presence, and ID size are all derived from the channel number.
         byte quality = BasisNetworkCommons.GetQualityFromChannel(channel);
         bool hasAdditionalData = BasisNetworkCommons.ChannelHasAdditionalData(channel);
-        ssm.Deserialize(reader, quality, hasAdditionalData);
+        bool largeId = BasisNetworkCommons.IsLargePlayerIdChannel(channel);
+        ssm.Deserialize(reader, quality, hasAdditionalData, largeId);
 
         ushort playerId = ssm.playerIdMessage.playerID;
 

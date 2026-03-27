@@ -318,7 +318,7 @@ namespace BasisServerHandle
                 audioSegmentData = audioSegment,
             };
 
-            SendVoiceMessageToClients(serverAudio, BasisNetworkCommons.VoiceChannel, peer, DeliveryMethod.Unreliable);
+            SendVoiceMessageToClients(serverAudio, peer, DeliveryMethod.Unreliable);
 
             ThreadSafeMessagePool<AudioSegmentDataMessage>.Return(audioSegment);
         }
@@ -399,7 +399,7 @@ namespace BasisServerHandle
             NetworkServer.ReturnWriter(writer);
         }
 
-        public static void SendVoiceMessageToClients(ServerAudioSegmentMessage audioSegment, byte channel, NetPeer sender, DeliveryMethod method)
+        public static void SendVoiceMessageToClients(ServerAudioSegmentMessage audioSegment, NetPeer sender, DeliveryMethod method)
         {
             if (!BasisSavedState.GetResolvedVoicePeers(sender, out List<NetPeer> targetPeers) || targetPeers.Count == 0)
             {
@@ -411,9 +411,12 @@ namespace BasisServerHandle
                 playerID = (ushort)sender.Id,
             };
 
+            bool largeId = sender.Id > byte.MaxValue;
+            byte channel = largeId ? BasisNetworkCommons.VoiceLargeChannel : BasisNetworkCommons.VoiceChannel;
+
             var writer = NetworkServer.RentWriter();
 
-            audioSegment.Serialize(writer);
+            audioSegment.Serialize(writer, largeId);
 
             NetworkServer.BroadcastMessageToClients(writer, channel, ref targetPeers, method, 1024);
 

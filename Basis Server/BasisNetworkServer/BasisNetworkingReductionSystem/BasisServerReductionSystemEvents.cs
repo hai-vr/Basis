@@ -68,11 +68,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Outbound sequence stamped into pre-serialized data (increments per new avatar update)
         public byte OutboundSequence;
 
-        // Pre-serialized keyframe bytes per quality [PlayerID:2][interval_placeholder:1][sequence:1][array:N][additionalSize:1]
-        // The interval byte at offset 2 is filled per-recipient in the send loop.
+        // Pre-serialized keyframe bytes per quality.
+        // Byte-ID: [PlayerID:1][interval_placeholder:1][sequence:1][array:N][additional...]
+        // Ushort-ID: [PlayerID:2][interval_placeholder:1][sequence:1][array:N][additional...]
+        // The interval byte offset depends on SmallId (1 for byte, 2 for ushort).
         // Quality is derived from the channel number — not stored in the payload.
         public byte[][] SerializedKeyframe = new byte[4][];
         public int[] SerializedKeyframeLength = new int[4];
+
+        // True when playerID fits in a byte (≤255). Set once at creation.
+        public bool SmallId;
 
         // Lazy pre-serialization: bitmask of which quality levels had receivers last tick.
         // Updated atomically from the parallel send loop. Read/reset in ProcessMessage.
@@ -470,8 +475,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         continue;
                     }
 
-                    byte avatarChannel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, stateJ.HasAdditionalData);
-                    SendPreSerialized(peer, qi, startAtZeroInterval, avatarChannel,stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
+                    byte avatarChannel = stateJ.SmallId
+                        ? BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, stateJ.HasAdditionalData)
+                        : BasisNetworkCommons.GetPlayerAvatarLargeChannelForQuality(qi, stateJ.HasAdditionalData);
+                    SendPreSerialized(peer, qi, startAtZeroInterval, avatarChannel, stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength, stateJ.SmallId);
 
                     MarkQualityUsed(ref stateJ.UsedQualities, qi);
 
@@ -521,7 +528,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Uses a thread-local writer to avoid shared pool contention.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void SendPreSerialized(NetPeer peer, int qi,byte interval, byte channel, byte[][] serializedArray, int[] lengthArray)
+        private static void SendPreSerialized(NetPeer peer, int qi, byte interval, byte channel, byte[][] serializedArray, int[] lengthArray, bool smallId)
         {
             int len = lengthArray[qi];
             byte[] src = serializedArray[qi];
@@ -533,10 +540,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             NetDataWriter writer = GetThreadWriter();
             writer.Put(src, 0, len);
 
-            // Patch interval byte at offset 2 (after PlayerID ushort)
-            if (writer.Length > 2)
+            // Patch interval byte: offset 1 for byte playerID, offset 2 for ushort playerID
+            int intervalOffset = smallId ? 1 : 2;
+            if (writer.Length > intervalOffset)
             {
-                writer.Data[2] = interval;
+                writer.Data[intervalOffset] = interval;
             }
 
             peer.Send(writer, channel, DeliveryMethod.Unreliable);
@@ -689,6 +697,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     LastInboundSequence = inboundSeq,
                     HasReceivedFirst = true,
                     OutboundSequence = 0,
+                    SmallId = id <= byte.MaxValue,
                 };
 
                 if (isHighQuality)
@@ -905,8 +914,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
-            // Even channels (no additional):  [PlayerID:2][interval:1][sequence:1][array:N]
-            // Odd channels (has additional):   [PlayerID:2][interval:1][sequence:1][array:N][AdditionalSize:1][LinkedAvatarIndex:1][Additional...]
+            // Byte-ID:   [PlayerID:1][interval:1][sequence:1][array:N][additional...]
+            // Ushort-ID: [PlayerID:2][interval:1][sequence:1][array:N][additional...]
             // Quality and additional-data presence are derived from the channel number.
             bool hasAdditional = state.HasAdditionalData
                 && msg.AdditionalAvatarDatas != null
@@ -923,7 +932,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 }
             }
 
-            int totalSize = 2 + 1 + 1 + expectedPayload + additionalSize;
+            int idSize = state.SmallId ? 1 : 2;
+            int totalSize = idSize + 1 + 1 + expectedPayload + additionalSize;
 
             if (state.SerializedKeyframe[qi] == null || state.SerializedKeyframe[qi].Length < totalSize)
             {
@@ -931,7 +941,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             NetDataWriter writer = GetThreadWriter();
-            writer.Put(playerId);
+            if (state.SmallId)
+                writer.Put((byte)playerId);
+            else
+                writer.Put(playerId);
             writer.Put((byte)0); // interval placeholder
             writer.Put(state.OutboundSequence); // sequence byte
             writer.Put(msg.array, 0, expectedPayload);
