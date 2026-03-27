@@ -21,6 +21,8 @@ namespace BasisServerHandle
 {
     public static class BasisServerHandleEvents
     {
+        [ThreadStatic] private static HashSet<int> _excludedSet;
+
         #region Server Events Setup
         public static void SubscribeServerEvents()
         {
@@ -442,7 +444,7 @@ namespace BasisServerHandle
             int senderId = Peer.Id;
             var peers = BasisSavedState.GetOrCreateResolvedList(senderId);
 
-            if (excluded.Users == null || excluded.Users.Length == 0)
+            if (excluded.Users == null || excluded.UsersLength == 0)
             {
                 // No exclusions: everyone except sender is a recipient
                 foreach (var kvp in NetworkServer.AuthenticatedPeers)
@@ -453,17 +455,22 @@ namespace BasisServerHandle
             }
             else
             {
-                // Build a fast lookup of excluded IDs
-                HashSet<int> excludedSet = new HashSet<int>(excluded.Users.Length);
-                for (int i = 0; i < excluded.Users.Length; i++)
-                    excludedSet.Add(excluded.Users[i]);
+                // Reuse thread-local set to avoid allocation
+                if (_excludedSet == null)
+                    _excludedSet = new HashSet<int>(64);
+                else
+                    _excludedSet.Clear();
+                for (int i = 0; i < excluded.UsersLength; i++)
+                    _excludedSet.Add(excluded.Users[i]);
 
                 foreach (var kvp in NetworkServer.AuthenticatedPeers)
                 {
-                    if (kvp.Key != senderId && !excludedSet.Contains(kvp.Key))
+                    if (kvp.Key != senderId && !_excludedSet.Contains(kvp.Key))
                         peers.Add(kvp.Value);
                 }
             }
+
+            excluded.ReturnPool();
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using Basis.Network.Core;
 
 public static partial class SerializableBasis
@@ -9,6 +10,7 @@ public static partial class SerializableBasis
         private const int MaxUsers = ushort.MaxValue;
 
         public ushort[] Users;
+        public int UsersLength; // actual count (rented array may be larger)
 
         /// <param name="largeCount">
         /// false = byte count (AudioRecipientsChannel, ≤255 recipients).
@@ -39,7 +41,9 @@ public static partial class SerializableBasis
 
             if (count == 0)
             {
-                Users = Array.Empty<ushort>();
+                ReturnPool();
+                Users = null;
+                UsersLength = 0;
                 return;
             }
 
@@ -47,7 +51,9 @@ public static partial class SerializableBasis
             {
                 BNL.LogError($"VoiceReceiversMessage: reported count={count} exceeds MaxUsers={MaxUsers}. Possible protocol mismatch or corrupted packet.");
                 SkipRemaining(reader);
-                Users = Array.Empty<ushort>();
+                ReturnPool();
+                Users = null;
+                UsersLength = 0;
                 return;
             }
 
@@ -57,11 +63,15 @@ public static partial class SerializableBasis
             {
                 BNL.LogError($"VoiceReceiversMessage: count={count} needs {bytesNeeded} bytes, but only {reader.AvailableBytes} available. Protocol mismatch?");
                 SkipRemaining(reader);
-                Users = Array.Empty<ushort>();
+                ReturnPool();
+                Users = null;
+                UsersLength = 0;
                 return;
             }
 
-            Users = new ushort[count];
+            ReturnPool();
+            Users = ArrayPool<ushort>.Shared.Rent(count);
+            UsersLength = count;
             for (int i = 0; i < count; i++)
             {
                 Users[i] = reader.GetUShort();
@@ -93,9 +103,21 @@ public static partial class SerializableBasis
             }
         }
 
+        /// <summary>
+        /// Returns the rented array to the pool. Call after resolving to peers.
+        /// </summary>
+        public void ReturnPool()
+        {
+            if (Users != null)
+            {
+                ArrayPool<ushort>.Shared.Return(Users);
+                Users = null;
+                UsersLength = 0;
+            }
+        }
+
         private static void SkipRemaining(NetDataReader reader)
         {
-            // Helper to avoid desync after bad packets
             if (reader.AvailableBytes > 0)
             {
                 reader.SkipBytes(reader.AvailableBytes);

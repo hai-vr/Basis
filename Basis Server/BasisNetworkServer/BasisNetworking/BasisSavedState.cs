@@ -12,7 +12,6 @@ namespace Basis.Network.Server.Generic
         // Thread-safe dictionaries for each type of data
         private static readonly ConcurrentDictionary<int, ClientAvatarChangeMessage> avatarChangeStates = new();
         private static readonly ConcurrentDictionary<int, ClientMetaDataMessage> playerMetaDataMessages = new();
-        private static readonly ConcurrentDictionary<int, VoiceReceiversMessage> voiceReceiversMessages = new();
         private static readonly ConcurrentDictionary<int, List<NetPeer>> resolvedVoicePeers = new();
         private static readonly ConcurrentDictionary<int, bool> shoutModeStates = new();
 
@@ -24,7 +23,6 @@ namespace Basis.Network.Server.Generic
         {
             avatarChangeStates.TryRemove(id, out _);
             playerMetaDataMessages.TryRemove(id, out _);
-            voiceReceiversMessages.TryRemove(id, out _);
             resolvedVoicePeers.TryRemove(id, out _);
             shoutModeStates.TryRemove(id, out _);
 
@@ -56,26 +54,22 @@ namespace Basis.Network.Server.Generic
         }
 
         /// <summary>
-        /// Adds or updates the VoiceReceiversMessage for a player.
-        /// Resolves and caches the target NetPeer list so the voice hot path avoids per-packet lookups.
+        /// Resolves a VoiceReceiversMessage into cached NetPeer list.
         /// </summary>
         public static void AddLastData(NetPeer client, VoiceReceiversMessage voiceReceiversMessage)
         {
-            voiceReceiversMessages[client.Id] = voiceReceiversMessage;
-
-            // Resolve ushort IDs -> NetPeer once here instead of on every voice packet
-            var peers = resolvedVoicePeers.GetOrAdd(client.Id, _ => new List<NetPeer>(64));
-            peers.Clear();
+            var peers = GetOrCreateResolvedList(client.Id);
 
             if (voiceReceiversMessage.Users != null)
             {
-                for (int i = 0; i < voiceReceiversMessage.Users.Length; i++)
+                for (int i = 0; i < voiceReceiversMessage.UsersLength; i++)
                 {
                     if (NetworkServer.AuthenticatedPeers.TryGetValue(voiceReceiversMessage.Users[i], out NetPeer found))
                     {
                         peers.Add(found);
                     }
                 }
+                voiceReceiversMessage.ReturnPool();
             }
         }
 
@@ -101,14 +95,6 @@ namespace Basis.Network.Server.Generic
         public static bool GetLastPlayerMetaData(NetPeer client, out ClientMetaDataMessage message)
         {
             return playerMetaDataMessages.TryGetValue(client.Id, out message);
-        }
-
-        /// <summary>
-        /// Retrieves the last VoiceReceiversMessage for a player.
-        /// </summary>
-        public static bool GetLastVoiceReceivers(NetPeer client, out VoiceReceiversMessage message)
-        {
-            return voiceReceiversMessages.TryGetValue(client.Id, out message);
         }
 
         /// <summary>
