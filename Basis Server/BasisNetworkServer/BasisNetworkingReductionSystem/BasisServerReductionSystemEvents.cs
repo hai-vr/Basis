@@ -2,6 +2,7 @@ using Basis.Network.Core;
 using Basis.Network.Core.Compression;
 using BasisNetworkServer.BasisNetworking;
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -83,6 +84,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Updated atomically from the parallel send loop. Read/reset in ProcessMessage.
         // Bit 0 = VeryLow, Bit 1 = Low, Bit 2 = Medium, Bit 3 = High.
         public int UsedQualities;
+
+        // Actual payload size stored in AvatarHigh.array (which may be larger if from ArrayPool).
+        // Used for muscle-change comparison instead of .Length to handle pooled arrays correctly.
+        public int HighArrayActualSize;
     }
 
     public partial class BasisServerReductionSystemEvents
@@ -147,7 +152,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
         static BasisServerReductionSystemEvents()
         {
-            _ = StartBackgroundProcessingAsync();
+            var thread = new Thread(BackgroundTickLoop)
+            {
+                IsBackground = true,
+                Name = "BSR-TickLoop",
+                Priority = ThreadPriority.AboveNormal,
+            };
+            thread.Start();
         }
 
         public static void HandleAvatarMovement(NetPacketReader reader, NetPeer fromPeer, byte channel)
@@ -199,7 +210,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             currentMessages.AddOrUpdate(fromPeer.Id, message, (_, prev) => message);
         }
 
-        private static async Task StartBackgroundProcessingAsync()
+        /// <summary>
+        /// Dedicated tick loop running on its own thread with sub-millisecond precision.
+        /// Replaces the async Task.Delay approach which had ~15ms resolution on Windows,
+        /// limiting tick rate to ~70Hz. This achieves the target tick rate of ~250Hz (4ms).
+        /// Uses coarse Thread.Sleep for long waits + SpinWait for precise final timing.
+        /// </summary>
+        private static void BackgroundTickLoop()
         {
             while (!cts.Token.IsCancellationRequested)
             {
@@ -260,7 +277,6 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 //Tick bookkeeping
                 long elapsedTicks = Stopwatch.GetTimestamp() - startTick;
                 double elapsedMs = elapsedTicks / MsToTick;
-                long remainingMs = intervalMs - (long)elapsedMs;
 
                 BSRProfiler.TryPrint();
 
@@ -274,13 +290,21 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     _sliceCount--;
                 }
 
-                if (remainingMs > 0)
+                // Precise timing: coarse sleep for bulk wait, then spin to exact target.
+                // Thread.Sleep(1) has ~1-2ms resolution vs Task.Delay's ~15ms on Windows.
+                long targetTick = startTick + (long)(intervalMs * MsToTick);
+                long nowTick = Stopwatch.GetTimestamp();
+                double remainMs = (targetTick - nowTick) / MsToTick;
+
+                if (remainMs > 2.0)
                 {
-                    await Task.Delay((int)remainingMs, cts.Token);
+                    Thread.Sleep(Math.Max(1, (int)(remainMs - 1)));
                 }
-                else
+
+                // Spin-wait for sub-millisecond precision to hit the exact target
+                while (Stopwatch.GetTimestamp() < targetTick)
                 {
-                    await Task.Yield();
+                    Thread.SpinWait(20);
                 }
             }
         }
@@ -292,6 +316,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 if (playerStates.TryRemove(id, out var removedState))
                 {
                     removedState.IsActive = false;
+
+                    // Return pooled arrays to ArrayPool
+                    if (removedState.AvatarHigh.array != null)
+                        ArrayPool<byte>.Shared.Return(removedState.AvatarHigh.array);
 
                     // Remove from active players list
                     lock (_activePlayersLock)
@@ -676,19 +704,17 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // Deep-copy the avatar payload so state.AvatarHigh owns its own buffer.
             // Without this copy, QueuedMessagePool.Return() preserves the byte[] and
             // re-rents it for other peers — silently overwriting state.AvatarHigh.array.
-            // This corrupts the prevArray muscle comparison on the next tick, causing
-            // intermittent missed repacks where lower-quality receivers get stale muscles.
-            // NOTE: Cannot reuse prevArray here — the muscle change comparison (line ~780)
-            // needs prevArray to hold last tick's data while high.array holds this tick's.
+            // Uses ArrayPool to avoid per-message heap allocation (~208 bytes * 11K/sec).
+            byte[] rentedArray = ArrayPool<byte>.Shared.Rent(expectedPayloadSize);
+            Buffer.BlockCopy(poolMsg.array, 0, rentedArray, 0, expectedPayloadSize);
             var high = new LocalAvatarSyncMessage
             {
                 DataQualityLevel = poolMsg.DataQualityLevel,
                 AdditionalAvatarDatas = poolMsg.AdditionalAvatarDatas,
                 AdditionalAvatarDataSize = poolMsg.AdditionalAvatarDataSize,
                 LinkedAvatarIndex = poolMsg.LinkedAvatarIndex,
-                array = new byte[poolMsg.array.Length],
+                array = rentedArray,
             };
-            Buffer.BlockCopy(poolMsg.array, 0, high.array, 0, poolMsg.array.Length);
 
             if (!playerStates.TryGetValue(id, out var state))
             {
@@ -703,6 +729,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         avatarSerialization = high
                     },
                     AvatarHigh = high,
+                    HighArrayActualSize = expectedPayloadSize,
                     PeerTracking = new PeerTrackingData[InitialPlayerArrayCapacity],
                     DataGeneration = 1,
                     LastInboundSequence = inboundSeq,
@@ -764,7 +791,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     byte delta = unchecked((byte)(inboundSeq - state.LastInboundSequence));
                     if (delta == 0 || delta >= 128)
                     {
-                        // Duplicate or stale  discard
+                        // Duplicate or stale — discard. Return the just-rented array.
+                        ArrayPool<byte>.Shared.Return(rentedArray);
                         QueuedMessagePool.Return(message);
                         return;
                     }
@@ -783,18 +811,18 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 unchecked { state.OutboundSequence++; }
 
                 byte[] prevArray = state.AvatarHigh.array;
+                int prevActualSize = state.HighArrayActualSize;
                 state.AvatarHigh = high;
+                state.HighArrayActualSize = expectedPayloadSize;
 
                 if (isHighQuality)
                 {
                     // Check if muscles+tail changed (skip expensive bit repacking if only position moved).
-                    // ReferenceEquals guard (defense-in-depth): with the deep-copy above, prevArray
-                    // and high.array should always be distinct objects. The guard remains as a safety
-                    // net in case future changes reintroduce buffer sharing.
+                    // Uses HighArrayActualSize instead of .Length since ArrayPool may return larger arrays.
                     int muscleAndTailBytes = HighMuscleAndTailBytes;
                     bool musclesOrTailChanged = prevArray == null
                         || ReferenceEquals(prevArray, high.array)
-                        || prevArray.Length != high.array.Length
+                        || prevActualSize != expectedPayloadSize
                         || !high.array.AsSpan(WritePosition, muscleAndTailBytes)
                             .SequenceEqual(prevArray.AsSpan(WritePosition, muscleAndTailBytes));
 
@@ -842,6 +870,12 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 state.SyncMessage.avatarSerialization = high;
 
                 PreSerializeAll(state);
+
+                // Return the previous tick's array to the pool now that muscle comparison is done.
+                if (prevArray != null)
+                {
+                    ArrayPool<byte>.Shared.Return(prevArray);
+                }
 
                 // Single atomic increment replaces O(N) CAS bit-setting across all other players.
                 // Receivers detect new data by comparing this generation against their LastSeenGeneration.
