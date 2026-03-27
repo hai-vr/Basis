@@ -69,6 +69,7 @@ public static partial class SerializableBasis
                 return;
             }
 
+            // Return previous rented array before renting a new one
             ReturnPool();
             Users = ArrayPool<ushort>.Shared.Rent(count);
             UsersLength = count;
