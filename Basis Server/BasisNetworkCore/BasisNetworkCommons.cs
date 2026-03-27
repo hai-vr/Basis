@@ -30,8 +30,10 @@ namespace Basis.Network.Core
         public const byte VoiceChannel = 3;
         /// <summary>Shout mode voice. Non-spatialized audio broadcast to all clients.</summary>
         public const byte ShoutVoiceChannel = 4;
-        /// <summary>Voice recipient list</summary>
+        /// <summary>Voice recipient list (byte count, ≤255 recipients)</summary>
         public const byte AudioRecipientsChannel = 5;
+        /// <summary>Voice recipient list (ushort count, >255 recipients)</summary>
+        public const byte AudioRecipientsLargeChannel = 39;
 
         // ── Per-quality avatar channels ──────────────────────────────────────
         // Layout: PlayerAvatarVeryLowChannel + quality * 2 + hasAdditional

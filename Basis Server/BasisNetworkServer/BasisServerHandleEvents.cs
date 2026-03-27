@@ -399,27 +399,10 @@ namespace BasisServerHandle
             NetworkServer.ReturnWriter(writer);
         }
 
-        [ThreadStatic] private static List<NetPeer> _voicePeerList;
-
         public static void SendVoiceMessageToClients(ServerAudioSegmentMessage audioSegment, byte channel, NetPeer sender, DeliveryMethod method)
         {
-            if (BasisSavedState.GetLastVoiceReceivers(sender, out VoiceReceiversMessage receivers))
+            if (!BasisSavedState.GetResolvedVoicePeers(sender, out List<NetPeer> targetPeers) || targetPeers.Count == 0)
             {
-            }
-            else
-            {
-                BNL.Log($"[VoiceMessage] No receivers found for sender {sender.Id}.");
-            }
-            if (receivers.Users == null || receivers.Users.Length == 0)
-            {
-                BNL.Log($"[VoiceMessage] No users found for {sender.Id}.");
-                return;
-            }
-
-            var targetPeers = GetTargetPeers(receivers);
-            if (targetPeers.Count == 0)
-            {
-                BNL.Log($"[VoiceMessage] No valid peer matches found for sender {sender.Id}.");
                 return;
             }
 
@@ -436,32 +419,10 @@ namespace BasisServerHandle
 
             NetworkServer.ReturnWriter(writer);
         }
-
-        private static List<NetPeer> GetTargetPeers(VoiceReceiversMessage Message)
-        {
-            if (_voicePeerList == null)
-                _voicePeerList = new List<NetPeer>(64);
-            else
-                _voicePeerList.Clear();
-
-            foreach (ushort userId in Message.Users)
-            {
-                if (NetworkServer.AuthenticatedPeers.TryGetValue(userId, out NetPeer found))
-                {
-                    _voicePeerList.Add(found);
-                }
-                else
-                {
-                    BNL.LogError($"[VoiceMessage] Could not find peer with ID: {userId}");
-                }
-            }
-
-            return _voicePeerList;
-        }
-        public static void UpdateVoiceReceivers(NetPacketReader Reader, NetPeer Peer)
+        public static void UpdateVoiceReceivers(NetPacketReader Reader, NetPeer Peer, bool largeCount)
         {
             VoiceReceiversMessage VoiceReceiversMessage = new VoiceReceiversMessage();
-            VoiceReceiversMessage.Deserialize(Reader);
+            VoiceReceiversMessage.Deserialize(Reader, largeCount);
             Reader.Recycle();
             BasisSavedState.AddLastData(Peer, VoiceReceiversMessage);
         }

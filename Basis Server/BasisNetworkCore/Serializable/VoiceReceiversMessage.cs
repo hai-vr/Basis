@@ -10,19 +10,22 @@ public static partial class SerializableBasis
 
         public ushort[] Users;
 
-        public void Deserialize(NetDataReader reader)
+        /// <param name="largeCount">
+        /// false = byte count (AudioRecipientsChannel, ≤255 recipients).
+        /// true  = ushort count (AudioRecipientsLargeChannel, >255 recipients).
+        /// </param>
+        public void Deserialize(NetDataReader reader, bool largeCount)
         {
             int remainingBytes = reader.AvailableBytes;
 
-            // No data at all – treat as "no users"
             if (remainingBytes <= 0)
             {
                 Users = Array.Empty<ushort>();
                 return;
             }
 
-            // Need at least 2 bytes for the length
-            if (remainingBytes < sizeof(ushort))
+            int countSize = largeCount ? sizeof(ushort) : sizeof(byte);
+            if (remainingBytes < countSize)
             {
                 BNL.LogError(
                     $"VoiceReceiversMessage: not enough bytes for length. " +
@@ -32,8 +35,7 @@ public static partial class SerializableBasis
                 return;
             }
 
-            // Read the count
-            ushort count = reader.GetUShort();
+            ushort count = largeCount ? reader.GetUShort() : reader.GetByte();
 
             if (count == 0)
             {
@@ -41,7 +43,6 @@ public static partial class SerializableBasis
                 return;
             }
 
-            // Basic sanity check: avoid insane counts
             if (count > MaxUsers)
             {
                 BNL.LogError($"VoiceReceiversMessage: reported count={count} exceeds MaxUsers={MaxUsers}. Possible protocol mismatch or corrupted packet.");
@@ -60,7 +61,6 @@ public static partial class SerializableBasis
                 return;
             }
 
-            // Now it's safe to read
             Users = new ushort[count];
             for (int i = 0; i < count; i++)
             {

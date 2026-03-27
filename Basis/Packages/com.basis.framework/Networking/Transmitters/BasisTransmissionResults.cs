@@ -394,19 +394,29 @@ public partial class BasisTransmissionResults
             }
         }
 
-        BasisNetworkTransmitter.HasReasonToSendAudio = TalkingPoints.Count != 0;
+        int count = TalkingPoints.Count;
+        BasisNetworkTransmitter.HasReasonToSendAudio = count != 0;
 
         // Serialize directly: [count][id0][id1]...
+        // Use byte count channel when ≤255, ushort count channel when >255
         VRMWriter.Reset();
-        VRMWriter.Put((ushort)TalkingPoints.Count);
-        for (int i = 0; i < TalkingPoints.Count; i++)
+        bool large = count > byte.MaxValue;
+        if (large)
+        {
+            VRMWriter.Put((ushort)count);
+        }
+        else
+        {
+            VRMWriter.Put((byte)count);
+        }
+        for (int i = 0; i < count; i++)
         {
             VRMWriter.Put(TalkingPoints[i]);
         }
 
         BasisNetworkConnection.LocalPlayerPeer.Send(
             VRMWriter,
-            BasisNetworkCommons.AudioRecipientsChannel,
+            large ? BasisNetworkCommons.AudioRecipientsLargeChannel : BasisNetworkCommons.AudioRecipientsChannel,
             DeliveryMethod.ReliableOrdered);
 
         BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.AudioRecipients, VRMWriter.Length);

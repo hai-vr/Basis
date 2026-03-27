@@ -71,7 +71,11 @@ public static class BasisNetworkMessageProcessor
                     break;
 
                 case BasisNetworkCommons.AudioRecipientsChannel:
-                    BasisServerHandleEvents.UpdateVoiceReceivers(reader, peer); // recycles inside
+                    BasisServerHandleEvents.UpdateVoiceReceivers(reader, peer, false); // byte count, recycles inside
+                    break;
+
+                case BasisNetworkCommons.AudioRecipientsLargeChannel:
+                    BasisServerHandleEvents.UpdateVoiceReceivers(reader, peer, true); // ushort count, recycles inside
                     break;
 
                 case BasisNetworkCommons.netIDAssignChannel:
