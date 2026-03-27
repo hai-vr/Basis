@@ -616,6 +616,25 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             veryLow.AdditionalAvatarDataSize = high.AdditionalAvatarDataSize;
             veryLow.LinkedAvatarIndex = high.LinkedAvatarIndex;
         }
+        /// <summary>
+        /// Copies position bytes from the high-quality source to all lower quality arrays.
+        /// Position encoding is identical across all quality levels.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CopyPositionToLowerQualities(
+            byte[] highArray,
+            ref LocalAvatarSyncMessage medium,
+            ref LocalAvatarSyncMessage low,
+            ref LocalAvatarSyncMessage veryLow)
+        {
+            if (medium.array != null)
+                Buffer.BlockCopy(highArray, 0, medium.array, 0, WritePosition);
+            if (low.array != null)
+                Buffer.BlockCopy(highArray, 0, low.array, 0, WritePosition);
+            if (veryLow.array != null)
+                Buffer.BlockCopy(highArray, 0, veryLow.array, 0, WritePosition);
+        }
+
         private static void ProcessMessage(QueuedMessage message)
         {
             if (message.FromPeer == null)
@@ -659,9 +678,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             // re-rents it for other peers — silently overwriting state.AvatarHigh.array.
             // This corrupts the prevArray muscle comparison on the next tick, causing
             // intermittent missed repacks where lower-quality receivers get stale muscles.
-            // A fresh allocation (~150 bytes) per player per tick is negligible and
-            // preserves the position-only fast path (prevArray stays a distinct object
-            // with the previous tick's data).
+            // NOTE: Cannot reuse prevArray here — the muscle change comparison (line ~780)
+            // needs prevArray to hold last tick's data while high.array holds this tick's.
             var high = new LocalAvatarSyncMessage
             {
                 DataQualityLevel = poolMsg.DataQualityLevel,
@@ -803,20 +821,9 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     }
                     else
                     {
-                        if (state.AvatarMedium.array != null)
-                        {
-                            Buffer.BlockCopy(high.array, 0, state.AvatarMedium.array, 0, WritePosition);
-                        }
-
-                        if (state.AvatarLow.array != null)
-                        {
-                            Buffer.BlockCopy(high.array, 0, state.AvatarLow.array, 0, WritePosition);
-                        }
-
-                        if (state.AvatarVeryLow.array != null)
-                        {
-                            Buffer.BlockCopy(high.array, 0, state.AvatarVeryLow.array, 0, WritePosition);
-                        }
+                        // Position-only fast path: copy position bytes to all lower qualities.
+                        // Position is identical across all quality levels (no bit-width difference).
+                        CopyPositionToLowerQualities(high.array, ref state.AvatarMedium, ref state.AvatarLow, ref state.AvatarVeryLow);
                     }
                 }
                 else
