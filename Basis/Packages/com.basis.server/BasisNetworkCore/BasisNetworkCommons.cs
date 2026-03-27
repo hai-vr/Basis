@@ -36,6 +36,12 @@ namespace Basis.Network.Core
         public const byte AudioRecipientsLargeChannel = 39;
         /// <summary>Spatialized voice data (ushort playerID, for IDs >255)</summary>
         public const byte VoiceLargeChannel = 40;
+        /// <summary>Voice excluded list (byte count, ≤255 excluded). Server sends to everyone EXCEPT listed IDs.</summary>
+        public const byte AudioRecipientsInvertedChannel = 49;
+        /// <summary>Voice excluded list (ushort count, >255 excluded). Server sends to everyone EXCEPT listed IDs.</summary>
+        public const byte AudioRecipientsInvertedLargeChannel = 50;
+        /// <summary>Voice recipients as a bitfield. Bit at position playerID = recipient.</summary>
+        public const byte AudioRecipientsBitfieldChannel = 51;
 
         // ── Per-quality avatar channels ──────────────────────────────────────
         // Layout: PlayerAvatarVeryLowChannel + quality * 2 + hasAdditional

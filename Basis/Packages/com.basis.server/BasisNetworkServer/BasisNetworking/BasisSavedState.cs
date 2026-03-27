@@ -121,6 +121,18 @@ namespace Basis.Network.Server.Generic
         }
 
         /// <summary>
+        /// Directly sets the resolved voice peer list for a player.
+        /// Used by inverted-list and bitfield modes which resolve peers during deserialization
+        /// rather than storing a ushort[] first.
+        /// </summary>
+        public static List<NetPeer> GetOrCreateResolvedList(int clientId)
+        {
+            var peers = resolvedVoicePeers.GetOrAdd(clientId, _ => new List<NetPeer>(64));
+            peers.Clear();
+            return peers;
+        }
+
+        /// <summary>
         /// Sets shout mode state for a player.
         /// </summary>
         public static void SetShoutMode(int peerId, bool enabled)

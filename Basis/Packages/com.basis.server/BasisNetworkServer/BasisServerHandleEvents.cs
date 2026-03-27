@@ -429,6 +429,88 @@ namespace BasisServerHandle
             Reader.Recycle();
             BasisSavedState.AddLastData(Peer, VoiceReceiversMessage);
         }
+
+        /// <summary>
+        /// Inverted mode: the message contains IDs to EXCLUDE. Everyone else is a recipient.
+        /// </summary>
+        public static void UpdateVoiceReceiversInverted(NetPacketReader Reader, NetPeer Peer, bool largeCount)
+        {
+            VoiceReceiversMessage excluded = new VoiceReceiversMessage();
+            excluded.Deserialize(Reader, largeCount);
+            Reader.Recycle();
+
+            int senderId = Peer.Id;
+            var peers = BasisSavedState.GetOrCreateResolvedList(senderId);
+
+            if (excluded.Users == null || excluded.Users.Length == 0)
+            {
+                // No exclusions: everyone except sender is a recipient
+                foreach (var kvp in NetworkServer.AuthenticatedPeers)
+                {
+                    if (kvp.Key != senderId)
+                        peers.Add(kvp.Value);
+                }
+            }
+            else
+            {
+                // Build a fast lookup of excluded IDs
+                HashSet<int> excludedSet = new HashSet<int>(excluded.Users.Length);
+                for (int i = 0; i < excluded.Users.Length; i++)
+                    excludedSet.Add(excluded.Users[i]);
+
+                foreach (var kvp in NetworkServer.AuthenticatedPeers)
+                {
+                    if (kvp.Key != senderId && !excludedSet.Contains(kvp.Key))
+                        peers.Add(kvp.Value);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Bitfield mode: each set bit at position N means playerID N is a recipient.
+        /// Wire format: [byteCount: ushort][bitfield bytes]
+        /// </summary>
+        public static void UpdateVoiceReceiversBitfield(NetPacketReader Reader, NetPeer Peer)
+        {
+            int senderId = Peer.Id;
+
+            if (Reader.AvailableBytes < sizeof(ushort))
+            {
+                Reader.Recycle();
+                return;
+            }
+
+            ushort byteCount = Reader.GetUShort();
+
+            if (byteCount == 0 || Reader.AvailableBytes < byteCount)
+            {
+                Reader.Recycle();
+                return;
+            }
+
+            var peers = BasisSavedState.GetOrCreateResolvedList(senderId);
+
+            for (int byteIdx = 0; byteIdx < byteCount; byteIdx++)
+            {
+                byte b = Reader.GetByte();
+                if (b == 0) continue;
+
+                int baseId = byteIdx * 8;
+                for (int bit = 0; bit < 8; bit++)
+                {
+                    if ((b & (1 << bit)) != 0)
+                    {
+                        int playerId = baseId + bit;
+                        if (playerId != senderId && NetworkServer.AuthenticatedPeers.TryGetValue(playerId, out NetPeer found))
+                        {
+                            peers.Add(found);
+                        }
+                    }
+                }
+            }
+
+            Reader.Recycle();
+        }
         #endregion
 
         #region Spawn and Client List Handling
