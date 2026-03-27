@@ -12,7 +12,7 @@ public class BasisBundleUnCombineEditor : EditorWindow
     private string password = "";
     private bool showPassword = false;
 
-    [MenuItem("Basis/Editor/Open BEE File")]
+    [MenuItem("Basis/Bundles/BEE Decrypt")]
     public static void ShowWindow()
     {
         GetWindow<BasisBundleUnCombineEditor>("Open BEE File");

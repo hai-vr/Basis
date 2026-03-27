@@ -33,7 +33,7 @@ public class BasisBeeExplorerWindow : EditorWindow
     private Vector2 scrollPosition;
     private int extractingIndex = -1;
 
-    [MenuItem("Basis/Editor/BEE Explorer")]
+    [MenuItem("Basis/Bundles/BEE Explorer")]
     public static void ShowWindow()
     {
         GetWindow<BasisBeeExplorerWindow>("BEE Explorer");
