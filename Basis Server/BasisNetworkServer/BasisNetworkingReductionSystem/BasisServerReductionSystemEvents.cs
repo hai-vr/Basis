@@ -22,13 +22,18 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
     }
 
     /// <summary>
-    /// Combined per-peer tracking data. Two longs in one struct = one cache line fetch
-    /// instead of two parallel array accesses in the O(NÂ²) send loop.
+    /// Combined per-peer tracking + cached distance data. 32 bytes = two per cache line.
+    /// The send loop reads all fields sequentially per pair with no float math.
     /// </summary>
     public struct PeerTrackingData
     {
         public long LastSentTime;
         public long LastSeenGeneration;
+        // Cached by the slow distance loop (~2Hz), read by the fast send loop (~250Hz).
+        // Eliminates per-pair distance math from the hot path.
+        public long CachedIntervalTicks;
+        public byte CachedQualityIndex;
+        public byte CachedIntervalByte;
     }
 
     public class PlayerState
@@ -133,6 +138,13 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Adaptive: increases when ticks take too long, decreases when under budget.
         private static int _sliceCount = 1;
         private static int _sliceIndex = 0;
+
+        // Distance cache: recalculate quality/interval from distance every N ticks.
+        // The fast send loop uses cached values instead of computing distance per pair per tick.
+        // At 4ms tick interval, 125 ticks = ~500ms. Players at 6m/s cover 3m in that time,
+        // which is within one quality threshold (3m/10m/20m) — acceptable staleness.
+        private static int _distanceTickCounter = 0;
+        public static int DistanceUpdateIntervalTicks = 125;
 
         // Cached muscle+tail byte counts for the position-only fast path (skip repack).
         private static readonly int HighMuscleAndTailBytes = MuscleBytes(BitQuality.High) + TailBytes;
@@ -253,6 +265,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
 
                 ProcessPendingRemovals();
 
+                // Phase 2.5: Distance cache update (runs at ~2Hz instead of every tick)
+                _distanceTickCounter++;
+                if (_distanceTickCounter >= DistanceUpdateIntervalTicks)
+                {
+                    _distanceTickCounter = 0;
+                    long distStart = profiling ? Stopwatch.GetTimestamp() : 0;
+                    UpdateDistanceCache();
+                    if (profiling) { BSRProfiler.distanceTicks += Stopwatch.GetTimestamp() - distStart; phaseTick = Stopwatch.GetTimestamp(); }
+                }
+
                 //Phase 3: Send loop
                 long now = Stopwatch.GetTimestamp();
                 UpdateCommunicationAndDistances(now);
@@ -357,6 +379,89 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
         }
 
+        private static void UpdateDistanceCache()
+        {
+            if (_activePlayersDirty)
+            {
+                lock (_activePlayersLock)
+                {
+                    if (_activePlayersDirty)
+                    {
+                        _activePlayersSnapshot = _activePlayers.ToArray();
+                        _activePlayersDirty = false;
+                    }
+                }
+            }
+            var activeCopy = _activePlayersSnapshot;
+            int playerCount = activeCopy.Length;
+            if (playerCount == 0) return;
+
+            // Snapshot positions into contiguous arrays for cache-friendly distance math.
+            int maxId = 0;
+            for (int i = 0; i < playerCount; i++)
+            {
+                if (activeCopy[i].id > maxId) maxId = activeCopy[i].id;
+            }
+            int snapshotLen = maxId + 1;
+            if (_posXSnapshot.Length < snapshotLen)
+            {
+                int newLen = Math.Max(snapshotLen, _posXSnapshot.Length * 2);
+                _posXSnapshot = new float[newLen];
+                _posYSnapshot = new float[newLen];
+                _posZSnapshot = new float[newLen];
+            }
+            for (int i = 0; i < playerCount; i++)
+            {
+                int id = activeCopy[i].id;
+                var state = activeCopy[i].state;
+                _posXSnapshot[id] = state.Position.x;
+                _posYSnapshot[id] = state.Position.y;
+                _posZSnapshot[id] = state.Position.z;
+            }
+
+            Parallel.For(0, playerCount, parallelOptions, i =>
+            {
+                var (id, state) = activeCopy[i];
+                var tracking = state.PeerTracking;
+                if (tracking == null) return;
+
+                float iX = _posXSnapshot[id];
+                float iY = _posYSnapshot[id];
+                float iZ = _posZSnapshot[id];
+
+                for (int index = 0; index < playerCount; index++)
+                {
+                    int jId = activeCopy[index].id;
+                    if (id == jId) continue;
+
+                    // Grow tracking array if needed (same logic as send loop)
+                    if (jId >= tracking.Length)
+                    {
+                        lock (state)
+                        {
+                            if (jId >= state.PeerTracking.Length)
+                            {
+                                int newLen = Math.Max(state.PeerTracking.Length * 2, jId + 1);
+                                Array.Resize(ref state.PeerTracking, newLen);
+                            }
+                            tracking = state.PeerTracking;
+                        }
+                    }
+
+                    float dx = iX - _posXSnapshot[jId];
+                    float dy = iY - _posYSnapshot[jId];
+                    float dz = iZ - _posZSnapshot[jId];
+                    float distSq = dx * dx + dy * dy + dz * dz;
+
+                    CalculateIntervalFromDistanceSq(distSq, out byte intervalByte, out int actualInterval);
+
+                    tracking[jId].CachedIntervalTicks = (long)(actualInterval * MsToTick);
+                    tracking[jId].CachedQualityIndex = (byte)GetQualityIndex(distSq);
+                    tracking[jId].CachedIntervalByte = intervalByte;
+                }
+            });
+        }
+
         private static void UpdateCommunicationAndDistances(long nowTicks)
         {
             // Double-buffered snapshot: only rebuild when dirty
@@ -379,7 +484,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
-            // Snapshot all hot data into contiguous arrays (N reads instead of NÂ² pointer chases).
+            // Snapshot generation counters only (positions handled by slow distance cache).
             int maxId = 0;
             for (int i = 0; i < playerCount; i++)
             {
@@ -388,23 +493,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             int snapshotLen = maxId + 1;
             if (_generationSnapshot.Length < snapshotLen)
             {
-                int newLen = Math.Max(snapshotLen, _generationSnapshot.Length * 2);
-                _generationSnapshot = new long[newLen];
-                _posXSnapshot = new float[newLen];
-                _posYSnapshot = new float[newLen];
-                _posZSnapshot = new float[newLen];
+                _generationSnapshot = new long[Math.Max(snapshotLen, _generationSnapshot.Length * 2)];
             }
             for (int i = 0; i < playerCount; i++)
             {
                 int id = activeCopy[i].id;
-                var state = activeCopy[i].state;
-                _generationSnapshot[id] = Interlocked.Read(ref state.DataGeneration);
-                _posXSnapshot[id] = state.Position.x;
-                _posYSnapshot[id] = state.Position.y;
-                _posZSnapshot[id] = state.Position.z;
+                _generationSnapshot[id] = Interlocked.Read(ref activeCopy[i].state.DataGeneration);
             }
 
-            // Pre-compute minimum interval in ticks cheapest early-exit threshold.
+            // Fallback interval for pairs not yet in the distance cache (new players).
             long minIntervalTicks = (long)(BSRSMillisecondDefaultInterval * BSRBaseMultiplier * MsToTick);
 
             // Tick slicing: only process a slice of receivers per tick
@@ -430,12 +527,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     return;
                 }
 
-                // Cache receiver position from snapshot for distance calc
-                float iX = _posXSnapshot[id];
-                float iY = _posYSnapshot[id];
-                float iZ = _posZSnapshot[id];
-
-                // Thread-local send counter no Interlocked in the hot loop
+                // Thread-local send counter — no Interlocked in the hot loop
                 long localSends = 0;
 
                 for (int index = 0; index < playerCount; index++)
@@ -446,7 +538,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         continue;
                     }
 
-                    // Bounds check grow array if needed (rare, only when IDs exceed capacity)
+                    // Bounds check — grow array if needed (rare, only when IDs exceed capacity)
                     if (jId >= tracking.Length)
                     {
                         lock (stateI)
@@ -460,39 +552,25 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         }
                     }
 
-                    // Reordered checks: cheapest first, skip distance calc when possible
-
-                    // 1. New data check plain array read, no pointer chase
+                    // 1. New data check — plain array read, no pointer chase
                     long senderGen = _generationSnapshot[jId];
                     if (senderGen <= tracking[jId].LastSeenGeneration)
                     {
                         continue;
                     }
 
-                    // 2. Minimum interval check skip without distance calc
+                    // 2. Interval check using cached distance results (no float math)
                     long elapsed = nowTicks - tracking[jId].LastSentTime;
-                    if (elapsed < minIntervalTicks)
-                    {
-                        continue;
-                    }
-
-                    // 3. Distance from contiguous snapshot arrays (cache-friendly)
-                    float dx = iX - _posXSnapshot[jId];
-                    float dy = iY - _posYSnapshot[jId];
-                    float dz = iZ - _posZSnapshot[jId];
-                    float distSq = dx * dx + dy * dy + dz * dz;
-
-                    // 4. Full interval check with distance
-                    CalculateIntervalFromDistanceSq(distSq, out byte startAtZeroInterval, out int actualInterval);
-                    long required = (long)((actualInterval) * MsToTick);
-
+                    long required = tracking[jId].CachedIntervalTicks;
+                    if (required <= 0) required = minIntervalTicks;
                     if (elapsed < required)
                     {
                         continue;
                     }
 
-                    // 5. Quality + send
-                    int qi = GetQualityIndex(distSq);
+                    // 3. Quality + interval byte from distance cache
+                    int qi = tracking[jId].CachedQualityIndex;
+                    byte startAtZeroInterval = tracking[jId].CachedIntervalByte;
 
                     PlayerState stateJ = activeCopy[index].state;
 
@@ -516,7 +594,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     localSends++;
                 }
 
-                // One Interlocked.Add per receiver (not per send) ~25 atomics/tick instead of ~32K
+                // One Interlocked.Add per receiver (not per send) — ~25 atomics/tick instead of ~32K
                 if (localSends > 0 && BSRProfiler.Enabled)
                 {
                     Interlocked.Add(ref BSRProfiler.SendCount, localSends);
