@@ -68,11 +68,16 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         // Outbound sequence stamped into pre-serialized data (increments per new avatar update)
         public byte OutboundSequence;
 
-        // Pre-serialized keyframe bytes per quality [PlayerID:2][interval_placeholder:1][sequence:1][array:N][additionalSize:1]
-        // The interval byte at offset 2 is filled per-recipient in the send loop.
+        // Pre-serialized keyframe bytes per quality.
+        // Byte-ID: [PlayerID:1][interval_placeholder:1][sequence:1][array:N][additional...]
+        // Ushort-ID: [PlayerID:2][interval_placeholder:1][sequence:1][array:N][additional...]
+        // The interval byte offset depends on SmallId (1 for byte, 2 for ushort).
         // Quality is derived from the channel number — not stored in the payload.
         public byte[][] SerializedKeyframe = new byte[4][];
         public int[] SerializedKeyframeLength = new int[4];
+
+        // True when playerID fits in a byte (≤255). Set once at creation.
+        public bool SmallId;
 
         // Lazy pre-serialization: bitmask of which quality levels had receivers last tick.
         // Updated atomically from the parallel send loop. Read/reset in ProcessMessage.
@@ -173,14 +178,15 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
-            // Overwrite any pending message for this peer. Return the old one to the pool.
-            // Safe: AddMessage and the drain loop (TryRemove) run sequentially within the same
-            // background tick (TriggerUpdate fires after drain+process), so no concurrent contention.
-            currentMessages.AddOrUpdate(fromPeer.Id, message, (_, prev) =>
-            {
-                QueuedMessagePool.Return(prev);
-                return message;
-            });
+            // Overwrite any pending message for this peer.
+            // Do NOT return prev to the pool here — Interlocked.Exchange in the drain phase
+            // may have already captured prev into _messagesSnapshot.  Returning it in this
+            // factory would double-return the same QueuedMessage, letting two future Rent()
+            // calls receive the same object and corrupt each other's data.
+            // The orphaned prev (if any) is collected by the GC; this only occurs when two
+            // messages for the same peer arrive within the same tick AND the Exchange races
+            // with this AddOrUpdate — negligible allocation cost.
+            currentMessages.AddOrUpdate(fromPeer.Id, message, (_, prev) => message);
         }
 
         public static void AddMessage(NetPeer fromPeer, LocalAvatarSyncMessage localMessage, byte sequence)
@@ -190,11 +196,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             message.Sequence = sequence;
             message.AvatarMessage = localMessage;
 
-            currentMessages.AddOrUpdate(fromPeer.Id, message, (_, prev) =>
-            {
-                QueuedMessagePool.Return(prev);
-                return message;
-            });
+            // Same double-return avoidance as HandleAvatarMovement — see comment there.
+            currentMessages.AddOrUpdate(fromPeer.Id, message, (_, prev) => message);
         }
 
         private static async Task StartBackgroundProcessingAsync()
@@ -472,8 +475,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         continue;
                     }
 
-                    byte avatarChannel = BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, stateJ.HasAdditionalData);
-                    SendPreSerialized(peer, qi, startAtZeroInterval, avatarChannel,stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength);
+                    byte avatarChannel = stateJ.SmallId
+                        ? BasisNetworkCommons.GetPlayerAvatarChannelForQuality(qi, stateJ.HasAdditionalData)
+                        : BasisNetworkCommons.GetPlayerAvatarLargeChannelForQuality(qi, stateJ.HasAdditionalData);
+                    SendPreSerialized(peer, qi, startAtZeroInterval, avatarChannel, stateJ.SerializedKeyframe, stateJ.SerializedKeyframeLength, stateJ.SmallId);
 
                     MarkQualityUsed(ref stateJ.UsedQualities, qi);
 
@@ -523,7 +528,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
         /// Uses a thread-local writer to avoid shared pool contention.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void SendPreSerialized(NetPeer peer, int qi,byte interval, byte channel, byte[][] serializedArray, int[] lengthArray)
+        private static void SendPreSerialized(NetPeer peer, int qi, byte interval, byte channel, byte[][] serializedArray, int[] lengthArray, bool smallId)
         {
             int len = lengthArray[qi];
             byte[] src = serializedArray[qi];
@@ -535,10 +540,11 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             NetDataWriter writer = GetThreadWriter();
             writer.Put(src, 0, len);
 
-            // Patch interval byte at offset 2 (after PlayerID ushort)
-            if (writer.Length > 2)
+            // Patch interval byte: offset 1 for byte playerID, offset 2 for ushort playerID
+            int intervalOffset = smallId ? 1 : 2;
+            if (writer.Length > intervalOffset)
             {
-                writer.Data[2] = interval;
+                writer.Data[intervalOffset] = interval;
             }
 
             peer.Send(writer, channel, DeliveryMethod.Unreliable);
@@ -691,6 +697,7 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                     LastInboundSequence = inboundSeq,
                     HasReceivedFirst = true,
                     OutboundSequence = 0,
+                    SmallId = id <= byte.MaxValue,
                 };
 
                 if (isHighQuality)
@@ -780,7 +787,14 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                         || !high.array.AsSpan(WritePosition, muscleAndTailBytes)
                             .SequenceEqual(prevArray.AsSpan(WritePosition, muscleAndTailBytes));
 
-                    if (musclesOrTailChanged)
+                    // Force a full repack when any lower quality array is null (e.g. after a
+                    // previous repack failure).  Without this, the position-only fast path would
+                    // skip the null arrays indefinitely and far receivers would never see the player.
+                    bool needsRecovery = state.AvatarMedium.array == null
+                        || state.AvatarLow.array == null
+                        || state.AvatarVeryLow.array == null;
+
+                    if (musclesOrTailChanged || needsRecovery)
                     {
                         try
                         {
@@ -900,8 +914,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 return;
             }
 
-            // Even channels (no additional):  [PlayerID:2][interval:1][sequence:1][array:N]
-            // Odd channels (has additional):   [PlayerID:2][interval:1][sequence:1][array:N][AdditionalSize:1][LinkedAvatarIndex:1][Additional...]
+            // Byte-ID:   [PlayerID:1][interval:1][sequence:1][array:N][additional...]
+            // Ushort-ID: [PlayerID:2][interval:1][sequence:1][array:N][additional...]
             // Quality and additional-data presence are derived from the channel number.
             bool hasAdditional = state.HasAdditionalData
                 && msg.AdditionalAvatarDatas != null
@@ -918,7 +932,8 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
                 }
             }
 
-            int totalSize = 2 + 1 + 1 + expectedPayload + additionalSize;
+            int idSize = state.SmallId ? 1 : 2;
+            int totalSize = idSize + 1 + 1 + expectedPayload + additionalSize;
 
             if (state.SerializedKeyframe[qi] == null || state.SerializedKeyframe[qi].Length < totalSize)
             {
@@ -926,7 +941,10 @@ namespace BasisNetworkServer.BasisNetworkingReductionSystem
             }
 
             NetDataWriter writer = GetThreadWriter();
-            writer.Put(playerId);
+            if (state.SmallId)
+                writer.Put((byte)playerId);
+            else
+                writer.Put(playerId);
             writer.Put((byte)0); // interval placeholder
             writer.Put(state.OutboundSequence); // sequence byte
             writer.Put(msg.array, 0, expectedPayload);
