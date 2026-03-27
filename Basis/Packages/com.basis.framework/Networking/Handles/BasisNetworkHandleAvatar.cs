@@ -38,7 +38,7 @@ public static class BasisNetworkHandleAvatar
         if (Message.Count > 256)
         {
             while (Message.TryDequeue(out _)) { }
-            BasisDebug.LogError("Messages Exceeded 250! Resetting");
+            BasisDebug.LogError("Messages Exceeded 256! Resetting");
         }
     }
 
