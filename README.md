@@ -132,7 +132,7 @@ This project includes third-party software under the following licenses:
 - [cilbox](https://github.com/cnlohr/cilbox) - MIT licensed upstream
 
 ### Other
-- [Kevin Iglesias Basic Motions v1](https://www.keviniglesias.com/) - MIT licensed (v1 release). Note: v2 changed license terms; this project uses the v1 MIT-licensed version
+- [Kevin Iglesias Basic Motions v1](https://www.keviniglesias.com/) - v1 release. Note: v2 changed license terms; this project uses the v1 version
 - [HVRBasisNDMF](https://github.com/hai-vr/ndmf) - See upstream for license terms
 
 ### Trademarks
