@@ -120,6 +120,12 @@
         "com.unity.test-framework": "1.6.0"
       }
     },
+    "com.basisvr.openlipsync": {
+      "version": "file:com.basisvr.openlipsync",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.cnlohr.cilbox": {
       "version": "file:com.cnlohr.cilbox",
       "depth": 0,

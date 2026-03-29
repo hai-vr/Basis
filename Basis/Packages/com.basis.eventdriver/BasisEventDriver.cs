@@ -84,6 +84,7 @@ public class BasisEventDriver : MonoBehaviour
 #else
         Application.onBeforeRender += OnBeforeRender;
 #endif
+        BasisOpenLipSyncDriver.Initialize();
         BasisSceneFactory.Initalize();
         BasisObjectSyncDriver.Initalization();
         RemoteBoneJobSystem.Initialize();
@@ -94,6 +95,7 @@ public class BasisEventDriver : MonoBehaviour
     /// </summary>
     public void OnDestroy()
     {
+        BasisOpenLipSyncDriver.Shutdown();
         BasisObjectSyncDriver.OnDestroy();
         Application.onBeforeRender -= OnBeforeRender;
         RemoteBoneJobSystem.Dispose();
