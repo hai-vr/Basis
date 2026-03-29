@@ -215,6 +215,11 @@ public class BasisEventDriver : MonoBehaviour
         BasisBlendShapeDriver.Simulate(); // capture + encode local face-tracking blendshapes
         BasisBlendShapeDriver.Apply();    // apply remote face-tracking blendshapes to meshes
         BasisAvatarDriver.ScheduleReadBlendShapes();
+        // Complete finger slerp job (scheduled in BasisLocalPlayer.Simulate)
+        if (BasisLocalPlayer.PlayerReady)
+        {
+            BasisLocalPlayer.Instance.LocalHandDriver.Apply(); //complete finger slerp job
+        }
         // JigglePhysics: schedule/complete passes
         JigglePhysics.ScheduleSimulate(fixedTimeAsDouble, TimeAsDouble, fixedDeltaTime); //schedule jiggles
         // send out avatar
