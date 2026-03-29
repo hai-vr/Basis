@@ -131,8 +131,8 @@ This project includes third-party software under the following licenses:
 - [AudioLink](https://github.com/llealloo/vrc-udon-audio-link) - MIT licensed upstream
 - [cilbox](https://github.com/cnlohr/cilbox) - MIT licensed upstream
 
-### Other / Undocumented
-- [Kevin Iglesias Animations](https://www.keviniglesias.com/) - See upstream for license terms
+### Other
+- [Kevin Iglesias Basic Motions v1](https://www.keviniglesias.com/) - MIT licensed (v1 release). Note: v2 changed license terms; this project uses the v1 MIT-licensed version
 - [HVRBasisNDMF](https://github.com/hai-vr/ndmf) - See upstream for license terms
 
 ### Trademarks
