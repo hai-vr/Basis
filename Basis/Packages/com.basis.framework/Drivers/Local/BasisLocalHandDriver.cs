@@ -57,8 +57,10 @@ public class BasisLocalHandDriver
 
     // --- Persistent NativeArrays ---
 
-    /// <summary>Baked grid: [gridIdx * 30 + fingerIdx * 3 + jointIdx].</summary>
+    /// <summary>Baked grid: [fingerIdx * gridCount * 3 + gridIdx * 3 + jointIdx].
+    /// Per-finger layout keeps bilinear sample cells on nearby cache lines.</summary>
     private NativeArray<quaternion> _nativePoseGrid;
+    private int _fingerStride; // gridCount * 3
     /// <summary>Per-finger percentages written each frame (10 float2).</summary>
     private NativeArray<float2> _percentages;
     /// <summary>Interpolated targets (30 quaternions, flat indexed).</summary>
@@ -171,34 +173,36 @@ public class BasisLocalHandDriver
 
     /// <summary>
     /// Converts the managed PoseGrid into a flat NativeArray for Burst access.
-    /// Layout: [gridIdx * 30 + fingerIdx * 3 + jointIdx].
+    /// Per-finger layout: [fingerIdx * gridCount * 3 + gridIdx * 3 + jointIdx].
+    /// Adjacent Y-cells land on the same cache line (48 bytes apart) instead of 10KB apart.
     /// </summary>
     private void BuildNativePoseGrid()
     {
         if (_nativePoseGrid.IsCreated) _nativePoseGrid.Dispose();
 
         int gridCount = GridWidth * GridHeight;
-        _nativePoseGrid = new NativeArray<quaternion>(gridCount * 30, Allocator.Persistent);
+        _fingerStride = gridCount * 3;
+        _nativePoseGrid = new NativeArray<quaternion>(10 * _fingerStride, Allocator.Persistent);
 
         for (int gridIdx = 0; gridIdx < gridCount; gridIdx++)
         {
             BasisPoseData pose = PoseGrid[gridIdx];
-            int b = gridIdx * 30;
-            SetGridFinger(b + 0, pose.LeftThumb);
-            SetGridFinger(b + 3, pose.LeftIndex);
-            SetGridFinger(b + 6, pose.LeftMiddle);
-            SetGridFinger(b + 9, pose.LeftRing);
-            SetGridFinger(b + 12, pose.LeftLittle);
-            SetGridFinger(b + 15, pose.RightThumb);
-            SetGridFinger(b + 18, pose.RightIndex);
-            SetGridFinger(b + 21, pose.RightMiddle);
-            SetGridFinger(b + 24, pose.RightRing);
-            SetGridFinger(b + 27, pose.RightLittle);
+            SetGridFinger(0, gridIdx, pose.LeftThumb);
+            SetGridFinger(1, gridIdx, pose.LeftIndex);
+            SetGridFinger(2, gridIdx, pose.LeftMiddle);
+            SetGridFinger(3, gridIdx, pose.LeftRing);
+            SetGridFinger(4, gridIdx, pose.LeftLittle);
+            SetGridFinger(5, gridIdx, pose.RightThumb);
+            SetGridFinger(6, gridIdx, pose.RightIndex);
+            SetGridFinger(7, gridIdx, pose.RightMiddle);
+            SetGridFinger(8, gridIdx, pose.RightRing);
+            SetGridFinger(9, gridIdx, pose.RightLittle);
         }
     }
 
-    private void SetGridFinger(int nativeIdx, Quaternion[] finger)
+    private void SetGridFinger(int fingerIdx, int gridIdx, Quaternion[] finger)
     {
+        int nativeIdx = fingerIdx * _fingerStride + gridIdx * 3;
         _nativePoseGrid[nativeIdx] = finger[0];
         _nativePoseGrid[nativeIdx + 1] = finger[1];
         _nativePoseGrid[nativeIdx + 2] = finger[2];
@@ -298,6 +302,7 @@ public class BasisLocalHandDriver
             Targets = _targetRotations,
             GridWidth = GridWidth,
             GridHeight = GridHeight,
+            FingerStride = _fingerStride,
             Increment = increment
         };
         JobHandle interpHandle = interpJob.Schedule(10, 1);
