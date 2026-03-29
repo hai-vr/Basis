@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2024 MR LUKE B DOOLAN
+Copyright (c) Sedat Kapanoglu
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,8 +20,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
------------------------------------------------------------------------
-
-This project includes code from third-party projects licensed under the Apache License 2.0. For details, see `Basis/Packages/com.steam.steamaudio/LICENSE.md`.
-
-This project includes third-party trademarks as described in `Basis/Packages/com.steam.steamaudio/TRADEMARK_RIGHTS.md`. For more details, see `Basis/Packages/com.steam.steamaudio/TRADEMARK_RIGHTS.md`.
+---
+Upstream: https://github.com/ssg/SimpleBase
+Repackaged for Unity by BasisVR via https://github.com/BasisVR/UpmBuilds
