@@ -29,7 +29,7 @@ public static class BasisOpenLipSyncDriver
 
             if (modelAsset == null)
             {
-                Debug.Log("[OpenLipSync] No model found at " + ModelAddress + " - OpenLipSync disabled, using uLipSync fallback");
+                BasisDebug.Log("[OpenLipSync] No model found at " + ModelAddress + " - OpenLipSync disabled, using uLipSync fallback");
                 return;
             }
 
@@ -41,18 +41,18 @@ public static class BasisOpenLipSyncDriver
 
             if (result != Result.Success)
             {
-                Debug.LogWarning($"[OpenLipSync] Backend initialization failed: {_backend.LastError}");
+                BasisDebug.LogWarning($"[OpenLipSync] Backend initialization failed: {_backend.LastError}");
                 _backend.Dispose();
                 _backend = null;
                 return;
             }
 
             _initialized = true;
-            Debug.Log($"[OpenLipSync] Initialized successfully ({MaxSlots} slots available)");
+            BasisDebug.Log($"[OpenLipSync] Initialized successfully ({MaxSlots} slots available)");
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[OpenLipSync] Initialization exception: {ex.Message} - falling back to uLipSync");
+            BasisDebug.LogWarning($"[OpenLipSync] Initialization exception: {ex.Message} - falling back to uLipSync");
             Shutdown();
         }
     }
@@ -90,7 +90,7 @@ public static class BasisOpenLipSyncDriver
         var result = _backend.CreateContext(ref ctx);
         if (result != Result.Success)
         {
-            Debug.LogWarning($"[OpenLipSync] Failed to create context: {_backend.LastError}");
+            BasisDebug.LogWarning($"[OpenLipSync] Failed to create context: {_backend.LastError}");
             return false;
         }
 

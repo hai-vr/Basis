@@ -17,7 +17,8 @@
         "BasisNetworkServer",
         "Unity.Addressables",
         "Unity.Addressables.Editor",
-        "Basis.OpenLipSync.Runtime"
+        "Basis.OpenLipSync.Runtime",
+        "BasisEventDriver"
     ],
     "includePlatforms": [
         "Editor"
