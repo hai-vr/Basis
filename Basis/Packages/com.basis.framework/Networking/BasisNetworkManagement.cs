@@ -221,16 +221,42 @@ namespace Basis.Scripts.Networking
                 return;
             }
 
+#if UNITY_EDITOR
+            bool p = BasisEventDriverProfilerData.Enabled;
+            System.Diagnostics.Stopwatch s = null;
+            if (p) s = System.Diagnostics.Stopwatch.StartNew();
+#endif
             BasisRemoteNetworkDriver.Apply();
             BasisRemoteNetworkDriver.BeginRead();
-            for (int Index = 0; Index < BasisNetworkPlayers.ReceiverCount; Index++)
+#if UNITY_EDITOR
+            if (p) { s.Stop(); BasisEventDriverProfilerData.Net_RemoteDriverApplyMs = s.Elapsed.TotalMilliseconds; s.Restart(); }
+#endif
+
+            int count = BasisNetworkPlayers.ReceiverCount;
+            for (int Index = 0; Index < count; Index++)
             {
                 BasisNetworkPlayers.ReceiversSnapshot[Index].Apply();
             }
+#if UNITY_EDITOR
+            if (p)
+            {
+                s.Stop();
+                BasisEventDriverProfilerData.Net_ReceiverApplyLoopMs = s.Elapsed.TotalMilliseconds;
+                BasisEventDriverProfilerData.Net_ReceiverCount = count;
+                s.Restart();
+            }
+#endif
 
             BoneJobSystem = RemoteBoneJobSystem.Schedule();
+#if UNITY_EDITOR
+            if (p) { s.Stop(); BasisEventDriverProfilerData.Net_BoneJobScheduleMs = s.Elapsed.TotalMilliseconds; }
+            if (p) { BasisEventDriverProfilerData.Net_BoneJobWasIncomplete = !BoneJobSystem.IsCompleted; s = System.Diagnostics.Stopwatch.StartNew(); }
+#endif
 
             RemoteBoneJobSystem.Complete(BoneJobSystem);
+#if UNITY_EDITOR
+            if (p) { s.Stop(); BasisEventDriverProfilerData.Net_BoneJobCompleteMs = s.Elapsed.TotalMilliseconds; }
+#endif
         }
 
         #endregion

@@ -129,6 +129,9 @@ public partial class BasisTransmissionResults
 
         if (timer < intervalSeconds)
         {
+#if UNITY_EDITOR
+            if (BasisEventDriverProfilerData.Enabled) BasisEventDriverProfilerData.Net_TransmitSimRanThisTick = false;
+#endif
             return;
         }
 
@@ -136,6 +139,9 @@ public partial class BasisTransmissionResults
 
         if (!CanDoSimulate(intervalUsedThisTick, out BasisAvatar avatar))
         {
+#if UNITY_EDITOR
+            if (BasisEventDriverProfilerData.Enabled) BasisEventDriverProfilerData.Net_TransmitSimRanThisTick = false;
+#endif
             return;
         }
 
@@ -151,6 +157,11 @@ public partial class BasisTransmissionResults
             return;
         }
 
+#if UNITY_EDITOR
+        bool _prof = BasisEventDriverProfilerData.Enabled;
+        System.Diagnostics.Stopwatch _psw = null;
+        if (_prof) { BasisEventDriverProfilerData.Net_TransmitSimRanThisTick = true; _psw = System.Diagnostics.Stopwatch.StartNew(); }
+#endif
         EnsureCapacity(receiverCount);
         LengthOfArrays = receiverCount;
 
@@ -186,6 +197,9 @@ public partial class BasisTransmissionResults
         {
             RevaluteAudioRanges = false;
         }
+#if UNITY_EDITOR
+        if (_prof) { _psw.Stop(); BasisEventDriverProfilerData.Net_TransmitSim_FillPositionsMs = _psw.Elapsed.TotalMilliseconds; _psw.Restart(); }
+#endif
         // Configure job inputs (only what changes per tick)
         distanceJob.SquaredAvatarDistance = SMModuleDistanceBasedReductions.AvatarRange;
         distanceJob.SquaredHearingDistance = SMModuleDistanceBasedReductions.HearingRange;
@@ -271,18 +285,26 @@ public partial class BasisTransmissionResults
             dampenJobHandle = default;
         }
 
+#if UNITY_EDITOR
+        if (_prof) { _psw.Stop(); BasisEventDriverProfilerData.Net_TransmitSim_JobScheduleMs = _psw.Elapsed.TotalMilliseconds; _psw.Restart(); }
+#endif
         // Do work that doesn't depend on distance results
         BasisNetworkAvatarCompressor.Compress(BasisNetworkTransmitter, avatar.Animator);
 
-        // Finish before consuming results
-        reduceJobHandle.Complete();
-        viewConeJobHandle.Complete();
-        audioCapJobHandle.Complete();
+#if UNITY_EDITOR
+        if (_prof) { _psw.Stop(); BasisEventDriverProfilerData.Net_TransmitSim_CompressMs = _psw.Elapsed.TotalMilliseconds; _psw.Restart(); }
+#endif
+        // Finish before consuming results — single sync point via CombineDependencies
+        var combined = JobHandle.CombineDependencies(reduceJobHandle, viewConeJobHandle, audioCapJobHandle);
         if (dampenEnabled)
         {
-            dampenJobHandle.Complete();
+            combined = JobHandle.CombineDependencies(combined, dampenJobHandle);
         }
+        combined.Complete();
 
+#if UNITY_EDITOR
+        if (_prof) { _psw.Stop(); BasisEventDriverProfilerData.Net_TransmitSim_JobCompleteMs = _psw.Elapsed.TotalMilliseconds; _psw.Restart(); }
+#endif
         int mask = changeMask[0];
         AnyMicrophoneRangeChanged = (mask & 1) != 0;
         AnyHearingRangeChanged = (mask & 2) != 0;
@@ -368,11 +390,17 @@ public partial class BasisTransmissionResults
             }
         }
 
+#if UNITY_EDITOR
+        if (_prof) { _psw.Stop(); BasisEventDriverProfilerData.Net_TransmitSim_PostProcessMs = _psw.Elapsed.TotalMilliseconds; _psw.Restart(); }
+#endif
         // Update who we are talking to (serialize without allocations)
         if (microphoneChange)
         {
             BuildAndSendTalkingPoints(snapshot, receiverCount);
         }
+#if UNITY_EDITOR
+        if (_prof) { _psw.Stop(); BasisEventDriverProfilerData.Net_TransmitSim_TalkingPointsMs = _psw.Elapsed.TotalMilliseconds; }
+#endif
 
         UpdateSendInterval(SquaredSmallestDistance);
 
