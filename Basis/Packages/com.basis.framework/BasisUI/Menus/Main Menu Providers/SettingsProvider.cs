@@ -180,7 +180,19 @@ namespace Basis.BasisUI
                 rangeGroup,
                 PanelSlider.SliderSettings.Distance("Avatar Visibility Range", 100),
                 BasisSettingsDefaults.AvatarRange);
-            
+
+            PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
+    rangeGroup,
+    PanelSlider.SliderSettings.Distance("Hearing Range", 25),
+    BasisSettingsDefaults.HearingRange);
+
+#if !BASIS_DISABLE_MICROPHONE
+            PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
+                rangeGroup,
+                PanelSlider.SliderSettings.Distance("Microphone Range", 25),
+                BasisSettingsDefaults.MicrophoneRange);
+#endif
+
             PanelToggle toggleLimitAvatars = PanelToggle.CreateNewEntry(rangeGroup);
             toggleLimitAvatars.AssignBinding(BasisSettingsDefaults.UseMaxVisibleAvatars);
 
@@ -234,18 +246,6 @@ namespace Basis.BasisUI
                 sliderMaxAudioSources.Descriptor.SetActive(val);
                 rangeGroup.ForceRebuild();
             };
-
-            PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
-                rangeGroup,
-                PanelSlider.SliderSettings.Distance("Hearing Range", 25),
-                BasisSettingsDefaults.HearingRange);
-
-#if !BASIS_DISABLE_MICROPHONE
-            PanelSlider sliderMicrophoneRange = PanelSlider.CreateEntryAndBind(
-                rangeGroup,
-                PanelSlider.SliderSettings.Distance("Microphone Range", 25),
-                BasisSettingsDefaults.MicrophoneRange);
-#endif
 
             SettingsProviderPlatform.BuildAutoSwapUI(container);
 
