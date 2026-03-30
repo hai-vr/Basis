@@ -198,7 +198,7 @@ namespace Basis.Scripts.Drivers
         }
         public void Simulate(float DeltaTime)
         {
-            if (uLipSyncEnabledState == false)
+            if (uLipSyncEnabledState == false || !InVisemeRange)
             {
                 return;
             }
@@ -238,6 +238,13 @@ namespace Basis.Scripts.Drivers
         public bool uLipSyncEnabledState = true;
 
         /// <summary>
+        /// Set by BasisTransmissionResults: false when the player is too far away
+        /// for lip-sync to be visually meaningful (beyond half the hearing range).
+        /// Checked in Simulate and ProcessAudioSamples to skip expensive work.
+        /// </summary>
+        public volatile bool InVisemeRange = true;
+
+        /// <summary>
         /// Callback that updates whether lip-sync is active based on face visibility.
         /// </summary>
         private void UpdateFaceVisibility(bool State)
@@ -266,7 +273,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void ProcessAudioSamples(float[] data, int channels, int Length)
         {
-            if (uLipSyncEnabledState == false)
+            if (uLipSyncEnabledState == false || !InVisemeRange)
             {
                 return;
             }

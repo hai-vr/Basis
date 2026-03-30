@@ -221,6 +221,7 @@ public static class BasisRemoteNetworkDriver
     public static unsafe void ResetPoseFilter(int index)
     {
         if (!_initialized) return;
+        if ((uint)index >= FixedCapacity) return;
         ((byte*)(void*)_ptrPoseFilterSeeded)[index] = 0;
     }
 
@@ -232,6 +233,7 @@ public static class BasisRemoteNetworkDriver
     public static unsafe void SetFrameTiming(int index, double interpolationTime, double deltaTimeSeconds)
     {
         if (!_initialized) return;
+        if ((uint)index >= FixedCapacity) return;
         ((double*)(void*)_ptrInterpolationTimes)[index] = interpolationTime;
         ((double*)(void*)_ptrDeltaTimes)[index] = deltaTimeSeconds;
     }
@@ -246,6 +248,7 @@ public static class BasisRemoteNetworkDriver
         NativeArray<float> prevMuscles, NativeArray<float> targetMuscles)
     {
         if (!_initialized) return;
+        if ((uint)index >= FixedCapacity) return;
         ((float*)(void*)_ptrHumanScales)[index] = humanScale;
         ((float3*)(void*)_ptrPrevPositions)[index] = prevPos;
         ((float3*)(void*)_ptrTargetPositions)[index] = targetPos;
@@ -384,7 +387,7 @@ public static class BasisRemoteNetworkDriver
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void GetScaleOutput(int index, out float3 outScale)
     {
-        if (!_initialized) { outScale = new float3(1, 1, 1); return; }
+        if (!_initialized || (uint)index >= FixedCapacity) { outScale = new float3(1, 1, 1); return; }
         outScale = ((float3*)(void*)_ptrOutScales)[index];
     }
 
@@ -399,7 +402,7 @@ public static class BasisRemoteNetworkDriver
         int eyesAndMouthOffsetFloats,
         int eyesAndMouthCountBytes)
     {
-        if (!_initialized)
+        if (!_initialized || (uint)index >= FixedCapacity)
         {
             outScale = false;
             outRot = quaternion.identity;

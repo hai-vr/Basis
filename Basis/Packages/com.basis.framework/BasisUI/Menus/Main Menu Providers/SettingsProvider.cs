@@ -218,6 +218,23 @@ namespace Basis.BasisUI
                 rangeGroup.ForceRebuild();
             };
 
+            PanelToggle toggleLimitAudio = PanelToggle.CreateNewEntry(rangeGroup);
+            toggleLimitAudio.AssignBinding(BasisSettingsDefaults.UseMaxAudioSources);
+            toggleLimitAudio.Descriptor.SetTitle("Limit Audio Sources");
+
+            PanelSlider sliderMaxAudioSources = PanelSlider.CreateEntryAndBind(
+                rangeGroup,
+                PanelSlider.SliderSettings.Advanced("Max Audio Sources", 0, 250, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MaxAudioSources);
+
+            sliderMaxAudioSources.Descriptor.SetActive(toggleLimitAudio.Value);
+
+            toggleLimitAudio.OnValueChanged += (val) =>
+            {
+                sliderMaxAudioSources.Descriptor.SetActive(val);
+                rangeGroup.ForceRebuild();
+            };
+
             PanelSlider sliderHearingRange = PanelSlider.CreateEntryAndBind(
                 rangeGroup,
                 PanelSlider.SliderSettings.Distance("Hearing Range", 25),
@@ -242,6 +259,8 @@ namespace Basis.BasisUI
         {
             BasisSettingsDefaults.AvatarRange.ResetToDefault();
             BasisSettingsDefaults.MaxVisibleAvatars.ResetToDefault();
+            BasisSettingsDefaults.MaxAudioSources.ResetToDefault();
+            BasisSettingsDefaults.UseMaxAudioSources.ResetToDefault();
             BasisSettingsDefaults.UseViewConeAvatars.ResetToDefault();
             BasisSettingsDefaults.ViewConeAngle.ResetToDefault();
             BasisSettingsDefaults.HearingRange.ResetToDefault();
@@ -1053,6 +1072,11 @@ namespace Basis.BasisUI
 
             CreateBuildInfoSection(infoGroup.ContentParent);
 
+            PanelToggle toggleStatistics = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
+            toggleStatistics.Descriptor.SetTitle("Enable Statistics");
+            toggleStatistics.Descriptor.SetDescription("Enable network statistics recording. Takes effect on next connection.");
+            toggleStatistics.AssignBinding(BasisSettingsDefaults.EnableStatistics);
+
             // Network & Statistics (live-updating)
             SettingsProviderNetworkTab.BuildNetworkStatsGroup(container, out var netUpdater);
 
@@ -1070,6 +1094,7 @@ namespace Basis.BasisUI
         {
             BasisSettingsDefaults.DebugVisuals.ResetToDefault();
             BasisSettingsDefaults.VisualState.SetValue("off");
+            BasisSettingsDefaults.EnableStatistics.ResetToDefault();
         }
 
         private static void CreateBuildInfoSection(RectTransform parent)

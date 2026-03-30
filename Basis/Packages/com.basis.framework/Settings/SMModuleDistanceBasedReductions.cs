@@ -6,12 +6,14 @@ using static UnityEngine.UIElements.UxmlAttributeDescription;
 
 public class SMModuleDistanceBasedReductions : BasisSettingsBase
 {
-    private static float _microphoneRange = 25f;
-    private static float _hearingRange = 25f;
-    private static float _avatarRange = 25f;
+    private static float _microphoneRange = 25f * 25f;
+    private static float _hearingRange = 25f * 25f;
+    private static float _avatarRange = 25f * 25f;
     private static float _meshLod = 25f;
     private static int _maxVisibleAvatars = 0;
     private static bool _UsemaxVisibleAvatars = false;
+    private static int _maxAudioSources = 0;
+    private static bool _useMaxAudioSources = false;
     private static bool _useViewConeAvatars = false;
     private static float _viewConeAngle = 180f;
     private static string K_MIC_RANGE => BasisSettingsDefaults.MicrophoneRange.BindingKey;   // "microphonerange"
@@ -21,6 +23,8 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     private static string K_GLOBAL_MESH_LOD => BasisSettingsDefaults.GlobalMeshLOD.BindingKey;    // "global meshlod" (note space!)
     private static string K_MAX_VISIBLE_AVATARS => BasisSettingsDefaults.MaxVisibleAvatars.BindingKey; // "maxvisibleavatars"
     private static string K_USEMAX_VISIBLE_AVATARS => BasisSettingsDefaults.UseMaxVisibleAvatars.BindingKey; // "usemaxvisibleavatars"
+    private static string K_MAX_AUDIO_SOURCES => BasisSettingsDefaults.MaxAudioSources.BindingKey; // "maxaudiosources"
+    private static string K_USEMAX_AUDIO_SOURCES => BasisSettingsDefaults.UseMaxAudioSources.BindingKey; // "usemaxaudiosources"
     private static string K_USE_VIEWCONE_AVATARS => BasisSettingsDefaults.UseViewConeAvatars.BindingKey; // "useviewconeavatars"
     private static string K_VIEWCONE_ANGLE => BasisSettingsDefaults.ViewConeAngle.BindingKey; // "viewconeangle"
     public static event Action<float> OnMicrophoneRangeChanged;
@@ -29,6 +33,8 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     public static event Action<float> OnMeshLodChanged;
     public static event Action<int> OnMaxVisibleAvatarsChanged;
     public static event Action<bool> OnUseMaxVisibleAvatarsChanged;
+    public static event Action<int> OnMaxAudioSourcesChanged;
+    public static event Action<bool> OnUseMaxAudioSourcesChanged;
     public static event Action<bool> OnUseViewConeAvatarsChanged;
     public static event Action<float> OnViewConeAngleChanged;
     public static float MicrophoneRange
@@ -76,6 +82,35 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
             {
                 _maxVisibleAvatars = value;
                 OnMaxVisibleAvatarsChanged?.Invoke(value);
+            }
+        }
+    }
+    public static bool UseMaxAudioSources
+    {
+        get => _useMaxAudioSources;
+        private set
+        {
+            if (_useMaxAudioSources != value)
+            {
+                _useMaxAudioSources = value;
+                OnUseMaxAudioSourcesChanged?.Invoke(value);
+            }
+        }
+    }
+    /// <summary>
+    /// Maximum number of remote players allowed to have active audio sources.
+    /// 0 = unlimited. Players beyond this cap lose their audio source.
+    /// Closest players get priority; currently-active sources are sticky to prevent popping.
+    /// </summary>
+    public static int MaxAudioSources
+    {
+        get => _maxAudioSources;
+        private set
+        {
+            if (_maxAudioSources != value)
+            {
+                _maxAudioSources = value;
+                OnMaxAudioSourcesChanged?.Invoke(value);
             }
         }
     }
@@ -152,6 +187,20 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 {
                     UseMaxVisibleAvatars = usemax;
                     BasisDebug.Log($"Use Max Visible Avatars {usemax}");
+                }
+                break;
+            case var s when s == K_MAX_AUDIO_SOURCES:
+                if (TryReadSlider(optionValue, out var maxAudio))
+                {
+                    MaxAudioSources = (int)maxAudio;
+                    LogDistanceSetting("MaxAudioSources", maxAudio);
+                }
+                break;
+            case var s when s == K_USEMAX_AUDIO_SOURCES:
+                if (bool.TryParse(optionValue, out bool useMaxAudio))
+                {
+                    UseMaxAudioSources = useMaxAudio;
+                    BasisDebug.Log($"Use Max Audio Sources {useMaxAudio}");
                 }
                 break;
             case var s when s == K_USE_VIEWCONE_AVATARS:

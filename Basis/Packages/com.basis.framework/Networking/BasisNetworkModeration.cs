@@ -429,6 +429,11 @@ public static class BasisNetworkModeration
         if (BasisNetworkPlayers.Players.TryGetValue(netId, out var player) && ValidateForAnimator(player))
         {
             Transform hips = player.Player.BasisAvatar.Animator.GetBoneTransform(HumanBodyBones.Hips);
+            if (hips == null)
+            {
+                BasisDebug.LogError($"Teleport failed: Avatar has no Hips bone for player {netId}");
+                return false;
+            }
             BasisLocalPlayer.Instance.Teleport(hips.position, Quaternion.identity);
             return true;
         }

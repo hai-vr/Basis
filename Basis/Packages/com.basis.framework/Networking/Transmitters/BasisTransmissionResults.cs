@@ -21,12 +21,14 @@ public partial class BasisTransmissionResults
     public BasisDistanceJobParallel distanceJob;
     public BasisDistanceReduceJob reduceJob;
     public BasisAvatarCapJob avatarCapJob;
+    public BasisAudioCapJob audioCapJob;
     public BasisDirectionalDampenJob dampenJob;
     public BasisViewConeAvatarJob viewConeJob;
 
     public JobHandle distanceJobHandle;
     public JobHandle reduceJobHandle;
     public JobHandle avatarCapJobHandle;
+    public JobHandle audioCapJobHandle;
     public JobHandle dampenJobHandle;
     public JobHandle viewConeJobHandle;
 
@@ -73,6 +75,18 @@ public partial class BasisTransmissionResults
     /// Copied to managed AudioReceiverModule after the job completes.
     /// </summary>
     private NativeArray<float> directionalDampening;
+
+    /// <summary>
+    /// Pre-computed per-index flag: true when the remote player currently has an
+    /// active audio source. Filled in the positions loop so managed objects are
+    /// never touched during the audio cap sort.
+    /// </summary>
+    private NativeArray<bool> hasActiveAudioSource;
+
+    /// <summary>
+    /// Scratch buffer for audio-cap sorting. Sized to capacity, reused each tick.
+    /// </summary>
+    private NativeArray<AudioCapEntry> audioCapEntries;
 
     // State
     public bool IndexChanged;
@@ -159,6 +173,7 @@ public partial class BasisTransmissionResults
 
             var remotePlayer = remote.RemotePlayer;
             hasRealAvatarLoaded[Index] = remotePlayer.InAvatarRange && !remotePlayer.IsConsideredFallBackAvatar;
+            hasActiveAudioSource[Index] = remote.AudioReceiverModule.HasAudioSource;
         }
         var CurrentHearingRange = SMModuleDistanceBasedReductions.HearingRange;
         if (LastHearingRange != CurrentHearingRange)
@@ -199,6 +214,20 @@ public partial class BasisTransmissionResults
         else
         {
             avatarCapJobHandle = distanceJobHandle;
+        }
+
+        // Audio cap job depends on distance job (reads hearingRange/DistanceSq).
+        // Runs in parallel with reduce and avatar cap — they touch disjoint arrays.
+        if (SMModuleDistanceBasedReductions.UseMaxAudioSources)
+        {
+            int maxAudio = SMModuleDistanceBasedReductions.MaxAudioSources;
+            audioCapJob.MaxAudio = maxAudio;
+            audioCapJob.ReceiverCount = receiverCount;
+            audioCapJobHandle = audioCapJob.Schedule(distanceJobHandle);
+        }
+        else
+        {
+            audioCapJobHandle = distanceJobHandle;
         }
 
         // View cone avatar job: filters AvatarRange to only show avatars in the
@@ -248,6 +277,7 @@ public partial class BasisTransmissionResults
         // Finish before consuming results
         reduceJobHandle.Complete();
         viewConeJobHandle.Complete();
+        audioCapJobHandle.Complete();
         if (dampenEnabled)
         {
             dampenJobHandle.Complete();
@@ -266,7 +296,6 @@ public partial class BasisTransmissionResults
         }
 
         bool microphoneChange = IndexChanged || AnyMicrophoneRangeChanged;
-        bool hearingChange = IndexChanged || AnyHearingRangeChanged;
         bool lodChange = IndexChanged || AnyLodRangeChanged;
 
         // Re-check avatar changes: the cap or view-cone enforcement may have
@@ -293,21 +322,21 @@ public partial class BasisTransmissionResults
             var audio = receiver.AudioReceiverModule;
             var remote = receiver.RemotePlayer;
 
-            if (hearingChange)
+            // Always check for HasAudioSource/hearingRange mismatch rather than
+            // only on transitions. This ensures StartAudio is retried if a previous
+            // attempt failed (e.g. async exception), preventing permanent voice loss.
+            bool canHear = hearingRange[i];
+            if (audio.HasAudioSource != canHear)
             {
-                bool canHear = hearingRange[i];
-                if (audio.HasAudioSource != canHear)
+                if (canHear)
                 {
-                    if (canHear)
-                    {
-                        audio.StartAudio(ConvertedVoiceDistance);
-                        remote.OutOfRangeFromLocal = false;
-                    }
-                    else
-                    {
-                        audio.StopAudio();
-                        remote.OutOfRangeFromLocal = true;
-                    }
+                    audio.StartAudio(ConvertedVoiceDistance);
+                    remote.OutOfRangeFromLocal = false;
+                }
+                else
+                {
+                    audio.StopAudio();
+                    remote.OutOfRangeFromLocal = true;
                 }
             }
 
@@ -317,6 +346,11 @@ public partial class BasisTransmissionResults
             }
 
             audio.DirectionalDampeningMultiplier = dampenEnabled ? directionalDampening[i] : 1f;
+
+            // Viseme distance cutoff: skip lip-sync for players beyond half
+            // the hearing distance — too far to see mouth shapes.
+            // HearingRange is squared, so * 0.25 gives (halfDist)^2.
+            audio.visemeDriver.InVisemeRange = distanceSq[i] < SMModuleDistanceBasedReductions.HearingRange * 0.25f;
 
             if (avatarChange)
             {
@@ -366,6 +400,7 @@ public partial class BasisTransmissionResults
 
         distanceJob.hearingRange = hearingRange;
         distanceJob.PrevInHearingRange = PrevInHearingRange;
+        audioCapJob.HearingRange = hearingRange;
 
         distanceJob.AvatarRange = AvatarRange;
         distanceJob.PrevInAvatarRange = PrevInAvatarRange;
@@ -521,6 +556,8 @@ public partial class BasisTransmissionResults
         hasRealAvatarLoaded = new NativeArray<bool>(newCap, Allocator.Persistent);
         avatarCapEntries = new NativeArray<AvatarCapEntry>(newCap, Allocator.Persistent);
         directionalDampening = new NativeArray<float>(newCap, Allocator.Persistent);
+        hasActiveAudioSource = new NativeArray<bool>(newCap, Allocator.Persistent);
+        audioCapEntries = new NativeArray<AudioCapEntry>(newCap, Allocator.Persistent);
 
         if (!smallestD2.IsCreated) smallestD2 = new NativeArray<float>(1, Allocator.Persistent);
         if (!changeMask.IsCreated) changeMask = new NativeArray<int>(1, Allocator.Persistent);
@@ -554,6 +591,12 @@ public partial class BasisTransmissionResults
         avatarCapJob.AvatarRange = AvatarRange;
         avatarCapJob.Entries = avatarCapEntries;
         avatarCapJob.StickinessBonus = 0.75f;
+
+        audioCapJob.DistanceSq = distanceSq;
+        audioCapJob.HasActiveAudioSource = hasActiveAudioSource;
+        audioCapJob.HearingRange = hearingRange;
+        audioCapJob.Entries = audioCapEntries;
+        audioCapJob.StickinessBonus = 0.75f;
 
         viewConeJob.TargetPositions = targetPositions;
         viewConeJob.AvatarRange = AvatarRange;
@@ -612,6 +655,7 @@ public partial class BasisTransmissionResults
         if (!distanceJobHandle.IsCompleted) distanceJobHandle.Complete();
         if (!reduceJobHandle.IsCompleted) reduceJobHandle.Complete();
         if (!avatarCapJobHandle.IsCompleted) avatarCapJobHandle.Complete();
+        if (!audioCapJobHandle.IsCompleted) audioCapJobHandle.Complete();
         if (!viewConeJobHandle.IsCompleted) viewConeJobHandle.Complete();
         if (!dampenJobHandle.IsCompleted) dampenJobHandle.Complete();
 
@@ -636,6 +680,8 @@ public partial class BasisTransmissionResults
         if (hasRealAvatarLoaded.IsCreated) hasRealAvatarLoaded.Dispose();
         if (avatarCapEntries.IsCreated) avatarCapEntries.Dispose();
         if (directionalDampening.IsCreated) directionalDampening.Dispose();
+        if (hasActiveAudioSource.IsCreated) hasActiveAudioSource.Dispose();
+        if (audioCapEntries.IsCreated) audioCapEntries.Dispose();
 
         // Note: smallestD2/changeMask are 1-length arrays kept across reallocs; disposed in DeInitalize.
         capacity = 0;

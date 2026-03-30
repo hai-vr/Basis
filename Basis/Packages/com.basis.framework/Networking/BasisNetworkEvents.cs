@@ -488,12 +488,15 @@ public static class BasisNetworkEvents
                 BasisDebug.Log($"Unexpected Failure Of Reason {disconnectInfo.Reason}");
             }
 #else
-            if (disconnectInfo.AdditionalData.TryGetString(out string Reason))
+            if (disconnectInfo.AdditionalData != null && disconnectInfo.AdditionalData.TryGetString(out string Reason))
             {
                 BasisMainMenu.Open();
-                BasisMainMenu.Instance.OpenDialogue("Server Connection", Reason, "ok", value =>
+                if (BasisMainMenu.Instance != null)
                 {
-                });
+                    BasisMainMenu.Instance.OpenDialogue("Server Connection", Reason, "ok", value =>
+                    {
+                    });
+                }
                 BasisDebug.LogError(Reason);
             }
             else
@@ -519,9 +522,12 @@ public static class BasisNetworkEvents
             BasisDebug.LogError(disconnectInfo.Reason.ToString());
 #else
             BasisMainMenu.Open();
-            BasisMainMenu.Instance.OpenDialogue("Server Disconnected", disconnectInfo.Reason.ToString(), "ok", value =>
-              {
-              });
+            if (BasisMainMenu.Instance != null)
+            {
+                BasisMainMenu.Instance.OpenDialogue("Server Disconnected", disconnectInfo.Reason.ToString(), "ok", value =>
+                {
+                });
+            }
 
             BasisDebug.LogError(disconnectInfo.Reason.ToString());
 #endif

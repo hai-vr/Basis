@@ -47,6 +47,15 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UseMaxVisibleAvatars = new("usemaxvisibleavatars", new BasisPlatformDefault<bool>(false));
 
         /// <summary>
+        /// Maximum number of remote players allowed to have active audio sources at once.
+        /// 0 = unlimited (all in-range players get audio).
+        /// Players beyond this limit lose their audio source.
+        /// Closest players get priority; currently-active sources are sticky to prevent popping.
+        /// </summary>
+        public static BasisSettingsBinding<float> MaxAudioSources = new("maxaudiosources", new BasisPlatformDefault<float>(0));
+        public static BasisSettingsBinding<bool> UseMaxAudioSources = new("usemaxaudiosources", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
         /// When enabled, only remote players within the local player's view cone
         /// (based on camera forward direction) will show their real avatar.
         /// Players outside the cone fall back to the default avatar.
@@ -108,6 +117,8 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> Antialiasing = new("antialiasing", new BasisPlatformDefault<string>("msaa 2x"));
 
         public static BasisSettingsBinding<bool> DebugVisuals = new("debugvisuals", new BasisPlatformDefault<bool>(false));
+
+        public static BasisSettingsBinding<bool> EnableStatistics = new("enablestatistics", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> MemoryAllocation = new("memoryallocation", new BasisPlatformDefault<string>
         {
@@ -606,6 +617,8 @@ namespace Basis.BasisUI
             AvatarRange.LoadBindingValue();
             UseMaxVisibleAvatars.LoadBindingValue();
             MaxVisibleAvatars.LoadBindingValue();
+            UseMaxAudioSources.LoadBindingValue();
+            MaxAudioSources.LoadBindingValue();
             UseViewConeAvatars.LoadBindingValue();
             ViewConeAngle.LoadBindingValue();
             SelectedBone.LoadBindingValue();
