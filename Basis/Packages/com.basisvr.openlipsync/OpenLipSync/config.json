@@ -39,8 +39,8 @@
     "weight_decay": 0.01,
     "scheduler": "onecycle",
     "warmup_ratio": 0.05,
-    "max_epochs": 50,
-    "early_stopping_patience": 7,
+    "max_epochs": 100,
+    "early_stopping_patience": 5,
     "early_stopping_metric": "val_f1",
     "specaugment_enabled": true,
     "specaugment_time_mask_max_ms": 20,
@@ -59,7 +59,7 @@
       "train-clean-100"
     ],
     "val_split": "dev-clean",
-    "test_split": "dev-clean",
+    "test_split": "test-clean",
     "augmentation_enabled": false,
     "noise_snr_range": [
       10,
@@ -78,9 +78,7 @@
     "silence_chunk_length_s": [
       1.0,
       4.0
-    ],
-    "cache_validation_items": false,
-    "validation_cache_max_items": 0
+    ]
   },
   "evaluation": {
     "metrics": [
@@ -101,32 +99,31 @@
     "pin_memory": true
   },
   "logging": {
-    "log_interval": 50,
-    "save_interval": 2000,
-    "max_checkpoints": 5,
+    "log_interval": 20,
+    "save_interval": 1000,
+    "max_checkpoints": 10,
     "log_level": "INFO"
   },
   "tensorboard": {
     "enabled": true,
     "runs_dir": "training/runs",
     "run_name_format": "{experiment_name}_{timestamp}",
-    "run_name": "tcn_100h_2026-03-29_04-46-47",
+    "run_name": "tcn_cf_full_dataset_2026-03-30_11-57-49",
     "log_scalars": true,
     "log_histograms": false,
     "log_images": false,
     "log_audio": false,
-    "scalar_log_interval": 50,
-    "histogram_log_interval": 500,
-    "image_log_interval": 1000
+    "scalar_log_interval": 20,
+    "histogram_log_interval": 100,
+    "image_log_interval": 500
   },
   "experiment": {
-    "name": "tcn_100h",
+    "name": "tcn_cf_full_dataset",
     "tags": [
       "tcn",
       "viseme",
-      "100h",
-      "whisper-aligned"
+      "100fps"
     ],
-    "notes": "TCN model trained on train-clean-100 with Whisper alignment"
+    "notes": "TCN model with viseme crossfade and full dataset"
   }
 }
