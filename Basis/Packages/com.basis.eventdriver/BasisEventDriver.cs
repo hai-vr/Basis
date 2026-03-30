@@ -327,7 +327,7 @@ public class BasisEventDriver : MonoBehaviour
         if (profiling) BasisEventDriverProfilerData.JiggleScheduleMs = BasisEventDriverProfilerData.End();
 #endif
 
-        // ── Network transmit ──
+        // ── Network transmit (reads bone results via GetOutGoingMouth) ──
 #if UNITY_EDITOR
         if (profiling) BasisEventDriverProfilerData.Begin();
 #endif

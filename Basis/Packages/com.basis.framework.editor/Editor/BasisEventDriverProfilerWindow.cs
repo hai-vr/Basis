@@ -12,6 +12,7 @@ public class BasisEventDriverProfilerWindow : EditorWindow
     private bool _showLocal = true;
     private bool _showPhysics = true;
     private bool _showMisc = true;
+    private bool _showPoseLod = true;
     private bool _showGraph = true;
     private bool _showThreading = true;
 
@@ -93,7 +94,10 @@ public class BasisEventDriverProfilerWindow : EditorWindow
 
             EditorGUILayout.Space(4);
             EditorGUILayout.LabelField("Inside SimulateNetworkApply:", EditorStyles.boldLabel);
-            TimingRow("  RemoteDriver Apply+BeginRead", BasisEventDriverProfilerData.Net_RemoteDriverApplyMs, 1f);
+
+            TimingRow("  Interpolation Complete (stall)", BasisEventDriverProfilerData.Net_RemoteDriverApplyMs, 1f);
+            JobStatusRow("  Interpolation Job (from Update)", BasisEventDriverProfilerData.Net_InterpolationJobWasIncomplete);
+
             InfoRow("  Receiver Count", BasisEventDriverProfilerData.Net_ReceiverCount.ToString());
             TimingRow("  Receiver Apply Loop", BasisEventDriverProfilerData.Net_ReceiverApplyLoopMs, 2f);
             if (BasisEventDriverProfilerData.Net_ReceiverCount > 0)
@@ -101,9 +105,16 @@ public class BasisEventDriverProfilerWindow : EditorWindow
                 double perReceiver = BasisEventDriverProfilerData.Net_ReceiverApplyLoopMs / BasisEventDriverProfilerData.Net_ReceiverCount;
                 InfoRow("  Per-Receiver Avg", $"{perReceiver:F4} ms");
             }
+
             TimingRow("  BoneJob Schedule", BasisEventDriverProfilerData.Net_BoneJobScheduleMs, 0.5f);
             TimingRow("  BoneJob Complete (stall)", BasisEventDriverProfilerData.Net_BoneJobCompleteMs, 1f);
             JobStatusRow("  BoneJob", BasisEventDriverProfilerData.Net_BoneJobWasIncomplete);
+
+            EditorGUILayout.Space(2);
+            double totalStall = BasisEventDriverProfilerData.Net_RemoteDriverApplyMs + BasisEventDriverProfilerData.Net_BoneJobCompleteMs;
+            double totalWork = BasisEventDriverProfilerData.Net_ReceiverApplyLoopMs;
+            InfoRow("  Total Job Stall Time", $"{totalStall:F3} ms");
+            InfoRow("  Total Main Thread Work", $"{totalWork:F3} ms");
         });
 
         // ── TransmissionResults.Simulate ──
@@ -118,6 +129,48 @@ public class BasisEventDriverProfilerWindow : EditorWindow
                 TimingRow("Job Complete (stall)", BasisEventDriverProfilerData.Net_TransmitSim_JobCompleteMs, 1f);
                 TimingRow("Post-Process Loop", BasisEventDriverProfilerData.Net_TransmitSim_PostProcessMs, 1f);
                 TimingRow("Talking Points", BasisEventDriverProfilerData.Net_TransmitSim_TalkingPointsMs, 0.2f);
+            }
+        });
+
+        // ── Pose LOD ──
+        _showPoseLod = DrawSection("Pose LOD Diagnostics", _showPoseLod, () =>
+        {
+            float bias = BasisEventDriverProfilerData.PoseLod_Bias;
+            int applied = BasisEventDriverProfilerData.PoseLod_Applied;
+            int skipped = BasisEventDriverProfilerData.PoseLod_Skipped;
+            int total = applied + skipped;
+
+            InfoRow("Bias (setting)", $"{bias:F1}");
+            StatusLabel("Active", bias > 0f);
+
+            var skipByLod = SMModuleDistanceBasedReductions.PoseSkipByLod;
+            InfoRow("Skip Rates [L0,L1,L2,L3]", $"[{skipByLod[0]}, {skipByLod[1]}, {skipByLod[2]}, {skipByLod[3]}]");
+
+            EditorGUILayout.Space(4);
+            InfoRow("LOD 0 (closest)", BasisEventDriverProfilerData.PoseLod_Lod0.ToString());
+            InfoRow("LOD 1", BasisEventDriverProfilerData.PoseLod_Lod1.ToString());
+            InfoRow("LOD 2", BasisEventDriverProfilerData.PoseLod_Lod2.ToString());
+            InfoRow("LOD 3 (furthest)", BasisEventDriverProfilerData.PoseLod_Lod3.ToString());
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("This Frame:", EditorStyles.boldLabel);
+            InfoRow("SetHumanPose Applied", applied.ToString());
+            InfoRow("SetHumanPose Skipped", skipped.ToString());
+            if (total > 0)
+            {
+                float pct = (skipped / (float)total) * 100f;
+                Rect barRect = GUILayoutUtility.GetRect(0, 16, GUILayout.ExpandWidth(true));
+                DrawBar(barRect, skipped / (float)total, $"{pct:F0}% skipped ({skipped}/{total})",
+                    pct > 50 ? GoodColor : (pct > 10 ? WarnColor : BarColor));
+            }
+
+            if (bias > 0f && skipped == 0 && total > 0)
+            {
+                EditorGUILayout.HelpBox(
+                    "Bias is set but nothing is being skipped.\n" +
+                    "Check that CurrentLodLevel is being set on remote players.\n" +
+                    "If all players are LOD 0, nothing will be skipped.",
+                    MessageType.Warning);
             }
         });
 
@@ -184,9 +237,10 @@ public class BasisEventDriverProfilerWindow : EditorWindow
         // ── Threading ──
         _showThreading = DrawSection("Job Completion Status", _showThreading, () =>
         {
+            JobStatusRow("Interpolation Job", BasisEventDriverProfilerData.Net_InterpolationJobWasIncomplete);
+            JobStatusRow("BoneJob", BasisEventDriverProfilerData.Net_BoneJobWasIncomplete);
             JobStatusRow("Remote Face Job", BasisEventDriverProfilerData.RemoteFaceJobWasIncomplete);
             JobStatusRow("NamePlate Job", BasisEventDriverProfilerData.NamePlateJobWasIncomplete);
-            JobStatusRow("BoneJob", BasisEventDriverProfilerData.Net_BoneJobWasIncomplete);
             EditorGUILayout.Space(2);
             EditorGUILayout.LabelField("STALLED = main thread waited for job to finish.", EditorStyles.miniLabel);
             EditorGUILayout.LabelField("Ideally all jobs complete before their Apply call.", EditorStyles.miniLabel);

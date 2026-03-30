@@ -388,6 +388,9 @@ public partial class BasisTransmissionResults
             {
                 remote.ChangeMeshLOD(MeshLodLevel[i]);
             }
+
+            // Update pose LOD from distance — independent of mesh LOD
+            remote.CurrentLodLevel = MeshLodLevel[i];
         }
 
 #if UNITY_EDITOR

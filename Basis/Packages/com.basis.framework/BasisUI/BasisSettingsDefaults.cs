@@ -60,6 +60,15 @@ namespace Basis.BasisUI
         /// (based on camera forward direction) will show their real avatar.
         /// Players outside the cone fall back to the default avatar.
         /// </summary>
+        /// <summary>
+        /// Controls how aggressively distant players skip pose updates.
+        /// 0 = off (every player updates every frame).
+        /// 1 = gentle (LOD 3 skips every other frame).
+        /// 4 = default (LOD 3 updates every 8th frame).
+        /// 8 = aggressive (LOD 3 updates every 32nd frame).
+        /// </summary>
+        public static BasisSettingsBinding<float> PoseLOD = new("poselod", new BasisPlatformDefault<float>(0));
+
         public static BasisSettingsBinding<bool> UseViewConeAvatars = new("useviewconeavatars", new BasisPlatformDefault<bool>(false));
 
         /// <summary>
@@ -619,6 +628,7 @@ namespace Basis.BasisUI
             MaxVisibleAvatars.LoadBindingValue();
             UseMaxAudioSources.LoadBindingValue();
             MaxAudioSources.LoadBindingValue();
+            PoseLOD.LoadBindingValue();
             UseViewConeAvatars.LoadBindingValue();
             ViewConeAngle.LoadBindingValue();
             SelectedBone.LoadBindingValue();

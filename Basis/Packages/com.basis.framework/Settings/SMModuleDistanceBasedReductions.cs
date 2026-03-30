@@ -16,6 +16,43 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     private static bool _useMaxAudioSources = false;
     private static bool _useViewConeAvatars = false;
     private static float _viewConeAngle = 180f;
+
+    /// <summary>
+    /// Per-LOD base skip rates. Multiplied by PoseLODBias to produce the actual skip counts.
+    /// Index = LOD level (0-3). LOD 0 always updates every frame.
+    /// </summary>
+    private static readonly float[] PoseSkipBase = { 0f, 0.25f, 0.75f, 1f };
+
+    /// <summary>
+    /// Computed skip rates. Updated when PoseLODBias changes.
+    /// Index = LOD level (0-3). Value = frames to skip between pose updates.
+    /// </summary>
+    public static readonly byte[] PoseSkipByLod = { 0, 0, 0, 0 };
+
+    private static float _poseLODBias = 0f;
+
+    /// <summary>
+    /// Controls how aggressively distant players skip pose updates.
+    /// 0 = off (all players update every frame).
+    /// Higher = more frames skipped for distant LOD levels.
+    /// The slider value multiplies the per-LOD base rates.
+    /// </summary>
+    public static float PoseLODBias
+    {
+        get => _poseLODBias;
+        private set
+        {
+            _poseLODBias = value;
+            // Recompute skip rates: LOD 0 always 0, others scale with bias
+            for (int i = 0; i < 4; i++)
+            {
+                PoseSkipByLod[i] = (byte)Mathf.Clamp(Mathf.RoundToInt(PoseSkipBase[i] * value), 0, 255);
+            }
+            OnPoseLODChanged?.Invoke(value);
+        }
+    }
+    public static event Action<float> OnPoseLODChanged;
+    private static string K_POSE_LOD => BasisSettingsDefaults.PoseLOD.BindingKey;
     private static string K_MIC_RANGE => BasisSettingsDefaults.MicrophoneRange.BindingKey;   // "microphonerange"
     private static string K_HEARING_RANGE => BasisSettingsDefaults.HearingRange.BindingKey;     // "hearingrange"
     private static string K_AVATAR_RANGE => BasisSettingsDefaults.AvatarRange.BindingKey;      // "avatarrange"
@@ -201,6 +238,13 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 {
                     UseMaxAudioSources = useMaxAudio;
                     BasisDebug.Log($"Use Max Audio Sources {useMaxAudio}");
+                }
+                break;
+            case var s when s == K_POSE_LOD:
+                if (TryReadSlider(optionValue, out var poseLodBias))
+                {
+                    PoseLODBias = poseLodBias;
+                    BasisDebug.Log($"Pose LOD Bias {poseLodBias} -> skip rates [{PoseSkipByLod[0]},{PoseSkipByLod[1]},{PoseSkipByLod[2]},{PoseSkipByLod[3]}]");
                 }
                 break;
             case var s when s == K_USE_VIEWCONE_AVATARS:

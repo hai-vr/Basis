@@ -249,6 +249,25 @@ namespace Basis.BasisUI
 
             SettingsProviderPlatform.BuildAutoSwapUI(container);
 
+            // Pose LOD group
+            PanelElementDescriptor poseLodGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            poseLodGroup.SetTitle("Pose LOD");
+            poseLodGroup.SetDescription(
+                "Reduces CPU cost by updating distant player poses less frequently.\n" +
+                "Higher values skip more frames for faraway players.\n" +
+                "At 0, every player updates every frame (most accurate, highest cost).\n" +
+                "Visible as slightly choppy animation on distant players.");
+
+            PanelSlider sliderPoseLod = PanelSlider.CreateEntryAndBind(
+                poseLodGroup,
+                PanelSlider.SliderSettings.Advanced("Pose LOD Bias", 0, 5, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.PoseLOD);
+            sliderPoseLod.Descriptor.SetDescription(
+                "0 = off (all players update every frame).\n" +
+                "1-2 = subtle reduction, barely visible.\n" +
+                "3-5 = noticeable on distant players, significant CPU savings.");
+
             // One reset button for this whole page
             AddResetPageButton(container, "General", ResetGeneralDefaults);
             descriptor.ForceRebuild();
@@ -261,6 +280,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.MaxVisibleAvatars.ResetToDefault();
             BasisSettingsDefaults.MaxAudioSources.ResetToDefault();
             BasisSettingsDefaults.UseMaxAudioSources.ResetToDefault();
+            BasisSettingsDefaults.PoseLOD.ResetToDefault();
             BasisSettingsDefaults.UseViewConeAvatars.ResetToDefault();
             BasisSettingsDefaults.ViewConeAngle.ResetToDefault();
             BasisSettingsDefaults.HearingRange.ResetToDefault();

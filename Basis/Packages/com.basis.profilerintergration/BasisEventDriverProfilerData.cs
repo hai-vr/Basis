@@ -20,6 +20,7 @@ public static class BasisEventDriverProfilerData
     public static double Net_CompleteRemoteLerpMs;
 
     // SimulateNetworkApply sub-breakdown
+    public static bool Net_InterpolationJobWasIncomplete;
     public static double Net_RemoteDriverApplyMs;
     public static double Net_ReceiverApplyLoopMs;
     public static int Net_ReceiverCount;
@@ -70,6 +71,15 @@ public static class BasisEventDriverProfilerData
     public static double NamePlateScheduleMs;
     public static double NamePlateCompleteMs;
     public static bool NamePlateJobWasIncomplete;
+
+    // Pose LOD diagnostics
+    public static int PoseLod_Applied;
+    public static int PoseLod_Skipped;
+    public static int PoseLod_Lod0;
+    public static int PoseLod_Lod1;
+    public static int PoseLod_Lod2;
+    public static int PoseLod_Lod3;
+    public static float PoseLod_Bias;
 
     // Misc
     public static double BTweenMs;
