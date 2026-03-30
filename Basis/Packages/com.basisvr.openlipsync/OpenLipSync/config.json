@@ -40,7 +40,7 @@
     "scheduler": "onecycle",
     "warmup_ratio": 0.05,
     "max_epochs": 100,
-    "early_stopping_patience": 5,
+    "early_stopping_patience": 7,
     "early_stopping_metric": "val_f1",
     "specaugment_enabled": true,
     "specaugment_time_mask_max_ms": 20,
@@ -56,11 +56,12 @@
   "data": {
     "dataset": "librispeech",
     "splits": [
-      "train-clean-100"
+      "train-clean-100",
+      "train-clean-360"
     ],
     "val_split": "dev-clean",
     "test_split": "test-clean",
-    "augmentation_enabled": false,
+    "augmentation_enabled": true,
     "noise_snr_range": [
       10,
       30
@@ -108,7 +109,7 @@
     "enabled": true,
     "runs_dir": "training/runs",
     "run_name_format": "{experiment_name}_{timestamp}",
-    "run_name": "tcn_cf_full_dataset_2026-03-30_11-57-49",
+    "run_name": "tcn_460h_aug_2026-03-30_23-09-25",
     "log_scalars": true,
     "log_histograms": false,
     "log_images": false,
@@ -118,12 +119,12 @@
     "image_log_interval": 500
   },
   "experiment": {
-    "name": "tcn_cf_full_dataset",
+    "name": "tcn_460h_aug",
     "tags": [
       "tcn",
       "viseme",
       "100fps"
     ],
-    "notes": "TCN model with viseme crossfade and full dataset"
+    "notes": "TCN 460h with augmentation, resumed from 100h best"
   }
 }
