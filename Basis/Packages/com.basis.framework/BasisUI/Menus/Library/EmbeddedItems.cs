@@ -74,6 +74,7 @@ namespace Basis.BasisUI
                 Pass = "1717b718e26eabb7d9ae1a8e2046f17d90ed4e81a548aea28e05a589ccae52e5",
                 EmbeddedSettings = EmbeddedSettings.BEEUrl,
             },
+            /*
                         new ItemKey
             {
                 Mode = BundledContentHolder.Mode.Avatar,
@@ -81,6 +82,7 @@ namespace Basis.BasisUI
                 Pass = "LoadingAvatar",
                 EmbeddedSettings = EmbeddedSettings.Addressable,
             },
+            */
         };
 
         public static string GetAddressableSpriteForEmbeddedItem(ItemKey item)
