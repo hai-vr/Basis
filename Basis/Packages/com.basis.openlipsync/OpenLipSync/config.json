@@ -109,7 +109,7 @@
     "enabled": true,
     "runs_dir": "training/runs",
     "run_name_format": "{experiment_name}_{timestamp}",
-    "run_name": "tcn_460h_aug_2026-03-30_23-09-25",
+    "run_name": "tcn_460h_scratch_2026-03-31_02-16-09",
     "log_scalars": true,
     "log_histograms": false,
     "log_images": false,
@@ -119,12 +119,12 @@
     "image_log_interval": 500
   },
   "experiment": {
-    "name": "tcn_460h_aug",
+    "name": "tcn_460h_scratch",
     "tags": [
       "tcn",
       "viseme",
       "100fps"
     ],
-    "notes": "TCN 460h with augmentation, resumed from 100h best"
+    "notes": "TCN 460h from scratch with augmentation"
   }
 }
