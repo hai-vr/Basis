@@ -287,6 +287,11 @@ public static class BasisRemoteNetworkDriver
         if (!_initialized) return;
         if (BasisNetworkPlayers.ReceiverCount == 0) return;
 
+        // Complete the previous frame's jobs before re-scheduling.
+        // NativeArrays like _skipMuscles are shared across frames; writing to
+        // them between Compute() and Apply() would violate [ReadOnly] safety.
+        oneEuroJob.Complete();
+
         int num = BasisNetworkPlayers.LargestNetworkReceiverID + 1;
         num = math.clamp(num, 0, FixedCapacity);
 

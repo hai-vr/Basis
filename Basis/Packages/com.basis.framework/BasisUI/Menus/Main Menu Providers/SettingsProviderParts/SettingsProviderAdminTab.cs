@@ -37,6 +37,12 @@ namespace Basis.BasisUI
             AdminTabController controller = tab.gameObject.AddComponent<AdminTabController>();
             controller.PlayerListParent = playersGroup.ContentParent;
 
+            PanelTextField playerSearch = PanelTextField.CreateNewEntry(playersGroup.ContentParent);
+            playerSearch.Descriptor.SetTitle("Search");
+            playerSearch.Descriptor.SetDescription("Filter players by name.");
+            playerSearch.OnValueChanged += controller.OnSearchChanged;
+            controller.SearchField = playerSearch;
+
             PanelButton refreshPlayers = PanelButton.CreateNew(playersGroup.ContentParent);
             refreshPlayers.Descriptor.SetTitle("Refresh Player List");
             refreshPlayers.Descriptor.SetDescription("Rebuilds the list from current network state.");
@@ -355,8 +361,10 @@ namespace Basis.BasisUI
 
             public PanelTextField UUIDField;
             public PanelTextField ReasonField;
+            public PanelTextField SearchField;
 
             public BasisNetworkPlayer SelectedPlayer;
+            private string _searchQuery = string.Empty;
 
             /// <summary>Returns the selected player, or falls back to the local player.</summary>
             public BasisNetworkPlayer GetEffectivePlayer()
@@ -365,6 +373,7 @@ namespace Basis.BasisUI
             }
 
             private readonly List<PanelButton> _playerButtons = new();
+            private readonly List<BasisNetworkPlayer> _playerRefs = new();
 
             private void OnEnable()
             {
@@ -388,14 +397,12 @@ namespace Basis.BasisUI
 
             public string GetUUIDText()
             {
-                TMP_InputField input = UUIDField ? UUIDField.GetComponentInChildren<TMP_InputField>(true) : null;
-                return input ? input.text : string.Empty;
+                return UUIDField != null ? UUIDField.Value ?? string.Empty : string.Empty;
             }
 
             public string GetReasonText()
             {
-                TMP_InputField input = ReasonField ? ReasonField.GetComponentInChildren<TMP_InputField>(true) : null;
-                return input ? input.text : string.Empty;
+                return ReasonField != null ? ReasonField.Value ?? string.Empty : string.Empty;
             }
 
             private void ClearPlayerButtons()
@@ -405,14 +412,19 @@ namespace Basis.BasisUI
                     if (_playerButtons[i] != null) _playerButtons[i].ReleaseInstance();
                 }
                 _playerButtons.Clear();
+                _playerRefs.Clear();
+            }
+
+            public void OnSearchChanged(string query)
+            {
+                _searchQuery = query ?? string.Empty;
+                ApplyFilter();
             }
 
             public void RebuildPlayerList()
             {
                 if (!PlayerListParent) return;
 
-                // Remove old list (keep the "Refresh Player List" button which is created outside this controller)
-                // We only track/destroy the buttons we created.
                 ClearPlayerButtons();
 
                 foreach (BasisNetworkPlayer player in BasisNetworkPlayers.Players.Values)
@@ -425,6 +437,23 @@ namespace Basis.BasisUI
                     b.OnClicked += () => SelectPlayer(player);
 
                     _playerButtons.Add(b);
+                    _playerRefs.Add(player);
+                }
+
+                ApplyFilter();
+            }
+
+            private void ApplyFilter()
+            {
+                string q = _searchQuery.Trim().ToLowerInvariant();
+                bool hasQuery = q.Length > 0;
+
+                for (int i = 0; i < _playerButtons.Count; i++)
+                {
+                    if (_playerButtons[i] == null) continue;
+                    bool show = !hasQuery || (_playerRefs[i].Player != null &&
+                        (_playerRefs[i].Player.SafeDisplayName ?? "").ToLowerInvariant().Contains(q));
+                    _playerButtons[i].gameObject.SetActive(show);
                 }
             }
 
@@ -432,11 +461,9 @@ namespace Basis.BasisUI
             {
                 SelectedPlayer = player;
 
-                // Fill UUID field
-                TMP_InputField input = UUIDField ? UUIDField.GetComponentInChildren<TMP_InputField>(true) : null;
-                if (input) input.SetTextWithoutNotify(SelectedPlayer.Player.UUID);
+                if (UUIDField != null)
+                    UUIDField.SetValueWithoutNotify(SelectedPlayer.Player.UUID);
 
-                // Notify permissions panel
                 OnPlayerUuidSelected?.Invoke(SelectedPlayer.Player.UUID);
             }
 

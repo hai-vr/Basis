@@ -64,7 +64,8 @@ public static class BasisNetworkModeration
 
     public static void SendBan(string uuid, string reason)
     {
-        if (ValidateString(uuid, nameof(uuid)) && ValidateString(reason, nameof(reason)))
+        if (string.IsNullOrWhiteSpace(reason)) reason = "An admin banned you";
+        if (ValidateString(uuid, nameof(uuid)))
         {
             SendAdminRequest(AdminRequestMode.Ban,
                 w => w.Put(uuid),
@@ -74,7 +75,8 @@ public static class BasisNetworkModeration
 
     public static void SendIPBan(string uuid, string reason)
     {
-        if (ValidateString(uuid, nameof(uuid)) && ValidateString(reason, nameof(reason)))
+        if (string.IsNullOrWhiteSpace(reason)) reason = "An admin banned you";
+        if (ValidateString(uuid, nameof(uuid)))
         {
             SendAdminRequest(AdminRequestMode.IpAndBan,
                 w => w.Put(uuid),
@@ -84,7 +86,8 @@ public static class BasisNetworkModeration
 
     public static void SendKick(string uuid, string reason)
     {
-        if (ValidateString(uuid, nameof(uuid)) && ValidateString(reason, nameof(reason)))
+        if (string.IsNullOrWhiteSpace(reason)) reason = "An admin kicked you";
+        if (ValidateString(uuid, nameof(uuid)))
         {
             SendAdminRequest(AdminRequestMode.Kick,
                 w => w.Put(uuid),
