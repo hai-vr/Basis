@@ -108,7 +108,7 @@ public class BasisParameterDriver : StateMachineBehaviour
         AnimatorControllerParameterType destType = GetParamType(animator, destHash);
         if (destType == 0)
         {
-            BasisDebug.LogWarning($"[BasisParameterDriver] Destination parameter '{op.destination}' not found on animator.", animator);
+            BasisDebug.LogWarning($"[BasisParameterDriver] Destination parameter '{op.destination}' not found on animator.");
             return;
         }
 
