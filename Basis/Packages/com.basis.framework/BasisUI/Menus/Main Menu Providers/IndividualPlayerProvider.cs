@@ -322,9 +322,10 @@ namespace Basis.BasisUI
             PlatformDescriptor.SetTitle("Platform");
             PlatformDescriptor.SetDescription(remotePlayer.PlayerPlatform);
 
-            var uuidField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, infoGroup.ContentParent);
-            uuidField.SetTitle("UUID");
-            uuidField.SetDescription(remotePlayer.UUID);
+            var uuidField = PanelTextField.CreateNewEntry(infoGroup.ContentParent);
+            uuidField.Descriptor.SetTitle("UUID");
+            uuidField.SetValueWithoutNotify(remotePlayer.UUID);
+            uuidField._inputField.readOnly = true;
 
             // ---- Highlight beacon controls ----
             var locateGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
