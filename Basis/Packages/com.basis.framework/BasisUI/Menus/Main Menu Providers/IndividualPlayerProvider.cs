@@ -653,6 +653,101 @@ namespace Basis.BasisUI
                         msgField.SetValueWithoutNotify(string.Empty);
                     }
                 };
+
+                // ---- Per-user permissions ----
+                var permGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, adminGroup.ContentParent);
+                permGroup.SetTitle("Permissions");
+                permGroup.SetDescription("Add or remove individual permission nodes for this player.");
+
+                var knownNodes = new System.Collections.Generic.List<string>
+                {
+                    PermNodes.All,
+                    PermNodes.protection,
+                    PermNodes.ModerationKick,
+                    PermNodes.ModerationBan,
+                    PermNodes.ModerationIpBan,
+                    PermNodes.ModerationUnban,
+                    PermNodes.ModerationUnbanIp,
+                    PermNodes.ModerationMessage,
+                    PermNodes.ModerationMessageAll,
+                    PermNodes.ModerationTeleport,
+                    PermNodes.ModerationShout,
+                    PermNodes.PlayerModeration,
+                    PermNodes.PermissionsView,
+                    PermNodes.PermissionsEdit,
+                    PermNodes.ResourceLoadWorld,
+                    PermNodes.ResourceUnloadWorld,
+                    PermNodes.ResourceLoadProp,
+                    PermNodes.ResourceUnloadProp,
+                    PermNodes.ResourceLoadAvatar,
+                    PermNodes.ResourceUnloadAvatar,
+                    PermNodes.OwnershipTransfer,
+                    PermNodes.OwnershipRemove,
+                    PermNodes.OwnershipGet,
+                    PermNodes.ContentShareCreate,
+                    PermNodes.ContentShareDelete,
+                    PermNodes.ConfigurationEditor,
+                    PermNodes.ServerStats,
+                };
+
+                PanelDropdown nodeDropdown = PanelDropdown.CreateNewEntry(permGroup.ContentParent);
+                nodeDropdown.Descriptor.SetTitle("Permission Node");
+                nodeDropdown.AssignEntries(knownNodes);
+
+                PanelTextField customNodeField = PanelTextField.CreateNewEntry(permGroup.ContentParent);
+                customNodeField.Descriptor.SetTitle("Custom Node");
+                customNodeField.Descriptor.SetDescription("Or type a custom node (overrides dropdown).");
+
+                PanelButton addNodeBtn = PanelButton.CreateNew(permGroup.ContentParent);
+                addNodeBtn.Descriptor.SetTitle("Grant Permission");
+                addNodeBtn.Descriptor.SetDescription("Add the selected permission node to this player.");
+                addNodeBtn.OnClicked += () =>
+                {
+                    string node = !string.IsNullOrWhiteSpace(customNodeField.Value)
+                        ? customNodeField.Value
+                        : nodeDropdown.SelectedString;
+                    if (string.IsNullOrWhiteSpace(node)) return;
+                    BasisNetworkModeration.SetUserNode(targetUUID, node, true);
+                };
+
+                PanelButton removeNodeBtn = PanelButton.CreateNew(permGroup.ContentParent);
+                removeNodeBtn.Descriptor.SetTitle("Revoke Permission");
+                removeNodeBtn.Descriptor.SetDescription("Remove the selected permission node from this player.");
+                removeNodeBtn.OnClicked += () =>
+                {
+                    string node = !string.IsNullOrWhiteSpace(customNodeField.Value)
+                        ? customNodeField.Value
+                        : nodeDropdown.SelectedString;
+                    if (string.IsNullOrWhiteSpace(node)) return;
+                    BasisNetworkModeration.SetUserNode(targetUUID, node, false);
+                };
+
+                // ---- Group assignment ----
+                var groupSection = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, adminGroup.ContentParent);
+                groupSection.SetTitle("Groups");
+                groupSection.SetDescription("Add or remove this player from permission groups.");
+
+                PanelTextField groupField = PanelTextField.CreateNewEntry(groupSection.ContentParent);
+                groupField.Descriptor.SetTitle("Group Name");
+                groupField.Descriptor.SetDescription("Name of the permission group.");
+
+                PanelButton addGroupBtn = PanelButton.CreateNew(groupSection.ContentParent);
+                addGroupBtn.Descriptor.SetTitle("Add to Group");
+                addGroupBtn.OnClicked += () =>
+                {
+                    string group = groupField.Value;
+                    if (string.IsNullOrWhiteSpace(group)) return;
+                    BasisNetworkModeration.SetUserGroup(targetUUID, group, true);
+                };
+
+                PanelButton removeGroupBtn = PanelButton.CreateNew(groupSection.ContentParent);
+                removeGroupBtn.Descriptor.SetTitle("Remove from Group");
+                removeGroupBtn.OnClicked += () =>
+                {
+                    string group = groupField.Value;
+                    if (string.IsNullOrWhiteSpace(group)) return;
+                    BasisNetworkModeration.SetUserGroup(targetUUID, group, false);
+                };
             }
 
             var debugGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
