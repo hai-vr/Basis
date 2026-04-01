@@ -5,6 +5,7 @@ using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Network.Core;
 using System;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class BasisNetworkHeadlessDriver : BasisNetworkBehaviour
 {

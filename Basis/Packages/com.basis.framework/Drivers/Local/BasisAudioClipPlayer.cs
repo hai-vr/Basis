@@ -146,52 +146,82 @@ public static class BasisAudioClipPlayer
     /// </summary>
     private static void PlaybackLoop()
     {
-        int intervalMs = Mathf.Max(1, (int)(FrameDurationSeconds * 1000));
-        float[] frameBuffer = new float[FrameSize];
-        bool loggedFirstSend = false;
-        int peerNullCount = 0;
-
-        while (shouldRun)
+        BasisDebug.Log("[AudioClipPlayer] Playback thread started", BasisDebug.LogTag.Device);
+        try
         {
-            Thread.Sleep(intervalMs);
+            long intervalTicks = (long)(FrameDurationSeconds * System.Diagnostics.Stopwatch.Frequency);
+            float[] frameBuffer = new float[FrameSize];
+            bool loggedFirstSend = false;
+            int peerNullCount = 0;
 
-            if (!shouldRun || clipSamples == null || encoder == null)
-                break;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            long nextFrameTick = sw.ElapsedTicks;
 
-            // Fill frame from clip (looping)
-            for (int i = 0; i < FrameSize; i++)
+            while (shouldRun)
             {
-                frameBuffer[i] = clipSamples[clipPosition];
-                clipPosition++;
-                if (clipPosition >= clipSamples.Length)
-                    clipPosition = 0;
+                // Sleep until the next frame boundary, compensating for encode/send time
+                long now = sw.ElapsedTicks;
+                long waitTicks = nextFrameTick - now;
+                if (waitTicks > 0)
+                {
+                    int waitMs = (int)(waitTicks * 1000 / System.Diagnostics.Stopwatch.Frequency);
+                    if (waitMs > 0)
+                        Thread.Sleep(waitMs);
+                }
+                nextFrameTick += intervalTicks;
+
+                // If we fell behind by more than 5 frames, reset to avoid burst-sending
+                if (sw.ElapsedTicks - nextFrameTick > intervalTicks * 5)
+                    nextFrameTick = sw.ElapsedTicks;
+
+                if (!shouldRun || clipSamples == null || encoder == null)
+                    break;
+
+                // Fill frame from clip (looping)
+                for (int i = 0; i < FrameSize; i++)
+                {
+                    frameBuffer[i] = clipSamples[clipPosition];
+                    clipPosition++;
+                    if (clipPosition >= clipSamples.Length)
+                    {
+                        clipPosition = 0;
+                    }
+                }
+
+                NetPeer peer = BasisNetworkConnection.LocalPlayerPeer;
+                if (peer == null)
+                {
+                    peerNullCount++;
+                    if (peerNullCount % 250 == 1)
+                    {
+                        BasisDebug.LogWarning($"[AudioClipPlayer] Waiting for network peer... ({peerNullCount} frames skipped)", BasisDebug.LogTag.Device);
+                    }
+
+                    continue;
+                }
+
+                // Encode with Opus
+                segment.LengthUsed = encoder.Encode(frameBuffer, FrameSize, segment.buffer, segment.TotalLength);
+                segment.SequenceNumber = sequenceNumber++;
+                segment.TotalPlayedInSilence = 0;
+
+                if (!loggedFirstSend)
+                {
+                    loggedFirstSend = true;
+                    BasisDebug.Log($"[AudioClipPlayer] First packet sent. Encoded {segment.LengthUsed} bytes, seq={segment.SequenceNumber}, peer={peer.Id}", BasisDebug.LogTag.Device);
+                }
+
+                // Send on voice channel
+                writer.Reset();
+                segment.Serialize(writer);
+                peer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Unreliable);
             }
 
-            // Skip sending if not connected
-            NetPeer peer = BasisNetworkConnection.LocalPlayerPeer;
-            if (peer == null)
-            {
-                peerNullCount++;
-                if (peerNullCount % 250 == 1) // log every ~5s
-                    BasisDebug.LogWarning($"[AudioClipPlayer] Waiting for network peer... ({peerNullCount} frames skipped)", BasisDebug.LogTag.Device);
-                continue;
-            }
-
-            // Encode with Opus
-            segment.LengthUsed = encoder.Encode(frameBuffer, FrameSize, segment.buffer, segment.TotalLength);
-            segment.SequenceNumber = sequenceNumber++;
-            segment.TotalPlayedInSilence = 0;
-
-            if (!loggedFirstSend)
-            {
-                loggedFirstSend = true;
-                BasisDebug.Log($"[AudioClipPlayer] First packet sent. Encoded {segment.LengthUsed} bytes, seq={segment.SequenceNumber}, peer={peer.Id}", BasisDebug.LogTag.Device);
-            }
-
-            // Send on voice channel
-            writer.Reset();
-            segment.Serialize(writer);
-            peer.Send(writer, BasisNetworkCommons.VoiceChannel, DeliveryMethod.Unreliable);
+            BasisDebug.Log("[AudioClipPlayer] Playback thread exiting normally", BasisDebug.LogTag.Device);
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogError($"[AudioClipPlayer] Playback thread crashed: {ex}", BasisDebug.LogTag.Device);
         }
     }
 
