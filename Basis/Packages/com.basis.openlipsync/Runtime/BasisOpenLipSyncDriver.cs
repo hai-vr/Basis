@@ -7,7 +7,7 @@ using UnityEngine.AddressableAssets;
 
 public static class BasisOpenLipSyncDriver
 {
-    public const int MaxSlots = 30;
+    public static int MaxSlots = 30;
 
     public const string ModelAddress = "Packages/com.basisvr.openlipsync/OpenLipSync/model.onnx.bytes";
     public const string ConfigAddress = "Packages/com.basisvr.openlipsync/OpenLipSync/config.json";

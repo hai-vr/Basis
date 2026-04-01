@@ -20,6 +20,13 @@ namespace Basis.BasisUI
 #if !BASIS_DISABLE_MICROPHONE
             SMDMicrophone.OnMicrophoneSettingsChanged += SyncUiFromSnapshot;
 #endif
+            ApplyOpenLipSyncMaxSlots();
+            BasisSettingsSystem.OnSettingsFinishedChanges += ApplyOpenLipSyncMaxSlots;
+        }
+
+        private static void ApplyOpenLipSyncMaxSlots()
+        {
+            BasisOpenLipSyncDriver.MaxSlots = Mathf.Max(1, (int)BasisSettingsDefaults.OpenLipSyncMaxSlots.RawValue);
         }
 
         public static string StaticTitle => "Settings";
@@ -344,7 +351,7 @@ namespace Basis.BasisUI
                 PanelSlider.SliderSettings.Percentage("Prop Volume"),
                 BasisSettingsDefaults.PropVolume);
 
-            // Remote Players (Spatial Audio)
+            // Remote Players (Spatial Audio) — includes its own Advanced toggle
             SettingsProviderRemoteAudio.BuildRemoteAudioUI(container);
 
             // One reset button for this whole page
@@ -362,6 +369,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.VoiceVolume.ResetToDefault();
             BasisSettingsDefaults.AvatarVolume.ResetToDefault();
             BasisSettingsDefaults.PropVolume.ResetToDefault();
+            BasisSettingsDefaults.OpenLipSyncMaxSlots.ResetToDefault();
             SettingsProviderRemoteAudio.ResetRemoteAudioToDefaults();
         }
 

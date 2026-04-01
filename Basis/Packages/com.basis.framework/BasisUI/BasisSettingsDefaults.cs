@@ -56,6 +56,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UseMaxAudioSources = new("usemaxaudiosources", new BasisPlatformDefault<bool>(false));
 
         /// <summary>
+        /// Maximum number of OpenLipSync (neural viseme) slots.
+        /// Players beyond this limit fall back to the lighter uLipSync backend.
+        /// Higher values look better in crowds but cost more CPU.
+        /// </summary>
+        public static BasisSettingsBinding<float> OpenLipSyncMaxSlots = new("openlipsyncmaxslots", new BasisPlatformDefault<float>(30));
+
+        /// <summary>
         /// When enabled, only remote players within the local player's view cone
         /// (based on camera forward direction) will show their real avatar.
         /// Players outside the cone fall back to the default avatar.
