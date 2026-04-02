@@ -265,11 +265,6 @@ public partial class BasisEventDriver : MonoBehaviour
 #endif
         if (BasisLocalPlayer.PlayerReady)
         {
-            BasisLocalPlayer.Instance.LocalEyeDriver.Simulate(DeltaTime);
-            BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
-        }
-        if (BasisLocalPlayer.PlayerReady)
-        {
             BasisLocalPlayer.Instance.Simulate(DeltaTime);
             BasisLocalCameraDriver.Instance.Simulate();
         }
@@ -354,7 +349,9 @@ public partial class BasisEventDriver : MonoBehaviour
 
         StateOfOnRenderBefore = true;
         if (IsServer)
+        {
             OnBeforeRender();
+        }
 
         ProfileLateUpdateFinish();
     }
@@ -376,6 +373,11 @@ public partial class BasisEventDriver : MonoBehaviour
 #if !BASIS_DISABLE_MICROPHONE
             BasisLocalCameraDriver.Instance.microphoneIconDriver.Simulate(DeltaTime);
 #endif
+            // Schedule eye compute job early so it can run in parallel with other work.
+            BasisLocalPlayer.Instance.LocalEyeDriver.Simulate(DeltaTime);
+            // Apply eye offsets AFTER the animator has evaluated, so the eye
+            // rotation is layered on top of the animated base pose.
+            BasisLocalPlayer.Instance.LocalEyeDriver.Apply();
         }
         StateOfOnRenderBefore = false;
 
