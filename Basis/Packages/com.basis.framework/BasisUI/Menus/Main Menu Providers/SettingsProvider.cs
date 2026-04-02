@@ -95,7 +95,7 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "Body Tracking", () => SettingsProviderIK.IKTab(tabGroup));
             AddLazyTab(tabGroup, "Nameplates", () => SettingsProviderNamePlate.NamePlateTab(tabGroup));
             AddLazyTab(tabGroup, "Downloads & Cache", () => SettingsProviderStorage.StorageTab(tabGroup));
-            AddLazyTab(tabGroup, "UI Style", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
+          //  AddLazyTab(tabGroup, "UI Style", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
             AddLazyTab(tabGroup, "Developer", () => DeveloperTab(tabGroup));
 
 
