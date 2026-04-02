@@ -90,12 +90,15 @@ namespace HVR.Basis.Comms
         {
             if (isWearer)
             {
-                if (BasisNetworkConnection.LocalPlayerIsConnected == false)
+                if (BasisNetworkConnection.LocalPlayerIsConnected)
+                {
+                    OnSender();
+                }
+                else
                 {
                     _timeLeft = 0;
                     return;
                 }
-                OnSender();
             }
             else
             {
