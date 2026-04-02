@@ -6,11 +6,13 @@ using UnityEngine.Jobs;
 public struct BasisEyeApplyJob : IJobParallelForTransform
 {
     [ReadOnly] public NativeArray<BasisEyeState> state;
+    public quaternion calLeftInitial;
+    public quaternion calRightInitial;
     public void Execute(int index, TransformAccess transform)
     {
         BasisEyeState s = state[0];
-        quaternion baseRot = transform.localRotation;
+        quaternion initial = index == 0 ? calLeftInitial : calRightInitial;
         quaternion offset = index == 0 ? s.leftOffset : s.rightOffset;
-        transform.localRotation = math.mul(baseRot, offset);
+        transform.localRotation = math.mul(initial, offset);
     }
 }

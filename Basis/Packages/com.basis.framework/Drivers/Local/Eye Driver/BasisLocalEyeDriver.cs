@@ -126,7 +126,9 @@ public class BasisLocalEyeDriver
 
         BasisEyeApplyJob applyJob = new BasisEyeApplyJob
         {
-            state = _state
+            state = _state,
+            calLeftInitial = calLeft.initialRotation,
+            calRightInitial = calRight.initialRotation
         };
         handle = applyJob.Schedule(_eyeTransforms, computeHandle);
 
