@@ -127,8 +127,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // NOT animator.bodyPosition/bodyRotation which is a virtual body-center
             // that only SetHumanPose knows how to interpret.
             Transform hips = animator.GetBoneTransform(HumanBodyBones.Hips);
-            Vector3 hipsPos = hips != null ? hips.position : animator.transform.position;
-            Quaternion hipsRot = hips != null ? hips.rotation : animator.transform.rotation;
+           UnityEngine.Vector3 hipsPos = hips != null ? hips.position : animator.transform.position;
+            UnityEngine.Quaternion hipsRot = hips != null ? hips.rotation : animator.transform.rotation;
 
             // Position (hips world position)
             BasisUnityBitPackerExtensionsUnsafe.WritePosition(hipsPos, ref AvatarData.LASM.array, ref offset);
