@@ -59,7 +59,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             EnsureInitialized();
             // Now bone transforms are guaranteed up-to-date — extract deltas
-            ExtractBoneDeltas(animator);
+            ExtractBoneDeltas();
 
             CompressAvatarData(transmitter.storedAvatarData, t);
 
@@ -87,7 +87,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         {
             EnsureInitialized();
 
-            ExtractBoneDeltas(animator);
+            ExtractBoneDeltas();
 
             StoredAvatarData = new BasisStoredAvatarData();
             CompressAvatarData(StoredAvatarData, animator.transform);
@@ -134,14 +134,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// Extracts bone local rotations from the animator and computes
         /// T-pose-relative delta quaternions for each bone.
         /// </summary>
-        static void ExtractBoneDeltas(Animator animator)
+        static void ExtractBoneDeltas()
         {
+            if (sTposeLocalRotations == null)
+            {
+                BasisDebug.LogError($"Missing {nameof(sTposeLocalRotations)}");
+                return;
+            }
             for (int slot = 0; slot < BasisBoneRotationCompression.SyncBoneCount; slot++)
             {
                 int boneEnum = BasisBoneRotationCompression.BONE_WRITE_ORDER[slot];
-                Transform bone = animator.GetBoneTransform((HumanBodyBones)boneEnum);
 
-                if (bone != null)
+                if (BasisLocalAvatarDriver.Mapping.GetTransform((HumanBodyBones)boneEnum, out var bone))
                 {
                     quaternion current = bone.localRotation;
                     quaternion tpose = sTposeLocalRotations[boneEnum];
@@ -151,7 +155,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 }
                 else
                 {
-                    // Missing bone: identity delta (no rotation from rest)
+                    // Missing bone or no T-pose captured yet: identity delta (no rotation from rest)
                     sBoneDeltas[slot] = quaternion.identity;
                 }
             }

@@ -185,6 +185,7 @@ namespace Basis.Scripts.Drivers
             int chunkLen = frozenCount;
             _processingTask = Task.Run(() =>
             {
+                if (_disposed) return;
                 var result = BasisOpenLipSyncDriver.ProcessFrame(handle, chunk, chunkLen, targetFrame);
                 if (result == Result.Success)
                 {

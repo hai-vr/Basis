@@ -240,6 +240,12 @@ namespace OpenLipSync.Inference
 
                 return Result.Success;
             }
+            catch (ObjectDisposedException)
+            {
+                // Expected during teardown — context disposed while thread pool task
+                // was still processing. Not an error.
+                return Result.Unknown;
+            }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[OpenLipSync] ProcessFrameFloat error: {ex}");
