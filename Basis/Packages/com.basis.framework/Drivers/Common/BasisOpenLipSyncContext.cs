@@ -45,6 +45,9 @@ namespace Basis.Scripts.Drivers
         private const int AudioBufferSize = 48000; // 1 second at 48kHz
         private const float BlendShapeWriteEps = 0.25f;
 
+        // Reusable buffer for background task audio — eliminates per-frame float[] allocation
+        private float[] _audioChunk = new float[AudioBufferSize];
+
         public bool IsInitialized => _initialized;
 
         // Debug accessors for editor window (read-only, no hot-path cost)
@@ -165,9 +168,8 @@ namespace Basis.Scripts.Drivers
 
             if (frozenCount <= 0) return;
 
-            // Copy frozen audio for the background task
-            float[] audioChunk = new float[frozenCount];
-            Array.Copy(frozenBuffer, 0, audioChunk, 0, frozenCount);
+            // Copy frozen audio into reusable buffer (zero GC allocation)
+            Array.Copy(frozenBuffer, 0, _audioChunk, 0, frozenCount);
 
             // Reset write index for the now-frozen buffer
 #pragma warning disable CS0420 // Volatile.Write provides correct semantics for volatile fields
@@ -175,12 +177,15 @@ namespace Basis.Scripts.Drivers
             else Volatile.Write(ref _writeIndexB, 0);
 #pragma warning restore CS0420
 
-            // Schedule background processing
+            // Schedule background processing (captures the reusable buffer — safe because
+            // we don't start a new task until the previous one completes)
             uint handle = _contextHandle;
             Frame targetFrame = _backFrame;
+            float[] chunk = _audioChunk;
+            int chunkLen = frozenCount;
             _processingTask = Task.Run(() =>
             {
-                var result = BasisOpenLipSyncDriver.ProcessFrame(handle, audioChunk, targetFrame);
+                var result = BasisOpenLipSyncDriver.ProcessFrame(handle, chunk, chunkLen, targetFrame);
                 if (result == Result.Success)
                 {
                     _hasNewResults = true;
@@ -259,6 +264,7 @@ namespace Basis.Scripts.Drivers
 
                 _audioBufferA = null;
                 _audioBufferB = null;
+                _audioChunk = null;
                 _backFrame = null;
             }
         }

@@ -175,7 +175,17 @@ namespace OpenLipSync.Inference
             return Result.InvalidParam;
         }
 
+        public Result ProcessFrameFloat(uint context, ReadOnlySpan<float> audio, bool stereo, ref Frame frame)
+        {
+            return ProcessFrameFloatInternal(context, audio, stereo, ref frame);
+        }
+
         public Result ProcessFrameFloat(uint context, float[] audio, bool stereo, ref Frame frame)
+        {
+            return ProcessFrameFloatInternal(context, audio, stereo, ref frame);
+        }
+
+        private Result ProcessFrameFloatInternal(uint context, ReadOnlySpan<float> audio, bool stereo, ref Frame frame)
         {
             if (!_initialized || _onnxSession == null)
             {

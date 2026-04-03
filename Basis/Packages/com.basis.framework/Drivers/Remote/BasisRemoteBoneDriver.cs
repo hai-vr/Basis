@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -921,15 +922,26 @@ public static class RemoteBoneJobSystem
                 sSkeletonDeltas = new NativeArray<quaternion>(totalBones, Allocator.Persistent);
             }
 
-            // Copy filtered bone deltas from the network driver for all players
+            // Bulk-copy filtered bone deltas from the network driver for all players.
+            // Uses UnsafeUtility.MemCpy per player instead of per-element indexing
+            // to avoid NativeArray safety check overhead (was 13% of main thread).
             int boneCount = BasisBoneRotationCompression.SyncBoneCount;
-            for (int p = 0; p < AuthoringLength; p++)
+            int bytesPerPlayer = boneCount * UnsafeUtility.SizeOf<quaternion>();
+            unsafe
             {
-                int playerKey = sIndexToKey[p];
-                var slice = BasisRemoteNetworkDriver.GetFilteredBoneRotations(playerKey);
-                int dstBase = p * boneCount;
-                for (int b = 0; b < boneCount && b < slice.Length; b++)
-                    sSkeletonDeltas[dstBase + b] = slice[b];
+                quaternion* dstBase = (quaternion*)sSkeletonDeltas.GetUnsafePtr();
+                for (int p = 0; p < AuthoringLength; p++)
+                {
+                    int playerKey = sIndexToKey[p];
+                    var slice = BasisRemoteNetworkDriver.GetFilteredBoneRotations(playerKey);
+                    if (slice.Length >= boneCount)
+                    {
+                        UnsafeUtility.MemCpy(
+                            dstBase + p * boneCount,
+                            NativeSliceUnsafeUtility.GetUnsafeReadOnlyPtr(slice),
+                            bytesPerPlayer);
+                    }
+                }
             }
 
             skeletonJob = new ApplySkeletonRotationsJob

@@ -114,6 +114,16 @@ public static class BasisOpenLipSyncDriver
         return _backend.ProcessFrameFloat(contextHandle, audioData, stereo: false, ref frame);
     }
 
+    /// <summary>
+    /// Overload that processes only the first <paramref name="sampleCount"/> samples
+    /// from the buffer, avoiding the need to allocate a trimmed copy.
+    /// </summary>
+    public static Result ProcessFrame(uint contextHandle, float[] audioData, int sampleCount, Frame frame)
+    {
+        if (!_initialized || _backend == null) return Result.Unknown;
+        return _backend.ProcessFrameFloat(contextHandle, new ReadOnlySpan<float>(audioData, 0, sampleCount), stereo: false, ref frame);
+    }
+
     public static Result SendSignal(uint contextHandle, Signals signal, int arg1)
     {
         if (!_initialized || _backend == null) return Result.Unknown;
