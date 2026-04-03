@@ -63,13 +63,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             EnsureInitialized();
 
-            // If T-pose hasn't been captured yet, do it now from the mapping's recorded poses
             if (sTposeLocalRotations == null)
             {
                 CaptureTPoseFromAnimator();
             }
 
-            // Extract current bone rotations and compute deltas from T-pose
+            // Force Unity to evaluate the current humanoid pose (IK, constraints, etc.)
+            // before we read bone transforms. Without this, bone.localRotation can return
+            // stale pre-IK data on frames where compression runs before the IK system.
+            transmitter.PoseHandler ??= new HumanPoseHandler(animator.avatar, t);
+            transmitter.PoseHandler.GetHumanPose(ref transmitter.HumanPose);
+
+            // Now bone transforms are guaranteed up-to-date — extract deltas
             ExtractBoneDeltas(animator);
 
             CompressAvatarData(transmitter.storedAvatarData, animator, t);

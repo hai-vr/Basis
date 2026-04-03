@@ -74,24 +74,23 @@ namespace Basis.Network.Core.Compression
         //  Total bits per bone = 2 (index) + 3 * BPC
         // ────────────────────────────────────────────────────────────
 
-        /// <summary>HIGH quality. Prioritizes shoulders/limbs over fingers.
-        /// Total = 1014 bits = 127 bytes. Packet = 148 bytes.</summary>
+        /// <summary>HIGH quality. 1104 bits = 138 bytes. Packet = 159 bytes.</summary>
         public static readonly byte[] BPC_HIGH = new byte[]
         {
             // 3-DOF body (9): spine, chest, upperchest, neck, head, upper arms, upper legs
             10,10,10,10,10,10,10,10,10,
-            // 2-DOF limbs (4): lower arms, lower legs — high precision to avoid cascading error to hands/feet
+            // 2-DOF limbs (4): lower arms, lower legs
             10,10,10,10,
-            // 2-DOF extremities (6): shoulders(2) — high (cascade to arms), hands(2), feet(2)
+            // 2-DOF extremities (6): shoulders(2), hands(2), feet(2)
             10,10, 8,8, 8,8,
             // toes/eyes/jaw (5)
-            4,4,4,4,4,
-            // finger proximal (10): curl+spread, moderate precision
+            4,4, 4,4, 4,
+            // finger proximal (10): curl + spread
+            5,5,5,5,5,5,5,5,5,5,
+            // finger intermediate (10): curl
             4,4,4,4,4,4,4,4,4,4,
-            // finger intermediate (10): curl only, low precision is fine
-            3,3,3,3,3,3,3,3,3,3,
-            // finger distal (10): curl only
-            3,3,3,3,3,3,3,3,3,3,
+            // finger distal (10): curl
+            4,4,4,4,4,4,4,4,4,4,
         };
 
         public static readonly byte[] BPC_MEDIUM = new byte[]
@@ -99,10 +98,10 @@ namespace Basis.Network.Core.Compression
             8,8,8,8,8,8,8,8,8,          // body
             8,8,8,8,                     // limbs
             8,8, 6,6, 6,6,              // shoulders, hands, feet
-            3,3,3,3,3,                   // toes/eyes/jaw
-            3,3,3,3,3,3,3,3,3,3,        // finger proximal
-            2,2,2,2,2,2,2,2,2,2,        // finger intermediate
-            2,2,2,2,2,2,2,2,2,2,        // finger distal
+            3,3, 3,3, 3,                 // toes/eyes/jaw
+            4,4,4,4,4,4,4,4,4,4,        // finger proximal
+            3,3,3,3,3,3,3,3,3,3,        // finger intermediate
+            3,3,3,3,3,3,3,3,3,3,        // finger distal
         };
 
         public static readonly byte[] BPC_LOW = new byte[]
@@ -110,10 +109,10 @@ namespace Basis.Network.Core.Compression
             6,6,6,6,6,6,6,6,6,          // body
             6,6,6,6,                     // limbs
             6,6, 5,5, 5,5,              // shoulders, hands, feet
-            3,3,3,3,3,                   // toes/eyes/jaw
+            3,3, 3,3, 3,                 // toes/eyes/jaw
             3,3,3,3,3,3,3,3,3,3,        // finger proximal
-            2,2,2,2,2,2,2,2,2,2,        // finger intermediate
-            2,2,2,2,2,2,2,2,2,2,        // finger distal
+            3,3,3,3,3,3,3,3,3,3,        // finger intermediate
+            3,3,3,3,3,3,3,3,3,3,        // finger distal
         };
 
         public static readonly byte[] BPC_VERY_LOW = new byte[]
@@ -121,8 +120,8 @@ namespace Basis.Network.Core.Compression
             5,5,5,5,5,5,5,5,5,          // body
             5,5,5,5,                     // limbs
             5,5, 4,4, 4,4,              // shoulders, hands, feet
-            2,2,2,2,2,                   // toes/eyes/jaw
-            2,2,2,2,2,2,2,2,2,2,        // finger proximal
+            2,2, 2,2, 2,                 // toes/eyes/jaw
+            3,3,3,3,3,3,3,3,3,3,        // finger proximal
             2,2,2,2,2,2,2,2,2,2,        // finger intermediate
             2,2,2,2,2,2,2,2,2,2,        // finger distal
         };
@@ -135,46 +134,69 @@ namespace Basis.Network.Core.Compression
         // ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Maximum quaternion component magnitude per bone slot, derived from
-        /// realistic joint rotation limits from T-pose. Components are quantized
-        /// within [-maxComp, maxComp] instead of the full [-0.707, 0.707] range.
+        /// Maximum quaternion component magnitude per bone slot.
+        /// Components are quantized within [-maxComp, maxComp] instead of full [-0.707, 0.707].
+        ///
+        /// DESIGN: most joints use full InvSqrt2 range to support ALL human poses
+        /// (dancing, gymnastics, sleeping, backbends, splits, etc.).
+        /// Only joints that are physically incapable of large rotation get tighter ranges:
+        ///   - Eyes: ~35° max look direction (anatomical limit of extraocular muscles)
+        ///   - Jaw: ~40° max open + sideways (TMJ limit)
+        ///   - Toes: ~55° max curl (metatarsal limit)
+        ///   - UpperChest: ~50° max (thoracic vertebrae are fused/limited)
+        ///
+        /// Hips orientation is sent separately as a full-precision compressed quaternion,
+        /// so upside-down, sideways, etc. are unaffected by these limits.
+        /// </summary>
+        /// <summary>
+        /// Maximum quaternion component magnitude per bone slot.
+        /// After dropping the largest component in smallest-three, the remaining 3
+        /// are quantized within [-maxComp, maxComp].
+        /// Tighter range = better precision at the same BPC.
+        ///
+        /// Values derived from max anatomical rotation, computing sin(maxAngle/2)
+        /// for the largest possible remaining component, plus safety margin.
+        /// Full InvSqrt2 used for any joint that can approach or exceed 90° from T-pose.
         /// </summary>
         public static readonly float[] MAX_COMPONENT = new float[]
         {
             // 3-DOF body (9): Spine, Chest, UpperChest, Neck, Head, UpperArms, UpperLegs
-            0.45f,                  // Spine         ~52° max → sin(26°)=0.44, +margin → 1.57x precision
-            0.45f,                  // Chest         ~52° max → 1.57x
-            0.38f,                  // UpperChest    ~42° max → sin(21°)=0.36, +margin → 1.86x
-            0.55f,                  // Neck          ~66° max → sin(33°)=0.54, +margin → 1.29x
-            InvSqrt2,               // Head          ~90° max → full range needed
-            InvSqrt2, InvSqrt2,     // UpperArms     ~180° shoulder range
-            InvSqrt2, InvSqrt2,     // UpperLegs     ~130° hip flexion
+            InvSqrt2,               // Spine         full (deep backbend/fold can exceed 90° combined)
+            InvSqrt2,               // Chest         full
+            0.50f,                  // UpperChest    thoracic limit ~58° → 1.41x
+            InvSqrt2,               // Neck          full (extreme head tilt)
+            InvSqrt2,               // Head          full
+            InvSqrt2, InvSqrt2,     // UpperArms     full (shoulder has ~180° ROM)
+            InvSqrt2, InvSqrt2,     // UpperLegs     full (splits, deep squat)
 
             // 2-DOF limbs (4): LowerArms, LowerLegs
-            InvSqrt2, InvSqrt2,     // LowerArms     ~150° elbow bend
-            InvSqrt2, InvSqrt2,     // LowerLegs     ~150° knee bend
+            InvSqrt2, InvSqrt2,     // LowerArms     full (elbow 150° + pronation 90°)
+            InvSqrt2, InvSqrt2,     // LowerLegs     full (knee 150°)
 
             // 2-DOF extremities (6): Shoulders, Hands, Feet
-            0.45f, 0.45f,           // Shoulders     ~52° shrug → 1.57x
-            0.65f, 0.65f,           // Hands         ~80° wrist bend → 1.09x
-            0.52f, 0.52f,           // Feet          ~60° ankle → 1.36x
+            0.50f, 0.50f,           // Shoulders     clavicle max ~58° (shrug+protract) → 1.41x
+            InvSqrt2, InvSqrt2,     // Hands         full (wrist can circle ~90°)
+            0.60f, 0.60f,           // Feet          ankle max ~70° combined → 1.18x
 
             // toes/eyes/jaw (5)
-            0.40f, 0.40f,           // Toes          ~46° curl → 1.77x
-            0.28f, 0.28f,           // Eyes          ~32° look range → 2.53x
-            0.28f,                  // Jaw           ~32° open → 2.53x
+            0.50f, 0.50f,           // Toes          ~58° curl → 1.41x
+            0.35f, 0.35f,           // Eyes          ~41° look → 2.02x
+            0.40f,                  // Jaw           ~47° open → 1.77x
 
-            // finger proximal (10): curl + spread combined can be ~100°
-            InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2,
-            InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2,
+            // finger proximal (10): curl ~90° + spread ~25° → combined ~95°
+            // At 95°: axis=0.74, w=0.68. After dropping axis, remaining max=0.68
+            0.68f, 0.68f, 0.68f, 0.68f, 0.68f,
+            0.68f, 0.68f, 0.68f, 0.68f, 0.68f,
 
-            // finger intermediate (10): curl ~110°
-            InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2,
-            InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2,
+            // finger intermediate (10): curl only, max ~110°
+            // At 110°: axis=0.82, w=0.57. After dropping axis, remaining max=0.57
+            0.58f, 0.58f, 0.58f, 0.58f, 0.58f,
+            0.58f, 0.58f, 0.58f, 0.58f, 0.58f,
 
-            // finger distal (10): curl ~80°
-            0.62f, 0.62f, 0.62f, 0.62f, 0.62f,
-            0.62f, 0.62f, 0.62f, 0.62f, 0.62f,
+            // finger distal (10): curl only, max ~80°
+            // At 80°: w=0.77, axis=0.64. After dropping w, remaining max=0.64
+            0.65f, 0.65f, 0.65f, 0.65f, 0.65f,
+            0.65f, 0.65f, 0.65f, 0.65f, 0.65f,
         };
 
         public static byte[] GetBpcTable(BasisAvatarBitPacking.BitQuality q) => q switch
