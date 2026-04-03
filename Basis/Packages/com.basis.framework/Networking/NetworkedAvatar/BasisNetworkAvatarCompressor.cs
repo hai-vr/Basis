@@ -127,7 +127,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             BasisUnityBitPackerExtensionsUnsafe.WritePosition(animator.bodyPosition, ref AvatarData.LASM.array, ref offset);
 
             // Bone rotations (replaces muscle compression)
-            BasisBoneRotationCompression.CompressBoneRotations(sBoneDeltas, WireQuality, AvatarData.LASM.array, ref offset);
+            BasisBoneRotationUtils.CompressBoneRotations(sBoneDeltas, WireQuality, AvatarData.LASM.array, ref offset);
 
             // Scale
             BasisUnityBitPackerExtensionsUnsafe.CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);

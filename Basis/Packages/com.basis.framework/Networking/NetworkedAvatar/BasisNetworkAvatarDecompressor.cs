@@ -96,7 +96,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             }
 
             // Bone rotations (replaces muscle decompression)
-            BasisBoneRotationCompression.DecompressBoneRotations(data, quality, ref basisAvatarBuffer.BoneRotations, ref offset);
+            BasisBoneRotationUtils.DecompressBoneRotations(data, quality, ref basisAvatarBuffer.BoneRotations, ref offset);
 
             // Scale
             if (!BasisUnityBitPackerExtensionsUnsafe.TryReadUShort(ref data, ref offset, out ushort uScale))
