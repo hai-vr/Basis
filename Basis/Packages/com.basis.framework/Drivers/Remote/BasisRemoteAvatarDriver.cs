@@ -189,14 +189,11 @@ namespace Basis.Scripts.Drivers
             var animator = remotePlayer.BasisAvatar.Animator;
             int boneCount = BasisBoneRotationCompression.SyncBoneCount;
 
-            // Force an extra animator evaluation to ensure the T-pose has fully
-            // propagated to all bones (hands/fingers are last in the hierarchy
-            // and may not have updated from a single Update call).
-            ForceUpdateAnimator(animator);
-
             // Dispose old data if re-calibrating
             if (receiver.TposeLocalRotations.IsCreated)
+            {
                 receiver.TposeLocalRotations.Dispose();
+            }
 
             receiver.TposeLocalRotations = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
             receiver.BoneTransforms = new Transform[boneCount];
@@ -204,17 +201,19 @@ namespace Basis.Scripts.Drivers
             for (int slot = 0; slot < boneCount; slot++)
             {
                 int boneEnum = BasisBoneRotationCompression.BONE_WRITE_ORDER[slot];
-                Transform bone = animator.GetBoneTransform((HumanBodyBones)boneEnum);
-
-                if (bone != null)
+                var humanbone = (HumanBodyBones)boneEnum;
+                if (remotePlayer.RemoteAvatarDriver.References.GetTransform(humanbone,out var transform))
                 {
-                    receiver.TposeLocalRotations[slot] = bone.localRotation;
-                    receiver.BoneTransforms[slot] = bone;
-                }
-                else
-                {
-                    receiver.TposeLocalRotations[slot] = quaternion.identity;
-                    receiver.BoneTransforms[slot] = null;
+                    if (remotePlayer.RemoteAvatarDriver.References.TposeLocal.TryGetValue(humanbone, out var value))
+                    {
+                        receiver.TposeLocalRotations[slot] = value.rotation;
+                        receiver.BoneTransforms[slot] = transform;
+                    }
+                    else
+                    {
+                        receiver.TposeLocalRotations[slot] = quaternion.identity;
+                        receiver.BoneTransforms[slot] = null;
+                    }
                 }
             }
         }

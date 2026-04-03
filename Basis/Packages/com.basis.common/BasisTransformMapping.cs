@@ -553,6 +553,7 @@ namespace Basis.Scripts.Common
                 }
 
                 t.GetPositionAndRotation(out var wPos, out var wRot);
+                t.GetLocalPositionAndRotation(out var LPos, out var LRot);
 
                 // Position in animator-local space (handles parent translation & scaling)
                 Vector3 localPos = animator.transform.InverseTransformPoint(wPos);
@@ -567,8 +568,8 @@ namespace Basis.Scripts.Common
                 };
                 TposeLocal[bone] = new BasisCalibratedCoords
                 {
-                    position = wPos,
-                    rotation = wRot
+                    position = LPos,
+                    rotation = LRot
                 };
             }
             if (TryComputeForwardUpFromTpose(this, out var fwd, out var up,out var right))

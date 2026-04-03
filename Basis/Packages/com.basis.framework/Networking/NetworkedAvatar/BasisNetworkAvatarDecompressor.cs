@@ -2,7 +2,6 @@ using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Receivers;
 using System;
-using Unity.Collections;
 using Unity.Mathematics;
 using static SerializableBasis;
 namespace Basis.Scripts.Networking.NetworkedAvatar
