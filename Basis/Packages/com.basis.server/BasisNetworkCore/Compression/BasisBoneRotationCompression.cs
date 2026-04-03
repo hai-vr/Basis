@@ -17,8 +17,12 @@ namespace Basis.Network.Core.Compression
     /// </summary>
     public static class BasisBoneRotationCompression
     {
-        /// <summary>Number of bones synced (HumanBodyBones 1..54, excluding Hips=0 which is body rotation).</summary>
-        public const int SyncBoneCount = 54;
+        /// <summary>
+        /// Number of bones synced. Excludes:
+        ///   Hips (0) — sent as body rotation in the packet tail
+        ///   LeftEye (21), RightEye (22), Jaw (23) — driven locally by BasisRemoteFaceManagement
+        /// </summary>
+        public const int SyncBoneCount = 51;
 
         /// <summary>Inverse of sqrt(2), the max magnitude of any non-dropped smallest-three component.</summary>
         public const float InvSqrt2 = 0.70710678118f;
@@ -34,8 +38,9 @@ namespace Basis.Network.Core.Compression
         // ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Maps slot index (0..53) to HumanBodyBones enum value.
-        /// Grouped: 3-DOF body → 2-DOF limbs → 2-DOF extremities → toes/eyes/jaw → finger proximal → finger mid/distal.
+        /// Maps slot index (0..50) to HumanBodyBones enum value.
+        /// Excludes Hips(0), LeftEye(21), RightEye(22), Jaw(23).
+        /// Grouped: 3-DOF body → 2-DOF limbs → 2-DOF extremities → toes → finger proximal → finger mid/distal.
         /// </summary>
         public static readonly int[] BONE_WRITE_ORDER = new int[]
         {
@@ -45,8 +50,8 @@ namespace Basis.Network.Core.Compression
             15, 16, 3, 4,
             // 2-DOF extremities (6 bones): Shoulders, Hands, Feet
             11, 12, 17, 18, 5, 6,
-            // 1-2 DOF toes/eyes/jaw (5 bones)
-            19, 20, 21, 22, 23,
+            // toes (2 bones) — eyes/jaw excluded (driven by face system)
+            19, 20,
             // 2-DOF finger proximal (10 bones)
             24, 27, 30, 33, 36, 39, 42, 45, 48, 51,
             // 1-DOF finger intermediate (10 bones)
@@ -74,56 +79,56 @@ namespace Basis.Network.Core.Compression
         //  Total bits per bone = 2 (index) + 3 * BPC
         // ────────────────────────────────────────────────────────────
 
-        /// <summary>HIGH quality. 1104 bits = 138 bytes. Packet = 159 bytes.</summary>
+        /// <summary>HIGH quality. 1062 bits = 133 bytes. Packet = 154 bytes.</summary>
         public static readonly byte[] BPC_HIGH = new byte[]
         {
-            // 3-DOF body (9): spine, chest, upperchest, neck, head, upper arms, upper legs
+            // 3-DOF body (9)
             10,10,10,10,10,10,10,10,10,
-            // 2-DOF limbs (4): lower arms, lower legs
+            // 2-DOF limbs (4)
             10,10,10,10,
-            // 2-DOF extremities (6): shoulders(2), hands(2), feet(2)
+            // 2-DOF extremities (6): shoulders, hands, feet
             10,10, 8,8, 8,8,
-            // toes/eyes/jaw (5)
-            4,4, 4,4, 4,
-            // finger proximal (10): curl + spread
+            // toes (2)
+            4,4,
+            // finger proximal (10)
             5,5,5,5,5,5,5,5,5,5,
-            // finger intermediate (10): curl
+            // finger intermediate (10)
             4,4,4,4,4,4,4,4,4,4,
-            // finger distal (10): curl
+            // finger distal (10)
             4,4,4,4,4,4,4,4,4,4,
         };
 
         public static readonly byte[] BPC_MEDIUM = new byte[]
         {
-            8,8,8,8,8,8,8,8,8,          // body
-            8,8,8,8,                     // limbs
-            8,8, 6,6, 6,6,              // shoulders, hands, feet
-            3,3, 3,3, 3,                 // toes/eyes/jaw
-            4,4,4,4,4,4,4,4,4,4,        // finger proximal
-            3,3,3,3,3,3,3,3,3,3,        // finger intermediate
-            3,3,3,3,3,3,3,3,3,3,        // finger distal
+            8,8,8,8,8,8,8,8,8,
+            8,8,8,8,
+            8,8, 6,6, 6,6,
+            3,3,
+            4,4,4,4,4,4,4,4,4,4,
+            3,3,3,3,3,3,3,3,3,3,
+            3,3,3,3,3,3,3,3,3,3,
         };
 
         public static readonly byte[] BPC_LOW = new byte[]
         {
-            6,6,6,6,6,6,6,6,6,          // body
-            6,6,6,6,                     // limbs
-            6,6, 5,5, 5,5,              // shoulders, hands, feet
-            3,3, 3,3, 3,                 // toes/eyes/jaw
-            3,3,3,3,3,3,3,3,3,3,        // finger proximal
-            3,3,3,3,3,3,3,3,3,3,        // finger intermediate
-            3,3,3,3,3,3,3,3,3,3,        // finger distal
+            6,6,6,6,6,6,6,6,6,
+            6,6,6,6,
+            6,6, 5,5, 5,5,
+            3,3,
+            3,3,3,3,3,3,3,3,3,3,
+            3,3,3,3,3,3,3,3,3,3,
+            3,3,3,3,3,3,3,3,3,3,
         };
 
         public static readonly byte[] BPC_VERY_LOW = new byte[]
         {
-            5,5,5,5,5,5,5,5,5,          // body
-            5,5,5,5,                     // limbs
-            5,5, 4,4, 4,4,              // shoulders, hands, feet
-            2,2, 2,2, 2,                 // toes/eyes/jaw
-            3,3,3,3,3,3,3,3,3,3,        // finger proximal
-            2,2,2,2,2,2,2,2,2,2,        // finger intermediate
-            2,2,2,2,2,2,2,2,2,2,        // finger distal
+            5,5,5,5,5,5,5,5,5,
+            5,5,5,5,
+            5,5, 4,4, 4,4,
+            2,2,
+            3,3,3,3,3,3,3,3,3,3,
+            2,2,2,2,2,2,2,2,2,2,
+            2,2,2,2,2,2,2,2,2,2,
         };
 
         // ────────────────────────────────────────────────────────────
@@ -178,10 +183,8 @@ namespace Basis.Network.Core.Compression
             InvSqrt2, InvSqrt2,     // Hands         full (wrist can circle ~90°)
             0.60f, 0.60f,           // Feet          ankle max ~70° combined → 1.18x
 
-            // toes/eyes/jaw (5)
+            // toes (2) — eyes/jaw excluded (driven by face system)
             0.50f, 0.50f,           // Toes          ~58° curl → 1.41x
-            0.35f, 0.35f,           // Eyes          ~41° look → 2.02x
-            0.40f,                  // Jaw           ~47° open → 1.77x
 
             // finger proximal (10): curl ~90° + spread ~25° → combined ~95°
             // At 95°: axis=0.74, w=0.68. After dropping axis, remaining max=0.68

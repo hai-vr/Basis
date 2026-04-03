@@ -10,7 +10,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
     [Serializable]
     public class BasisAvatarBuffer : IDisposable
     {
-        public const int BoneCount = BasisBoneRotationCompression.SyncBoneCount; // 54
+        public const int BoneCount = BasisBoneRotationCompression.SyncBoneCount; // 51 (excludes Hips, Eyes, Jaw)
         public byte Sequence;
         public double ServerTimeSeconds;
         public quaternion Rotation = quaternion.identity;
