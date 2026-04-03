@@ -79,56 +79,59 @@ namespace Basis.Network.Core.Compression
         //  Total bits per bone = 2 (index) + 3 * BPC
         // ────────────────────────────────────────────────────────────
 
-        /// <summary>HIGH quality. 1062 bits = 133 bytes. Packet = 154 bytes.</summary>
+        /// <summary>HIGH quality. 1188 bits = 149 bytes. Packet = 170 bytes.
+        /// Per-finger priority: thumb/index get more bits (most expressive).
+        /// Proximal gets more than intermediate/distal (carries spread motion).</summary>
         public static readonly byte[] BPC_HIGH = new byte[]
         {
-            // 3-DOF body (9)
+            // 3-DOF body (9): spine, chest, upperchest, neck, head, upper arms, upper legs
             10,10,10,10,10,10,10,10,10,
-            // 2-DOF limbs (4)
+            // 2-DOF limbs (4): lower arms, lower legs
             10,10,10,10,
-            // 2-DOF extremities (6): shoulders, hands, feet
-            10,10, 8,8, 8,8,
+            // 2-DOF extremities (6): shoulders(2), hands(2), feet(2)
+            10,10, 10,10, 8,8,
             // toes (2)
             4,4,
-            // finger proximal (10)
-            5,5,5,5,5,5,5,5,5,5,
-            // finger intermediate (10)
-            4,4,4,4,4,4,4,4,4,4,
-            // finger distal (10)
-            4,4,4,4,4,4,4,4,4,4,
+            // finger proximal (10): L-Thumb,L-Index,L-Mid,L-Ring,L-Little, R-same
+            // Thumb=8 (opposable), Index=7 (pointing), Mid/Ring=6, Little=5
+            8,7,6,6,5,  8,7,6,6,5,
+            // finger intermediate (10): Thumb/Index=6, Mid/Ring/Little=5
+            6,6,5,5,5,  6,6,5,5,5,
+            // finger distal (10): all 5
+            5,5,5,5,5,  5,5,5,5,5,
         };
 
         public static readonly byte[] BPC_MEDIUM = new byte[]
         {
             8,8,8,8,8,8,8,8,8,
             8,8,8,8,
-            8,8, 6,6, 6,6,
+            8,8, 8,8, 6,6,
             3,3,
-            4,4,4,4,4,4,4,4,4,4,
-            3,3,3,3,3,3,3,3,3,3,
-            3,3,3,3,3,3,3,3,3,3,
+            6,6,5,5,4,  6,6,5,5,4,
+            5,5,4,4,4,  5,5,4,4,4,
+            4,4,4,4,4,  4,4,4,4,4,
         };
 
         public static readonly byte[] BPC_LOW = new byte[]
         {
             6,6,6,6,6,6,6,6,6,
             6,6,6,6,
-            6,6, 5,5, 5,5,
+            6,6, 6,6, 5,5,
             3,3,
-            3,3,3,3,3,3,3,3,3,3,
-            3,3,3,3,3,3,3,3,3,3,
-            3,3,3,3,3,3,3,3,3,3,
+            5,5,4,4,3,  5,5,4,4,3,
+            4,4,3,3,3,  4,4,3,3,3,
+            3,3,3,3,3,  3,3,3,3,3,
         };
 
         public static readonly byte[] BPC_VERY_LOW = new byte[]
         {
             5,5,5,5,5,5,5,5,5,
             5,5,5,5,
-            5,5, 4,4, 4,4,
+            5,5, 5,5, 4,4,
             2,2,
-            3,3,3,3,3,3,3,3,3,3,
-            2,2,2,2,2,2,2,2,2,2,
-            2,2,2,2,2,2,2,2,2,2,
+            4,4,3,3,2,  4,4,3,3,2,
+            3,3,2,2,2,  3,3,2,2,2,
+            2,2,2,2,2,  2,2,2,2,2,
         };
 
         // ────────────────────────────────────────────────────────────
