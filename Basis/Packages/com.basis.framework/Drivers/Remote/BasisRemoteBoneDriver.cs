@@ -1,6 +1,7 @@
 using Basis.Network.Core.Compression;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.Networking.NetworkedAvatar;
 using System;
 using System.Collections.Generic;
 using Unity.Burst;
@@ -386,18 +387,50 @@ struct AgrigateTranslationalData : IJobParallelFor
 [BurstCompile]
 public struct ApplySkeletonRotationsJob : IJobParallelForTransform
 {
-    /// <summary>T-pose local rotations, flat: [player0_bone0..bone50, player1_bone0..bone50, ...]</summary>
     [ReadOnly] public NativeArray<quaternion> TposeLocal;
-    /// <summary>Filtered bone rotation deltas from BasisRemoteNetworkDriver, same flat layout.</summary>
     [ReadOnly] public NativeArray<quaternion> FilteredDeltas;
-    /// <summary>Per-entry valid flag (0 = skip/null bone, 1 = write).</summary>
     [ReadOnly] public NativeArray<byte> ValidMask;
 
     public void Execute(int index, TransformAccess transform)
     {
         if (ValidMask[index] == 0) return;
-        quaternion final = math.mul(TposeLocal[index], FilteredDeltas[index]);
-        transform.localRotation = final;
+        transform.localRotation = math.mul(TposeLocal[index], FilteredDeltas[index]);
+    }
+}
+
+/// <summary>
+/// Burst job that writes hips world position and rotation for all remote players.
+/// Uses the existing sHips TransformAccessArray (1 entry per player).
+/// </summary>
+[BurstCompile]
+public struct ApplyHipsJob : IJobParallelForTransform
+{
+    [ReadOnly] public NativeArray<float3> Positions;
+    [ReadOnly] public NativeArray<quaternion> Rotations;
+
+    public void Execute(int index, TransformAccess transform)
+    {
+        transform.position = Positions[index];
+        transform.rotation = Rotations[index];
+    }
+}
+
+/// <summary>
+/// Burst job that writes avatar scale for all remote players.
+/// Uses the sAvatarScale TransformAccessArray (1 entry per player).
+/// </summary>
+[BurstCompile]
+public struct ApplyAvatarScaleJob : IJobParallelForTransform
+{
+    [ReadOnly] public NativeArray<float3> Scales;
+    [ReadOnly] public NativeArray<byte> HasChange;
+
+    public void Execute(int index, TransformAccess transform)
+    {
+        if (HasChange[index] != 0)
+        {
+            transform.localScale = Scales[index];
+        }
     }
 }
 
@@ -461,6 +494,12 @@ public static class RemoteBoneJobSystem
     static NativeArray<float3> sTmpRootScale;
     /// <summary>Temp head rotations.</summary>
     static NativeArray<quaternion> sTmpHeadRot, sTmpHipsRot;
+
+    // Hips + scale job data (populated from BasisRemoteNetworkDriver each frame)
+    static NativeArray<float3> sTmpHipsWorldPos;
+    static NativeArray<quaternion> sTmpHipsWorldRot;
+    static NativeArray<float3> sTmpAvatarScales;
+    static NativeArray<byte> sTmpScaleChanged;
 
     // Bookkeeping
     /// <summary>Map from external key → internal SoA index. Flat array indexed by ushort player ID; -1 = absent.</summary>
@@ -797,6 +836,10 @@ public static class RemoteBoneJobSystem
         AllocOrResize(ref sTmpHeadRot, count);
         AllocOrResize(ref sTmpHipsPos, count);
         AllocOrResize(ref sTmpHipsRot, count);
+        AllocOrResize(ref sTmpHipsWorldPos, count);
+        AllocOrResize(ref sTmpHipsWorldRot, count);
+        AllocOrResize(ref sTmpAvatarScales, count);
+        AllocOrResize(ref sTmpScaleChanged, count);
     }
 
     /// <summary>
@@ -810,6 +853,10 @@ public static class RemoteBoneJobSystem
         if (sTmpHeadRot.IsCreated) sTmpHeadRot.Dispose();
         if (sTmpHipsPos.IsCreated) sTmpHipsPos.Dispose();
         if (sTmpHipsRot.IsCreated) sTmpHipsRot.Dispose();
+        if (sTmpHipsWorldPos.IsCreated) sTmpHipsWorldPos.Dispose();
+        if (sTmpHipsWorldRot.IsCreated) sTmpHipsWorldRot.Dispose();
+        if (sTmpAvatarScales.IsCreated) sTmpAvatarScales.Dispose();
+        if (sTmpScaleChanged.IsCreated) sTmpScaleChanged.Dispose();
     }
 
     /// <summary>
@@ -909,9 +956,29 @@ public static class RemoteBoneJobSystem
             MouthRotation = sOut.AsDeferredJobArray(),
         }.Schedule(sMouth, MappedNameplateApplyJob);
 
+        // ── Bulk-copy hips position/rotation and scale from the network driver ──
+        // One unsafe bulk copy replaces per-player main-thread SetPositionAndRotation.
+        BasisRemoteNetworkDriver.BulkCopyHipsAndScale(
+            sIndexToKey, AuthoringLength,
+            sTmpHipsWorldPos, sTmpHipsWorldRot,
+            sTmpAvatarScales, sTmpScaleChanged);
+
+        // Hips position + rotation (1 per player, parallel via TAA)
+        var hipsApplyJob = new ApplyHipsJob
+        {
+            Positions = sTmpHipsWorldPos,
+            Rotations = sTmpHipsWorldRot,
+        }.Schedule(sHips, ApplyMouthJob);
+
+        // Avatar scale (1 per player, parallel via TAA)
+        var scaleApplyJob = new ApplyAvatarScaleJob
+        {
+            Scales = sTmpAvatarScales,
+            HasChange = sTmpScaleChanged,
+        }.Schedule(sAvatarScale, hipsApplyJob);
+
         // Schedule skeleton bone rotation apply job (all players' bones in parallel).
-        // This replaces the main-thread loop in BasisNetworkReceiver.Apply().
-        JobHandle skeletonJob = ApplyMouthJob;
+        JobHandle skeletonJob = scaleApplyJob;
         int totalBones = sSkeletonTpose.Length;
         if (totalBones > 0)
         {
@@ -949,12 +1016,30 @@ public static class RemoteBoneJobSystem
                 TposeLocal = sSkeletonTpose.AsDeferredJobArray(),
                 FilteredDeltas = sSkeletonDeltas,
                 ValidMask = sSkeletonValid.AsDeferredJobArray(),
-            }.Schedule(sSkeletonBones, ApplyMouthJob);
+            }.Schedule(sSkeletonBones, scaleApplyJob);
         }
 
         sPending = skeletonJob;
         return skeletonJob;
     }
+    /// <summary>
+    /// Applies HasOverridenDestination overrides to the hips position/rotation temp arrays
+    /// before the ApplyHipsJob runs. Called on the main thread during Schedule().
+    /// </summary>
+    static void ApplyHipsOverrides(NativeArray<float3> hipsPos, NativeArray<quaternion> hipsRot)
+    {
+        for (int i = 0; i < AuthoringLength; i++)
+        {
+            int playerKey = sIndexToKey[i];
+            if (!BasisNetworkPlayer.GetPlayerById((ushort)playerKey, out var netPlayer))
+                continue;
+            if (!netPlayer.HasOverridenDestination)
+                continue;
+            hipsPos[i] = netPlayer.OverridenPosition;
+            hipsRot[i] = (quaternion)netPlayer.OverridenRotation;
+        }
+    }
+
     /// <summary>
     /// Completes a provided handle and any internally pending chain.
     /// </summary>

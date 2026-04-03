@@ -311,43 +311,20 @@ namespace Basis.Scripts.Networking.Receivers
         /// All 51 bone rotation writes are done by ApplySkeletonRotationsJob in
         /// RemoteBoneJobSystem.Schedule() — fully multithreaded via TransformAccessArray.
         /// </summary>
+        /// <summary>
+        /// All transform writes (hips, scale, bone rotations) are handled by jobs
+        /// in RemoteBoneJobSystem.Schedule(). This only applies the rare
+        /// HasOverridenDestination fixup AFTER jobs have completed.
+        /// </summary>
         public void Apply()
         {
-            if (!IsDataReady || !hasRequiredData) return;
+            if (!HasOverridenDestination) return;
 
-            // Scale
-            BasisRemoteNetworkDriver.GetBoneRotationOutputs(playerId, out bool outscale, out var ApplyingRotation, out float3 scaledBody);
-
-            if (outscale)
-            {
-                ApplyScale();
-            }
-            else if (DidLastAvatarTransformChanged)
-            {
-                ApplyScale();
-                DidLastAvatarTransformChanged = false;
-            }
-
-            // Hips position and rotation (only 1 transform, kept on main thread)
             var refs = RemotePlayer?.RemoteAvatarDriver?.References;
             if (refs != null && refs.Hips != null)
             {
-                BasisRemoteNetworkDriver.GetPositionOutput(playerId, out float3 worldPos);
-                refs.Hips.SetPositionAndRotation(worldPos, ApplyingRotation);
+                refs.Hips.SetPositionAndRotation(OverridenPosition, OverridenRotation);
             }
-
-            if (HasOverridenDestination)
-            {
-                if (refs != null && refs.Hips != null)
-                {
-                    refs.Hips.SetPositionAndRotation(OverridenPosition, OverridenRotation);
-                }
-            }
-        }
-        public void ApplyScale()
-        {
-            BasisRemoteNetworkDriver.GetScaleOutput(playerId, out ApplyingScale);
-            Player.AvatarTransform.localScale = ApplyingScale;
         }
 
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)

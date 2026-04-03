@@ -1,6 +1,7 @@
 using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking;
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
@@ -340,6 +341,7 @@ public static class BasisRemoteNetworkDriver
         if (!_initialized) return;
         _ptrScaleChange = (IntPtr)_HasScaleChange.GetUnsafeReadOnlyPtr();
         _ptrFilteredRotations = (IntPtr)_filteredRotations.GetUnsafeReadOnlyPtr();
+        _ptrFilteredPositions = (IntPtr)_filteredPositions.GetUnsafeReadOnlyPtr();
         _ptrScaledBodyPositions = (IntPtr)_scaledBodyPositions.GetUnsafeReadOnlyPtr();
         _ptrFilteredBoneRotations = (IntPtr)_filteredBoneRotations.GetUnsafeReadOnlyPtr();
         _ptrOutScales = (IntPtr)_outScales.GetUnsafeReadOnlyPtr();
@@ -349,6 +351,40 @@ public static class BasisRemoteNetworkDriver
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void GetPositionOutput(int index, out float3 outPos) => outPos = _filteredPositions[index];
+
+    /// <summary>
+    /// Bulk-copy hips position, rotation, scale, and scale-change flag for a set of players.
+    /// Used by RemoteBoneJobSystem to populate job data without per-element indexing.
+    /// playerKeys[i] → internal SoA index; data is written to dst arrays at index i.
+    /// </summary>
+    public static unsafe void BulkCopyHipsAndScale(
+        List<int> playerKeys, int count,
+        NativeArray<float3> dstPos, NativeArray<quaternion> dstRot,
+        NativeArray<float3> dstScale, NativeArray<byte> dstScaleChanged)
+    {
+        if (!_initialized || count == 0) return;
+
+        float3* srcPos = (float3*)_ptrFilteredPositions;
+        quaternion* srcRot = (quaternion*)_ptrFilteredRotations;
+        float3* srcScale = (float3*)_ptrOutScales;
+        bool* srcChange = (bool*)_ptrScaleChange;
+
+        float3* dp = (float3*)dstPos.GetUnsafePtr();
+        quaternion* dr = (quaternion*)dstRot.GetUnsafePtr();
+        float3* ds = (float3*)dstScale.GetUnsafePtr();
+        byte* dc = (byte*)dstScaleChanged.GetUnsafePtr();
+
+        for (int i = 0; i < count; i++)
+        {
+            int idx = playerKeys[i];
+            dp[i] = srcPos[idx];
+            dr[i] = srcRot[idx];
+            ds[i] = srcScale[idx];
+            dc[i] = srcChange[idx] ? (byte)1 : (byte)0;
+        }
+    }
+
+    static IntPtr _ptrFilteredPositions;
 
     /// <summary>
     /// Returns a read-only slice of the filtered bone rotation deltas for a player.
