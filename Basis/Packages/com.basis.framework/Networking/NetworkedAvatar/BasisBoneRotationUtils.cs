@@ -22,6 +22,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             byte[] bpc = BasisBoneRotationCompression.GetBpcTable(quality);
             int bitPos = byteOffset << 3;
 
+            float[] ranges = BasisBoneRotationCompression.MAX_COMPONENT;
+
             for (int slot = 0; slot < BasisBoneRotationCompression.SyncBoneCount; slot++)
             {
                 int bitsPerComp = bpc[slot];
@@ -29,7 +31,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
                 quaternion q = boneDeltas[slot];
                 ulong packed = BasisBoneRotationCompression.EncodeSmallestThree(
-                    q.value.x, q.value.y, q.value.z, q.value.w, bitsPerComp);
+                    q.value.x, q.value.y, q.value.z, q.value.w, bitsPerComp, ranges[slot]);
 
                 BasisBoneRotationCompression.WriteBits(dst, bitPos, packed, totalBits);
                 bitPos += totalBits;
@@ -50,6 +52,8 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             byte[] bpc = BasisBoneRotationCompression.GetBpcTable(quality);
             int bitPos = byteOffset << 3;
 
+            float[] ranges = BasisBoneRotationCompression.MAX_COMPONENT;
+
             for (int slot = 0; slot < BasisBoneRotationCompression.SyncBoneCount; slot++)
             {
                 int bitsPerComp = bpc[slot];
@@ -57,7 +61,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
                 ulong packed = BasisBoneRotationCompression.ReadBits(src, ref bitPos, totalBits);
                 BasisBoneRotationCompression.DecodeSmallestThree(packed, bitsPerComp,
-                    out float qx, out float qy, out float qz, out float qw);
+                    out float qx, out float qy, out float qz, out float qw, ranges[slot]);
 
                 boneDeltas[slot] = new quaternion(qx, qy, qz, qw);
             }

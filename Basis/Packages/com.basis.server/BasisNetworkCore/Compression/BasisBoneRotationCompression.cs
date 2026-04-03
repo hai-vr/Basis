@@ -74,48 +74,107 @@ namespace Basis.Network.Core.Compression
         //  Total bits per bone = 2 (index) + 3 * BPC
         // ────────────────────────────────────────────────────────────
 
+        /// <summary>HIGH quality. Prioritizes shoulders/limbs over fingers.
+        /// Total = 1014 bits = 127 bytes. Packet = 148 bytes.</summary>
         public static readonly byte[] BPC_HIGH = new byte[]
         {
-            10,10,10,10,10,10,10,10,10, // 3-DOF body
-            8,8,8,8,                     // 2-DOF limbs
-            7,7,7,7,7,7,                 // 2-DOF extremities
-            5,5,5,5,5,                   // toes/eyes/jaw
-            6,6,6,6,6,6,6,6,6,6,        // finger proximal
-            4,4,4,4,4,4,4,4,4,4,        // finger intermediate
-            4,4,4,4,4,4,4,4,4,4,        // finger distal
+            // 3-DOF body (9): spine, chest, upperchest, neck, head, upper arms, upper legs
+            10,10,10,10,10,10,10,10,10,
+            // 2-DOF limbs (4): lower arms, lower legs — high precision to avoid cascading error to hands/feet
+            10,10,10,10,
+            // 2-DOF extremities (6): shoulders(2) — high (cascade to arms), hands(2), feet(2)
+            10,10, 8,8, 8,8,
+            // toes/eyes/jaw (5)
+            4,4,4,4,4,
+            // finger proximal (10): curl+spread, moderate precision
+            4,4,4,4,4,4,4,4,4,4,
+            // finger intermediate (10): curl only, low precision is fine
+            3,3,3,3,3,3,3,3,3,3,
+            // finger distal (10): curl only
+            3,3,3,3,3,3,3,3,3,3,
         };
 
         public static readonly byte[] BPC_MEDIUM = new byte[]
         {
-            8,8,8,8,8,8,8,8,8,
-            7,7,7,7,
-            6,6,6,6,6,6,
-            4,4,4,4,4,
-            5,5,5,5,5,5,5,5,5,5,
-            3,3,3,3,3,3,3,3,3,3,
-            3,3,3,3,3,3,3,3,3,3,
+            8,8,8,8,8,8,8,8,8,          // body
+            8,8,8,8,                     // limbs
+            8,8, 6,6, 6,6,              // shoulders, hands, feet
+            3,3,3,3,3,                   // toes/eyes/jaw
+            3,3,3,3,3,3,3,3,3,3,        // finger proximal
+            2,2,2,2,2,2,2,2,2,2,        // finger intermediate
+            2,2,2,2,2,2,2,2,2,2,        // finger distal
         };
 
         public static readonly byte[] BPC_LOW = new byte[]
         {
-            6,6,6,6,6,6,6,6,6,
-            5,5,5,5,
-            5,5,5,5,5,5,
-            3,3,3,3,3,
-            4,4,4,4,4,4,4,4,4,4,
-            3,3,3,3,3,3,3,3,3,3,
-            3,3,3,3,3,3,3,3,3,3,
+            6,6,6,6,6,6,6,6,6,          // body
+            6,6,6,6,                     // limbs
+            6,6, 5,5, 5,5,              // shoulders, hands, feet
+            3,3,3,3,3,                   // toes/eyes/jaw
+            3,3,3,3,3,3,3,3,3,3,        // finger proximal
+            2,2,2,2,2,2,2,2,2,2,        // finger intermediate
+            2,2,2,2,2,2,2,2,2,2,        // finger distal
         };
 
         public static readonly byte[] BPC_VERY_LOW = new byte[]
         {
-            5,5,5,5,5,5,5,5,5,
-            4,4,4,4,
-            4,4,4,4,4,4,
-            3,3,3,3,3,
-            3,3,3,3,3,3,3,3,3,3,
-            2,2,2,2,2,2,2,2,2,2,
-            2,2,2,2,2,2,2,2,2,2,
+            5,5,5,5,5,5,5,5,5,          // body
+            5,5,5,5,                     // limbs
+            5,5, 4,4, 4,4,              // shoulders, hands, feet
+            2,2,2,2,2,                   // toes/eyes/jaw
+            2,2,2,2,2,2,2,2,2,2,        // finger proximal
+            2,2,2,2,2,2,2,2,2,2,        // finger intermediate
+            2,2,2,2,2,2,2,2,2,2,        // finger distal
+        };
+
+        // ────────────────────────────────────────────────────────────
+        //  Per-bone max component range (joint limits)
+        //  maxComp = sin(maxAngle/2) with ~15% safety margin, capped at InvSqrt2.
+        //  Tighter range → more precision at the same bit count.
+        //  Precision multiplier = InvSqrt2 / maxComp.
+        // ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Maximum quaternion component magnitude per bone slot, derived from
+        /// realistic joint rotation limits from T-pose. Components are quantized
+        /// within [-maxComp, maxComp] instead of the full [-0.707, 0.707] range.
+        /// </summary>
+        public static readonly float[] MAX_COMPONENT = new float[]
+        {
+            // 3-DOF body (9): Spine, Chest, UpperChest, Neck, Head, UpperArms, UpperLegs
+            0.45f,                  // Spine         ~52° max → sin(26°)=0.44, +margin → 1.57x precision
+            0.45f,                  // Chest         ~52° max → 1.57x
+            0.38f,                  // UpperChest    ~42° max → sin(21°)=0.36, +margin → 1.86x
+            0.55f,                  // Neck          ~66° max → sin(33°)=0.54, +margin → 1.29x
+            InvSqrt2,               // Head          ~90° max → full range needed
+            InvSqrt2, InvSqrt2,     // UpperArms     ~180° shoulder range
+            InvSqrt2, InvSqrt2,     // UpperLegs     ~130° hip flexion
+
+            // 2-DOF limbs (4): LowerArms, LowerLegs
+            InvSqrt2, InvSqrt2,     // LowerArms     ~150° elbow bend
+            InvSqrt2, InvSqrt2,     // LowerLegs     ~150° knee bend
+
+            // 2-DOF extremities (6): Shoulders, Hands, Feet
+            0.45f, 0.45f,           // Shoulders     ~52° shrug → 1.57x
+            0.65f, 0.65f,           // Hands         ~80° wrist bend → 1.09x
+            0.52f, 0.52f,           // Feet          ~60° ankle → 1.36x
+
+            // toes/eyes/jaw (5)
+            0.40f, 0.40f,           // Toes          ~46° curl → 1.77x
+            0.28f, 0.28f,           // Eyes          ~32° look range → 2.53x
+            0.28f,                  // Jaw           ~32° open → 2.53x
+
+            // finger proximal (10): curl + spread combined can be ~100°
+            InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2,
+            InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2,
+
+            // finger intermediate (10): curl ~110°
+            InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2,
+            InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2, InvSqrt2,
+
+            // finger distal (10): curl ~80°
+            0.62f, 0.62f, 0.62f, 0.62f, 0.62f,
+            0.62f, 0.62f, 0.62f, 0.62f, 0.62f,
         };
 
         public static byte[] GetBpcTable(BasisAvatarBitPacking.BitQuality q) => q switch
@@ -162,9 +221,11 @@ namespace Basis.Network.Core.Compression
 
         /// <summary>
         /// Encodes a unit quaternion (x,y,z,w) using "smallest three" compression.
+        /// Components are quantized within [-maxRange, maxRange] for better precision
+        /// on joints with limited rotation. Use InvSqrt2 for full-range joints.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ulong EncodeSmallestThree(float qx, float qy, float qz, float qw, int bpc)
+        public static ulong EncodeSmallestThree(float qx, float qy, float qz, float qw, int bpc, float maxRange = InvSqrt2)
         {
             float ax = Math.Abs(qx), ay = Math.Abs(qy), az = Math.Abs(qz), aw = Math.Abs(qw);
 
@@ -196,19 +257,22 @@ namespace Basis.Network.Core.Compression
                 default: a = qx; b = qy; c = qz; break;
             }
 
+            // Quantize within [-maxRange, maxRange] (clamped for edge cases)
+            float invRange = 1f / maxRange;
             uint maxQ = (uint)((1 << bpc) - 1);
-            uint qa = Clamp((uint)Math.Round((a / InvSqrt2 * 0.5f + 0.5f) * maxQ), 0, maxQ);
-            uint qA = Clamp((uint)Math.Round((b / InvSqrt2 * 0.5f + 0.5f) * maxQ), 0, maxQ);
-            uint qC = Clamp((uint)Math.Round((c / InvSqrt2 * 0.5f + 0.5f) * maxQ), 0, maxQ);
+            uint qa = Clamp((uint)Math.Round((ClampF(a * invRange, -1f, 1f) * 0.5f + 0.5f) * maxQ), 0, maxQ);
+            uint qA = Clamp((uint)Math.Round((ClampF(b * invRange, -1f, 1f) * 0.5f + 0.5f) * maxQ), 0, maxQ);
+            uint qC = Clamp((uint)Math.Round((ClampF(c * invRange, -1f, 1f) * 0.5f + 0.5f) * maxQ), 0, maxQ);
 
             return (ulong)maxIdx | ((ulong)qa << 2) | ((ulong)qA << (2 + bpc)) | ((ulong)qC << (2 + 2 * bpc));
         }
 
         /// <summary>
         /// Decodes a "smallest three" compressed quaternion into (x,y,z,w).
+        /// maxRange must match the value used during encoding.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DecodeSmallestThree(ulong packed, int bpc, out float qx, out float qy, out float qz, out float qw)
+        public static void DecodeSmallestThree(ulong packed, int bpc, out float qx, out float qy, out float qz, out float qw, float maxRange = InvSqrt2)
         {
             uint mask = (uint)((1 << bpc) - 1);
             int maxIdx = (int)(packed & 3UL);
@@ -217,9 +281,9 @@ namespace Basis.Network.Core.Compression
             uint qc = (uint)((packed >> (2 + 2 * bpc)) & mask);
 
             float fMax = (float)mask;
-            float a = (qa / fMax * 2f - 1f) * InvSqrt2;
-            float b = (qb / fMax * 2f - 1f) * InvSqrt2;
-            float c = (qc / fMax * 2f - 1f) * InvSqrt2;
+            float a = (qa / fMax * 2f - 1f) * maxRange;
+            float b = (qb / fMax * 2f - 1f) * maxRange;
+            float c = (qc / fMax * 2f - 1f) * maxRange;
 
             float d2 = 1f - a * a - b * b - c * c;
             float d = d2 > 0f ? (float)Math.Sqrt(d2) : 0f;
@@ -299,6 +363,14 @@ namespace Basis.Network.Core.Compression
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static uint Clamp(uint v, uint min, uint max)
+        {
+            if (v < min) return min;
+            if (v > max) return max;
+            return v;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static float ClampF(float v, float min, float max)
         {
             if (v < min) return min;
             if (v > max) return max;

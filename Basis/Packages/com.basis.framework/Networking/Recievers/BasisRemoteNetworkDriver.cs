@@ -114,9 +114,12 @@ public static class BasisRemoteNetworkDriver
     }
 
     // ─── TUNING ───
-    public static float PoseMinCutoff = 3.0f;
-    public static float PoseBeta = 0.10f;
-    public static float PoseDerivativeCutoff = 1.0f;
+    // Pose (position + body rotation) smoothing.
+    // Higher MinCutoff = less smoothing = more responsive.
+    // Raised from 3.0 to reduce floaty feel on hips/root movement.
+    public static float PoseMinCutoff = 6.0f;
+    public static float PoseBeta = 0.15f;
+    public static float PoseDerivativeCutoff = 1.5f;
 
     public static void Initialize(int muscleCount, Allocator allocator = Allocator.Persistent)
     {
