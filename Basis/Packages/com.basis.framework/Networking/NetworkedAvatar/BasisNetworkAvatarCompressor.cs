@@ -3,6 +3,7 @@ using Basis.Network.Core.Compression;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -65,7 +66,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             // If T-pose hasn't been captured yet, do it now from the mapping's recorded poses
             if (sTposeLocalRotations == null)
             {
-                CaptureTPoseFromMapping();
+                CaptureTPoseFromAnimator();
             }
 
             // Extract current bone rotations and compute deltas from T-pose
@@ -99,7 +100,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             if (sTposeLocalRotations == null)
             {
-                CaptureTPoseFromMapping();
+                CaptureTPoseFromAnimator();
             }
 
             ExtractBoneDeltas(animator);
@@ -171,29 +172,29 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         }
 
         /// <summary>
-        /// Fallback: capture T-pose from BasisLocalAvatarDriver.Mapping if CaptureTPose wasn't called directly.
+        /// Fallback: reads actual bone.localRotation from the current animator.
+        /// Only valid if bones are accessible. The avatar will NOT be in T-pose at this point,
+        /// so we read from the live pose and accept that the first few frames may be slightly off
+        /// until the avatar is reloaded. Logs a warning because CaptureTPose should have been called.
         /// </summary>
-        static void CaptureTPoseFromMapping()
+        static void CaptureTPoseFromAnimator()
         {
+            BasisDebug.LogError("[BasisNetworkAvatarCompressor] CaptureTPose was not called during calibration! " +
+                "Falling back to current bone rotations — avatar reload recommended.", BasisDebug.LogTag.Networking);
+
             sTposeLocalRotations = new quaternion[55];
-            var mapping = BasisLocalAvatarDriver.Mapping;
-            if (mapping != null && mapping.Tpose != null)
+            var player = BasisLocalPlayer.Instance;
+            Animator animator = player?.BasisAvatar?.Animator;
+            if (animator != null)
             {
                 for (int i = 0; i < 55; i++)
                 {
-                    if (mapping.Tpose.TryGetValue((HumanBodyBones)i, out var coords))
-                    {
-                        sTposeLocalRotations[i] = coords.rotation;
-                    }
-                    else
-                    {
-                        sTposeLocalRotations[i] = quaternion.identity;
-                    }
+                    Transform bone = animator.GetBoneTransform((HumanBodyBones)i);
+                    sTposeLocalRotations[i] = bone != null ? (quaternion)bone.localRotation : quaternion.identity;
                 }
             }
             else
             {
-                // No mapping available yet — default to identity
                 for (int i = 0; i < 55; i++)
                     sTposeLocalRotations[i] = quaternion.identity;
             }

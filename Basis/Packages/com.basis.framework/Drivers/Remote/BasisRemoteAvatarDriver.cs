@@ -189,6 +189,11 @@ namespace Basis.Scripts.Drivers
             var animator = remotePlayer.BasisAvatar.Animator;
             int boneCount = BasisBoneRotationCompression.SyncBoneCount;
 
+            // Force an extra animator evaluation to ensure the T-pose has fully
+            // propagated to all bones (hands/fingers are last in the hierarchy
+            // and may not have updated from a single Update call).
+            ForceUpdateAnimator(animator);
+
             // Dispose old data if re-calibrating
             if (receiver.TposeLocalRotations.IsCreated)
                 receiver.TposeLocalRotations.Dispose();
