@@ -5,6 +5,7 @@ using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -50,6 +51,30 @@ namespace Basis.Scripts.Networking.Receivers
         /// </summary>
         public float[] EyesAndMouth = new float[] { 0, 0, 0, 0, 1, 0 };
         public float3 ApplyingScale;
+
+        /// <summary>
+        /// Latest network hips position/rotation, updated every time a buffer is enqueued.
+        /// Available before Compute() processes the queue, so calibration can
+        /// immediately position the avatar hips instead of leaving them at spawn.
+        /// Thread-safe via seqlock: writer increments version before/after writes,
+        /// reader retries if version changed or is odd (write in progress).
+        /// </summary>
+        private int _poseVersion;
+        private float3 _latestNetworkPosition;
+        private quaternion _latestNetworkRotation = quaternion.identity;
+
+        public void GetLatestNetworkPose(out float3 position, out quaternion rotation)
+        {
+            int v1, v2;
+            do
+            {
+                v1 = Volatile.Read(ref _poseVersion);
+                position = _latestNetworkPosition;
+                rotation = _latestNetworkRotation;
+                Thread.MemoryBarrier();
+                v2 = Volatile.Read(ref _poseVersion);
+            } while (v1 != v2 || (v1 & 1) != 0);
+        }
 
         /// <summary>
         /// T-pose local rotations for this receiver's avatar bones.
@@ -329,6 +354,10 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)
         {
+            Interlocked.Increment(ref _poseVersion);
+            _latestNetworkPosition = avatarBuffer.Position;
+            _latestNetworkRotation = avatarBuffer.Rotation;
+            Interlocked.Increment(ref _poseVersion);
             PayloadQueue.Enqueue(avatarBuffer);
             System.Threading.Interlocked.Increment(ref _pendingCount);
         }
