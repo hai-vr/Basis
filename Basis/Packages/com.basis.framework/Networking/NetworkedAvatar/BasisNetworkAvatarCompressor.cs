@@ -1,6 +1,5 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
-using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Transmitters;
@@ -163,12 +162,17 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
         static void EnsureInitialized()
         {
-            if (sInitialized) return;
+            if (sInitialized)
+            {
+                return;
+            }
 
             if (!sBoneDeltas.IsCreated)
             {
                 sBoneDeltas = new NativeArray<quaternion>(BasisBoneRotationCompression.SyncBoneCount, Allocator.Persistent);
             }
+            // Capture T-pose bone rotations for network compression (while still in T-pose)
+            Networking.NetworkedAvatar.BasisNetworkAvatarCompressor.CaptureTPose();
 
             sInitialized = true;
         }
