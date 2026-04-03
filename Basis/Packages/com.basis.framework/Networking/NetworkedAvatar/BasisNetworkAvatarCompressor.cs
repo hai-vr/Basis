@@ -42,7 +42,7 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
            sTposeLocalRotations = new quaternion[55]; // HumanBodyBones 0..54
             for (int Index = 0; Index < 55; Index++)
             {
-                if (BasisLocalAvatarDriver.Mapping.Tpose.TryGetValue((HumanBodyBones)Index, out var value))
+                if (BasisLocalAvatarDriver.Mapping.TposeLocal.TryGetValue((HumanBodyBones)Index, out var value))
                 {
                     sTposeLocalRotations[Index] = value.rotation;
                 }
@@ -58,12 +58,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             Transform t = animator.transform;
 
             EnsureInitialized();
-
-            if (sTposeLocalRotations == null)
-            {
-                CaptureTPoseFromAnimator();
-            }
-
             // Now bone transforms are guaranteed up-to-date — extract deltas
             ExtractBoneDeltas(animator);
 
@@ -92,11 +86,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         public static void InitalAvatarData(Animator animator, out BasisStoredAvatarData StoredAvatarData)
         {
             EnsureInitialized();
-
-            if (sTposeLocalRotations == null)
-            {
-                CaptureTPoseFromAnimator();
-            }
 
             ExtractBoneDeltas(animator);
 
@@ -165,35 +154,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                     // Missing bone: identity delta (no rotation from rest)
                     sBoneDeltas[slot] = quaternion.identity;
                 }
-            }
-        }
-
-        /// <summary>
-        /// Fallback: reads actual bone.localRotation from the current animator.
-        /// Only valid if bones are accessible. The avatar will NOT be in T-pose at this point,
-        /// so we read from the live pose and accept that the first few frames may be slightly off
-        /// until the avatar is reloaded. Logs a warning because CaptureTPose should have been called.
-        /// </summary>
-        static void CaptureTPoseFromAnimator()
-        {
-            BasisDebug.LogError("[BasisNetworkAvatarCompressor] CaptureTPose was not called during calibration! " +
-                "Falling back to current bone rotations — avatar reload recommended.", BasisDebug.LogTag.Networking);
-
-            sTposeLocalRotations = new quaternion[55];
-            var player = BasisLocalPlayer.Instance;
-            Animator animator = player?.BasisAvatar?.Animator;
-            if (animator != null)
-            {
-                for (int i = 0; i < 55; i++)
-                {
-                    Transform bone = animator.GetBoneTransform((HumanBodyBones)i);
-                    sTposeLocalRotations[i] = bone != null ? (quaternion)bone.localRotation : quaternion.identity;
-                }
-            }
-            else
-            {
-                for (int i = 0; i < 55; i++)
-                    sTposeLocalRotations[i] = quaternion.identity;
             }
         }
 

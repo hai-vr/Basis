@@ -34,13 +34,6 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         private bool _hasReasonToSendAudio;
         public static BasisRangedUshortFloatData RotationCompression = new BasisRangedUshortFloatData(-1f, 1f, 0.001f);
         public const int MuscleCount = 95;
-        [SerializeField]
-        public HumanPose HumanPose = new HumanPose()
-        {
-            muscles = new float[MuscleCount],
-            bodyPosition = Vector3.zero,
-            bodyRotation = Quaternion.identity,
-        };
         public BasisPlayer Player {get; set; }
         public bool hasID = false;
         public bool HasReasonToSendAudio

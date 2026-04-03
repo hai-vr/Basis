@@ -517,7 +517,8 @@ namespace Basis.Scripts.Common
         }
 
         // All captured bones (skip missing/null)
-        public Dictionary<HumanBodyBones, BasisCalibratedCoords> Tpose = new Dictionary<HumanBodyBones, BasisCalibratedCoords>();
+        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeFromRoot = new Dictionary<HumanBodyBones, BasisCalibratedCoords>();
+        public Dictionary<HumanBodyBones, BasisCalibratedCoords> TposeLocal = new Dictionary<HumanBodyBones, BasisCalibratedCoords>();
         public Quaternion RootRotation; // rotation during calibration
         public Vector3 RootPosition;
         public Vector3 AvatarForwards;
@@ -529,7 +530,7 @@ namespace Basis.Scripts.Common
             RootRotation = animator.transform.rotation;
             RootPosition = animator.transform.position;
 
-            Tpose.Clear();
+            TposeFromRoot.Clear();
 
             // Iterate all humanoid enum values except the sentinel LastBone
             for (int i = (int)HumanBodyBones.Hips; i < (int)HumanBodyBones.LastBone; i++)
@@ -538,7 +539,12 @@ namespace Basis.Scripts.Common
                 var t = animator.GetBoneTransform(bone);
                 if (t == null)
                 {
-                    Tpose[bone] = new BasisCalibratedCoords
+                    TposeFromRoot[bone] = new BasisCalibratedCoords
+                    {
+                        position = Vector3.zero,
+                        rotation = Quaternion.identity,
+                    };
+                    TposeLocal[bone] = new BasisCalibratedCoords
                     {
                         position = Vector3.zero,
                         rotation = Quaternion.identity,
@@ -554,10 +560,15 @@ namespace Basis.Scripts.Common
                 // Rotation relative to animator root rotation
                 Quaternion localRot = Quaternion.Inverse(RootRotation) * wRot;
 
-                Tpose[bone] = new BasisCalibratedCoords
+                TposeFromRoot[bone] = new BasisCalibratedCoords
                 {
                     position = localPos,
                     rotation = localRot
+                };
+                TposeLocal[bone] = new BasisCalibratedCoords
+                {
+                    position = wPos,
+                    rotation = wRot
                 };
             }
             if (TryComputeForwardUpFromTpose(this, out var fwd, out var up,out var right))
@@ -584,7 +595,7 @@ namespace Basis.Scripts.Common
             upLocal = Vector3.up;
             rightLocal = Vector3.right;
 
-            if (refs == null || refs.Tpose == null || refs.Tpose.Count == 0)
+            if (refs == null || refs.TposeFromRoot == null || refs.TposeFromRoot.Count == 0)
                 return false;
 
             // ---------
@@ -593,7 +604,7 @@ namespace Basis.Scripts.Common
             static bool TryGet(BasisTransformMapping r, HumanBodyBones b, out Vector3 p)
             {
                 p = default;
-                if (r.Tpose.TryGetValue(b, out var c))
+                if (r.TposeFromRoot.TryGetValue(b, out var c))
                 {
                     p = c.position;
                     // Your RecordPoses stores missing bones as (0, identity). Treat that as invalid.

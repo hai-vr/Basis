@@ -439,7 +439,7 @@ public partial class BasisTransmissionResults
                 intervalSeconds,
                 anim.bodyRotation,
                 anim.bodyPosition,
-                BasisNetworkTransmitter.HumanPose.muscles,
+             null, //  BasisNetworkTransmitter.HumanPose.muscles,
                 anim.transform.localScale.y);
         }
 
