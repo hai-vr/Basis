@@ -144,9 +144,10 @@ namespace Basis.Scripts.Drivers
                 InBoneDriver = false;
             }
 
-            // Register with the RemoteBoneJobSystem
+            // Register with the RemoteBoneJobSystem (including skeleton bones for job-based apply)
+            var receiver = RemotePlayer.NetworkReceiver;
             RemoteBoneJobSystem.AddRemotePlayer(
-                key: RemotePlayer.NetworkReceiver.playerId,
+                key: receiver.playerId,
                 remotePlayerRoot: RemotePlayer.BasisAvatar.Animator.transform,
                 head: RemotePlayer.RemoteAvatarDriver.References.head,
                 hips: RemotePlayer.RemoteAvatarDriver.References.Hips,
@@ -163,7 +164,9 @@ namespace Basis.Scripts.Drivers
                 NamePlate: RemotePlayer.RemoteNamePlate.Self,
                 AvatarScale: RemotePlayer.BasisAvatar.Animator.transform,
                 MouthTransform: RemotePlayer.MouthTransform,
-                TposedScale: RemotePlayer.RemoteAvatarDriver.AvatarInitalScale
+                TposedScale: RemotePlayer.RemoteAvatarDriver.AvatarInitalScale,
+                boneTPoseLocal: receiver.TposeLocalRotations,
+                boneTransforms: receiver.BoneTransforms
             );
             InBoneDriver = true;
 

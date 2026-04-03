@@ -350,6 +350,19 @@ public static class BasisRemoteNetworkDriver
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void GetPositionOutput(int index, out float3 outPos) => outPos = _filteredPositions[index];
 
+    /// <summary>
+    /// Returns a read-only slice of the filtered bone rotation deltas for a player.
+    /// Used by RemoteBoneJobSystem to feed the skeleton apply job.
+    /// Must be called after Apply() completes.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static NativeSlice<quaternion> GetFilteredBoneRotations(int index)
+    {
+        if (!_initialized || (uint)index >= FixedCapacity)
+            return default;
+        return _filteredBoneRotations.Slice(index * BoneCount, BoneCount);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void GetScaleOutput(int index, out float3 outScale)
     {
@@ -358,16 +371,16 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>
-    /// Returns interpolated+filtered body transform data and the 54 filtered bone rotation deltas.
-    /// This replaces the old GetMuscleArray.
+    /// Returns interpolated+filtered body transform outputs (hips position/rotation, scale change).
+    /// Bone rotation deltas are no longer copied here — they're read directly by
+    /// RemoteBoneJobSystem via GetFilteredBoneRotations().
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void GetBoneRotationOutputs(
         int index,
         out bool outScale,
         out quaternion outBodyRot,
-        out float3 bodyPosition,
-        NativeArray<quaternion> dstBoneRotations)
+        out float3 bodyPosition)
     {
         if (!_initialized || (uint)index >= FixedCapacity)
         {
@@ -380,10 +393,6 @@ public static class BasisRemoteNetworkDriver
         outScale = ((bool*)(void*)_ptrScaleChange)[index];
         outBodyRot = ((quaternion*)(void*)_ptrFilteredRotations)[index];
         bodyPosition = ((float3*)(void*)_ptrScaledBodyPositions)[index];
-
-        // Copy 54 filtered bone rotation deltas
-        quaternion* src = (quaternion*)(void*)_ptrFilteredBoneRotations + index * BoneCount;
-        UnsafeUtility.MemCpy(dstBoneRotations.GetUnsafePtr(), src, BoneCount * UnsafeUtility.SizeOf<quaternion>());
     }
 
     // ─── MEMORY ───

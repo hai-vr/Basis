@@ -52,20 +52,14 @@ namespace Basis.Scripts.Networking.Receivers
         public float3 ApplyingScale;
 
         /// <summary>
-        /// Scratch buffer for receiving interpolated bone rotation deltas from the driver.
-        /// </summary>
-        NativeArray<quaternion> _receivedBoneDeltas;
-
-        /// <summary>
-        /// T-pose local rotations for this receiver's avatar bones (54 slots).
-        /// Set during calibration. Used to compose final bone rotations:
-        ///   finalLocal = tposeLocal * networkDelta
+        /// T-pose local rotations for this receiver's avatar bones.
+        /// Set during calibration and passed to RemoteBoneJobSystem for the skeleton apply job.
         /// </summary>
         public NativeArray<quaternion> TposeLocalRotations;
 
         /// <summary>
-        /// Cached bone transforms for direct transform writes (no SetHumanPose).
-        /// Indexed by slot in BONE_WRITE_ORDER.
+        /// Bone transforms for this receiver's avatar.
+        /// Set during calibration and passed to RemoteBoneJobSystem for the skeleton apply job.
         /// </summary>
         public Transform[] BoneTransforms;
 
@@ -313,26 +307,16 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public bool IsDataReady = false;
         /// <summary>
-        /// Main-thread application step. Reads interpolated+filtered bone rotation deltas
-        /// from the driver, composes with T-pose, and writes directly to bone transforms.
-        /// No HumanPoseHandler / SetHumanPose — all bone writes are direct transform sets.
+        /// Main-thread application step. Handles hips position/rotation and scale only.
+        /// All 51 bone rotation writes are done by ApplySkeletonRotationsJob in
+        /// RemoteBoneJobSystem.Schedule() — fully multithreaded via TransformAccessArray.
         /// </summary>
         public void Apply()
         {
             if (!IsDataReady || !hasRequiredData) return;
-            if (BoneTransforms == null || !TposeLocalRotations.IsCreated) return;
 
-            // Ensure scratch buffer
-            if (!_receivedBoneDeltas.IsCreated)
-                _receivedBoneDeltas = new NativeArray<quaternion>(BoneCount, Allocator.Persistent);
-
-            BasisRemoteNetworkDriver.GetBoneRotationOutputs(
-                playerId,
-                out bool outscale,
-                out var ApplyingRotation,
-                out float3 scaledBody,
-                _receivedBoneDeltas
-            );
+            // Scale
+            BasisRemoteNetworkDriver.GetBoneRotationOutputs(playerId, out bool outscale, out var ApplyingRotation, out float3 scaledBody);
 
             if (outscale)
             {
@@ -344,8 +328,7 @@ namespace Basis.Scripts.Networking.Receivers
                 DidLastAvatarTransformChanged = false;
             }
 
-            // Apply hips position and rotation (Hips=0 is excluded from the bone rotation stream).
-            // Body position is world-space; body rotation is the hips orientation.
+            // Hips position and rotation (only 1 transform, kept on main thread)
             var refs = RemotePlayer?.RemoteAvatarDriver?.References;
             if (refs != null && refs.Hips != null)
             {
@@ -353,24 +336,11 @@ namespace Basis.Scripts.Networking.Receivers
                 refs.Hips.SetPositionAndRotation(worldPos, ApplyingRotation);
             }
 
-            // Apply bone rotations: finalLocal = tposeLocal * networkDelta
-            for (int slot = 0; slot < BoneCount; slot++)
-            {
-                Transform bone = BoneTransforms[slot];
-                if (bone == null) continue;
-
-                quaternion tpose = TposeLocalRotations[slot];
-                quaternion delta = _receivedBoneDeltas[slot];
-                quaternion finalLocal = math.mul(tpose, delta);
-                bone.localRotation = finalLocal;
-            }
-
             if (HasOverridenDestination)
             {
-                var References = RemotePlayer?.RemoteAvatarDriver?.References;
-                if (References != null && References.Hips != null)
+                if (refs != null && refs.Hips != null)
                 {
-                    References.Hips.SetPositionAndRotation(OverridenPosition, OverridenRotation);
+                    refs.Hips.SetPositionAndRotation(OverridenPosition, OverridenRotation);
                 }
             }
         }
@@ -486,7 +456,6 @@ namespace Basis.Scripts.Networking.Receivers
 
             ClearAndRelease();
 
-            if (_receivedBoneDeltas.IsCreated) _receivedBoneDeltas.Dispose();
             if (TposeLocalRotations.IsCreated) TposeLocalRotations.Dispose();
             BoneTransforms = null;
 
