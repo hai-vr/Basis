@@ -79,7 +79,7 @@ namespace Basis.Network.Core.Compression
         //  Total bits per bone = 2 (index) + 3 * BPC
         // ────────────────────────────────────────────────────────────
 
-        /// <summary>HIGH quality. 1188 bits = 149 bytes. Packet = 170 bytes.
+        /// <summary>HIGH quality. 1182 bits = 148 rotation bytes. Packet = 169 bytes.
         /// Per-finger priority: thumb/index get more bits (most expressive).
         /// Proximal gets more than intermediate/distal (carries spread motion).</summary>
         public static readonly byte[] BPC_HIGH = new byte[]
@@ -89,18 +89,18 @@ namespace Basis.Network.Core.Compression
             // 2-DOF limbs (4): lower arms, lower legs
             10,10,10,10,
             // 2-DOF extremities (6): shoulders(2), hands(2), feet(2)
-            10,10, 10,10, 8,8,
+            10,10, 10,10, 9,9,
             // toes (2)
-            4,4,
+            5,5,
             // finger proximal (10): L-Thumb,L-Index,L-Mid,L-Ring,L-Little, R-same
-            // Thumb=8 (opposable), Index=7 (pointing), Mid/Ring=6, Little=5
-            8,7,6,6,5,  8,7,6,6,5,
+            6,6,6,6,5,  6,6,6,6,5,
             // finger intermediate (10): Thumb/Index=6, Mid/Ring/Little=5
             6,6,5,5,5,  6,6,5,5,5,
             // finger distal (10): all 5
             5,5,5,5,5,  5,5,5,5,5,
         };
 
+        /// <summary>MEDIUM quality. 972 bits = 122 rotation bytes. Packet = 143 bytes.</summary>
         public static readonly byte[] BPC_MEDIUM = new byte[]
         {
             8,8,8,8,8,8,8,8,8,
@@ -112,6 +112,7 @@ namespace Basis.Network.Core.Compression
             4,4,4,4,4,  4,4,4,4,4,
         };
 
+        /// <summary>LOW quality. 774 bits = 97 rotation bytes. Packet = 118 bytes.</summary>
         public static readonly byte[] BPC_LOW = new byte[]
         {
             6,6,6,6,6,6,6,6,6,
@@ -123,6 +124,7 @@ namespace Basis.Network.Core.Compression
             3,3,3,3,3,  3,3,3,3,3,
         };
 
+        /// <summary>VERY LOW quality. 621 bits = 78 rotation bytes. Packet = 99 bytes.</summary>
         public static readonly byte[] BPC_VERY_LOW = new byte[]
         {
             5,5,5,5,5,5,5,5,5,

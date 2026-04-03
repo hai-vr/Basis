@@ -250,34 +250,7 @@ namespace Basis.Scripts.Networking.Receivers
                 return;
             }
 
-            // 2b) Advance window while consumed and we have staged frames
-            while (interpolationTime >= 1f && _stagedRing.Count != 0)
-            {
-                if (HasCurrentBuffer)
-                {
-                    ReleaseCurrent();
-                }
-
-                // If we had holds, Next must be non-null here.
-                Current = Next;
-                HasCurrentBuffer = true;
-
-                HasNextBuffer = false;
-                Next = null;
-
-                interpolationTime = 0f;
-
-                TrySetLastFromStaging();
-
-                HasBufferHolds = HasCurrentBuffer && HasNextBuffer;
-                if (!HasBufferHolds)
-                {
-                    break;
-                }
-            }
-
-            StagedCount = _stagedRing.Count;
-
+            // 2b) Trim excess staging
             while (_stagedRing.Count > BufferCapacityBeforeCleanup)
             {
                 if (_stagedRing.TryDequeueOldest(out var buf))
@@ -293,30 +266,73 @@ namespace Basis.Scripts.Networking.Receivers
 
             HasBufferHolds = HasCurrentBuffer && HasNextBuffer;
 
-            // 3) If we have a window, compute interpolation fraction and feed the driver
+            // 3) If we have a window, advance time then slide the window forward if needed.
+            //    Adding dt BEFORE the window advance ensures excess time carries into the
+            //    next window instead of being lost to job-side clamping (which caused stalls).
             if (HasBufferHolds)
             {
-                var first = Current;
-                var last = Next;
-
-                double windowDuration = last.ServerTimeSeconds - first.ServerTimeSeconds;
-                // Catches NaN (comparison is false), negative, zero, tiny, and huge/Inf values
+                double windowDuration = Next.ServerTimeSeconds - Current.ServerTimeSeconds;
                 if (!(windowDuration > 1e-6 && windowDuration < 1e6))
                 {
-                    windowDuration = math.max(last.SecondsInterval, 1e-3);
+                    windowDuration = math.max(Next.SecondsInterval, 1e-3);
                 }
                 float rate = 1f + CatchupGain * (StagedCount - TargetJitterDepth);
                 rate = Mathf.Clamp(rate, MinPlaybackRate, MaxPlaybackRate);
+
+                // Add this frame's time FIRST
                 interpolationTime += (unscaledDeltaTime / windowDuration * (double)rate);
                 if (!math.isfinite(interpolationTime))
                 {
                     interpolationTime = 1;
                 }
-                double effectiveDt = unscaledDeltaTime * (double)rate;
-                BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, effectiveDt);
+
+                // Advance windows, preserving excess time so movement stays smooth
+                while (interpolationTime >= 1.0 && _stagedRing.Count != 0)
+                {
+                    if (HasCurrentBuffer)
+                    {
+                        ReleaseCurrent();
+                    }
+
+                    Current = Next;
+                    HasCurrentBuffer = true;
+                    HasNextBuffer = false;
+                    Next = null;
+
+                    interpolationTime -= 1.0;
+
+                    TrySetLastFromStaging();
+
+                    HasBufferHolds = HasCurrentBuffer && HasNextBuffer;
+                    if (!HasBufferHolds)
+                    {
+                        break;
+                    }
+
+                    // Recalculate window duration for the new pair
+                    windowDuration = Next.ServerTimeSeconds - Current.ServerTimeSeconds;
+                    if (!(windowDuration > 1e-6 && windowDuration < 1e6))
+                    {
+                        windowDuration = math.max(Next.SecondsInterval, 1e-3);
+                    }
+                }
+
+                // Cap at 1.0 when stuck waiting for data (staging empty).
+                // Without this, time debt accumulates and causes fast-forward
+                // when the next packet arrives.
+                if (interpolationTime > 1.0)
+                {
+                    interpolationTime = 1.0;
+                }
+
+                StagedCount = _stagedRing.Count;
+
+                BasisRemoteNetworkDriver.SetFrameTiming(playerId, interpolationTime, unscaledDeltaTime);
 
                 if (SentLatest)
                 {
+                    var first = Current;
+                    var last = Next;
                     BasisRemoteNetworkDriver.SetFrameInputs(
                         playerId,
                         Player.BasisAvatar.HumanScale,

@@ -115,10 +115,12 @@ public static class BasisRemoteNetworkDriver
     }
 
     // ─── TUNING ───
-    // Pose (position + body rotation) smoothing.
+    // Pose (position + body rotation) smoothing via 1€ filter.
     // Higher MinCutoff = less smoothing = more responsive.
-    // Raised from 3.0 to reduce floaty feel on hips/root movement.
-    public static float PoseMinCutoff = 6.0f;
+    // The interpolation already produces smooth output; the filter only needs to
+    // absorb minor network timing jitter, not reshape the trajectory.
+    // At 60fps: MinCutoff=90 → alpha≈0.91 (light smoothing, no visible lag).
+    public static float PoseMinCutoff = 90.0f;
     public static float PoseBeta = 0.15f;
     public static float PoseDerivativeCutoff = 1.5f;
 
