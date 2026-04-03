@@ -1,8 +1,11 @@
+using Basis.Network.Core.Compression;
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using GatorDragonGames.JigglePhysics;
 using System;
+using Unity.Collections;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
@@ -90,6 +93,10 @@ namespace Basis.Scripts.Drivers
             BasisTransformMapping.AutoDetectReferences(Player.BasisAvatar.Animator, RemotePlayer.BasisAvatar.transform, ref References);
             References.RecordPoses(Player.BasisAvatar.Animator);
 
+            // ── Capture T-pose bone rotations and bone transforms for the receiver ──
+            // This enables direct bone transform writes (no SetHumanPose needed).
+            CaptureReceiverBoneData(RemotePlayer);
+
             // Initialize any jiggle rigs
             var JiggleRigs = RemotePlayer.BasisAvatar.GetComponentsInChildren<JiggleRig>();
             int length = JiggleRigs.Length;
@@ -168,6 +175,43 @@ namespace Basis.Scripts.Drivers
 
             // Fire optional callback
             CalibrationComplete?.Invoke();
+        }
+
+        /// <summary>
+        /// Captures T-pose local rotations and bone Transform references for all 54 humanoid bones.
+        /// Populates the receiver's TposeLocalRotations and BoneTransforms arrays so that
+        /// Apply() can write bone transforms directly without SetHumanPose.
+        /// Must be called while the avatar is in T-pose (before ResetAvatarAnimator).
+        /// </summary>
+        private void CaptureReceiverBoneData(BasisRemotePlayer remotePlayer)
+        {
+            var receiver = remotePlayer.NetworkReceiver;
+            var animator = remotePlayer.BasisAvatar.Animator;
+            int boneCount = BasisBoneRotationCompression.SyncBoneCount;
+
+            // Dispose old data if re-calibrating
+            if (receiver.TposeLocalRotations.IsCreated)
+                receiver.TposeLocalRotations.Dispose();
+
+            receiver.TposeLocalRotations = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
+            receiver.BoneTransforms = new Transform[boneCount];
+
+            for (int slot = 0; slot < boneCount; slot++)
+            {
+                int boneEnum = BasisBoneRotationCompression.BONE_WRITE_ORDER[slot];
+                Transform bone = animator.GetBoneTransform((HumanBodyBones)boneEnum);
+
+                if (bone != null)
+                {
+                    receiver.TposeLocalRotations[slot] = bone.localRotation;
+                    receiver.BoneTransforms[slot] = bone;
+                }
+                else
+                {
+                    receiver.TposeLocalRotations[slot] = quaternion.identity;
+                    receiver.BoneTransforms[slot] = null;
+                }
+            }
         }
 
         /// <summary>

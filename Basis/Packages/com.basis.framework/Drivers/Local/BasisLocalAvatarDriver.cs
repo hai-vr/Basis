@@ -134,6 +134,9 @@ namespace Basis.Scripts.Drivers
 
             Calibration(player);
 
+            // Capture T-pose bone rotations for network compression (while still in T-pose)
+            Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkAvatarCompressor.CaptureTPose(player.BasisAvatar.Animator);
+
             player.LocalBoneDriver.RemoveAllListeners();
             BasisLocalEyeDriver.Initalize();
             LocalRenderMeshSettings(BasisLayerMapper.LocalAvatarLayer, SkinnedMeshRendererLength, SkinnedMeshRenderer, player.BasisAvatar.FaceVisemeMesh);

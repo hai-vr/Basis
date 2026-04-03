@@ -1,9 +1,12 @@
+using Basis.Network.Core.Compression;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Profiler;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -19,9 +22,7 @@ namespace Basis.Scripts.Networking.Receivers
     [Serializable]
     public class BasisNetworkReceiver : BasisNetworkPlayer
     {
-        private const int EyesAndMouthOffset = 15; // L/R up/down, L/R left/right, mouth open/smile
-        private const int EyesAndMouthCount = 6;
-        public const int EyeAndMouthCountInBytes = EyesAndMouthCount * sizeof(float);
+        public const int BoneCount = BasisBoneRotationCompression.SyncBoneCount; // 54
 
         // Cached delegates — created once, avoids per-frame Action/Comparison heap allocations.
         private static readonly Action<BasisAvatarBuffer> s_releaseBuffer = BasisAvatarBufferPool.Release;
@@ -43,8 +44,25 @@ namespace Basis.Scripts.Networking.Receivers
         public BasisRemotePlayer RemotePlayer;
 
         public bool hasEvents = false;
-        public float[] EyesAndMouth = new float[] { 0, 0, 0, 0, 1, 0 }; // default neutral eyes, mouth open=1 for breathing
         public float3 ApplyingScale;
+
+        /// <summary>
+        /// Scratch buffer for receiving interpolated bone rotation deltas from the driver.
+        /// </summary>
+        NativeArray<quaternion> _receivedBoneDeltas;
+
+        /// <summary>
+        /// T-pose local rotations for this receiver's avatar bones (54 slots).
+        /// Set during calibration. Used to compose final bone rotations:
+        ///   finalLocal = tposeLocal * networkDelta
+        /// </summary>
+        public NativeArray<quaternion> TposeLocalRotations;
+
+        /// <summary>
+        /// Cached bone transforms for direct transform writes (no SetHumanPose).
+        /// Indexed by slot in BONE_WRITE_ORDER.
+        /// </summary>
+        public Transform[] BoneTransforms;
 
         // When true, forces re-validation of avatar/animator/transform references.
         // Set on avatar change (CalibrationComplete), init, and deinit.
@@ -275,14 +293,13 @@ namespace Basis.Scripts.Networking.Receivers
 
                 if (SentLatest)
                 {
-
                     BasisRemoteNetworkDriver.SetFrameInputs(
                         playerId,
                         Player.BasisAvatar.HumanScale,
                         first.Position, last.Position,
                         first.Scale, last.Scale,
                         first.Rotation, last.Rotation,
-                         first.Muscles, last.Muscles
+                        first.BoneRotations, last.BoneRotations
                     );
                     IsDataReady = true;
                     SentLatest = false;
@@ -291,16 +308,26 @@ namespace Basis.Scripts.Networking.Receivers
         }
         public bool IsDataReady = false;
         /// <summary>
-        /// Main-thread application step. Pulls posed outputs from the driver and applies
-        /// body position/rotation/muscles to the avatar via PoseHandler.
+        /// Main-thread application step. Reads interpolated+filtered bone rotation deltas
+        /// from the driver, composes with T-pose, and writes directly to bone transforms.
+        /// No HumanPoseHandler / SetHumanPose — all bone writes are direct transform sets.
         /// </summary>
         public void Apply()
         {
             if (!IsDataReady || !hasRequiredData) return;
+            if (BoneTransforms == null || !TposeLocalRotations.IsCreated) return;
 
-            BasisRemoteNetworkDriver.GetMuscleArray(playerId, out bool outscale, out var ApplyingRotation, out float3 scaledBody, ref HumanPose, EyesAndMouth, EyesAndMouthOffset, EyeAndMouthCountInBytes);
-            HumanPose.bodyPosition = scaledBody;
-            HumanPose.bodyRotation = ApplyingRotation;
+            // Ensure scratch buffer
+            if (!_receivedBoneDeltas.IsCreated)
+                _receivedBoneDeltas = new NativeArray<quaternion>(BoneCount, Allocator.Persistent);
+
+            BasisRemoteNetworkDriver.GetBoneRotationOutputs(
+                playerId,
+                out bool outscale,
+                out var ApplyingRotation,
+                out float3 scaledBody,
+                _receivedBoneDeltas
+            );
 
             if (outscale)
             {
@@ -312,7 +339,18 @@ namespace Basis.Scripts.Networking.Receivers
                 DidLastAvatarTransformChanged = false;
             }
 
-            PoseHandler.SetHumanPose(ref HumanPose);
+            // Apply bone rotations: finalLocal = tposeLocal * networkDelta
+            for (int slot = 0; slot < BoneCount; slot++)
+            {
+                Transform bone = BoneTransforms[slot];
+                if (bone == null) continue;
+
+                quaternion tpose = TposeLocalRotations[slot];
+                quaternion delta = _receivedBoneDeltas[slot];
+                quaternion finalLocal = math.mul(tpose, delta);
+                bone.localRotation = finalLocal;
+            }
+
             if (HasOverridenDestination)
             {
                 var References = RemotePlayer?.RemoteAvatarDriver?.References;
@@ -417,7 +455,6 @@ namespace Basis.Scripts.Networking.Receivers
             _serverClockSeeded = false;
             _highestSequence = 0;
             _seenPackets = 0;
-            // _stagedRing can be null if Initialize never completed, so don't Assert here—guard.
             if (_stagedRing != null)
             {
                 while (_stagedRing.TryDequeueOldest(out var buf))
@@ -434,6 +471,10 @@ namespace Basis.Scripts.Networking.Receivers
             _pendingCount = 0;
 
             ClearAndRelease();
+
+            if (_receivedBoneDeltas.IsCreated) _receivedBoneDeltas.Dispose();
+            if (TposeLocalRotations.IsCreated) TposeLocalRotations.Dispose();
+            BoneTransforms = null;
 
             if (hasEvents && RemotePlayer != null && RemotePlayer.RemoteAvatarDriver != null)
             {
