@@ -1,17 +1,14 @@
 using Basis.Network.Core;
 using Basis.Network.Core.Compression;
+using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.Compression;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
-using Basis.Scripts.BasisSdk.Players;
-using Basis.Scripts.Drivers;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
-using static SerializableBasis;
 using static Basis.Network.Core.Compression.BasisAvatarBitPacking;
 
 namespace Basis.Scripts.Networking.NetworkedAvatar
@@ -40,19 +37,18 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
         /// Called during local avatar calibration to capture T-pose bone rotations.
         /// Must be called while the avatar is in T-pose.
         /// </summary>
-        public static void CaptureTPose(Animator animator)
+        public static void CaptureTPose()
         {
-            sTposeLocalRotations = new quaternion[55]; // HumanBodyBones 0..54
-            for (int i = 0; i < 55; i++)
+           sTposeLocalRotations = new quaternion[55]; // HumanBodyBones 0..54
+            for (int Index = 0; Index < 55; Index++)
             {
-                Transform bone = animator.GetBoneTransform((HumanBodyBones)i);
-                if (bone != null)
+                if (BasisLocalAvatarDriver.Mapping.Tpose.TryGetValue((HumanBodyBones)Index, out var value))
                 {
-                    sTposeLocalRotations[i] = bone.localRotation;
+                    sTposeLocalRotations[Index] = value.rotation;
                 }
                 else
                 {
-                    sTposeLocalRotations[i] = quaternion.identity;
+                    sTposeLocalRotations[Index] = quaternion.identity;
                 }
             }
         }
@@ -68,16 +64,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
                 CaptureTPoseFromAnimator();
             }
 
-            // Force Unity to evaluate the current humanoid pose (IK, constraints, etc.)
-            // before we read bone transforms. Without this, bone.localRotation can return
-            // stale pre-IK data on frames where compression runs before the IK system.
-            transmitter.PoseHandler ??= new HumanPoseHandler(animator.avatar, t);
-            transmitter.PoseHandler.GetHumanPose(ref transmitter.HumanPose);
-
             // Now bone transforms are guaranteed up-to-date — extract deltas
             ExtractBoneDeltas(animator);
 
-            CompressAvatarData(transmitter.storedAvatarData, animator, t);
+            CompressAvatarData(transmitter.storedAvatarData, t);
 
             var data = transmitter.SendingOutAvatarData.Count == 0 ? null : transmitter.SendingOutAvatarData.Values.ToArray();
             transmitter.storedAvatarData.LASM.AdditionalAvatarDatas = data;
@@ -111,10 +101,10 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             ExtractBoneDeltas(animator);
 
             StoredAvatarData = new BasisStoredAvatarData();
-            CompressAvatarData(StoredAvatarData, animator, animator.transform);
+            CompressAvatarData(StoredAvatarData, animator.transform);
         }
 
-        static void CompressAvatarData(BasisStoredAvatarData AvatarData, Animator animator, Transform ScaleTransform)
+        static void CompressAvatarData(BasisStoredAvatarData AvatarData,Transform ScaleTransform)
         {
             int needed = BasisAvatarBitPacking.ConvertToSize(WireQuality);
             AvatarData.LASM.DataQualityLevel = (byte)WireQuality;
@@ -128,25 +118,27 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
             System.Array.Clear(AvatarData.LASM.array, 0, needed);
 
             int offset = 0;
-
             // Send the actual hips bone world position and rotation —
             // NOT animator.bodyPosition/bodyRotation which is a virtual body-center
             // that only SetHumanPose knows how to interpret.
-            Transform hips = animator.GetBoneTransform(HumanBodyBones.Hips);
-           UnityEngine.Vector3 hipsPos = hips != null ? hips.position : animator.transform.position;
-            UnityEngine.Quaternion hipsRot = hips != null ? hips.rotation : animator.transform.rotation;
+            if (BasisLocalAvatarDriver.Mapping.HasHips)
+            {
+                Transform hips = BasisLocalAvatarDriver.Mapping.Hips;
 
-            // Position (hips world position)
-            BasisUnityBitPackerExtensionsUnsafe.WritePosition(hipsPos, ref AvatarData.LASM.array, ref offset);
+                hips.GetPositionAndRotation(out var hipsPos, out var hipsRot);
 
-            // Bone rotations
-            BasisBoneRotationUtils.CompressBoneRotations(sBoneDeltas, WireQuality, AvatarData.LASM.array, ref offset);
+                // Position (hips world position)
+                BasisUnityBitPackerExtensionsUnsafe.WritePosition(hipsPos, ref AvatarData.LASM.array, ref offset);
 
-            // Scale
-            BasisUnityBitPackerExtensionsUnsafe.CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
+                // Bone rotations
+                BasisBoneRotationUtils.CompressBoneRotations(sBoneDeltas, WireQuality, AvatarData.LASM.array, ref offset);
 
-            // Hips world rotation
-            BasisUnityBitPackerExtensionsUnsafe.WriteCompressedQuaternionToBytes(hipsRot, ref AvatarData.LASM.array, ref offset);
+                // Scale
+                BasisUnityBitPackerExtensionsUnsafe.CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
+
+                // Hips world rotation
+                BasisUnityBitPackerExtensionsUnsafe.WriteCompressedQuaternionToBytes(hipsRot, ref AvatarData.LASM.array, ref offset);
+            }
         }
 
         /// <summary>
