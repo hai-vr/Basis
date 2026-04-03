@@ -123,17 +123,24 @@ namespace Basis.Scripts.Networking.NetworkedAvatar
 
             int offset = 0;
 
-            // Position
-            BasisUnityBitPackerExtensionsUnsafe.WritePosition(animator.bodyPosition, ref AvatarData.LASM.array, ref offset);
+            // Send the actual hips bone world position and rotation —
+            // NOT animator.bodyPosition/bodyRotation which is a virtual body-center
+            // that only SetHumanPose knows how to interpret.
+            Transform hips = animator.GetBoneTransform(HumanBodyBones.Hips);
+            Vector3 hipsPos = hips != null ? hips.position : animator.transform.position;
+            Quaternion hipsRot = hips != null ? hips.rotation : animator.transform.rotation;
 
-            // Bone rotations (replaces muscle compression)
+            // Position (hips world position)
+            BasisUnityBitPackerExtensionsUnsafe.WritePosition(hipsPos, ref AvatarData.LASM.array, ref offset);
+
+            // Bone rotations
             BasisBoneRotationUtils.CompressBoneRotations(sBoneDeltas, WireQuality, AvatarData.LASM.array, ref offset);
 
             // Scale
             BasisUnityBitPackerExtensionsUnsafe.CompressScale(ScaleTransform.localScale.y, ref AvatarData.LASM, ref offset);
 
-            // Body rotation (hips)
-            BasisUnityBitPackerExtensionsUnsafe.WriteCompressedQuaternionToBytes(animator.bodyRotation, ref AvatarData.LASM.array, ref offset);
+            // Hips world rotation
+            BasisUnityBitPackerExtensionsUnsafe.WriteCompressedQuaternionToBytes(hipsRot, ref AvatarData.LASM.array, ref offset);
         }
 
         /// <summary>

@@ -344,6 +344,15 @@ namespace Basis.Scripts.Networking.Receivers
                 DidLastAvatarTransformChanged = false;
             }
 
+            // Apply hips position and rotation (Hips=0 is excluded from the bone rotation stream).
+            // Body position is world-space; body rotation is the hips orientation.
+            var refs = RemotePlayer?.RemoteAvatarDriver?.References;
+            if (refs != null && refs.Hips != null)
+            {
+                BasisRemoteNetworkDriver.GetPositionOutput(playerId, out float3 worldPos);
+                refs.Hips.SetPositionAndRotation(worldPos, ApplyingRotation);
+            }
+
             // Apply bone rotations: finalLocal = tposeLocal * networkDelta
             for (int slot = 0; slot < BoneCount; slot++)
             {
