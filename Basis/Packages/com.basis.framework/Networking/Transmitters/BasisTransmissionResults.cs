@@ -46,6 +46,11 @@ public partial class BasisTransmissionResults
     public bool AnyAvatarRangeChanged;
     public bool AnyLodRangeChanged;
 
+    // Track previous range values to detect setting changes that hysteresis would hide
+    private float _lastAvatarRange;
+    private float _lastHearingRange;
+    private float _lastMicrophoneRange;
+
     // Network
     [SerializeReference] public BasisNetworkTransmitter BasisNetworkTransmitter;
     public NetDataWriter VRMWriter = new NetDataWriter(true, 0);
@@ -340,6 +345,30 @@ public partial class BasisTransmissionResults
         AnyHearingRangeChanged = (mask & 2) != 0;
         AnyAvatarRangeChanged = (mask & 4) != 0;
         AnyLodRangeChanged = (mask & 8) != 0;
+
+        // Detect setting slider changes that hysteresis would hide.
+        // When the user decreases the range, players in the hysteresis band
+        // (between newRange and newRange*1.21) don't trigger AnyXChanged because
+        // they pass the exit threshold check. Force a full re-eval on range changes.
+        float curAvatarRange = SMModuleDistanceBasedReductions.AvatarRange;
+        float curHearingRange = SMModuleDistanceBasedReductions.HearingRange;
+        float curMicRange = SMModuleDistanceBasedReductions.MicrophoneRange;
+
+        if (_lastAvatarRange != curAvatarRange)
+        {
+            AnyAvatarRangeChanged = true;
+            _lastAvatarRange = curAvatarRange;
+        }
+        if (_lastHearingRange != curHearingRange)
+        {
+            AnyHearingRangeChanged = true;
+            _lastHearingRange = curHearingRange;
+        }
+        if (_lastMicrophoneRange != curMicRange)
+        {
+            AnyMicrophoneRangeChanged = true;
+            _lastMicrophoneRange = curMicRange;
+        }
 
         SquaredSmallestDistance = smallestD2[0];
         if (!float.IsFinite(SquaredSmallestDistance))
