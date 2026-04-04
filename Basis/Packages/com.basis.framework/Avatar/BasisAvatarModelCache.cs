@@ -32,6 +32,13 @@ public static class BasisAvatarModelCache
 
         /// <summary>T-pose root-relative coords for all 55 humanoid bones (BasisTransformMapping.TposeFromRoot).</summary>
         public TposeFromRootData TposeFromRoot;
+
+        /// <summary>Which bones exist on this avatar (from AutoDetectReferences). Indexed by HumanBodyBones.</summary>
+        public BonePresenceData BonePresence;
+
+        /// <summary>Animator.humanScale for this avatar model.</summary>
+        public float HumanScale;
+        public bool HasHumanScale;
     }
 
     // ────────────────────────────────────────────────────────────
@@ -88,6 +95,16 @@ public static class BasisAvatarModelCache
         public float3 AvatarForward;
         public float3 AvatarUp;
         public float3 AvatarRight;
+    }
+
+    /// <summary>
+    /// Which humanoid bones exist on this avatar model. Indexed by HumanBodyBones enum.
+    /// Avoids repeated GetBoneTransform null checks across instances of the same model.
+    /// </summary>
+    public class BonePresenceData
+    {
+        /// <summary>True if the bone exists. Length = 55 (HumanBodyBones.LastBone).</summary>
+        public bool[] HasBone;
     }
 
     // ────────────────────────────────────────────────────────────
