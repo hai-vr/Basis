@@ -56,7 +56,13 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UseMaxAudioSources = new("usemaxaudiosources", new BasisPlatformDefault<bool>(false));
 
         /// <summary>
-        /// Maximum number of OpenLipSync (neural viseme) slots.
+        /// When enabled, caps the number of OpenLipSync (neural viseme) slots to <see cref="OpenLipSyncMaxSlots"/>.
+        /// When disabled (default), slot count is unlimited — bounded only by the number of players in viseme range.
+        /// </summary>
+        public static BasisSettingsBinding<bool> UseOpenLipSyncLimit = new("useopenlipsynclimit", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
+        /// Maximum number of OpenLipSync (neural viseme) slots when <see cref="UseOpenLipSyncLimit"/> is enabled.
         /// Players beyond this limit fall back to the lighter uLipSync backend.
         /// Higher values look better in crowds but cost more CPU.
         /// </summary>
@@ -654,6 +660,8 @@ namespace Basis.BasisUI
             MaxVisibleAvatars.LoadBindingValue();
             UseMaxAudioSources.LoadBindingValue();
             MaxAudioSources.LoadBindingValue();
+            UseOpenLipSyncLimit.LoadBindingValue();
+            OpenLipSyncMaxSlots.LoadBindingValue();
             PoseLOD.LoadBindingValue();
             UseViewConeAvatars.LoadBindingValue();
             ViewConeAngle.LoadBindingValue();

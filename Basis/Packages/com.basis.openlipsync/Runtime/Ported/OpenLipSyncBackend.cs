@@ -225,7 +225,7 @@ namespace OpenLipSync.Inference
                 if (accFrames >= 5)
                 {
                     var melSeq = audioContext.GetMelSequence(out int seqLen);
-                    RunSequenceInference(melSeq, seqLen, audioContext.MelBands, audioContext.GetInferenceBuffer());
+                    RunSequenceInference(melSeq, seqLen, audioContext.MelBands, audioContext.GetInferenceBuffer(), audioContext.GetInferenceInputBuffer());
                     audioContext.UpdateLatestResults(audioContext.GetInferenceBuffer());
 
                     DebugInferenceRuns++;
@@ -254,7 +254,7 @@ namespace OpenLipSync.Inference
             }
         }
 
-        private void RunSequenceInference(float[] melSequenceFlat, int seqLen, int melBands, float[] destination)
+        private void RunSequenceInference(float[] melSequenceFlat, int seqLen, int melBands, float[] destination, float[] inputBuffer = null)
         {
             if (_onnxSession == null || seqLen <= 0)
             {
@@ -264,9 +264,22 @@ namespace OpenLipSync.Inference
 
             try
             {
-                var inputData = new float[seqLen * melBands];
-                Array.Copy(melSequenceFlat, 0, inputData, 0, seqLen * melBands);
-                var inputTensor = new DenseTensor<float>(inputData, new[] { 1, seqLen, melBands });
+                int inputSize = seqLen * melBands;
+                // Use pre-allocated buffer when available to avoid per-inference GC allocation.
+                // DenseTensor's Memory<T> constructor accepts a slice, so the backing array
+                // can be larger than the tensor's element count.
+                float[] inputData;
+                if (inputBuffer != null && inputBuffer.Length >= inputSize)
+                {
+                    inputData = inputBuffer;
+                    Array.Copy(melSequenceFlat, 0, inputData, 0, inputSize);
+                }
+                else
+                {
+                    inputData = new float[inputSize];
+                    Array.Copy(melSequenceFlat, 0, inputData, 0, inputSize);
+                }
+                var inputTensor = new DenseTensor<float>(new Memory<float>(inputData, 0, inputSize), new[] { 1, seqLen, melBands });
 
                 using var results = _onnxSession.Run(new[] { NamedOnnxValue.CreateFromTensor("audio_features", inputTensor) });
 

@@ -95,6 +95,11 @@ namespace Basis.Scripts.Drivers
                 BasisAudioAndVisemeDriver VisemeDriver = Drivers[Index];
                 VisemeDriver.Simulate(DeltaTime);
             }
+
+            // Process all pending OpenLipSync contexts in a single batched
+            // background task. This replaces per-context Task.Run() which
+            // caused thread pool saturation with many players.
+            BasisOpenLipSyncContext.ProcessAllPending();
         }
         public static void Apply()
         {
