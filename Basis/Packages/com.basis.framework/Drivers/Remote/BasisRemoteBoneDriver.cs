@@ -262,8 +262,9 @@ struct GatherHeadJob : IJobParallelForTransform
     /// <summary>Executes per-head sampling.</summary>
     public void Execute(int index, TransformAccess tx)
     {
-        headPos[index] = tx.position;
-        headRot[index] = tx.rotation;
+        tx.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
+        headPos[index] = position;
+        headRot[index] = rotation;
     }
 }
 
@@ -281,8 +282,9 @@ struct GatherHipsJob : IJobParallelForTransform
     /// <summary>Executes per-hip sampling.</summary>
     public void Execute(int index, TransformAccess tx)
     {
-        hipsPos[index] = tx.position;
-        hipsRot[index] = tx.rotation;
+        tx.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
+        hipsPos[index] = position;
+        hipsRot[index] = rotation;
     }
 }
 
@@ -410,8 +412,7 @@ public struct ApplyHipsJob : IJobParallelForTransform
 
     public void Execute(int index, TransformAccess transform)
     {
-        transform.position = Positions[index];
-        transform.rotation = Rotations[index];
+        transform.SetPositionAndRotation(Positions[index], Rotations[index]);
     }
 }
 
@@ -813,7 +814,10 @@ public static class RemoteBoneJobSystem
     /// <param name="count">Number of avatars to accommodate.</param>
     static void EnsureTempBuffers(int count)
     {
-        if (count <= 0) return;
+        if (count <= 0)
+        {
+            return;
+        }
 
         void AllocOrResize<T>(ref NativeArray<T> arr, int len) where T : struct
         {
