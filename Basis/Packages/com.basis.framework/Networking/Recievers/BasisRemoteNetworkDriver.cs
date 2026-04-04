@@ -124,7 +124,7 @@ public static class BasisRemoteNetworkDriver
     public static float PoseBeta = 0.15f;
     public static float PoseDerivativeCutoff = 1.5f;
 
-    public static void Initialize(int muscleCount, Allocator allocator = Allocator.Persistent)
+    public static void Initialize(Allocator allocator = Allocator.Persistent)
     {
         if (_initialized) return;
         _allocator = allocator;
@@ -353,6 +353,20 @@ public static class BasisRemoteNetworkDriver
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void GetPositionOutput(int index, out float3 outPos) => outPos = _filteredPositions[index];
+
+    /// <summary>
+    /// Overrides the filtered hips position and rotation for a player so that
+    /// BulkCopyHipsAndScale (and thus ApplyHipsJob) picks up the override
+    /// instead of the interpolated network data.
+    /// Must be called after Apply() and before Schedule().
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void SetFilteredHipsOverride(int index, float3 position, quaternion rotation)
+    {
+        if (!_initialized || (uint)index >= FixedCapacity) return;
+        _filteredPositions[index] = position;
+        _filteredRotations[index] = rotation;
+    }
 
     /// <summary>
     /// Bulk-copy hips position, rotation, scale, and scale-change flag for a set of players.

@@ -278,14 +278,9 @@ namespace Basis.Scripts.Networking
 #endif
                     continue;
                 }
-
                 if (receiver.HasOverridenDestination)
                 {
-                    var refs = remote.RemoteAvatarDriver.References;
-                    if (refs.Hips != null)
-                    {
-                        refs.Hips.SetPositionAndRotation(receiver.OverridenPosition, receiver.OverridenRotation);
-                    }
+                    BasisRemoteNetworkDriver.SetFilteredHipsOverride(receiver.playerId, receiver.OverridenPosition, (quaternion)receiver.OverridenRotation);
                 }
 #if UNITY_EDITOR
                 _applied++;
@@ -322,8 +317,15 @@ namespace Basis.Scripts.Networking
 
             BoneJobSystem = RemoteBoneJobSystem.Schedule();
 #if UNITY_EDITOR
-            if (p) { s.Stop(); BasisEventDriverProfilerData.Net_BoneJobScheduleMs = s.Elapsed.TotalMilliseconds; }
-            if (p) { BasisEventDriverProfilerData.Net_BoneJobWasIncomplete = !BoneJobSystem.IsCompleted; s = System.Diagnostics.Stopwatch.StartNew(); }
+            if (p) {
+                s.Stop();
+                BasisEventDriverProfilerData.Net_BoneJobScheduleMs = s.Elapsed.TotalMilliseconds;
+            }
+            if (p)
+            {
+                BasisEventDriverProfilerData.Net_BoneJobWasIncomplete = !BoneJobSystem.IsCompleted;
+                s = System.Diagnostics.Stopwatch.StartNew();
+            }
 #endif
 
             RemoteBoneJobSystem.Complete(BoneJobSystem);
