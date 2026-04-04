@@ -1045,7 +1045,7 @@ public static class RemoteBoneJobSystem
     /// <param name="key">Avatar key used when adding the player.</param>
     /// <param name="outgoing">On success, the mouth world position; otherwise <see cref="Vector3.zero"/>.</param>
     /// <returns><c>true</c> if the key is found; otherwise <c>false</c>.</returns>
-    public static bool GetOutGoingMouth(int key, out float3 outgoing)
+    public static unsafe bool GetOutGoingMouth(int key, out float3 outgoing)
     {
         if ((uint)key >= (uint)sKeyToIndex.Length)
         {
@@ -1058,7 +1058,7 @@ public static class RemoteBoneJobSystem
             outgoing = float3.zero;
             return false;
         }
-        outgoing = sMouthPositions[idx];
+        outgoing = ((float3*)sMouthPositions.GetUnsafeReadOnlyPtr())[idx];
         return true;
     }
 }
