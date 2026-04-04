@@ -162,4 +162,136 @@ public static class BasisAvatarModelCache
     {
         _cache.Clear();
     }
+
+    // ────────────────────────────────────────────────────────────
+    //  RecordPoses helper — wraps BasisTransformMapping.RecordPoses
+    //  with cache check/store. Lives here (framework) because
+    //  BasisTransformMapping is in com.basis.common which can't
+    //  reference the framework.
+    // ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Calls <see cref="Basis.Scripts.Common.BasisTransformMapping.RecordPoses"/> with caching.
+    /// On cache hit, restores TposeLocal/TposeFromRoot from arrays instead of re-computing
+    /// 55 bone transforms. On cache miss, runs the full computation and stores results.
+    /// </summary>
+    public static void RecordPosesCached(Basis.Scripts.Common.BasisTransformMapping mapping, Animator animator)
+    {
+        int key = GetKey(animator);
+
+        // Cache hit: restore from arrays
+        if (key != 0 && TryGet(key, out var entry) && entry.TposeLocal != null && entry.TposeFromRoot != null)
+        {
+            RestorePosesFromCache(mapping, animator, entry);
+            return;
+        }
+
+        // Cache miss: full computation
+        mapping.RecordPoses(animator);
+
+        // Store for next time
+        if (key != 0)
+        {
+            StorePosesToCache(key, mapping);
+        }
+    }
+
+    private static void StorePosesToCache(int key, Basis.Scripts.Common.BasisTransformMapping mapping)
+    {
+        var entry = GetOrCreate(key);
+        int boneCount = (int)HumanBodyBones.LastBone;
+
+        if (entry.TposeLocal == null)
+        {
+            var rots = new quaternion[boneCount];
+            var pos = new float3[boneCount];
+            for (int i = 0; i < boneCount; i++)
+            {
+                var bone = (HumanBodyBones)i;
+                if (mapping.TposeLocal.TryGetValue(bone, out var c))
+                {
+                    rots[i] = c.rotation;
+                    pos[i] = c.position;
+                }
+                else
+                {
+                    rots[i] = quaternion.identity;
+                    pos[i] = float3.zero;
+                }
+            }
+            entry.TposeLocal = new TposeLocalData { Rotations = rots, Positions = pos };
+        }
+
+        if (entry.TposeFromRoot == null)
+        {
+            var rots = new quaternion[boneCount];
+            var pos = new float3[boneCount];
+            for (int i = 0; i < boneCount; i++)
+            {
+                var bone = (HumanBodyBones)i;
+                if (mapping.TposeFromRoot.TryGetValue(bone, out var c))
+                {
+                    rots[i] = c.rotation;
+                    pos[i] = c.position;
+                }
+                else
+                {
+                    rots[i] = quaternion.identity;
+                    pos[i] = float3.zero;
+                }
+            }
+            entry.TposeFromRoot = new TposeFromRootData
+            {
+                Rotations = rots,
+                Positions = pos,
+                AvatarForward = mapping.AvatarForwards,
+                AvatarUp = mapping.AvatarUpwards,
+                AvatarRight = mapping.AvatarRightwards
+            };
+        }
+
+        if (entry.BonePresence == null)
+        {
+            var has = new bool[boneCount];
+            for (int i = 0; i < boneCount; i++)
+            {
+                if (mapping.TposeLocal.TryGetValue((HumanBodyBones)i, out var c))
+                {
+                    has[i] = c.rotation != Quaternion.identity || c.position != Vector3.zero;
+                }
+            }
+            entry.BonePresence = new BonePresenceData { HasBone = has };
+        }
+    }
+
+    private static void RestorePosesFromCache(Basis.Scripts.Common.BasisTransformMapping mapping, Animator animator, Entry entry)
+    {
+        mapping.RootRotation = animator.transform.rotation;
+        mapping.RootPosition = animator.transform.position;
+        mapping.TposeFromRoot.Clear();
+        mapping.TposeLocal.Clear();
+
+        int boneCount = (int)HumanBodyBones.LastBone;
+        var cachedLocal = entry.TposeLocal;
+        var cachedRoot = entry.TposeFromRoot;
+
+        for (int i = 0; i < boneCount; i++)
+        {
+            var bone = (HumanBodyBones)i;
+            mapping.TposeLocal[bone] = new Basis.Scripts.Common.BasisCalibratedCoords
+            {
+                position = cachedLocal.Positions[i],
+                rotation = cachedLocal.Rotations[i]
+            };
+            mapping.TposeFromRoot[bone] = new Basis.Scripts.Common.BasisCalibratedCoords
+            {
+                position = cachedRoot.Positions[i],
+                rotation = cachedRoot.Rotations[i]
+            };
+        }
+
+        mapping.AvatarForwards = cachedRoot.AvatarForward;
+        mapping.AvatarUpwards = cachedRoot.AvatarUp;
+        mapping.AvatarRightwards = cachedRoot.AvatarRight;
+    }
 }

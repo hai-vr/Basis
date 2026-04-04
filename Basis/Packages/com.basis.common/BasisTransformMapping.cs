@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Unity.Mathematics;
 using UnityEngine;
 
 namespace Basis.Scripts.Common
@@ -527,19 +526,6 @@ namespace Basis.Scripts.Common
         public Vector3 AvatarRightwards;
         public void RecordPoses(Animator animator)
         {
-            int cacheKey = BasisAvatarModelCache.GetKey(animator);
-
-            // Check cache for pre-computed T-pose data
-            BasisAvatarModelCache.Entry cacheEntry = null;
-            if (cacheKey != 0 && BasisAvatarModelCache.TryGet(cacheKey, out cacheEntry))
-            {
-                if (cacheEntry.TposeLocal != null && cacheEntry.TposeFromRoot != null)
-                {
-                    RestorePosesFromCache(animator, cacheEntry);
-                    return;
-                }
-            }
-
             // Capture animator transform in world space
             RootRotation = animator.transform.rotation;
             RootPosition = animator.transform.position;
@@ -599,119 +585,6 @@ namespace Basis.Scripts.Common
                 AvatarUpwards = Vector3.up;
                 AvatarRightwards = Vector3.down;
             }
-
-            // Store in cache for other instances of this avatar model
-            if (cacheKey != 0)
-            {
-                SavePosesToCache(cacheKey);
-            }
-        }
-
-        private void SavePosesToCache(int cacheKey)
-        {
-            var entry = BasisAvatarModelCache.GetOrCreate(cacheKey);
-            int boneCount = (int)HumanBodyBones.LastBone;
-
-            // TposeLocal
-            if (entry.TposeLocal == null)
-            {
-                var localRots = new quaternion[boneCount];
-                var localPos = new float3[boneCount];
-                for (int i = 0; i < boneCount; i++)
-                {
-                    var bone = (HumanBodyBones)i;
-                    if (TposeLocal.TryGetValue(bone, out var c))
-                    {
-                        localRots[i] = c.rotation;
-                        localPos[i] = c.position;
-                    }
-                    else
-                    {
-                        localRots[i] = quaternion.identity;
-                        localPos[i] = float3.zero;
-                    }
-                }
-                entry.TposeLocal = new BasisAvatarModelCache.TposeLocalData
-                {
-                    Rotations = localRots,
-                    Positions = localPos
-                };
-            }
-
-            // TposeFromRoot
-            if (entry.TposeFromRoot == null)
-            {
-                var rootRots = new quaternion[boneCount];
-                var rootPos = new float3[boneCount];
-                for (int i = 0; i < boneCount; i++)
-                {
-                    var bone = (HumanBodyBones)i;
-                    if (TposeFromRoot.TryGetValue(bone, out var c))
-                    {
-                        rootRots[i] = c.rotation;
-                        rootPos[i] = c.position;
-                    }
-                    else
-                    {
-                        rootRots[i] = quaternion.identity;
-                        rootPos[i] = float3.zero;
-                    }
-                }
-                entry.TposeFromRoot = new BasisAvatarModelCache.TposeFromRootData
-                {
-                    Rotations = rootRots,
-                    Positions = rootPos,
-                    AvatarForward = AvatarForwards,
-                    AvatarUp = AvatarUpwards,
-                    AvatarRight = AvatarRightwards
-                };
-            }
-
-            // Bone presence
-            if (entry.BonePresence == null)
-            {
-                var has = new bool[boneCount];
-                for (int i = 0; i < boneCount; i++)
-                {
-                    var bone = (HumanBodyBones)i;
-                    TposeLocal.TryGetValue(bone, out var c);
-                    // A bone "exists" if its cached data isn't all identity/zero
-                    has[i] = c.rotation != Quaternion.identity || c.position != Vector3.zero;
-                }
-                entry.BonePresence = new BasisAvatarModelCache.BonePresenceData { HasBone = has };
-            }
-        }
-
-        private void RestorePosesFromCache(Animator animator, BasisAvatarModelCache.Entry entry)
-        {
-            RootRotation = animator.transform.rotation;
-            RootPosition = animator.transform.position;
-
-            TposeFromRoot.Clear();
-            TposeLocal.Clear();
-
-            int boneCount = (int)HumanBodyBones.LastBone;
-            var cachedLocal = entry.TposeLocal;
-            var cachedRoot = entry.TposeFromRoot;
-
-            for (int i = 0; i < boneCount; i++)
-            {
-                var bone = (HumanBodyBones)i;
-                TposeLocal[bone] = new BasisCalibratedCoords
-                {
-                    position = cachedLocal.Positions[i],
-                    rotation = cachedLocal.Rotations[i]
-                };
-                TposeFromRoot[bone] = new BasisCalibratedCoords
-                {
-                    position = cachedRoot.Positions[i],
-                    rotation = cachedRoot.Rotations[i]
-                };
-            }
-
-            AvatarForwards = cachedRoot.AvatarForward;
-            AvatarUpwards = cachedRoot.AvatarUp;
-            AvatarRightwards = cachedRoot.AvatarRight;
         }
         private static bool TryComputeForwardUpFromTpose(
      BasisTransformMapping refs,

@@ -91,7 +91,7 @@ namespace Basis.Scripts.Drivers
 
             // Auto-detect bone refs and record TPose
             BasisTransformMapping.AutoDetectReferences(Player.BasisAvatar.Animator, RemotePlayer.BasisAvatar.transform, ref References);
-            References.RecordPoses(Player.BasisAvatar.Animator);
+            BasisAvatarModelCache.RecordPosesCached(References, Player.BasisAvatar.Animator);
 
             // ── Capture T-pose bone rotations and bone transforms for the receiver ──
             // This enables direct bone transform writes (no SetHumanPose needed).
