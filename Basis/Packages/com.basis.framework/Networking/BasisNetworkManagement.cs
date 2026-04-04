@@ -234,7 +234,12 @@ namespace Basis.Scripts.Networking
             BasisRemoteNetworkDriver.Apply(); // completes interpolation job
             BasisRemoteNetworkDriver.BeginRead();
 #if UNITY_EDITOR
-            if (p) { s.Stop(); BasisEventDriverProfilerData.Net_RemoteDriverApplyMs = s.Elapsed.TotalMilliseconds; s.Restart(); }
+            if (p)
+            {
+                s.Stop();
+                BasisEventDriverProfilerData.Net_RemoteDriverApplyMs = s.Elapsed.TotalMilliseconds;
+                s.Restart();
+            }
 #endif
 
             int count = BasisNetworkPlayers.ReceiverCount;
@@ -274,7 +279,14 @@ namespace Basis.Scripts.Networking
                     continue;
                 }
 
-                receiver.Apply();
+                if (receiver.HasOverridenDestination)
+                {
+                    var refs = remote.RemoteAvatarDriver.References;
+                    if (refs.Hips != null)
+                    {
+                        refs.Hips.SetPositionAndRotation(receiver.OverridenPosition, receiver.OverridenRotation);
+                    }
+                }
 #if UNITY_EDITOR
                 _applied++;
 #endif

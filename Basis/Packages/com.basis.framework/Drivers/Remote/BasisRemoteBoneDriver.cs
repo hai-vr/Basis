@@ -212,7 +212,7 @@ public struct BasisRemoteBoneJob : IJobParallelFor
         };
         MouthPositions[i] = mouthP;
     }
-    float3 SafeDivide(float3 numerator, float3 denominator)
+    private readonly float3 SafeDivide(float3 numerator, float3 denominator)
     {
         const float eps = 1e-6f;
 
@@ -1021,23 +1021,6 @@ public static class RemoteBoneJobSystem
 
         sPending = skeletonJob;
         return skeletonJob;
-    }
-    /// <summary>
-    /// Applies HasOverridenDestination overrides to the hips position/rotation temp arrays
-    /// before the ApplyHipsJob runs. Called on the main thread during Schedule().
-    /// </summary>
-    static void ApplyHipsOverrides(NativeArray<float3> hipsPos, NativeArray<quaternion> hipsRot)
-    {
-        for (int i = 0; i < AuthoringLength; i++)
-        {
-            int playerKey = sIndexToKey[i];
-            if (!BasisNetworkPlayer.GetPlayerById((ushort)playerKey, out var netPlayer))
-                continue;
-            if (!netPlayer.HasOverridenDestination)
-                continue;
-            hipsPos[i] = netPlayer.OverridenPosition;
-            hipsRot[i] = (quaternion)netPlayer.OverridenRotation;
-        }
     }
 
     /// <summary>

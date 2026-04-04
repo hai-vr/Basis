@@ -347,26 +347,6 @@ namespace Basis.Scripts.Networking.Receivers
             }
         }
         public bool IsDataReady = false;
-        /// <summary>
-        /// Main-thread application step. Handles hips position/rotation and scale only.
-        /// All 51 bone rotation writes are done by ApplySkeletonRotationsJob in
-        /// RemoteBoneJobSystem.Schedule() — fully multithreaded via TransformAccessArray.
-        /// </summary>
-        /// <summary>
-        /// All transform writes (hips, scale, bone rotations) are handled by jobs
-        /// in RemoteBoneJobSystem.Schedule(). This only applies the rare
-        /// HasOverridenDestination fixup AFTER jobs have completed.
-        /// </summary>
-        public void Apply()
-        {
-            if (!HasOverridenDestination) return;
-
-            var refs = RemotePlayer?.RemoteAvatarDriver?.References;
-            if (refs != null && refs.Hips != null)
-            {
-                refs.Hips.SetPositionAndRotation(OverridenPosition, OverridenRotation);
-            }
-        }
 
         public void EnQueueAvatarBuffer(BasisAvatarBuffer avatarBuffer)
         {
