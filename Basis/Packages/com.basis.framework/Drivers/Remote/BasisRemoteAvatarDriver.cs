@@ -209,22 +209,80 @@ namespace Basis.Scripts.Drivers
             receiver.TposeLocalRotations = new NativeArray<quaternion>(boneCount, Allocator.Persistent);
             receiver.BoneTransforms = new Transform[boneCount];
 
-            for (int slot = 0; slot < boneCount; slot++)
+            // Check if T-pose local rotations are already cached for this avatar model.
+            // The rotations are deterministic per Avatar asset — only bone transforms are per-instance.
+            int cacheKey = BasisAvatarModelCache.GetKey(animator);
+            var cacheEntry = cacheKey != 0 ? BasisAvatarModelCache.GetOrCreate(cacheKey) : null;
+            bool hasCachedTpose = cacheEntry?.TposeLocal != null;
+
+            if (hasCachedTpose)
             {
-                int boneEnum = BasisBoneRotationCompression.BONE_WRITE_ORDER[slot];
-                var humanbone = (HumanBodyBones)boneEnum;
-                if (remotePlayer.RemoteAvatarDriver.References.GetTransform(humanbone,out var transform))
+                // Fast path: copy cached rotations, only resolve per-instance bone transforms
+                var cachedRotations = cacheEntry.TposeLocal.Rotations;
+                for (int slot = 0; slot < boneCount; slot++)
                 {
-                    if (remotePlayer.RemoteAvatarDriver.References.TposeLocal.TryGetValue(humanbone, out var value))
+                    int boneEnum = BasisBoneRotationCompression.BONE_WRITE_ORDER[slot];
+                    var humanbone = (HumanBodyBones)boneEnum;
+
+                    receiver.TposeLocalRotations[slot] = cachedRotations[boneEnum];
+
+                    if (References.GetTransform(humanbone, out var transform))
                     {
-                        receiver.TposeLocalRotations[slot] = value.rotation;
                         receiver.BoneTransforms[slot] = transform;
                     }
                     else
                     {
-                        receiver.TposeLocalRotations[slot] = quaternion.identity;
                         receiver.BoneTransforms[slot] = null;
                     }
+                }
+            }
+            else
+            {
+                // Slow path: read from TposeLocal dictionary, then cache for next time
+                for (int slot = 0; slot < boneCount; slot++)
+                {
+                    int boneEnum = BasisBoneRotationCompression.BONE_WRITE_ORDER[slot];
+                    var humanbone = (HumanBodyBones)boneEnum;
+                    if (References.GetTransform(humanbone, out var transform))
+                    {
+                        if (References.TposeLocal.TryGetValue(humanbone, out var value))
+                        {
+                            receiver.TposeLocalRotations[slot] = value.rotation;
+                            receiver.BoneTransforms[slot] = transform;
+                        }
+                        else
+                        {
+                            receiver.TposeLocalRotations[slot] = quaternion.identity;
+                            receiver.BoneTransforms[slot] = null;
+                        }
+                    }
+                }
+
+                // Store T-pose local rotations in cache for other instances of this avatar
+                if (cacheEntry != null)
+                {
+                    int totalBones = (int)HumanBodyBones.LastBone;
+                    var rotations = new quaternion[totalBones];
+                    var positions = new Unity.Mathematics.float3[totalBones];
+                    for (int i = 0; i < totalBones; i++)
+                    {
+                        var bone = (HumanBodyBones)i;
+                        if (References.TposeLocal.TryGetValue(bone, out var coords))
+                        {
+                            rotations[i] = coords.rotation;
+                            positions[i] = coords.position;
+                        }
+                        else
+                        {
+                            rotations[i] = quaternion.identity;
+                            positions[i] = Unity.Mathematics.float3.zero;
+                        }
+                    }
+                    cacheEntry.TposeLocal = new BasisAvatarModelCache.TposeLocalData
+                    {
+                        Rotations = rotations,
+                        Positions = positions
+                    };
                 }
             }
         }
