@@ -79,7 +79,6 @@ public class BasisLocalFootDriver
     private Vector3 prevHeadPos;
     private Vector3 smoothedVelocity;
     private float prevHeadYaw;
-    private int settleFrames;
     private bool wasDisabled;
     private float lastKnownGroundY;
     private Vector3 smoothedBodyFwd;
@@ -209,7 +208,6 @@ public class BasisLocalFootDriver
         lastKnownGroundY = hips.position.y - hipToFoot;
         smoothedBodyFwd = avatarTransform.forward;
         smoothedBodyRight = Vector3.Cross(Vector3.up, smoothedBodyFwd).normalized;
-        settleFrames = 3;
         BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnHeightChanged;
         IsInitialized = true;
     }
@@ -404,18 +402,6 @@ public class BasisLocalFootDriver
         // ── Locomotion from head ──
         Vector3 headPos = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
 
-        // During settle frames after init, sync tracking state to prevent phantom velocity
-        // from head/body movement between InitializeVariables() and Simulate().
-        // Multiple frames lets hips/body fully settle before feet lock in.
-        if (settleFrames > 0)
-        {
-            prevHeadPos = headPos;
-            smoothedVelocity = Vector3.zero;
-            smoothedBodyFwd = BodyForward();
-            smoothedBodyRight = Vector3.Cross(Vector3.up, smoothedBodyFwd).normalized;
-            if (smoothedBodyRight.sqrMagnitude < 0.001f) smoothedBodyRight = avatarTransform.right;
-        }
-
         Vector3 rawVel = (headPos - prevHeadPos) / dt;
         rawVel.y = 0f;
         prevHeadPos = headPos;
@@ -504,15 +490,6 @@ public class BasisLocalFootDriver
         Vector3 hipsGround = new Vector3(hipsXZ.x, groundY, hipsXZ.z);
         EnforceSide(ref left.idealPos, hipsGround, rawRight, -1, halfStance * 0.3f);
         EnforceSide(ref right.idealPos, hipsGround, rawRight, +1, halfStance * 0.3f);
-
-        // ── Settle frames or re-engaging: snap feet to ideals so they start in the right place ──
-        if (settleFrames > 0 || wasDisabled)
-        {
-            settleFrames = Mathf.Max(settleFrames - 1, 0);
-            wasDisabled = false;
-            SnapFootToGround(left, bodyFwd);
-            SnapFootToGround(right, bodyFwd);
-        }
 
         // ── Step parameters for this frame ──
         float speedT = Mathf.Clamp01(speed / fastSpeedRef);
