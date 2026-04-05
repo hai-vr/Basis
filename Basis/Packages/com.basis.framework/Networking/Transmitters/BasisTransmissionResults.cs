@@ -567,9 +567,6 @@ public partial class BasisTransmissionResults
         int recipientCount = TalkingPoints.Count;
         int excludedCount = ExcludedPoints.Count;
         BasisNetworkTransmitter.HasReasonToSendAudio = recipientCount != 0;
-#if UNITY_SERVER
-        BasisDebug.Log($"Has Reason To Send Audio {BasisNetworkTransmitter.HasReasonToSendAudio}");
-#endif
         // Compute wire sizes for each mode
         int listSize = (recipientCount <= byte.MaxValue ? 1 : 2) + recipientCount * 2;
         int invertedSize = (excludedCount <= byte.MaxValue ? 1 : 2) + excludedCount * 2;
