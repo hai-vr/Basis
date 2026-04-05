@@ -142,6 +142,19 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> EnableStatistics = new("enablestatistics", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<bool> DevShowBuildInfo = new("devshowbuildinfo", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DevShowConsole = new("devshowconsole", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DevShowEuroFilter = new("devshowfilter", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> DevShowNetStats = new("devshownetstats", new BasisPlatformDefault<bool>(false));
+
+        public static BasisSettingsBinding<bool> AudioDebugEnabled = new("audiodebugenabled", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> AudioDebugShowSource = new("audiodebugshowsource", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> AudioDebugShowVolume = new("audiodebugshowvolume", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> AudioDebugShowRingBuffer = new("audiodebugshowringbuffer", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> AudioDebugShowJitter = new("audiodebugshowjitter", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> AudioDebugShowSilence = new("audiodebugshowsilence", new BasisPlatformDefault<bool>(true));
+        public static BasisSettingsBinding<bool> AudioDebugShowViseme = new("audiodebugshowviseme", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<string> MemoryAllocation = new("memoryallocation", new BasisPlatformDefault<string>
         {
             windows = "Dynamic",

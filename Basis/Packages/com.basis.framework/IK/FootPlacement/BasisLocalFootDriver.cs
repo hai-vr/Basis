@@ -79,7 +79,7 @@ public class BasisLocalFootDriver
     private Vector3 prevHeadPos;
     private Vector3 smoothedVelocity;
     private float prevHeadYaw;
-    private bool firstFrame;
+    private int settleFrames;
     private bool wasDisabled;
     private float lastKnownGroundY;
     private Vector3 smoothedBodyFwd;
@@ -209,7 +209,7 @@ public class BasisLocalFootDriver
         lastKnownGroundY = hips.position.y - hipToFoot;
         smoothedBodyFwd = avatarTransform.forward;
         smoothedBodyRight = Vector3.Cross(Vector3.up, smoothedBodyFwd).normalized;
-        firstFrame = true;
+        settleFrames = 3;
         BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnHeightChanged;
         IsInitialized = true;
     }
@@ -404,6 +404,18 @@ public class BasisLocalFootDriver
         // ── Locomotion from head ──
         Vector3 headPos = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
 
+        // During settle frames after init, sync tracking state to prevent phantom velocity
+        // from head/body movement between InitializeVariables() and Simulate().
+        // Multiple frames lets hips/body fully settle before feet lock in.
+        if (settleFrames > 0)
+        {
+            prevHeadPos = headPos;
+            smoothedVelocity = Vector3.zero;
+            smoothedBodyFwd = BodyForward();
+            smoothedBodyRight = Vector3.Cross(Vector3.up, smoothedBodyFwd).normalized;
+            if (smoothedBodyRight.sqrMagnitude < 0.001f) smoothedBodyRight = avatarTransform.right;
+        }
+
         Vector3 rawVel = (headPos - prevHeadPos) / dt;
         rawVel.y = 0f;
         prevHeadPos = headPos;
@@ -493,10 +505,10 @@ public class BasisLocalFootDriver
         EnforceSide(ref left.idealPos, hipsGround, rawRight, -1, halfStance * 0.3f);
         EnforceSide(ref right.idealPos, hipsGround, rawRight, +1, halfStance * 0.3f);
 
-        // ── First frame or re-engaging: snap feet to ideals so they start in the right place ──
-        if (firstFrame || wasDisabled)
+        // ── Settle frames or re-engaging: snap feet to ideals so they start in the right place ──
+        if (settleFrames > 0 || wasDisabled)
         {
-            firstFrame = false;
+            settleFrames = Mathf.Max(settleFrames - 1, 0);
             wasDisabled = false;
             SnapFootToGround(left, bodyFwd);
             SnapFootToGround(right, bodyFwd);
@@ -651,6 +663,12 @@ public class BasisLocalFootDriver
     {
         float dx = a.x - b.x, dz = a.z - b.z;
         return Mathf.Sqrt(dx * dx + dz * dz);
+    }
+
+    private void ClampFootBelowHips(ref Vector3 footPos)
+    {
+        if (footPos.y > hips.position.y)
+            footPos.y = hips.position.y;
     }
 
     /// <summary>
@@ -840,6 +858,9 @@ public class BasisLocalFootDriver
             // Airborne: place at hipToFoot below hips
             f.currentPos = f.plantedPos = new Vector3(f.idealPos.x, hips.position.y - hipToFoot, f.idealPos.z);
         }
+        // Feet must never be above hips
+        ClampFootBelowHips(ref f.currentPos);
+        f.plantedPos = f.currentPos;
         f.currentRot = f.plantedRot = FootRotation(bodyFwd, f.filteredNormal);
         f.phase = Phase.Planted;
     }
@@ -865,6 +886,10 @@ public class BasisLocalFootDriver
         Vector3 fwd = avatarTransform != null ? avatarTransform.forward : Vector3.forward;
         f.currentRot = f.plantedRot = FootRotation(fwd, f.filteredNormal);
         f.phase = Phase.Planted;
+        if (hips != null)
+        {
+            f.kneeHint = (hips.position + f.currentPos) * 0.5f + fwd * (f.thighLen > 0 ? f.thighLen * 0.4f : 0.12f);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════

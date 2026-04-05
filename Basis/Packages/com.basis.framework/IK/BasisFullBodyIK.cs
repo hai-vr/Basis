@@ -240,6 +240,7 @@ namespace UnityEngine.Animations.Rigging
 
         // Misc
         [SyncSceneToStream, SerializeField] public Vector3 SpineBendNormal;
+        [SyncSceneToStream, SerializeField] public Vector3 PlayerUp;
 
         [SyncSceneToStream, SerializeField] public Vector3 ElbowBendPrefLeft;
         [SyncSceneToStream, SerializeField] public Vector3 ElbowBendPrefRight;
@@ -331,6 +332,7 @@ namespace UnityEngine.Animations.Rigging
         public string PropertyChestPosition => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestPosition));
         public string PropertyChestRotation => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ChestRotation));
         public string BendNormalHeadProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(SpineBendNormal));
+        public string PlayerUpProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(PlayerUp));
         public string KneeBendPrefLeftProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(KneeBendPrefLeft));
         public string KneeBendPrefRightProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(KneeBendPrefRight));
         public string ElbowBendPrefLeftProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(ElbowBendPrefLeft));
@@ -476,6 +478,7 @@ namespace UnityEngine.Animations.Rigging
             m_CalibratedRotationLeftHand = m_CalibratedRotationRightHand = Quaternion.identity;
 
             SpineBendNormal = Vector3.up;
+            PlayerUp = Vector3.up;
 
             PositionHips = Vector3.zero;
             RotationHips = Quaternion.identity;
@@ -714,7 +717,7 @@ namespace UnityEngine.Animations.Rigging
   HandleLeftUpperArm, HandleLeftLowerArm, HandleLeftHand,
   HandleRightUpperArm, HandleRightLowerArm, HandleRightHand;
 
-        public Vector3Property targetPositionHead, TargetChestPosition, bendNormalHead, KneeBendPrefLeft, KneeBendPrefRight, ElbowBendPrefLeft, ElbowBendPrefRight,
+        public Vector3Property targetPositionHead, TargetChestPosition, bendNormalHead, playerUp, KneeBendPrefLeft, KneeBendPrefRight, ElbowBendPrefLeft, ElbowBendPrefRight,
 targetPositionLeftLowerLeg, hintPositionLeftLowerLeg,
 targetPositionRightLowerLeg, hintPositionRightLowerLeg,
 targetPositionHips,
@@ -870,6 +873,7 @@ w20, w54;
 
             float restDist = MinHeadSpineHeight.Get(stream);
             int lockMode = (int)ikLockMode.Get(stream);
+            Vector3 up = playerUp.Get(stream);
 
             // Lock mode determines how hips position relates to head position:
             // 0 = LockHips:  Hips are the anchor; apply hips directly, no head-relative clamping.
@@ -881,15 +885,15 @@ w20, w54;
                     break;
 
                 case 1: // LockHead - head is the anchor, derive hips below head
-                    hipsTargetPos = headTargetPos + Vector3.down * restDist;
+                    hipsTargetPos = headTargetPos - up * restDist;
                     break;
 
                 default: // LockBoth (2) - original behavior: clamp hips relative to head
                     hipsTargetPos = AntiContortionist(headTargetPos, headTargetRot, hipsTargetPos, hipDesired, restDist);
-                    hipsTargetPos = MitigateSpineBuckling(headTargetPos, hipDesired, hipsTargetPos, restDist);
+                    hipsTargetPos = MitigateSpineBuckling(headTargetPos, hipDesired, hipsTargetPos, restDist, up);
                     float MaxBendDeg = maxBendDeg.Get(stream);
-                    hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, MaxBendDeg);
-                    hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream));
+                    hipsTargetPos = EnforceSpineBendLimit(headTargetPos, hipsTargetPos, MaxBendDeg, up);
+                    hipsTargetPos = ClampHipsAroundHead(headTargetPos, hipsTargetPos, restDist, minFactor.Get(stream), maxFactor.Get(stream), up);
                     break;
             }
 
@@ -1060,13 +1064,13 @@ w20, w54;
 
             return axis / Mathf.Sqrt(mag2);
         }
-        static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor)
+        static Vector3 ClampHipsAroundHead(Vector3 headPos, Vector3 hipsPos, float restDistance, float minFactor, float maxFactor, Vector3 playerUp)
         {
             Vector3 headToHips = hipsPos - headPos;
             float sqrMag = headToHips.sqrMagnitude;
             if (sqrMag < k_SqrEpsilon)
             {
-                return headPos + restDistance * minFactor * Vector3.down; // could also use previous frame’s axis
+                return headPos - restDistance * minFactor * playerUp;
             }
 
             // Use the head→hips direction as the "up" axis for the clamp
@@ -1092,7 +1096,7 @@ w20, w54;
 
             return headPos + vertical + lateral;
         }
-        static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg)
+        static Vector3 EnforceSpineBendLimit(Vector3 headPos, Vector3 hipsPos, float maxBendDeg, Vector3 playerUp)
         {
             if (maxBendDeg <= 0f)
             {
@@ -1106,7 +1110,7 @@ w20, w54;
                 return hipsPos;
             }
 
-            Vector3 up = Vector3.up;
+            Vector3 up = playerUp;
 
             // Decompose into vertical (along -up, hips below head) and lateral
             float verticalDot = Vector3.Dot(diff, -up); // positive if hips are "below" head
@@ -1167,7 +1171,7 @@ w20, w54;
         /// than rest pose, the FABRIK chain can buckle into unnatural S-curves. This pushes the
         /// hips downward to prevent oscillation. From HVR-IK's HIKSpineSolver.
         /// </summary>
-        static Vector3 MitigateSpineBuckling(Vector3 headPos, Quaternion hipsRot, Vector3 hipsPos, float restDistance)
+        static Vector3 MitigateSpineBuckling(Vector3 headPos, Quaternion hipsRot, Vector3 hipsPos, float restDistance, Vector3 playerUp)
         {
             Vector3 diff = hipsPos - headPos;
             float currentDist = diff.magnitude;
@@ -1182,7 +1186,7 @@ w20, w54;
             float compression = 1f - (currentDist / restDistance);
 
             float pushAmount = compression * tension * restDistance * 0.5f;
-            return hipsPos + Vector3.down * pushAmount;
+            return hipsPos - playerUp * pushAmount;
         }
         static Quaternion ClampRotation(Quaternion current, Quaternion reference, float maxAngleDeg)
         {
@@ -1253,7 +1257,7 @@ w20, w54;
 
                 if (axis.sqrMagnitude < k_SqrEpsilon)
                 {
-                    axis = Vector3.up;
+                    axis = playerUp.Get(stream);
                 }
             }
             axis = axis.normalized;
@@ -1736,6 +1740,7 @@ w20, w54;
                 targetPositionHead = Vector3Property.Bind(animator, component, data.TargetPositionPropertyHead),
                 TargetChestPosition = Vector3Property.Bind(animator, component, data.PropertyChestPosition),
                 bendNormalHead = Vector3Property.Bind(animator, component, data.BendNormalHeadProperty),
+                playerUp = Vector3Property.Bind(animator, component, data.PlayerUpProperty),
 
                 KneeBendPrefLeft = Vector3Property.Bind(animator, component, data.KneeBendPrefLeftProperty),
                 KneeBendPrefRight = Vector3Property.Bind(animator, component, data.KneeBendPrefRightProperty),
