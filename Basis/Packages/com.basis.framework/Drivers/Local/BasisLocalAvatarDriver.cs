@@ -157,7 +157,7 @@ namespace Basis.Scripts.Drivers
 
             ComputeOffsets(player.LocalBoneDriver);
 
-            // player.BasisLocalFootDriver.InitializeVariables();
+            player.BasisLocalFootDriver.InitializeVariables();
 
             player.LocalHandDriver.ReInitialize(player.BasisAvatar.Animator);
             player.LocalAnimatorDriver.Initialize(player);

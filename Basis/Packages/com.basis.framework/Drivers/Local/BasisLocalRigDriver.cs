@@ -372,33 +372,61 @@ namespace Basis.Scripts.Drivers
             data.PositionHead = headPos;
             data.RotationHead = headRot;
 
-            // ---------------- LEFT FOOT ----------------
-            var lf = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
+            // ---------------- FEET ----------------
+            // When no foot trackers are present, use the locomotion-aware foot driver
+            // for procedural stepping instead of raw animation bone data.
+            bool leftFootHasTracker = BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker;
+            bool rightFootHasTracker = BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker;
 
-            Vector3 lfPos = lf.position;
-            if (SmoothPos[S_LeftFoot])
-                lfPos = EuroPos[S_LeftFoot] ? fPosLeftFoot.Filter(lfPos, timeAccumulator) : FallbackPos(ref sPosLeftFoot, lfPos, deltaTime);
+            var footDriver = localPlayer.BasisLocalFootDriver;
+            bool useFootDriver = footDriver != null && footDriver.IsInitialized
+                && !leftFootHasTracker && !rightFootHasTracker;
 
-            Quaternion lfRot = lf.rotation;
-            if (SmoothRot[S_LeftFoot])
-                lfRot = EuroRot[S_LeftFoot] ? fRotLeftFoot.Filter(lfRot, timeAccumulator) : FallbackRot(ref sRotLeftFoot, lfRot, deltaTime);
+            if (useFootDriver)
+            {
+                // Run the procedural foot placement simulation
+                footDriver.Simulate(deltaTime);
 
-            data.LeftFootPosition = lfPos;
-            data.LeftFootRotation = lfRot;
+                data.LeftFootPosition = footDriver.LeftFootPosition;
+                data.LeftFootRotation = footDriver.LeftFootRotation;
 
-            // ---------------- RIGHT FOOT ----------------
-            var rf = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
+                data.RightFootPosition = footDriver.RightFootPosition;
+                data.RightFootRotation = footDriver.RightFootRotation;
 
-            Vector3 rfPos = rf.position;
-            if (SmoothPos[S_RightFoot])
-                rfPos = EuroPos[S_RightFoot] ? fPosRightFoot.Filter(rfPos, timeAccumulator) : FallbackPos(ref sPosRightFoot, rfPos, deltaTime);
+                // Force leg IK on — without this the solver skips legs when no rig layer exists
+                data.EnableLeftLeg = true;
+                data.EnableRightLeg = true;
+            }
+            else
+            {
+                // LEFT FOOT — tracker-driven path
+                var lf = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
 
-            Quaternion rfRot = rf.rotation;
-            if (SmoothRot[S_RightFoot])
-                rfRot = EuroRot[S_RightFoot] ? fRotRightFoot.Filter(rfRot, timeAccumulator) : FallbackRot(ref sRotRightFoot, rfRot, deltaTime);
+                Vector3 lfPos = lf.position;
+                if (SmoothPos[S_LeftFoot])
+                    lfPos = EuroPos[S_LeftFoot] ? fPosLeftFoot.Filter(lfPos, timeAccumulator) : FallbackPos(ref sPosLeftFoot, lfPos, deltaTime);
 
-            data.RightFootPosition = rfPos;
-            data.RightFootRotation = rfRot;
+                Quaternion lfRot = lf.rotation;
+                if (SmoothRot[S_LeftFoot])
+                    lfRot = EuroRot[S_LeftFoot] ? fRotLeftFoot.Filter(lfRot, timeAccumulator) : FallbackRot(ref sRotLeftFoot, lfRot, deltaTime);
+
+                data.LeftFootPosition = lfPos;
+                data.LeftFootRotation = lfRot;
+
+                // RIGHT FOOT — tracker-driven path
+                var rf = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
+
+                Vector3 rfPos = rf.position;
+                if (SmoothPos[S_RightFoot])
+                    rfPos = EuroPos[S_RightFoot] ? fPosRightFoot.Filter(rfPos, timeAccumulator) : FallbackPos(ref sPosRightFoot, rfPos, deltaTime);
+
+                Quaternion rfRot = rf.rotation;
+                if (SmoothRot[S_RightFoot])
+                    rfRot = EuroRot[S_RightFoot] ? fRotRightFoot.Filter(rfRot, timeAccumulator) : FallbackRot(ref sRotRightFoot, rfRot, deltaTime);
+
+                data.RightFootPosition = rfPos;
+                data.RightFootRotation = rfRot;
+            }
 
             // ---------------- CHEST (head hint) ----------------
             var chest = BasisLocalBoneDriver.ChestControl.OutgoingWorldData;
