@@ -548,10 +548,16 @@ namespace Basis.Scripts.Drivers
                 var lll = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
                 Vector3 lllPos = lll.position;
                 if (SmoothPos[S_LeftLowerLeg])
+                {
                     lllPos = EuroPos[S_LeftLowerLeg] ? fPosLeftLowerLeg.Filter(lllPos, timeAccumulator) : FallbackPos(ref sPosLeftLowerLeg, lllPos, deltaTime);
+                }
+
                 Quaternion lllRot = lll.rotation;
                 if (SmoothRot[S_LeftLowerLeg])
+                {
                     lllRot = EuroRot[S_LeftLowerLeg] ? fRotLeftLowerLeg.Filter(lllRot, timeAccumulator) : FallbackRot(ref sRotLeftLowerLeg, lllRot, deltaTime);
+                }
+
                 lllPos = ApplyHintBias(BasisBoneTrackedRole.LeftLowerLeg, lllPos, lllRot);
                 data.PositionLeftLowerLeg = lllPos;
                 data.RotationLeftLowerLeg = lllRot;
@@ -576,10 +582,16 @@ namespace Basis.Scripts.Drivers
                 var rll = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
                 Vector3 rllPos = rll.position;
                 if (SmoothPos[S_RightLowerLeg])
+                {
                     rllPos = EuroPos[S_RightLowerLeg] ? fPosRightLowerLeg.Filter(rllPos, timeAccumulator) : FallbackPos(ref sPosRightLowerLeg, rllPos, deltaTime);
+                }
+
                 Quaternion rllRot = rll.rotation;
                 if (SmoothRot[S_RightLowerLeg])
+                {
                     rllRot = EuroRot[S_RightLowerLeg] ? fRotRightLowerLeg.Filter(rllRot, timeAccumulator) : FallbackRot(ref sRotRightLowerLeg, rllRot, deltaTime);
+                }
+
                 rllPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerLeg, rllPos, rllRot);
                 data.PositionRightLowerLeg = rllPos;
                 data.RotationRightLowerLeg = rllRot;
