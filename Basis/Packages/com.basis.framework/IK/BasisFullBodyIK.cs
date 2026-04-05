@@ -1571,25 +1571,37 @@ w20, w54;
                 return;
             }
 
-            // Lerp between current animation pose and IK target, matching Unity's TwoBoneIK weight behaviour.
-            // At weight 1: fully IK-driven. At weight 0.5: halfway blend. At 0: animation passthrough.
-            Vector3 animTipPos = tip.GetPosition(stream);
-            Quaternion animTipRot = tip.GetRotation(stream);
+            // Save the pre-solve (animation) transforms so we can blend back toward them.
+            // Reading tip/mid/root positions BEFORE the solve gives us the true animation pose,
+            // not a stale IK-modified pose from a previous frame.
+            Vector3 origRootPos = root.GetPosition(stream);
+            Quaternion origRootRot = root.GetRotation(stream);
+            Vector3 origMidPos = mid.GetPosition(stream);
+            Quaternion origMidRot = mid.GetRotation(stream);
+            Vector3 origTipPos = tip.GetPosition(stream);
+            Quaternion origTipRot = tip.GetRotation(stream);
 
-            Vector3 ikTargetPos = targetPosProp.Get(stream);
-            Quaternion ikTargetRot = V4ToQuat(targetRotProp.Get(stream));
-
-            Vector3 blendedPos = Vector3.Lerp(animTipPos, ikTargetPos, posWeight);
-            Quaternion blendedRot = Quaternion.Slerp(animTipRot, ikTargetRot, posWeight);
-
-            float hintW = hintWeightProp.Get(stream) * posWeight;
+            // Solve at full strength toward the IK target
+            Quaternion tRot = V4ToQuat(targetRotProp.Get(stream));
             Quaternion hRot = V4ToQuat(hintRotProp.Get(stream));
+            float hintW = hintWeightProp.Get(stream);
 
-            AffineTransform target = new AffineTransform(blendedPos, blendedRot);
+            AffineTransform target = new AffineTransform(targetPosProp.Get(stream), tRot);
             AffineTransform hint = new AffineTransform(hintPosProp.Get(stream), hRot);
             Vector3 bendNormal = bendNormalProp.Get(stream);
 
             SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal);
+
+            // Blend the solved result back toward the original animation pose using the weight.
+            // At weight 1: fully IK. At weight 0.5: halfway. Near 0: almost pure animation.
+            if (posWeight < 1f)
+            {
+                root.SetPosition(stream, Vector3.Lerp(origRootPos, root.GetPosition(stream), posWeight));
+                root.SetRotation(stream, Quaternion.Slerp(origRootRot, root.GetRotation(stream), posWeight));
+                mid.SetRotation(stream, Quaternion.Slerp(origMidRot, mid.GetRotation(stream), posWeight));
+                tip.SetPosition(stream, Vector3.Lerp(origTipPos, tip.GetPosition(stream), posWeight));
+                tip.SetRotation(stream, Quaternion.Slerp(origTipRot, tip.GetRotation(stream), posWeight));
+            }
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Apply(AnimationStream stream, ReadWriteTransformHandle h, Vector3Property p, Vector4Property r, Vector4Property o, BoolProperty sw)
