@@ -444,15 +444,18 @@ public class BasisLocalFootDriver
         // Find ground — if raycast misses (mid-air), use hip-relative estimate.
         // Always keep feet at hipToFoot below hips so they track with jumps/falls.
         float groundY;
+        bool airborne;
         if (Physics.Raycast(hips.position, Vector3.down, out RaycastHit ch, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
         {
             groundY = ch.point.y;
             lastKnownGroundY = groundY;
+            airborne = false;
         }
         else
         {
             // Airborne: feet stay at hipToFoot below hips (natural dangling position)
             groundY = hips.position.y - hipToFoot;
+            airborne = true;
         }
 
         // Movement direction: use velocity direction (not body forward) so backward
@@ -499,6 +502,24 @@ public class BasisLocalFootDriver
         float idleBoost = speed < 0.05f ? stepTriggerDist * 0.5f : 0f;
         float threshold = stepTriggerDist + speed * strideScale + idleBoost;
         float stepDur = Mathf.Lerp(stepDurSlow, stepDurFast, speedT);
+
+        // ── Vertical correction ──
+        if (airborne)
+        {
+            // Airborne: feet track hips every frame (no threshold, no jitter)
+            float airY = groundY;
+            if (left.phase == Phase.Planted) left.currentPos.y = left.plantedPos.y = airY;
+            if (right.phase == Phase.Planted) right.currentPos.y = right.plantedPos.y = airY;
+        }
+        else
+        {
+            // Grounded: snap feet that are stuck at a stale height (spawn, landing)
+            float maxVerticalDrift = hipToFoot * 0.25f;
+            if (left.phase == Phase.Planted && Mathf.Abs(left.plantedPos.y - left.idealPos.y) > maxVerticalDrift)
+                left.currentPos.y = left.plantedPos.y = left.idealPos.y;
+            if (right.phase == Phase.Planted && Mathf.Abs(right.plantedPos.y - right.idealPos.y) > maxVerticalDrift)
+                right.currentPos.y = right.plantedPos.y = right.idealPos.y;
+        }
 
         // ── Update feet (pass raw forward for rotation, smoothed for placement) ──
         UpdateFoot(left, right, bodyFwd, rawFwd, speed, threshold, stepDur, dt);
