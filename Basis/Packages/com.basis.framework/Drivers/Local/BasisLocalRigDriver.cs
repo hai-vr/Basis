@@ -186,10 +186,6 @@ namespace Basis.Scripts.Drivers
         private static Quaternion smoothedLeftKneeRot = Quaternion.identity;
         private static Quaternion smoothedRightKneeRot = Quaternion.identity;
 
-        // Smoothed knee bend normals (prevents hip jitter from bend plane flipping)
-        private static Vector3 smoothedLeftBendNormal = Vector3.right;
-        private static Vector3 smoothedRightBendNormal = Vector3.right;
-
         // Per-foot blend weights for transitioning IK in/out (0 = animation, 1 = foot driver)
         private static float footIKBlendWeightLeft = 0f;
         private static float footIKBlendWeightRight = 0f;
@@ -211,6 +207,7 @@ namespace Basis.Scripts.Drivers
         {
             if (localPlayer?.BasisAvatar?.Animator == null || Builder == null)
             {
+                BasisDebug.LogError("Missing Localplayer || Avatar || Animator || builder");
                 return;
             }
 
@@ -368,11 +365,15 @@ namespace Basis.Scripts.Drivers
 
             Vector3 hipsPos = hips.position;
             if (SmoothPos[S_Hips])
+            {
                 hipsPos = EuroPos[S_Hips] ? fPosHips.Filter(hipsPos, timeAccumulator) : FallbackPos(ref sPosHips, hipsPos, deltaTime);
+            }
 
             Quaternion hipsRot = hips.rotation;
             if (SmoothRot[S_Hips])
+            {
                 hipsRot = EuroRot[S_Hips] ? fRotHips.Filter(hipsRot, timeAccumulator) : FallbackRot(ref sRotHips, hipsRot, deltaTime);
+            }
 
             hipsPos.y -= localPlayer.LocalCharacterDriver.landingCrouchEffect;
             data.PositionHips = hipsPos;
@@ -383,11 +384,15 @@ namespace Basis.Scripts.Drivers
 
             Vector3 headPos = head.position;
             if (SmoothPos[S_Head])
+            {
                 headPos = EuroPos[S_Head] ? fPosHead.Filter(headPos, timeAccumulator) : FallbackPos(ref sPosHead, headPos, deltaTime);
+            }
 
             Quaternion headRot = head.rotation;
             if (SmoothRot[S_Head])
+            {
                 headRot = EuroRot[S_Head] ? fRotHead.Filter(headRot, timeAccumulator) : FallbackRot(ref sRotHead, headRot, deltaTime);
+            }
 
             data.PositionHead = headPos;
             data.RotationHead = headRot;
@@ -400,40 +405,46 @@ namespace Basis.Scripts.Drivers
             bool rightHasTracker = BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker
                 || BasisLocalBoneDriver.RightUpperLegControl.HasTracked == BasisHasTracked.HasTracker;
 
-            bool locomotionAnimActive = localPlayer.LocalAnimatorDriver.dampenedVelocity.sqrMagnitude
-                > localPlayer.LocalAnimatorDriver.StationaryVelocityThreshold;
+            bool locomotionAnimActive = localPlayer.LocalAnimatorDriver.dampenedVelocity.sqrMagnitude > localPlayer.LocalAnimatorDriver.StationaryVelocityThreshold;
 
             if (locomotionAnimActive)
+            {
                 stationaryTimer = 0f;
+            }
             else
+            {
                 stationaryTimer += deltaTime;
+            }
 
-            var footDriver = localPlayer.BasisLocalFootDriver;
-            bool footDriverReady = footDriver != null && footDriver.IsInitialized;
+            BasisLocalFootDriver footDriver = localPlayer.BasisLocalFootDriver;
+            bool footDriverReady = footDriver.IsInitialized;
 
+            bool StationaryTimer = stationaryTimer >= StationaryDelaySeconds;
+            bool FootDriverStateAndStationary = footDriverReady && StationaryTimer;
             // Per-foot: want foot IK only when that foot has no tracker and not locomoting
-            bool leftWantIK = footDriverReady && !leftHasTracker && stationaryTimer >= StationaryDelaySeconds;
-            bool rightWantIK = footDriverReady && !rightHasTracker && stationaryTimer >= StationaryDelaySeconds;
+            bool leftWantIK = FootDriverStateAndStationary && !leftHasTracker;
+            bool rightWantIK = FootDriverStateAndStationary && !rightHasTracker;
 
+            bool LeftOrRightDrive = (!leftHasTracker || !rightHasTracker);
             // Always simulate foot driver if at least one foot needs it (or for warm state)
-            if (footDriverReady && (!leftHasTracker || !rightHasTracker))
+            if (footDriverReady && LeftOrRightDrive)
+            {
                 footDriver.Simulate(deltaTime);
+            }
 
             // Per-foot blend weights
             float leftBlendTarget = leftWantIK ? 1f : 0f;
             float rightBlendTarget = rightWantIK ? 1f : 0f;
             float leftPrevBlend = footIKBlendWeightLeft;
             float rightPrevBlend = footIKBlendWeightRight;
-            footIKBlendWeightLeft = Mathf.MoveTowards(footIKBlendWeightLeft, leftBlendTarget,
-                (leftWantIK ? FootIKBlendInSpeed : FootIKBlendOutSpeed) * deltaTime);
-            footIKBlendWeightRight = Mathf.MoveTowards(footIKBlendWeightRight, rightBlendTarget,
-                (rightWantIK ? FootIKBlendInSpeed : FootIKBlendOutSpeed) * deltaTime);
+            footIKBlendWeightLeft = Mathf.MoveTowards(footIKBlendWeightLeft, leftBlendTarget, (leftWantIK ? FootIKBlendInSpeed : FootIKBlendOutSpeed) * deltaTime);
+            footIKBlendWeightRight = Mathf.MoveTowards(footIKBlendWeightRight, rightBlendTarget, (rightWantIK ? FootIKBlendInSpeed : FootIKBlendOutSpeed) * deltaTime);
 
             // Notify re-engaging when either foot transitions on
-            if (footDriverReady &&
-                ((leftPrevBlend < 0.001f && footIKBlendWeightLeft >= 0.001f) ||
-                 (rightPrevBlend < 0.001f && footIKBlendWeightRight >= 0.001f)))
+            if (footDriverReady && ((leftPrevBlend < 0.001f && footIKBlendWeightLeft >= 0.001f) || (rightPrevBlend < 0.001f && footIKBlendWeightRight >= 0.001f)))
+            {
                 footDriver.NotifyReEngaging();
+            }
 
             // Keep combined weight for hip bob
             footIKBlendWeight = Mathf.Max(footIKBlendWeightLeft, footIKBlendWeightRight);
@@ -444,12 +455,19 @@ namespace Basis.Scripts.Drivers
                 var lf = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
                 Vector3 lfPos = lf.position;
                 if (SmoothPos[S_LeftFoot])
+                {
                     lfPos = EuroPos[S_LeftFoot] ? fPosLeftFoot.Filter(lfPos, timeAccumulator) : FallbackPos(ref sPosLeftFoot, lfPos, deltaTime);
+                }
+
                 Quaternion lfRot = lf.rotation;
                 if (SmoothRot[S_LeftFoot])
+                {
                     lfRot = EuroRot[S_LeftFoot] ? fRotLeftFoot.Filter(lfRot, timeAccumulator) : FallbackRot(ref sRotLeftFoot, lfRot, deltaTime);
+                }
+
                 data.LeftFootPosition = lfPos;
                 data.LeftFootRotation = lfRot;
+               
             }
             else if (footIKBlendWeightLeft > 0.001f && footDriverReady)
             {
@@ -468,10 +486,16 @@ namespace Basis.Scripts.Drivers
                 var rf = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
                 Vector3 rfPos = rf.position;
                 if (SmoothPos[S_RightFoot])
+                {
                     rfPos = EuroPos[S_RightFoot] ? fPosRightFoot.Filter(rfPos, timeAccumulator) : FallbackPos(ref sPosRightFoot, rfPos, deltaTime);
+                }
+
                 Quaternion rfRot = rf.rotation;
                 if (SmoothRot[S_RightFoot])
+                {
                     rfRot = EuroRot[S_RightFoot] ? fRotRightFoot.Filter(rfRot, timeAccumulator) : FallbackRot(ref sRotRightFoot, rfRot, deltaTime);
+                }
+
                 data.RightFootPosition = rfPos;
                 data.RightFootRotation = rfRot;
             }
