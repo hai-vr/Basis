@@ -1,4 +1,5 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using System;
 using UnityEngine;
@@ -19,8 +20,12 @@ public class BasisLocalFootDriver
     [SerializeField, Range(0.0f, 0.10f)] private float footHeightOffset = 0.015f;
     [SerializeField] private LayerMask groundLayers;
 
-    [Header("Body Proportions")]
-    [SerializeField, Range(0.05f, 0.25f)] private float halfStanceWidth = 0.1f;
+    [Header("Body Proportions (computed from calibration)")]
+    [Tooltip("Read-only: computed from T-pose calibration data.")]
+    [SerializeField] private float calibratedStanceWidth = 0.1f;
+    [SerializeField] private float calibratedHipToFoot = 0.85f;
+    [SerializeField] private float calibratedLeftLegLen = 0.8f;
+    [SerializeField] private float calibratedRightLegLen = 0.8f;
 
     [Header("Stepping")]
     [Tooltip("Base trigger distance when standing still.")]
@@ -107,22 +112,36 @@ public class BasisLocalFootDriver
     public void InitializeVariables()
     {
         avatarTransform = BasisLocalPlayer.Instance.AvatarTransform;
-        hips = BasisLocalAvatarDriver.Mapping.Hips;
+        var mapping = BasisLocalAvatarDriver.Mapping;
+        hips = mapping.Hips;
 
-        var lf = BasisLocalAvatarDriver.Mapping.leftFoot;
-        var rf = BasisLocalAvatarDriver.Mapping.rightFoot;
+        var lf = mapping.leftFoot;
+        var rf = mapping.rightFoot;
 
         left = new FootState("Left", lf, -1);
         right = new FootState("Right", rf, +1);
 
-        left.thigh = SafeGet(BasisLocalAvatarDriver.Mapping.LeftUpperLeg, lf != null ? lf.parent?.parent : null);
-        left.shin = SafeGet(BasisLocalAvatarDriver.Mapping.LeftLowerLeg, lf != null ? lf.parent : null);
-        right.thigh = SafeGet(BasisLocalAvatarDriver.Mapping.RightUpperLeg, rf != null ? rf.parent?.parent : null);
-        right.shin = SafeGet(BasisLocalAvatarDriver.Mapping.RightLowerLeg, rf != null ? rf.parent : null);
+        left.thigh = SafeGet(mapping.LeftUpperLeg, lf != null ? lf.parent?.parent : null);
+        left.shin = SafeGet(mapping.LeftLowerLeg, lf != null ? lf.parent : null);
+        right.thigh = SafeGet(mapping.RightUpperLeg, rf != null ? rf.parent?.parent : null);
+        right.shin = SafeGet(mapping.RightLowerLeg, rf != null ? rf.parent : null);
 
         if (groundLayers.value == 0) groundLayers = LayerMask.GetMask("Default");
 
-        CacheLeg(left); CacheLeg(right);
+        // ── Compute proportions from T-pose calibration ──
+        ComputeProportionsFromCalibration(mapping);
+
+        left.thighLen = calibratedLeftLegLen * 0.5f;
+        left.shinLen = calibratedLeftLegLen * 0.5f;
+        left.legLength = calibratedLeftLegLen;
+        right.thighLen = calibratedRightLegLen * 0.5f;
+        right.shinLen = calibratedRightLegLen * 0.5f;
+        right.legLength = calibratedRightLegLen;
+
+        // Refine segment lengths from actual bone transforms if available
+        RefineSegmentLengths(left);
+        RefineSegmentLengths(right);
+
         rayCastRange = Mathf.Max(left.legLength, right.legLength) + 0.3f;
 
         InitPose(left); InitPose(right);
@@ -131,6 +150,117 @@ public class BasisLocalFootDriver
         if (hc != null) { prevHeadPos = hc.OutgoingWorldData.position; prevHeadYaw = HeadYaw(); }
         smoothedVelocity = Vector3.zero;
         IsInitialized = true;
+    }
+
+    /// <summary>
+    /// Pull exact body proportions from the T-pose data recorded during calibration.
+    /// This replaces hardcoded/guessed values with measurements from the actual avatar.
+    /// </summary>
+    private void ComputeProportionsFromCalibration(BasisTransformMapping mapping)
+    {
+        var tpose = mapping.TposeFromRoot;
+        if (tpose == null || tpose.Count == 0)
+        {
+            // Fallback: measure from live transforms
+            FallbackMeasure();
+            return;
+        }
+
+        bool hasHips = TryGetTpose(tpose, HumanBodyBones.Hips, out Vector3 tHips);
+        bool hasLUL = TryGetTpose(tpose, HumanBodyBones.LeftUpperLeg, out Vector3 tLUL);
+        bool hasRUL = TryGetTpose(tpose, HumanBodyBones.RightUpperLeg, out Vector3 tRUL);
+        bool hasLLL = TryGetTpose(tpose, HumanBodyBones.LeftLowerLeg, out Vector3 tLLL);
+        bool hasRLL = TryGetTpose(tpose, HumanBodyBones.RightLowerLeg, out Vector3 tRLL);
+        bool hasLF = TryGetTpose(tpose, HumanBodyBones.LeftFoot, out Vector3 tLF);
+        bool hasRF = TryGetTpose(tpose, HumanBodyBones.RightFoot, out Vector3 tRF);
+
+        // ── Stance width: horizontal distance between feet in T-pose ──
+        if (hasLF && hasRF)
+        {
+            Vector3 diff = tRF - tLF;
+            diff.y = 0f; // horizontal only
+            calibratedStanceWidth = diff.magnitude;
+        }
+
+        // ── Hip to foot height: vertical distance from hips to average foot ──
+        if (hasHips && hasLF && hasRF)
+        {
+            Vector3 avgFoot = (tLF + tRF) * 0.5f;
+            calibratedHipToFoot = Mathf.Abs(tHips.y - avgFoot.y);
+        }
+
+        // ── Leg lengths from segments ──
+        if (hasLUL && hasLLL && hasLF)
+        {
+            float thigh = Vector3.Distance(tLUL, tLLL);
+            float shin = Vector3.Distance(tLLL, tLF);
+            calibratedLeftLegLen = thigh + shin;
+        }
+        else if (hasHips && hasLF)
+        {
+            calibratedLeftLegLen = Vector3.Distance(tHips, tLF);
+        }
+
+        if (hasRUL && hasRLL && hasRF)
+        {
+            float thigh = Vector3.Distance(tRUL, tRLL);
+            float shin = Vector3.Distance(tRLL, tRF);
+            calibratedRightLegLen = thigh + shin;
+        }
+        else if (hasHips && hasRF)
+        {
+            calibratedRightLegLen = Vector3.Distance(tHips, tRF);
+        }
+
+        // Sanity clamps
+        calibratedStanceWidth = Mathf.Max(0.05f, calibratedStanceWidth);
+        calibratedHipToFoot = Mathf.Max(0.2f, calibratedHipToFoot);
+        calibratedLeftLegLen = Mathf.Max(0.2f, calibratedLeftLegLen);
+        calibratedRightLegLen = Mathf.Max(0.2f, calibratedRightLegLen);
+    }
+
+    private static bool TryGetTpose(System.Collections.Generic.Dictionary<HumanBodyBones, BasisCalibratedCoords> tpose, HumanBodyBones bone, out Vector3 pos)
+    {
+        pos = Vector3.zero;
+        if (tpose.TryGetValue(bone, out var coords))
+        {
+            if (coords.position != Vector3.zero)
+            {
+                pos = coords.position;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void FallbackMeasure()
+    {
+        // Measure from live transforms as fallback when no calibration exists
+        if (hips != null && left.bone != null && right.bone != null)
+        {
+            Vector3 lf = left.bone.position, rf = right.bone.position;
+            Vector3 diff = rf - lf; diff.y = 0f;
+            calibratedStanceWidth = Mathf.Max(0.05f, diff.magnitude);
+            calibratedHipToFoot = Mathf.Max(0.2f, Mathf.Abs(hips.position.y - (lf.y + rf.y) * 0.5f));
+            calibratedLeftLegLen = Mathf.Max(0.2f, Vector3.Distance(hips.position, lf));
+            calibratedRightLegLen = Mathf.Max(0.2f, Vector3.Distance(hips.position, rf));
+        }
+    }
+
+    private void RefineSegmentLengths(FootState f)
+    {
+        // If we have thigh/shin transforms, measure actual segment lengths
+        if (f.thigh != null && f.shin != null && f.bone != null)
+        {
+            float thigh = Vector3.Distance(f.thigh.position, f.shin.position);
+            float shin = Vector3.Distance(f.shin.position, f.bone.position);
+            if (thigh > 0.05f && shin > 0.05f)
+            {
+                f.thighLen = thigh;
+                f.shinLen = shin;
+                f.legLength = thigh + shin;
+            }
+        }
     }
 
     // ───────────────────── Main tick ─────────────────────
@@ -161,15 +291,16 @@ public class BasisLocalFootDriver
         // ── Ideal foot positions: under hips, biased forward by velocity ──
         // Feet lead slightly in the movement direction so they don't trail the body.
         Vector3 hipsXZ = new Vector3(hips.position.x, 0f, hips.position.z);
-        Vector3 velBias = new Vector3(smoothedVelocity.x, 0f, smoothedVelocity.z) * 0.15f;
+        Vector3 velBias = new Vector3(smoothedVelocity.x, 0f, smoothedVelocity.z) * 0.06f;
 
         float groundY = hips.position.y - HipToFoot();
         if (Physics.Raycast(hips.position, Vector3.down, out RaycastHit ch, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
             groundY = ch.point.y;
 
         Vector3 center = new Vector3(hipsXZ.x, groundY, hipsXZ.z) + velBias;
-        left.idealPos = center - bodyRight * halfStanceWidth;
-        right.idealPos = center + bodyRight * halfStanceWidth;
+        float halfStance = calibratedStanceWidth * 0.5f;
+        left.idealPos = center - bodyRight * halfStance;
+        right.idealPos = center + bodyRight * halfStance;
 
         // ── Speed-adaptive step parameters ──
         float speedT = Mathf.Clamp01(speed / fastSpeedRef);
@@ -297,8 +428,7 @@ public class BasisLocalFootDriver
 
     private float HipToFoot()
     {
-        float avg = (left.legLength + right.legLength) * 0.5f;
-        return Mathf.Max(0.3f, avg * 0.95f);
+        return calibratedHipToFoot;
     }
 
     private Quaternion FootRotation(Vector3 bodyFwd, Vector3 normal)
@@ -317,21 +447,7 @@ public class BasisLocalFootDriver
 
     private Transform SafeGet(Transform a, Transform b) => a != null ? a : b;
 
-    private void CacheLeg(FootState f)
-    {
-        if (hips == null || f.bone == null) return;
-        if (f.thigh != null && f.shin != null)
-        {
-            f.thighLen = Vector3.Distance(f.thigh.position, f.shin.position);
-            f.shinLen = Vector3.Distance(f.shin.position, f.bone.position);
-            f.legLength = f.thighLen + f.shinLen;
-        }
-        else
-        {
-            float t = Vector3.Distance(hips.position, f.bone.position);
-            f.thighLen = t * 0.5f; f.shinLen = t * 0.5f; f.legLength = t;
-        }
-    }
+    // CacheLeg removed — proportions now come from ComputeProportionsFromCalibration + RefineSegmentLengths
 
     private void InitPose(FootState f)
     {
@@ -365,6 +481,10 @@ public class BasisLocalFootDriver
     public Vector3 SmoothedVelocity => smoothedVelocity;
     public float Speed => smoothedVelocity.magnitude;
     public Vector3 HipsPosition => hips != null ? hips.position : Vector3.zero;
+    public float CalibratedStanceWidth => calibratedStanceWidth;
+    public float CalibratedHipToFoot => calibratedHipToFoot;
+    public float CalibratedLeftLeg => calibratedLeftLegLen;
+    public float CalibratedRightLeg => calibratedRightLegLen;
 
     // ───────────────────── Gizmos ─────────────────────
 

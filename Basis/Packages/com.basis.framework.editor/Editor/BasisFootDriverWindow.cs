@@ -67,6 +67,18 @@ public class BasisFootDriverWindow : EditorWindow
             return;
         }
 
+        // Calibration
+        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+        {
+            EditorGUILayout.LabelField("Calibration (from T-pose)", EditorStyles.boldLabel);
+            EditorGUILayout.FloatField("Stance Width", fd.CalibratedStanceWidth);
+            EditorGUILayout.FloatField("Hip to Foot", fd.CalibratedHipToFoot);
+            EditorGUILayout.FloatField("Left Leg Length", fd.CalibratedLeftLeg);
+            EditorGUILayout.FloatField("Right Leg Length", fd.CalibratedRightLeg);
+        }
+
+        EditorGUILayout.Space(4);
+
         // Locomotion
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
