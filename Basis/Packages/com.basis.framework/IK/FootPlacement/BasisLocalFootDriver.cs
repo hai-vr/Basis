@@ -2,6 +2,9 @@ using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Drivers;
 using System;
+using Unity.Collections;
+using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 
 /// <summary>
@@ -22,12 +25,36 @@ public partial class BasisLocalFootDriver
     [Tooltip("Velocity bias on ideal position (fraction of velocity applied as forward offset).")]
     [SerializeField, Range(0.0f, 0.5f)]
     private float velocityBiasFactor = 0.18f;
+    [Tooltip("Lead offset multiplier for the stepping foot (fraction of velocityBiasFactor).")]
+    [SerializeField, Range(0.0f, 1.0f)]
+    private float leadOffsetFactor = 0.6f;
+    [Tooltip("Max velocity offset as fraction of leg length.")]
+    [SerializeField, Range(0.1f, 0.6f)]
+    private float maxVelocityOffsetFraction = 0.35f;
+    [Tooltip("Max step prediction distance as fraction of leg length.")]
+    [SerializeField, Range(0.1f, 0.6f)]
+    private float maxPredictionFraction = 0.35f;
 
     [Header("Smoothing")]
     [SerializeField, Range(5f, 60f)]
     private float plantedLerpSpeed = 40f;
     [SerializeField, Range(5f, 40f)]
     private float rotationLerpSpeed = 16f;
+    [Tooltip("Velocity smoothing rate when accelerating.")]
+    [SerializeField, Range(1f, 30f)]
+    private float velocitySmoothAccel = 10f;
+    [Tooltip("Velocity smoothing rate when decelerating.")]
+    [SerializeField, Range(10f, 100f)]
+    private float velocitySmoothDecel = 50f;
+    [Tooltip("Body forward smoothing rate when moving.")]
+    [SerializeField, Range(1f, 20f)]
+    private float bodyFwdRateMoving = 6f;
+    [Tooltip("Body forward smoothing rate when stationary.")]
+    [SerializeField, Range(0.5f, 10f)]
+    private float bodyFwdRateStationary = 2.5f;
+    [Tooltip("Knee hint lerp speed.")]
+    [SerializeField, Range(1f, 30f)]
+    private float kneeHintLerpSpeed = 10f;
 
     [Header("Foot Rotation Limits")]
     [Tooltip("Max slope tilt (ankle roll/pitch).")]
@@ -36,6 +63,94 @@ public partial class BasisLocalFootDriver
     [Tooltip("Max yaw deviation from body forward (toe-out / toe-in). Humans ~15-20 deg.")]
     [SerializeField, Range(0f, 45f)]
     private float maxFootYawDegrees = 18f;
+
+    [Header("Step Proportions (multipliers for avatar-scaled derivation)")]
+    [Tooltip("Ray sphere radius as fraction of foot length.")]
+    [SerializeField, Range(0.1f, 0.6f)]
+    private float raySphereRadiusMul = 0.3f;
+    [Tooltip("Foot height offset as fraction of ankle height.")]
+    [SerializeField, Range(0.05f, 0.5f)]
+    private float footHeightOffsetMul = 0.2f;
+    [Tooltip("Step trigger distance as fraction of avg leg length.")]
+    [SerializeField, Range(0.02f, 0.2f)]
+    private float stepTriggerMul = 0.08f;
+    [Tooltip("Stride scale as fraction of avg leg length.")]
+    [SerializeField, Range(0.02f, 0.15f)]
+    private float strideScaleMul = 0.06f;
+    [Tooltip("Step height as fraction of avg shin length.")]
+    [SerializeField, Range(0.05f, 0.4f)]
+    private float stepHeightMul = 0.18f;
+    [Tooltip("Slow step duration as fraction of pendulum period.")]
+    [SerializeField, Range(0.1f, 0.6f)]
+    private float stepDurSlowMul = 0.30f;
+    [Tooltip("Fast step duration as fraction of pendulum period.")]
+    [SerializeField, Range(0.05f, 0.4f)]
+    private float stepDurFastMul = 0.18f;
+    [Tooltip("Fast speed reference multiplier.")]
+    [SerializeField, Range(0.5f, 2.5f)]
+    private float fastSpeedMul = 1.2f;
+
+    [Header("Step Arc Shape")]
+    [Tooltip("Step arc lift exponent (controls how quickly foot rises).")]
+    [SerializeField, Range(0.2f, 1.5f)]
+    private float stepArcLiftExp = 0.6f;
+    [Tooltip("Step arc drop exponent (controls how quickly foot falls).")]
+    [SerializeField, Range(0.5f, 3.0f)]
+    private float stepArcDropExp = 1.4f;
+    [Tooltip("Min dynamic step height at slow speed (fraction of max).")]
+    [SerializeField, Range(0.0f, 1.0f)]
+    private float stepHeightMinFraction = 0.4f;
+
+    [Header("Idle Behavior")]
+    [Tooltip("Speed below which player is considered idle.")]
+    [SerializeField, Range(0.01f, 0.2f)]
+    private float idleSpeedThreshold = 0.05f;
+    [Tooltip("Extra step trigger distance when idle (fraction of stepTriggerDist).")]
+    [SerializeField, Range(0.0f, 1.5f)]
+    private float idleBoostFraction = 0.5f;
+    [Tooltip("Max yaw between planted foot and body forward before triggering a step (degrees).")]
+    [SerializeField, Range(10f, 90f)]
+    private float maxPlantedYawDegrees = 35f;
+
+    [Header("Side Enforcement")]
+    [Tooltip("Ideal position side enforcement as fraction of half stance.")]
+    [SerializeField, Range(0.1f, 0.6f)]
+    private float idealSideEnforceFraction = 0.3f;
+    [Tooltip("Step target side enforcement as fraction of stance width.")]
+    [SerializeField, Range(0.05f, 0.4f)]
+    private float stepTargetSideFraction = 0.15f;
+    [Tooltip("Final foot side enforcement as fraction of half stance.")]
+    [SerializeField, Range(0.05f, 0.5f)]
+    private float footSideEnforceFraction = 0.2f;
+
+    [Header("Vertical Correction")]
+    [Tooltip("Max vertical drift before feet snap (fraction of hipToFoot).")]
+    [SerializeField, Range(0.1f, 0.5f)]
+    private float maxVerticalDriftFraction = 0.25f;
+
+    [Header("Knee Hints")]
+    [Tooltip("Knee forward push as fraction of avg thigh length.")]
+    [SerializeField, Range(0.1f, 0.8f)]
+    private float kneeForwardPushFraction = 0.4f;
+    [Tooltip("Knee min side enforcement as fraction of half stance.")]
+    [SerializeField, Range(0.01f, 0.2f)]
+    private float kneeMinSideFraction = 0.05f;
+
+    [Header("Body Forward Weights")]
+    [Tooltip("Hips weight in body forward computation.")]
+    [SerializeField, Range(0f, 5f)]
+    private float bodyFwdHipsWeight = 3f;
+    [Tooltip("Chest weight in body forward computation.")]
+    [SerializeField, Range(0f, 5f)]
+    private float bodyFwdChestWeight = 2f;
+    [Tooltip("Head weight in body forward computation.")]
+    [SerializeField, Range(0f, 5f)]
+    private float bodyFwdHeadWeight = 1f;
+
+    [Header("Hip Bob")]
+    [Tooltip("Max hip bob amplitude as fraction of hipToFoot.")]
+    [SerializeField, Range(0.0f, 0.1f)]
+    private float hipBobFraction = 0.02f;
 
     [Header("Calibrated (read-only, from T-pose)")]
     [SerializeField] private float stanceWidth;
@@ -72,11 +187,17 @@ public partial class BasisLocalFootDriver
     private BasisFootState right;
     private float rayCastRange;
 
-    private Vector3 prevHeadPos;
+    // Legacy managed state (synced from job each frame for accessors/gizmos)
     private Vector3 smoothedVelocity;
     private float prevHeadYaw;
-    private Vector3 smoothedBodyFwd;
-    private Vector3 smoothedBodyRight;
+
+    // Job system
+    private NativeArray<BasisFootNativeState> _nativeFeet;
+    private NativeArray<BasisFootSimState> _nativeSimState;
+    private NativeArray<BasisFootSimInput> _nativeInput;
+    private NativeArray<BasisFootSimOutput> _nativeOutput;
+    private JobHandle _jobHandle;
+    private bool _jobScheduled;
 
     public static float SplayWhenCrouchedPercentage = 1f;
     public bool IsInitialized { get; private set; }
@@ -99,6 +220,13 @@ public partial class BasisLocalFootDriver
         right.currentPos = right.plantedPos = rf.position;
         right.currentRot = right.plantedRot = rf.rotation;
         right.phase = BasisFootPhase.Planted;
+
+        // Sync to native state
+        if (_nativeFeet.IsCreated)
+        {
+            _nativeFeet[0] = FootStateToNative(left);
+            _nativeFeet[1] = FootStateToNative(right);
+        }
     }
     public Vector3 LeftFootPosition => left.currentPos;
     public Quaternion LeftFootRotation => left.currentRot;
@@ -165,13 +293,148 @@ public partial class BasisLocalFootDriver
         InitPose(right);
 
         var hc = BasisLocalBoneDriver.HeadControl;
-        prevHeadPos = hc.OutgoingWorldData.position;
-        prevHeadYaw = HeadYaw();
-        smoothedVelocity = Vector3.zero;
-        smoothedBodyFwd = avatarTransform.forward;
-        smoothedBodyRight = Vector3.Cross(Vector3.up, smoothedBodyFwd).normalized;
+        Vector3 headPos = hc.OutgoingWorldData.position;
+        Vector3 bodyFwd = avatarTransform.forward;
+        Vector3 bodyRight = Vector3.Cross(Vector3.up, bodyFwd).normalized;
+
+        // Allocate job NativeArrays
+        DisposeNativeArrays();
+        _nativeFeet = new NativeArray<BasisFootNativeState>(2, Allocator.Persistent);
+        _nativeSimState = new NativeArray<BasisFootSimState>(1, Allocator.Persistent);
+        _nativeInput = new NativeArray<BasisFootSimInput>(1, Allocator.Persistent);
+        _nativeOutput = new NativeArray<BasisFootSimOutput>(1, Allocator.Persistent);
+
+        _nativeSimState[0] = new BasisFootSimState
+        {
+            prevHeadPos = headPos,
+            prevHeadYaw = HeadYaw(),
+            smoothedVelocity = float3.zero,
+            smoothedBodyFwd = bodyFwd,
+            smoothedBodyRight = bodyRight,
+        };
+
+        _nativeFeet[0] = FootStateToNative(left);
+        _nativeFeet[1] = FootStateToNative(right);
+
         BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnHeightChanged;
         IsInitialized = true;
+    }
+
+    public void Dispose()
+    {
+        BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnHeightChanged;
+        if (_jobScheduled)
+        {
+            _jobHandle.Complete();
+            _jobScheduled = false;
+        }
+        DisposeNativeArrays();
+        IsInitialized = false;
+    }
+
+    private void DisposeNativeArrays()
+    {
+        if (_nativeFeet.IsCreated) _nativeFeet.Dispose();
+        if (_nativeSimState.IsCreated) _nativeSimState.Dispose();
+        if (_nativeInput.IsCreated) _nativeInput.Dispose();
+        if (_nativeOutput.IsCreated) _nativeOutput.Dispose();
+    }
+
+    private static BasisFootNativeState FootStateToNative(BasisFootState f)
+    {
+        return new BasisFootNativeState
+        {
+            sideSign = f.sideSign,
+            thighLen = f.thighLen,
+            shinLen = f.shinLen,
+            legLength = f.legLength,
+            phase = f.phase == BasisFootPhase.Planted ? 0 : 1,
+            plantedPos = f.plantedPos,
+            plantedRot = f.plantedRot,
+            stepStartPos = f.stepStartPos,
+            stepTargetPos = f.stepTargetPos,
+            stepTargetRot = f.stepTargetRot,
+            stepTimer = f.stepTimer,
+            stepDur = f.stepDur,
+            idealPos = f.idealPos,
+            filteredNormal = f.filteredNormal,
+            currentPos = f.currentPos,
+            currentRot = f.currentRot,
+            kneeHint = f.kneeHint,
+        };
+    }
+
+    private void NativeToFootState(BasisFootNativeState n, BasisFootState f)
+    {
+        f.plantedPos = n.plantedPos;
+        f.plantedRot = n.plantedRot;
+        f.stepStartPos = n.stepStartPos;
+        f.stepTargetPos = n.stepTargetPos;
+        f.stepTargetRot = n.stepTargetRot;
+        f.stepTimer = n.stepTimer;
+        f.stepDur = n.stepDur;
+        f.idealPos = n.idealPos;
+        f.filteredNormal = n.filteredNormal;
+        f.currentPos = n.currentPos;
+        f.currentRot = n.currentRot;
+        f.kneeHint = n.kneeHint;
+        f.phase = n.phase == 0 ? BasisFootPhase.Planted : BasisFootPhase.Stepping;
+    }
+
+    private BasisFootSimParams BuildParams()
+    {
+        return new BasisFootSimParams
+        {
+            predictionFactor = predictionFactor,
+            velocityBiasFactor = velocityBiasFactor,
+            leadOffsetFactor = leadOffsetFactor,
+            maxVelocityOffsetFraction = maxVelocityOffsetFraction,
+            maxPredictionFraction = maxPredictionFraction,
+            plantedLerpSpeed = plantedLerpSpeed,
+            rotationLerpSpeed = rotationLerpSpeed,
+            velocitySmoothAccel = velocitySmoothAccel,
+            velocitySmoothDecel = velocitySmoothDecel,
+            bodyFwdRateMoving = bodyFwdRateMoving,
+            bodyFwdRateStationary = bodyFwdRateStationary,
+            kneeHintLerpSpeed = kneeHintLerpSpeed,
+            maxFootTiltDegrees = maxFootTiltDegrees,
+            maxFootYawDegrees = maxFootYawDegrees,
+            stepArcLiftExp = stepArcLiftExp,
+            stepArcDropExp = stepArcDropExp,
+            stepHeightMinFraction = stepHeightMinFraction,
+            idleSpeedThreshold = idleSpeedThreshold,
+            idleBoostFraction = idleBoostFraction,
+            maxPlantedYawDegrees = maxPlantedYawDegrees,
+            idealSideEnforceFraction = idealSideEnforceFraction,
+            stepTargetSideFraction = stepTargetSideFraction,
+            footSideEnforceFraction = footSideEnforceFraction,
+            maxVerticalDriftFraction = maxVerticalDriftFraction,
+            kneeForwardPushFraction = kneeForwardPushFraction,
+            kneeMinSideFraction = kneeMinSideFraction,
+            bodyFwdHipsWeight = bodyFwdHipsWeight,
+            bodyFwdChestWeight = bodyFwdChestWeight,
+            bodyFwdHeadWeight = bodyFwdHeadWeight,
+            hipBobFraction = hipBobFraction,
+            stanceWidth = stanceWidth,
+            hipToFoot = hipToFoot,
+            leftLegLen = leftLegLen,
+            rightLegLen = rightLegLen,
+            leftThighLen = leftThighLen,
+            leftShinLen = leftShinLen,
+            rightThighLen = rightThighLen,
+            rightShinLen = rightShinLen,
+            footLength = footLength,
+            ankleHeight = ankleHeight,
+            stepTriggerDist = stepTriggerDist,
+            strideScale = strideScale,
+            stepHeightCalc = stepHeightCalc,
+            stepDurSlow = stepDurSlow,
+            stepDurFast = stepDurFast,
+            raySphereRadius = raySphereRadius,
+            footHeightOffset = footHeightOffset,
+            fastSpeedRef = fastSpeedRef,
+            rayCastRange = rayCastRange,
+        };
     }
     private void MeasureFromCalibration(BasisTransformMapping mapping)
     {
@@ -293,33 +556,21 @@ public partial class BasisLocalFootDriver
         float avgShin = (leftShinLen + rightShinLen) * 0.5f;
 
         // Ray sphere radius: ~half the foot width, approximated as footLength * 0.3
-        raySphereRadius = Mathf.Clamp(footLength * 0.3f, 0.02f, 0.12f);
+        raySphereRadius = Mathf.Clamp(footLength * raySphereRadiusMul, 0.02f, 0.12f);
 
-        // Foot height offset: ankle bone sits above the ground by ankleHeight,
-        // but the IK target should be at ground + sole thickness
-        footHeightOffset = Mathf.Clamp(ankleHeight * 0.2f, 0.005f, 0.05f);
+        footHeightOffset = Mathf.Clamp(ankleHeight * footHeightOffsetMul, 0.005f, 0.05f);
 
-        // Step trigger: when planted foot drifts this far from ideal, take a step.
-        // ~8% of leg length — tight so feet don't lag behind the body.
-        stepTriggerDist = Mathf.Clamp(avgLeg * 0.08f, 0.04f, 0.18f);
+        stepTriggerDist = Mathf.Clamp(avgLeg * stepTriggerMul, 0.04f, 0.18f);
 
-        // Stride scale with speed: how much extra trigger distance per m/s of speed.
-        // ~6% of leg length — keeps strides proportional but responsive.
-        strideScale = Mathf.Clamp(avgLeg * 0.06f, 0.02f, 0.12f);
+        strideScale = Mathf.Clamp(avgLeg * strideScaleMul, 0.02f, 0.12f);
 
-        // Step height: ~18% of shin length gives a visible lift without being cartoonish.
-        stepHeightCalc = Mathf.Clamp(avgShin * 0.18f, 0.03f, 0.20f);
+        stepHeightCalc = Mathf.Clamp(avgShin * stepHeightMul, 0.03f, 0.20f);
 
-        // Step duration from leg-as-pendulum: T = pi * sqrt(L/g).
-        // Real human walk step is ~0.5s, but VR needs snappier to keep up with head.
-        // Use 30% of pendulum period for slow, 18% for fast.
         float pendulum = Mathf.PI * Mathf.Sqrt(avgLeg / 9.81f);
-        stepDurSlow = Mathf.Clamp(pendulum * 0.30f, 0.10f, 0.30f);
-        stepDurFast = Mathf.Clamp(pendulum * 0.18f, 0.06f, 0.18f);
+        stepDurSlow = Mathf.Clamp(pendulum * stepDurSlowMul, 0.10f, 0.30f);
+        stepDurFast = Mathf.Clamp(pendulum * stepDurFastMul, 0.06f, 0.18f);
 
-        // Speed at which step duration reaches its minimum:
-        // comfortable walk speed scales with leg length (~1.2 * sqrt(leg * g))
-        fastSpeedRef = Mathf.Clamp(1.2f * Mathf.Sqrt(avgLeg * 9.81f), 1.0f, 3.5f);
+        fastSpeedRef = Mathf.Clamp(fastSpeedMul * Mathf.Sqrt(avgLeg * 9.81f), 1.0f, 3.5f);
     }
     private void StoreBaseMeasurements()
     {
@@ -356,257 +607,102 @@ public partial class BasisLocalFootDriver
         right.shinLen = rightShinLen;
         right.legLength = rightLegLen;
         rayCastRange = Mathf.Max(leftLegLen, rightLegLen) + 0.3f;
+
+        // Sync leg lengths to native foot state
+        if (_nativeFeet.IsCreated)
+        {
+            var ln = _nativeFeet[0]; ln.thighLen = leftThighLen; ln.shinLen = leftShinLen; ln.legLength = leftLegLen; _nativeFeet[0] = ln;
+            var rn = _nativeFeet[1]; rn.thighLen = rightThighLen; rn.shinLen = rightShinLen; rn.legLength = rightLegLen; _nativeFeet[1] = rn;
+        }
     }
     private void OnHeightChanged(BasisHeightDriver.HeightModeChange mode)
     {
-        if (!IsInitialized) return;
+        if (!IsInitialized)
+        {
+            return;
+        }
+
         ApplyScaleToMeasurements(BasisHeightDriver.ScaledToMatchValue);
     }
     public void Simulate(float dt)
     {
         if (!IsInitialized || dt <= 0f) return;
 
-        // ── Locomotion from head ──
-        Vector3 headPos = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position;
+        // ── 1. Gather transform data + physics (main thread only) ──
+        var headData = BasisLocalBoneDriver.HeadControl.OutgoingWorldData;
+        var hipsData = BasisLocalBoneDriver.HipsControl.OutgoingWorldData;
+        var chestCtrl = BasisLocalBoneDriver.ChestControl;
+        bool groundHit = Physics.Raycast(hips.position, Vector3.down, out RaycastHit ch, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore);
 
-        Vector3 rawVel = (headPos - prevHeadPos) / dt;
-        rawVel.y = 0f;
-        prevHeadPos = headPos;
-
-        // Asymmetric smoothing: near-instant response when decelerating, slower when accelerating.
-        // Stopping must kill the velocity bias immediately or feet overshoot.
-        bool decelerating = rawVel.sqrMagnitude < smoothedVelocity.sqrMagnitude;
-        float vAlpha = 1f - Mathf.Exp(-(decelerating ? 50f : 10f) * dt);
-        smoothedVelocity = Vector3.Lerp(smoothedVelocity, rawVel, vAlpha);
-        prevHeadYaw = HeadYaw();
-
-        float speed = smoothedVelocity.magnitude;
-
-        // Smooth body forward/right to prevent snappy foot repositioning during head turns.
-        // Slower smoothing when stationary so small head oscillations don't move feet.
-        Vector3 rawFwd = BodyForward();
-        float fwdRate = speed > 0.1f ? 6f : 2.5f; // faster tracking when moving, sluggish when still
-        float fwdAlpha = 1f - Mathf.Exp(-fwdRate * dt);
-        smoothedBodyFwd = Vector3.Slerp(smoothedBodyFwd, rawFwd, fwdAlpha).normalized;
-        if (smoothedBodyFwd.sqrMagnitude < 0.001f)
+        // ── 2. Pack input ──
+        _nativeInput[0] = new BasisFootSimInput
         {
-            smoothedBodyFwd = rawFwd;
+            dt = dt,
+            headPos = headData.position,
+            hipsPos = hips.position,
+            hipsRot = hipsData.rotation,
+            chestRot = chestCtrl != null ? (quaternion)(Quaternion)chestCtrl.OutgoingWorldData.rotation : quaternion.identity,
+            headRot = headData.rotation,
+            avatarForward = avatarTransform.forward,
+            avatarRight = avatarTransform.right,
+            hasChest = chestCtrl != null,
+            groundHit = groundHit,
+            groundPoint = groundHit ? (float3)(Vector3)ch.point : float3.zero,
+            splayWhenCrouched = SplayWhenCrouchedPercentage,
+        };
+
+        // ── 3. Schedule + complete Burst job ──
+        var job = new BasisFootSimulateJob
+        {
+            p = BuildParams(),
+            feet = _nativeFeet,
+            simState = _nativeSimState,
+            input = _nativeInput,
+            output = _nativeOutput,
+        };
+        _jobHandle = job.Schedule();
+        _jobHandle.Complete();
+
+        // ── 4. Handle step triggers (SphereCast on main thread) ──
+        var leftN = _nativeFeet[0];
+        var rightN = _nativeFeet[1];
+
+        if (leftN.wantsStep)
+        {
+            FinalizeStep(ref leftN);
+            leftN.wantsStep = false;
+        }
+        if (rightN.wantsStep)
+        {
+            FinalizeStep(ref rightN);
+            rightN.wantsStep = false;
         }
 
-        smoothedBodyRight = Vector3.Cross(Vector3.up, smoothedBodyFwd).normalized;
-        if (smoothedBodyRight.sqrMagnitude < 0.001f)
-        {
-            smoothedBodyRight = avatarTransform.right;
-        }
+        _nativeFeet[0] = leftN;
+        _nativeFeet[1] = rightN;
 
-        Vector3 bodyFwd = smoothedBodyFwd;
-        Vector3 bodyRight = smoothedBodyRight;
+        // ── 5. Copy results to managed state (public properties + gizmos) ──
+        NativeToFootState(_nativeFeet[0], left);
+        NativeToFootState(_nativeFeet[1], right);
 
-        // Raw (unsmoothed) right direction for side enforcement — must be instantaneous
-        // so feet can't cross even during fast spins when the smooth direction lags.
-        Vector3 rawRight = Vector3.Cross(Vector3.up, rawFwd).normalized;
-        if (rawRight.sqrMagnitude < 0.001f)
-        {
-            rawRight = bodyRight;
-        }
+        // Sync sim state back for legacy accessors (gizmos, properties, etc.)
+        var simOut = _nativeSimState[0];
+        smoothedVelocity = simOut.smoothedVelocity;
+        prevHeadYaw = simOut.prevHeadYaw;
+    }
 
-        // ── Ideal positions ──
-        // In real gait the planted foot is behind the hips and the stepping foot
-        // lands well ahead. We split the velocity bias: the foot that is currently
-        // planted gets a SMALLER forward offset (it's trailing) while the foot
-        // that needs to move gets a LARGER one (it should lead).
-        Vector3 hipsXZ = new Vector3(hips.position.x, 0f, hips.position.z);
-        Vector3 velDir = new Vector3(smoothedVelocity.x, 0f, smoothedVelocity.z);
-
-        // Find ground — if raycast misses (mid-air), use hip-relative estimate.
-        // Always keep feet at hipToFoot below hips so they track with jumps/falls.
-        float groundY;
-        bool airborne =  !Physics.Raycast(hips.position, Vector3.down, out RaycastHit ch, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore);
-        if (airborne)
-        {
-            // Airborne: feet stay at hipToFoot below hips (natural dangling position)
-            groundY = hips.position.y - hipToFoot;
-        }
-        else
-        {
-            groundY = ch.point.y;
-        }
-
-        // Movement direction: use velocity direction (not body forward) so backward
-        // and strafing motion biases feet in the correct direction.
-        // Only use body forward as fallback when velocity is near zero.
-        Vector3 moveDir = velDir.sqrMagnitude > 0.01f ? velDir.normalized : bodyFwd;
-
-        // Base center with bias along movement direction, clamped to leg reach.
-        float avgLeg = (leftLegLen + rightLegLen) * 0.5f;
-        float maxOffset = avgLeg * 0.35f;
-        float baseBias = Mathf.Min(speed * velocityBiasFactor, maxOffset);
-        Vector3 center = new Vector3(hipsXZ.x, groundY, hipsXZ.z) + moveDir * baseBias;
-        float halfStance = stanceWidth * 0.5f;
-
-        // Lead offset for the stepping foot, also along movement direction
-        float leadAmount = Mathf.Min(speed * velocityBiasFactor * 0.6f, maxOffset * 0.5f);
-        Vector3 leadOffset = moveDir * leadAmount;
-
-        float leftDist = HDist(left.plantedPos, center - bodyRight * halfStance);
-        float rightDist = HDist(right.plantedPos, center + bodyRight * halfStance);
-
-        if (leftDist >= rightDist)
-        {
-            left.idealPos = center - bodyRight * halfStance + leadOffset;
-            right.idealPos = center + bodyRight * halfStance;
-        }
-        else
-        {
-            left.idealPos = center - bodyRight * halfStance;
-            right.idealPos = center + bodyRight * halfStance + leadOffset;
-        }
-
-        // ── Prevent cross-legging: use RAW (instantaneous) right direction ──
-        // The smoothed direction lags during spins — raw catches crossover immediately.
-        Vector3 hipsGround = new Vector3(hipsXZ.x, groundY, hipsXZ.z);
-        EnforceSide(ref left.idealPos, hipsGround, rawRight, -1, halfStance * 0.3f);
-        EnforceSide(ref right.idealPos, hipsGround, rawRight, +1, halfStance * 0.3f);
-
-        // ── Step parameters for this frame ──
+    private void FinalizeStep(ref BasisFootNativeState f)
+    {
+        var sim = _nativeSimState[0];
+        float speed = math.length(new float3(sim.smoothedVelocity.x, 0, sim.smoothedVelocity.z));
         float speedT = Mathf.Clamp01(speed / fastSpeedRef);
-        // When stationary, use a larger threshold so tiny head rotations don't trigger steps.
-        // The smoothed body forward absorbs small oscillations, but the stance offset
-        // still shifts ideals laterally. A wider deadzone prevents false triggers.
-        float idleBoost = speed < 0.05f ? stepTriggerDist * 0.5f : 0f;
-        float threshold = stepTriggerDist + speed * strideScale + idleBoost;
-        float stepDur = Mathf.Lerp(stepDurSlow, stepDurFast, speedT);
 
-        // ── Vertical correction ──
-        if (airborne)
-        {
-            // Airborne: feet track hips every frame (no threshold, no jitter)
-            float airY = groundY;
-            if (left.phase == BasisFootPhase.Planted)
-            {
-                left.currentPos.y = left.plantedPos.y = airY;
-            }
-
-            if (right.phase == BasisFootPhase.Planted)
-            {
-                right.currentPos.y = right.plantedPos.y = airY;
-            }
-        }
-        else
-        {
-            // Grounded: snap feet that are stuck at a stale height (spawn, landing)
-            float maxVerticalDrift = hipToFoot * 0.25f;
-            if (left.phase == BasisFootPhase.Planted && Mathf.Abs(left.plantedPos.y - left.idealPos.y) > maxVerticalDrift)
-            {
-                left.currentPos.y = left.plantedPos.y = left.idealPos.y;
-            }
-
-            if (right.phase == BasisFootPhase.Planted && Mathf.Abs(right.plantedPos.y - right.idealPos.y) > maxVerticalDrift)
-            {
-                right.currentPos.y = right.plantedPos.y = right.idealPos.y;
-            }
-        }
-
-        // ── Update feet (pass raw forward for rotation, smoothed for placement) ──
-        UpdateFoot(left, right, rawFwd, speed, threshold, stepDur, dt);
-        UpdateFoot(right, left, rawFwd, speed, threshold, stepDur, dt);
-
-        // ── Knee hints: compute target then smooth toward it ──
-        float avgThigh = (leftThighLen + rightThighLen) * 0.5f;
-        float avgLeg2 = (leftLegLen + rightLegLen) * 0.5f;
-        Vector3 hp = hips.position;
-
-        // How bent are the legs? 0 = standing straight, 1 = fully crouched
-        float hipFootDist = Mathf.Abs(hp.y - (left.currentPos.y + right.currentPos.y) * 0.5f);
-        float bendRatio = 1f - Mathf.Clamp01(hipFootDist / avgLeg2);
-
-        // Base knee target: midpoint of hip→foot, pushed forward
-        Vector3 leftKneeTarget = (hp + left.currentPos) * 0.5f + bodyFwd * (avgThigh * 0.4f);
-        Vector3 rightKneeTarget = (hp + right.currentPos) * 0.5f + bodyFwd * (avgThigh * 0.4f);
-
-        // Only splay outward when actually crouching — zero at normal stand
-        // Small amount keeps knees from touching during deep bends
-        float kneeSplay = halfStance * SplayWhenCrouchedPercentage * bendRatio;
-        leftKneeTarget -= rawRight * kneeSplay;
-        rightKneeTarget += rawRight * kneeSplay;
-
-        // Minimal side enforcement: just prevent crossing, don't push wide
-        Vector3 hipsGround2 = new Vector3(hp.x, leftKneeTarget.y, hp.z);
-        float kneeMinSide = halfStance * 0.05f;
-        EnforceSide(ref leftKneeTarget, hipsGround2, rawRight, -1, kneeMinSide);
-        EnforceSide(ref rightKneeTarget, new Vector3(hp.x, rightKneeTarget.y, hp.z), rawRight, +1, kneeMinSide);
-
-        float kneeAlpha = 1f - Mathf.Exp(-10f * dt);
-        left.kneeHint = Vector3.Lerp(left.kneeHint, leftKneeTarget, kneeAlpha);
-        right.kneeHint = Vector3.Lerp(right.kneeHint, rightKneeTarget, kneeAlpha);
-
-        // ── Final safety: enforce side on the actual output positions every frame ──
-        // During spins, planted positions go stale and the body rotates around them.
-        Vector3 hipsGround3 = new Vector3(hp.x, left.currentPos.y, hp.z);
-        float footMinSide = halfStance * 0.2f;
-        EnforceSide(ref left.currentPos, hipsGround3, rawRight, -1, footMinSide);
-        EnforceSide(ref right.currentPos, hipsGround3, rawRight, +1, footMinSide);
-    }
-    private void UpdateFoot(BasisFootState f, BasisFootState other, Vector3 rawFwd, float speed, float threshold, float stepDur, float dt)
-    {
-        if (f.phase == BasisFootPhase.Planted)
-        {
-            float a = 1f - Mathf.Exp(-plantedLerpSpeed * dt);
-            f.currentPos = Vector3.Lerp(f.currentPos, f.plantedPos, a);
-
-            // Planted feet HOLD their rotation — only settle toward plantedRot
-            float ra = 1f - Mathf.Exp(-rotationLerpSpeed * dt);
-            f.currentRot = Quaternion.Slerp(f.currentRot, f.plantedRot, ra);
-
-            float dist = HDist(f.plantedPos, f.idealPos);
-            if (dist > threshold && other.phase == BasisFootPhase.Planted)
-                StartStep(f, rawFwd, speed, stepDur);
-        }
-        else
-        {
-            f.stepTimer += dt;
-            float t = Mathf.Clamp01(f.stepTimer / f.stepDur);
-            float ease = 1f - (1f - t) * (1f - t) * (1f - t);
-
-            Vector3 pos = Vector3.Lerp(f.stepStartPos, f.stepTargetPos, ease);
-
-            // Step height scales with speed: humans barely lift feet at a slow shuffle
-            // but clear the ground more at a brisk walk. Minimum ~40% of max at idle.
-            float speedT2 = Mathf.Clamp01(speed / fastSpeedRef);
-            float dynamicHeight = stepHeightCalc * Mathf.Lerp(0.4f, 1.0f, speedT2);
-
-            // Asymmetric arc: fast lift, peak at ~35%, quick drop
-            float lift = Mathf.Pow(t, 0.6f) * Mathf.Pow(1f - t, 1.4f) / 0.234f;
-            pos.y += Mathf.Clamp01(lift) * dynamicHeight;
-            f.currentPos = pos;
-
-            // Use live raw forward for step rotation so it stays current during turns
-            Quaternion liveRot = FootRotation(rawFwd, f.filteredNormal);
-            f.currentRot = Quaternion.Slerp(f.currentRot, liveRot, ease);
-
-            if (t >= 1f)
-            {
-                f.phase = BasisFootPhase.Planted;
-                f.plantedPos = f.stepTargetPos;
-                f.plantedRot = FootRotation(rawFwd, f.filteredNormal);
-                f.currentPos = f.stepTargetPos;
-            }
-        }
-    }
-    private void StartStep(BasisFootState f, Vector3 bodyFwd, float speed, float stepDur)
-    {
-        f.phase = BasisFootPhase.Stepping;
+        f.phase = 1; // Stepping
         f.stepStartPos = f.currentPos;
         f.stepTimer = 0f;
-        f.stepDur = stepDur;
+        f.stepDur = Mathf.Lerp(stepDurSlow, stepDurFast, speedT);
 
-        // Predict along movement direction, clamped so the target can't exceed leg reach
-        float avgLeg = (leftLegLen + rightLegLen) * 0.5f;
-        Vector3 moveDir = smoothedVelocity.sqrMagnitude > 0.01f ? new Vector3(smoothedVelocity.x, 0f, smoothedVelocity.z).normalized: bodyFwd;
-        float predAmount = Mathf.Min(speed * stepDur * predictionFactor, avgLeg * 0.35f);
-        Vector3 prediction = moveDir * predAmount;
-        Vector3 targetXZ = f.idealPos + prediction;
-
+        Vector3 targetXZ = f.predictedTargetXZ;
         Vector3 rayOrig = targetXZ + Vector3.up * rayCastRange * 0.5f;
         if (Physics.SphereCast(rayOrig, raySphereRadius, Vector3.down, out RaycastHit hit, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
         {
@@ -615,22 +711,19 @@ public partial class BasisLocalFootDriver
         }
         else
         {
-            // Airborne: place step target at hipToFoot below hips
-            f.stepTargetPos = new Vector3(targetXZ.x, hips.position.y - hipToFoot, targetXZ.z);
+            f.stepTargetPos = new float3(targetXZ.x, hips.position.y - hipToFoot, targetXZ.z);
         }
 
-        // Enforce side constraint on step target using raw (instantaneous) body right
-        Vector3 rawFwd = BodyForward();
-        Vector3 rawR = Vector3.Cross(Vector3.up, rawFwd).normalized;
-        if (rawR.sqrMagnitude < 0.001f)
-        {
-            rawR = Vector3.right;
-        }
+        // Enforce side
+        float3 bodyFwd = sim.smoothedBodyFwd;
+        Vector3 rawR = Vector3.Cross(Vector3.up, (Vector3)(float3)bodyFwd).normalized;
+        if (rawR.sqrMagnitude < 0.001f) rawR = Vector3.right;
 
-        Vector3 hGround = new Vector3(hips.position.x, f.stepTargetPos.y, hips.position.z);
-        EnforceSide(ref f.stepTargetPos, hGround, rawR, f.sideSign, stanceWidth * 0.15f);
-
-        f.stepTargetRot = FootRotation(bodyFwd, f.filteredNormal);
+        Vector3 stp = f.stepTargetPos;
+        Vector3 hGround = new Vector3(hips.position.x, stp.y, hips.position.z);
+        EnforceSide(ref stp, hGround, rawR, f.sideSign, stanceWidth * stepTargetSideFraction);
+        f.stepTargetPos = stp;
+        f.stepTargetRot = FootRotation((Vector3)(float3)bodyFwd, (Vector3)(float3)f.filteredNormal);
     }
     private static float HDist(Vector3 a, Vector3 b)
     {
@@ -684,8 +777,8 @@ public partial class BasisLocalFootDriver
         hipsFwd.y = 0f;
         if (hipsFwd.sqrMagnitude > 0.001f)
         {
-            accumulated += hipsFwd.normalized * 3f;
-            totalWeight += 3f;
+            accumulated += hipsFwd.normalized * bodyFwdHipsWeight;
+            totalWeight += bodyFwdHipsWeight;
         }
 
         // Chest: secondary influence — captures torso twist
@@ -696,8 +789,8 @@ public partial class BasisLocalFootDriver
             chestFwd.y = 0f;
             if (chestFwd.sqrMagnitude > 0.001f)
             {
-                accumulated += chestFwd.normalized * 2f;
-                totalWeight += 2f;
+                accumulated += chestFwd.normalized * bodyFwdChestWeight;
+                totalWeight += bodyFwdChestWeight;
             }
         }
 
@@ -707,8 +800,8 @@ public partial class BasisLocalFootDriver
         Vector3 headFlat = new Vector3(headFwd.x, 0f, headFwd.z);
         if (headFlat.sqrMagnitude > 0.1f) // only when not looking steeply up/down
         {
-            accumulated += headFlat.normalized * 1f;
-            totalWeight += 1f;
+            accumulated += headFlat.normalized * bodyFwdHeadWeight;
+            totalWeight += bodyFwdHeadWeight;
         }
 
         if (totalWeight > 0f)
@@ -844,38 +937,8 @@ public partial class BasisLocalFootDriver
     /// </summary>
     public float ComputeHipBob()
     {
-        if (!IsInitialized)
-        {
-            return 0f;
-        }
-
-        float speed = smoothedVelocity.magnitude;
-        if (speed < 0.05f)
-        {
-            return 0f; // no bob when still
-        }
-
-        // Bob amplitude: ~2% of hip-to-foot height, scaled by speed
-        float maxBob = hipToFoot * 0.02f;
-        float speedScale = Mathf.Clamp01(speed / fastSpeedRef);
-        float amplitude = maxBob * speedScale;
-
-        // Dip when either foot is mid-step (weight transfer phase)
-        float leftDip = 0f, rightDip = 0f;
-        if (left.phase == BasisFootPhase.Stepping)
-        {
-            float t = Mathf.Clamp01(left.stepTimer / left.stepDur);
-            leftDip = Mathf.Sin(t * Mathf.PI); // peaks at mid-step
-        }
-        if (right.phase == BasisFootPhase.Stepping)
-        {
-            float t = Mathf.Clamp01(right.stepTimer / right.stepDur);
-            rightDip = Mathf.Sin(t * Mathf.PI);
-        }
-
-        // Take the max dip (only one foot steps at a time, but safety)
-        float dip = Mathf.Max(leftDip, rightDip);
-        return -dip * amplitude; // negative = downward
+        if (!IsInitialized || !_nativeOutput.IsCreated) return 0f;
+        return _nativeOutput[0].hipBob;
     }
 
     public bool LeftIsPlanted => left.phase == BasisFootPhase.Planted;
