@@ -39,7 +39,7 @@ public class BasisLocalFootDriver
     [Tooltip("Speed at which step duration reaches its minimum.")]
     [SerializeField, Range(0.5f, 4f)] private float fastSpeedRef = 1.8f;
     [Tooltip("Max step lift height.")]
-    [SerializeField, Range(0.01f, 0.20f)] private float stepHeight = 0.09f;
+    [SerializeField, Range(0.02f, 0.25f)] private float stepHeight = 0.14f;
 
     [Header("Prediction")]
     [Tooltip("How far ahead (in step-durations) to predict the step target.")]
