@@ -194,6 +194,11 @@ namespace Basis.Scripts.Drivers
         private static float footIKBlendWeight = 0f;
         private const float FootIKBlendInSpeed = 20f;  // ~50ms to fully engage
         private const float FootIKBlendOutSpeed = 15f; // ~67ms to fully disengage
+
+        // Hysteresis: require stationary for this long before engaging foot IK.
+        // Prevents single-frame flicker at jump apex or during speed oscillations.
+        private static float stationaryTimer = 0f;
+        private const float StationaryDelaySeconds = 0.15f;
         public void Initialize(BasisLocalPlayer localPlayer, BasisTransformMapping references)
         {
             this.localPlayer = localPlayer;
@@ -398,21 +403,28 @@ namespace Basis.Scripts.Drivers
             bool locomotionAnimActive = localPlayer.LocalAnimatorDriver.dampenedVelocity.sqrMagnitude
                 > localPlayer.LocalAnimatorDriver.StationaryVelocityThreshold;
 
+            // Hysteresis: must be stationary for StationaryDelaySeconds before foot IK engages.
+            // Prevents flicker at jump apex or brief velocity dips.
+            if (locomotionAnimActive)
+                stationaryTimer = 0f;
+            else
+                stationaryTimer += deltaTime;
+
             var footDriver = localPlayer.BasisLocalFootDriver;
             bool footDriverReady = footDriver != null && footDriver.IsInitialized && !anyLegTracker;
-            bool wantFootIK = footDriverReady && !locomotionAnimActive;
+            bool wantFootIK = footDriverReady && stationaryTimer >= StationaryDelaySeconds;
 
             // Always simulate foot driver so positions stay current (warm start on transitions)
             if (footDriverReady)
                 footDriver.Simulate(deltaTime);
 
-            // Blend weight: ramp up when foot IK wanted, ramp down when not
+            // Simple weight blend — the IK solver lerps between animation and targets
             float blendTarget = wantFootIK ? 1f : 0f;
             float blendSpeed = wantFootIK ? FootIKBlendInSpeed : FootIKBlendOutSpeed;
             float prevBlend = footIKBlendWeight;
             footIKBlendWeight = Mathf.MoveTowards(footIKBlendWeight, blendTarget, blendSpeed * deltaTime);
 
-            // Notify foot driver when transitioning from off to on so it snaps to current ideals
+            // Pick up from animation positions when engaging so there's no pop
             if (prevBlend < 0.001f && footIKBlendWeight >= 0.001f && footDriverReady)
                 footDriver.NotifyReEngaging();
 

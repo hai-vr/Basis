@@ -82,6 +82,10 @@ public class BasisLocalFootDriver
     /// Call when the foot driver is about to re-engage after being disabled (e.g., locomotion ended).
     /// Picks up foot positions from where the animation currently has them so there's no snap.
     /// </summary>
+    /// <summary>
+    /// Called when transitioning from animation to foot IK.
+    /// Picks up from where animation has the feet so there's no pop.
+    /// </summary>
     public void NotifyReEngaging()
     {
         if (left != null && BasisLocalBoneDriver.LeftFootControl != null)
