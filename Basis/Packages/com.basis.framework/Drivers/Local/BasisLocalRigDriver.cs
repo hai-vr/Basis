@@ -405,7 +405,10 @@ namespace Basis.Scripts.Drivers
             bool rightHasTracker = BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker
                 || BasisLocalBoneDriver.RightUpperLegControl.HasTracked == BasisHasTracked.HasTracker;
 
-            bool locomotionAnimActive = localPlayer.LocalAnimatorDriver.dampenedVelocity.sqrMagnitude > localPlayer.LocalAnimatorDriver.StationaryVelocityThreshold;
+            // Use controller input to determine if the player is intentionally moving.
+            // If controller input is driving movement → animator handles legs.
+            // If no controller input → any body movement is from VR headset shifting → foot driver handles it.
+            bool locomotionAnimActive = localPlayer.LocalCharacterDriver.MovementVector.sqrMagnitude > 0.001f;
 
             if (locomotionAnimActive)
             {
