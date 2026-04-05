@@ -47,6 +47,15 @@ public class BasisLocalFootDriver
     [SerializeField] private float footLength;       // toe-to-heel
     [SerializeField] private float ankleHeight;      // foot-to-ground in T-pose
 
+    // ───────── Base (unscaled) measurements for scale adaptation ─────────
+
+    private float baseStanceWidth;
+    private float baseHipToFoot;
+    private float baseLeftThighLen, baseLeftShinLen, baseLeftLegLen;
+    private float baseRightThighLen, baseRightShinLen, baseRightLegLen;
+    private float baseFootLength;
+    private float baseAnkleHeight;
+
     // ───────── Derived step parameters (computed from proportions) ─────────
 
     [Header("Derived Step Parameters (read-only)")]
@@ -139,6 +148,8 @@ public class BasisLocalFootDriver
 
     public void InitializeVariables()
     {
+        BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnHeightChanged;
+
         avatarTransform = BasisLocalPlayer.Instance.AvatarTransform;
         var mapping = BasisLocalAvatarDriver.Mapping;
         hips = mapping.Hips;
@@ -170,6 +181,7 @@ public class BasisLocalFootDriver
 
         // ── 1. Measure avatar from calibration T-pose ──
         MeasureFromCalibration(mapping);
+        StoreBaseMeasurements();
 
         // ── 2. Derive ALL step parameters from measurements ──
         DeriveStepParameters();
@@ -198,6 +210,7 @@ public class BasisLocalFootDriver
         smoothedBodyFwd = avatarTransform.forward;
         smoothedBodyRight = Vector3.Cross(Vector3.up, smoothedBodyFwd).normalized;
         firstFrame = true;
+        BasisLocalPlayer.OnPlayersHeightChangedNextFrame += OnHeightChanged;
         IsInitialized = true;
     }
 
@@ -323,6 +336,61 @@ public class BasisLocalFootDriver
         // Speed at which step duration reaches its minimum:
         // comfortable walk speed scales with leg length (~1.2 * sqrt(leg * g))
         fastSpeedRef = Mathf.Clamp(1.2f * Mathf.Sqrt(avgLeg * 9.81f), 1.0f, 3.5f);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  SCALE ADAPTATION
+    // ═══════════════════════════════════════════════════════════
+
+    private void StoreBaseMeasurements()
+    {
+        baseStanceWidth = stanceWidth;
+        baseHipToFoot = hipToFoot;
+        baseLeftThighLen = leftThighLen;
+        baseLeftShinLen = leftShinLen;
+        baseLeftLegLen = leftLegLen;
+        baseRightThighLen = rightThighLen;
+        baseRightShinLen = rightShinLen;
+        baseRightLegLen = rightLegLen;
+        baseFootLength = footLength;
+        baseAnkleHeight = ankleHeight;
+    }
+
+    private void ApplyScaleToMeasurements(float scale)
+    {
+        stanceWidth = baseStanceWidth * scale;
+        hipToFoot = baseHipToFoot * scale;
+        leftThighLen = baseLeftThighLen * scale;
+        leftShinLen = baseLeftShinLen * scale;
+        leftLegLen = baseLeftLegLen * scale;
+        rightThighLen = baseRightThighLen * scale;
+        rightShinLen = baseRightShinLen * scale;
+        rightLegLen = baseRightLegLen * scale;
+        footLength = baseFootLength * scale;
+        ankleHeight = baseAnkleHeight * scale;
+
+        DeriveStepParameters();
+
+        if (left != null)
+        {
+            left.thighLen = leftThighLen;
+            left.shinLen = leftShinLen;
+            left.legLength = leftLegLen;
+        }
+        if (right != null)
+        {
+            right.thighLen = rightThighLen;
+            right.shinLen = rightShinLen;
+            right.legLength = rightLegLen;
+        }
+
+        rayCastRange = Mathf.Max(leftLegLen, rightLegLen) + 0.3f;
+    }
+
+    private void OnHeightChanged(BasisHeightDriver.HeightModeChange mode)
+    {
+        if (!IsInitialized) return;
+        ApplyScaleToMeasurements(BasisHeightDriver.ScaledToMatchValue);
     }
 
     // ═══════════════════════════════════════════════════════════
