@@ -618,22 +618,55 @@ public class BasisLocalFootDriver
 
     private Vector3 BodyForward()
     {
-        // Try head forward projected to horizontal plane
-        var hc = BasisLocalBoneDriver.HeadControl;
-        Vector3 headFwd = hc.OutgoingWorldData.rotation * Vector3.forward;
-        Vector3 headFlat = new Vector3(headFwd.x, 0f, headFwd.z);
+        // Combine hips, chest, and head forward directions to determine where the
+        // body is facing. Hips are the most stable (don't change when looking around),
+        // chest adds torso twist, head adds a small bias for the look direction.
+        // This prevents feet from spinning when you just look left/right.
 
-        // If head is looking too far up/down (pitch > ~70 deg), the horizontal
-        // projection degenerates. Fall back to hips forward which stays stable.
-        if (headFlat.sqrMagnitude > 0.1f)
-        {
-            return headFlat.normalized;
-        }
+        Vector3 accumulated = Vector3.zero;
+        float totalWeight = 0f;
 
+        // Hips: strongest influence — the pelvis is the true body facing direction
         var hipsCtrl = BasisLocalBoneDriver.HipsControl;
         Vector3 hipsFwd = hipsCtrl.OutgoingWorldData.rotation * Vector3.forward;
         hipsFwd.y = 0f;
-        return hipsFwd.sqrMagnitude > 0.001f ? hipsFwd.normalized : avatarTransform != null ? avatarTransform.forward : Vector3.forward;
+        if (hipsFwd.sqrMagnitude > 0.001f)
+        {
+            accumulated += hipsFwd.normalized * 3f;
+            totalWeight += 3f;
+        }
+
+        // Chest: secondary influence — captures torso twist
+        var chestCtrl = BasisLocalBoneDriver.ChestControl;
+        if (chestCtrl != null)
+        {
+            Vector3 chestFwd = chestCtrl.OutgoingWorldData.rotation * Vector3.forward;
+            chestFwd.y = 0f;
+            if (chestFwd.sqrMagnitude > 0.001f)
+            {
+                accumulated += chestFwd.normalized * 2f;
+                totalWeight += 2f;
+            }
+        }
+
+        // Head: lightest influence — only adds a gentle bias toward look direction.
+        // Ignored when looking steeply up/down (horizontal projection too short).
+        Vector3 headFwd = BasisLocalBoneDriver.HeadControl.OutgoingWorldData.rotation * Vector3.forward;
+        Vector3 headFlat = new Vector3(headFwd.x, 0f, headFwd.z);
+        if (headFlat.sqrMagnitude > 0.1f) // only when not looking steeply up/down
+        {
+            accumulated += headFlat.normalized * 1f;
+            totalWeight += 1f;
+        }
+
+        if (totalWeight > 0f)
+        {
+            accumulated /= totalWeight;
+            if (accumulated.sqrMagnitude > 0.001f)
+                return accumulated.normalized;
+        }
+
+        return avatarTransform.forward;
     }
 
     /// <summary>

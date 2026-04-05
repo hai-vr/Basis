@@ -435,6 +435,11 @@ namespace Basis.Scripts.Drivers
             // Per-foot blend weights
             float leftBlendTarget = leftWantIK ? 1f : 0f;
             float rightBlendTarget = rightWantIK ? 1f : 0f;
+
+            // Force weight to 0 when tracker is present — no blend, tracker wins immediately
+            if (leftHasTracker) footIKBlendWeightLeft = 0f;
+            if (rightHasTracker) footIKBlendWeightRight = 0f;
+
             float leftPrevBlend = footIKBlendWeightLeft;
             float rightPrevBlend = footIKBlendWeightRight;
             footIKBlendWeightLeft = Mathf.MoveTowards(footIKBlendWeightLeft, leftBlendTarget, (leftWantIK ? FootIKBlendInSpeed : FootIKBlendOutSpeed) * deltaTime);
@@ -548,26 +553,20 @@ namespace Basis.Scripts.Drivers
                 var lll = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
                 Vector3 lllPos = lll.position;
                 if (SmoothPos[S_LeftLowerLeg])
-                {
                     lllPos = EuroPos[S_LeftLowerLeg] ? fPosLeftLowerLeg.Filter(lllPos, timeAccumulator) : FallbackPos(ref sPosLeftLowerLeg, lllPos, deltaTime);
-                }
-
                 Quaternion lllRot = lll.rotation;
                 if (SmoothRot[S_LeftLowerLeg])
-                {
                     lllRot = EuroRot[S_LeftLowerLeg] ? fRotLeftLowerLeg.Filter(lllRot, timeAccumulator) : FallbackRot(ref sRotLeftLowerLeg, lllRot, deltaTime);
-                }
-
                 lllPos = ApplyHintBias(BasisBoneTrackedRole.LeftLowerLeg, lllPos, lllRot);
                 data.PositionLeftLowerLeg = lllPos;
                 data.RotationLeftLowerLeg = lllRot;
+                data.EnableLeftLowerLeg = 1f;
             }
             else if (footIKBlendWeightLeft > 0.001f && footDriverReady)
             {
                 Quaternion targetRotL = ComputeKneeHintRotation(data.PositionHips, data.LeftFootPosition, footDriver.LeftKneeHint);
                 float kneeRotAlpha = 1f - Mathf.Exp(-8f * deltaTime);
                 smoothedLeftKneeRot = Quaternion.Slerp(smoothedLeftKneeRot, targetRotL, kneeRotAlpha);
-
                 data.PositionLeftLowerLeg = footDriver.LeftKneeHint;
                 data.RotationLeftLowerLeg = smoothedLeftKneeRot;
                 data.EnableLeftLowerLeg = footIKBlendWeightLeft;
@@ -595,6 +594,7 @@ namespace Basis.Scripts.Drivers
                 rllPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerLeg, rllPos, rllRot);
                 data.PositionRightLowerLeg = rllPos;
                 data.RotationRightLowerLeg = rllRot;
+                data.EnableRightLowerLeg = 1f;
             }
             else if (footIKBlendWeightRight > 0.001f && footDriverReady)
             {

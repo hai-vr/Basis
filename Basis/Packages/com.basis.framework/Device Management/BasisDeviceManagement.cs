@@ -636,7 +636,7 @@ namespace Basis.Scripts.Device_Management
         {
             for (int i = AllInputDevices.Count - 1; i >= 0; i--)
             {
-                var device = AllInputDevices[i];
+                BasisInput device = AllInputDevices[i];
                 if (device != null && device.SubSystemIdentifier == subsystem && device.UniqueDeviceIdentifier == id)
                 {
                     CacheDevice(device);
