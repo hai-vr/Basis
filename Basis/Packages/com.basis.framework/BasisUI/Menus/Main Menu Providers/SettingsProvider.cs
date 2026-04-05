@@ -1116,6 +1116,9 @@ namespace Basis.BasisUI
             toggleStatistics.Descriptor.SetDescription("Enable network statistics recording. Takes effect on next connection.");
             toggleStatistics.AssignBinding(BasisSettingsDefaults.EnableStatistics);
 
+            // Network Euro Filter tuning
+            SettingsProviderNetworkTab.BuildNetworkEuroFilterGroup(container);
+
             // Network & Statistics (live-updating)
             SettingsProviderNetworkTab.BuildNetworkStatsGroup(container, out var netUpdater);
 
@@ -1134,6 +1137,9 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DebugVisuals.ResetToDefault();
             BasisSettingsDefaults.VisualState.SetValue("off");
             BasisSettingsDefaults.EnableStatistics.ResetToDefault();
+            BasisSettingsDefaults.NetEuroMinCutoff.ResetToDefault();
+            BasisSettingsDefaults.NetEuroBeta.ResetToDefault();
+            BasisSettingsDefaults.NetEuroDerivativeCutoff.ResetToDefault();
         }
 
         private static void CreateBuildInfoSection(RectTransform parent)

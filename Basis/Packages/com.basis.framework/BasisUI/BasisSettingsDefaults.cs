@@ -226,6 +226,11 @@ namespace Basis.BasisUI
         // ---------------- NETWORKING ----------------
         public static BasisSettingsBinding<bool> AutoConnect = new("autoconnect", new BasisPlatformDefault<bool>(false));
 
+        // Network Euro filter parameters (remote player interpolation)
+        public static BasisSettingsBinding<float> NetEuroMinCutoff = new("neteuromincutoff", new BasisPlatformDefault<float>(0.05f));
+        public static BasisSettingsBinding<float> NetEuroBeta = new("neteurobeta", new BasisPlatformDefault<float>(2f));
+        public static BasisSettingsBinding<float> NetEuroDerivativeCutoff = new("neteuroderivativecutoff", new BasisPlatformDefault<float>(2f));
+
         // ---------------- DEVICE SWAP MODE ----------------
         /// <summary>
         /// Controls how the system handles switching between VR and Desktop modes.
@@ -693,6 +698,9 @@ namespace Basis.BasisUI
 
             // Networking
             AutoConnect.LoadBindingValue();
+            NetEuroMinCutoff.LoadBindingValue();
+            NetEuroBeta.LoadBindingValue();
+            NetEuroDerivativeCutoff.LoadBindingValue();
 
             // Device Swap Mode
             SwapMode.LoadBindingValue();
