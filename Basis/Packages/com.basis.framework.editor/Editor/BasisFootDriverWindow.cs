@@ -70,11 +70,19 @@ public class BasisFootDriverWindow : EditorWindow
         // Calibration
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
-            EditorGUILayout.LabelField("Calibration (from T-pose)", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Measured (from T-pose)", EditorStyles.boldLabel);
             EditorGUILayout.FloatField("Stance Width", fd.CalibratedStanceWidth);
             EditorGUILayout.FloatField("Hip to Foot", fd.CalibratedHipToFoot);
-            EditorGUILayout.FloatField("Left Leg Length", fd.CalibratedLeftLeg);
-            EditorGUILayout.FloatField("Right Leg Length", fd.CalibratedRightLeg);
+            EditorGUILayout.FloatField("Left Leg", fd.CalibratedLeftLeg);
+            EditorGUILayout.FloatField("Right Leg", fd.CalibratedRightLeg);
+            EditorGUILayout.FloatField("Foot Length", fd.CalibratedFootLength);
+            EditorGUILayout.FloatField("Ankle Height", fd.CalibratedAnkleHeight);
+
+            EditorGUILayout.Space(2);
+            EditorGUILayout.LabelField("Derived Step Params", EditorStyles.miniLabel);
+            EditorGUILayout.FloatField("Step Height", fd.DerivedStepHeight);
+            EditorGUILayout.FloatField("Step Trigger", fd.DerivedStepTrigger);
+            EditorGUILayout.FloatField("Fast Speed Ref", fd.DerivedFastSpeed);
         }
 
         EditorGUILayout.Space(4);

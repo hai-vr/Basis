@@ -6,53 +6,60 @@ using UnityEngine;
 
 /// <summary>
 /// Procedural foot placement with velocity-predicted stepping.
-/// Uses a Planted/Stepping state machine but with predictive step targets so feet
-/// land where the body is GOING, not where it WAS. Step timing and stride length
-/// scale with movement speed.
+/// Nearly all parameters are derived from T-pose calibration data so the system
+/// automatically adapts to any avatar's proportions.
 /// </summary>
 [Serializable]
 public class BasisLocalFootDriver
 {
-    // ───────────────────── Tuning ─────────────────────
+    // ───────── Minimal tuning (proportional multipliers, not absolute values) ─────────
 
     [Header("Ground Detection")]
-    [SerializeField, Range(0.03f, 0.15f)] private float raySphereRadius = 0.05f;
-    [SerializeField, Range(0.0f, 0.10f)] private float footHeightOffset = 0.015f;
     [SerializeField] private LayerMask groundLayers;
-
-    [Header("Body Proportions (computed from calibration)")]
-    [Tooltip("Read-only: computed from T-pose calibration data.")]
-    [SerializeField] private float calibratedStanceWidth = 0.1f;
-    [SerializeField] private float calibratedHipToFoot = 0.85f;
-    [SerializeField] private float calibratedLeftLegLen = 0.8f;
-    [SerializeField] private float calibratedRightLegLen = 0.8f;
-
-    [Header("Stepping")]
-    [Tooltip("Base trigger distance when standing still.")]
-    [SerializeField, Range(0.04f, 0.20f)] private float idleStepThreshold = 0.10f;
-    [Tooltip("Trigger distance grows with speed: threshold + speed * this.")]
-    [SerializeField, Range(0.02f, 0.15f)] private float strideScaleWithSpeed = 0.08f;
-    [Tooltip("Step duration at idle (slow steps).")]
-    [SerializeField, Range(0.10f, 0.5f)] private float stepDurationSlow = 0.22f;
-    [Tooltip("Step duration at fast walk (quick steps).")]
-    [SerializeField, Range(0.05f, 0.3f)] private float stepDurationFast = 0.12f;
-    [Tooltip("Speed at which step duration reaches its minimum.")]
-    [SerializeField, Range(0.5f, 4f)] private float fastSpeedRef = 1.8f;
-    [Tooltip("Max step lift height.")]
-    [SerializeField, Range(0.02f, 0.25f)] private float stepHeight = 0.14f;
 
     [Header("Prediction")]
     [Tooltip("How far ahead (in step-durations) to predict the step target.")]
-    [SerializeField, Range(0.3f, 1.5f)] private float predictionFactor = 0.7f;
+    [SerializeField, Range(0.3f, 2.0f)] private float predictionFactor = 0.9f;
+    [Tooltip("Velocity bias on ideal position (fraction of velocity applied as forward offset).")]
+    [SerializeField, Range(0.0f, 0.5f)] private float velocityBiasFactor = 0.18f;
 
     [Header("Smoothing")]
     [SerializeField, Range(5f, 40f)] private float plantedLerpSpeed = 25f;
     [SerializeField, Range(5f, 40f)] private float rotationLerpSpeed = 16f;
 
-    [Header("Foot Tilt")]
+    [Header("Foot Rotation Limits")]
+    [Tooltip("Max slope tilt (ankle roll/pitch).")]
     [SerializeField, Range(0f, 60f)] private float maxFootTiltDegrees = 35f;
+    [Tooltip("Max yaw deviation from body forward (toe-out / toe-in). Humans ~15-20 deg.")]
+    [SerializeField, Range(0f, 45f)] private float maxFootYawDegrees = 18f;
 
-    // ───────────────────── Runtime ─────────────────────
+    // ───────── Calibrated proportions (computed, visible for debugging) ─────────
+
+    [Header("Calibrated (read-only, from T-pose)")]
+    [SerializeField] private float stanceWidth;
+    [SerializeField] private float hipToFoot;
+    [SerializeField] private float leftLegLen;
+    [SerializeField] private float rightLegLen;
+    [SerializeField] private float leftThighLen;
+    [SerializeField] private float leftShinLen;
+    [SerializeField] private float rightThighLen;
+    [SerializeField] private float rightShinLen;
+    [SerializeField] private float footLength;       // toe-to-heel
+    [SerializeField] private float ankleHeight;      // foot-to-ground in T-pose
+
+    // ───────── Derived step parameters (computed from proportions) ─────────
+
+    [Header("Derived Step Parameters (read-only)")]
+    [SerializeField] private float stepTriggerDist;
+    [SerializeField] private float strideScale;
+    [SerializeField] private float stepHeightCalc;
+    [SerializeField] private float stepDurSlow;
+    [SerializeField] private float stepDurFast;
+    [SerializeField] private float raySphereRadius;
+    [SerializeField] private float footHeightOffset;
+    [SerializeField] private float fastSpeedRef;
+
+    // ───────── Runtime ─────────
 
     private Transform avatarTransform;
     private Transform hips;
@@ -63,7 +70,6 @@ public class BasisLocalFootDriver
     private Vector3 smoothedVelocity;
     private float prevHeadYaw;
 
-    // Public results
     public bool IsInitialized { get; private set; }
     public Vector3 LeftFootPosition => left != null ? left.currentPos : Vector3.zero;
     public Quaternion LeftFootRotation => left != null ? left.currentRot : Quaternion.identity;
@@ -72,7 +78,7 @@ public class BasisLocalFootDriver
     public Vector3 LeftKneeHint => left != null ? left.kneeHint : Vector3.zero;
     public Vector3 RightKneeHint => right != null ? right.kneeHint : Vector3.zero;
 
-    // ───────────────────── Per-foot ─────────────────────
+    // ───────── Per-foot ─────────
 
     private enum Phase { Planted, Stepping }
 
@@ -87,27 +93,22 @@ public class BasisLocalFootDriver
         public Phase phase;
         public Vector3 plantedPos;
         public Quaternion plantedRot;
-
-        public Vector3 stepStartPos;
-        public Vector3 stepTargetPos;
+        public Vector3 stepStartPos, stepTargetPos;
         public Quaternion stepTargetRot;
         public float stepTimer, stepDur;
 
-        public Vector3 idealPos;       // debug: where the foot wants to be
-        public Vector3 filteredNormal;
+        public Vector3 idealPos, filteredNormal;
         public Vector3 currentPos;
         public Quaternion currentRot;
         public Vector3 kneeHint;
 
         public FootState(string n, Transform b, int s)
-        {
-            name = n; bone = b; sideSign = s;
-            filteredNormal = Vector3.up;
-            phase = Phase.Planted;
-        }
+        { name = n; bone = b; sideSign = s; filteredNormal = Vector3.up; phase = Phase.Planted; }
     }
 
-    // ───────────────────── Init ─────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  INIT — measure everything from calibration
+    // ═══════════════════════════════════════════════════════════
 
     public void InitializeVariables()
     {
@@ -117,7 +118,6 @@ public class BasisLocalFootDriver
 
         var lf = mapping.leftFoot;
         var rf = mapping.rightFoot;
-
         left = new FootState("Left", lf, -1);
         right = new FootState("Right", rf, +1);
 
@@ -128,21 +128,17 @@ public class BasisLocalFootDriver
 
         if (groundLayers.value == 0) groundLayers = LayerMask.GetMask("Default");
 
-        // ── Compute proportions from T-pose calibration ──
-        ComputeProportionsFromCalibration(mapping);
+        // ── 1. Measure avatar from calibration T-pose ──
+        MeasureFromCalibration(mapping);
 
-        left.thighLen = calibratedLeftLegLen * 0.5f;
-        left.shinLen = calibratedLeftLegLen * 0.5f;
-        left.legLength = calibratedLeftLegLen;
-        right.thighLen = calibratedRightLegLen * 0.5f;
-        right.shinLen = calibratedRightLegLen * 0.5f;
-        right.legLength = calibratedRightLegLen;
+        // ── 2. Derive ALL step parameters from measurements ──
+        DeriveStepParameters();
 
-        // Refine segment lengths from actual bone transforms if available
-        RefineSegmentLengths(left);
-        RefineSegmentLengths(right);
+        // ── 3. Apply to foot states ──
+        left.thighLen = leftThighLen; left.shinLen = leftShinLen; left.legLength = leftLegLen;
+        right.thighLen = rightThighLen; right.shinLen = rightShinLen; right.legLength = rightLegLen;
 
-        rayCastRange = Mathf.Max(left.legLength, right.legLength) + 0.3f;
+        rayCastRange = Mathf.Max(leftLegLen, rightLegLen) + 0.3f;
 
         InitPose(left); InitPose(right);
 
@@ -152,118 +148,126 @@ public class BasisLocalFootDriver
         IsInitialized = true;
     }
 
-    /// <summary>
-    /// Pull exact body proportions from the T-pose data recorded during calibration.
-    /// This replaces hardcoded/guessed values with measurements from the actual avatar.
-    /// </summary>
-    private void ComputeProportionsFromCalibration(BasisTransformMapping mapping)
+    private void MeasureFromCalibration(BasisTransformMapping mapping)
     {
         var tpose = mapping.TposeFromRoot;
-        if (tpose == null || tpose.Count == 0)
-        {
-            // Fallback: measure from live transforms
-            FallbackMeasure();
-            return;
-        }
+        bool fromTpose = tpose != null && tpose.Count > 0;
 
-        bool hasHips = TryGetTpose(tpose, HumanBodyBones.Hips, out Vector3 tHips);
-        bool hasLUL = TryGetTpose(tpose, HumanBodyBones.LeftUpperLeg, out Vector3 tLUL);
-        bool hasRUL = TryGetTpose(tpose, HumanBodyBones.RightUpperLeg, out Vector3 tRUL);
-        bool hasLLL = TryGetTpose(tpose, HumanBodyBones.LeftLowerLeg, out Vector3 tLLL);
-        bool hasRLL = TryGetTpose(tpose, HumanBodyBones.RightLowerLeg, out Vector3 tRLL);
-        bool hasLF = TryGetTpose(tpose, HumanBodyBones.LeftFoot, out Vector3 tLF);
-        bool hasRF = TryGetTpose(tpose, HumanBodyBones.RightFoot, out Vector3 tRF);
+        Vector3 tH = default, tLUL = default, tRUL = default, tLLL = default, tRLL = default;
+        Vector3 tLF = default, tRF = default, tLT = default, tRT = default;
 
-        // ── Stance width: horizontal distance between feet in T-pose ──
+        bool hasHips = fromTpose && TryTP(tpose, HumanBodyBones.Hips, out tH);
+        bool hasLUL = fromTpose && TryTP(tpose, HumanBodyBones.LeftUpperLeg, out tLUL);
+        bool hasRUL = fromTpose && TryTP(tpose, HumanBodyBones.RightUpperLeg, out tRUL);
+        bool hasLLL = fromTpose && TryTP(tpose, HumanBodyBones.LeftLowerLeg, out tLLL);
+        bool hasRLL = fromTpose && TryTP(tpose, HumanBodyBones.RightLowerLeg, out tRLL);
+        bool hasLF = fromTpose && TryTP(tpose, HumanBodyBones.LeftFoot, out tLF);
+        bool hasRF = fromTpose && TryTP(tpose, HumanBodyBones.RightFoot, out tRF);
+        bool hasLT = fromTpose && TryTP(tpose, HumanBodyBones.LeftToes, out tLT);
+        bool hasRT = fromTpose && TryTP(tpose, HumanBodyBones.RightToes, out tRT);
+
+        // ── Stance width ──
         if (hasLF && hasRF)
         {
-            Vector3 diff = tRF - tLF;
-            diff.y = 0f; // horizontal only
-            calibratedStanceWidth = diff.magnitude;
+            Vector3 d = tRF - tLF; d.y = 0f;
+            stanceWidth = d.magnitude;
         }
+        else FallbackStanceWidth();
 
-        // ── Hip to foot height: vertical distance from hips to average foot ──
+        // ── Hip to foot ──
         if (hasHips && hasLF && hasRF)
-        {
-            Vector3 avgFoot = (tLF + tRF) * 0.5f;
-            calibratedHipToFoot = Mathf.Abs(tHips.y - avgFoot.y);
-        }
+            hipToFoot = Mathf.Abs(tH.y - (tLF.y + tRF.y) * 0.5f);
+        else FallbackHipToFoot();
 
-        // ── Leg lengths from segments ──
+        // ── Leg segment lengths ──
         if (hasLUL && hasLLL && hasLF)
-        {
-            float thigh = Vector3.Distance(tLUL, tLLL);
-            float shin = Vector3.Distance(tLLL, tLF);
-            calibratedLeftLegLen = thigh + shin;
-        }
+        { leftThighLen = Vector3.Distance(tLUL, tLLL); leftShinLen = Vector3.Distance(tLLL, tLF); }
         else if (hasHips && hasLF)
-        {
-            calibratedLeftLegLen = Vector3.Distance(tHips, tLF);
-        }
+        { float t = Vector3.Distance(tH, tLF); leftThighLen = t * 0.55f; leftShinLen = t * 0.45f; }
+        else FallbackLegLens(true);
+        leftLegLen = leftThighLen + leftShinLen;
 
         if (hasRUL && hasRLL && hasRF)
-        {
-            float thigh = Vector3.Distance(tRUL, tRLL);
-            float shin = Vector3.Distance(tRLL, tRF);
-            calibratedRightLegLen = thigh + shin;
-        }
+        { rightThighLen = Vector3.Distance(tRUL, tRLL); rightShinLen = Vector3.Distance(tRLL, tRF); }
         else if (hasHips && hasRF)
+        { float t = Vector3.Distance(tH, tRF); rightThighLen = t * 0.55f; rightShinLen = t * 0.45f; }
+        else FallbackLegLens(false);
+        rightLegLen = rightThighLen + rightShinLen;
+
+        // ── Foot length (toe to heel) ──
+        if (hasLF && hasLT && hasRF && hasRT)
+            footLength = (Vector3.Distance(tLF, tLT) + Vector3.Distance(tRF, tRT)) * 0.5f;
+        else if (hasLF && hasLT)
+            footLength = Vector3.Distance(tLF, tLT);
+        else if (hasRF && hasRT)
+            footLength = Vector3.Distance(tRF, tRT);
+        else
+            footLength = hipToFoot * 0.15f; // ~15% of leg height is a reasonable foot length
+
+        // ── Ankle height (distance from foot bone to ground plane in T-pose) ──
+        if (hasLF && hasRF)
         {
-            calibratedRightLegLen = Vector3.Distance(tHips, tRF);
+            // In T-pose, the lowest point is roughly foot Y minus a small offset
+            // The foot bone sits at the ankle, ground is at Y=0 in root space
+            float avgFootY = (tLF.y + tRF.y) * 0.5f;
+            ankleHeight = Mathf.Max(0.01f, avgFootY);
+        }
+        else
+        {
+            ankleHeight = hipToFoot * 0.05f;
         }
 
-        // Sanity clamps
-        calibratedStanceWidth = Mathf.Max(0.05f, calibratedStanceWidth);
-        calibratedHipToFoot = Mathf.Max(0.2f, calibratedHipToFoot);
-        calibratedLeftLegLen = Mathf.Max(0.2f, calibratedLeftLegLen);
-        calibratedRightLegLen = Mathf.Max(0.2f, calibratedRightLegLen);
+        // Sanity
+        stanceWidth = Mathf.Max(0.04f, stanceWidth);
+        hipToFoot = Mathf.Max(0.15f, hipToFoot);
+        leftLegLen = Mathf.Max(0.15f, leftLegLen);
+        rightLegLen = Mathf.Max(0.15f, rightLegLen);
+        footLength = Mathf.Max(0.02f, footLength);
+        ankleHeight = Mathf.Max(0.005f, ankleHeight);
     }
 
-    private static bool TryGetTpose(System.Collections.Generic.Dictionary<HumanBodyBones, BasisCalibratedCoords> tpose, HumanBodyBones bone, out Vector3 pos)
+    /// <summary>
+    /// Derive every step/raycast parameter from the measured proportions.
+    /// No magic numbers — everything scales with the avatar's body.
+    /// </summary>
+    private void DeriveStepParameters()
     {
-        pos = Vector3.zero;
-        if (tpose.TryGetValue(bone, out var coords))
-        {
-            if (coords.position != Vector3.zero)
-            {
-                pos = coords.position;
-                return true;
-            }
-        }
-        return false;
+        float avgLeg = (leftLegLen + rightLegLen) * 0.5f;
+        float avgShin = (leftShinLen + rightShinLen) * 0.5f;
+
+        // Ray sphere radius: ~half the foot width, approximated as footLength * 0.3
+        raySphereRadius = Mathf.Clamp(footLength * 0.3f, 0.02f, 0.12f);
+
+        // Foot height offset: ankle bone sits above the ground by ankleHeight,
+        // but the IK target should be at ground + sole thickness
+        footHeightOffset = Mathf.Clamp(ankleHeight * 0.2f, 0.005f, 0.05f);
+
+        // Step trigger: when planted foot drifts this far from ideal, take a step.
+        // ~8% of leg length — tight so feet don't lag behind the body.
+        stepTriggerDist = Mathf.Clamp(avgLeg * 0.08f, 0.04f, 0.18f);
+
+        // Stride scale with speed: how much extra trigger distance per m/s of speed.
+        // ~6% of leg length — keeps strides proportional but responsive.
+        strideScale = Mathf.Clamp(avgLeg * 0.06f, 0.02f, 0.12f);
+
+        // Step height: ~18% of shin length gives a visible lift without being cartoonish.
+        stepHeightCalc = Mathf.Clamp(avgShin * 0.18f, 0.03f, 0.20f);
+
+        // Step duration from leg-as-pendulum: T = pi * sqrt(L/g).
+        // Real human walk step is ~0.5s, but VR needs snappier to keep up with head.
+        // Use 30% of pendulum period for slow, 18% for fast.
+        float pendulum = Mathf.PI * Mathf.Sqrt(avgLeg / 9.81f);
+        stepDurSlow = Mathf.Clamp(pendulum * 0.30f, 0.10f, 0.30f);
+        stepDurFast = Mathf.Clamp(pendulum * 0.18f, 0.06f, 0.18f);
+
+        // Speed at which step duration reaches its minimum:
+        // comfortable walk speed scales with leg length (~1.2 * sqrt(leg * g))
+        fastSpeedRef = Mathf.Clamp(1.2f * Mathf.Sqrt(avgLeg * 9.81f), 1.0f, 3.5f);
     }
 
-    private void FallbackMeasure()
-    {
-        // Measure from live transforms as fallback when no calibration exists
-        if (hips != null && left.bone != null && right.bone != null)
-        {
-            Vector3 lf = left.bone.position, rf = right.bone.position;
-            Vector3 diff = rf - lf; diff.y = 0f;
-            calibratedStanceWidth = Mathf.Max(0.05f, diff.magnitude);
-            calibratedHipToFoot = Mathf.Max(0.2f, Mathf.Abs(hips.position.y - (lf.y + rf.y) * 0.5f));
-            calibratedLeftLegLen = Mathf.Max(0.2f, Vector3.Distance(hips.position, lf));
-            calibratedRightLegLen = Mathf.Max(0.2f, Vector3.Distance(hips.position, rf));
-        }
-    }
-
-    private void RefineSegmentLengths(FootState f)
-    {
-        // If we have thigh/shin transforms, measure actual segment lengths
-        if (f.thigh != null && f.shin != null && f.bone != null)
-        {
-            float thigh = Vector3.Distance(f.thigh.position, f.shin.position);
-            float shin = Vector3.Distance(f.shin.position, f.bone.position);
-            if (thigh > 0.05f && shin > 0.05f)
-            {
-                f.thighLen = thigh;
-                f.shinLen = shin;
-                f.legLength = thigh + shin;
-            }
-        }
-    }
-
-    // ───────────────────── Main tick ─────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  SIMULATE
+    // ═══════════════════════════════════════════════════════════
 
     public void Simulate(float dt)
     {
@@ -288,72 +292,92 @@ public class BasisLocalFootDriver
         Vector3 bodyRight = Vector3.Cross(Vector3.up, bodyFwd).normalized;
         if (bodyRight.sqrMagnitude < 0.001f) bodyRight = avatarTransform.right;
 
-        // ── Ideal foot positions: under hips, biased forward by velocity ──
-        // Feet lead slightly in the movement direction so they don't trail the body.
+        // ── Ideal positions ──
+        // In real gait the planted foot is behind the hips and the stepping foot
+        // lands well ahead. We split the velocity bias: the foot that is currently
+        // planted gets a SMALLER forward offset (it's trailing) while the foot
+        // that needs to move gets a LARGER one (it should lead).
         Vector3 hipsXZ = new Vector3(hips.position.x, 0f, hips.position.z);
-        Vector3 velBias = new Vector3(smoothedVelocity.x, 0f, smoothedVelocity.z) * 0.06f;
+        Vector3 velDir = new Vector3(smoothedVelocity.x, 0f, smoothedVelocity.z);
 
-        float groundY = hips.position.y - HipToFoot();
+        float groundY = hips.position.y - hipToFoot;
         if (Physics.Raycast(hips.position, Vector3.down, out RaycastHit ch, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
             groundY = ch.point.y;
 
-        Vector3 center = new Vector3(hipsXZ.x, groundY, hipsXZ.z) + velBias;
-        float halfStance = calibratedStanceWidth * 0.5f;
-        left.idealPos = center - bodyRight * halfStance;
-        right.idealPos = center + bodyRight * halfStance;
+        // Base center with forward bias along BODY FORWARD (not velocity direction)
+        // to prevent feet flying sideways during turns.
+        Vector3 center = new Vector3(hipsXZ.x, groundY, hipsXZ.z)
+            + bodyFwd * (speed * velocityBiasFactor);
+        float halfStance = stanceWidth * 0.5f;
 
-        // ── Speed-adaptive step parameters ──
+        // Lead offset: the foot that needs to step gets pushed further along body forward.
+        // Clamped to body forward so turning doesn't fling feet sideways.
+        float leadAmount = speed * velocityBiasFactor * 0.8f;
+        Vector3 leadOffset = bodyFwd * leadAmount;
+
+        float leftDist = HDist(left.plantedPos, center - bodyRight * halfStance);
+        float rightDist = HDist(right.plantedPos, center + bodyRight * halfStance);
+
+        if (leftDist >= rightDist)
+        {
+            left.idealPos = center - bodyRight * halfStance + leadOffset;
+            right.idealPos = center + bodyRight * halfStance;
+        }
+        else
+        {
+            left.idealPos = center - bodyRight * halfStance;
+            right.idealPos = center + bodyRight * halfStance + leadOffset;
+        }
+
+        // ── Step parameters for this frame ──
         float speedT = Mathf.Clamp01(speed / fastSpeedRef);
-        float stepThreshold = idleStepThreshold + speed * strideScaleWithSpeed;
-        float stepDur = Mathf.Lerp(stepDurationSlow, stepDurationFast, speedT);
+        float threshold = stepTriggerDist + speed * strideScale;
+        float stepDur = Mathf.Lerp(stepDurSlow, stepDurFast, speedT);
 
         // ── Update feet ──
-        UpdateFoot(left, right, bodyFwd, speed, stepThreshold, stepDur, dt);
-        UpdateFoot(right, left, bodyFwd, speed, stepThreshold, stepDur, dt);
+        UpdateFoot(left, right, bodyFwd, speed, threshold, stepDur, dt);
+        UpdateFoot(right, left, bodyFwd, speed, threshold, stepDur, dt);
 
-        // ── Knee hints ──
+        // ── Knee hints: proportional to thigh length ──
+        float avgThigh = (leftThighLen + rightThighLen) * 0.5f;
         Vector3 hp = hips.position;
-        left.kneeHint = (hp + left.currentPos) * 0.5f + bodyFwd * 0.2f;
-        right.kneeHint = (hp + right.currentPos) * 0.5f + bodyFwd * 0.2f;
+        left.kneeHint = (hp + left.currentPos) * 0.5f + bodyFwd * (avgThigh * 0.5f);
+        right.kneeHint = (hp + right.currentPos) * 0.5f + bodyFwd * (avgThigh * 0.5f);
     }
 
-    // ───────────────────── Foot update ─────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  FOOT UPDATE
+    // ═══════════════════════════════════════════════════════════
 
     private void UpdateFoot(FootState f, FootState other, Vector3 bodyFwd, float speed, float threshold, float stepDur, float dt)
     {
         if (f.phase == Phase.Planted)
         {
-            // Hold position, lerp for surface tracking
             float a = 1f - Mathf.Exp(-plantedLerpSpeed * dt);
             f.currentPos = Vector3.Lerp(f.currentPos, f.plantedPos, a);
             float ra = 1f - Mathf.Exp(-rotationLerpSpeed * dt);
             f.currentRot = Quaternion.Slerp(f.currentRot, f.plantedRot, ra);
 
-            // Check trigger
             float dist = HDist(f.plantedPos, f.idealPos);
-            bool otherPlanted = other.phase == Phase.Planted;
-
-            if (dist > threshold && otherPlanted)
-            {
+            if (dist > threshold && other.phase == Phase.Planted)
                 StartStep(f, bodyFwd, speed, stepDur);
-            }
         }
-        else // Stepping
+        else
         {
             f.stepTimer += dt;
             float t = Mathf.Clamp01(f.stepTimer / f.stepDur);
-
-            // Ease-out for snappy landing
             float ease = 1f - (1f - t) * (1f - t) * (1f - t);
 
             Vector3 pos = Vector3.Lerp(f.stepStartPos, f.stepTargetPos, ease);
 
-            // Foot-like arc: quick lift (toe-off), peak at ~35%, fast drop (heel-strike).
-            // Skewed parabola: h(t) = t^0.6 * (1-t)^1.4 normalized so peak = 1
-            float lift = Mathf.Pow(t, 0.6f) * Mathf.Pow(1f - t, 1.4f);
-            lift /= 0.234f; // normalize (peak of t^0.6*(1-t)^1.4 is ~0.234)
-            lift = Mathf.Clamp01(lift);
-            pos.y += lift * stepHeight;
+            // Step height scales with speed: humans barely lift feet at a slow shuffle
+            // but clear the ground more at a brisk walk. Minimum ~40% of max at idle.
+            float speedT2 = Mathf.Clamp01(speed / fastSpeedRef);
+            float dynamicHeight = stepHeightCalc * Mathf.Lerp(0.4f, 1.0f, speedT2);
+
+            // Asymmetric arc: fast lift, peak at ~35%, quick drop
+            float lift = Mathf.Pow(t, 0.6f) * Mathf.Pow(1f - t, 1.4f) / 0.234f;
+            pos.y += Mathf.Clamp01(lift) * dynamicHeight;
             f.currentPos = pos;
 
             f.currentRot = Quaternion.Slerp(f.currentRot, f.stepTargetRot, ease);
@@ -375,12 +399,10 @@ public class BasisLocalFootDriver
         f.stepTimer = 0f;
         f.stepDur = stepDur;
 
-        // ── Predicted target: where ideal will be when the step finishes ──
-        // This is the key fix — step to where the body is GOING.
-        Vector3 prediction = smoothedVelocity * (stepDur * predictionFactor);
-        Vector3 targetXZ = f.idealPos + new Vector3(prediction.x, 0f, prediction.z);
+        // Predict along body forward, not raw velocity, to avoid sideways overshoot in turns
+        Vector3 prediction = bodyFwd * (speed * stepDur * predictionFactor);
+        Vector3 targetXZ = f.idealPos + prediction;
 
-        // Raycast to ground at predicted target
         Vector3 rayOrig = targetXZ + Vector3.up * rayCastRange * 0.5f;
         if (Physics.SphereCast(rayOrig, raySphereRadius, Vector3.down, out RaycastHit hit,
             rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
@@ -396,22 +418,19 @@ public class BasisLocalFootDriver
         f.stepTargetRot = FootRotation(bodyFwd, f.filteredNormal);
     }
 
-    // ───────────────────── Helpers ─────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  HELPERS
+    // ═══════════════════════════════════════════════════════════
 
     private static float HDist(Vector3 a, Vector3 b)
-    {
-        float dx = a.x - b.x, dz = a.z - b.z;
-        return Mathf.Sqrt(dx * dx + dz * dz);
-    }
+    { float dx = a.x - b.x, dz = a.z - b.z; return Mathf.Sqrt(dx * dx + dz * dz); }
 
     private float HeadYaw()
     {
         var hc = BasisLocalBoneDriver.HeadControl;
         if (hc == null) return 0f;
-        Vector3 fwd = hc.OutgoingWorldData.rotation * Vector3.forward;
-        fwd.y = 0f;
-        if (fwd.sqrMagnitude < 0.001f) return prevHeadYaw;
-        return Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg;
+        Vector3 fwd = hc.OutgoingWorldData.rotation * Vector3.forward; fwd.y = 0f;
+        return fwd.sqrMagnitude < 0.001f ? prevHeadYaw : Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg;
     }
 
     private Vector3 BodyForward(Vector3 headPos)
@@ -419,35 +438,87 @@ public class BasisLocalFootDriver
         var hc = BasisLocalBoneDriver.HeadControl;
         if (hc != null)
         {
-            Vector3 fwd = hc.OutgoingWorldData.rotation * Vector3.forward;
-            fwd.y = 0f;
+            Vector3 fwd = hc.OutgoingWorldData.rotation * Vector3.forward; fwd.y = 0f;
             if (fwd.sqrMagnitude > 0.001f) return fwd.normalized;
         }
         return avatarTransform != null ? avatarTransform.forward : Vector3.forward;
     }
 
-    private float HipToFoot()
-    {
-        return calibratedHipToFoot;
-    }
-
+    /// <summary>
+    /// Compute foot rotation from body forward + surface normal, clamped to human limits:
+    /// - Tilt (roll/pitch from slope) clamped to maxFootTiltDegrees
+    /// - Yaw (toe-out/toe-in from body forward) clamped to maxFootYawDegrees
+    /// </summary>
     private Quaternion FootRotation(Vector3 bodyFwd, Vector3 normal)
     {
         if (normal.sqrMagnitude < 0.001f) normal = Vector3.up;
+
+        // Project body forward onto surface plane for the foot's forward direction
         Vector3 fwd = Vector3.ProjectOnPlane(bodyFwd, normal);
         if (fwd.sqrMagnitude < 1e-6f) fwd = Vector3.ProjectOnPlane(Vector3.forward, normal);
         fwd.Normalize();
 
-        Quaternion sRot = Quaternion.LookRotation(fwd, normal);
-        Quaternion uRot = Quaternion.LookRotation(fwd, Vector3.up);
-        float angle = Quaternion.Angle(uRot, sRot);
-        if (angle > 0.01f) return Quaternion.Slerp(uRot, sRot, Mathf.Clamp01(maxFootTiltDegrees / angle));
-        return uRot;
+        // Clamp tilt: blend between upright and surface-aligned
+        Quaternion surfaceRot = Quaternion.LookRotation(fwd, normal);
+        Quaternion uprightRot = Quaternion.LookRotation(fwd, Vector3.up);
+        float tiltAngle = Quaternion.Angle(uprightRot, surfaceRot);
+        Quaternion result;
+        if (tiltAngle > 0.01f)
+            result = Quaternion.Slerp(uprightRot, surfaceRot, Mathf.Clamp01(maxFootTiltDegrees / tiltAngle));
+        else
+            result = uprightRot;
+
+        // Clamp yaw: how far the foot forward deviates from body forward on the horizontal plane
+        Vector3 footFwd = result * Vector3.forward;
+        Vector3 footFwdFlat = new Vector3(footFwd.x, 0f, footFwd.z);
+        Vector3 bodyFwdFlat = new Vector3(bodyFwd.x, 0f, bodyFwd.z);
+
+        if (footFwdFlat.sqrMagnitude > 1e-6f && bodyFwdFlat.sqrMagnitude > 1e-6f)
+        {
+            footFwdFlat.Normalize();
+            bodyFwdFlat.Normalize();
+
+            float yawAngle = Vector3.SignedAngle(bodyFwdFlat, footFwdFlat, Vector3.up);
+            if (Mathf.Abs(yawAngle) > maxFootYawDegrees)
+            {
+                float clampedYaw = Mathf.Clamp(yawAngle, -maxFootYawDegrees, maxFootYawDegrees);
+                float correction = clampedYaw - yawAngle;
+                result = Quaternion.AngleAxis(correction, Vector3.up) * result;
+            }
+        }
+
+        return result;
     }
 
     private Transform SafeGet(Transform a, Transform b) => a != null ? a : b;
 
-    // CacheLeg removed — proportions now come from ComputeProportionsFromCalibration + RefineSegmentLengths
+    private static bool TryTP(System.Collections.Generic.Dictionary<HumanBodyBones, BasisCalibratedCoords> tp, HumanBodyBones b, out Vector3 p)
+    {
+        p = Vector3.zero;
+        if (tp.TryGetValue(b, out var c) && c.position != Vector3.zero) { p = c.position; return true; }
+        return false;
+    }
+
+    // ── Fallbacks when calibration data is missing ──
+    private void FallbackStanceWidth()
+    {
+        if (left.bone != null && right.bone != null)
+        { Vector3 d = right.bone.position - left.bone.position; d.y = 0; stanceWidth = Mathf.Max(0.04f, d.magnitude); }
+        else stanceWidth = 0.2f;
+    }
+    private void FallbackHipToFoot()
+    {
+        if (hips != null && left.bone != null && right.bone != null)
+            hipToFoot = Mathf.Max(0.15f, Mathf.Abs(hips.position.y - (left.bone.position.y + right.bone.position.y) * 0.5f));
+        else hipToFoot = 0.85f;
+    }
+    private void FallbackLegLens(bool isLeft)
+    {
+        float total = hipToFoot;
+        float th = total * 0.55f, sh = total * 0.45f;
+        if (isLeft) { leftThighLen = th; leftShinLen = sh; }
+        else { rightThighLen = th; rightShinLen = sh; }
+    }
 
     private void InitPose(FootState f)
     {
@@ -468,7 +539,44 @@ public class BasisLocalFootDriver
         f.phase = Phase.Planted;
     }
 
-    // ───────────────────── Debug ─────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  DEBUG
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Returns a vertical hip offset for natural walk bob. Dips when a foot is mid-step
+    /// (weight transfer) and rises when both feet are planted. Amplitude scales with
+    /// avatar leg length and current speed.
+    /// </summary>
+    public float ComputeHipBob()
+    {
+        if (!IsInitialized || left == null || right == null) return 0f;
+
+        float speed = smoothedVelocity.magnitude;
+        if (speed < 0.05f) return 0f; // no bob when still
+
+        // Bob amplitude: ~2% of hip-to-foot height, scaled by speed
+        float maxBob = hipToFoot * 0.02f;
+        float speedScale = Mathf.Clamp01(speed / fastSpeedRef);
+        float amplitude = maxBob * speedScale;
+
+        // Dip when either foot is mid-step (weight transfer phase)
+        float leftDip = 0f, rightDip = 0f;
+        if (left.phase == Phase.Stepping)
+        {
+            float t = Mathf.Clamp01(left.stepTimer / left.stepDur);
+            leftDip = Mathf.Sin(t * Mathf.PI); // peaks at mid-step
+        }
+        if (right.phase == Phase.Stepping)
+        {
+            float t = Mathf.Clamp01(right.stepTimer / right.stepDur);
+            rightDip = Mathf.Sin(t * Mathf.PI);
+        }
+
+        // Take the max dip (only one foot steps at a time, but safety)
+        float dip = Mathf.Max(leftDip, rightDip);
+        return -dip * amplitude; // negative = downward
+    }
 
     public bool LeftIsPlanted => left != null && left.phase == Phase.Planted;
     public bool RightIsPlanted => right != null && right.phase == Phase.Planted;
@@ -481,12 +589,19 @@ public class BasisLocalFootDriver
     public Vector3 SmoothedVelocity => smoothedVelocity;
     public float Speed => smoothedVelocity.magnitude;
     public Vector3 HipsPosition => hips != null ? hips.position : Vector3.zero;
-    public float CalibratedStanceWidth => calibratedStanceWidth;
-    public float CalibratedHipToFoot => calibratedHipToFoot;
-    public float CalibratedLeftLeg => calibratedLeftLegLen;
-    public float CalibratedRightLeg => calibratedRightLegLen;
+    public float CalibratedStanceWidth => stanceWidth;
+    public float CalibratedHipToFoot => hipToFoot;
+    public float CalibratedLeftLeg => leftLegLen;
+    public float CalibratedRightLeg => rightLegLen;
+    public float CalibratedFootLength => footLength;
+    public float CalibratedAnkleHeight => ankleHeight;
+    public float DerivedStepHeight => stepHeightCalc;
+    public float DerivedStepTrigger => stepTriggerDist;
+    public float DerivedFastSpeed => fastSpeedRef;
 
-    // ───────────────────── Gizmos ─────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  GIZMOS
+    // ═══════════════════════════════════════════════════════════
 
     public void DrawGizmos()
     {
@@ -520,11 +635,9 @@ public class BasisLocalFootDriver
         Gizmos.color = c;
         Gizmos.DrawSphere(f.currentPos, 0.02f);
 
-        // Orientation
         Gizmos.color = new Color(0.2f, 0.4f, 1f, 0.9f);
         Gizmos.DrawLine(f.currentPos, f.currentPos + f.currentRot * Vector3.forward * 0.07f);
 
-        // Ideal position
         Gizmos.color = c * 0.4f;
         Gizmos.DrawWireSphere(f.idealPos, 0.015f);
         Gizmos.color = new Color(1f, 0.4f, 0.2f, 0.5f);
@@ -532,7 +645,6 @@ public class BasisLocalFootDriver
 
         if (stepping)
         {
-            // Step arc preview
             Gizmos.color = stepCol * 0.6f;
             const int seg = 16;
             Vector3 prev = f.stepStartPos;
@@ -542,7 +654,7 @@ public class BasisLocalFootDriver
                 float e = 1f - (1f - t) * (1f - t) * (1f - t);
                 Vector3 p = Vector3.Lerp(f.stepStartPos, f.stepTargetPos, e);
                 float lift = Mathf.Pow(t, 0.6f) * Mathf.Pow(1f - t, 1.4f) / 0.234f;
-                p.y += Mathf.Clamp01(lift) * stepHeight;
+                p.y += Mathf.Clamp01(lift) * stepHeightCalc;
                 Gizmos.DrawLine(prev, p);
                 prev = p;
             }
@@ -550,11 +662,9 @@ public class BasisLocalFootDriver
             Gizmos.DrawWireSphere(f.stepTargetPos, 0.015f);
         }
 
-        // Knee hint
         Gizmos.color = new Color(0f, 1f, 1f, 0.4f);
         Gizmos.DrawLine(f.currentPos, f.kneeHint);
 
-        // Leg
         if (hips != null) { Gizmos.color = c * 0.3f; Gizmos.DrawLine(hips.position, f.currentPos); }
 
 #if UNITY_EDITOR

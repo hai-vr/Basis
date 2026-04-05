@@ -396,6 +396,15 @@ namespace Basis.Scripts.Drivers
                 // Force leg IK on — without this the solver skips legs when no rig layer exists
                 data.EnableLeftLeg = true;
                 data.EnableRightLeg = true;
+
+                // Hip bob: subtle vertical dip during weight transfer, only when no hip tracker
+                bool hipsHaveTracker = BasisLocalBoneDriver.HipsControl.HasTracked == BasisHasTracked.HasTracker;
+                if (!hipsHaveTracker)
+                {
+                    data.PositionHips = new Vector3(data.PositionHips.x,
+                        data.PositionHips.y + footDriver.ComputeHipBob(),
+                        data.PositionHips.z);
+                }
             }
             else
             {
