@@ -192,8 +192,8 @@ namespace Basis.Scripts.Drivers
 
         // Blend weight for transitioning foot IK in/out (0 = animation, 1 = foot driver)
         private static float footIKBlendWeight = 0f;
-        private const float FootIKBlendInSpeed = 10f;  // ~100ms to fully engage
-        private const float FootIKBlendOutSpeed = 6f;  // ~170ms to fully disengage
+        private const float FootIKBlendInSpeed = 20f;  // ~50ms to fully engage
+        private const float FootIKBlendOutSpeed = 15f; // ~67ms to fully disengage
         public void Initialize(BasisLocalPlayer localPlayer, BasisTransformMapping references)
         {
             this.localPlayer = localPlayer;
@@ -443,16 +443,19 @@ namespace Basis.Scripts.Drivers
             }
             else if (footIKBlendWeight > 0.001f && footDriverReady)
             {
-                // Foot driver active or blending out: write positions, use blend weight for IK enable
+                // Blending out (IK → animation): lerp positions toward animation.
+                // Blending in (animation → IK): use foot driver directly — it already
+                // Write foot driver targets — the solver lerps between animation pose
+                // and these targets using the float weight (same as Unity's TwoBoneIK).
+                // No manual position blending needed.
                 data.LeftFootPosition = footDriver.LeftFootPosition;
                 data.LeftFootRotation = footDriver.LeftFootRotation;
                 data.RightFootPosition = footDriver.RightFootPosition;
                 data.RightFootRotation = footDriver.RightFootRotation;
 
-                data.EnableLeftLeg = true;
-                data.EnableRightLeg = true;
+                data.EnableLeftLeg = footIKBlendWeight;
+                data.EnableRightLeg = footIKBlendWeight;
 
-                // Hip bob scaled by blend weight
                 bool hipsHaveTracker = BasisLocalBoneDriver.HipsControl.HasTracked == BasisHasTracked.HasTracker;
                 if (!hipsHaveTracker)
                 {
@@ -464,8 +467,8 @@ namespace Basis.Scripts.Drivers
             else
             {
                 // Fully blended out: animation drives legs
-                data.EnableLeftLeg = false;
-                data.EnableRightLeg = false;
+                data.EnableLeftLeg = 0f;
+                data.EnableRightLeg = 0f;
             }
 
             // ---------------- CHEST (head hint) ----------------
@@ -489,16 +492,7 @@ namespace Basis.Scripts.Drivers
             bool leftLLHasTracker = BasisLocalBoneDriver.LeftLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
             bool rightLLHasTracker = BasisLocalBoneDriver.RightLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
 
-            if (footIKBlendWeight > 0.001f && footDriverReady && !leftLLHasTracker)
-            {
-                data.PositionLeftLowerLeg = footDriver.LeftKneeHint;
-                Quaternion targetRotL = ComputeKneeHintRotation(data.PositionHips, footDriver.LeftFootPosition, footDriver.LeftKneeHint);
-                float kneeRotAlpha = 1f - Mathf.Exp(-8f * deltaTime);
-                smoothedLeftKneeRot = Quaternion.Slerp(smoothedLeftKneeRot, targetRotL, kneeRotAlpha);
-                data.RotationLeftLowerLeg = smoothedLeftKneeRot;
-                data.EnableLeftLowerLeg = true;
-            }
-            else if (leftLLHasTracker)
+            if (leftLLHasTracker)
             {
                 var lll = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
                 Vector3 lllPos = lll.position;
@@ -511,21 +505,22 @@ namespace Basis.Scripts.Drivers
                 data.PositionLeftLowerLeg = lllPos;
                 data.RotationLeftLowerLeg = lllRot;
             }
+            else if (footIKBlendWeight > 0.001f && footDriverReady)
+            {
+                Quaternion targetRotL = ComputeKneeHintRotation(data.PositionHips, data.LeftFootPosition, footDriver.LeftKneeHint);
+                float kneeRotAlpha = 1f - Mathf.Exp(-8f * deltaTime);
+                smoothedLeftKneeRot = Quaternion.Slerp(smoothedLeftKneeRot, targetRotL, kneeRotAlpha);
+
+                data.PositionLeftLowerLeg = footDriver.LeftKneeHint;
+                data.RotationLeftLowerLeg = smoothedLeftKneeRot;
+                data.EnableLeftLowerLeg = footIKBlendWeight;
+            }
             else
             {
-                data.EnableLeftLowerLeg = false;
+                data.EnableLeftLowerLeg = 0f;
             }
 
-            if (footIKBlendWeight > 0.001f && footDriverReady && !rightLLHasTracker)
-            {
-                data.PositionRightLowerLeg = footDriver.RightKneeHint;
-                Quaternion targetRotR = ComputeKneeHintRotation(data.PositionHips, footDriver.RightFootPosition, footDriver.RightKneeHint);
-                float kneeRotAlpha = 1f - Mathf.Exp(-8f * deltaTime);
-                smoothedRightKneeRot = Quaternion.Slerp(smoothedRightKneeRot, targetRotR, kneeRotAlpha);
-                data.RotationRightLowerLeg = smoothedRightKneeRot;
-                data.EnableRightLowerLeg = true;
-            }
-            else if (rightLLHasTracker)
+            if (rightLLHasTracker)
             {
                 var rll = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
                 Vector3 rllPos = rll.position;
@@ -538,9 +533,19 @@ namespace Basis.Scripts.Drivers
                 data.PositionRightLowerLeg = rllPos;
                 data.RotationRightLowerLeg = rllRot;
             }
+            else if (footIKBlendWeight > 0.001f && footDriverReady)
+            {
+                Quaternion targetRotR = ComputeKneeHintRotation(data.PositionHips, data.RightFootPosition, footDriver.RightKneeHint);
+                float kneeRotAlpha = 1f - Mathf.Exp(-8f * deltaTime);
+                smoothedRightKneeRot = Quaternion.Slerp(smoothedRightKneeRot, targetRotR, kneeRotAlpha);
+
+                data.PositionRightLowerLeg = footDriver.RightKneeHint;
+                data.RotationRightLowerLeg = smoothedRightKneeRot;
+                data.EnableRightLowerLeg = footIKBlendWeight;
+            }
             else
             {
-                data.EnableRightLowerLeg = false;
+                data.EnableRightLowerLeg = 0f;
             }
 
             // ---------------- LEFT HAND ----------------
@@ -801,10 +806,10 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnableLeftLeg = HasRigLayer(BasisLocalBoneDriver.LeftFootControl);
+                d.EnableLeftLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftFootControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.EnableLeftLeg = HasRigLayer(BasisLocalBoneDriver.LeftFootControl);
+            data.EnableLeftLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftFootControl);
 
             BasisLocalBoneDriver.RightFootControl.OnHasRigChanged += (hasRig) =>
             {
@@ -813,10 +818,10 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnableRightLeg = HasRigLayer(BasisLocalBoneDriver.RightFootControl);
+                d.EnableRightLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightFootControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.EnableRightLeg = HasRigLayer(BasisLocalBoneDriver.RightFootControl);
+            data.EnableRightLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightFootControl);
 
             BasisLocalBoneDriver.LeftLowerLegControl.OnHasRigChanged += (hasRig) =>
             {
@@ -825,10 +830,10 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnableLeftLowerLeg = HasRigLayer(BasisLocalBoneDriver.LeftLowerLegControl);
+                d.EnableLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftLowerLegControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.EnableLeftLowerLeg = HasRigLayer(BasisLocalBoneDriver.LeftLowerLegControl);
+            data.EnableLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftLowerLegControl);
 
             BasisLocalBoneDriver.RightLowerLegControl.OnHasRigChanged += (hasRig) =>
             {
@@ -837,10 +842,10 @@ namespace Basis.Scripts.Drivers
                     return;
                 }
                 var d = BasisFullIKConstraint.data;
-                d.EnableRightLowerLeg = HasRigLayer(BasisLocalBoneDriver.RightLowerLegControl);
+                d.EnableRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightLowerLegControl);
                 BasisFullIKConstraint.data = d;
             };
-            data.EnableRightLowerLeg = HasRigLayer(BasisLocalBoneDriver.RightLowerLegControl);
+            data.EnableRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightLowerLegControl);
 
             // Toes
             BasisLocalBoneDriver.LeftToeControl.OnHasRigChanged += (hasRig) =>
@@ -978,10 +983,10 @@ namespace Basis.Scripts.Drivers
             if (BasisFullIKConstraint != null)
             {
                 var data = BasisFullIKConstraint.data;
-                data.EnableLeftLeg = false;
-                data.EnableRightLeg = false;
-                data.EnableLeftLowerLeg = false;
-                data.EnableRightLowerLeg = false;
+                data.EnableLeftLeg = 0f;
+                data.EnableRightLeg = 0f;
+                data.EnableLeftLowerLeg = 0f;
+                data.EnableRightLowerLeg = 0f;
                 data.LeftToeEnabled = false;
                 data.RightToeEnabled = false;
                 // data.EnabledLeftHand = false;
@@ -997,6 +1002,11 @@ namespace Basis.Scripts.Drivers
         private static bool HasRigLayer(BasisLocalBoneControl control)
         {
             return control.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+        }
+
+        private static float HasRigLayerFloat(BasisLocalBoneControl control)
+        {
+            return control.HasRigLayer == BasisHasRigLayer.HasRigLayer ? 1f : 0f;
         }
 
         /// <summary>

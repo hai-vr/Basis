@@ -15,7 +15,7 @@ public class BasisLocalFootDriver
     // ───────── Minimal tuning (proportional multipliers, not absolute values) ─────────
 
     [Header("Ground Detection")]
-    [SerializeField] private LayerMask groundLayers;
+    private LayerMask groundLayers;
 
     [Header("Prediction")]
     [Tooltip("How far ahead (in step-durations) to predict the step target.")]
@@ -71,6 +71,7 @@ public class BasisLocalFootDriver
     private float prevHeadYaw;
     private bool firstFrame;
     private bool wasDisabled;
+    private float lastKnownGroundY;
     private Vector3 smoothedBodyFwd;
     private Vector3 smoothedBodyRight;
 
@@ -152,7 +153,22 @@ public class BasisLocalFootDriver
         right.thigh = SafeGet(mapping.RightUpperLeg, rf != null ? rf.parent?.parent : null);
         right.shin = SafeGet(mapping.RightLowerLeg, rf != null ? rf.parent : null);
 
-        if (groundLayers.value == 0) groundLayers = LayerMask.GetMask("Default");
+        // Use the same collision layers as the character controller
+        var cc = BasisLocalPlayer.Instance.LocalCharacterDriver.characterController;
+        if (cc != null)
+        {
+            int ccLayer = cc.gameObject.layer;
+            // Build mask of all layers that collide with the character controller's layer
+            int mask = 0;
+            for (int i = 0; i < 32; i++)
+                if (!Physics.GetIgnoreLayerCollision(ccLayer, i))
+                    mask |= (1 << i);
+            groundLayers = mask;
+        }
+        else
+        {
+            groundLayers = Physics.DefaultRaycastLayers;
+        }
 
         // ── 1. Measure avatar from calibration T-pose ──
         MeasureFromCalibration(mapping);
@@ -171,6 +187,7 @@ public class BasisLocalFootDriver
         var hc = BasisLocalBoneDriver.HeadControl;
         if (hc != null) { prevHeadPos = hc.OutgoingWorldData.position; prevHeadYaw = HeadYaw(); }
         smoothedVelocity = Vector3.zero;
+        lastKnownGroundY = hips != null ? hips.position.y - hipToFoot : 0f;
         smoothedBodyFwd = avatarTransform != null ? avatarTransform.forward : Vector3.forward;
         smoothedBodyRight = Vector3.Cross(Vector3.up, smoothedBodyFwd).normalized;
         firstFrame = true;
@@ -322,9 +339,10 @@ public class BasisLocalFootDriver
         float speed = smoothedVelocity.magnitude;
 
         // Smooth body forward/right to prevent snappy foot repositioning during head turns.
-        // Raw head yaw changes propagate gradually to foot placement.
+        // Slower smoothing when stationary so small head oscillations don't move feet.
         Vector3 rawFwd = BodyForward(headPos);
-        float fwdAlpha = 1f - Mathf.Exp(-5f * dt); // ~200ms smoothing
+        float fwdRate = speed > 0.1f ? 6f : 2.5f; // faster tracking when moving, sluggish when still
+        float fwdAlpha = 1f - Mathf.Exp(-fwdRate * dt);
         smoothedBodyFwd = Vector3.Slerp(smoothedBodyFwd, rawFwd, fwdAlpha).normalized;
         if (smoothedBodyFwd.sqrMagnitude < 0.001f) smoothedBodyFwd = rawFwd;
         smoothedBodyRight = Vector3.Cross(Vector3.up, smoothedBodyFwd).normalized;
@@ -346,9 +364,19 @@ public class BasisLocalFootDriver
         Vector3 hipsXZ = new Vector3(hips.position.x, 0f, hips.position.z);
         Vector3 velDir = new Vector3(smoothedVelocity.x, 0f, smoothedVelocity.z);
 
-        float groundY = hips.position.y - hipToFoot;
+        // Find ground — if raycast misses (mid-air), use hip-relative estimate.
+        // Always keep feet at hipToFoot below hips so they track with jumps/falls.
+        float groundY;
         if (Physics.Raycast(hips.position, Vector3.down, out RaycastHit ch, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
+        {
             groundY = ch.point.y;
+            lastKnownGroundY = groundY;
+        }
+        else
+        {
+            // Airborne: feet stay at hipToFoot below hips (natural dangling position)
+            groundY = hips.position.y - hipToFoot;
+        }
 
         // Movement direction: use velocity direction (not body forward) so backward
         // and strafing motion biases feet in the correct direction.
@@ -401,7 +429,11 @@ public class BasisLocalFootDriver
 
         // ── Step parameters for this frame ──
         float speedT = Mathf.Clamp01(speed / fastSpeedRef);
-        float threshold = stepTriggerDist + speed * strideScale;
+        // When stationary, use a larger threshold so tiny head rotations don't trigger steps.
+        // The smoothed body forward absorbs small oscillations, but the stance offset
+        // still shifts ideals laterally. A wider deadzone prevents false triggers.
+        float idleBoost = speed < 0.05f ? stepTriggerDist * 0.5f : 0f;
+        float threshold = stepTriggerDist + speed * strideScale + idleBoost;
         float stepDur = Mathf.Lerp(stepDurSlow, stepDurFast, speedT);
 
         // ── Update feet (pass raw forward for rotation, smoothed for placement) ──
@@ -521,7 +553,8 @@ public class BasisLocalFootDriver
         }
         else
         {
-            f.stepTargetPos = targetXZ;
+            // Airborne: place step target at hipToFoot below hips
+            f.stepTargetPos = new Vector3(targetXZ.x, hips.position.y - hipToFoot, targetXZ.z);
         }
 
         // Enforce side constraint on step target using raw (instantaneous) body right
@@ -577,12 +610,31 @@ public class BasisLocalFootDriver
 
     private Vector3 BodyForward(Vector3 headPos)
     {
+        // Try head forward projected to horizontal plane
         var hc = BasisLocalBoneDriver.HeadControl;
         if (hc != null)
         {
-            Vector3 fwd = hc.OutgoingWorldData.rotation * Vector3.forward; fwd.y = 0f;
-            if (fwd.sqrMagnitude > 0.001f) return fwd.normalized;
+            Vector3 headFwd = hc.OutgoingWorldData.rotation * Vector3.forward;
+            Vector3 headFlat = new Vector3(headFwd.x, 0f, headFwd.z);
+
+            // If head is looking too far up/down (pitch > ~70 deg), the horizontal
+            // projection degenerates. Fall back to hips forward which stays stable.
+            if (headFlat.sqrMagnitude > 0.1f)
+                return headFlat.normalized;
         }
+
+        // Fallback: hips forward is always stable regardless of head pitch
+        if (hips != null)
+        {
+            var hipsCtrl = BasisLocalBoneDriver.HipsControl;
+            if (hipsCtrl != null)
+            {
+                Vector3 hipsFwd = hipsCtrl.OutgoingWorldData.rotation * Vector3.forward;
+                hipsFwd.y = 0f;
+                if (hipsFwd.sqrMagnitude > 0.001f) return hipsFwd.normalized;
+            }
+        }
+
         return avatarTransform != null ? avatarTransform.forward : Vector3.forward;
     }
 
@@ -677,7 +729,8 @@ public class BasisLocalFootDriver
         }
         else
         {
-            f.currentPos = f.plantedPos = f.idealPos;
+            // Airborne: place at hipToFoot below hips
+            f.currentPos = f.plantedPos = new Vector3(f.idealPos.x, hips.position.y - hipToFoot, f.idealPos.z);
         }
         f.currentRot = f.plantedRot = FootRotation(bodyFwd, f.filteredNormal);
         f.phase = Phase.Planted;

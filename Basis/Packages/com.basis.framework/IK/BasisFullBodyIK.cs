@@ -264,11 +264,11 @@ namespace UnityEngine.Animations.Rigging
         [SyncSceneToStream, SerializeField] public bool m_LeftToeEnabled;
         [SyncSceneToStream, SerializeField] public bool m_RightToeEnabled;
 
-        [SyncSceneToStream, SerializeField] bool m_LeftLowerLegEnabled;
-        [SyncSceneToStream, SerializeField] bool m_RightLowerLegEnabled;
+        [SyncSceneToStream, SerializeField] float m_LeftLowerLegEnabled;
+        [SyncSceneToStream, SerializeField] float m_RightLowerLegEnabled;
 
-        [SyncSceneToStream, SerializeField] bool m_HintLeftLowerLegEnabled;
-        [SyncSceneToStream, SerializeField] bool m_HintRightLowerLegEnabled;
+        [SyncSceneToStream, SerializeField] float m_HintLeftLowerLegEnabled;
+        [SyncSceneToStream, SerializeField] float m_HintRightLowerLegEnabled;
 
         [SyncSceneToStream, SerializeField] bool m_EnabledLeftHand;
         [SyncSceneToStream, SerializeField] bool m_EnabledRightHand;
@@ -395,10 +395,10 @@ namespace UnityEngine.Animations.Rigging
         public bool EnabledSpineIK { get => m_SpineIKEnabled; set => m_SpineIKEnabled = value; }
         public float IKLockMode { get => m_IKLockMode; set => m_IKLockMode = value; }
         public string IKLockModeFloatProperty => ConstraintsUtils.ConstructConstraintDataPropertyName(nameof(m_IKLockMode));
-        public bool EnableLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
-        public bool EnableLeftLeg { get => m_LeftLowerLegEnabled; set => m_LeftLowerLegEnabled = value; }
-        public bool EnableRightLowerLeg { get => m_HintRightLowerLegEnabled; set => m_HintRightLowerLegEnabled = value; }
-        public bool EnableRightLeg { get => m_RightLowerLegEnabled; set => m_RightLowerLegEnabled = value; }
+        public float EnableLeftLowerLeg { get => m_HintLeftLowerLegEnabled; set => m_HintLeftLowerLegEnabled = value; }
+        public float EnableLeftLeg { get => m_LeftLowerLegEnabled; set => m_LeftLowerLegEnabled = value; }
+        public float EnableRightLowerLeg { get => m_HintRightLowerLegEnabled; set => m_HintRightLowerLegEnabled = value; }
+        public float EnableRightLeg { get => m_RightLowerLegEnabled; set => m_RightLowerLegEnabled = value; }
         public bool LeftToeEnabled { get => m_LeftToeEnabled; set => m_LeftToeEnabled = value; }
         public bool RightToeEnabled { get => m_RightToeEnabled; set => m_RightToeEnabled = value; }
         public bool HintWeightLeftHand { get => m_HintLeftHandEnabled; set => m_HintLeftHandEnabled = value; }
@@ -464,8 +464,10 @@ namespace UnityEngine.Animations.Rigging
 
             m_Hips = null;
 
-            m_HintHeadEnabled = m_HintLeftLowerLegEnabled = m_HintRightLowerLegEnabled = true;
-            m_SpineIKEnabled = m_LeftLowerLegEnabled = m_RightLowerLegEnabled = true;
+            m_HintHeadEnabled = true;
+            m_HintLeftLowerLegEnabled = m_HintRightLowerLegEnabled = 1f;
+            m_SpineIKEnabled = true;
+            m_LeftLowerLegEnabled = m_RightLowerLegEnabled = 1f;
             m_IKLockMode = (float)BasisIKLockMode.LockHips;
 
             m_HintLeftHandEnabled = m_HintRightHandEnabled = true;
@@ -747,10 +749,12 @@ o20, o54;
             targetOffsetRightToe, targetOffsetLeftShoulder, targetOffsetRightShoulder, targetOffsetLeftFoot,
             targetOffsetRightFoot, targetOffsetLeftHand, targetOffsetRightHand;
 
+        public FloatProperty
+enabledLeftLowerLeg, enabledRightLowerLeg,
+hintWeightLeftLowerLeg, hintWeightRightLowerLeg;
+
         public BoolProperty
 HasChestTracker, enabledSpineIK,
-hintWeightLeftLowerLeg, enabledLeftLowerLeg,
-hintWeightRightLowerLeg, enabledRightLowerLeg,
             enabledLeftShoulder, enabledRightShoulder,
 
 leftToeEnabled, RightToeEnabled,
@@ -1450,7 +1454,7 @@ w20, w54;
         /// <param name="hint">The transform handle for the hint transform.</param>
         /// <param name="HasHint">The weight for which hint transform has an effect on IK calculations. This is a value in between 0 and 1.</param>
         /// <param name="targetOffset">The offset applied to the target transform.</param>
-        public void SolveTwoBone(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, bool HasHint, Quaternion targetOffset, Vector3 BendNormal)
+        public void SolveTwoBone(AnimationStream stream, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, AffineTransform target, AffineTransform hint, float hintWeight, Quaternion targetOffset, Vector3 BendNormal)
         {
             Vector3 aPosition = root.GetPosition(stream);
             Vector3 bPosition = mid.GetPosition(stream);
@@ -1461,6 +1465,8 @@ w20, w54;
 
             Vector3 tPosition = targetPos;
             Quaternion tRotation = targetRot * targetOffset;
+
+            bool hasHint = hintWeight > 0f;
 
             // Segment vectors
             Vector3 ab = bPosition - aPosition;
@@ -1474,30 +1480,33 @@ w20, w54;
             float maxReach = abLen + bcLen;
             float oldAbcAngle = TriangleAngle(acLen, abLen, bcLen);
             Vector3 atCorrected = tPosition - aPosition;
-            // Vector3 atCorrected = correctedTargetPos - aPosition;
             float atCorrectedLen = atCorrected.magnitude;
 
             float newAbcAngle = TriangleAngle(atCorrectedLen, abLen, bcLen);
 
             Vector3 axis;
-            if (HasHint)
+            if (hasHint)
             {
                 axis = Vector3.Cross(hint.translation - aPosition, bc);
 
                 if (axis.sqrMagnitude < k_SqrEpsilon)
-                {
-                    // use corrected vector, not raw tPosition
                     axis = Vector3.Cross(atCorrected, bc);
-                }
 
                 if (axis.sqrMagnitude < k_SqrEpsilon)
-                {
                     axis = BendNormal;
-                }
             }
             else
             {
                 axis = BendNormal;
+            }
+
+            // Near full extension the cross products above become unreliable.
+            // Blend toward BendNormal which is always stable (derived from hips rotation).
+            float extensionRatio = (maxReach > k_Epsilon) ? (atCorrectedLen / maxReach) : 0f;
+            if (extensionRatio > 0.9f)
+            {
+                float blend = Mathf.Clamp01((extensionRatio - 0.9f) / 0.1f);
+                axis = Vector3.Slerp(axis.normalized, BendNormal.normalized, blend);
             }
 
             axis = Vector3.Normalize(axis);
@@ -1514,11 +1523,10 @@ w20, w54;
 
             if (atCorrectedLen > k_Epsilon)
             {
-                // Swing root toward corrected target
                 root.SetRotation(stream, QuaternionExt.FromToRotation(ac, atCorrected) * root.GetRotation(stream));
             }
 
-            if (HasHint)
+            if (hasHint)
             {
                 float acSqrMag = ac.sqrMagnitude;
                 if (acSqrMag > 0f)
@@ -1535,7 +1543,12 @@ w20, w54;
 
                     if (abProj.sqrMagnitude > (maxReach * maxReach * 0.001f) && ahProj.sqrMagnitude > 0f)
                     {
+                        // Scale hint rotation by weight — matches Unity's TwoBoneIK approach.
+                        // At weight 1: full hint influence. At partial: proportionally less.
                         Quaternion hintR = QuaternionExt.FromToRotation(abProj, ahProj);
+                        hintR.x *= hintWeight;
+                        hintR.y *= hintWeight;
+                        hintR.z *= hintWeight;
                         hintR = QuaternionExt.NormalizeSafe(hintR);
                         root.SetRotation(stream, hintR * root.GetRotation(stream));
                     }
@@ -1545,9 +1558,10 @@ w20, w54;
             tip.SetRotation(stream, tRotation);
         }
         public Quaternion V4ToQuat(Vector4 v) => new Quaternion(v.x, v.y, v.z, v.w);
-        public void SolveLegs(AnimationStream stream, BoolProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, BoolProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp)
+        public void SolveLegs(AnimationStream stream, FloatProperty enabledProp, ReadWriteTransformHandle root, ReadWriteTransformHandle mid, ReadWriteTransformHandle tip, Vector3Property targetPosProp, Vector4Property targetRotProp, Vector3Property hintPosProp, Vector4Property hintRotProp, FloatProperty hintWeightProp, Quaternion targetOffset, Vector3Property bendNormalProp)
         {
-            if (!enabledProp.Get(stream))
+            float posWeight = enabledProp.Get(stream);
+            if (posWeight <= 0f)
             {
                 return;
             }
@@ -1557,14 +1571,25 @@ w20, w54;
                 return;
             }
 
-            Quaternion tRot = V4ToQuat(targetRotProp.Get(stream));
+            // Lerp between current animation pose and IK target, matching Unity's TwoBoneIK weight behaviour.
+            // At weight 1: fully IK-driven. At weight 0.5: halfway blend. At 0: animation passthrough.
+            Vector3 animTipPos = tip.GetPosition(stream);
+            Quaternion animTipRot = tip.GetRotation(stream);
+
+            Vector3 ikTargetPos = targetPosProp.Get(stream);
+            Quaternion ikTargetRot = V4ToQuat(targetRotProp.Get(stream));
+
+            Vector3 blendedPos = Vector3.Lerp(animTipPos, ikTargetPos, posWeight);
+            Quaternion blendedRot = Quaternion.Slerp(animTipRot, ikTargetRot, posWeight);
+
+            float hintW = hintWeightProp.Get(stream) * posWeight;
             Quaternion hRot = V4ToQuat(hintRotProp.Get(stream));
 
-            AffineTransform target = new AffineTransform(targetPosProp.Get(stream), tRot);
+            AffineTransform target = new AffineTransform(blendedPos, blendedRot);
             AffineTransform hint = new AffineTransform(hintPosProp.Get(stream), hRot);
             Vector3 bendNormal = bendNormalProp.Get(stream);
 
-            SolveTwoBone(stream, root, mid, tip, target, hint, hintWeightProp.Get(stream), targetOffset, bendNormal);
+            SolveTwoBone(stream, root, mid, tip, target, hint, hintW, targetOffset, bendNormal);
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Apply(AnimationStream stream, ReadWriteTransformHandle h, Vector3Property p, Vector4Property r, Vector4Property o, BoolProperty sw)
@@ -1734,10 +1759,10 @@ w20, w54;
                 hintRotationRightHand = Vector4Property.Bind(animator, component, data.HintRotationPropertyRightHand),
                 enabledSpineIK = BoolProperty.Bind(animator, component, data.EnabledPropertySpineIK),
                 HasChestTracker = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyHead),
-                enabledLeftLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyLeftLowerLeg),
-                hintWeightLeftLowerLeg = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyLeftLowerLeg),
-                enabledRightLowerLeg = BoolProperty.Bind(animator, component, data.EnabledPropertyRightLowerLeg),
-                hintWeightRightLowerLeg = BoolProperty.Bind(animator, component, data.HintWeightBoolPropertyRightLowerLeg),
+                enabledLeftLowerLeg = FloatProperty.Bind(animator, component, data.EnabledPropertyLeftLowerLeg),
+                hintWeightLeftLowerLeg = FloatProperty.Bind(animator, component, data.HintWeightBoolPropertyLeftLowerLeg),
+                enabledRightLowerLeg = FloatProperty.Bind(animator, component, data.EnabledPropertyRightLowerLeg),
+                hintWeightRightLowerLeg = FloatProperty.Bind(animator, component, data.HintWeightBoolPropertyRightLowerLeg),
                 leftToeEnabled = BoolProperty.Bind(animator, component, data.LeftToeEnabledProperty),
                 RightToeEnabled = BoolProperty.Bind(animator, component, data.RightToeEnabledProperty),
                 enabledLeftHand = BoolProperty.Bind(animator, component, data.EnabledPropertyLeftHand),
