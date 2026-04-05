@@ -454,39 +454,51 @@ namespace Basis.Scripts.Drivers
             data.ChestPosition = chestPos;
             data.ChestRotation = chestRot;
 
-            // ---------------- LEFT LOWER LEG (hint) ----------------
-            var lll = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
+            // ---------------- LOWER LEG HINTS (knee) ----------------
+            // When the foot driver is active with no leg trackers, use its computed
+            // knee hints instead of the raw bone control data.
+            bool leftLLHasTracker = BasisLocalBoneDriver.LeftLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
+            bool rightLLHasTracker = BasisLocalBoneDriver.RightLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
 
-            Vector3 lllPos = lll.position;
-            if (SmoothPos[S_LeftLowerLeg])
-                lllPos = EuroPos[S_LeftLowerLeg] ? fPosLeftLowerLeg.Filter(lllPos, timeAccumulator) : FallbackPos(ref sPosLeftLowerLeg, lllPos, deltaTime);
+            if (useFootDriver && !leftLLHasTracker)
+            {
+                data.PositionLeftLowerLeg = footDriver.LeftKneeHint;
+                data.RotationLeftLowerLeg = Quaternion.identity;
+                data.EnableLeftLowerLeg = true;
+            }
+            else
+            {
+                var lll = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
+                Vector3 lllPos = lll.position;
+                if (SmoothPos[S_LeftLowerLeg])
+                    lllPos = EuroPos[S_LeftLowerLeg] ? fPosLeftLowerLeg.Filter(lllPos, timeAccumulator) : FallbackPos(ref sPosLeftLowerLeg, lllPos, deltaTime);
+                Quaternion lllRot = lll.rotation;
+                if (SmoothRot[S_LeftLowerLeg])
+                    lllRot = EuroRot[S_LeftLowerLeg] ? fRotLeftLowerLeg.Filter(lllRot, timeAccumulator) : FallbackRot(ref sRotLeftLowerLeg, lllRot, deltaTime);
+                lllPos = ApplyHintBias(BasisBoneTrackedRole.LeftLowerLeg, lllPos, lllRot);
+                data.PositionLeftLowerLeg = lllPos;
+                data.RotationLeftLowerLeg = lllRot;
+            }
 
-            Quaternion lllRot = lll.rotation;
-            if (SmoothRot[S_LeftLowerLeg])
-                lllRot = EuroRot[S_LeftLowerLeg] ? fRotLeftLowerLeg.Filter(lllRot, timeAccumulator) : FallbackRot(ref sRotLeftLowerLeg, lllRot, deltaTime);
-
-            // Apply knee "up/out/forward" bias
-            lllPos = ApplyHintBias(BasisBoneTrackedRole.LeftLowerLeg, lllPos, lllRot);
-
-            data.PositionLeftLowerLeg = lllPos;
-            data.RotationLeftLowerLeg = lllRot;
-
-            // ---------------- RIGHT LOWER LEG (your code writes into RightFoot hint fields) ----------------
-            var rll = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
-
-            Vector3 rllPos = rll.position;
-            if (SmoothPos[S_RightLowerLeg])
-                rllPos = EuroPos[S_RightLowerLeg] ? fPosRightLowerLeg.Filter(rllPos, timeAccumulator) : FallbackPos(ref sPosRightLowerLeg, rllPos, deltaTime);
-
-            Quaternion rllRot = rll.rotation;
-            if (SmoothRot[S_RightLowerLeg])
-                rllRot = EuroRot[S_RightLowerLeg] ? fRotRightLowerLeg.Filter(rllRot, timeAccumulator) : FallbackRot(ref sRotRightLowerLeg, rllRot, deltaTime);
-
-            // Apply knee "up/out/forward" bias
-            rllPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerLeg, rllPos, rllRot);
-
-            data.PositionRightLowerLeg = rllPos;
-            data.RotationRightLowerLeg = rllRot;
+            if (useFootDriver && !rightLLHasTracker)
+            {
+                data.PositionRightLowerLeg = footDriver.RightKneeHint;
+                data.RotationRightLowerLeg = Quaternion.identity;
+                data.EnableRightLowerLeg = true;
+            }
+            else
+            {
+                var rll = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
+                Vector3 rllPos = rll.position;
+                if (SmoothPos[S_RightLowerLeg])
+                    rllPos = EuroPos[S_RightLowerLeg] ? fPosRightLowerLeg.Filter(rllPos, timeAccumulator) : FallbackPos(ref sPosRightLowerLeg, rllPos, deltaTime);
+                Quaternion rllRot = rll.rotation;
+                if (SmoothRot[S_RightLowerLeg])
+                    rllRot = EuroRot[S_RightLowerLeg] ? fRotRightLowerLeg.Filter(rllRot, timeAccumulator) : FallbackRot(ref sRotRightLowerLeg, rllRot, deltaTime);
+                rllPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerLeg, rllPos, rllRot);
+                data.PositionRightLowerLeg = rllPos;
+                data.RotationRightLowerLeg = rllRot;
+            }
 
             // ---------------- LEFT HAND ----------------
             var lh = BasisLocalBoneDriver.LeftHandControl.OutgoingWorldData;
@@ -609,8 +621,19 @@ namespace Basis.Scripts.Drivers
             Vector3 outR = hipsRot * Vector3.right;
             Vector3 up = hipsRot * Vector3.up;
 
-            data.KneeBendPrefLeft = (hipsRot * Vector3.right);
-            data.KneeBendPrefRight = (hipsRot * Vector3.right);
+            // Knee bend normals: when foot driver is active, derive from hip→foot→knee
+            // triangle so the knee bends in the correct plane for the procedural foot positions.
+            if (useFootDriver)
+            {
+                Vector3 hp = data.PositionHips;
+                data.KneeBendPrefLeft = ComputeKneeBendNormal(hp, data.LeftFootPosition, footDriver.LeftKneeHint, hipsRot * Vector3.right);
+                data.KneeBendPrefRight = ComputeKneeBendNormal(hp, data.RightFootPosition, footDriver.RightKneeHint, hipsRot * Vector3.right);
+            }
+            else
+            {
+                data.KneeBendPrefLeft = (hipsRot * Vector3.right);
+                data.KneeBendPrefRight = (hipsRot * Vector3.right);
+            }
 
             data.SpineBendNormal = (fwd * spineBendNormalWeights.x + outR * spineBendNormalWeights.y + up * spineBendNormalWeights.z).normalized;
             // Commit & evaluate
@@ -939,6 +962,19 @@ namespace Basis.Scripts.Drivers
         private static bool HasRigLayer(BasisLocalBoneControl control)
         {
             return control.HasRigLayer == BasisHasRigLayer.HasRigLayer;
+        }
+
+        /// <summary>
+        /// Compute a knee bend normal from the hip→foot→kneeHint triangle.
+        /// The normal of this triangle defines the plane the knee should bend in.
+        /// Falls back to the provided default if the triangle is degenerate.
+        /// </summary>
+        private static Vector3 ComputeKneeBendNormal(Vector3 hip, Vector3 foot, Vector3 kneeHint, Vector3 fallback)
+        {
+            Vector3 hipToFoot = foot - hip;
+            Vector3 hipToKnee = kneeHint - hip;
+            Vector3 normal = Vector3.Cross(hipToFoot, hipToKnee);
+            return normal.sqrMagnitude > 1e-8f ? normal.normalized : fallback;
         }
 
         public GameObject CreateOrGetRig(string role, bool enabled, out Rig rig, out RigLayer rigLayer)

@@ -304,16 +304,25 @@ public class BasisLocalFootDriver
         if (Physics.Raycast(hips.position, Vector3.down, out RaycastHit ch, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
             groundY = ch.point.y;
 
-        // Base center with forward bias along BODY FORWARD (not velocity direction)
-        // to prevent feet flying sideways during turns.
-        Vector3 center = new Vector3(hipsXZ.x, groundY, hipsXZ.z)
-            + bodyFwd * (speed * velocityBiasFactor);
+        // Movement direction: use velocity direction (not body forward) so backward
+        // and strafing motion biases feet in the correct direction.
+        // Only use body forward as fallback when velocity is near zero.
+        Vector3 moveDir;
+        if (velDir.sqrMagnitude > 0.01f)
+            moveDir = velDir.normalized;
+        else
+            moveDir = bodyFwd;
+
+        // Base center with bias along movement direction, clamped to leg reach.
+        float avgLeg = (leftLegLen + rightLegLen) * 0.5f;
+        float maxOffset = avgLeg * 0.35f;
+        float baseBias = Mathf.Min(speed * velocityBiasFactor, maxOffset);
+        Vector3 center = new Vector3(hipsXZ.x, groundY, hipsXZ.z) + moveDir * baseBias;
         float halfStance = stanceWidth * 0.5f;
 
-        // Lead offset: the foot that needs to step gets pushed further along body forward.
-        // Clamped to body forward so turning doesn't fling feet sideways.
-        float leadAmount = speed * velocityBiasFactor * 0.8f;
-        Vector3 leadOffset = bodyFwd * leadAmount;
+        // Lead offset for the stepping foot, also along movement direction
+        float leadAmount = Mathf.Min(speed * velocityBiasFactor * 0.6f, maxOffset * 0.5f);
+        Vector3 leadOffset = moveDir * leadAmount;
 
         float leftDist = HDist(left.plantedPos, center - bodyRight * halfStance);
         float rightDist = HDist(right.plantedPos, center + bodyRight * halfStance);
@@ -399,8 +408,10 @@ public class BasisLocalFootDriver
         f.stepTimer = 0f;
         f.stepDur = stepDur;
 
-        // Predict along body forward, not raw velocity, to avoid sideways overshoot in turns
-        Vector3 prediction = bodyFwd * (speed * stepDur * predictionFactor);
+        // Predict along body forward, clamped so the target can't exceed leg reach from hips
+        float avgLeg = (leftLegLen + rightLegLen) * 0.5f;
+        float predAmount = Mathf.Min(speed * stepDur * predictionFactor, avgLeg * 0.35f);
+        Vector3 prediction = bodyFwd * predAmount;
         Vector3 targetXZ = f.idealPos + prediction;
 
         Vector3 rayOrig = targetXZ + Vector3.up * rayCastRange * 0.5f;
