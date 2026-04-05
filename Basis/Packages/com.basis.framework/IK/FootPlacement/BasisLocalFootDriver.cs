@@ -641,13 +641,13 @@ public partial class BasisLocalFootDriver
             headPos = headData.position,
             hipsPos = hips.position,
             hipsRot = hipsData.rotation,
-            chestRot = chestCtrl != null ? (quaternion)(Quaternion)chestCtrl.OutgoingWorldData.rotation : quaternion.identity,
+            chestRot = chestCtrl.OutgoingWorldData.rotation,
             headRot = headData.rotation,
             avatarForward = avatarTransform.forward,
             avatarRight = avatarTransform.right,
             hasChest = chestCtrl != null,
             groundHit = groundHit,
-            groundPoint = groundHit ? (float3)(Vector3)ch.point : float3.zero,
+            groundPoint = groundHit ? (float3)ch.point : float3.zero,
             splayWhenCrouched = SplayWhenCrouchedPercentage,
         };
 
