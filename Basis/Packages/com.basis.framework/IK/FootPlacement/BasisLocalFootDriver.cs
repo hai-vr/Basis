@@ -75,6 +75,7 @@ public class BasisLocalFootDriver
     private Vector3 smoothedBodyFwd;
     private Vector3 smoothedBodyRight;
 
+    public static float SplayWhenCrouchedPercentage = 1f;
     public bool IsInitialized { get; private set; }
 
     /// <summary>
@@ -451,7 +452,7 @@ public class BasisLocalFootDriver
 
         // Only splay outward when actually crouching — zero at normal stand
         // Small amount keeps knees from touching during deep bends
-        float kneeSplay = halfStance * 0.15f * bendRatio;
+        float kneeSplay = halfStance * SplayWhenCrouchedPercentage * bendRatio;
         leftKneeTarget -= rawRight * kneeSplay;
         rightKneeTarget += rawRight * kneeSplay;
 
@@ -709,9 +710,9 @@ public class BasisLocalFootDriver
     }
     private void FallbackHipToFoot()
     {
-        if (hips != null && left.bone != null && right.bone != null)
-            hipToFoot = Mathf.Max(0.15f, Mathf.Abs(hips.position.y - (left.bone.position.y + right.bone.position.y) * 0.5f));
-        else hipToFoot = 0.85f;
+        hipToFoot = hips != null && left.bone != null && right.bone != null
+            ? Mathf.Max(0.15f, Mathf.Abs(hips.position.y - (left.bone.position.y + right.bone.position.y) * 0.5f))
+            : 0.85f;
     }
     private void FallbackLegLens(bool isLeft)
     {
