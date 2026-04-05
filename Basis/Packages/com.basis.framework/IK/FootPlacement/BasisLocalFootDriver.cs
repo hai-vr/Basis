@@ -340,7 +340,7 @@ public class BasisLocalFootDriver
 
         // Smooth body forward/right to prevent snappy foot repositioning during head turns.
         // Slower smoothing when stationary so small head oscillations don't move feet.
-        Vector3 rawFwd = BodyForward(headPos);
+        Vector3 rawFwd = BodyForward();
         float fwdRate = speed > 0.1f ? 6f : 2.5f; // faster tracking when moving, sluggish when still
         float fwdAlpha = 1f - Mathf.Exp(-fwdRate * dt);
         smoothedBodyFwd = Vector3.Slerp(smoothedBodyFwd, rawFwd, fwdAlpha).normalized;
@@ -381,11 +381,7 @@ public class BasisLocalFootDriver
         // Movement direction: use velocity direction (not body forward) so backward
         // and strafing motion biases feet in the correct direction.
         // Only use body forward as fallback when velocity is near zero.
-        Vector3 moveDir;
-        if (velDir.sqrMagnitude > 0.01f)
-            moveDir = velDir.normalized;
-        else
-            moveDir = bodyFwd;
+        Vector3 moveDir = velDir.sqrMagnitude > 0.01f ? velDir.normalized : bodyFwd;
 
         // Base center with bias along movement direction, clamped to leg reach.
         float avgLeg = (leftLegLen + rightLegLen) * 0.5f;
@@ -545,8 +541,7 @@ public class BasisLocalFootDriver
         Vector3 targetXZ = f.idealPos + prediction;
 
         Vector3 rayOrig = targetXZ + Vector3.up * rayCastRange * 0.5f;
-        if (Physics.SphereCast(rayOrig, raySphereRadius, Vector3.down, out RaycastHit hit,
-            rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
+        if (Physics.SphereCast(rayOrig, raySphereRadius, Vector3.down, out RaycastHit hit, rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
         {
             f.stepTargetPos = hit.point + hit.normal * footHeightOffset;
             f.filteredNormal = hit.normal;
@@ -558,9 +553,7 @@ public class BasisLocalFootDriver
         }
 
         // Enforce side constraint on step target using raw (instantaneous) body right
-        Vector3 rawFwd = BodyForward(BasisLocalBoneDriver.HeadControl != null
-            ? BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position
-            : hips.position + Vector3.up);
+        Vector3 rawFwd = BodyForward();
         Vector3 rawR = Vector3.Cross(Vector3.up, rawFwd).normalized;
         if (rawR.sqrMagnitude < 0.001f) rawR = Vector3.right;
         Vector3 hGround = new Vector3(hips.position.x, f.stepTargetPos.y, hips.position.z);
@@ -574,7 +567,10 @@ public class BasisLocalFootDriver
     // ═══════════════════════════════════════════════════════════
 
     private static float HDist(Vector3 a, Vector3 b)
-    { float dx = a.x - b.x, dz = a.z - b.z; return Mathf.Sqrt(dx * dx + dz * dz); }
+    {
+        float dx = a.x - b.x, dz = a.z - b.z;
+        return Mathf.Sqrt(dx * dx + dz * dz);
+    }
 
     /// <summary>
     /// Prevents a foot ideal from crossing to the wrong side of the body centerline.
@@ -603,12 +599,16 @@ public class BasisLocalFootDriver
     private float HeadYaw()
     {
         var hc = BasisLocalBoneDriver.HeadControl;
-        if (hc == null) return 0f;
+        if (hc == null)
+        {
+            return 0f;
+        }
+
         Vector3 fwd = hc.OutgoingWorldData.rotation * Vector3.forward; fwd.y = 0f;
         return fwd.sqrMagnitude < 0.001f ? prevHeadYaw : Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg;
     }
 
-    private Vector3 BodyForward(Vector3 headPos)
+    private Vector3 BodyForward()
     {
         // Try head forward projected to horizontal plane
         var hc = BasisLocalBoneDriver.HeadControl;
@@ -649,18 +649,18 @@ public class BasisLocalFootDriver
 
         // Project body forward onto surface plane for the foot's forward direction
         Vector3 fwd = Vector3.ProjectOnPlane(bodyFwd, normal);
-        if (fwd.sqrMagnitude < 1e-6f) fwd = Vector3.ProjectOnPlane(Vector3.forward, normal);
+        if (fwd.sqrMagnitude < 1e-6f)
+        {
+            fwd = Vector3.ProjectOnPlane(Vector3.forward, normal);
+        }
+
         fwd.Normalize();
 
         // Clamp tilt: blend between upright and surface-aligned
         Quaternion surfaceRot = Quaternion.LookRotation(fwd, normal);
         Quaternion uprightRot = Quaternion.LookRotation(fwd, Vector3.up);
         float tiltAngle = Quaternion.Angle(uprightRot, surfaceRot);
-        Quaternion result;
-        if (tiltAngle > 0.01f)
-            result = Quaternion.Slerp(uprightRot, surfaceRot, Mathf.Clamp01(maxFootTiltDegrees / tiltAngle));
-        else
-            result = uprightRot;
+        Quaternion result = tiltAngle > 0.01f ? Quaternion.Slerp(uprightRot, surfaceRot, Mathf.Clamp01(maxFootTiltDegrees / tiltAngle)) : uprightRot;
 
         // Clamp yaw: how far the foot forward deviates from body forward on the horizontal plane
         Vector3 footFwd = result * Vector3.forward;
@@ -696,9 +696,16 @@ public class BasisLocalFootDriver
     // ── Fallbacks when calibration data is missing ──
     private void FallbackStanceWidth()
     {
-        if (left.bone != null && right.bone != null)
-        { Vector3 d = right.bone.position - left.bone.position; d.y = 0; stanceWidth = Mathf.Max(0.04f, d.magnitude); }
-        else stanceWidth = 0.2f;
+        if (left.bone == null || right.bone == null)
+        {
+            stanceWidth = 0.2f;
+        }
+        else
+        {
+            Vector3 d = right.bone.position - left.bone.position;
+            d.y = 0;
+            stanceWidth = Mathf.Max(0.04f, d.magnitude);
+        }
     }
     private void FallbackHipToFoot()
     {
@@ -829,8 +836,7 @@ public class BasisLocalFootDriver
         if (hips != null)
         {
             Vector3 hp = hips.position;
-            Vector3 bf = BodyForward(BasisLocalBoneDriver.HeadControl != null
-                ? BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position : hp + Vector3.up);
+            Vector3 bf = BodyForward();
 
             Gizmos.color = new Color(1f, 1f, 1f, 0.8f);
             Gizmos.DrawLine(hp, hp + bf * 0.4f);
