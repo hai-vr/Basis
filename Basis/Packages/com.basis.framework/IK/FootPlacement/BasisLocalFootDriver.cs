@@ -69,6 +69,9 @@ public class BasisLocalFootDriver
     private Vector3 prevHeadPos;
     private Vector3 smoothedVelocity;
     private float prevHeadYaw;
+    private bool firstFrame;
+    private Vector3 smoothedBodyFwd;
+    private Vector3 smoothedBodyRight;
 
     public bool IsInitialized { get; private set; }
     public Vector3 LeftFootPosition => left != null ? left.currentPos : Vector3.zero;
@@ -145,6 +148,9 @@ public class BasisLocalFootDriver
         var hc = BasisLocalBoneDriver.HeadControl;
         if (hc != null) { prevHeadPos = hc.OutgoingWorldData.position; prevHeadYaw = HeadYaw(); }
         smoothedVelocity = Vector3.zero;
+        smoothedBodyFwd = avatarTransform != null ? avatarTransform.forward : Vector3.forward;
+        smoothedBodyRight = Vector3.Cross(Vector3.up, smoothedBodyFwd).normalized;
+        firstFrame = true;
         IsInitialized = true;
     }
 
@@ -288,9 +294,23 @@ public class BasisLocalFootDriver
         prevHeadYaw = HeadYaw();
 
         float speed = smoothedVelocity.magnitude;
-        Vector3 bodyFwd = BodyForward(headPos);
-        Vector3 bodyRight = Vector3.Cross(Vector3.up, bodyFwd).normalized;
-        if (bodyRight.sqrMagnitude < 0.001f) bodyRight = avatarTransform.right;
+
+        // Smooth body forward/right to prevent snappy foot repositioning during head turns.
+        // Raw head yaw changes propagate gradually to foot placement.
+        Vector3 rawFwd = BodyForward(headPos);
+        float fwdAlpha = 1f - Mathf.Exp(-5f * dt); // ~200ms smoothing
+        smoothedBodyFwd = Vector3.Slerp(smoothedBodyFwd, rawFwd, fwdAlpha).normalized;
+        if (smoothedBodyFwd.sqrMagnitude < 0.001f) smoothedBodyFwd = rawFwd;
+        smoothedBodyRight = Vector3.Cross(Vector3.up, smoothedBodyFwd).normalized;
+        if (smoothedBodyRight.sqrMagnitude < 0.001f) smoothedBodyRight = avatarTransform.right;
+
+        Vector3 bodyFwd = smoothedBodyFwd;
+        Vector3 bodyRight = smoothedBodyRight;
+
+        // Raw (unsmoothed) right direction for side enforcement — must be instantaneous
+        // so feet can't cross even during fast spins when the smooth direction lags.
+        Vector3 rawRight = Vector3.Cross(Vector3.up, rawFwd).normalized;
+        if (rawRight.sqrMagnitude < 0.001f) rawRight = bodyRight;
 
         // ── Ideal positions ──
         // In real gait the planted foot is behind the hips and the stepping foot
@@ -338,38 +358,66 @@ public class BasisLocalFootDriver
             right.idealPos = center + bodyRight * halfStance + leadOffset;
         }
 
+        // ── Prevent cross-legging: use RAW (instantaneous) right direction ──
+        // The smoothed direction lags during spins — raw catches crossover immediately.
+        Vector3 hipsGround = new Vector3(hipsXZ.x, groundY, hipsXZ.z);
+        EnforceSide(ref left.idealPos, hipsGround, rawRight, -1, halfStance * 0.3f);
+        EnforceSide(ref right.idealPos, hipsGround, rawRight, +1, halfStance * 0.3f);
+
+        // ── First frame: snap feet to ideals so they start in the right place ──
+        if (firstFrame)
+        {
+            firstFrame = false;
+            SnapFootToGround(left, bodyFwd);
+            SnapFootToGround(right, bodyFwd);
+        }
+
         // ── Step parameters for this frame ──
         float speedT = Mathf.Clamp01(speed / fastSpeedRef);
         float threshold = stepTriggerDist + speed * strideScale;
         float stepDur = Mathf.Lerp(stepDurSlow, stepDurFast, speedT);
 
-        // ── Update feet ──
-        UpdateFoot(left, right, bodyFwd, speed, threshold, stepDur, dt);
-        UpdateFoot(right, left, bodyFwd, speed, threshold, stepDur, dt);
+        // ── Update feet (pass raw forward for rotation, smoothed for placement) ──
+        UpdateFoot(left, right, bodyFwd, rawFwd, speed, threshold, stepDur, dt);
+        UpdateFoot(right, left, bodyFwd, rawFwd, speed, threshold, stepDur, dt);
 
-        // ── Knee hints: proportional to thigh length ──
+        // ── Knee hints: midpoint of hip→foot pushed forward, constrained to own side ──
         float avgThigh = (leftThighLen + rightThighLen) * 0.5f;
         Vector3 hp = hips.position;
         left.kneeHint = (hp + left.currentPos) * 0.5f + bodyFwd * (avgThigh * 0.5f);
         right.kneeHint = (hp + right.currentPos) * 0.5f + bodyFwd * (avgThigh * 0.5f);
+
+        Vector3 hipsGround2 = new Vector3(hp.x, left.kneeHint.y, hp.z);
+        float kneeMinSide = halfStance * 0.25f;
+        EnforceSide(ref left.kneeHint, hipsGround2, rawRight, -1, kneeMinSide);
+        EnforceSide(ref right.kneeHint, hipsGround2, rawRight, +1, kneeMinSide);
+
+        // ── Final safety: enforce side on the actual output positions every frame ──
+        // During spins, planted positions go stale and the body rotates around them.
+        Vector3 hipsGround3 = new Vector3(hp.x, left.currentPos.y, hp.z);
+        float footMinSide = halfStance * 0.2f;
+        EnforceSide(ref left.currentPos, hipsGround3, rawRight, -1, footMinSide);
+        EnforceSide(ref right.currentPos, hipsGround3, rawRight, +1, footMinSide);
     }
 
     // ═══════════════════════════════════════════════════════════
     //  FOOT UPDATE
     // ═══════════════════════════════════════════════════════════
 
-    private void UpdateFoot(FootState f, FootState other, Vector3 bodyFwd, float speed, float threshold, float stepDur, float dt)
+    private void UpdateFoot(FootState f, FootState other, Vector3 bodyFwd, Vector3 rawFwd, float speed, float threshold, float stepDur, float dt)
     {
         if (f.phase == Phase.Planted)
         {
             float a = 1f - Mathf.Exp(-plantedLerpSpeed * dt);
             f.currentPos = Vector3.Lerp(f.currentPos, f.plantedPos, a);
+
+            // Planted feet HOLD their rotation — only settle toward plantedRot
             float ra = 1f - Mathf.Exp(-rotationLerpSpeed * dt);
             f.currentRot = Quaternion.Slerp(f.currentRot, f.plantedRot, ra);
 
             float dist = HDist(f.plantedPos, f.idealPos);
             if (dist > threshold && other.phase == Phase.Planted)
-                StartStep(f, bodyFwd, speed, stepDur);
+                StartStep(f, rawFwd, speed, stepDur);
         }
         else
         {
@@ -389,13 +437,15 @@ public class BasisLocalFootDriver
             pos.y += Mathf.Clamp01(lift) * dynamicHeight;
             f.currentPos = pos;
 
-            f.currentRot = Quaternion.Slerp(f.currentRot, f.stepTargetRot, ease);
+            // Use live raw forward for step rotation so it stays current during turns
+            Quaternion liveRot = FootRotation(rawFwd, f.filteredNormal);
+            f.currentRot = Quaternion.Slerp(f.currentRot, liveRot, ease);
 
             if (t >= 1f)
             {
                 f.phase = Phase.Planted;
                 f.plantedPos = f.stepTargetPos;
-                f.plantedRot = f.stepTargetRot;
+                f.plantedRot = FootRotation(rawFwd, f.filteredNormal);
                 f.currentPos = f.stepTargetPos;
             }
         }
@@ -408,10 +458,13 @@ public class BasisLocalFootDriver
         f.stepTimer = 0f;
         f.stepDur = stepDur;
 
-        // Predict along body forward, clamped so the target can't exceed leg reach from hips
+        // Predict along movement direction, clamped so the target can't exceed leg reach
         float avgLeg = (leftLegLen + rightLegLen) * 0.5f;
+        Vector3 moveDir = smoothedVelocity.sqrMagnitude > 0.01f
+            ? new Vector3(smoothedVelocity.x, 0f, smoothedVelocity.z).normalized
+            : bodyFwd;
         float predAmount = Mathf.Min(speed * stepDur * predictionFactor, avgLeg * 0.35f);
-        Vector3 prediction = bodyFwd * predAmount;
+        Vector3 prediction = moveDir * predAmount;
         Vector3 targetXZ = f.idealPos + prediction;
 
         Vector3 rayOrig = targetXZ + Vector3.up * rayCastRange * 0.5f;
@@ -426,6 +479,15 @@ public class BasisLocalFootDriver
             f.stepTargetPos = targetXZ;
         }
 
+        // Enforce side constraint on step target using raw (instantaneous) body right
+        Vector3 rawFwd = BodyForward(BasisLocalBoneDriver.HeadControl != null
+            ? BasisLocalBoneDriver.HeadControl.OutgoingWorldData.position
+            : hips.position + Vector3.up);
+        Vector3 rawR = Vector3.Cross(Vector3.up, rawFwd).normalized;
+        if (rawR.sqrMagnitude < 0.001f) rawR = Vector3.right;
+        Vector3 hGround = new Vector3(hips.position.x, f.stepTargetPos.y, hips.position.z);
+        EnforceSide(ref f.stepTargetPos, hGround, rawR, f.sideSign, stanceWidth * 0.15f);
+
         f.stepTargetRot = FootRotation(bodyFwd, f.filteredNormal);
     }
 
@@ -435,6 +497,30 @@ public class BasisLocalFootDriver
 
     private static float HDist(Vector3 a, Vector3 b)
     { float dx = a.x - b.x, dz = a.z - b.z; return Mathf.Sqrt(dx * dx + dz * dz); }
+
+    /// <summary>
+    /// Prevents a foot ideal from crossing to the wrong side of the body centerline.
+    /// sideSign: -1 for left foot, +1 for right foot.
+    /// minDist: minimum lateral distance from centerline (keeps feet apart).
+    /// </summary>
+    private static void EnforceSide(ref Vector3 idealPos, Vector3 center, Vector3 bodyRight, int sideSign, float minDist)
+    {
+        Vector3 toIdeal = idealPos - center;
+        float lateral = Vector3.Dot(toIdeal, bodyRight); // positive = right side
+
+        // The foot must be on its own side with at least minDist clearance
+        float required = sideSign * minDist;
+        if (sideSign > 0 && lateral < required)
+        {
+            // Right foot crossed to left side — push it back
+            idealPos += bodyRight * (required - lateral);
+        }
+        else if (sideSign < 0 && lateral > -minDist)
+        {
+            // Left foot crossed to right side — push it back
+            idealPos -= bodyRight * (lateral + minDist);
+        }
+    }
 
     private float HeadYaw()
     {
@@ -529,6 +615,27 @@ public class BasisLocalFootDriver
         float th = total * 0.55f, sh = total * 0.45f;
         if (isLeft) { leftThighLen = th; leftShinLen = sh; }
         else { rightThighLen = th; rightShinLen = sh; }
+    }
+
+    /// <summary>
+    /// Immediately place a foot at its ideal position with ground raycast.
+    /// Used on first frame to avoid feet being stuck at stale init positions.
+    /// </summary>
+    private void SnapFootToGround(FootState f, Vector3 bodyFwd)
+    {
+        Vector3 rayOrig = f.idealPos + Vector3.up * rayCastRange * 0.5f;
+        if (Physics.SphereCast(rayOrig, raySphereRadius, Vector3.down, out RaycastHit hit,
+            rayCastRange, groundLayers, QueryTriggerInteraction.Ignore))
+        {
+            f.currentPos = f.plantedPos = hit.point + hit.normal * footHeightOffset;
+            f.filteredNormal = hit.normal;
+        }
+        else
+        {
+            f.currentPos = f.plantedPos = f.idealPos;
+        }
+        f.currentRot = f.plantedRot = FootRotation(bodyFwd, f.filteredNormal);
+        f.phase = Phase.Planted;
     }
 
     private void InitPose(FootState f)

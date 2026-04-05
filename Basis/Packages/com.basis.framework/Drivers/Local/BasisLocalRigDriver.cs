@@ -463,7 +463,7 @@ namespace Basis.Scripts.Drivers
             if (useFootDriver && !leftLLHasTracker)
             {
                 data.PositionLeftLowerLeg = footDriver.LeftKneeHint;
-                data.RotationLeftLowerLeg = Quaternion.identity;
+                data.RotationLeftLowerLeg = ComputeKneeHintRotation(data.PositionHips, footDriver.LeftFootPosition, footDriver.LeftKneeHint);
                 data.EnableLeftLowerLeg = true;
             }
             else
@@ -483,7 +483,7 @@ namespace Basis.Scripts.Drivers
             if (useFootDriver && !rightLLHasTracker)
             {
                 data.PositionRightLowerLeg = footDriver.RightKneeHint;
-                data.RotationRightLowerLeg = Quaternion.identity;
+                data.RotationRightLowerLeg = ComputeKneeHintRotation(data.PositionHips, footDriver.RightFootPosition, footDriver.RightKneeHint);
                 data.EnableRightLowerLeg = true;
             }
             else
@@ -975,6 +975,34 @@ namespace Basis.Scripts.Drivers
             Vector3 hipToKnee = kneeHint - hip;
             Vector3 normal = Vector3.Cross(hipToFoot, hipToKnee);
             return normal.sqrMagnitude > 1e-8f ? normal.normalized : fallback;
+        }
+
+        /// <summary>
+        /// Compute a smooth rotation for the knee hint from the hip-knee-foot triangle.
+        /// Forward = knee→foot direction, Up = derived from the bend plane.
+        /// This prevents snapping that occurs with Quaternion.identity.
+        /// </summary>
+        private static Quaternion ComputeKneeHintRotation(Vector3 hip, Vector3 foot, Vector3 kneeHint)
+        {
+            Vector3 kneeToFoot = foot - kneeHint;
+            Vector3 kneeToHip = hip - kneeHint;
+
+            if (kneeToFoot.sqrMagnitude < 1e-8f || kneeToHip.sqrMagnitude < 1e-8f)
+                return Quaternion.identity;
+
+            // Forward: along the shin (knee toward foot)
+            Vector3 fwd = kneeToFoot.normalized;
+
+            // Up: perpendicular to the bend plane, pointing away from the bend
+            Vector3 bendNormal = Vector3.Cross(kneeToHip, kneeToFoot);
+            Vector3 up = Vector3.Cross(fwd, bendNormal);
+
+            if (up.sqrMagnitude < 1e-8f)
+                up = Vector3.up;
+            else
+                up.Normalize();
+
+            return Quaternion.LookRotation(fwd, up);
         }
 
         public GameObject CreateOrGetRig(string role, bool enabled, out Rig rig, out RigLayer rigLayer)
