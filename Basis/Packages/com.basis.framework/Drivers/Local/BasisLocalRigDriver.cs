@@ -181,6 +181,19 @@ namespace Basis.Scripts.Drivers
         public static Quaternion sRotLeftShoulder, sRotRightShoulder;
 
         public static bool hasFallbackState;
+
+        // Smoothed knee hint rotations for foot-driver path (prevents upper leg snapping)
+        private static Quaternion smoothedLeftKneeRot = Quaternion.identity;
+        private static Quaternion smoothedRightKneeRot = Quaternion.identity;
+
+        // Smoothed knee bend normals (prevents hip jitter from bend plane flipping)
+        private static Vector3 smoothedLeftBendNormal = Vector3.right;
+        private static Vector3 smoothedRightBendNormal = Vector3.right;
+
+        // Blend weight for transitioning foot IK in/out (0 = animation, 1 = foot driver)
+        private static float footIKBlendWeight = 0f;
+        private const float FootIKBlendInSpeed = 10f;  // ~100ms to fully engage
+        private const float FootIKBlendOutSpeed = 6f;  // ~170ms to fully disengage
         public void Initialize(BasisLocalPlayer localPlayer, BasisTransformMapping references)
         {
             this.localPlayer = localPlayer;
@@ -373,68 +386,86 @@ namespace Basis.Scripts.Drivers
             data.RotationHead = headRot;
 
             // ---------------- FEET ----------------
-            // When no foot trackers are present, use the locomotion-aware foot driver
-            // for procedural stepping instead of raw animation bone data.
+            // The foot driver always simulates so its state stays warm. A blend weight
+            // controls whether the IK output is used or the animation drives the legs.
+            // This prevents jarring transitions when starting/stopping locomotion.
             bool leftFootHasTracker = BasisLocalBoneDriver.LeftFootControl.HasTracked == BasisHasTracked.HasTracker;
             bool rightFootHasTracker = BasisLocalBoneDriver.RightFootControl.HasTracked == BasisHasTracked.HasTracker;
+            bool leftLegHasTracker = BasisLocalBoneDriver.LeftUpperLegControl.HasTracked == BasisHasTracked.HasTracker;
+            bool rightLegHasTracker = BasisLocalBoneDriver.RightUpperLegControl.HasTracked == BasisHasTracked.HasTracker;
+            bool anyLegTracker = leftFootHasTracker || rightFootHasTracker || leftLegHasTracker || rightLegHasTracker;
+
+            bool locomotionAnimActive = localPlayer.LocalAnimatorDriver.dampenedVelocity.sqrMagnitude
+                > localPlayer.LocalAnimatorDriver.StationaryVelocityThreshold;
 
             var footDriver = localPlayer.BasisLocalFootDriver;
-            bool useFootDriver = footDriver != null && footDriver.IsInitialized
-                && !leftFootHasTracker && !rightFootHasTracker;
+            bool footDriverReady = footDriver != null && footDriver.IsInitialized && !anyLegTracker;
+            bool wantFootIK = footDriverReady && !locomotionAnimActive;
 
-            if (useFootDriver)
-            {
-                // Run the procedural foot placement simulation
+            // Always simulate foot driver so positions stay current (warm start on transitions)
+            if (footDriverReady)
                 footDriver.Simulate(deltaTime);
 
+            // Blend weight: ramp up when foot IK wanted, ramp down when not
+            float blendTarget = wantFootIK ? 1f : 0f;
+            float blendSpeed = wantFootIK ? FootIKBlendInSpeed : FootIKBlendOutSpeed;
+            float prevBlend = footIKBlendWeight;
+            footIKBlendWeight = Mathf.MoveTowards(footIKBlendWeight, blendTarget, blendSpeed * deltaTime);
+
+            // Notify foot driver when transitioning from off to on so it snaps to current ideals
+            if (prevBlend < 0.001f && footIKBlendWeight >= 0.001f && footDriverReady)
+                footDriver.NotifyReEngaging();
+
+            if (anyLegTracker)
+            {
+                // Tracker-driven path: ignore foot driver entirely, no blend
+                footIKBlendWeight = 0f;
+
+                var lf = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
+                Vector3 lfPos = lf.position;
+                if (SmoothPos[S_LeftFoot])
+                    lfPos = EuroPos[S_LeftFoot] ? fPosLeftFoot.Filter(lfPos, timeAccumulator) : FallbackPos(ref sPosLeftFoot, lfPos, deltaTime);
+                Quaternion lfRot = lf.rotation;
+                if (SmoothRot[S_LeftFoot])
+                    lfRot = EuroRot[S_LeftFoot] ? fRotLeftFoot.Filter(lfRot, timeAccumulator) : FallbackRot(ref sRotLeftFoot, lfRot, deltaTime);
+                data.LeftFootPosition = lfPos;
+                data.LeftFootRotation = lfRot;
+
+                var rf = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
+                Vector3 rfPos = rf.position;
+                if (SmoothPos[S_RightFoot])
+                    rfPos = EuroPos[S_RightFoot] ? fPosRightFoot.Filter(rfPos, timeAccumulator) : FallbackPos(ref sPosRightFoot, rfPos, deltaTime);
+                Quaternion rfRot = rf.rotation;
+                if (SmoothRot[S_RightFoot])
+                    rfRot = EuroRot[S_RightFoot] ? fRotRightFoot.Filter(rfRot, timeAccumulator) : FallbackRot(ref sRotRightFoot, rfRot, deltaTime);
+                data.RightFootPosition = rfPos;
+                data.RightFootRotation = rfRot;
+            }
+            else if (footIKBlendWeight > 0.001f && footDriverReady)
+            {
+                // Foot driver active or blending out: write positions, use blend weight for IK enable
                 data.LeftFootPosition = footDriver.LeftFootPosition;
                 data.LeftFootRotation = footDriver.LeftFootRotation;
-
                 data.RightFootPosition = footDriver.RightFootPosition;
                 data.RightFootRotation = footDriver.RightFootRotation;
 
-                // Force leg IK on — without this the solver skips legs when no rig layer exists
                 data.EnableLeftLeg = true;
                 data.EnableRightLeg = true;
 
-                // Hip bob: subtle vertical dip during weight transfer, only when no hip tracker
+                // Hip bob scaled by blend weight
                 bool hipsHaveTracker = BasisLocalBoneDriver.HipsControl.HasTracked == BasisHasTracked.HasTracker;
                 if (!hipsHaveTracker)
                 {
                     data.PositionHips = new Vector3(data.PositionHips.x,
-                        data.PositionHips.y + footDriver.ComputeHipBob(),
+                        data.PositionHips.y + footDriver.ComputeHipBob() * footIKBlendWeight,
                         data.PositionHips.z);
                 }
             }
             else
             {
-                // LEFT FOOT — tracker-driven path
-                var lf = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
-
-                Vector3 lfPos = lf.position;
-                if (SmoothPos[S_LeftFoot])
-                    lfPos = EuroPos[S_LeftFoot] ? fPosLeftFoot.Filter(lfPos, timeAccumulator) : FallbackPos(ref sPosLeftFoot, lfPos, deltaTime);
-
-                Quaternion lfRot = lf.rotation;
-                if (SmoothRot[S_LeftFoot])
-                    lfRot = EuroRot[S_LeftFoot] ? fRotLeftFoot.Filter(lfRot, timeAccumulator) : FallbackRot(ref sRotLeftFoot, lfRot, deltaTime);
-
-                data.LeftFootPosition = lfPos;
-                data.LeftFootRotation = lfRot;
-
-                // RIGHT FOOT — tracker-driven path
-                var rf = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
-
-                Vector3 rfPos = rf.position;
-                if (SmoothPos[S_RightFoot])
-                    rfPos = EuroPos[S_RightFoot] ? fPosRightFoot.Filter(rfPos, timeAccumulator) : FallbackPos(ref sPosRightFoot, rfPos, deltaTime);
-
-                Quaternion rfRot = rf.rotation;
-                if (SmoothRot[S_RightFoot])
-                    rfRot = EuroRot[S_RightFoot] ? fRotRightFoot.Filter(rfRot, timeAccumulator) : FallbackRot(ref sRotRightFoot, rfRot, deltaTime);
-
-                data.RightFootPosition = rfPos;
-                data.RightFootRotation = rfRot;
+                // Fully blended out: animation drives legs
+                data.EnableLeftLeg = false;
+                data.EnableRightLeg = false;
             }
 
             // ---------------- CHEST (head hint) ----------------
@@ -455,18 +486,19 @@ namespace Basis.Scripts.Drivers
             data.ChestRotation = chestRot;
 
             // ---------------- LOWER LEG HINTS (knee) ----------------
-            // When the foot driver is active with no leg trackers, use its computed
-            // knee hints instead of the raw bone control data.
             bool leftLLHasTracker = BasisLocalBoneDriver.LeftLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
             bool rightLLHasTracker = BasisLocalBoneDriver.RightLowerLegControl.HasTracked == BasisHasTracked.HasTracker;
 
-            if (useFootDriver && !leftLLHasTracker)
+            if (footIKBlendWeight > 0.001f && footDriverReady && !leftLLHasTracker)
             {
                 data.PositionLeftLowerLeg = footDriver.LeftKneeHint;
-                data.RotationLeftLowerLeg = ComputeKneeHintRotation(data.PositionHips, footDriver.LeftFootPosition, footDriver.LeftKneeHint);
+                Quaternion targetRotL = ComputeKneeHintRotation(data.PositionHips, footDriver.LeftFootPosition, footDriver.LeftKneeHint);
+                float kneeRotAlpha = 1f - Mathf.Exp(-8f * deltaTime);
+                smoothedLeftKneeRot = Quaternion.Slerp(smoothedLeftKneeRot, targetRotL, kneeRotAlpha);
+                data.RotationLeftLowerLeg = smoothedLeftKneeRot;
                 data.EnableLeftLowerLeg = true;
             }
-            else
+            else if (leftLLHasTracker)
             {
                 var lll = BasisLocalBoneDriver.LeftLowerLegControl.OutgoingWorldData;
                 Vector3 lllPos = lll.position;
@@ -479,14 +511,21 @@ namespace Basis.Scripts.Drivers
                 data.PositionLeftLowerLeg = lllPos;
                 data.RotationLeftLowerLeg = lllRot;
             }
+            else
+            {
+                data.EnableLeftLowerLeg = false;
+            }
 
-            if (useFootDriver && !rightLLHasTracker)
+            if (footIKBlendWeight > 0.001f && footDriverReady && !rightLLHasTracker)
             {
                 data.PositionRightLowerLeg = footDriver.RightKneeHint;
-                data.RotationRightLowerLeg = ComputeKneeHintRotation(data.PositionHips, footDriver.RightFootPosition, footDriver.RightKneeHint);
+                Quaternion targetRotR = ComputeKneeHintRotation(data.PositionHips, footDriver.RightFootPosition, footDriver.RightKneeHint);
+                float kneeRotAlpha = 1f - Mathf.Exp(-8f * deltaTime);
+                smoothedRightKneeRot = Quaternion.Slerp(smoothedRightKneeRot, targetRotR, kneeRotAlpha);
+                data.RotationRightLowerLeg = smoothedRightKneeRot;
                 data.EnableRightLowerLeg = true;
             }
-            else
+            else if (rightLLHasTracker)
             {
                 var rll = BasisLocalBoneDriver.RightLowerLegControl.OutgoingWorldData;
                 Vector3 rllPos = rll.position;
@@ -498,6 +537,10 @@ namespace Basis.Scripts.Drivers
                 rllPos = ApplyHintBias(BasisBoneTrackedRole.RightLowerLeg, rllPos, rllRot);
                 data.PositionRightLowerLeg = rllPos;
                 data.RotationRightLowerLeg = rllRot;
+            }
+            else
+            {
+                data.EnableRightLowerLeg = false;
             }
 
             // ---------------- LEFT HAND ----------------
@@ -621,19 +664,11 @@ namespace Basis.Scripts.Drivers
             Vector3 outR = hipsRot * Vector3.right;
             Vector3 up = hipsRot * Vector3.up;
 
-            // Knee bend normals: when foot driver is active, derive from hip→foot→knee
-            // triangle so the knee bends in the correct plane for the procedural foot positions.
-            if (useFootDriver)
-            {
-                Vector3 hp = data.PositionHips;
-                data.KneeBendPrefLeft = ComputeKneeBendNormal(hp, data.LeftFootPosition, footDriver.LeftKneeHint, hipsRot * Vector3.right);
-                data.KneeBendPrefRight = ComputeKneeBendNormal(hp, data.RightFootPosition, footDriver.RightKneeHint, hipsRot * Vector3.right);
-            }
-            else
-            {
-                data.KneeBendPrefLeft = (hipsRot * Vector3.right);
-                data.KneeBendPrefRight = (hipsRot * Vector3.right);
-            }
+            // Knee bend normals: use hips right as the stable base. The hip→foot→knee
+            // triangle cross product is too unstable during fast turns.
+            // Just use hips rotation which gives a clean, stable bend plane.
+            data.KneeBendPrefLeft = (hipsRot * Vector3.right);
+            data.KneeBendPrefRight = (hipsRot * Vector3.right);
 
             data.SpineBendNormal = (fwd * spineBendNormalWeights.x + outR * spineBendNormalWeights.y + up * spineBendNormalWeights.z).normalized;
             // Commit & evaluate

@@ -24,7 +24,7 @@ public class BasisLocalFootDriver
     [SerializeField, Range(0.0f, 0.5f)] private float velocityBiasFactor = 0.18f;
 
     [Header("Smoothing")]
-    [SerializeField, Range(5f, 40f)] private float plantedLerpSpeed = 25f;
+    [SerializeField, Range(5f, 60f)] private float plantedLerpSpeed = 40f;
     [SerializeField, Range(5f, 40f)] private float rotationLerpSpeed = 16f;
 
     [Header("Foot Rotation Limits")]
@@ -70,10 +70,33 @@ public class BasisLocalFootDriver
     private Vector3 smoothedVelocity;
     private float prevHeadYaw;
     private bool firstFrame;
+    private bool wasDisabled;
     private Vector3 smoothedBodyFwd;
     private Vector3 smoothedBodyRight;
 
     public bool IsInitialized { get; private set; }
+
+    /// <summary>
+    /// Call when the foot driver is about to re-engage after being disabled (e.g., locomotion ended).
+    /// Picks up foot positions from where the animation currently has them so there's no snap.
+    /// </summary>
+    public void NotifyReEngaging()
+    {
+        if (left != null && BasisLocalBoneDriver.LeftFootControl != null)
+        {
+            var lf = BasisLocalBoneDriver.LeftFootControl.OutgoingWorldData;
+            left.currentPos = left.plantedPos = lf.position;
+            left.currentRot = left.plantedRot = lf.rotation;
+            left.phase = Phase.Planted;
+        }
+        if (right != null && BasisLocalBoneDriver.RightFootControl != null)
+        {
+            var rf = BasisLocalBoneDriver.RightFootControl.OutgoingWorldData;
+            right.currentPos = right.plantedPos = rf.position;
+            right.currentRot = right.plantedRot = rf.rotation;
+            right.phase = Phase.Planted;
+        }
+    }
     public Vector3 LeftFootPosition => left != null ? left.currentPos : Vector3.zero;
     public Quaternion LeftFootRotation => left != null ? left.currentRot : Quaternion.identity;
     public Vector3 RightFootPosition => right != null ? right.currentPos : Vector3.zero;
@@ -289,7 +312,10 @@ public class BasisLocalFootDriver
         rawVel.y = 0f;
         prevHeadPos = headPos;
 
-        float vAlpha = 1f - Mathf.Exp(-10f * dt);
+        // Asymmetric smoothing: near-instant response when decelerating, slower when accelerating.
+        // Stopping must kill the velocity bias immediately or feet overshoot.
+        bool decelerating = rawVel.sqrMagnitude < smoothedVelocity.sqrMagnitude;
+        float vAlpha = 1f - Mathf.Exp(-(decelerating ? 50f : 10f) * dt);
         smoothedVelocity = Vector3.Lerp(smoothedVelocity, rawVel, vAlpha);
         prevHeadYaw = HeadYaw();
 
@@ -364,10 +390,11 @@ public class BasisLocalFootDriver
         EnforceSide(ref left.idealPos, hipsGround, rawRight, -1, halfStance * 0.3f);
         EnforceSide(ref right.idealPos, hipsGround, rawRight, +1, halfStance * 0.3f);
 
-        // ── First frame: snap feet to ideals so they start in the right place ──
-        if (firstFrame)
+        // ── First frame or re-engaging: snap feet to ideals so they start in the right place ──
+        if (firstFrame || wasDisabled)
         {
             firstFrame = false;
+            wasDisabled = false;
             SnapFootToGround(left, bodyFwd);
             SnapFootToGround(right, bodyFwd);
         }
@@ -381,16 +408,34 @@ public class BasisLocalFootDriver
         UpdateFoot(left, right, bodyFwd, rawFwd, speed, threshold, stepDur, dt);
         UpdateFoot(right, left, bodyFwd, rawFwd, speed, threshold, stepDur, dt);
 
-        // ── Knee hints: midpoint of hip→foot pushed forward, constrained to own side ──
+        // ── Knee hints: compute target then smooth toward it ──
         float avgThigh = (leftThighLen + rightThighLen) * 0.5f;
+        float avgLeg2 = (leftLegLen + rightLegLen) * 0.5f;
         Vector3 hp = hips.position;
-        left.kneeHint = (hp + left.currentPos) * 0.5f + bodyFwd * (avgThigh * 0.5f);
-        right.kneeHint = (hp + right.currentPos) * 0.5f + bodyFwd * (avgThigh * 0.5f);
 
-        Vector3 hipsGround2 = new Vector3(hp.x, left.kneeHint.y, hp.z);
-        float kneeMinSide = halfStance * 0.25f;
-        EnforceSide(ref left.kneeHint, hipsGround2, rawRight, -1, kneeMinSide);
-        EnforceSide(ref right.kneeHint, hipsGround2, rawRight, +1, kneeMinSide);
+        // How bent are the legs? 0 = standing straight, 1 = fully crouched
+        float hipFootDist = Mathf.Abs(hp.y - (left.currentPos.y + right.currentPos.y) * 0.5f);
+        float bendRatio = 1f - Mathf.Clamp01(hipFootDist / avgLeg2);
+
+        // Base knee target: midpoint of hip→foot, pushed forward
+        Vector3 leftKneeTarget = (hp + left.currentPos) * 0.5f + bodyFwd * (avgThigh * 0.4f);
+        Vector3 rightKneeTarget = (hp + right.currentPos) * 0.5f + bodyFwd * (avgThigh * 0.4f);
+
+        // Only splay outward when actually crouching — zero at normal stand
+        // Small amount keeps knees from touching during deep bends
+        float kneeSplay = halfStance * 0.15f * bendRatio;
+        leftKneeTarget -= rawRight * kneeSplay;
+        rightKneeTarget += rawRight * kneeSplay;
+
+        // Minimal side enforcement: just prevent crossing, don't push wide
+        Vector3 hipsGround2 = new Vector3(hp.x, leftKneeTarget.y, hp.z);
+        float kneeMinSide = halfStance * 0.05f;
+        EnforceSide(ref leftKneeTarget, hipsGround2, rawRight, -1, kneeMinSide);
+        EnforceSide(ref rightKneeTarget, new Vector3(hp.x, rightKneeTarget.y, hp.z), rawRight, +1, kneeMinSide);
+
+        float kneeAlpha = 1f - Mathf.Exp(-10f * dt);
+        left.kneeHint = Vector3.Lerp(left.kneeHint, leftKneeTarget, kneeAlpha);
+        right.kneeHint = Vector3.Lerp(right.kneeHint, rightKneeTarget, kneeAlpha);
 
         // ── Final safety: enforce side on the actual output positions every frame ──
         // During spins, planted positions go stale and the body rotates around them.
