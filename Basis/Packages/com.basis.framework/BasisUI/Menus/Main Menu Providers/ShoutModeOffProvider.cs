@@ -1,6 +1,4 @@
-using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
-using BasisPermissions;
 using UnityEngine;
 
 namespace Basis.BasisUI
@@ -20,9 +18,6 @@ namespace Basis.BasisUI
         static void OnShoutModeChanged(ushort playerId, bool enabled)
         {
             if (BasisNetworkPlayer.LocalPlayer == null || playerId != BasisNetworkPlayer.LocalPlayer.playerId)
-                return;
-
-            if (!BasisNetworkManagement.LocalPermissions.Contains(PermNodes.ModerationShout))
                 return;
 
             if (enabled && !_added)

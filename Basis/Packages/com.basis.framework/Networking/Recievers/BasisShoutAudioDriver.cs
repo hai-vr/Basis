@@ -1,6 +1,7 @@
 using Basis.Scripts.BasisSdk.Helpers;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
+using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 #if !UNITY_SERVER
 using OpusSharp.Core;
@@ -101,7 +102,17 @@ namespace Basis.Scripts.Networking.Receivers
 
             // Now safe to enable - OnAudioFilterRead can process correctly
             entry.Receiver.HasAudioSource = true;
-            entry.Driver.Initalized = true;
+
+            // Wire up the player's existing viseme driver so lip-sync works during shout mode
+            if (BasisNetworkPlayers.RemotePlayers.TryGetValue(playerId, out BasisNetworkReceiver receiver))
+            {
+                entry.Driver.Initalize(receiver.AudioReceiverModule.visemeDriver);
+            }
+            else
+            {
+                entry.Driver.Initalized = true;
+            }
+
             entry.AudioSource.Play();
 
             _entries[playerId] = entry;
@@ -141,6 +152,10 @@ namespace Basis.Scripts.Networking.Receivers
 
             if (entry.Driver != null)
             {
+                // Detach the shared viseme driver before destroying so OnDestroy
+                // doesn't clean up the player's viseme driver
+                entry.Driver.BasisAudioAndVisemeDriver = null;
+                entry.Driver.Initalized = false;
                 Object.Destroy(entry.Driver);
             }
 
