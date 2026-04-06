@@ -128,6 +128,21 @@ namespace Basis.BasisUI
             other = "64bit"
         });
 
+        // ---------------- ACCESSIBILITY ----------------
+        /// <summary>
+        /// When enabled, the bloom intensity override is applied via a high-priority global Volume.
+        /// </summary>
+        public static BasisSettingsBinding<bool> UseBloomOverride = new("usebloomoverride", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
+        /// Bloom intensity override. 0 = bloom disabled, 1 = default scene bloom.
+        /// Only applied when <see cref="UseBloomOverride"/> is enabled.
+        /// </summary>
+        public static BasisSettingsBinding<float> BloomIntensity = new("bloomintensity", new BasisPlatformDefault<float>(1f));
+
+        public const float BLOOM_INTENSITY_MIN = 0f;
+        public const float BLOOM_INTENSITY_MAX = 5f;
+
         public static BasisSettingsBinding<bool> MicrophoneDenoiser = new("voicedenoiser", new BasisPlatformDefault<bool>
         {
             windows = true,
@@ -162,6 +177,8 @@ namespace Basis.BasisUI
             linux = "Dynamic",
             other = "Dynamic"
         });
+
+        public static BasisSettingsBinding<bool> AvatarPreview = new("avatarpreview", new BasisPlatformDefault<bool>(false));
 
         public static BasisSettingsBinding<string> MicrophoneIcon = new("microphoneicon", new BasisPlatformDefault<string>("alwaysvisible"));
 
@@ -622,6 +639,15 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<string> UIPaletteDanger = new("ui_palette_danger", new BasisPlatformDefault<string>(""));
         public static BasisSettingsBinding<string> UIPaletteScrollbar = new("ui_palette_scrollbar", new BasisPlatformDefault<string>(""));
 
+        // ---------------- MIRROR ----------------
+        public static BasisSettingsBinding<bool> UseMirrorQualityOverride = new("usemirrorqualityoverride", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<string> MirrorQuality = new("mirrorquality", new BasisPlatformDefault<string>("2048"));
+
+        // ---------------- CAMERA CLIP OVERRIDE ----------------
+        public static BasisSettingsBinding<bool> UseCameraClipOverride = new("usecameraclipoverride", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<float> CameraClipNear = new("cameraclipnear", new BasisPlatformDefault<float>(0.01f));
+        public static BasisSettingsBinding<float> CameraClipFar = new("cameraclipfar", new BasisPlatformDefault<float>(1000f));
+
         // Noise Gate
         public static BasisSettingsBinding<bool> UseNoiseGate = new("usenoisegate", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<float> NoiseGateThreshold = new("noisegatethreshold", new BasisPlatformDefault<float>(0.01f)); // RMS threshold
@@ -703,6 +729,15 @@ namespace Basis.BasisUI
             VSync.LoadBindingValue();
             VSyncCapFps.LoadBindingValue();
 
+            // Mirror
+            UseMirrorQualityOverride.LoadBindingValue();
+            MirrorQuality.LoadBindingValue();
+
+            // Camera Clip Override
+            UseCameraClipOverride.LoadBindingValue();
+            CameraClipNear.LoadBindingValue();
+            CameraClipFar.LoadBindingValue();
+
             // LOD / Download limits
             AvatarDownloadSize.LoadBindingValue();
             CacheMaxSizeGB.LoadBindingValue();
@@ -723,6 +758,7 @@ namespace Basis.BasisUI
             LeaveNotifications.LoadBindingValue();
 
             // UI
+            AvatarPreview.LoadBindingValue();
             MicrophoneIcon.LoadBindingValue();
             MicrophoneIconOffsetX.LoadBindingValue();
             MicrophoneIconOffsetY.LoadBindingValue();

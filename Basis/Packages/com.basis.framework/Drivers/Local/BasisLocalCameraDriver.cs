@@ -88,6 +88,10 @@ namespace Basis.Scripts.Drivers
         public BasisLocalMicrophoneIconDriver microphoneIconDriver = new BasisLocalMicrophoneIconDriver();
 #endif
 
+        /// <summary>Driver for avatar preview camera and HUD display.</summary>
+        [SerializeField]
+        public BasisLocalAvatarPreviewDriver avatarPreviewDriver = new BasisLocalAvatarPreviewDriver();
+
         /// <summary>
         /// World forward vector of the active camera instance, or zero if no instance exists.
         /// </summary>
@@ -206,6 +210,8 @@ namespace Basis.Scripts.Drivers
             BasisLocalMicrophoneDriver.OnInitializedAction += OnMicrophoneDriverInitialized;
 #endif
 
+            avatarPreviewDriver.Initialize(this);
+
 #if STEAMAUDIO_ENABLED
             if (SteamAudioListener != null)
             {
@@ -219,6 +225,7 @@ namespace Basis.Scripts.Drivers
         /// </summary>
         public void OnDestroy()
         {
+            avatarPreviewDriver.Cleanup();
             CameraInstance = null;
             RenderPipelineManager.beginCameraRendering -= BeginCameraRendering;
             RenderPipelineManager.endCameraRendering -= EndCameraRendering;
@@ -252,6 +259,7 @@ namespace Basis.Scripts.Drivers
 #endif
                 HasEvents = false;
             }
+            avatarPreviewDriver.Cleanup();
         }
 
         /// <summary>
@@ -394,6 +402,7 @@ namespace Basis.Scripts.Drivers
                         ParentOfUI.localPosition = localPos * BasisHeightDriver.PlayerToDefaultRatioScaledWithAvatarScale;
                     }
                 }
+                avatarPreviewDriver.Simulate();
             }
         }
 
