@@ -18,7 +18,7 @@ namespace Basis.BasisUI
         public override string IconAddress => BasisLocalMicrophoneDriver.isPaused
             ? AddressableAssets.Sprites.MicrophoneMute
             : AddressableAssets.Sprites.Microphone;
-        public override int Order => 0;
+        public override int Order => 1;
         public override bool Hidden => false;
 
         public override void RunAction()
