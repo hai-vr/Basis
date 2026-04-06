@@ -817,4 +817,8 @@ public class BasisHeadlessManagement : BasisBaseTypeManagement
         return $"{generatedName}";
     }
 }
+#else
+public class BasisHeadlessManagement : BasisBaseTypeManagement
+{
+}
 #endif
