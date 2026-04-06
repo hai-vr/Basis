@@ -433,9 +433,13 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             if (RemoteOpusSettings.NetworkSampleRate == _cachedOutputRate)
+            {
                 ProcessNoResample(data, frames, channels);
+            }
             else
+            {
                 ProcessResample(data, frames, channels);
+            }
         }
 
         private void EnsureCapacity(ref float[] buf, int needed)
@@ -455,7 +459,9 @@ namespace Basis.Scripts.Networking.Receivers
 
             // Zero-fill any shortfall
             if (read < frames)
+            {
                 Array.Clear(_inputScratch, read, frames - read);
+            }
 
             float dampen = DirectionalDampeningMultiplier;
             int idx = 0;
@@ -463,7 +469,9 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 float sample = FastClamp(_inputScratch[f] * dampen);
                 for (int c = 0; c < channels; c++)
+                {
                     data[idx++] = sample;
+                }
             }
         }
 
@@ -485,7 +493,9 @@ namespace Basis.Scripts.Networking.Receivers
 
             int read = VoiceBuffer.ReadPcm(_inputScratch, neededFrames);
             if (read < neededFrames)
+            {
                 Array.Clear(_inputScratch, read, neededFrames - read);
+            }
 
             double phase = 0.0;
             double step = ratio;
@@ -511,7 +521,9 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 float sample = FastClamp(_resampleScratch[f] * dampen);
                 for (int c = 0; c < channels; c++)
+                {
                     data[idx++] = sample;
+                }
             }
         }
     }
