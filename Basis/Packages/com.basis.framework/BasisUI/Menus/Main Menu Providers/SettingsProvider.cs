@@ -101,6 +101,7 @@ namespace Basis.BasisUI
             AddLazyTab(tabGroup, "Chat", () => ChatTab(tabGroup));
             AddLazyTab(tabGroup, "Body Tracking", () => SettingsProviderIK.IKTab(tabGroup));
             AddLazyTab(tabGroup, "Nameplates", () => SettingsProviderNamePlate.NamePlateTab(tabGroup));
+            AddLazyTab(tabGroup, "My Avatar", () => SettingsProviderAvatarStats.AvatarStatsTab(tabGroup));
             AddLazyTab(tabGroup, "Downloads & Cache", () => SettingsProviderStorage.StorageTab(tabGroup));
             AddLazyTab(tabGroup, "Trusted URLs", () => SettingsProviderTrustedUrls.TrustedUrlsTab(tabGroup));
           //  AddLazyTab(tabGroup, "UI Style", () => SettingsProviderUIStyle.UIStyleTab(tabGroup));
@@ -275,6 +276,15 @@ namespace Basis.BasisUI
             // toggleAvatarPreview.Descriptor.SetTitle("Avatar Preview");
             // toggleAvatarPreview.Descriptor.SetDescription("Show a live preview of your avatar on the HUD.");
 
+            PanelElementDescriptor interactionsGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            interactionsGroup.SetTitle("Interactions");
+
+            PanelToggle toggleDisableSeats = PanelToggle.CreateNewEntry(interactionsGroup);
+            toggleDisableSeats.AssignBinding(BasisSettingsDefaults.DisableSeats);
+            toggleDisableSeats.Descriptor.SetTitle("Disable Seats");
+            toggleDisableSeats.Descriptor.SetDescription("Prevent sitting in seats placed in the world.");
+
             SettingsProviderPlatform.BuildAutoSwapUI(container);
 
             // One reset button for this whole page
@@ -293,6 +303,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.ViewConeAngle.ResetToDefault();
             BasisSettingsDefaults.HearingRange.ResetToDefault();
             BasisSettingsDefaults.AvatarPreview.ResetToDefault();
+            BasisSettingsDefaults.DisableSeats.ResetToDefault();
             BasisSettingsDefaults.SwapMode.ResetToDefault();
 #if !BASIS_DISABLE_MICROPHONE
             BasisSettingsDefaults.MicrophoneRange.ResetToDefault();

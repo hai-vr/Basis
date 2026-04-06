@@ -104,6 +104,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> usesnapturn = new("usesnapturn", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<float> SmoothTurnSpeed = new("smoothturnspeed", new BasisPlatformDefault<float>(200f));
+
         public static BasisSettingsBinding<string> QualityLevel = new("qualitylevel", new BasisPlatformDefault<string>
         {
             windows = "Ultra",
@@ -271,6 +273,9 @@ namespace Basis.BasisUI
 
         public const string SwapMode_Shutdown = "Shutdown Runtime";
         public const string SwapMode_AutoSwap = "Auto Swap";
+
+        // ---------------- INTERACTIONS ----------------
+        public static BasisSettingsBinding<bool> DisableSeats = new("disableseats", new BasisPlatformDefault<bool>(false));
 
         // ---------------- NOTIFICATIONS ----------------
         public static BasisSettingsBinding<bool> JoinNotifications = new("joinnotifications", new BasisPlatformDefault<bool>(false));
@@ -693,6 +698,7 @@ namespace Basis.BasisUI
             InvertMouse.LoadBindingValue();
             DominantHand.LoadBindingValue();
             usesnapturn.LoadBindingValue();
+            SmoothTurnSpeed.LoadBindingValue();
 
             // Avatar / IK / Body
             SelectedHeight.LoadBindingValue();
