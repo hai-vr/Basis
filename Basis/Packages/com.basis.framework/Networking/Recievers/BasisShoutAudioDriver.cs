@@ -188,6 +188,12 @@ namespace Basis.Scripts.Networking.Receivers
             }
 
             entry.Receiver.Insert(audioData);
+
+            // Notify the player's nameplate that audio was received so it shows the talking state
+            if (BasisNetworkPlayers.RemotePlayers.TryGetValue(playerId, out BasisNetworkReceiver receiver))
+            {
+                receiver.Player.AudioReceived?.Invoke();
+            }
         }
 
         /// <summary>

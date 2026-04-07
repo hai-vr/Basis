@@ -79,6 +79,7 @@ namespace BasisServerHandle
                 BasisServerReductionSystemEvents.RemovePlayer(id);
                 BasisNetworkPIPCamera.RemovePlayer(id);
                 BasisNetworkContentShare.RemovePlayerSpheres(id);
+                BasisNetworkPreloadResourceManagement.RemovePeer(id);
 
                 if (NetworkServer.AuthenticatedPeers.TryRemove(id, out _))
                 {
