@@ -142,6 +142,33 @@ public static class BasisOpenLipSyncDriver
         return _backend.SendSignal(contextHandle, signal, arg1);
     }
 
+    /// <summary>
+    /// Fired when a slot is forcefully revoked (e.g. MaxSlots was lowered).
+    /// The listener should dispose its BasisOpenLipSyncContext and fall back to uLipSync.
+    /// The backend context is already destroyed before this fires — do NOT call ReleaseSlot.
+    /// </summary>
+    public static event Action<EntityId> OnSlotRevoked;
+
+    /// <summary>
+    /// Evicts excess contexts when UseSlotLimit is enabled and the active count exceeds MaxSlots.
+    /// Call after changing UseSlotLimit or MaxSlots.
+    /// </summary>
+    public static void EnforceSlotLimit()
+    {
+        if (!UseSlotLimit || !_initialized || _backend == null) return;
+
+        while (_playerToContext.Count > MaxSlots)
+        {
+            var enumerator = _playerToContext.GetEnumerator();
+            if (!enumerator.MoveNext()) break;
+            var entityId = enumerator.Current.Key;
+            var ctx = enumerator.Current.Value;
+            _playerToContext.Remove(entityId);
+            _backend.DestroyContext(ctx);
+            OnSlotRevoked?.Invoke(entityId);
+        }
+    }
+
     public static int ActiveSlotCount => _playerToContext.Count;
 
     // Debug accessors

@@ -123,6 +123,10 @@ namespace Basis.Scripts.Drivers
             // acquisition which can be triggered from the audio thread.
             _cachedEntityId = BasisPlayer.GetEntityId();
 
+            // Listen for slot evictions (e.g. MaxSlots lowered at runtime)
+            BasisOpenLipSyncDriver.OnSlotRevoked -= OnOpenLipSyncSlotRevoked;
+            BasisOpenLipSyncDriver.OnSlotRevoked += OnOpenLipSyncSlotRevoked;
+
             // --- OpenLipSync: release any previous context ---
             ReleaseOpenLipSyncContext();
 
@@ -238,8 +242,22 @@ namespace Basis.Scripts.Drivers
             }
         }
 
+        /// <summary>
+        /// Called by BasisOpenLipSyncDriver when this player's slot is forcefully revoked.
+        /// The backend context is already destroyed — just clean up the local state.
+        /// </summary>
+        private void OnOpenLipSyncSlotRevoked(EntityId entityId)
+        {
+            if (!entityId.Equals(_cachedEntityId) || openLipSyncContext == null) return;
+
+            openLipSyncContext.Dispose();
+            openLipSyncContext = null;
+            UseOpenLipSync = false;
+        }
+
         public void OnDestroy()
         {
+            BasisOpenLipSyncDriver.OnSlotRevoked -= OnOpenLipSyncSlotRevoked;
             ReleaseOpenLipSyncContext();
             uLipSync.DisposeBuffers();
         }

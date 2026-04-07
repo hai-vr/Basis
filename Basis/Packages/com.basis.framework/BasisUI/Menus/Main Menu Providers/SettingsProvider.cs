@@ -33,7 +33,8 @@ namespace Basis.BasisUI
         private static void ApplyOpenLipSyncMaxSlots()
         {
             BasisOpenLipSyncDriver.UseSlotLimit = BasisSettingsDefaults.UseOpenLipSyncLimit.RawValue;
-            BasisOpenLipSyncDriver.MaxSlots = Mathf.Max(1, (int)BasisSettingsDefaults.OpenLipSyncMaxSlots.RawValue);
+            BasisOpenLipSyncDriver.MaxSlots = Mathf.Max(0, (int)BasisSettingsDefaults.OpenLipSyncMaxSlots.RawValue);
+            BasisOpenLipSyncDriver.EnforceSlotLimit();
         }
 
         public static string StaticTitle => "Settings";
