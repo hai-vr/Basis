@@ -223,6 +223,7 @@ namespace Basis.Scripts.Networking.Receivers
         public void UnloadAudioSource()
         {
             HasAudioSource = false;
+            if (visemeDriver != null) visemeDriver.TrackedAudioSource = null;
             if (audioSource != null && audioSource.clip != null)
             {
                 audioSource.Stop();
@@ -283,6 +284,7 @@ namespace Basis.Scripts.Networking.Receivers
                 return;
             }
             visemeDriver.TryInitialize(networkedPlayer.Player);
+            visemeDriver.TrackedAudioSource = audioSource;
 
             if (BasisRemoteVisemeAudioDriver == null)
                 BasisRemoteVisemeAudioDriver = BasisHelpers.GetOrAddComponent<BasisRemoteAudioDriver>(audioSource.gameObject);
