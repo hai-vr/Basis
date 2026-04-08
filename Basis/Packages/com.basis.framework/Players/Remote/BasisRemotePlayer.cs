@@ -85,12 +85,6 @@ namespace Basis.Scripts.BasisSdk.Players
         public bool InAvatarRange = true;
 
         /// <summary>
-        /// Cooldown timer that prevents rapid avatar reload oscillation.
-        /// While positive, avatar range transitions are ignored.
-        /// </summary>
-        public float AvatarReloadCooldown = 0;
-
-        /// <summary>
         /// Current mesh LOD level (0 = closest, 3 = furthest). Set by BasisTransmissionResults.
         /// Used to control pose update frequency — distant players update less often.
         /// </summary>
@@ -285,15 +279,10 @@ namespace Basis.Scripts.BasisSdk.Players
 
             // If state drifted during the load, re-evaluate immediately.
             // Otherwise set cooldown to prevent oscillation.
-            bool stateMismatch = (InAvatarRange && IsConsideredFallBackAvatar)
-                              || (!InAvatarRange && !IsConsideredFallBackAvatar);
+            bool stateMismatch = (InAvatarRange && IsConsideredFallBackAvatar) || (!InAvatarRange && !IsConsideredFallBackAvatar);
             if (stateMismatch)
             {
                 ReloadAvatar();
-            }
-            else
-            {
-                AvatarReloadCooldown = 1f;
             }
         }
 
