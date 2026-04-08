@@ -275,10 +275,13 @@ public partial class BasisTransmissionResults
         {
             float viewAngle = SMModuleDistanceBasedReductions.ViewConeAngle;
             float halfConeRad = viewAngle * 0.5f * Mathf.Deg2Rad;
+            // 10° wider exit cone prevents flickering when camera wobbles near the boundary
+            float exitHalfConeRad = math.min(halfConeRad + 10f * Mathf.Deg2Rad, Mathf.PI);
 
             viewConeJob.ListenerPosition = BasisLocalCameraDriver.Position;
             viewConeJob.ListenerForward = BasisLocalCameraDriver.Forward();
             viewConeJob.CosHalfCone = Mathf.Cos(halfConeRad);
+            viewConeJob.CosHalfConeExit = Mathf.Cos(exitHalfConeRad);
 
             viewConeJobHandle = viewConeJob.Schedule(receiverCount, 64, avatarCapJobHandle);
         }
@@ -516,6 +519,7 @@ public partial class BasisTransmissionResults
         distanceJob.PrevInAvatarRange = PrevInAvatarRange;
         avatarCapJob.AvatarRange = AvatarRange;
         viewConeJob.AvatarRange = AvatarRange;
+        viewConeJob.PrevInAvatarRange = PrevInAvatarRange;
 
         distanceJob.MeshLodLevel = MeshLodLevel;
         distanceJob.PrevMeshLodLevel = prevMeshLodLevel;
@@ -735,6 +739,7 @@ public partial class BasisTransmissionResults
 
         viewConeJob.TargetPositions = targetPositions;
         viewConeJob.AvatarRange = AvatarRange;
+        viewConeJob.PrevInAvatarRange = PrevInAvatarRange;
 
         dampenJob.TargetPositions = targetPositions;
         dampenJob.Multipliers = directionalDampening;

@@ -4,6 +4,7 @@ using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.UI.NamePlate;
 using System.Threading.Tasks;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using static SerializableBasis;
@@ -215,6 +216,8 @@ namespace Basis.Scripts.BasisSdk.Players
                     BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,
                     BasisAvatarFactory.LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation,
                     Vector3.zero, Quaternion.identity);
+
+                    SnapHipsToNetworkPose();
                 }
                 else
                 {
@@ -279,6 +282,9 @@ namespace Basis.Scripts.BasisSdk.Players
                     BasisAvatarFactory.LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation,
                     Vector3.zero, Quaternion.identity);
             }
+
+            // Snap hips to the latest network position so the avatar doesn't flash at world origin.
+            SnapHipsToNetworkPose();
             IsLoadingAnAvatar = false;
         }
 
@@ -304,6 +310,19 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 RemoteBoneJobSystem.RemoveRemotePlayer(NetworkReceiver.playerId);
                 RemoteAvatarDriver.InBoneDriver = false;
+            }
+        }
+
+        /// <summary>
+        /// Positions the current avatar's hips at the latest network pose so
+        /// the avatar doesn't appear at world origin for a frame after reload.
+        /// </summary>
+        public void SnapHipsToNetworkPose()
+        {
+            if (NetworkReceiver != null && RemoteAvatarDriver.References.Hips != null)
+            {
+                NetworkReceiver.GetLatestNetworkPose(out float3 netPos, out quaternion netRot);
+                RemoteAvatarDriver.References.Hips.SetPositionAndRotation(netPos, netRot);
             }
         }
 
