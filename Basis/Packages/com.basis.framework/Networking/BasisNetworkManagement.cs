@@ -160,6 +160,11 @@ namespace Basis.Scripts.Networking
         static BasisNetworkReceiver[] s_parallelSnapshot;
         static double s_parallelDeltaTime;
         static readonly Action<int> s_parallelComputeBody = ParallelComputeBody;
+        // Leave headroom for Unity's job worker threads.
+        static readonly ParallelOptions s_parallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 2)
+        };
         static void ParallelComputeBody(int i)
         {
             s_parallelSnapshot[i].ComputeData(s_parallelDeltaTime);
@@ -212,11 +217,11 @@ namespace Basis.Scripts.Networking
 
             // Phase 2 (parallel): Audio decode + packet processing + window management +
             // interpolation + SoA writes. All per-receiver state, no shared-state conflicts.
-            if (receiverCount > 4)
+            if (receiverCount > 16)
             {
                 s_parallelSnapshot = snapshot;
                 s_parallelDeltaTime = UnscaledDeltaTime;
-                Parallel.For(0, receiverCount, s_parallelComputeBody);
+                Parallel.For(0, receiverCount, s_parallelOptions, s_parallelComputeBody);
             }
             else
             {
