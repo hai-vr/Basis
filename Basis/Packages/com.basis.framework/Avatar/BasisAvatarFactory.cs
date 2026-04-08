@@ -287,11 +287,6 @@ namespace Basis.Scripts.Avatar
         /// <param name="LoadingAvatarToUse">The address of the fallback avatar.</param>
         public static void RemoveOldAvatarAndLoadFallback(BasisPlayer Player, string LoadingAvatarToUse, Vector3 Position, Quaternion Rotation)
         {
-            if (CachedLoadingAvatarPrefab == null)
-            {
-                var op = Addressables.LoadAssetAsync<GameObject>(LoadingAvatarToUse);
-                CachedLoadingAvatarPrefab = op.WaitForCompletion();
-            }
             var inSceneLoadingAvatar = GameObject.Instantiate(CachedLoadingAvatarPrefab, Position, Rotation, Player.transform);
 
             if (inSceneLoadingAvatar.TryGetComponent(out BasisAvatar avatar))
