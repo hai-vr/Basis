@@ -106,12 +106,16 @@ namespace Basis.Scripts.Networking.Receivers
 #endif
         }
 
-        public void DrainAndDecode()
+        /// <summary>
+        /// Thread-safe: drains encoded packets and decodes them (Opus).
+        /// Does NOT touch Unity AudioSource. Call ApplyAudioState() on main thread after.
+        /// </summary>
+        public void DrainAndDecodeThreadSafe()
         {
-            bool decoded = false;
+            _lastDrainDecoded = false;
             while (VoiceBuffer.TryConsumeEncoded(out byte[] data, out int length, out byte silenceUnits, out bool isMissing))
             {
-                decoded = true;
+                _lastDrainDecoded = true;
                 if (isMissing)
                 {
                     _consecutiveMissing++;
@@ -122,7 +126,6 @@ namespace Basis.Scripts.Networking.Receivers
                     }
                     else
                     {
-                        // Sender is silent — don't stuff the buffer. Just count it.
                         System.Threading.Interlocked.Increment(ref SilenceInjectedCount);
                     }
                 }
@@ -130,7 +133,6 @@ namespace Basis.Scripts.Networking.Receivers
                 {
                     if (_consecutiveMissing > MaxConsecutivePlc)
                     {
-                        // Silence → voice transition: clear stale decoded data.
                         VoiceBuffer.ClearDecoded();
                     }
                     _consecutiveMissing = 0;
@@ -144,8 +146,17 @@ namespace Basis.Scripts.Networking.Receivers
                     OnDecode(data, length);
                 }
             }
+        }
 
-            if (decoded && HasAudioSource)
+        // Set by DrainAndDecodeThreadSafe, read by ApplyAudioState on main thread.
+        internal volatile bool _lastDrainDecoded;
+
+        /// <summary>
+        /// Main-thread only: updates AudioSource enabled/playing state after decode.
+        /// </summary>
+        public void ApplyAudioState()
+        {
+            if (_lastDrainDecoded && HasAudioSource)
             {
                 if (VoiceBuffer.HasRealAudio)
                 {
@@ -156,6 +167,12 @@ namespace Basis.Scripts.Networking.Receivers
                     audioSource.enabled = false;
                 }
             }
+        }
+
+        public void DrainAndDecode()
+        {
+            DrainAndDecodeThreadSafe();
+            ApplyAudioState();
         }
 
         // ==================== AudioSource management ====================
