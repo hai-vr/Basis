@@ -25,6 +25,11 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         private static GameObject CachedLoadingAvatarPrefab;
 
+        public static void Initalize()
+        {
+            var op = Addressables.LoadAssetAsync<GameObject>(LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation);
+            CachedLoadingAvatarPrefab = op.WaitForCompletion();
+        }
         /// <summary>
         /// Default loading avatar used as a fallback when no valid avatar is available.
         /// </summary>
@@ -353,11 +358,6 @@ namespace Basis.Scripts.Avatar
         {
             try
             {
-                if (CachedLoadingAvatarPrefab == null)
-                {
-                    var op = Addressables.LoadAssetAsync<GameObject>(LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation);
-                    CachedLoadingAvatarPrefab = op.WaitForCompletion();
-                }
                 GameObject data = GameObject.Instantiate(CachedLoadingAvatarPrefab, Position, Rotation, Player.transform);
 
                 InitializePlayerAvatar(Player, data);
