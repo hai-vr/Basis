@@ -121,6 +121,10 @@ namespace Basis.Scripts.Drivers
             {
                 return false;
             }
+            if (Avatar.FaceVisemeMesh.sharedMesh == null)
+            {
+                return false;
+            }
             if (Avatar.FaceVisemeMesh.sharedMesh.blendShapeCount == 0)
             {
                 return false;
