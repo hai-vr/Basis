@@ -218,9 +218,7 @@ namespace Basis.Scripts.BasisSdk.Players
                     AlwaysRequestedAvatar = BasisLoadedBundle;
                     AlwaysRequestedMode = CACM.loadMode;
 
-                    BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,
-                    BasisAvatarFactory.LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation,
-                    Vector3.zero, Quaternion.identity);
+                    BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,Vector3.zero, Quaternion.identity);
                 }
                 else
                 {
@@ -281,9 +279,7 @@ namespace Basis.Scripts.BasisSdk.Players
             }
             else if (!IsConsideredFallBackAvatar)
             {
-                BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,
-                    BasisAvatarFactory.LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation,
-                    Vector3.zero, Quaternion.identity);
+                BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,Vector3.zero, Quaternion.identity);
             }
             IsLoadingAnAvatar = false;
 

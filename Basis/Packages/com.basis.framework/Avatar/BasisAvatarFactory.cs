@@ -97,7 +97,7 @@ namespace Basis.Scripts.Avatar
             }
 
             // Fallback can happen instantly, no restriction
-            RemoveOldAvatarAndLoadFallback(Player, LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation, Position, Rotation);
+            RemoveOldAvatarAndLoadFallback(Player, Position, Rotation);
             try
             {
                 GameObject Output = null;
@@ -188,7 +188,7 @@ namespace Basis.Scripts.Avatar
             // Instant fallback while real avatar loads, skip if already on fallback
             if (!Player.IsConsideredFallBackAvatar)
             {
-                RemoveOldAvatarAndLoadFallback(Player, LoadingAvatar.BasisLocalEncryptedBundle.DownloadedBeeFileLocation, Position, Rotation);
+                RemoveOldAvatarAndLoadFallback(Player, Position, Rotation);
             }
             GameObject Output = null;
             try
@@ -285,23 +285,13 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         /// <param name="Player">The player to assign the fallback avatar to.</param>
         /// <param name="LoadingAvatarToUse">The address of the fallback avatar.</param>
-        public static void RemoveOldAvatarAndLoadFallback(BasisPlayer Player, string LoadingAvatarToUse, Vector3 Position, Quaternion Rotation)
+        public static void RemoveOldAvatarAndLoadFallback(BasisPlayer Player, Vector3 Position, Quaternion Rotation)
         {
             var inSceneLoadingAvatar = GameObject.Instantiate(CachedLoadingAvatarPrefab, Position, Rotation, Player.transform);
 
             if (inSceneLoadingAvatar.TryGetComponent(out BasisAvatar avatar))
             {
-                // Find hips from the animator we already have on the avatar
-                Transform hips = avatar.Animator != null ? avatar.Animator.GetBoneTransform(HumanBodyBones.Hips) : null;
-
-                // Snap hips to network position immediately so the avatar never renders at world origin
-                if (hips != null && Player is BasisRemotePlayer remote && remote.NetworkReceiver != null)
-                {
-                    remote.NetworkReceiver.GetLatestNetworkPose(out var netPos, out var netRot);
-                    hips.SetPositionAndRotation(netPos, netRot);
-                }
-
-                SetupPlayerAvatar(Player, avatar, isFallback: true, hips);
+                SetupPlayerAvatar(Player, avatar, isFallback: true);
             }
             else
             {
@@ -324,7 +314,7 @@ namespace Basis.Scripts.Avatar
         /// Configures a player with a specific avatar.
         /// Handles both local and remote player cases.
         /// </summary>
-        private static void SetupPlayerAvatar(BasisPlayer Player, BasisAvatar avatar, bool isFallback, Transform hips = null)
+        private static void SetupPlayerAvatar(BasisPlayer Player, BasisAvatar avatar, bool isFallback)
         {
             DeleteLastAvatar(Player);
             Player.IsConsideredFallBackAvatar = isFallback;
@@ -341,7 +331,7 @@ namespace Basis.Scripts.Avatar
                     break;
 
                 case BasisRemotePlayer remotePlayer:
-                    SetupRemoteAvatar(remotePlayer, hips);
+                    SetupRemoteAvatar(remotePlayer);
                     break;
             }
         }
@@ -406,11 +396,10 @@ namespace Basis.Scripts.Avatar
         /// <summary>
         /// Configures remote player avatars after instantiation.
         /// </summary>
-        public static void SetupRemoteAvatar(BasisRemotePlayer Player, Transform hips = null)
+        public static void SetupRemoteAvatar(BasisRemotePlayer Player)
         {
-            Player.RemoteAvatarDriver.RemoteCalibration(Player, hips);
+            Player.RemoteAvatarDriver.RemoteCalibration(Player);
             Player.BasisAvatar.OnAvatarReady?.Invoke(false);
-            Player.RemoteAvatarDriver.CalibrationComplete?.Invoke();
         }
 
         /// <summary>
