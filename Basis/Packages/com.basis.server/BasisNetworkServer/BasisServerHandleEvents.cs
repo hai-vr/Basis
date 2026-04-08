@@ -660,6 +660,7 @@ namespace BasisServerHandle
                 {
                     syncState = new LocalAvatarSyncMessage
                     {
+                        DataQualityLevel = (byte)Basis.Network.Core.Compression.BasisAvatarBitPacking.BitQuality.High,
                         array = new byte[NetworkServer.HighQualityLength],
                         AdditionalAvatarDatas = null,
                         AdditionalAvatarDataSize = 0,
