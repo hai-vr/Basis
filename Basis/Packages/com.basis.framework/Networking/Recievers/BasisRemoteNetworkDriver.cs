@@ -103,16 +103,17 @@ public static class BasisRemoteNetworkDriver
     static IntPtr _ptrPrevBoneRotations;
     static IntPtr _ptrTargetBoneRotations;
     static IntPtr _ptrPoseFilterSeeded;
+    static IntPtr _ptrSkipBones;
 
     /// <summary>
     /// Mark a player index to skip bone interpolation on the next Compute().
     /// Called from SimulateNetworkApply when PoseSkipCounter > 0.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void SetSkipMuscles(int index, bool skip)
+    public static unsafe void SetSkipMuscles(int index, bool skip)
     {
         if (_initialized && (uint)index < FixedCapacity)
-            _skipBones[index] = skip ? (byte)1 : (byte)0;
+            ((byte*)(void*)_ptrSkipBones)[index] = skip ? (byte)1 : (byte)0;
     }
 
     // ─── TUNING ───
@@ -350,6 +351,7 @@ public static class BasisRemoteNetworkDriver
         _ptrScaledBodyPositions = (IntPtr)_scaledBodyPositions.GetUnsafeReadOnlyPtr();
         _ptrFilteredBoneRotations = (IntPtr)_filteredBoneRotations.GetUnsafeReadOnlyPtr();
         _ptrOutScales = (IntPtr)_outScales.GetUnsafeReadOnlyPtr();
+        _ptrSkipBones = (IntPtr)_skipBones.GetUnsafePtr();
     }
 
     // ─── OUTPUT GETTERS ───
@@ -377,7 +379,7 @@ public static class BasisRemoteNetworkDriver
     /// playerKeys[i] → internal SoA index; data is written to dst arrays at index i.
     /// </summary>
     public static unsafe void BulkCopyHipsAndScale(
-        List<int> playerKeys, int count,
+        int[] playerKeys, int count,
         NativeArray<float3> dstPos, NativeArray<quaternion> dstRot,
         NativeArray<float3> dstScale, NativeArray<byte> dstScaleChanged)
     {
@@ -406,16 +408,16 @@ public static class BasisRemoteNetworkDriver
     static IntPtr _ptrFilteredPositions;
 
     /// <summary>
-    /// Returns a read-only slice of the filtered bone rotation deltas for a player.
-    /// Used by RemoteBoneJobSystem to feed the skeleton apply job.
-    /// Must be called after Apply() completes.
+    /// Returns a raw pointer to the filtered bone rotation deltas for a player.
+    /// Avoids NativeSlice allocation overhead. Caller must ensure index is valid.
+    /// Must be called after Apply() completes (i.e. after BeginRead()).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static NativeSlice<quaternion> GetFilteredBoneRotations(int index)
+    public static unsafe quaternion* GetFilteredBoneRotationsPtr(int index)
     {
         if (!_initialized || (uint)index >= FixedCapacity)
-            return default;
-        return _filteredBoneRotations.Slice(index * BoneCount, BoneCount);
+            return null;
+        return (quaternion*)(void*)_ptrFilteredBoneRotations + index * BoneCount;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -428,7 +430,7 @@ public static class BasisRemoteNetworkDriver
     /// <summary>
     /// Returns interpolated+filtered body transform outputs (hips position/rotation, scale change).
     /// Bone rotation deltas are no longer copied here — they're read directly by
-    /// RemoteBoneJobSystem via GetFilteredBoneRotations().
+    /// RemoteBoneJobSystem via GetFilteredBoneRotationsPtr().
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void GetBoneRotationOutputs(

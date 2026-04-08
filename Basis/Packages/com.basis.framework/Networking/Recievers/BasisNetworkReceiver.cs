@@ -264,8 +264,6 @@ namespace Basis.Scripts.Networking.Receivers
             }
             StagedCount = _stagedRing.Count;
 
-            HasBufferHolds = HasCurrentBuffer && HasNextBuffer;
-
             // 3) If we have a window, advance time then slide the window forward if needed.
             //    Adding dt BEFORE the window advance ensures excess time carries into the
             //    next window instead of being lost to job-side clamping (which caused stalls).
@@ -277,7 +275,7 @@ namespace Basis.Scripts.Networking.Receivers
                     windowDuration = math.max(Next.SecondsInterval, 1e-3);
                 }
                 float rate = 1f + CatchupGain * (StagedCount - TargetJitterDepth);
-                rate = Mathf.Clamp(rate, MinPlaybackRate, MaxPlaybackRate);
+                rate = math.clamp(rate, MinPlaybackRate, MaxPlaybackRate);
 
                 // Add this frame's time FIRST
                 interpolationTime += (unscaledDeltaTime / windowDuration * (double)rate);
