@@ -118,6 +118,15 @@ public static class JigglePhysics {
     public static void RemoveJiggleCollider(JiggleColliderSerializable collider) {
         jobs?.ScheduleRemove(collider);
     }
+
+    /// <summary>
+    /// Batch-remove multiple colliders. Uses a HashSet for O(n+m) dedup
+    /// instead of O(n*m) linear scans per collider.
+    /// </summary>
+    public static void RemoveJiggleColliders(List<JiggleColliderSerializable> colliders) {
+        jobs?.ScheduleRemoveBatch(colliders);
+    }
+
     public static void FreeOnComplete(IntPtr pointer) {
         jobs.FreeOnComplete(pointer);
     }

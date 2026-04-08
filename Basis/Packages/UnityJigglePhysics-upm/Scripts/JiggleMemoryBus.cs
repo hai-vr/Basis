@@ -906,6 +906,38 @@ public void GetResults(out JiggleTransform[] poses, out JiggleTreeJobData[] tree
         pendingSceneColliderRemove.Add(jiggleCollider);
     }
 
+    /// <summary>
+    /// Batch-remove colliders with O(n+m) instead of O(n*m).
+    /// Builds a HashSet of transforms to remove, then does a single pass over
+    /// pendingSceneColliderAdd to cancel pending adds, and queues the rest for removal.
+    /// </summary>
+    public void ScheduleRemoveBatch(List<JiggleColliderSerializable> colliders) {
+        int removeCount = colliders.Count;
+        if (removeCount == 0) return;
+
+        // Build set of transforms we want to remove
+        var toRemove = new HashSet<Transform>(removeCount);
+        for (int i = 0; i < removeCount; i++) {
+            toRemove.Add(colliders[i].transform);
+        }
+
+        // Single pass over pendingSceneColliderAdd: cancel any pending adds that match
+        for (int i = pendingSceneColliderAdd.Count - 1; i >= 0; i--) {
+            if (toRemove.Remove(pendingSceneColliderAdd[i].transform)) {
+                pendingSceneColliderAdd.RemoveAt(i);
+            }
+        }
+
+        // Anything still in toRemove wasn't in the pending add list — queue for actual removal
+        if (toRemove.Count > 0) {
+            for (int i = 0; i < removeCount; i++) {
+                if (toRemove.Contains(colliders[i].transform)) {
+                    pendingSceneColliderRemove.Add(colliders[i]);
+                }
+            }
+        }
+    }
+
     public void ScheduleAdd(JiggleTree jiggleTree) {
         pendingCommands.Add(new AddRemoveCommand() {
             commandType = AddRemoveCommand.CommandType.Add,

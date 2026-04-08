@@ -324,10 +324,23 @@ namespace Basis.Scripts.Networking
                 s = System.Diagnostics.Stopwatch.StartNew();
             }
 #endif
-
+        }
+        public static void CompleteRemoteBoneJobSystemJobs()
+        {
+            if (!NetworkRunning)
+            {
+                return;
+            }
+#if UNITY_EDITOR
+            bool p = BasisEventDriverProfilerData.Enabled;
+            System.Diagnostics.Stopwatch s = System.Diagnostics.Stopwatch.StartNew();
+#endif
             RemoteBoneJobSystem.Complete(BoneJobSystem);
 #if UNITY_EDITOR
-            if (p) { s.Stop(); BasisEventDriverProfilerData.Net_BoneJobCompleteMs = s.Elapsed.TotalMilliseconds; }
+            if (p) {
+                s.Stop();
+                BasisEventDriverProfilerData.Net_BoneJobCompleteMs = s.Elapsed.TotalMilliseconds;
+            }
 #endif
         }
 
