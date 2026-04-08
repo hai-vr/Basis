@@ -450,13 +450,29 @@ public partial class BasisTransmissionResults
                 // the hearing distance — too far to see mouth shapes.
                 audio.visemeDriver.InVisemeRange = pDistanceSq[i] < visemeRangeSq;
 
+                // Tick down reload cooldown
+                if (remote.AvatarReloadCooldown > 0)
+                {
+                    remote.AvatarReloadCooldown -= intervalUsedThisTick;
+                }
+
                 if (avatarChange)
                 {
                     bool inRange = pAvatarRange[i];
-                    if (!remote.IsLoadingAnAvatar && remote.InAvatarRange != inRange)
+                    if (remote.InAvatarRange != inRange)
                     {
+                        // Always keep InAvatarRange up to date so CreateAvatar uses correct state
                         remote.InAvatarRange = inRange;
-                        remote.ReloadAvatar();
+
+                        // Only trigger reload when not loading and cooldown expired
+                        if (!remote.IsLoadingAnAvatar && remote.AvatarReloadCooldown <= 0)
+                        {
+                            if (inRange || !remote.IsConsideredFallBackAvatar)
+                            {
+                                remote.ReloadAvatar();
+                                remote.AvatarReloadCooldown = 1f;
+                            }
+                        }
                     }
                 }
 
