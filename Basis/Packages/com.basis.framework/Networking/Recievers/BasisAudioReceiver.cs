@@ -7,8 +7,6 @@ using Basis.Scripts.Networking.NetworkedAvatar;
 using OpusSharp.Core;
 using OpusSharp.Core.Interfaces;
 using OpusSharp.Core.Extensions;
-using Dynamic = OpusSharp.Core.Dynamic;
-using Static = OpusSharp.Core.Static;
 #endif
 using System;
 using System.Runtime.CompilerServices;
@@ -269,9 +267,9 @@ namespace Basis.Scripts.Networking.Receivers
 
 #if UNITY_IOS && !UNITY_EDITOR
             // iOS requires statically linked Opus library
-            decoder = new Static.OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
+            decoder = new OpusSharp.Core.Static.OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
 #else
-            decoder = new Dynamic.OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
+            decoder = new OpusSharp.Core.Dynamic.OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
 #endif
 #endif
         }
