@@ -5,6 +5,8 @@ using Basis.Scripts.Profiler;
 #if !UNITY_SERVER
 using OpusSharp.Core;
 using OpusSharp.Core.Interfaces;
+using Dynamic = OpusSharp.Core.Dynamic;
+using Static = OpusSharp.Core.Static;
 #endif
 using static SerializableBasis;
 

@@ -7,6 +7,8 @@ using Basis.Scripts.Networking.NetworkedAvatar;
 using OpusSharp.Core;
 using OpusSharp.Core.Interfaces;
 using OpusSharp.Core.Extensions;
+using Dynamic = OpusSharp.Core.Dynamic;
+using Static = OpusSharp.Core.Static;
 #endif
 using System;
 using System.Runtime.CompilerServices;

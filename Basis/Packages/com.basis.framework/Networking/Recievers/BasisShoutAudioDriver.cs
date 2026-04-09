@@ -5,6 +5,8 @@ using Basis.Scripts.Networking;
 using Basis.Scripts.Networking.NetworkedAvatar;
 #if !UNITY_SERVER
 using OpusSharp.Core;
+using Dynamic = OpusSharp.Core.Dynamic;
+using Static = OpusSharp.Core.Static;
 #endif
 using System.Collections.Generic;
 using UnityEngine;
