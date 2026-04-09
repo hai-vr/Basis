@@ -128,6 +128,7 @@
     <assembly fullname="com.gator-dragon-games.jigglephysics" preserve="all" />
     <assembly fullname="mscorlib" preserve="all" />
     <assembly fullname="openvr_api" preserve="all" />
+    <assembly fullname="opus" preserve="all" />
     <assembly fullname="phonon" preserve="all" />
     <assembly fullname="phonon_fmod" preserve="all" />
     <assembly fullname="ucrtbased" preserve="all" />
