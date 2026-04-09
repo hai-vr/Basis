@@ -13,40 +13,45 @@ namespace BasisNetworkServer.Security
 
         public static bool HeadlessAudioOff => Interlocked.CompareExchange(ref _headlessAudioOff, 0, 0) == 1;
 
-        public static bool ToggleHeadlessAudio()
+        public static bool SetHeadlessAudio(bool headlessAudioOff)
         {
-            int prev;
-            int next;
-            do
-            {
-                prev = _headlessAudioOff;
-                next = prev == 0 ? 1 : 0;
-            }
-            while (Interlocked.CompareExchange(ref _headlessAudioOff, next, prev) != prev);
-
-            return next == 1;
+            int requestedValue = headlessAudioOff ? 1 : 0;
+            int previousValue = Interlocked.Exchange(ref _headlessAudioOff, requestedValue);
+            return previousValue != requestedValue;
         }
 
         public static void SendStateToPeer(NetPeer peer)
         {
             NetDataWriter writer = NetworkServer.RentWriter();
-            new AdminRequest().Serialize(writer, AdminRequestMode.GlobalGetHeadlessAudioState);
-            writer.Put(HeadlessAudioOff);
-            NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
-            NetworkServer.ReturnWriter(writer);
+            try
+            {
+                new AdminRequest().Serialize(writer, AdminRequestMode.GlobalGetHeadlessAudioState);
+                writer.Put(HeadlessAudioOff);
+                NetworkServer.TrySend(peer, writer, BasisNetworkCommons.AdminChannel, DeliveryMethod.ReliableOrdered);
+            }
+            finally
+            {
+                NetworkServer.ReturnWriter(writer);
+            }
         }
 
         public static void BroadcastState()
         {
             NetDataWriter writer = NetworkServer.RentWriter();
-            new AdminRequest().Serialize(writer, AdminRequestMode.GlobalGetHeadlessAudioState);
-            writer.Put(HeadlessAudioOff);
-            NetworkServer.BroadcastMessageToClients(
-                writer,
-                BasisNetworkCommons.AdminChannel,
-                NetworkServer.PeerSnapshot,
-                DeliveryMethod.ReliableOrdered);
-            NetworkServer.ReturnWriter(writer);
+            try
+            {
+                new AdminRequest().Serialize(writer, AdminRequestMode.GlobalGetHeadlessAudioState);
+                writer.Put(HeadlessAudioOff);
+                NetworkServer.BroadcastMessageToClients(
+                    writer,
+                    BasisNetworkCommons.AdminChannel,
+                    NetworkServer.PeerSnapshot,
+                    DeliveryMethod.ReliableOrdered);
+            }
+            finally
+            {
+                NetworkServer.ReturnWriter(writer);
+            }
         }
     }
 }

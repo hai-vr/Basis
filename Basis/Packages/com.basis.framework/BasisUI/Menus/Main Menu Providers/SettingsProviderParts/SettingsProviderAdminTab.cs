@@ -333,7 +333,7 @@ namespace Basis.BasisUI
             headlessAudioToggle.Descriptor.SetTitle("Headless audio off");
             headlessAudioToggle.Descriptor.SetDescription("Silences headless BasisAudioClipPlayer clients over the network.");
             headlessAudioToggle.SetValueWithoutNotify(BasisNetworkModeration.GlobalHeadlessAudioOff);
-            headlessAudioToggle.OnValueChanged += _ => BasisNetworkModeration.GlobalToggleHeadlessAudio();
+            headlessAudioToggle.OnValueChanged += value => BasisNetworkModeration.SetGlobalHeadlessAudio(value);
 
             controller.AvatarLockToggle = avatarLock;
             controller.PropLockToggle = propLock;
@@ -430,6 +430,7 @@ namespace Basis.BasisUI
                 BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemotePlayersChanged;
                 BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayersChanged;
                 BasisNetworkModeration.OnGlobalLockStateChanged -= OnGlobalLockStateChanged;
+                BasisNetworkModeration.OnGlobalHeadlessAudioStateChanged -= OnGlobalHeadlessAudioStateChanged;
                 BasisNetworkModeration.OnGlobalHeadlessAudioStateChanged -= OnGlobalHeadlessAudioStateChanged;
 
                 ClearPlayerButtons();
