@@ -1,11 +1,10 @@
 #if UNITY_SERVER
+using Basis.Network.Core;
+using Basis.Scripts.Networking;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
-using Basis.Network.Core;
-using Basis.Scripts.Networking;
-using OpusSharp.Core;
 using UnityEngine;
 using static SerializableBasis;
 
@@ -29,7 +28,7 @@ public static class BasisAudioClipPlayer
     private static Thread playbackThread;
     private static volatile bool shouldRun;
 
-    private static OpusEncoder encoder;
+    private static OpusSharp.Core.Interfaces.IOpusEncoder encoder;
     private static AudioSegmentDataMessage segment;
     private static NetDataWriter writer;
     private static byte sequenceNumber;
@@ -45,6 +44,9 @@ public static class BasisAudioClipPlayer
     /// </summary>
     public static string ClipDirectory;
 
+#if !UNITY_SERVER
+    public static OpusSharp.Core.Interfaces.IOpusDecoder decoder;
+#endif
     /// <summary>
     /// Attempts to initialize the clip player. If the AudioClips directory exists and
     /// contains supported audio files, a random clip is loaded and streamed as voice audio.
@@ -90,11 +92,24 @@ public static class BasisAudioClipPlayer
             BasisDebug.LogError($"[AudioClipPlayer] Failed to load: {chosen}", BasisDebug.LogTag.Device);
             return false;
         }
+#if UNITY_IOS && !UNITY_EDITOR
+            encoder = new OpusSharp.Core.Static.OpusEncoder(
+    LocalOpusSettings.MicrophoneSampleRate,
+    LocalOpusSettings.Channels,
+    LocalOpusSettings.OpusApplication
+);
+        encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_BITRATE, 32000);
+        encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_COMPLEXITY, 5);
+#else
 
-        // Initialize Opus encoder
-        encoder = new OpusEncoder(SampleRate, Channels, OpusPredefinedValues.OPUS_APPLICATION_AUDIO, use_static: false);
-        encoder.Ctl(EncoderCTL.OPUS_SET_BITRATE, 32000);
-        encoder.Ctl(EncoderCTL.OPUS_SET_COMPLEXITY, 5);
+        encoder = new OpusSharp.Core.Dynamic.OpusEncoder(
+            LocalOpusSettings.MicrophoneSampleRate,
+            LocalOpusSettings.Channels,
+            LocalOpusSettings.OpusApplication
+        );
+        encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_BITRATE, 32000);
+        encoder.Ctl(OpusSharp.Core.EncoderCTL.OPUS_SET_COMPLEXITY, 5);
+#endif
 
         // Initialize send buffers
         int packetSize = FrameSize * 4;
@@ -407,36 +422,38 @@ public static class BasisAudioClipPlayer
             float[] decodeBuffer = new float[MaxOpusFrameSize * channels];
             List<float> monoSamples = new List<float>();
             int remainingPreSkip = preSkipSamples;
-
-            using (var decoder = new OpusDecoder(SampleRate, channels, use_static: false))
+#if UNITY_IOS && !UNITY_EDITOR
+            // iOS requires statically linked Opus library
+            decoder = new OpusSharp.Core.Static.OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
+#else
+            decoder = new OpusSharp.Core.Dynamic.OpusDecoder(RemoteOpusSettings.NetworkSampleRate, RemoteOpusSettings.Channels);
+#endif
+            for (int packetIndex = audioPacketStart; packetIndex < packets.Count; packetIndex++)
             {
-                for (int packetIndex = audioPacketStart; packetIndex < packets.Count; packetIndex++)
+                byte[] packet = packets[packetIndex];
+                if (packet.Length == 0)
                 {
-                    byte[] packet = packets[packetIndex];
-                    if (packet.Length == 0)
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    int decodedSamples = decoder.Decode(packet, packet.Length, decodeBuffer, MaxOpusFrameSize, false);
-                    int sampleStart = 0;
-                    if (remainingPreSkip > 0)
-                    {
-                        sampleStart = Math.Min(decodedSamples, remainingPreSkip);
-                        remainingPreSkip -= sampleStart;
-                    }
+                int decodedSamples = decoder.Decode(packet, packet.Length, decodeBuffer, MaxOpusFrameSize, false);
+                int sampleStart = 0;
+                if (remainingPreSkip > 0)
+                {
+                    sampleStart = Math.Min(decodedSamples, remainingPreSkip);
+                    remainingPreSkip -= sampleStart;
+                }
 
-                    for (int sample = sampleStart; sample < decodedSamples; sample++)
+                for (int sample = sampleStart; sample < decodedSamples; sample++)
+                {
+                    if (channels == 1)
                     {
-                        if (channels == 1)
-                        {
-                            monoSamples.Add(decodeBuffer[sample]);
-                        }
-                        else
-                        {
-                            int offset = sample * channels;
-                            monoSamples.Add((decodeBuffer[offset] + decodeBuffer[offset + 1]) * 0.5f);
-                        }
+                        monoSamples.Add(decodeBuffer[sample]);
+                    }
+                    else
+                    {
+                        int offset = sample * channels;
+                        monoSamples.Add((decodeBuffer[offset] + decodeBuffer[offset + 1]) * 0.5f);
                     }
                 }
             }
