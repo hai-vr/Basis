@@ -2,7 +2,6 @@ using TMPro;
 using UnityEngine;
 using Basis.Scripts.Networking;
 using System;
-
 public class BasisFrameRateVisualization : MonoBehaviour
 {
     public TextMeshProUGUI fpsText;
@@ -70,7 +69,6 @@ public class BasisFrameRateVisualization : MonoBehaviour
         // We don't convert to string → no GC
         fpsText.SetCharArray(buffer, 0, idx);
     }
-
 
     // -------- Helpers (no GC) --------
 

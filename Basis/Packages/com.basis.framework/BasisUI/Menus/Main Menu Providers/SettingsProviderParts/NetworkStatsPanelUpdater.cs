@@ -1,5 +1,7 @@
 using Basis.Scripts.Networking;
 using Basis.Network.Core;
+using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 using static SerializableBasis;
 
@@ -83,12 +85,59 @@ namespace Basis.BasisUI
             if (PlayersField != null)
             {
                 int receiverCount = BasisNetworkPlayers.ReceiverCount;
-                int totalPlayers = BasisNetworkPlayers.Players.Count;
+                int totalPlayers = 0;
+                int headlessPlayers = 0;
+                Dictionary<string, int> platformCounts = new Dictionary<string, int>();
+                foreach (var entry in BasisNetworkPlayers.Players)
+                {
+                    totalPlayers++; // We could have players leave during the count so better to just count them all the same time.
+                    string playerPlatform = entry.Value?.Player?.PlayerPlatform;
+                    string aggregatePlatform = NormalizePlatformAggregate(playerPlatform);
+
+                    platformCounts[aggregatePlatform] = platformCounts.GetValueOrDefault(aggregatePlatform) + 1;
+
+                    
+                }
+                int realPlayers = totalPlayers - headlessPlayers;
                 ServerMetaDataMessage meta = BasisNetworkManagement.ServerMetaDataMessage;
                 int capacity = meta.PeerLimit;
-                PlayersField.SetDescription(
+                StringBuilder description = new StringBuilder(160);
+                description.Append(
                     $"Total: {totalPlayers} | Remote: {receiverCount}\n" +
+                    $"Real: {realPlayers} | Headless: {headlessPlayers}\n" +
                     $"Server Capacity: {capacity}");
+
+                if (platformCounts.Count > 0)
+                {
+                    description.Append("\nPlatforms: ");
+                    bool hasAppendedPlatform = false;
+
+                    AppendPlatformCount(description, platformCounts, "Windows", ref hasAppendedPlatform);
+                    AppendPlatformCount(description, platformCounts, "macOS", ref hasAppendedPlatform);
+                    AppendPlatformCount(description, platformCounts, "Linux", ref hasAppendedPlatform);
+                    AppendPlatformCount(description, platformCounts, "Android", ref hasAppendedPlatform);
+                    AppendPlatformCount(description, platformCounts, "iOS", ref hasAppendedPlatform);
+                    AppendPlatformCount(description, platformCounts, "Windows Server", ref hasAppendedPlatform);
+                    AppendPlatformCount(description, platformCounts, "Linux Server", ref hasAppendedPlatform);
+                    AppendPlatformCount(description, platformCounts, "macOS Server", ref hasAppendedPlatform);
+                    AppendPlatformCount(description, platformCounts, "Headless", ref hasAppendedPlatform);
+                    AppendPlatformCount(description, platformCounts, "Unknown", ref hasAppendedPlatform);
+
+                    foreach (KeyValuePair<string, int> platformCount in platformCounts)
+                    {
+                        if (hasAppendedPlatform)
+                        {
+                            description.Append(" | ");
+                        }
+
+                        description.Append(platformCount.Key);
+                        description.Append(":");
+                        description.Append(platformCount.Value);
+                        hasAppendedPlatform = true;
+                    }
+                }
+
+                PlayersField.SetDescription(description.ToString());
             }
 
             // Transmission
@@ -179,6 +228,55 @@ namespace Basis.BasisUI
             if (bytesPerSec < 1024) return $"{bytesPerSec:F0} B/s";
             if (bytesPerSec < 1024 * 1024) return $"{bytesPerSec / 1024.0:F1} KB/s";
             return $"{bytesPerSec / (1024.0 * 1024.0):F2} MB/s";
+        }
+
+        private static string NormalizePlatformAggregate(string platform)
+        {
+            if (string.IsNullOrWhiteSpace(platform))
+            {
+                return "Unknown";
+            }
+
+            switch (platform)
+            {
+                case "WindowsServer":
+                    return "Windows Server";
+                case "LinuxServer":
+                    return "Linux Server";
+                case "OSXServer":
+                    return "macOS Server";
+                case "Headless":
+                    return "Headless";
+            }
+
+            return BasisIOManagement.NormalizeCachePlatformName(platform) switch
+            {
+                "StandaloneWindows64" => "Windows",
+                "StandaloneLinux64" => "Linux",
+                "StandaloneOSX" => "macOS",
+                "Android" => "Android",
+                "iOS" => "iOS",
+                _ => UserListProvider.GetPlatformLabel(platform)
+            };
+        }
+
+        private static void AppendPlatformCount(StringBuilder description, Dictionary<string, int> platformCounts, string platform, ref bool hasAppendedPlatform)
+        {
+            if (!platformCounts.TryGetValue(platform, out int count))
+            {
+                return;
+            }
+
+            if (hasAppendedPlatform)
+            {
+                description.Append(" | ");
+            }
+
+            description.Append(platform);
+            description.Append(": ");
+            description.Append(count);
+            hasAppendedPlatform = true;
+            platformCounts.Remove(platform);
         }
     }
 }
