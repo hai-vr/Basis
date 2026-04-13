@@ -12,6 +12,8 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     private static bool _UsemaxVisibleAvatars = false;
     private static int _maxAudioSources = 0;
     private static bool _useMaxAudioSources = false;
+    private static int _maxJiggleRigs = 15000;
+    private static bool _useMaxJiggleRigs = false;
     private static bool _useViewConeAvatars = false;
     private static float _viewConeAngle = 180f;
 
@@ -60,6 +62,8 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     private static string K_USEMAX_VISIBLE_AVATARS => BasisSettingsDefaults.UseMaxVisibleAvatars.BindingKey; // "usemaxvisibleavatars"
     private static string K_MAX_AUDIO_SOURCES => BasisSettingsDefaults.MaxAudioSources.BindingKey; // "maxaudiosources"
     private static string K_USEMAX_AUDIO_SOURCES => BasisSettingsDefaults.UseMaxAudioSources.BindingKey; // "usemaxaudiosources"
+    private static string K_MAX_JIGGLE_RIGS => BasisSettingsDefaults.MaxJiggleRigs.BindingKey; // "maxjigglerigs"
+    private static string K_USEMAX_JIGGLE_RIGS => BasisSettingsDefaults.UseMaxJiggleRigs.BindingKey; // "usemaxjigglerigs"
     private static string K_USE_VIEWCONE_AVATARS => BasisSettingsDefaults.UseViewConeAvatars.BindingKey; // "useviewconeavatars"
     private static string K_VIEWCONE_ANGLE => BasisSettingsDefaults.ViewConeAngle.BindingKey; // "viewconeangle"
     public static event Action<float> OnMicrophoneRangeChanged;
@@ -70,6 +74,8 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
     public static event Action<bool> OnUseMaxVisibleAvatarsChanged;
     public static event Action<int> OnMaxAudioSourcesChanged;
     public static event Action<bool> OnUseMaxAudioSourcesChanged;
+    public static event Action<int> OnMaxJiggleRigsChanged;
+    public static event Action<bool> OnUseMaxJiggleRigsChanged;
     public static event Action<bool> OnUseViewConeAvatarsChanged;
     public static event Action<float> OnViewConeAngleChanged;
     public static float MicrophoneRange
@@ -146,6 +152,36 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
             {
                 _maxAudioSources = value;
                 OnMaxAudioSourcesChanged?.Invoke(value);
+            }
+        }
+    }
+    public static bool UseMaxJiggleRigs
+    {
+        get => _useMaxJiggleRigs;
+        private set
+        {
+            if (_useMaxJiggleRigs != value)
+            {
+                _useMaxJiggleRigs = value;
+                OnUseMaxJiggleRigsChanged?.Invoke(value);
+            }
+        }
+    }
+    /// <summary>
+    /// Maximum total active jiggle rigs across remote players.
+    /// Each JiggleRig component creates one jiggle tree; past ~16k trees Unity's
+    /// TAA post-process breaks down. Rigs beyond this cap are disabled, with
+    /// the closest players' rigs kept first.
+    /// </summary>
+    public static int MaxJiggleRigs
+    {
+        get => _maxJiggleRigs;
+        private set
+        {
+            if (_maxJiggleRigs != value)
+            {
+                _maxJiggleRigs = value;
+                OnMaxJiggleRigsChanged?.Invoke(value);
             }
         }
     }
@@ -235,6 +271,20 @@ public class SMModuleDistanceBasedReductions : BasisSettingsBase
                 {
                     UseMaxAudioSources = useMaxAudio;
                     BasisDebug.Log($"Use Max Audio Sources {useMaxAudio}");
+                }
+                break;
+            case var s when s == K_MAX_JIGGLE_RIGS:
+                if (TryReadSlider(optionValue, out var maxRigs))
+                {
+                    MaxJiggleRigs = (int)maxRigs;
+                    LogDistanceSetting("MaxJiggleRigs", maxRigs);
+                }
+                break;
+            case var s when s == K_USEMAX_JIGGLE_RIGS:
+                if (bool.TryParse(optionValue, out bool useMaxRigs))
+                {
+                    UseMaxJiggleRigs = useMaxRigs;
+                    BasisDebug.Log($"Use Max Jiggle Rigs {useMaxRigs}");
                 }
                 break;
             case var s when s == K_POSE_LOD:

@@ -225,7 +225,7 @@ namespace Basis.Scripts.Networking.Receivers
             try
             {
                 var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(networkedPlayer.Player.UUID);
-                ChangeRemotePlayersVolumeSettings(settings.VolumeLevel);
+                ChangeRemotePlayersVolumeSettings(settings.IsBlocked ? 0f : settings.VolumeLevel);
             }
             catch (Exception ex)
             {

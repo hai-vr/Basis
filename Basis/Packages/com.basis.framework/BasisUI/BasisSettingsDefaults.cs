@@ -58,6 +58,18 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> UseMaxAudioSources = new("usemaxaudiosources", new BasisPlatformDefault<bool>(false));
 
         /// <summary>
+        /// Maximum total active jiggle rigs across all remote players.
+        /// Each JiggleRig component creates one jiggle tree in the physics system.
+        /// Past ~16k trees Unity's TAA post-process begins to break down, so this
+        /// sits just below that ceiling by default.
+        /// Rigs beyond the cap are disabled, prioritized by distance (closest kept);
+        /// the same cap pass also removes body colliders for skipped avatars so every
+        /// remaining rig stops paying broadphase cost against them.
+        /// </summary>
+        public static BasisSettingsBinding<float> MaxJiggleRigs = new("maxjigglerigs", new BasisPlatformDefault<float>(15000));
+        public static BasisSettingsBinding<bool> UseMaxJiggleRigs = new("usemaxjigglerigs", new BasisPlatformDefault<bool>(false));
+
+        /// <summary>
         /// When enabled, caps the number of OpenLipSync (neural viseme) slots to <see cref="OpenLipSyncMaxSlots"/>.
         /// When disabled (default), slot count is unlimited — bounded only by the number of players in viseme range.
         /// </summary>
@@ -714,6 +726,8 @@ namespace Basis.BasisUI
             MaxVisibleAvatars.LoadBindingValue();
             UseMaxAudioSources.LoadBindingValue();
             MaxAudioSources.LoadBindingValue();
+            UseMaxJiggleRigs.LoadBindingValue();
+            MaxJiggleRigs.LoadBindingValue();
             UseOpenLipSyncLimit.LoadBindingValue();
             OpenLipSyncMaxSlots.LoadBindingValue();
             PoseLOD.LoadBindingValue();

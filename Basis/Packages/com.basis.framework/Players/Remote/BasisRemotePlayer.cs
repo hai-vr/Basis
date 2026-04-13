@@ -127,6 +127,14 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </summary>
         public string AvatarLoadErrorMessage;
 
+        /// <summary>
+        /// Runtime cache of the per-player block state, mirrored from
+        /// <see cref="BasisPlayerSettingsData.IsBlocked"/>. When true, this player's
+        /// audio, avatar, and nameplate are hidden on the local client.
+        /// Refreshed during avatar load and toggled by the user settings UI.
+        /// </summary>
+        public bool IsBlocked;
+
         #endregion
 
         #region Initialization / Addressables
@@ -262,12 +270,13 @@ namespace Basis.Scripts.BasisSdk.Players
 
             // Fetch per-player visibility settings.
             BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
+            IsBlocked = BasisPlayerSettingsData.IsBlocked;
 
             // Remember last requested avatar and mode for potential reloads.
             AlwaysRequestedAvatar = BasisLoadableBundle;
             AlwaysRequestedMode = Mode;
 
-            if (BasisPlayerSettingsData.AvatarVisible && InAvatarRange)
+            if (BasisPlayerSettingsData.AvatarVisible && !BasisPlayerSettingsData.IsBlocked && InAvatarRange)
             {
                 await BasisAvatarFactory.LoadAvatarRemote(this, Mode, BasisLoadableBundle, Vector3.zero, Quaternion.identity);
             }

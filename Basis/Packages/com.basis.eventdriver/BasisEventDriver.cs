@@ -181,6 +181,10 @@ public partial class BasisEventDriver : MonoBehaviour
             try { action.Invoke(); }
             catch (Exception ex) { Debug.LogError($"MainThread action failed: {ex}"); }
         }
+        // Player join/leave work is budgeted separately so a mass disconnect
+        // (hundreds of players at once) can't chain N synchronous GameObject.Destroy
+        // calls in a single frame and stall the renderer.
+        BasisNetworkHandleRemoval.ProcessLifecycleQueue(BasisNetworkHandleRemoval.LifecycleBudgetPerFrame);
         BasisNetworkManagement.SimulateNetworkCompute(unscaledDeltaTime);
         BasisObjectSyncDriver.ScheduleRemoteLerp(DeltaTime);
         if (!IsHeadlessClient)

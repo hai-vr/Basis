@@ -335,15 +335,22 @@ namespace Basis.Scripts.Drivers
 
         public void ZeroVisemes()
         {
-            if (_meshRenderer == null) return;
+            if (_meshRenderer == null || _hasViseme == null || _visemeToBlendShape == null) return;
+
+            // During teardown the SkinnedMeshRenderer can outlive its sharedMesh, leaving
+            // blendShapeCount at 0; SetBlendShapeWeight then throws "index out of bounds (size=0)".
+            var sharedMesh = _meshRenderer.sharedMesh;
+            if (sharedMesh == null) return;
+            int blendShapeCount = sharedMesh.blendShapeCount;
+            if (blendShapeCount == 0) return;
 
             for (int i = 0; i < VisemeCount; i++)
             {
-                if (_hasViseme[i])
-                {
-                    _meshRenderer.SetBlendShapeWeight(_visemeToBlendShape[i], 0f);
-                    _lastApplied[i] = 0f;
-                }
+                if (!_hasViseme[i]) continue;
+                int bsIndex = _visemeToBlendShape[i];
+                if (bsIndex < 0 || bsIndex >= blendShapeCount) continue;
+                _meshRenderer.SetBlendShapeWeight(bsIndex, 0f);
+                _lastApplied[i] = 0f;
             }
             Array.Clear(_cachedVisemeWeights, 0, _cachedVisemeWeights.Length);
         }

@@ -61,6 +61,80 @@ namespace Basis.Scripts.Drivers
         public bool InBoneDriver = false;
 
         /// <summary>
+        /// Cached jiggle rig components on this remote avatar, captured during calibration.
+        /// Each rig maps 1:1 to a jiggle tree in the physics system.
+        /// </summary>
+        public JiggleRig[] JiggleRigs = Array.Empty<JiggleRig>();
+
+        /// <summary>
+        /// Cached length of <see cref="JiggleRigs"/>, used by the MaxJiggleRigs cap pass.
+        /// </summary>
+        public int JiggleRigCount;
+
+        /// <summary>
+        /// Current cap-pass state: true if this avatar's rigs are currently enabled.
+        /// Lets <see cref="SetJiggleRigsEnabled"/> short-circuit when nothing changed.
+        /// </summary>
+        public bool JiggleRigsEnabled = true;
+
+        /// <summary>
+        /// Whether this avatar's cached body colliders (feet, hands, fingers) are
+        /// currently registered with <see cref="JigglePhysics"/>. Flipped by the
+        /// transmission cap pass to remove the broadphase cost of skipped avatars.
+        /// </summary>
+        public bool JiggleCollidersRegistered = false;
+
+        /// <summary>
+        /// Batch-enable or disable every cached JiggleRig on this avatar.
+        /// No-ops when the requested state already matches, so the transmission
+        /// cap loop can call this every tick without churn.
+        /// </summary>
+        public void SetJiggleRigsEnabled(bool enabled)
+        {
+            if (JiggleRigsEnabled == enabled)
+            {
+                return;
+            }
+            JiggleRigsEnabled = enabled;
+            for (int i = 0; i < JiggleRigCount; i++)
+            {
+                JiggleRig rig = JiggleRigs[i];
+                if (rig != null && rig.enabled != enabled)
+                {
+                    rig.enabled = enabled;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Register or unregister this avatar's cached body colliders with
+        /// <see cref="JigglePhysics"/> without clearing <see cref="BasisAvatarDriver.JiggleColliders"/>.
+        /// Unlike <see cref="BasisAvatarDriver.RemoveJiggleRigColliders"/>, this keeps the list
+        /// intact so the cap pass can flip registration back on when the avatar re-enters the budget.
+        /// </summary>
+        public void SetJiggleCollidersEnabled(bool enabled)
+        {
+            if (JiggleCollidersRegistered == enabled)
+            {
+                return;
+            }
+            if (JiggleColliders == null || JiggleColliders.Count == 0)
+            {
+                JiggleCollidersRegistered = enabled;
+                return;
+            }
+            if (enabled)
+            {
+                JigglePhysics.AddJiggleColliders(JiggleColliders);
+            }
+            else
+            {
+                JigglePhysics.RemoveJiggleColliders(JiggleColliders);
+            }
+            JiggleCollidersRegistered = enabled;
+        }
+
+        /// <summary>
         /// Performs remote-avatar calibration and registers it with the job system.
         /// Initializes TPose, references, face visibility, eye/blink drivers, and physics colliders.
         /// </summary>
@@ -98,9 +172,10 @@ namespace Basis.Scripts.Drivers
             CaptureReceiverBoneData(RemotePlayer);
 
             // Initialize any jiggle rigs
-            var JiggleRigs = RemotePlayer.BasisAvatar.GetComponentsInChildren<JiggleRig>();
-            int length = JiggleRigs.Length;
-            for (int Index = 0; Index < length; Index++)
+            JiggleRigs = RemotePlayer.BasisAvatar.GetComponentsInChildren<JiggleRig>();
+            JiggleRigCount = JiggleRigs.Length;
+            JiggleRigsEnabled = true;
+            for (int Index = 0; Index < JiggleRigCount; Index++)
             {
                 JiggleRig Rig = JiggleRigs[Index];
                 JiggleRigData Data = Rig.GetJiggleRigData();
@@ -346,10 +421,12 @@ namespace Basis.Scripts.Drivers
         public async void SetupAvatarJiggleColliders()
         {
             RemoveJiggleRigColliders();
+            JiggleCollidersRegistered = false;
             BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(Player.UUID);
             if (BasisPlayerSettingsData.AvatarInteraction && Player.IsConsideredFallBackAvatar == false)
             {
                 AddJiggleRigColliders(References);
+                JiggleCollidersRegistered = true;
             }
         }
 

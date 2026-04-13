@@ -56,10 +56,19 @@ public static class BasisNetworkEvents
                     Reader.Recycle();
                     return;
                 }
+                // Deserialize on the main thread (preserves existing thread affinity),
+                // recycle the reader immediately, then enqueue the heavy
+                // CreateRemotePlayer work into the budgeted lifecycle queue.
                 BasisDeviceManagement.EnqueueOnMainThread(() =>
                 {
-                    BasisRemotePlayerFactory.HandleCreateRemotePlayer(Reader, BasisNetworkManagement.instantiationParameters);
+                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
+                    ServerReadyMessage srm = new ServerReadyMessage();
+                    srm.Deserialize(Reader);
                     Reader.Recycle();
+                    BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
+                    {
+                        BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
+                    });
                 });
                 break;
             case BasisNetworkCommons.CreateRemotePlayersForNewPeerChannel:
@@ -71,9 +80,14 @@ public static class BasisNetworkEvents
                 //same as remote player but just used at the start
                 BasisDeviceManagement.EnqueueOnMainThread(() =>
                 {
-                    //this one is called first and is also generally where the issues are.
-                    BasisRemotePlayerFactory.HandleCreateRemotePlayer(Reader, BasisNetworkManagement.instantiationParameters);
+                    BasisNetworkProfiler.AddToCounter(BasisNetworkProfilerCounter.ServerSideSyncPlayer, Reader.AvailableBytes);
+                    ServerReadyMessage srm = new ServerReadyMessage();
+                    srm.Deserialize(Reader);
                     Reader.Recycle();
+                    BasisNetworkHandleRemoval.LifecycleQueue.Enqueue(() =>
+                    {
+                        BasisRemotePlayerFactory.CreateRemotePlayer(srm, BasisNetworkManagement.instantiationParameters);
+                    });
                 });
                 break;
             case BasisNetworkCommons.GetCurrentOwnerRequestChannel:

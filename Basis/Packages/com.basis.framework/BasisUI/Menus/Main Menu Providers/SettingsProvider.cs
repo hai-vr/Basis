@@ -279,6 +279,26 @@ namespace Basis.BasisUI
                 rangeGroup.ForceRebuild();
             };
 
+            PanelToggle toggleLimitJiggleRigs = PanelToggle.CreateNewEntry(rangeGroup);
+            toggleLimitJiggleRigs.AssignBinding(BasisSettingsDefaults.UseMaxJiggleRigs);
+            toggleLimitJiggleRigs.Descriptor.SetTitle("Limit Jiggle Rigs");
+            toggleLimitJiggleRigs.Descriptor.SetDescription("Cap the total number of active jiggle rigs across remote players. Past ~16k trees Unity's TAA breaks down, so this preserves rendering in large crowds.");
+
+            PanelSlider sliderMaxJiggleRigs = PanelSlider.CreateEntryAndBind(
+                rangeGroup,
+                PanelSlider.SliderSettings.Advanced("Max Jiggle Rigs", 0, 16000, true, 0, ValueDisplayMode.Raw),
+                BasisSettingsDefaults.MaxJiggleRigs);
+
+            sliderMaxJiggleRigs.Descriptor.SetDescription("Hard limit on active rigs across remote players. 16000 is the ceiling where Unity's TAA begins to break down.");
+
+            sliderMaxJiggleRigs.Descriptor.SetActive(toggleLimitJiggleRigs.Value);
+
+            toggleLimitJiggleRigs.OnValueChanged += (val) =>
+            {
+                sliderMaxJiggleRigs.Descriptor.SetActive(val);
+                rangeGroup.ForceRebuild();
+            };
+
             // TODO: re-enable when avatar preview is finished
             // PanelToggle toggleAvatarPreview = PanelToggle.CreateNewEntry(rangeGroup);
             // toggleAvatarPreview.AssignBinding(BasisSettingsDefaults.AvatarPreview);
@@ -308,6 +328,8 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.MaxVisibleAvatars.ResetToDefault();
             BasisSettingsDefaults.MaxAudioSources.ResetToDefault();
             BasisSettingsDefaults.UseMaxAudioSources.ResetToDefault();
+            BasisSettingsDefaults.MaxJiggleRigs.ResetToDefault();
+            BasisSettingsDefaults.UseMaxJiggleRigs.ResetToDefault();
             BasisSettingsDefaults.UseViewConeAvatars.ResetToDefault();
             BasisSettingsDefaults.ViewConeAngle.ResetToDefault();
             BasisSettingsDefaults.HearingRange.ResetToDefault();

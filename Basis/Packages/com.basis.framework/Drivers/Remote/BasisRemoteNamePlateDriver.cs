@@ -140,6 +140,7 @@ namespace Basis.Scripts.UI.NamePlate
         {
             if (!NamePlateEnabled) return false;
             if (!plate.IsVisible) return false;
+            if (plate.BasisRemotePlayer != null && plate.BasisRemotePlayer.IsBlocked) return false;
             if (NamePlateMenuOnly && BasisMainMenu.Instance == null) return false;
             return true;
         }
@@ -154,7 +155,7 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 var plate = plates[i];
                 if (plate != null)
-                    plate.gameObject.SetActive(ShouldPlateBeActive(plate));
+                    plate.RefreshActiveState();
             }
         }
 

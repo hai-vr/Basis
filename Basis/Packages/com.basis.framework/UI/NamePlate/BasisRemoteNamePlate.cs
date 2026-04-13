@@ -5,6 +5,7 @@ using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.TransformBinders.BoneControl;
 using System.Threading;
+using System.Threading.Tasks;
 using TMPro;
 using Unity.Mathematics;
 using UnityEngine;
@@ -95,6 +96,32 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 gameObject.SetActive(false);
             }
+
+            _ = LoadBlockStateAsync();
+        }
+
+        /// <summary>
+        /// Re-evaluates and applies this nameplate's active state via
+        /// <see cref="BasisRemoteNamePlateDriver.ShouldPlateBeActive"/>.
+        /// </summary>
+        public void RefreshActiveState()
+        {
+            gameObject.SetActive(BasisRemoteNamePlateDriver.ShouldPlateBeActive(this));
+        }
+
+        /// <summary>
+        /// Reads the persisted block state for this player and refreshes the
+        /// nameplate's active state. Fire-and-forget from <see cref="Initalize"/>.
+        /// </summary>
+        private async Task LoadBlockStateAsync()
+        {
+            if (BasisRemotePlayer == null || string.IsNullOrEmpty(BasisRemotePlayer.UUID)) return;
+
+            var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(BasisRemotePlayer.UUID);
+            if (this == null || BasisRemotePlayer == null) return;
+
+            BasisRemotePlayer.IsBlocked = settings.IsBlocked;
+            RefreshActiveState();
         }
         private void SetPlateColor(Color c)
         {
@@ -205,7 +232,7 @@ namespace Basis.Scripts.UI.NamePlate
         private void UpdateFaceVisibility(bool State)
         {
             IsVisible = State;
-            gameObject.SetActive(BasisRemoteNamePlateDriver.ShouldPlateBeActive(this));
+            RefreshActiveState();
 
             // If we get hidden, just stop the pulse (avoids Update doing work on hidden plate)
             if (!State)

@@ -43,6 +43,10 @@ public static class SettingsProviderKeyboardBindings
             ("Crouch", "Crouch"),
             ("Primary Controller A", "Primary Action"));
 
+        // Voice
+        BuildSimpleGroup(container, playerMap, asset, "Voice", "Microphone controls.",
+            ("ToggleMicMute", "Toggle Mic Mute"));
+
         // Menu
         BuildSimpleGroup(container, playerMap, asset, "Menu", "Menu and UI shortcuts.",
             ("Tab", "Free Cursor"),

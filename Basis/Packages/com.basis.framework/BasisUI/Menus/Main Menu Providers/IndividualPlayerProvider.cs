@@ -497,6 +497,43 @@ namespace Basis.BasisUI
                 }
             };
 
+            // ---- Block group ----
+            var blockGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            blockGroup.SetTitle("Block");
+            blockGroup.SetDescription("Block this player. Their audio, avatar, and nameplate will be hidden from your client.");
+
+            PanelButton toggleBlockBtn = PanelButton.CreateNew(blockGroup.ContentParent);
+            toggleBlockBtn.Descriptor.SetTitle(settings.IsBlocked ? "Unblock Player" : "Block Player");
+            toggleBlockBtn.Descriptor.SetDescription("Mutes audio, hides the avatar, and hides the nameplate for this player on your client only.");
+
+            toggleBlockBtn.OnClicked += async () =>
+            {
+                var s = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
+                s.IsBlocked = !s.IsBlocked;
+                await BasisPlayerSettingsManager.SetPlayerSettings(s);
+
+                if (remotePlayer == null) return;
+
+                toggleBlockBtn.Descriptor.SetTitle(s.IsBlocked ? "Unblock Player" : "Block Player");
+                remotePlayer.IsBlocked = s.IsBlocked;
+
+                if (remotePlayer.NetworkReceiver != null && remotePlayer.NetworkReceiver.AudioReceiverModule != null)
+                {
+                    remotePlayer.NetworkReceiver.AudioReceiverModule.ChangeRemotePlayersVolumeSettings(s.IsBlocked ? 0f : s.VolumeLevel);
+                }
+
+                remotePlayer.ReloadAvatar();
+
+                if (remotePlayer.RemoteNamePlate != null)
+                {
+                    if (s.IsBlocked)
+                    {
+                        remotePlayer.RemoteNamePlate.SetChatText(string.Empty);
+                    }
+                    remotePlayer.RemoteNamePlate.RefreshActiveState();
+                }
+            };
+
             var chatGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             chatGroup.SetTitle("Chat");
             chatGroup.SetDescription("Control chat message visibility for this player.");
