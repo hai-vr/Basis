@@ -172,6 +172,7 @@ public partial class BasisEventDriver : MonoBehaviour
     /// </summary>
     public void Update()
     {
+
         DeltaTime = Time.deltaTime;
         unscaledDeltaTime = Time.unscaledDeltaTime;
         realtimeSinceStartupAsDouble = Time.realtimeSinceStartupAsDouble;
@@ -311,7 +312,8 @@ public partial class BasisEventDriver : MonoBehaviour
 
         // ── JigglePhysics schedule ──
         ProfileBegin(PROF_JIGGLE_SCHEDULE);
-        accumulatedTime += DeltaTime;
+        var fixedDeltaTime = Time.fixedDeltaTime;
+        accumulatedTime += Time.deltaTime;
         if (accumulatedTime > fixedDeltaTime)
         {
             while (accumulatedTime > fixedDeltaTime)

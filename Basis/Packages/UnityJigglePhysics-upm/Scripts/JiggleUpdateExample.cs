@@ -13,28 +13,33 @@ public class JiggleUpdateExample : MonoBehaviour {
     private double accumulatedTime;
     private double fixedTime;
 
-    private void LateUpdate() {
-        var time = Time.timeAsDouble;
-        var fixedDeltaTime = Time.fixedDeltaTime;
-        accumulatedTime += Time.deltaTime;
-        if (accumulatedTime > fixedDeltaTime) {
-            while (accumulatedTime > fixedDeltaTime) {
-                fixedTime += fixedDeltaTime;
-                accumulatedTime -= fixedDeltaTime;
+        private void LateUpdate()
+        {
+            var time = Time.timeAsDouble;
+            var fixedDeltaTime = Time.fixedDeltaTime;
+            accumulatedTime += Time.deltaTime;
+            if (accumulatedTime > fixedDeltaTime)
+            {
+                while (accumulatedTime > fixedDeltaTime)
+                {
+                    fixedTime += fixedDeltaTime;
+                    accumulatedTime -= fixedDeltaTime;
+                }
+                JigglePhysics.ScheduleSimulate(fixedTime, time, fixedDeltaTime);
             }
-            JigglePhysics.ScheduleSimulate(fixedTime, time, fixedDeltaTime);
-        }
 
-        JigglePhysics.SchedulePose(time);
-        if (debugDraw) {
-            JigglePhysics.ScheduleRender();
+            JigglePhysics.SchedulePose(time);
+            if (debugDraw)
+            {
+                JigglePhysics.ScheduleRender();
+            }
+
+            JigglePhysics.CompletePose();
+            if (debugDraw)
+            {
+                JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
+            }
         }
-        
-        JigglePhysics.CompletePose();
-        if (debugDraw) {
-            JigglePhysics.CompleteRender(proceduralMaterial, sphereMesh);
-        }
-    }
 
     void OnApplicationQuit() {
         JigglePhysics.Dispose();
