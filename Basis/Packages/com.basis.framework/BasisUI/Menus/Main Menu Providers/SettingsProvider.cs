@@ -880,7 +880,7 @@ namespace Basis.BasisUI
             dropdownAntialiasing.Descriptor.SetTitle("Antialiasing");
             dropdownAntialiasing.AssignEntries(new List<string>
             {
-                "Off","MSAA 2X","MSAA 4X","MSAA 8X","Linear","Point","FSR","STP"
+                "Off","MSAA 2X","MSAA 4X","MSAA 8X","Linear","Point","FSR"//,"STP"
             });
             dropdownAntialiasing.AssignBinding(BasisSettingsDefaults.Antialiasing);
 
