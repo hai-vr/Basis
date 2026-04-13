@@ -873,8 +873,11 @@ namespace SteamAudio
             {
                 for (var i = 0; i < Singleton.mHRTFs.Length; ++i)
                 {
-                    Singleton.mHRTFs[i].Release();
-                    Singleton.mHRTFs[i] = null;
+                    if (Singleton.mHRTFs[i] != null)
+                    {
+                        Singleton.mHRTFs[i].Release();
+                        Singleton.mHRTFs[i] = null;
+                    }
                 }
             }
 
