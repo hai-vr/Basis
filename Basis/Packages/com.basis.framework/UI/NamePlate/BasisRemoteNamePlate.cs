@@ -365,6 +365,11 @@ namespace Basis.Scripts.UI.NamePlate
         }
         public override bool CanHover(BasisInput input)
         {
+            if (BasisRemoteNamePlateDriver.NamePlateHoverMenuOnly && BasisMainMenu.Instance == null)
+            {
+                return false;
+            }
+
             return InteractableEnabled &&
                 Inputs.IsInputAdded(input) &&
                 input.TryGetRole(out BasisBoneTrackedRole role) &&

@@ -38,6 +38,10 @@ namespace Basis.BasisUI
             toggleMenuOnly.Descriptor.SetTitle("Only Show When Menu Open");
             toggleMenuOnly.AssignBinding(BasisSettingsDefaults.NPMenuOnly);
 
+            PanelToggle toggleHoverMenuOnly = PanelToggle.CreateNewEntry(nameplateGroup);
+            toggleHoverMenuOnly.Descriptor.SetTitle("Only Allow Hover When Menu Open");
+            toggleHoverMenuOnly.AssignBinding(BasisSettingsDefaults.NPHoverMenuOnly);
+
             PanelSlider sliderWidth = PanelSlider.CreateEntryAndBind(
                 nameplateGroup,
                 PanelSlider.SliderSettings.Advanced("Width", 10f, 60f, false, 1, ValueDisplayMode.Raw),
@@ -56,12 +60,14 @@ namespace Basis.BasisUI
             // Hide appearance settings when nameplates are disabled
             bool isEnabled = BasisSettingsDefaults.NPEnabled.RawValue;
             toggleMenuOnly.Descriptor.SetActive(isEnabled);
+            toggleHoverMenuOnly.Descriptor.SetActive(isEnabled);
             sliderWidth.Descriptor.SetActive(isEnabled);
             sliderSize.Descriptor.SetActive(isEnabled);
             sliderTransparency.Descriptor.SetActive(isEnabled);
             toggleEnabled.OnValueChanged += (val) =>
             {
                 toggleMenuOnly.Descriptor.SetActive(val);
+                toggleHoverMenuOnly.Descriptor.SetActive(val);
                 sliderWidth.Descriptor.SetActive(val);
                 sliderSize.Descriptor.SetActive(val);
                 sliderTransparency.Descriptor.SetActive(val);
@@ -79,6 +85,7 @@ namespace Basis.BasisUI
         {
             BasisSettingsDefaults.NPEnabled.ResetToDefault();
             BasisSettingsDefaults.NPMenuOnly.ResetToDefault();
+            BasisSettingsDefaults.NPHoverMenuOnly.ResetToDefault();
             BasisSettingsDefaults.NPWidth.ResetToDefault();
             BasisSettingsDefaults.NPSize.ResetToDefault();
             BasisSettingsDefaults.NPTransparency.ResetToDefault();

@@ -284,7 +284,25 @@ namespace Basis.Scripts.BasisSdk.Players
             {
                 BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,Vector3.zero, Quaternion.identity);
             }
+
+            if (BasisAvatar != null)
+            {
+                bool shouldBeActive = !BasisPlayerSettingsData.IsBlocked;
+                if (BasisAvatar.gameObject.activeSelf != shouldBeActive)
+                {
+                    BasisAvatar.gameObject.SetActive(shouldBeActive);
+                }
+            }
+
             IsLoadingAnAvatar = false;
+
+            // Blocked is a terminal visibility state — skip the range-based re-evaluation
+            // to avoid an infinite ReloadAvatar loop (the mismatch condition below would
+            // always fire since blocked players never advance past the fallback branch).
+            if (BasisPlayerSettingsData.IsBlocked)
+            {
+                return;
+            }
 
             // If state drifted during the load, re-evaluate immediately.
             // Otherwise set cooldown to prevent oscillation.

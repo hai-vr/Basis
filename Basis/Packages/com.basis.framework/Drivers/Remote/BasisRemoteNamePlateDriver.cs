@@ -42,6 +42,7 @@ namespace Basis.Scripts.UI.NamePlate
 
         public static bool NamePlateEnabled = true;
         public static bool NamePlateMenuOnly = false;
+        public static bool NamePlateHoverMenuOnly = false;
         public static float NamePlateHalfWidth = 30f;
         public static float NamePlateSize = 1f;
         public static float NamePlateTransparency = 0.45f;
@@ -73,6 +74,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             NamePlateEnabled = BasisSettingsDefaults.NPEnabled.RawValue;
             NamePlateMenuOnly = BasisSettingsDefaults.NPMenuOnly.RawValue;
+            NamePlateHoverMenuOnly = BasisSettingsDefaults.NPHoverMenuOnly.RawValue;
             NamePlateHalfWidth = BasisSettingsDefaults.NPWidth.RawValue;
             NamePlateSize = BasisSettingsDefaults.NPSize.RawValue;
             NamePlateTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
@@ -167,6 +169,7 @@ namespace Basis.Scripts.UI.NamePlate
         {
             bool enabled = BasisSettingsDefaults.NPEnabled.RawValue;
             bool menuOnly = BasisSettingsDefaults.NPMenuOnly.RawValue;
+            bool hoverMenuOnly = BasisSettingsDefaults.NPHoverMenuOnly.RawValue;
             float newWidth = BasisSettingsDefaults.NPWidth.RawValue;
             float newSize = BasisSettingsDefaults.NPSize.RawValue;
             float newTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
@@ -175,6 +178,7 @@ namespace Basis.Scripts.UI.NamePlate
 
             NamePlateEnabled = enabled;
             NamePlateMenuOnly = menuOnly;
+            NamePlateHoverMenuOnly = hoverMenuOnly;
             NamePlateHalfWidth = newWidth;
             NamePlateSize = newSize;
             NamePlateTransparency = newTransparency;
