@@ -8,7 +8,6 @@ using Basis.Scripts.Networking.NetworkedAvatar;
 using Basis.Scripts.Networking.Receivers;
 using Basis.Scripts.Networking.Transmitters;
 using Basis.Scripts.Profiler;
-using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -94,25 +93,6 @@ public partial class BasisTransmissionResults
     /// Scratch buffer for audio-cap sorting. Sized to capacity, reused each tick.
     /// </summary>
     private NativeArray<AudioCapEntry> audioCapEntries;
-
-    /// <summary>
-    /// Scratch buffer for the jiggle-rig cap sort. Managed array so we can
-    /// call MonoBehaviour.enabled on the main thread right after sorting.
-    /// Grown on demand; never shrinks.
-    /// </summary>
-    private JiggleRigCapEntry[] jiggleRigCapEntries;
-
-    private struct JiggleRigCapEntry
-    {
-        public int Index;
-        public float DistSq;
-    }
-
-    private sealed class JiggleRigCapComparer : IComparer<JiggleRigCapEntry>
-    {
-        public static readonly JiggleRigCapComparer Instance = new JiggleRigCapComparer();
-        public int Compare(JiggleRigCapEntry a, JiggleRigCapEntry b) => a.DistSq.CompareTo(b.DistSq);
-    }
 
     // State
     public bool IndexChanged;
@@ -504,8 +484,6 @@ public partial class BasisTransmissionResults
             _psw.Restart();
         }
 #endif
-        EnforceJiggleRigCap(snapshot, receiverCount);
-
         // Update who we are talking to (serialize without allocations)
         if (microphoneChange)
         {
@@ -556,93 +534,6 @@ public partial class BasisTransmissionResults
 
         // Consume one interval worth of accumulated time (robust to overshoot)
         timer = math.max(0f, timer - intervalUsedThisTick);
-    }
-
-    /// <summary>
-    /// Enforces <see cref="SMModuleDistanceBasedReductions.MaxJiggleRigs"/> by toggling
-    /// the cached JiggleRig components on each remote avatar. Sorts receivers ascending
-    /// by squared distance, walks the sorted list accumulating per-player rig counts,
-    /// and disables rigs on players once the budget is exhausted. The same pass also
-    /// unregisters body colliders for skipped avatars so every remaining rig stops
-    /// paying broadphase cost against them.
-    /// When the cap is disabled, every receiver is force-enabled so prior disables
-    /// from a previous tick are released.
-    /// </summary>
-    private void EnforceJiggleRigCap(IReadOnlyList<BasisNetworkReceiver> snapshot, int receiverCount)
-    {
-        bool capActive = SMModuleDistanceBasedReductions.UseMaxJiggleRigs && SMModuleDistanceBasedReductions.MaxJiggleRigs > 0;
-
-        if (!capActive)
-        {
-            for (int i = 0; i < receiverCount; i++)
-            {
-                var driver = snapshot[i].RemotePlayer?.RemoteAvatarDriver;
-                if (driver != null)
-                {
-                    driver.SetJiggleRigsEnabled(true);
-                    driver.SetJiggleCollidersEnabled(true);
-                }
-            }
-            return;
-        }
-
-        if (jiggleRigCapEntries == null || jiggleRigCapEntries.Length < receiverCount)
-        {
-            int size = math.max(16, math.ceilpow2(receiverCount));
-            jiggleRigCapEntries = new JiggleRigCapEntry[size];
-        }
-
-        unsafe
-        {
-            float* pDistanceSq = (float*)distanceSq.GetUnsafeReadOnlyPtr();
-            for (int i = 0; i < receiverCount; i++)
-            {
-                jiggleRigCapEntries[i] = new JiggleRigCapEntry
-                {
-                    Index = i,
-                    DistSq = pDistanceSq[i],
-                };
-            }
-        }
-
-        Array.Sort(jiggleRigCapEntries, 0, receiverCount, JiggleRigCapComparer.Instance);
-
-        int budget = SMModuleDistanceBasedReductions.MaxJiggleRigs;
-        int used = 0;
-
-        for (int i = 0; i < receiverCount; i++)
-        {
-            int idx = jiggleRigCapEntries[i].Index;
-            var driver = snapshot[idx].RemotePlayer?.RemoteAvatarDriver;
-            if (driver == null)
-            {
-                continue;
-            }
-
-            int rigCount = driver.JiggleRigCount;
-            if (rigCount == 0)
-            {
-                // No rigs but they may still have body colliders in the scene pool.
-                // Keep their colliders registered — they still shape others' collisions.
-                driver.SetJiggleRigsEnabled(true);
-                driver.SetJiggleCollidersEnabled(true);
-                continue;
-            }
-
-            // Keep this player's rigs if the whole set fits in the remaining budget.
-            // Partial-enabling a single avatar would look inconsistent, so it's all-or-nothing.
-            if (used + rigCount <= budget)
-            {
-                driver.SetJiggleRigsEnabled(true);
-                driver.SetJiggleCollidersEnabled(true);
-                used += rigCount;
-            }
-            else
-            {
-                driver.SetJiggleRigsEnabled(false);
-                driver.SetJiggleCollidersEnabled(false);
-            }
-        }
     }
 
     private void BuildAndSendTalkingPoints(IReadOnlyList<BasisNetworkReceiver> snapshot, int receiverCount)
