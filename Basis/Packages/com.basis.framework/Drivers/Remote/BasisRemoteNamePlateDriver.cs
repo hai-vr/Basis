@@ -142,7 +142,7 @@ namespace Basis.Scripts.UI.NamePlate
         {
             if (!NamePlateEnabled) return false;
             if (!plate.IsVisible) return false;
-            if (plate.BasisRemotePlayer != null && plate.BasisRemotePlayer.IsBlocked) return false;
+            if (plate.BasisRemotePlayer != null && plate.BasisRemotePlayer.IsEffectivelyBlocked) return false;
             if (NamePlateMenuOnly && BasisMainMenu.Instance == null) return false;
             return true;
         }

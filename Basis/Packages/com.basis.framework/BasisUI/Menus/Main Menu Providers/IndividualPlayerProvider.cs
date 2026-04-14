@@ -519,18 +519,27 @@ namespace Basis.BasisUI
 
                 if (remotePlayer.NetworkReceiver != null && remotePlayer.NetworkReceiver.AudioReceiverModule != null)
                 {
-                    remotePlayer.NetworkReceiver.AudioReceiverModule.ChangeRemotePlayersVolumeSettings(s.IsBlocked ? 0f : s.VolumeLevel);
+                    remotePlayer.NetworkReceiver.AudioReceiverModule.ChangeRemotePlayersVolumeSettings(
+                        remotePlayer.IsEffectivelyBlocked ? 0f : s.VolumeLevel);
                 }
 
                 remotePlayer.ReloadAvatar();
 
                 if (remotePlayer.RemoteNamePlate != null)
                 {
-                    if (s.IsBlocked)
+                    if (remotePlayer.IsEffectivelyBlocked)
                     {
                         remotePlayer.RemoteNamePlate.SetChatText(string.Empty);
                     }
                     remotePlayer.RemoteNamePlate.RefreshActiveState();
+                }
+
+                // Mirror the block onto the other side of the pair so that when we
+                // block them, they also can't see/hear us (session-scoped temp block).
+                if (Basis.Scripts.Networking.BasisNetworkPlayers.PlayerToNetworkedPlayer(
+                        remotePlayer, out BasisNetworkPlayer blockTargetNet))
+                {
+                    BasisNetworkHandleTempBlock.SendTempBlock(blockTargetNet.playerId, s.IsBlocked);
                 }
             };
 

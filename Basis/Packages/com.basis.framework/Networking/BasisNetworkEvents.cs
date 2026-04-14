@@ -411,6 +411,15 @@ public static class BasisNetworkEvents
                                 BasisNetworkPIPCameraDriver.OnRemoteCountdown(countdownMsg);
                             });
                             break;
+                        case BasisNetworkCommons.EventType_PlayerTempBlock:
+                            ushort tempBlockSenderId = Reader.GetUShort();
+                            bool tempBlockIsBlocked = Reader.GetBool();
+                            Reader.Recycle();
+                            BasisDeviceManagement.EnqueueOnMainThread(() =>
+                            {
+                                BasisNetworkHandleTempBlock.OnRemoteTempBlockReceived(tempBlockSenderId, tempBlockIsBlocked);
+                            });
+                            break;
                         default:
                             BNL.LogError($"Unknown EventsChannel event type: {eventType}");
                             Reader.Recycle();

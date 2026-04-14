@@ -1,5 +1,6 @@
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk.Helpers;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.Networking.NetworkedAvatar;
@@ -225,7 +226,9 @@ namespace Basis.Scripts.Networking.Receivers
             try
             {
                 var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(networkedPlayer.Player.UUID);
-                ChangeRemotePlayersVolumeSettings(settings.IsBlocked ? 0f : settings.VolumeLevel);
+                bool tempBlocked = networkedPlayer.Player is BasisRemotePlayer rp && rp.TempBlocked;
+                bool muted = settings.IsBlocked || tempBlocked;
+                ChangeRemotePlayersVolumeSettings(muted ? 0f : settings.VolumeLevel);
             }
             catch (Exception ex)
             {

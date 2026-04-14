@@ -147,6 +147,19 @@ namespace Basis.Scripts.BasisSdk.Players
         /// </summary>
         public bool IsBlocked;
 
+        /// <summary>
+        /// Session-scoped "temp block" set when the remote side (this player) has blocked
+        /// the local player, delivered via EventType_PlayerTempBlock. Not persisted.
+        /// Combined with <see cref="IsBlocked"/> to determine effective visibility —
+        /// whichever side of the pair blocked first wins on both ends.
+        /// </summary>
+        public bool TempBlocked;
+
+        /// <summary>
+        /// Effective block state: local persisted block OR remote session temp block.
+        /// </summary>
+        public bool IsEffectivelyBlocked => IsBlocked || TempBlocked;
+
         #endregion
 
         #region Initialization / Addressables
@@ -291,7 +304,9 @@ namespace Basis.Scripts.BasisSdk.Players
                 AlwaysRequestedAvatar = BasisLoadableBundle;
                 AlwaysRequestedMode = Mode;
 
-                if (BasisPlayerSettingsData.AvatarVisible && !BasisPlayerSettingsData.IsBlocked && InAvatarRange)
+                bool effectivelyBlocked = IsEffectivelyBlocked;
+
+                if (BasisPlayerSettingsData.AvatarVisible && !effectivelyBlocked && InAvatarRange)
                 {
                     await BasisAvatarFactory.LoadAvatarRemote(this, Mode, BasisLoadableBundle, Vector3.zero, Quaternion.identity);
                 }
@@ -302,7 +317,7 @@ namespace Basis.Scripts.BasisSdk.Players
 
                 if (BasisAvatar != null)
                 {
-                    bool shouldBeActive = !BasisPlayerSettingsData.IsBlocked;
+                    bool shouldBeActive = !effectivelyBlocked;
                     if (BasisAvatar.gameObject.activeSelf != shouldBeActive)
                     {
                         BasisAvatar.gameObject.SetActive(shouldBeActive);
@@ -319,7 +334,7 @@ namespace Basis.Scripts.BasisSdk.Players
             // Blocked is a terminal visibility state — skip the range-based re-evaluation
             // to avoid an infinite ReloadAvatar loop (the mismatch condition below would
             // always fire since blocked players never advance past the fallback branch).
-            if (BasisPlayerSettingsData.IsBlocked)
+            if (IsEffectivelyBlocked)
             {
                 return;
             }
