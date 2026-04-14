@@ -883,9 +883,11 @@ namespace SteamAudio
 
             SceneManager.sceneLoaded -= Singleton.OnSceneLoaded;
             SceneManager.sceneUnloaded -= Singleton.OnSceneUnloaded;
-
-            Singleton.mContext.Release();
-            Singleton.mContext = null;
+            if (Singleton.mContext != null)
+            {
+                Singleton.mContext.Release();
+                Singleton.mContext = null;
+            }
         }
 
         public static void Reinitialize()
