@@ -140,6 +140,14 @@ namespace Basis.Scripts.BasisSdk.Players
         public string AvatarLoadErrorMessage;
 
         /// <summary>
+        /// Terminal "give up" flag for avatar loading. Set when <see cref="BasisAvatarFactory.LoadAvatarRemote"/>
+        /// fails so we stop re-attempting on every range change. Cleared only when the
+        /// local user manually toggles Hide/Show Avatar for this player.
+        /// </summary>
+        [System.NonSerialized]
+        public bool HasFailedAvatarLoadGlobally;
+
+        /// <summary>
         /// Runtime cache of the per-player block state, mirrored from
         /// <see cref="BasisPlayerSettingsData.IsBlocked"/>. When true, this player's
         /// audio, avatar, and nameplate are hidden on the local client.
@@ -316,7 +324,7 @@ namespace Basis.Scripts.BasisSdk.Players
 
                 bool effectivelyBlocked = IsEffectivelyBlocked;
 
-                if (BasisPlayerSettingsData.AvatarVisible && !effectivelyBlocked && InAvatarRange)
+                if (BasisPlayerSettingsData.AvatarVisible && !effectivelyBlocked && InAvatarRange && !HasFailedAvatarLoadGlobally)
                 {
                     await BasisAvatarFactory.LoadAvatarRemote(this, Mode, BasisLoadableBundle, Vector3.zero, Quaternion.identity);
                 }
@@ -344,7 +352,9 @@ namespace Basis.Scripts.BasisSdk.Players
             // Blocked is a terminal visibility state — skip the range-based re-evaluation
             // to avoid an infinite ReloadAvatar loop (the mismatch condition below would
             // always fire since blocked players never advance past the fallback branch).
-            if (IsEffectivelyBlocked)
+            // Same reasoning applies to HasFailedAvatarLoadGlobally: once we've given up,
+            // the player is pinned to the fallback until the user manually toggles them.
+            if (IsEffectivelyBlocked || HasFailedAvatarLoadGlobally)
             {
                 return;
             }

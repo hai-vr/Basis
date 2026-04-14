@@ -196,6 +196,7 @@ namespace Basis.Scripts.Avatar
             {
                 Player.AvatarLoadErrorMessage = "Avatar address was empty or null";
                 BasisDebug.LogError("Avatar Address was empty or null! Falling back to loading avatar.");
+                MarkRemoteLoadFailed(Player);
                 LoadAvatarAfterError(Player, Position, Rotation); // UNGATED
                 ClearPlayerLoadToken(Player, token);
                 return;
@@ -278,7 +279,10 @@ namespace Basis.Scripts.Avatar
                 Player.AvatarLoadErrorMessage = $"Loading avatar failed: {e.Message}";
                 BasisDebug.LogError($"Loading avatar failed: {e}");
                 if (!token.IsCancellationRequested)
+                {
+                    MarkRemoteLoadFailed(Player);
                     LoadAvatarAfterError(Player, Position, Rotation); // UNGATED
+                }
             }
             finally
             {
@@ -358,6 +362,21 @@ namespace Basis.Scripts.Avatar
                 case BasisRemotePlayer remotePlayer:
                     SetupRemoteAvatar(remotePlayer);
                     break;
+            }
+        }
+
+        /// <summary>
+        /// Marks a remote player as permanently failed for this session's avatar load,
+        /// preventing range-change retries, and pushes the red failure color onto the nameplate.
+        /// Cleared only via the Hide/Show Avatar toggle in the individual player menu.
+        /// </summary>
+        public static void MarkRemoteLoadFailed(BasisRemotePlayer Player)
+        {
+            if (Player == null) return;
+            Player.HasFailedAvatarLoadGlobally = true;
+            if (Player.RemoteNamePlate != null)
+            {
+                Player.RemoteNamePlate.RefreshFailedStateColor();
             }
         }
 

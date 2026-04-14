@@ -19,6 +19,7 @@ namespace Basis.Scripts.UI.NamePlate
         public Color NormalColor;
         public Color IsTalkingColor;
         public Color OutOfRangeColor;
+        public Color FailedLoadColor = new Color(1f, 0.2f, 0.2f, 1f);
 
         [SerializeField] public static float transitionDuration = 0.3f;
         [SerializeField] public static float returnDelay = 0.4f;
@@ -26,6 +27,7 @@ namespace Basis.Scripts.UI.NamePlate
         public static Color StaticNormalColor;
         public static Color StaticIsTalkingColor;
         public static Color StaticOutOfRangeColor;
+        public static Color StaticFailedLoadColor;
         public static float4 NormalColorFloat4;
 
         public TextMeshPro Text;
@@ -86,6 +88,12 @@ namespace Basis.Scripts.UI.NamePlate
             StaticNormalColor = new Color(NormalColor.r, NormalColor.g, NormalColor.b, transparency);
             StaticIsTalkingColor = new Color(IsTalkingColor.r, IsTalkingColor.g, IsTalkingColor.b, transparency);
             StaticOutOfRangeColor = new Color(OutOfRangeColor.r, OutOfRangeColor.g, OutOfRangeColor.b, transparency);
+            // Guard against prefabs saved before FailedLoadColor existed — deserialization
+            // zeros the struct, which would render the failed plate invisible.
+            Color failedSource = (FailedLoadColor.r == 0f && FailedLoadColor.g == 0f && FailedLoadColor.b == 0f && FailedLoadColor.a == 0f)
+                ? new Color(1f, 0.2f, 0.2f, 1f)
+                : FailedLoadColor;
+            StaticFailedLoadColor = new Color(failedSource.r, failedSource.g, failedSource.b, transparency);
             NormalColorFloat4 = new float4(StaticNormalColor.r, StaticNormalColor.g, StaticNormalColor.b, StaticNormalColor.a);
         }
 

@@ -125,8 +125,39 @@ namespace Basis.Scripts.UI.NamePlate
         }
         private void SetPlateColor(Color c)
         {
+            // Failed-load state pins the plate to red regardless of what the caller asked for.
+            if (BasisRemotePlayer != null && BasisRemotePlayer.HasFailedAvatarLoadGlobally)
+            {
+                c = BasisRemoteNamePlateDriver.StaticFailedLoadColor;
+            }
             mpb.SetColor(ColorId, c);
             Renderer.SetPropertyBlock(mpb, 0);
+        }
+
+        /// <summary>
+        /// Immediately re-applies the plate color based on the current failed-load state.
+        /// Call when the player's <see cref="BasisRemotePlayer.HasFailedAvatarLoadGlobally"/>
+        /// flag changes so the visual updates without waiting for the next pulse tick.
+        /// </summary>
+        public void RefreshFailedStateColor()
+        {
+            if (mpb == null) return;
+            if (BasisRemotePlayer == null) return;
+
+            if (BasisRemotePlayer.HasFailedAvatarLoadGlobally)
+            {
+                // Kill any in-flight talking pulse so the job doesn't keep writing over red.
+                isPulsingTalk = false;
+                Color red = BasisRemoteNamePlateDriver.StaticFailedLoadColor;
+                SetPlateColor(red);
+                CurrentColor = red;
+            }
+            else
+            {
+                Color normal = BasisRemoteNamePlateDriver.StaticNormalColor;
+                SetPlateColor(normal);
+                CurrentColor = normal;
+            }
         }
         private void CreateChatTextDisplay()
         {
@@ -244,10 +275,13 @@ namespace Basis.Scripts.UI.NamePlate
         public void OnAudioReceived()
         {
             if (!IsVisible) return;
+            // Skip the talking pulse entirely while pinned to the failed-load red state.
+            if (BasisRemotePlayer != null && BasisRemotePlayer.HasFailedAvatarLoadGlobally) return;
 
             BasisDeviceManagement.EnqueueOnMainThread(() =>
             {
                 if (this == null || !isActiveAndEnabled) return;
+                if (BasisRemotePlayer != null && BasisRemotePlayer.HasFailedAvatarLoadGlobally) return;
 
                 // pick the "talking" pulse color
                 talkColorCached = BasisRemotePlayer.OutOfRangeFromLocal
@@ -273,6 +307,10 @@ namespace Basis.Scripts.UI.NamePlate
 
         internal void ApplyColorFromJob(Color c)
         {
+            if (BasisRemotePlayer != null && BasisRemotePlayer.HasFailedAvatarLoadGlobally)
+            {
+                c = BasisRemoteNamePlateDriver.StaticFailedLoadColor;
+            }
             SetPlateColor(c);
             CurrentColor = c;
         }

@@ -499,7 +499,19 @@ namespace Basis.BasisUI
 
                 toggleAvatarBtn.Descriptor.SetTitle(s.AvatarVisible ? "Hide Avatar" : "Show Avatar");
 
-                if (remotePlayer != null) remotePlayer.ReloadAvatar();
+                if (remotePlayer != null)
+                {
+                    // Manual toggle is the only escape hatch from the global "bail on retries"
+                    // state set by BasisAvatarFactory.MarkRemoteLoadFailed. Clear it here so
+                    // showing the avatar again actually re-attempts the download.
+                    remotePlayer.HasFailedAvatarLoadGlobally = false;
+                    remotePlayer.AvatarLoadErrorMessage = null;
+                    if (remotePlayer.RemoteNamePlate != null)
+                    {
+                        remotePlayer.RemoteNamePlate.RefreshFailedStateColor();
+                    }
+                    remotePlayer.ReloadAvatar();
+                }
             };
 
             toggleInteractionsBtn.OnClicked += async () =>
