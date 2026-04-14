@@ -413,9 +413,8 @@ namespace Basis.Scripts.Networking.Receivers
         public void OnCalibration()
         {
             _avatarDirty = true;
-            // New avatar instance = new prefab localScale; force the next tick to
-            // re-apply the network scale onto the fresh avatar root.
-            BasisRemoteNetworkDriver.ResetScaleTracking(playerId);
+            // Scale state is seeded inside RemoteCalibration via SeedScaleState
+            // before CalibrationComplete fires, so no reset is needed here.
             AudioReceiverModule.AvatarChanged(this, true);
 
             List<byte> keysToRemove = new List<byte>();

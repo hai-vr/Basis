@@ -209,23 +209,49 @@ public static class BasisRemoteNetworkDriver
     }
 
     /// <summary>
-    /// Resets the cached "last applied scale" for a player slot so the next
-    /// UpdateAllAvatarsJob tick is guaranteed to detect a change and cause
-    /// ApplyAvatarScaleJob to write the network scale onto the avatar root.
-    /// Must be called when a slot is reassigned to a new player and whenever the
-    /// avatar is recalibrated — otherwise a reused slot keeps the previous
-    /// player's last applied scale and the freshly spawned avatar stays at its
-    /// prefab localScale while hips get positioned under the wrong parent scale.
+    /// Seeds all scale-tracking state for a player slot to a known-good value.
+    /// Call at calibration time with the latest stashed network scale so the
+    /// first UpdateAllAvatarsJob tick (before SetFrameInputs has seeded the
+    /// real interp window) computes outScale == seed, sees
+    /// HasScaleChange == false, and does NOT overwrite the value the caller
+    /// already wrote directly to animator.transform.localScale.
+    ///
+    /// Without this seed: prev/target scales retain the last writer's value
+    /// (init (1,1,1) or a reused slot's previous player), the first apply tick
+    /// clobbers the correct calibration-time scale, and the avatar flickers at
+    /// (1,1,1) until enough buffers arrive to seed the real interp window.
+    ///
+    /// Uses GetUnsafePtr to bypass NativeArray safety checks so this is safe
+    /// to call from the main thread even if compute jobs are in flight for
+    /// other players (this slot belongs to the freshly joining player so no
+    /// concurrent job is touching it yet).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ResetScaleTracking(int index)
+    public static unsafe void SeedScaleState(int index, float3 seed)
     {
         if (!_initialized) return;
         if ((uint)index >= FixedCapacity) return;
-        // Sentinel that cannot match any real decompressed scale; forces
-        // lengthsq(outScale - LastAppliedScales[index]) > eps² on the next tick.
-        _lastAppliedScales[index] = new float3(float.NegativeInfinity);
-        _HasScaleChange[index] = false;
+        ((float3*)_prevScales.GetUnsafePtr())[index] = seed;
+        ((float3*)_targetScales.GetUnsafePtr())[index] = seed;
+        ((float3*)_outScales.GetUnsafePtr())[index] = seed;
+        ((float3*)_lastAppliedScales.GetUnsafePtr())[index] = seed;
+        ((byte*)_HasScaleChange.GetUnsafePtr())[index] = 0;
+    }
+
+    /// <summary>
+    /// Sentinel reset used when we don't yet have a real network scale to seed
+    /// with (slot-reuse cleanup at Initialize time). Forces the next
+    /// UpdateAllAvatarsJob tick to flag HasScaleChange so whatever value
+    /// propagates through the pipeline gets applied to the transform.
+    /// Prefer <see cref="SeedScaleState"/> when you have the stashed scale.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static unsafe void ResetScaleTracking(int index)
+    {
+        if (!_initialized) return;
+        if ((uint)index >= FixedCapacity) return;
+        ((float3*)_lastAppliedScales.GetUnsafePtr())[index] = new float3(float.NegativeInfinity);
+        ((byte*)_HasScaleChange.GetUnsafePtr())[index] = 0;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
