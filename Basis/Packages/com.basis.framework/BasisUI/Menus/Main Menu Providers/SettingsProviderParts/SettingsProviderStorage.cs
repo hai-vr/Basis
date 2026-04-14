@@ -47,7 +47,7 @@ public static class SettingsProviderStorage
         PanelElementDescriptor limitGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         limitGroup.SetTitle("Cache Settings");
-        limitGroup.SetDescription("Set the maximum disk space for cached BEE files.");
+        limitGroup.SetDescription("Set the maximum disk space for cached BEE (basis encrypted extension) files.");
 
         PanelSlider cacheSizeSlider = PanelSlider.CreateEntryAndBind(
             limitGroup.ContentParent,
@@ -57,7 +57,7 @@ public static class SettingsProviderStorage
         // Button to load and display all storage data on demand
         PanelButton loadDataButton = PanelButton.CreateNew(container);
         loadDataButton.Descriptor.SetTitle("Load Storage Data");
-        loadDataButton.Descriptor.SetDescription("Scan disk for cached BEE files. This may take a moment.");
+        loadDataButton.Descriptor.SetDescription("Scan disk for cached BEE (basis encrypted extension) files. This may take a moment.");
         loadDataButton.OnClicked += () =>
         {
             // Remove the load button itself
@@ -98,7 +98,7 @@ public static class SettingsProviderStorage
         // Clear all cache button
         PanelButton clearAllButton = PanelButton.CreateNew(container);
         clearAllButton.Descriptor.SetTitle("Clear All Cache");
-        clearAllButton.Descriptor.SetDescription("Delete all downloaded BEE files from disk.");
+        clearAllButton.Descriptor.SetDescription("Delete all downloaded BEE (basis encrypted extension) files from disk.");
         clearAllButton.OnClicked += () =>
         {
             BasisMainMenu.Instance.OpenDialogue(
@@ -120,7 +120,7 @@ public static class SettingsProviderStorage
         {
             PanelElementDescriptor filesGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            filesGroup.SetTitle("Stored BEE Files");
+            filesGroup.SetTitle("Stored BEE (basis encrypted extension) Files");
             filesGroup.SetDescription("Individual cached files. Click to delete.");
 
             foreach (var file in storedFiles)

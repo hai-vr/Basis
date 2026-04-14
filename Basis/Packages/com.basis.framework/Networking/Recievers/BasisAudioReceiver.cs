@@ -371,6 +371,11 @@ namespace Basis.Scripts.Networking.Receivers
 
         public void ChangeRemotePlayersVolumeSettings(float volume = 1.0f, float dopplerLevel = 0, float spatialBlend = 1.0f, bool spatialize = true, bool spatializePostEffects = true)
         {
+            if (BasisNetworkReceiver != null && BasisNetworkReceiver.RemotePlayer != null && BasisNetworkReceiver.RemotePlayer.IsEffectivelyBlocked)
+            {
+                volume = 0f;
+            }
+
             if (audioSource == null)
             {
 #if !UNITY_SERVER
@@ -482,11 +487,11 @@ namespace Basis.Scripts.Networking.Receivers
                 Array.Clear(_inputScratch, read, frames - read);
             }
 
-            float dampen = DirectionalDampeningMultiplier;
+            float gain = DirectionalDampeningMultiplier * SMModuleAudio.ActiveMainVolume;
             int idx = 0;
             for (int f = 0; f < frames; f++)
             {
-                float sample = FastClamp(_inputScratch[f] * dampen);
+                float sample = FastClamp(_inputScratch[f] * gain);
                 for (int c = 0; c < channels; c++)
                 {
                     data[idx++] = sample;
@@ -534,11 +539,11 @@ namespace Basis.Scripts.Networking.Receivers
                 phase += step;
             }
 
-            float dampen = DirectionalDampeningMultiplier;
+            float gain = DirectionalDampeningMultiplier * SMModuleAudio.ActiveMainVolume;
             int idx = 0;
             for (int f = 0; f < frames; f++)
             {
-                float sample = FastClamp(_resampleScratch[f] * dampen);
+                float sample = FastClamp(_resampleScratch[f] * gain);
                 for (int c = 0; c < channels; c++)
                 {
                     data[idx++] = sample;

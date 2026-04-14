@@ -216,7 +216,7 @@ namespace Basis.BasisUI
             ios = 0
         });
 
-        public static BasisSettingsBinding<float> FieldOfView = new("fieldofview", new BasisPlatformDefault<float>(65));
+        public static BasisSettingsBinding<float> FieldOfView = new("fieldofview", new BasisPlatformDefault<float>(75));
 
         public const float FOV_MIN = 50;
         public const float FOV_MAX = 120;
@@ -640,6 +640,9 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> NPSize = new("np_size", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> NPTransparency = new("np_transparency", new BasisPlatformDefault<float>(0.45f));
 
+        // ---------------- ADMIN ----------------
+        public static BasisSettingsBinding<bool> AdminAutoRefreshPlayerList = new("admin_autorefresh_playerlist", new BasisPlatformDefault<bool>(true));
+
         // Limiter
         public static BasisSettingsBinding<float> LimitThreshold = new("limitthreshold", new BasisPlatformDefault<float>(0.95f)); // pre-clip
 
@@ -953,6 +956,9 @@ namespace Basis.BasisUI
             NPWidth.LoadBindingValue();
             NPSize.LoadBindingValue();
             NPTransparency.LoadBindingValue();
+
+            // Admin
+            AdminAutoRefreshPlayerList.LoadBindingValue();
 
             // Remote Player Audio
             RAMinDistance.LoadBindingValue();

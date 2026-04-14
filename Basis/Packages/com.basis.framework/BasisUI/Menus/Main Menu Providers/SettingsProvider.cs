@@ -12,6 +12,7 @@ namespace Basis.BasisUI
     public partial class SettingsProvider : BasisMenuActionProvider<BasisMainMenu>
     {
         private static string _pendingTabName;
+        private static string _lastSelectedTabName;
 
         /// <summary>
         /// External packages can register additional settings tabs here via [RuntimeInitializeOnLoadMethod].
@@ -98,7 +99,7 @@ namespace Basis.BasisUI
             PanelTabGroup tabGroup = PanelTabGroup.CreateNew(panel.Descriptor.ContentParent, LayoutDirection.Vertical);
 
             // First tab is eager (shown immediately on open)
-            tabGroup.AddTab("General", null, GeneralTab(tabGroup));
+            tabGroup.AddTab("General", () => _lastSelectedTabName = "General", GeneralTab(tabGroup));
             // Remaining tabs are lazy-loaded on first selection to reduce stuttering
             AddLazyTab(tabGroup, "Audio", () => AudioTab(tabGroup));
             AddLazyTab(tabGroup, "Microphone", () => MicrophoneTab(tabGroup));
@@ -128,11 +129,16 @@ namespace Basis.BasisUI
                 AddLazyTab(tabGroup, "Admin", () => SettingsProviderAdminTab.AdminTab(tabGroup));
             }
 
-            // Navigate to a specific tab if requested via OpenToTab
+            // Navigate to a specific tab if requested via OpenToTab, otherwise
+            // restore the tab the user was on the last time Settings was open.
             if (!string.IsNullOrEmpty(_pendingTabName))
             {
                 NavigateToTab(tabGroup, _pendingTabName);
                 _pendingTabName = null;
+            }
+            else if (!string.IsNullOrEmpty(_lastSelectedTabName))
+            {
+                NavigateToTab(tabGroup, _lastSelectedTabName);
             }
 
             panel.Descriptor.ForceRebuild();
@@ -150,6 +156,8 @@ namespace Basis.BasisUI
 
             tabGroup.AddTab(tabName, () =>
             {
+                _lastSelectedTabName = tabName;
+
                 if (built) return;
                 built = true;
 

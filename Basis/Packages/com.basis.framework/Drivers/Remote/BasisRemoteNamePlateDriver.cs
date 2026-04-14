@@ -34,7 +34,6 @@ namespace Basis.Scripts.UI.NamePlate
         public Material OpaqueNamePlateMaterial;
 
         [HideInInspector] public Material SelectedNamePlateMaterial;
-        [HideInInspector] public Mesh RoundedCornersMesh;
 
         [Range(0f, 1f)] public float RoundEdges = 0.5f;
         public int CornerVertexCount = 8;
@@ -82,7 +81,6 @@ namespace Basis.Scripts.UI.NamePlate
 
             UpdateCachedColors(NamePlateTransparency);
             PrecomputeCornerData();
-            RoundedCornersMesh = GenerateRoundedQuad(NamePlateHalfWidth, 4.5f, "Rounded NamePlate Quad");
         }
 
         private void UpdateCachedColors(float transparency)
@@ -174,7 +172,7 @@ namespace Basis.Scripts.UI.NamePlate
             float newSize = BasisSettingsDefaults.NPSize.RawValue;
             float newTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
 
-            bool meshChanged = !Mathf.Approximately(NamePlateHalfWidth, newWidth);
+            bool widthChanged = !Mathf.Approximately(NamePlateHalfWidth, newWidth);
 
             NamePlateEnabled = enabled;
             NamePlateMenuOnly = menuOnly;
@@ -185,20 +183,15 @@ namespace Basis.Scripts.UI.NamePlate
 
             UpdateCachedColors(newTransparency);
 
-            if (meshChanged)
-            {
-                RoundedCornersMesh = GenerateRoundedQuad(NamePlateHalfWidth, 4.5f, "Rounded NamePlate Quad");
-            }
-
             Vector3 scale = new Vector3(0.02f, 0.02f, 0.02f) * newSize;
             for (int i = 0; i < plates.Count; i++)
             {
                 var plate = plates[i];
                 if (plate == null) continue;
 
-                if (meshChanged && plate.bakedMesh != null)
+                if (widthChanged && plate.BasisRemotePlayer != null)
                 {
-                    CombinePlateMesh(plate);
+                    GenerateTextFactory(plate.BasisRemotePlayer, plate);
                 }
 
                 if (plate.Self != null)
@@ -213,12 +206,12 @@ namespace Basis.Scripts.UI.NamePlate
         }
 
         /// <summary>
-        /// Combines RoundedCornersMesh + plate's baked text mesh.
+        /// Combines a fitted rounded-quad background + plate's baked text mesh.
         /// Shared by initial creation and mesh rebuilds.
         /// </summary>
-        private void CombinePlateMesh(BasisRemoteNamePlate namePlate, bool setMaterials = false)
+        private void CombinePlateMesh(BasisRemoteNamePlate namePlate, Mesh roundedMesh, bool setMaterials = false)
         {
-            combineBuffer[0] = new CombineInstance { mesh = RoundedCornersMesh, transform = Matrix4x4.identity };
+            combineBuffer[0] = new CombineInstance { mesh = roundedMesh, transform = Matrix4x4.identity };
             combineBuffer[1] = new CombineInstance { mesh = namePlate.bakedMesh, transform = Matrix4x4.identity };
 
             Mesh combinedMesh = new Mesh { name = "CombinedNameplateMesh" };
@@ -247,13 +240,21 @@ namespace Basis.Scripts.UI.NamePlate
             Text.text = remotePlayer.DisplayName;
             Text.ForceMeshUpdate();
 
+            // Measure the baked text so the background fits its actual content.
+            // Cap at NamePlateHalfWidth so the slider still acts as a max width.
+            Vector2 textSize = Text.GetRenderedValues(true);
+            const float horizontalPadding = 2f;
+            float fittedHalfWidth = (textSize.x * 0.5f) + horizontalPadding;
+            float halfWidth = Mathf.Min(fittedHalfWidth, NamePlateHalfWidth);
+
             Mesh textMesh = Instantiate(Text.mesh);
             FlipMesh(textMesh);
 
             namePlate.bakedMesh = textMesh;
             namePlate.Filter.sharedMesh = textMesh;
 
-            CombinePlateMesh(namePlate, setMaterials: true);
+            Mesh plateMesh = GenerateRoundedQuad(halfWidth, 4.5f, "Rounded NamePlate Quad");
+            CombinePlateMesh(namePlate, plateMesh, setMaterials: true);
             Text.gameObject.SetActive(false);
         }
 

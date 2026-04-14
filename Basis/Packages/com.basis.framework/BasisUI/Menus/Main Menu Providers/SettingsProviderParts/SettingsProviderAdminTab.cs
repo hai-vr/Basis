@@ -49,6 +49,11 @@ namespace Basis.BasisUI
             refreshPlayers.Descriptor.SetDescription("Rebuilds the list from current network state.");
             refreshPlayers.OnClicked += controller.RebuildPlayerList;
 
+            PanelToggle autoRefreshToggle = PanelToggle.CreateNewEntry(playersGroup.ContentParent);
+            autoRefreshToggle.Descriptor.SetTitle("Auto Refresh Player List");
+            autoRefreshToggle.Descriptor.SetDescription("Rebuild the list automatically when players join or leave. Disable in crowded instances to avoid rebuild cost.");
+            autoRefreshToggle.AssignBinding(BasisSettingsDefaults.AdminAutoRefreshPlayerList);
+
             // --- Target group ---
             PanelElementDescriptor targetGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -464,6 +469,7 @@ namespace Basis.BasisUI
 
             private void OnRemotePlayersChanged(BasisNetworkPlayer _p1, BasisRemotePlayer _p2)
             {
+                if (!BasisSettingsDefaults.AdminAutoRefreshPlayerList.RawValue) return;
                 RebuildPlayerList();
             }
 

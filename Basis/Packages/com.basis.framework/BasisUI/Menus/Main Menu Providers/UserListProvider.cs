@@ -8,7 +8,7 @@ namespace Basis.BasisUI
 {
     /// <summary>
     /// Main menu provider that displays a searchable grid of all connected players.
-    /// Supports filtering by Name and DID (UUID) via dropdown.
+    /// Supports filtering by Name and UUID via dropdown.
     /// Clicking a remote player opens their IndividualPlayerProvider panel.
     /// </summary>
     public class UserListProvider : BasisMenuActionProvider<BasisMainMenu>
@@ -54,7 +54,7 @@ namespace Basis.BasisUI
             // Search mode dropdown right below search
             PanelDropdown modeDropdown = PanelDropdown.CreateNewEntry(root);
             modeDropdown.Descriptor.SetTitle("Search Mode");
-            modeDropdown.AssignEntries(new List<string> { "Name", "DID" });
+            modeDropdown.AssignEntries(new List<string> { "Name", "UUID" });
             modeDropdown.SetValueWithoutNotify("Name");
 
             // Player count header
@@ -107,7 +107,7 @@ namespace Basis.BasisUI
 
         // ======== Types ========
 
-        private enum SearchMode { Name, DID }
+        private enum SearchMode { Name, UUID }
 
         private struct PlayerEntry
         {
@@ -135,6 +135,7 @@ namespace Basis.BasisUI
             {
                 BasisNetworkPlayer.OnRemotePlayerJoined += OnRemoteJoined;
                 BasisNetworkPlayer.OnRemotePlayerLeft += OnRemoteLeft;
+                PinnedPlayers.Changed += OnPinsChanged;
 
                 SearchField.OnValueChanged += OnSearchChanged;
                 ModeDropdown.OnValueChanged += OnModeChanged;
@@ -146,14 +147,28 @@ namespace Basis.BasisUI
             {
                 BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemoteJoined;
                 BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemoteLeft;
+                PinnedPlayers.Changed -= OnPinsChanged;
                 ClearAllEntries();
             }
 
             private void OnRemoteJoined(BasisNetworkPlayer netPlayer, BasisRemotePlayer _)
             {
-                AddPlayerEntry(netPlayer);
-                ApplyFilter();
-                UpdateHeader();
+                if (netPlayer.Player != null && PinnedPlayers.IsPinned(netPlayer.Player.UUID))
+                {
+                    RebuildFullList();
+                }
+                else
+                {
+                    AddPlayerEntry(netPlayer);
+                    ApplyFilter();
+                    UpdateHeader();
+                }
+                TabDescriptor.ForceRebuild();
+            }
+
+            private void OnPinsChanged()
+            {
+                RebuildFullList();
                 TabDescriptor.ForceRebuild();
             }
 
@@ -166,7 +181,7 @@ namespace Basis.BasisUI
 
             private void OnModeChanged(string value)
             {
-                _searchMode = value == "DID" ? SearchMode.DID : SearchMode.Name;
+                _searchMode = value == "UUID" ? SearchMode.UUID : SearchMode.Name;
                 UpdateSearchHint();
                 ApplyFilter();
                 TabDescriptor.ForceRebuild();
@@ -174,8 +189,8 @@ namespace Basis.BasisUI
 
             private void UpdateSearchHint()
             {
-                SearchField.Descriptor.SetDescription(_searchMode == SearchMode.DID
-                    ? "Filter by player UUID / DID."
+                SearchField.Descriptor.SetDescription(_searchMode == SearchMode.UUID
+                    ? "Filter by player UUID."
                     : "Filter by display name.");
             }
 
@@ -218,7 +233,13 @@ namespace Basis.BasisUI
                 ClearAllEntries();
                 foreach (BasisNetworkPlayer player in BasisNetworkPlayers.Players.Values)
                 {
-                    AddPlayerEntry(player);
+                    if (player.Player != null && PinnedPlayers.IsPinned(player.Player.UUID))
+                        AddPlayerEntry(player);
+                }
+                foreach (BasisNetworkPlayer player in BasisNetworkPlayers.Players.Values)
+                {
+                    if (player.Player == null || !PinnedPlayers.IsPinned(player.Player.UUID))
+                        AddPlayerEntry(player);
                 }
                 UpdateSearchHint();
                 ApplyFilter();
@@ -239,8 +260,19 @@ namespace Basis.BasisUI
                 string platform = netPlayer.Player != null ? netPlayer.Player.PlayerPlatform : "";
                 string platformLabel = GetPlatformLabel(platform);
 
+                bool isPinned = netPlayer.Player != null && PinnedPlayers.IsPinned(netPlayer.Player.UUID);
+                string descriptionLabel = isPinned ? $"{platformLabel} \u2022 Pinned" : platformLabel;
+
                 btn.Descriptor.SetTitle(isLocal ? $"{name} (You)" : name);
-                btn.Descriptor.SetDescription(platformLabel);
+                btn.Descriptor.SetDescription(descriptionLabel);
+
+                if (isLocal)
+                {
+                    btn.ButtonComponent.interactable = false;
+                    if (!btn.TryGetComponent(out CanvasGroup canvasGroup))
+                        canvasGroup = btn.gameObject.AddComponent<CanvasGroup>();
+                    canvasGroup.alpha = 0.4f;
+                }
 
                 btn.OnClicked += () => OnPlayerClicked(netPlayer);
 
@@ -277,7 +309,7 @@ namespace Basis.BasisUI
 
                     if (hasQuery)
                     {
-                        if (_searchMode == SearchMode.DID)
+                        if (_searchMode == SearchMode.UUID)
                         {
                             string uuid = entry.NetPlayer.Player != null
                                 ? entry.NetPlayer.Player.UUID ?? "" : "";

@@ -34,7 +34,7 @@ namespace Basis.BasisUI
 
             PanelSlider sliderListenerDampenAmount = PanelSlider.CreateEntryAndBind(
                 listenerDampenGroup,
-                PanelSlider.SliderSettings.Advanced("Max Dampening", 1f, 45f, true, 0, ValueDisplayMode.Percentage),
+                PanelSlider.SliderSettings.Advanced("Max Dampening", 1f, 95f, true, 0, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.RAListenerDampenAmount);
 
             // Dampen amount only visible when cone angle < 360 (otherwise no dampening occurs)

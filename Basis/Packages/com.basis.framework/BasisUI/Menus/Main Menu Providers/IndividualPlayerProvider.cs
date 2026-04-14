@@ -71,8 +71,15 @@ namespace Basis.BasisUI
             s_beaconLine.SetPosition(1, topPos);
 
             float pulse = 0.6f + 0.4f * Mathf.Sin(s_beaconElapsed * 3f);
-            s_beaconLine.startColor = new Color(0.2f, 0.8f, 1f, pulse);
-            s_beaconLine.endColor = new Color(0.2f, 0.8f, 1f, 0f);
+            s_beaconLine.startColor = GetBeaconColor(s_beaconTarget, pulse);
+            s_beaconLine.endColor = GetBeaconColor(s_beaconTarget, 0f);
+        }
+
+        private static Color GetBeaconColor(BasisNetworkPlayer target, float alpha)
+        {
+            if (target?.Player is BasisRemotePlayer remote && remote.IsEffectivelyBlocked)
+                return new Color(1f, 0.2f, 0.2f, alpha);
+            return new Color(0.2f, 0.8f, 1f, alpha);
         }
 
         /// <summary>
@@ -111,8 +118,8 @@ namespace Basis.BasisUI
                 s_beaconLine.material = new Material(shader);
             }
 
-            s_beaconLine.startColor = new Color(0.2f, 0.8f, 1f, 0.9f);
-            s_beaconLine.endColor = new Color(0.2f, 0.8f, 1f, 0f);
+            s_beaconLine.startColor = GetBeaconColor(target, 0.9f);
+            s_beaconLine.endColor = GetBeaconColor(target, 0f);
         }
 
         /// <summary>
@@ -338,7 +345,7 @@ namespace Basis.BasisUI
             highlightBtn.Descriptor.SetDescription("Toggle a vertical beacon above this player.");
 
             PanelButton clearHighlightBtn = PanelButton.CreateNew(locateGroup.ContentParent);
-            clearHighlightBtn.Descriptor.SetTitle("Clear Highlight");
+            clearHighlightBtn.Descriptor.SetTitle("Clear All Highlights");
             clearHighlightBtn.Descriptor.SetDescription("Remove any active beacon.");
 
             highlightBtn.OnClicked += () =>
@@ -357,12 +364,25 @@ namespace Basis.BasisUI
                 highlightBtn.Descriptor.SetTitle("Highlight Player");
             };
 
+            // ---- Pin controls ----
+            var pinGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
+            pinGroup.SetTitle("Pin");
+            pinGroup.SetDescription("Pinned players sort to the top of the Players list.");
+
+            string pinUuid = remotePlayer.UUID;
+            PanelButton pinBtn = PanelButton.CreateNew(pinGroup.ContentParent);
+            pinBtn.Descriptor.SetTitle(PinnedPlayers.IsPinned(pinUuid) ? "Unpin Player" : "Pin Player");
+            pinBtn.Descriptor.SetDescription("Keep this player at the top of your list for quick access.");
+            pinBtn.OnClicked += () =>
+            {
+                bool nowPinned = PinnedPlayers.Toggle(pinUuid);
+                pinBtn.Descriptor.SetTitle(nowPinned ? "Unpin Player" : "Pin Player");
+            };
+
             var settings = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
             var audioGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
             audioGroup.SetTitle("Audio");
             audioGroup.SetDescription("Override this player’s voice volume just for you.");
-
-            const float step = 0.05f;
 
             string indivdualusersettingsvolume = "indivdualusersettingsvolume";
             BasisSettingsBinding<float> Binding = new BasisSettingsBinding<float>(indivdualusersettingsvolume);
@@ -438,19 +458,18 @@ namespace Basis.BasisUI
             // Wire slider -> save -> apply to receiver
             volumeSlider.OnValueChanged += async raw =>
             {
-                float snapped = Mathf.Round(raw / step) * step;
-                snapped = Mathf.Clamp(snapped, 0f, 1.5f);
+                float value = Mathf.Clamp(raw, 0f, 1.5f);
 
-                volumeSlider.SetValueWithoutNotify(snapped);
-                UpdateVolumeNote(snapped);
+                UpdateVolumeNote(value);
 
                 var s = await BasisPlayerSettingsManager.RequestPlayerSettings(remotePlayer.UUID);
-                s.VolumeLevel = snapped;
+                s.VolumeLevel = value;
                 await BasisPlayerSettingsManager.SetPlayerSettings(s);
 
                 if (remotePlayer != null)
                 {
-                    remotePlayer.NetworkReceiver.AudioReceiverModule.ChangeRemotePlayersVolumeSettings(snapped);
+                    remotePlayer.NetworkReceiver.AudioReceiverModule.ChangeRemotePlayersVolumeSettings(
+                        remotePlayer.IsEffectivelyBlocked ? 0f : value);
                 }
             };
             var avatarGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, root);
