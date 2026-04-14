@@ -17,6 +17,8 @@ public static class SettingsProviderControllerConfig
         RectTransform container = descriptor.ContentParent;
 
         // Gameplay & Input (starts expanded)
+        PanelSlider sliderSnapTurnAngleRef = null;
+        PanelSlider sliderSmoothTurnSpeedRef = null;
         SettingsProviderKeyboardBindings.CreateCollapsibleSection(
             container, "Gameplay & Input", "General controls and comfort settings.", group =>
         {
@@ -34,29 +36,33 @@ public static class SettingsProviderControllerConfig
                 PanelSlider.SliderSettings.Advanced("Mouse Sensitivity", 0, 2f, false, 2, ValueDisplayMode.Percentage),
                 BasisSettingsDefaults.mousesensitivty);
 
-            PanelToggle smoothlocomotion = PanelToggle.CreateNewEntry(group);
-            smoothlocomotion.Descriptor.SetTitle("Use Snap Turn Locomotion");
-            smoothlocomotion.AssignBinding(BasisSettingsDefaults.usesnapturn);
+            PanelToggle snapturntoggle = PanelToggle.CreateNewEntry(group);
+            snapturntoggle.Descriptor.SetTitle("Use Snap Turn Locomotion");
+            snapturntoggle.AssignBinding(BasisSettingsDefaults.usesnapturn);
 
-            PanelSlider sliderSnapTurnAngle = PanelSlider.CreateEntryAndBind(
+            sliderSnapTurnAngleRef = PanelSlider.CreateEntryAndBind(
                 group,
                 PanelSlider.SliderSettings.Advanced("Snap Turn Angle", 0, 120, true, 0, ValueDisplayMode.Degrees),
                 BasisSettingsDefaults.SnapTurnAngle);
 
-            PanelSlider sliderSmoothTurnSpeed = PanelSlider.CreateEntryAndBind(
+            sliderSmoothTurnSpeedRef = PanelSlider.CreateEntryAndBind(
                 group,
                 PanelSlider.SliderSettings.Advanced("Smooth Turn Speed", 50, 400, true, 0, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.SmoothTurnSpeed);
 
-            bool snapOn = BasisSettingsDefaults.usesnapturn.RawValue;
-            sliderSnapTurnAngle.gameObject.SetActive(snapOn);
-            sliderSmoothTurnSpeed.gameObject.SetActive(!snapOn);
-            smoothlocomotion.OnValueChanged += isOn =>
+            snapturntoggle.OnValueChanged += isOn =>
             {
-                sliderSnapTurnAngle.gameObject.SetActive(isOn);
-                sliderSmoothTurnSpeed.gameObject.SetActive(!isOn);
+                sliderSnapTurnAngleRef.Descriptor.SetActive(isOn);
+                sliderSmoothTurnSpeedRef.Descriptor.SetActive(!isOn);
+                group.ForceRebuild();
             };
         }, startExpanded: true);
+
+        // Apply initial visibility AFTER CreateCollapsibleSection's SetContentActive pass,
+        // which would otherwise re-activate both sliders when the section starts expanded.
+        bool snapOn = BasisSettingsDefaults.usesnapturn.RawValue;
+        sliderSnapTurnAngleRef.Descriptor.SetActive(snapOn);
+        sliderSmoothTurnSpeedRef.Descriptor.SetActive(!snapOn);
 
         // Deadzone - General
         SettingsProviderKeyboardBindings.CreateCollapsibleSection(
