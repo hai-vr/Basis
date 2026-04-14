@@ -28,6 +28,12 @@ namespace HVR.Basis.Comms
         [NonSerialized] public byte localIdentifier;
 
         private readonly Queue<StreamedAvatarFeaturePayload> _queue = new Queue<StreamedAvatarFeaturePayload>();
+        // Running sum of DeltaTime across queued payloads, updated on enqueue/dequeue.
+        // Replaces a per-frame `foreach (_queue)` which blew up with
+        // InvalidOperationException whenever something on the OnReceiver call chain
+        // re-entered OnPacketReceived mid-iteration (e.g. buffered-message drains
+        // during OnCalibration).
+        private float _queuedSeconds;
         private float[] current;
         private float[] previous;
         private float[] target;
@@ -84,6 +90,7 @@ namespace HVR.Basis.Comms
         public void QueueEvent(StreamedAvatarFeaturePayload message)
         {
             _queue.Enqueue(message);
+            _queuedSeconds += message.DeltaTime;
         }
 
         private void Update()
@@ -137,15 +144,19 @@ namespace HVR.Basis.Comms
             var timePassed = Time.deltaTime;
             _timeLeft -= timePassed;
 
-            float totalQueueSeconds = 0;
-            foreach (StreamedAvatarFeaturePayload payload in _queue)
-            {
-                totalQueueSeconds += payload.DeltaTime;
-            }
+            // Snapshot the running sum once — its value is captured before we start consuming
+            // the queue so the throttling math matches the pre-existing behavior (compute the
+            // total up-front, then drain).
+            float totalQueueSeconds = _queuedSeconds;
             // Debug.Log($"Queue time is {totalQueueSeconds} seconds, size is {_queue.Count}");
 
             while (_timeLeft <= 0 && _queue.TryDequeue(out var eval))
             {
+                _queuedSeconds -= eval.DeltaTime;
+                // Drift guard: once fully drained, reset so tiny float errors can't accumulate.
+                if (_queue.Count == 0)
+                    _queuedSeconds = 0f;
+
                 // Debug.Log($"Unpacking delta {eval.DeltaTime} as {string.Join(',', eval.FloatValues.Select(f => $"{f}"))}");
                 var effectiveDeltaTime = _queue.Count <= 5 || totalQueueSeconds < 0.2f
                     ? eval.DeltaTime
@@ -202,6 +213,7 @@ namespace HVR.Basis.Comms
             if (TryDecode(subBuffer, out var result))
             {
                 _queue.Enqueue(result);
+                _queuedSeconds += result.DeltaTime;
             }
         }
 
