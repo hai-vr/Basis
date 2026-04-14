@@ -221,16 +221,17 @@ public static class BasisRemoteNetworkDriver
     /// clobbers the correct calibration-time scale, and the avatar flickers at
     /// (1,1,1) until enough buffers arrive to seed the real interp window.
     ///
-    /// Uses GetUnsafePtr to bypass NativeArray safety checks so this is safe
-    /// to call from the main thread even if compute jobs are in flight for
-    /// other players (this slot belongs to the freshly joining player so no
-    /// concurrent job is touching it yet).
+    /// Completes any in-flight oneEuroJob first: UpdateAllAvatarsJob reads
+    /// _prevScales and writes _outScales/_lastAppliedScales/_HasScaleChange,
+    /// so mutating those arrays mid-flight is a real data race (not just a
+    /// safety-handle complaint). This is a slow path (avatar calibration), so
+    /// the extra Complete() is noise.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void SeedScaleState(int index, float3 seed)
     {
         if (!_initialized) return;
         if ((uint)index >= FixedCapacity) return;
+        oneEuroJob.Complete();
         ((float3*)_prevScales.GetUnsafePtr())[index] = seed;
         ((float3*)_targetScales.GetUnsafePtr())[index] = seed;
         ((float3*)_outScales.GetUnsafePtr())[index] = seed;
@@ -243,13 +244,15 @@ public static class BasisRemoteNetworkDriver
     /// with (slot-reuse cleanup at Initialize time). Forces the next
     /// UpdateAllAvatarsJob tick to flag HasScaleChange so whatever value
     /// propagates through the pipeline gets applied to the transform.
+    /// Completes any in-flight oneEuroJob first for the same reason as
+    /// <see cref="SeedScaleState"/>.
     /// Prefer <see cref="SeedScaleState"/> when you have the stashed scale.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ResetScaleTracking(int index)
     {
         if (!_initialized) return;
         if ((uint)index >= FixedCapacity) return;
+        oneEuroJob.Complete();
         ((float3*)_lastAppliedScales.GetUnsafePtr())[index] = new float3(float.NegativeInfinity);
         ((byte*)_HasScaleChange.GetUnsafePtr())[index] = 0;
     }
