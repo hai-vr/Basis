@@ -469,8 +469,8 @@ namespace Basis.Scripts.Device_Management.Devices
         }
 
         /// <summary>
-        /// Check if any full-body IK tracker bones (feet, lower legs, upper legs, hips)
-        /// still have an active tracker. Used to update HasFBIKTrackers after removal.
+        /// Check if any full-body IK tracker bones still have an active tracker.
+        /// Used to update HasFBIKTrackers after removal.
         /// </summary>
         private static bool CheckAnyFBIKTrackersRemain()
         {
@@ -480,7 +480,12 @@ namespace Basis.Scripts.Device_Management.Devices
                 || IsTracked(BasisLocalBoneDriver.RightLowerLegControl)
                 || IsTracked(BasisLocalBoneDriver.LeftUpperLegControl)
                 || IsTracked(BasisLocalBoneDriver.RightUpperLegControl)
-                || IsTracked(BasisLocalBoneDriver.HipsControl);
+                || IsTracked(BasisLocalBoneDriver.HipsControl)
+                || IsTracked(BasisLocalBoneDriver.ChestControl)
+                || IsTracked(BasisLocalBoneDriver.LeftLowerArmControl)
+                || IsTracked(BasisLocalBoneDriver.RightLowerArmControl)
+                || IsTracked(BasisLocalBoneDriver.LeftShoulderControl)
+                || IsTracked(BasisLocalBoneDriver.RightShoulderControl);
         }
 
         private static bool IsTracked(BasisLocalBoneControl control)

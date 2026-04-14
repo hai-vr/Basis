@@ -269,7 +269,7 @@ namespace Basis.Scripts.Drivers
 
             foreach (var control in driver.Controls)
             {
-                control?.OnHasRigChanged?.Invoke(true);//true means that the ik detaches
+                control?.OnHasRigChanged?.Invoke(control.HasRigLayer == BasisHasRigLayer.HasRigLayer);
             }
         }
         public void ResetSmoothingState()
@@ -868,10 +868,6 @@ namespace Basis.Scripts.Drivers
             // Legs enabled by presence
             BasisLocalBoneDriver.LeftFootControl.OnHasRigChanged += (hasRig) =>
             {
-                if(hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.EnableLeftLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftFootControl);
                 BasisFullIKConstraint.data = d;
@@ -880,10 +876,6 @@ namespace Basis.Scripts.Drivers
 
             BasisLocalBoneDriver.RightFootControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.EnableRightLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightFootControl);
                 BasisFullIKConstraint.data = d;
@@ -892,10 +884,6 @@ namespace Basis.Scripts.Drivers
 
             BasisLocalBoneDriver.LeftLowerLegControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.EnableLeftLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.LeftLowerLegControl);
                 BasisFullIKConstraint.data = d;
@@ -904,10 +892,6 @@ namespace Basis.Scripts.Drivers
 
             BasisLocalBoneDriver.RightLowerLegControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.EnableRightLowerLeg = HasRigLayerFloat(BasisLocalBoneDriver.RightLowerLegControl);
                 BasisFullIKConstraint.data = d;
@@ -917,10 +901,6 @@ namespace Basis.Scripts.Drivers
             // Toes
             BasisLocalBoneDriver.LeftToeControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.LeftToeEnabled = HasRigLayer(BasisLocalBoneDriver.LeftToeControl);
                 BasisFullIKConstraint.data = d;
@@ -929,10 +909,6 @@ namespace Basis.Scripts.Drivers
 
             BasisLocalBoneDriver.RightToeControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.RightToeEnabled = HasRigLayer(BasisLocalBoneDriver.RightToeControl);
                 BasisFullIKConstraint.data = d;
@@ -959,10 +935,6 @@ namespace Basis.Scripts.Drivers
             // Lower arms (hand hints)
             BasisLocalBoneDriver.LeftLowerArmControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.HintWeightLeftHand = HasRigLayer(BasisLocalBoneDriver.LeftLowerArmControl);
                 BasisFullIKConstraint.data = d;
@@ -971,10 +943,6 @@ namespace Basis.Scripts.Drivers
 
             BasisLocalBoneDriver.RightLowerArmControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.HintWeightRightHand = HasRigLayer(BasisLocalBoneDriver.RightLowerArmControl);
                 BasisFullIKConstraint.data = d;
@@ -984,10 +952,6 @@ namespace Basis.Scripts.Drivers
             // Chest (head hint)
             BasisLocalBoneDriver.ChestControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.HintWeightHead = HasRigLayer(BasisLocalBoneDriver.ChestControl);
                 BasisFullIKConstraint.data = d;
@@ -997,10 +961,6 @@ namespace Basis.Scripts.Drivers
             // Chest (head hint)
             BasisLocalBoneDriver.LeftShoulderControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.EnabledLeftShoulder = HasRigLayer(BasisLocalBoneDriver.LeftShoulderControl);
                 BasisFullIKConstraint.data = d;
@@ -1010,10 +970,6 @@ namespace Basis.Scripts.Drivers
             // Chest (head hint)
             BasisLocalBoneDriver.RightShoulderControl.OnHasRigChanged += (hasRig) =>
             {
-                if (hasRig == false)//we only disable ik on calibration maintaining poses as long as possible
-                {
-                    return;
-                }
                 var d = BasisFullIKConstraint.data;
                 d.EnabledRightShoulder = HasRigLayer(BasisLocalBoneDriver.RightShoulderControl);
                 BasisFullIKConstraint.data = d;
