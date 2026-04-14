@@ -208,6 +208,26 @@ public static class BasisRemoteNetworkDriver
         ((byte*)(void*)_ptrPoseFilterSeeded)[index] = 0;
     }
 
+    /// <summary>
+    /// Resets the cached "last applied scale" for a player slot so the next
+    /// UpdateAllAvatarsJob tick is guaranteed to detect a change and cause
+    /// ApplyAvatarScaleJob to write the network scale onto the avatar root.
+    /// Must be called when a slot is reassigned to a new player and whenever the
+    /// avatar is recalibrated — otherwise a reused slot keeps the previous
+    /// player's last applied scale and the freshly spawned avatar stays at its
+    /// prefab localScale while hips get positioned under the wrong parent scale.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ResetScaleTracking(int index)
+    {
+        if (!_initialized) return;
+        if ((uint)index >= FixedCapacity) return;
+        // Sentinel that cannot match any real decompressed scale; forces
+        // lengthsq(outScale - LastAppliedScales[index]) > eps² on the next tick.
+        _lastAppliedScales[index] = new float3(float.NegativeInfinity);
+        _HasScaleChange[index] = false;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void SetFrameTiming(int index, double interpolationTime, double deltaTimeSeconds)
     {
