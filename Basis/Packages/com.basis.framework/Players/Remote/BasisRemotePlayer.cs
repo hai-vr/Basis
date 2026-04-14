@@ -85,6 +85,18 @@ namespace Basis.Scripts.BasisSdk.Players
         public bool InAvatarRange = true;
 
         /// <summary>
+        /// Debounce state for avatar range transitions. View-cone and avatar-cap checks
+        /// can flip <c>pAvatarRange[i]</c> rapidly when the local player rotates or
+        /// crowds shift, which would otherwise trigger a burst of ReloadAvatar calls and
+        /// flash every affected player to the loading avatar. We require the new value to
+        /// remain stable for <see cref="AvatarRangeDebounceSeconds"/> before committing.
+        /// </summary>
+        [System.NonSerialized] public bool PendingRangeActive;
+        [System.NonSerialized] public bool PendingRangeTarget;
+        [System.NonSerialized] public float PendingRangeCommitTime;
+        public const float AvatarRangeDebounceSeconds = 0.5f;
+
+        /// <summary>
         /// Current mesh LOD level (0 = closest, 3 = furthest). Set by BasisTransmissionResults.
         /// Used to control pose update frequency — distant players update less often.
         /// </summary>
@@ -260,41 +272,49 @@ namespace Basis.Scripts.BasisSdk.Players
                 return;
             }
             IsLoadingAnAvatar = true;
-            if (BasisLoadableBundle == null || string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
+            BasisPlayerSettingsData BasisPlayerSettingsData = default;
+            try
             {
-                AvatarLoadErrorMessage = "Avatar bundle was empty or null";
-                BasisDebug.LogError("trying to create Avatar with empty Bundle", BasisDebug.LogTag.Remote);
-                BasisLoadableBundle = BasisAvatarFactory.LoadingAvatar;
-                Mode = 0;
-            }
-
-            // Fetch per-player visibility settings.
-            BasisPlayerSettingsData BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
-            IsBlocked = BasisPlayerSettingsData.IsBlocked;
-
-            // Remember last requested avatar and mode for potential reloads.
-            AlwaysRequestedAvatar = BasisLoadableBundle;
-            AlwaysRequestedMode = Mode;
-
-            if (BasisPlayerSettingsData.AvatarVisible && !BasisPlayerSettingsData.IsBlocked && InAvatarRange)
-            {
-                await BasisAvatarFactory.LoadAvatarRemote(this, Mode, BasisLoadableBundle, Vector3.zero, Quaternion.identity);
-            }
-            else if (!IsConsideredFallBackAvatar)
-            {
-                BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,Vector3.zero, Quaternion.identity);
-            }
-
-            if (BasisAvatar != null)
-            {
-                bool shouldBeActive = !BasisPlayerSettingsData.IsBlocked;
-                if (BasisAvatar.gameObject.activeSelf != shouldBeActive)
+                if (BasisLoadableBundle == null || string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
                 {
-                    BasisAvatar.gameObject.SetActive(shouldBeActive);
+                    AvatarLoadErrorMessage = "Avatar bundle was empty or null";
+                    BasisDebug.LogError("trying to create Avatar with empty Bundle", BasisDebug.LogTag.Remote);
+                    BasisLoadableBundle = BasisAvatarFactory.LoadingAvatar;
+                    Mode = 0;
+                }
+
+                // Fetch per-player visibility settings.
+                BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
+                IsBlocked = BasisPlayerSettingsData.IsBlocked;
+
+                // Remember last requested avatar and mode for potential reloads.
+                AlwaysRequestedAvatar = BasisLoadableBundle;
+                AlwaysRequestedMode = Mode;
+
+                if (BasisPlayerSettingsData.AvatarVisible && !BasisPlayerSettingsData.IsBlocked && InAvatarRange)
+                {
+                    await BasisAvatarFactory.LoadAvatarRemote(this, Mode, BasisLoadableBundle, Vector3.zero, Quaternion.identity);
+                }
+                else if (!IsConsideredFallBackAvatar)
+                {
+                    BasisAvatarFactory.RemoveOldAvatarAndLoadFallback(this,Vector3.zero, Quaternion.identity);
+                }
+
+                if (BasisAvatar != null)
+                {
+                    bool shouldBeActive = !BasisPlayerSettingsData.IsBlocked;
+                    if (BasisAvatar.gameObject.activeSelf != shouldBeActive)
+                    {
+                        BasisAvatar.gameObject.SetActive(shouldBeActive);
+                    }
                 }
             }
-
-            IsLoadingAnAvatar = false;
+            finally
+            {
+                // Always release the guard, even if RequestPlayerSettings / LoadAvatarRemote
+                // throws — otherwise this player is permanently stuck and can never reload.
+                IsLoadingAnAvatar = false;
+            }
 
             // Blocked is a terminal visibility state — skip the range-based re-evaluation
             // to avoid an infinite ReloadAvatar loop (the mismatch condition below would

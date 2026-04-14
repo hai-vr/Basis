@@ -511,7 +511,9 @@ togglePerspectiveCorrection.AssignBinding(BasisSettingsDefaults.RAPerspectiveCor
         public static void ApplyRemoteAudioTo(BasisAudioReceiver receiver)
         {
             if (receiver == null || receiver.audioSource == null)
+            {
                 return;
+            }
 
             AudioSource source = receiver.audioSource;
 

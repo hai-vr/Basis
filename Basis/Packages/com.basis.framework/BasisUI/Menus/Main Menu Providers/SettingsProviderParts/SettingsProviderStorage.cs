@@ -17,12 +17,31 @@ public static class SettingsProviderStorage
         PanelElementDescriptor downloadGroup =
             PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
         downloadGroup.SetTitle("Download Limits");
-        downloadGroup.SetDescription("Configure download size limits.");
+        downloadGroup.SetDescription("Configure download size and concurrency limits.");
 
         PanelSlider avatarDownloadSize = PanelSlider.CreateEntryAndBind(
             downloadGroup.ContentParent,
             PanelSlider.SliderSettings.Advanced("Avatar Download Size", 5, 1024, false, 0, ValueDisplayMode.MemorySize),
             BasisSettingsDefaults.AvatarDownloadSize);
+
+        // Concurrency gates for avatar loading. Three separate gates because the
+        // network / disc / in-memory paths each have a different bottleneck. Tuning
+        // these higher helps crowded rooms catch up faster; tuning downloads too high
+        // just splits bandwidth and makes everyone wait longer on the loading avatar.
+        PanelSlider maxDownloads = PanelSlider.CreateEntryAndBind(
+            downloadGroup.ContentParent,
+            PanelSlider.SliderSettings.Advanced("Max Concurrent Downloads", 1, 32, true, 0, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.MaxConcurrentAvatarDownloads);
+
+        PanelSlider maxDiscLoads = PanelSlider.CreateEntryAndBind(
+            downloadGroup.ContentParent,
+            PanelSlider.SliderSettings.Advanced("Max Concurrent Disc Loads", 1, 64, true, 0, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.MaxConcurrentAvatarDiscLoads);
+
+        PanelSlider maxAddressables = PanelSlider.CreateEntryAndBind(
+            downloadGroup.ContentParent,
+            PanelSlider.SliderSettings.Advanced("Max Concurrent Addressables", 1, 128, true, 0, ValueDisplayMode.Raw),
+            BasisSettingsDefaults.MaxConcurrentAvatarAddressables);
 
         // Cache size limit slider (lightweight, no file I/O)
         PanelElementDescriptor limitGroup =
@@ -137,5 +156,8 @@ public static class SettingsProviderStorage
     {
         BasisSettingsDefaults.AvatarDownloadSize.ResetToDefault();
         BasisSettingsDefaults.CacheMaxSizeGB.ResetToDefault();
+        BasisSettingsDefaults.MaxConcurrentAvatarDownloads.ResetToDefault();
+        BasisSettingsDefaults.MaxConcurrentAvatarDiscLoads.ResetToDefault();
+        BasisSettingsDefaults.MaxConcurrentAvatarAddressables.ResetToDefault();
     }
 }

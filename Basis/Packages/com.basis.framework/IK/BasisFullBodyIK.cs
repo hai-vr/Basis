@@ -1664,6 +1664,46 @@ w20, w54;
                 Vector3 lookupBend = ComputeArmBendFromLookup(stream, shoulderPos, tgtPos, armLen, isLeft);
                 // Blend lookup direction with existing hint (70% lookup, 30% original hint)
                 Vector3 blendedHint = Vector3.Lerp(hintPos, shoulderPos + lookupBend * armLen * 0.5f, 0.7f);
+
+                // Twist-to-elbow remap: rotate the hint around the shoulder→hand axis based on
+                // hand twist plus a forward-pose outward baseline. Keeps the elbow out of the
+                // torso when the hand is forward.
+                Vector3 shoulderToHand = tgtPos - shoulderPos;
+                float shSqr = shoulderToHand.sqrMagnitude;
+                if (shSqr > k_SqrEpsilon)
+                {
+                    Vector3 axis = shoulderToHand / Mathf.Sqrt(shSqr);
+                    Quaternion chestRot = HandleChest.GetRotation(stream);
+                    Vector3 chestFwd = chestRot * Vector3.forward;
+                    Vector3 chestUp = chestRot * Vector3.up;
+
+                    Vector3 refDir = chestUp - axis * Vector3.Dot(chestUp, axis);
+                    if (refDir.sqrMagnitude < k_MinMag)
+                        refDir = chestFwd - axis * Vector3.Dot(chestFwd, axis);
+
+                    Vector3 handUp = tgtRot * Vector3.up;
+                    Vector3 handUpProj = handUp - axis * Vector3.Dot(handUp, axis);
+
+                    if (refDir.sqrMagnitude > k_MinMag && handUpProj.sqrMagnitude > k_MinMag)
+                    {
+                        refDir.Normalize();
+                        handUpProj.Normalize();
+
+                        float cos = Mathf.Clamp(Vector3.Dot(refDir, handUpProj), -1f, 1f);
+                        float sin = Vector3.Dot(Vector3.Cross(refDir, handUpProj), axis);
+                        float handTwistDeg = Mathf.Atan2(sin, cos) * Mathf.Rad2Deg;
+
+                        float forwardness = Mathf.Clamp01(Vector3.Dot(axis, chestFwd));
+                        float signFlip = isLeft ? -1f : 1f;
+
+                        // 270° hand twist → ~195° additive elbow rotation; 10° forward-pose bias
+                        float totalDeg = signFlip * 10f * forwardness - handTwistDeg * (195f / 270f);
+                        Quaternion twistRot = Quaternion.AngleAxis(totalDeg, axis);
+
+                        blendedHint = shoulderPos + twistRot * (blendedHint - shoulderPos);
+                    }
+                }
+
                 hint = new AffineTransform(blendedHint, hintRot);
             }
 

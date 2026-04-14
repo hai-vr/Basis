@@ -37,6 +37,12 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> FootIKEnabled = new("footik", new BasisPlatformDefault<bool>(false));
 
+        /// <summary>
+        /// When enabled, suppresses jump/landing Mecanim animations and the landing hip dip
+        /// while full-body trackers are calibrated, so they don't fight real tracker data.
+        /// </summary>
+        public static BasisSettingsBinding<bool> DisableAnimationsInFBT = new("disableanimationsinfbt", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<float> AvatarRange = new("avatarrange", new BasisPlatformDefault<float>(25));
 
         /// <summary>
@@ -218,6 +224,29 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<float> AvatarDownloadSize = new("avatardownloadsize", new BasisPlatformDefault<float>(256));
 
         public static BasisSettingsBinding<float> CacheMaxSizeGB = new("cachemaxsizegb", new BasisPlatformDefault<float>(128));
+
+        /// <summary>
+        /// Maximum number of avatar asset bundles that can be downloaded from the network
+        /// concurrently. Downloads are bandwidth-bound: a small value keeps each transfer
+        /// at full speed, while a large value splits bandwidth and makes every player wait
+        /// longer on the loading avatar. Tune higher only if you have lots of bandwidth and
+        /// the server is fast.
+        /// </summary>
+        public static BasisSettingsBinding<float> MaxConcurrentAvatarDownloads = new("maxconcurrentavatardownloads", new BasisPlatformDefault<float>(5));
+
+        /// <summary>
+        /// Maximum number of cached avatar asset bundles that can be loaded from disc at
+        /// once. Disc loads are I/O + decryption + bundle-decompression bound. This can be
+        /// higher than the download gate because no network is involved.
+        /// </summary>
+        public static BasisSettingsBinding<float> MaxConcurrentAvatarDiscLoads = new("maxconcurrentavatardiscloads", new BasisPlatformDefault<float>(15));
+
+        /// <summary>
+        /// Maximum number of addressable (in-build) avatars that can be instantiated
+        /// concurrently. Addressable loads are CPU-bound and typically very fast, so this
+        /// gate can be the largest of the three.
+        /// </summary>
+        public static BasisSettingsBinding<float> MaxConcurrentAvatarAddressables = new("maxconcurrentavataraddressables", new BasisPlatformDefault<float>(25));
 
         public static BasisSettingsBinding<float> AvatarMeshLOD = new("avatarmeshlod", new BasisPlatformDefault<float>
         {
@@ -751,6 +780,9 @@ namespace Basis.BasisUI
 
             // LOD / Download limits
             AvatarDownloadSize.LoadBindingValue();
+            MaxConcurrentAvatarDownloads.LoadBindingValue();
+            MaxConcurrentAvatarDiscLoads.LoadBindingValue();
+            MaxConcurrentAvatarAddressables.LoadBindingValue();
             CacheMaxSizeGB.LoadBindingValue();
             AvatarMeshLOD.LoadBindingValue();
             GlobalMeshLOD.LoadBindingValue();

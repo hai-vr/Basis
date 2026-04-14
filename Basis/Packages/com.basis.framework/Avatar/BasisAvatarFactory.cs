@@ -113,7 +113,10 @@ namespace Basis.Scripts.Avatar
                     case 1:
                     default:
                         // Gate ONLY the actual load (download/addressables), NOT fallback.
-                        await _loadGate.WaitAsync(token);
+                        // ResolveGate picks between download / disc-load / addressable so
+                        // slow network downloads can't starve fast cached or in-memory loads.
+                        SemaphoreSlim gate = ResolveGate(Mode, BasisLoadableBundle);
+                        await gate.WaitAsync(token);
                         try
                         {
                             token.ThrowIfCancellationRequested();
@@ -138,7 +141,7 @@ namespace Basis.Scripts.Avatar
                         }
                         finally
                         {
-                            _loadGate.Release();
+                            gate.Release();
                         }
                         break;
                 }
@@ -203,7 +206,8 @@ namespace Basis.Scripts.Avatar
                     case 0:
                     case 1:
                     default:
-                        await _loadGate.WaitAsync(token);
+                        SemaphoreSlim gate = ResolveGate(Mode, BasisLoadableBundle);
+                        await gate.WaitAsync(token);
                         try
                         {
                             token.ThrowIfCancellationRequested();
@@ -225,7 +229,7 @@ namespace Basis.Scripts.Avatar
                         }
                         finally
                         {
-                            _loadGate.Release();
+                            gate.Release();
                         }
                         break;
                 }
@@ -412,8 +416,72 @@ namespace Basis.Scripts.Avatar
             BasisLocalAvatarDriver.CalibrationComplete?.Invoke();
         }
 
-        private const int MaxConcurrentAvatarLoads = 50;
-        private static readonly SemaphoreSlim _loadGate = new(MaxConcurrentAvatarLoads, MaxConcurrentAvatarLoads);
+        // Avatar load concurrency gates. Three separate semaphores because each path has
+        // a completely different bottleneck:
+        //
+        //   _downloadGate    — bundle downloads from the network. Bandwidth-bound. Small
+        //                      default so each transfer runs at full speed instead of
+        //                      splitting bandwidth across N simultaneous loads.
+        //   _discGate        — bundle loads from the local disc cache. I/O + decryption +
+        //                      AssetBundle decompression. No network, so the gate can be
+        //                      wider, but not unlimited because the Unity AssetBundle API
+        //                      serialises heavily under the hood.
+        //   _addressableGate — built-in addressable instantiations. In-memory operations,
+        //                      the widest of the three.
+        //
+        // Defaults live in BasisSettingsDefaults and are pushed in via
+        // SMModuleAvatarLoadGates. Gates are field-swapped (not resized) when settings
+        // change, so in-flight loads continue on whichever semaphore they captured.
+        private static SemaphoreSlim _downloadGate = new(5, int.MaxValue);
+        private static SemaphoreSlim _discGate = new(15, int.MaxValue);
+        private static SemaphoreSlim _addressableGate = new(25, int.MaxValue);
+
+        /// <summary>
+        /// Replace the network-download gate with a new semaphore sized to
+        /// <paramref name="capacity"/>. In-flight loads that already captured the previous
+        /// semaphore will continue to use it and drain normally.
+        /// </summary>
+        public static void SetDownloadGateCapacity(int capacity)
+        {
+            if (capacity < 1) capacity = 1;
+            _downloadGate = new SemaphoreSlim(capacity, int.MaxValue);
+        }
+
+        /// <summary>
+        /// Replace the disc-load gate with a new semaphore sized to <paramref name="capacity"/>.
+        /// </summary>
+        public static void SetDiscGateCapacity(int capacity)
+        {
+            if (capacity < 1) capacity = 1;
+            _discGate = new SemaphoreSlim(capacity, int.MaxValue);
+        }
+
+        /// <summary>
+        /// Replace the addressable instantiation gate with a new semaphore sized to
+        /// <paramref name="capacity"/>.
+        /// </summary>
+        public static void SetAddressableGateCapacity(int capacity)
+        {
+            if (capacity < 1) capacity = 1;
+            _addressableGate = new SemaphoreSlim(capacity, int.MaxValue);
+        }
+
+        /// <summary>
+        /// Picks the appropriate semaphore for a given load mode. For Mode 0 (asset bundle)
+        /// we check <see cref="BasisLoadHandler.IsMetaDataOnDisc"/> so already-cached loads
+        /// use the disc gate instead of sitting behind slow network downloads.
+        /// </summary>
+        private static SemaphoreSlim ResolveGate(byte Mode, BasisLoadableBundle bundle)
+        {
+            if (Mode == 0)
+            {
+                bool cached = BasisLoadHandler.IsMetaDataOnDisc(
+                    bundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation,
+                    out _);
+                return cached ? _discGate : _downloadGate;
+            }
+            return _addressableGate;
+        }
 
         // Tracks the latest in-flight request per player (local/remote share this).
         private static readonly ConcurrentDictionary<int, CancellationTokenSource> _playerLoadCts = new();

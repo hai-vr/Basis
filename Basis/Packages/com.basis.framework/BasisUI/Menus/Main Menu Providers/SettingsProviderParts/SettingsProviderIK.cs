@@ -233,6 +233,11 @@ public static class SettingsProviderIK
         footIKToggle.AssignBinding(BasisSettingsDefaults.FootIKEnabled);
         footIKToggle.Descriptor.SetDescription("Enables procedural foot placement when standing still without foot trackers.");
 
+        var disableAnimInFBTToggle = PanelToggle.CreateNewEntry(colliderParent);
+        disableAnimInFBTToggle.Descriptor.SetTitle("Disable Animations in FBT");
+        disableAnimInFBTToggle.AssignBinding(BasisSettingsDefaults.DisableAnimationsInFBT);
+        disableAnimInFBTToggle.Descriptor.SetDescription("Suppresses jump and landing animations and the landing hip dip while full-body trackers are calibrated.");
+
         var protectElbowToggle = PanelToggle.CreateNewEntry(colliderParent);
         protectElbowToggle.Descriptor.SetTitle("Protect Elbow");
         protectElbowToggle.AssignBinding(BasisSettingsDefaults.FBIKProtectElbow);
@@ -511,6 +516,7 @@ public static class SettingsProviderIK
         BasisSettingsDefaults.FBIKAdvancedVisible.ResetToDefault();
         BasisSettingsDefaults.FBIKCollisionsEnabled.ResetToDefault();
         BasisSettingsDefaults.FootIKEnabled.ResetToDefault();
+        BasisSettingsDefaults.DisableAnimationsInFBT.ResetToDefault();
         BasisSettingsDefaults.FBIKProtectElbow.ResetToDefault();
         BasisSettingsDefaults.FBIKUseHandCapsule.ResetToDefault();
         BasisSettingsDefaults.FBIKChestRadius.ResetToDefault();
