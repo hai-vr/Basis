@@ -508,6 +508,17 @@ namespace Basis.Scripts.Networking.Receivers
             {
                 LastLinkedAvatarIndex = SACM.clientAvatarChangeMessage.LocalAvatarIndex;
                 RemotePlayer.CACM = SACM.clientAvatarChangeMessage;
+
+                // A new avatar is a fresh bundle URL — clear the global "bail on retries"
+                // state from any prior failure so this one actually gets attempted. If THIS
+                // load also fails, BasisAvatarFactory.MarkRemoteLoadFailed re-arms the flag.
+                RemotePlayer.HasFailedAvatarLoadGlobally = false;
+                RemotePlayer.AvatarLoadErrorMessage = null;
+                if (RemotePlayer.RemoteNamePlate != null)
+                {
+                    RemotePlayer.RemoteNamePlate.RefreshFailedStateColor();
+                }
+
                 BasisLoadableBundle bundle = BasisBundleConversionNetwork.ConvertNetworkBytesToBasisLoadableBundle(SACM.clientAvatarChangeMessage.byteArray);
                 await RemotePlayer.CreateAvatar(SACM.clientAvatarChangeMessage.loadMode, bundle);
             }
