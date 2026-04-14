@@ -174,6 +174,12 @@ namespace Basis.BasisUI
         public static BasisSettingsBinding<bool> DevShowEuroFilter = new("devshowfilter", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowNetStats = new("devshownetstats", new BasisPlatformDefault<bool>(false));
 
+        /// <summary>
+        /// When enabled, suppresses all <see cref="BasisDebug"/> log output (Log, LogWarning, LogError).
+        /// Raw <see cref="UnityEngine.Debug"/> calls are unaffected.
+        /// </summary>
+        public static BasisSettingsBinding<bool> DisableLogging = new("disablelogging", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> AudioDebugEnabled = new("audiodebugenabled", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> AudioDebugShowSource = new("audiodebugshowsource", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<bool> AudioDebugShowVolume = new("audiodebugshowvolume", new BasisPlatformDefault<bool>(true));
@@ -764,6 +770,9 @@ namespace Basis.BasisUI
             HDRSupport.LoadBindingValue();
             Antialiasing.LoadBindingValue();
             DebugVisuals.LoadBindingValue();
+            DisableLogging.LoadBindingValue();
+            BasisDebug.LoggingDisabled = DisableLogging.RawValue;
+            DisableLogging.OnChanged += value => BasisDebug.LoggingDisabled = value;
             MemoryAllocation.LoadBindingValue();
             VisualState.LoadBindingValue();
             FoveatedRendering.LoadBindingValue();

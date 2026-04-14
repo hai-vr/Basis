@@ -1260,6 +1260,11 @@ namespace Basis.BasisUI
             toggleStatistics.Descriptor.SetDescription("Enable network statistics recording. Takes effect on next connection.");
             toggleStatistics.AssignBinding(BasisSettingsDefaults.EnableStatistics);
 
+            PanelToggle toggleDisableLogging = PanelToggle.CreateNewEntry(debugGroup.ContentParent);
+            toggleDisableLogging.Descriptor.SetTitle("Disable Basis Logging");
+            toggleDisableLogging.Descriptor.SetDescription("Suppress all BasisDebug log, warning, and error output.");
+            toggleDisableLogging.AssignBinding(BasisSettingsDefaults.DisableLogging);
+
             // ---- Section Visibility Toggles ----
             PanelElementDescriptor sectionTogglesGroup =
                 PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
@@ -1417,6 +1422,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DebugVisuals.ResetToDefault();
             BasisSettingsDefaults.VisualState.SetValue("off");
             BasisSettingsDefaults.EnableStatistics.ResetToDefault();
+            BasisSettingsDefaults.DisableLogging.ResetToDefault();
             BasisSettingsDefaults.DevShowBuildInfo.ResetToDefault();
             BasisSettingsDefaults.DevShowConsole.ResetToDefault();
             BasisSettingsDefaults.DevShowEuroFilter.ResetToDefault();
