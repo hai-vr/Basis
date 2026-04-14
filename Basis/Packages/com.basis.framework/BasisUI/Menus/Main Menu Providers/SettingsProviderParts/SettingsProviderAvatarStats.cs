@@ -75,30 +75,31 @@ namespace Basis.BasisUI
             }
 
             int assignedCount = 0;
-            for (int i = 0; i < manager.AllInputDevices.Count; i++)
+            foreach (BasisBoneTrackedRole role in System.Enum.GetValues(typeof(BasisBoneTrackedRole)))
             {
-                BasisInput device = manager.AllInputDevices[i];
-                if (device == null) continue;
-                if (!device.TryGetRole(out BasisBoneTrackedRole role)) continue;
+                string value;
+                if (manager.FindDevice(out BasisInput device, role) && device != null)
+                {
+                    string deviceLabel = !string.IsNullOrEmpty(device.CommonDeviceIdentifier)
+                        ? device.CommonDeviceIdentifier
+                        : (!string.IsNullOrEmpty(device.ClassName) ? device.ClassName : "Unknown Device");
+                    value = !string.IsNullOrEmpty(device.UniqueDeviceIdentifier)
+                        ? $"{deviceLabel}  ({device.UniqueDeviceIdentifier})"
+                        : deviceLabel;
+                    assignedCount++;
+                }
+                else
+                {
+                    value = "Unassigned";
+                }
 
-                assignedCount++;
-                string deviceLabel = !string.IsNullOrEmpty(device.CommonDeviceIdentifier)
-                    ? device.CommonDeviceIdentifier
-                    : (!string.IsNullOrEmpty(device.ClassName) ? device.ClassName : "Unknown Device");
-                string detail = $"{role} | {deviceLabel} | {device.UniqueDeviceIdentifier}";
-
-                AddInfoField(group, role.ToString(), detail);
+                PanelElementDescriptor row = PanelElementDescriptor.CreateNew(
+                    PanelElementDescriptor.ElementStyles.Group, group.ContentParent);
+                row.SetTitle(role.ToString());
+                row.SetDescription(value);
             }
 
-            if (assignedCount == 0)
-            {
-                group.SetDescription("No input devices currently have a role assigned.");
-                AddInfoField(group, "Trackers", "None assigned");
-            }
-            else
-            {
-                group.SetDescription($"{assignedCount} tracker(s) currently bound to avatar roles.");
-            }
+            group.SetDescription($"{assignedCount} of {System.Enum.GetValues(typeof(BasisBoneTrackedRole)).Length} roles currently bound.");
         }
 
         /// <summary>
