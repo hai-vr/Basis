@@ -298,6 +298,16 @@ namespace Basis.Scripts.BasisSdk.Players
 
                 // Fetch per-player visibility settings.
                 BasisPlayerSettingsData = await BasisPlayerSettingsManager.RequestPlayerSettings(UUID);
+
+                // The await above is file I/O — the player can disconnect and be destroyed
+                // mid-await. BasisAvatarFactory.CancelPlayerLoad can't help here because the
+                // per-player cancellation token is created inside LoadAvatarRemote, after
+                // this point. Bail before touching any Unity native members.
+                if (this == null)
+                {
+                    return;
+                }
+
                 IsBlocked = BasisPlayerSettingsData.IsBlocked;
 
                 // Remember last requested avatar and mode for potential reloads.

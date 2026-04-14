@@ -86,6 +86,11 @@ namespace Basis.Scripts.Avatar
         /// <param name="Rotation">Spawn rotation for the avatar.</param>
         public static async Task LoadAvatarLocal(BasisLocalPlayer Player, byte Mode, BasisLoadableBundle BasisLoadableBundle, Vector3 Position, Quaternion Rotation)
         {
+            if (Player == null)
+            {
+                return;
+            }
+
             var token = ReplacePlayerLoadToken(Player);
 
             if (string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
@@ -177,6 +182,14 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         public static async Task LoadAvatarRemote(BasisRemotePlayer Player, byte Mode, BasisLoadableBundle BasisLoadableBundle, Vector3 Position, Quaternion Rotation)
         {
+            // Caller may have been destroyed between scheduling this load and us running
+            // (e.g. disconnect during an earlier async step). Unity's overloaded == catches
+            // destroyed-but-not-yet-GCd objects.
+            if (Player == null)
+            {
+                return;
+            }
+
             var token = ReplacePlayerLoadToken(Player);
 
             if (string.IsNullOrEmpty(BasisLoadableBundle.BasisRemoteBundleEncrypted.RemoteBeeFileLocation))
@@ -211,6 +224,14 @@ namespace Basis.Scripts.Avatar
                         try
                         {
                             token.ThrowIfCancellationRequested();
+
+                            // Player may have been destroyed while we were queued on the gate.
+                            // Treat that as a cancellation so the existing OCE branch handles
+                            // cleanup instead of letting Player.transform throw downstream.
+                            if (Player == null)
+                            {
+                                throw new OperationCanceledException(token);
+                            }
 
                             if (Mode == 0)
                             {
@@ -345,6 +366,14 @@ namespace Basis.Scripts.Avatar
         /// </summary>
         public static void LoadAvatarAfterError(BasisPlayer Player, Vector3 Position, Quaternion Rotation)
         {
+            // Error paths reach here after an await — the player may already be destroyed.
+            // Accessing Player.transform on a destroyed object would throw a second
+            // MissingReferenceException while we're already handling the first one.
+            if (Player == null)
+            {
+                return;
+            }
+
             try
             {
                 GameObject data = GameObject.Instantiate(CachedLoadingAvatarPrefab, Position, Rotation, Player.transform);
