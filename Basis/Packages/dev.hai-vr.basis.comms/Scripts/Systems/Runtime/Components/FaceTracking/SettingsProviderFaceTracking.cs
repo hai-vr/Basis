@@ -71,6 +71,11 @@ namespace HVR.Basis.Comms
             toggleTextures.Descriptor.SetDescription("Show texture, VRAM, and streaming mipmap statistics for the current avatar.");
             toggleTextures.AssignBinding(BasisSettingsDefaults.AvatarShowTextureStats);
 
+            PanelToggle toggleTrackerRoles = PanelToggle.CreateNewEntry(sectionTogglesGroup.ContentParent);
+            toggleTrackerRoles.Descriptor.SetTitle("Show Assigned Trackers");
+            toggleTrackerRoles.Descriptor.SetDescription("List every input device that has been assigned a tracked bone role.");
+            toggleTrackerRoles.AssignBinding(BasisSettingsDefaults.AvatarShowTrackerRoles);
+
             // ── Collapsible Texture Section (disabled by default) ──
             PanelElementDescriptor textureSection = null;
             void CreateTextureSection()
@@ -95,6 +100,31 @@ namespace HVR.Basis.Comms
                     textureSection = null;
                 }
                 if (on) CreateTextureSection();
+            };
+
+            // ── Collapsible Tracker Roles Section (disabled by default) ──
+            PanelElementDescriptor trackerRolesSection = null;
+            void CreateTrackerRolesSection()
+            {
+                trackerRolesSection = PanelElementDescriptor.CreateNew(
+                    PanelElementDescriptor.ElementStyles.Group, container);
+                trackerRolesSection.SetTitle("Assigned Trackers");
+                SettingsProviderAvatarStats.PopulateTrackerRoles(trackerRolesSection);
+            }
+
+            if (BasisSettingsDefaults.AvatarShowTrackerRoles.RawValue)
+            {
+                CreateTrackerRolesSection();
+            }
+
+            toggleTrackerRoles.OnValueChanged += on =>
+            {
+                if (trackerRolesSection != null)
+                {
+                    Object.Destroy(trackerRolesSection.gameObject);
+                    trackerRolesSection = null;
+                }
+                if (on) CreateTrackerRolesSection();
             };
 
             descriptor.ForceRebuild();

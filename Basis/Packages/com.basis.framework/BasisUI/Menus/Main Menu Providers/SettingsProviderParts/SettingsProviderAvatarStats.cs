@@ -1,4 +1,7 @@
 using Basis.Scripts.BasisSdk.Players;
+using Basis.Scripts.Device_Management;
+using Basis.Scripts.Device_Management.Devices;
+using Basis.Scripts.TransformBinders.BoneControl;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -28,8 +31,74 @@ namespace Basis.BasisUI
                 descriptor.ForceRebuild();
             };
 
+            PanelElementDescriptor trackersGroup =
+                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+            trackersGroup.SetTitle("Tracker Roles");
+            trackersGroup.SetDescription("Inspect which physical trackers are currently bound to avatar roles.");
+
+            PanelToggle trackerRolesToggle = PanelToggle.CreateNewEntry(trackersGroup.ContentParent);
+            trackerRolesToggle.Descriptor.SetTitle("Show Assigned Trackers");
+            trackerRolesToggle.Descriptor.SetDescription("List every input device that has been assigned a tracked bone role.");
+            trackerRolesToggle.AssignBinding(BasisSettingsDefaults.AvatarShowTrackerRoles);
+
+            PanelElementDescriptor trackerListGroup = null;
+            void CreateTrackerList()
+            {
+                trackerListGroup = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
+                trackerListGroup.SetTitle("Assigned Trackers");
+                PopulateTrackerRoles(trackerListGroup);
+            }
+            if (BasisSettingsDefaults.AvatarShowTrackerRoles.RawValue) CreateTrackerList();
+            trackerRolesToggle.OnValueChanged += on =>
+            {
+                if (trackerListGroup != null)
+                {
+                    Object.Destroy(trackerListGroup.gameObject);
+                    trackerListGroup = null;
+                }
+                if (on) CreateTrackerList();
+                LayoutRebuilder.ForceRebuildLayoutImmediate(container);
+                descriptor.ForceRebuild();
+            };
+
             descriptor.ForceRebuild();
             return tab;
+        }
+
+        public static void PopulateTrackerRoles(PanelElementDescriptor group)
+        {
+            BasisDeviceManagement manager = BasisDeviceManagement.Instance;
+            if (manager == null)
+            {
+                group.SetDescription("Device manager is not available.");
+                return;
+            }
+
+            int assignedCount = 0;
+            for (int i = 0; i < manager.AllInputDevices.Count; i++)
+            {
+                BasisInput device = manager.AllInputDevices[i];
+                if (device == null) continue;
+                if (!device.TryGetRole(out BasisBoneTrackedRole role)) continue;
+
+                assignedCount++;
+                string deviceLabel = !string.IsNullOrEmpty(device.CommonDeviceIdentifier)
+                    ? device.CommonDeviceIdentifier
+                    : (!string.IsNullOrEmpty(device.ClassName) ? device.ClassName : "Unknown Device");
+                string detail = $"{role} | {deviceLabel} | {device.UniqueDeviceIdentifier}";
+
+                AddInfoField(group, role.ToString(), detail);
+            }
+
+            if (assignedCount == 0)
+            {
+                group.SetDescription("No input devices currently have a role assigned.");
+                AddInfoField(group, "Trackers", "None assigned");
+            }
+            else
+            {
+                group.SetDescription($"{assignedCount} tracker(s) currently bound to avatar roles.");
+            }
         }
 
         /// <summary>
