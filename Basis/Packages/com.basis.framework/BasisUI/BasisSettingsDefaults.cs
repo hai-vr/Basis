@@ -169,6 +169,8 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> AvatarShowTextureStats = new("avatarshowtexturestats", new BasisPlatformDefault<bool>(false));
 
+        public static BasisSettingsBinding<bool> AvatarShowTrackerRoles = new("avatarshowtrackerroles", new BasisPlatformDefault<bool>(false));
+
         public static BasisSettingsBinding<bool> DevShowBuildInfo = new("devshowbuildinfo", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowConsole = new("devshowconsole", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> DevShowEuroFilter = new("devshowfilter", new BasisPlatformDefault<bool>(false));
@@ -642,7 +644,6 @@ namespace Basis.BasisUI
             windows = false,
         });
         public static BasisSettingsBinding<bool> NPHoverMenuOnly = new("np_hovermenuonly", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> NPWidth = new("np_width", new BasisPlatformDefault<float>(30f));
         public static BasisSettingsBinding<float> NPSize = new("np_size", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> NPTransparency = new("np_transparency", new BasisPlatformDefault<float>(0.45f));
 
@@ -770,6 +771,7 @@ namespace Basis.BasisUI
             HDRSupport.LoadBindingValue();
             Antialiasing.LoadBindingValue();
             DebugVisuals.LoadBindingValue();
+            AvatarShowTrackerRoles.LoadBindingValue();
             DisableLogging.LoadBindingValue();
             BasisDebug.LoggingDisabled = DisableLogging.RawValue;
             DisableLogging.OnChanged += value => BasisDebug.LoggingDisabled = value;
@@ -962,7 +964,6 @@ namespace Basis.BasisUI
             NPEnabled.LoadBindingValue();
             NPMenuOnly.LoadBindingValue();
             NPHoverMenuOnly.LoadBindingValue();
-            NPWidth.LoadBindingValue();
             NPSize.LoadBindingValue();
             NPTransparency.LoadBindingValue();
 

@@ -42,7 +42,6 @@ namespace Basis.Scripts.UI.NamePlate
         public static bool NamePlateEnabled = true;
         public static bool NamePlateMenuOnly = false;
         public static bool NamePlateHoverMenuOnly = false;
-        public static float NamePlateHalfWidth = 30f;
         public static float NamePlateSize = 1f;
         public static float NamePlateTransparency = 0.45f;
         private static bool lastMenuOpenState;
@@ -74,7 +73,6 @@ namespace Basis.Scripts.UI.NamePlate
             NamePlateEnabled = BasisSettingsDefaults.NPEnabled.RawValue;
             NamePlateMenuOnly = BasisSettingsDefaults.NPMenuOnly.RawValue;
             NamePlateHoverMenuOnly = BasisSettingsDefaults.NPHoverMenuOnly.RawValue;
-            NamePlateHalfWidth = BasisSettingsDefaults.NPWidth.RawValue;
             NamePlateSize = BasisSettingsDefaults.NPSize.RawValue;
             NamePlateTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
             lastMenuOpenState = BasisMainMenu.Instance != null;
@@ -161,23 +159,19 @@ namespace Basis.Scripts.UI.NamePlate
 
         /// <summary>
         /// Called by SettingsProviderNamePlate when nameplate settings change.
-        /// Re-reads settings and applies width, size, and transparency to all active plates.
+        /// Re-reads settings and applies size and transparency to all active plates.
         /// </summary>
         public void ApplyNamePlateSettingsFromUI()
         {
             bool enabled = BasisSettingsDefaults.NPEnabled.RawValue;
             bool menuOnly = BasisSettingsDefaults.NPMenuOnly.RawValue;
             bool hoverMenuOnly = BasisSettingsDefaults.NPHoverMenuOnly.RawValue;
-            float newWidth = BasisSettingsDefaults.NPWidth.RawValue;
             float newSize = BasisSettingsDefaults.NPSize.RawValue;
             float newTransparency = BasisSettingsDefaults.NPTransparency.RawValue;
-
-            bool widthChanged = !Mathf.Approximately(NamePlateHalfWidth, newWidth);
 
             NamePlateEnabled = enabled;
             NamePlateMenuOnly = menuOnly;
             NamePlateHoverMenuOnly = hoverMenuOnly;
-            NamePlateHalfWidth = newWidth;
             NamePlateSize = newSize;
             NamePlateTransparency = newTransparency;
 
@@ -188,11 +182,6 @@ namespace Basis.Scripts.UI.NamePlate
             {
                 var plate = plates[i];
                 if (plate == null) continue;
-
-                if (widthChanged && plate.BasisRemotePlayer != null)
-                {
-                    GenerateTextFactory(plate.BasisRemotePlayer, plate);
-                }
 
                 if (plate.Self != null)
                 {
@@ -241,11 +230,9 @@ namespace Basis.Scripts.UI.NamePlate
             Text.ForceMeshUpdate();
 
             // Measure the baked text so the background fits its actual content.
-            // Cap at NamePlateHalfWidth so the slider still acts as a max width.
             Vector2 textSize = Text.GetRenderedValues(true);
             const float horizontalPadding = 2f;
-            float fittedHalfWidth = (textSize.x * 0.5f) + horizontalPadding;
-            float halfWidth = Mathf.Min(fittedHalfWidth, NamePlateHalfWidth);
+            float halfWidth = (textSize.x * 0.5f) + horizontalPadding;
 
             Mesh textMesh = Instantiate(Text.mesh);
             FlipMesh(textMesh);

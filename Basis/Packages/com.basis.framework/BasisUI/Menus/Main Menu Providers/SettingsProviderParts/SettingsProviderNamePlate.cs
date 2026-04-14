@@ -5,7 +5,7 @@ namespace Basis.BasisUI
 {
     /// <summary>
     /// Settings tab for remote nameplate appearance.
-    /// Exposes an enable toggle plus width, size, and transparency controls.
+    /// Exposes an enable toggle plus size and transparency controls.
     /// </summary>
     public static class SettingsProviderNamePlate
     {
@@ -42,11 +42,6 @@ namespace Basis.BasisUI
             toggleHoverMenuOnly.Descriptor.SetTitle("Only Allow Hover When Menu Open");
             toggleHoverMenuOnly.AssignBinding(BasisSettingsDefaults.NPHoverMenuOnly);
 
-            PanelSlider sliderWidth = PanelSlider.CreateEntryAndBind(
-                nameplateGroup,
-                PanelSlider.SliderSettings.Advanced("Width", 10f, 60f, false, 1, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.NPWidth);
-
             PanelSlider sliderSize = PanelSlider.CreateEntryAndBind(
                 nameplateGroup,
                 PanelSlider.SliderSettings.Advanced("Size", 0.5f, 2f, false, 2, ValueDisplayMode.Raw),
@@ -61,14 +56,12 @@ namespace Basis.BasisUI
             bool isEnabled = BasisSettingsDefaults.NPEnabled.RawValue;
             toggleMenuOnly.Descriptor.SetActive(isEnabled);
             toggleHoverMenuOnly.Descriptor.SetActive(isEnabled);
-            sliderWidth.Descriptor.SetActive(isEnabled);
             sliderSize.Descriptor.SetActive(isEnabled);
             sliderTransparency.Descriptor.SetActive(isEnabled);
             toggleEnabled.OnValueChanged += (val) =>
             {
                 toggleMenuOnly.Descriptor.SetActive(val);
                 toggleHoverMenuOnly.Descriptor.SetActive(val);
-                sliderWidth.Descriptor.SetActive(val);
                 sliderSize.Descriptor.SetActive(val);
                 sliderTransparency.Descriptor.SetActive(val);
                 nameplateGroup.ForceRebuild();
@@ -86,7 +79,6 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.NPEnabled.ResetToDefault();
             BasisSettingsDefaults.NPMenuOnly.ResetToDefault();
             BasisSettingsDefaults.NPHoverMenuOnly.ResetToDefault();
-            BasisSettingsDefaults.NPWidth.ResetToDefault();
             BasisSettingsDefaults.NPSize.ResetToDefault();
             BasisSettingsDefaults.NPTransparency.ResetToDefault();
             ApplyNamePlateSettings();

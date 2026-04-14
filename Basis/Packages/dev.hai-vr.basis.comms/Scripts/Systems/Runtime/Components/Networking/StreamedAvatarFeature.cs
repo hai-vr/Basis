@@ -37,6 +37,7 @@ namespace HVR.Basis.Comms
         private float[] current;
         private float[] previous;
         private float[] target;
+        private byte[] _sendBuffer;
         private float _deltaTime;
         private float _timeLeft;
         private bool _isOutOfTape;
@@ -119,12 +120,7 @@ namespace HVR.Basis.Comms
 
             if (_timeLeft > TransmissionDeltaSeconds)
             {
-                var toSend = new StreamedAvatarFeaturePayload
-                {
-                    DeltaTime = _timeLeft,
-                    FloatValues = PrioritizeLargeChanges ? target : current // Not copied: Process this message immediately
-                };
-                EncodeAndSubmit(toSend, null);
+                EncodeAndSubmit(_timeLeft, PrioritizeLargeChanges ? target : current, null);
                 if (PrioritizeLargeChanges)
                 {
                     // Order matters: Modify target after EncodeAndSubmit() executes.
@@ -223,16 +219,22 @@ namespace HVR.Basis.Comms
         //   - Delta Time (1 byte)
         //   - Float Values (valueArraySize bytes)
 
-        private void EncodeAndSubmit(StreamedAvatarFeaturePayload message, ushort[] recipientsNullable)
+        // Reused across sends: the avatar compressor consumes this buffer synchronously
+        // later in the same frame (ClearAdditional runs before the next Update), so a
+        // single per-instance buffer is safe.
+        private void EncodeAndSubmit(float deltaTime, float[] floatValues, ushort[] recipientsNullable)
         {
-            var buffer = new byte[HeaderBytes + valueArraySize];//3 + 256 = 259
+            if (_sendBuffer == null || _sendBuffer.Length != HeaderBytes + valueArraySize)
+                _sendBuffer = new byte[HeaderBytes + valueArraySize];
+
+            var buffer = _sendBuffer;
             buffer[0] = AvatarMessageProcessing.NewNet_WearerData;
             buffer[1] = localIdentifier;
-            buffer[2] = (byte)(message.DeltaTime / DeltaLocalIntToSeconds);
+            buffer[2] = (byte)(deltaTime / DeltaLocalIntToSeconds);
 
             for (var i = 0; i < current.Length; i++)
             {
-                buffer[HeaderBytes + i] = (byte)(message.FloatValues[i] * EncodingRange);
+                buffer[HeaderBytes + i] = (byte)(floatValues[i] * EncodingRange);
             }
             if (recipientsNullable == null || recipientsNullable.Length == 0)
             {
@@ -280,20 +282,12 @@ namespace HVR.Basis.Comms
 
         public void OnResyncEveryoneRequested()
         {
-            EncodeAndSubmit(new StreamedAvatarFeaturePayload
-            {
-                DeltaTime = DeltaTimeUsedForResyncs,
-                FloatValues = current
-            }, null);
+            EncodeAndSubmit(DeltaTimeUsedForResyncs, current, null);
         }
 
         public void OnResyncRequested(ushort[] whoAsked)
         {
-            EncodeAndSubmit(new StreamedAvatarFeaturePayload
-            {
-                DeltaTime = DeltaTimeUsedForResyncs,
-                FloatValues = current
-            }, whoAsked);
+            EncodeAndSubmit(DeltaTimeUsedForResyncs, current, whoAsked);
         }
 
         private void EnsureBuffers()
