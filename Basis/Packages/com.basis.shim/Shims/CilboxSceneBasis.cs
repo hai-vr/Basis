@@ -206,6 +206,18 @@ namespace Cilbox
 
 			if( name.Contains( "Invoke" ) ) return false;
 
+			// Redirect every UnityEngine.Object.Instantiate variant through the
+			// sanitizing shim so spawned prefabs are scrubbed (disallowed components
+			// destroyed, persistent UnityEvent listeners killed) while parked under a
+			// disabled host before they become active in hierarchy.
+			if( declaringType == typeof(UnityEngine.Object) &&
+				( name == "Instantiate" || name == "InstantiateAsync" ) )
+			{
+				mi = Basis.Shims.BasisCilboxInstantiateShim.ResolveShim(
+					usage, name, parametersIn, genericArgumentsIn, fullSignature );
+				return mi != null;
+			}
+
 			if( whiteListMethods.TryGetValue( declaringType, out var allowed ) )
 			{
 				if( !allowed.Contains( name ) ) return false;

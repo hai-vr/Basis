@@ -190,6 +190,20 @@ namespace Cilbox
 
 			if( name.Contains( "Invoke" ) ) return false;
 
+			// UnityEngine.Object.Instantiate spawns a prefab tree verbatim, so the clone
+			// can carry UnityEvents that execute outside the sandbox (e.g. Button.onClick
+			// -> Application.OpenURL). Redirect every Instantiate variant through the
+			// sanitizing shim: it spawns under a disabled host, scrubs disallowed
+			// components via the prop content-police selector, and kills all persistent
+			// UnityEvent listeners before the clone becomes active in hierarchy.
+			if( declaringType == typeof(UnityEngine.Object) &&
+				( name == "Instantiate" || name == "InstantiateAsync" ) )
+			{
+				mi = Basis.Shims.BasisCilboxInstantiateShim.ResolveShim(
+					usage, name, parametersIn, genericArgumentsIn, fullSignature );
+				return mi != null;
+			}
+
 			if( methodWhitelist.TryGetValue( declaringType, out var allowed ) )
 			{
 				if( !allowed.Contains( name ) ) return false;
