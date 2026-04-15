@@ -484,6 +484,61 @@ namespace Basis.BasisUI
                 avatarErrorField.SetDescription(remotePlayer.AvatarLoadErrorMessage);
             }
 
+            // Performance filter result — tells the local user why a specific remote
+            // avatar was hard-blocked and/or what the trim pass removed from it,
+            // and offers a per-player bypass toggle so they can see this one avatar
+            // at full fidelity without editing the global caps. The section stays
+            // visible when bypass is on (even if nothing's filtered) so the user
+            // can find the toggle again to turn it off.
+            {
+                var perf = remotePlayer.LastPerformanceInfo;
+                bool hasAnyInfo = perf.Blocked || perf.AnythingTrimmed;
+                bool bypassOn = remotePlayer.BypassPerformanceLimits;
+                if (hasAnyInfo || bypassOn)
+                {
+                    var perfField = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, avatarGroup.ContentParent);
+                    perfField.SetTitle("Performance Filter");
+
+                    string description;
+                    if (bypassOn)
+                    {
+                        description = "Bypassed for this player — performance limits ignored until you toggle off or reconnect.";
+                    }
+                    else if (perf.Blocked)
+                    {
+                        description = "Avatar blocked: " + (perf.BlockReason ?? "unknown reason");
+                    }
+                    else
+                    {
+                        var parts = new System.Collections.Generic.List<string>(9);
+                        if (perf.AnimatorsTrimmed > 0) parts.Add($"-{perf.AnimatorsTrimmed} animators");
+                        if (perf.LightsTrimmed > 0) parts.Add($"-{perf.LightsTrimmed} lights");
+                        if (perf.ParticleSystemsTrimmed > 0) parts.Add($"-{perf.ParticleSystemsTrimmed} particle systems");
+                        if (perf.TrailRenderersTrimmed > 0) parts.Add($"-{perf.TrailRenderersTrimmed} trail renderers");
+                        if (perf.LineRenderersTrimmed > 0) parts.Add($"-{perf.LineRenderersTrimmed} line renderers");
+                        if (perf.ClothTrimmed > 0) parts.Add($"-{perf.ClothTrimmed} cloth");
+                        if (perf.CollidersTrimmed > 0) parts.Add($"-{perf.CollidersTrimmed} colliders");
+                        if (perf.JiggleRigsTrimmed > 0) parts.Add($"-{perf.JiggleRigsTrimmed} jiggle rigs");
+                        if (perf.JiggleCollidersTrimmed > 0) parts.Add($"-{perf.JiggleCollidersTrimmed} jiggle colliders");
+                        description = "Trimmed by performance filter: " + string.Join(", ", parts);
+                    }
+                    perfField.SetDescription(description);
+
+                    PanelToggle bypassPlayerToggle = PanelToggle.CreateNewEntry(perfField.ContentParent);
+                    bypassPlayerToggle.Descriptor.SetTitle("Bypass Limits For This Player");
+                    bypassPlayerToggle.SetValueWithoutNotify(bypassOn);
+                    bypassPlayerToggle.OnValueChanged += on =>
+                    {
+                        if (remotePlayer == null) return;
+                        remotePlayer.BypassPerformanceLimits = on;
+                        // Full reload: turning on restores destroyed components
+                        // (no in-place path exists for restore), turning off re-runs
+                        // Evaluate and TrimExcessComponents with the real limits.
+                        remotePlayer.ReloadAvatar();
+                    };
+                }
+            }
+
             PanelButton toggleAvatarBtn = PanelButton.CreateNew(avatarGroup.ContentParent);
             toggleAvatarBtn.Descriptor.SetTitle(BasisLocalization.Get(settings.AvatarVisible ? "menu.individualPlayer.hideAvatar" : "menu.individualPlayer.showAvatar"));
             toggleAvatarBtn.Descriptor.SetDescription(BasisLocalization.Get("menu.individualPlayer.toggleAvatar.description"));
