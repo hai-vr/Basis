@@ -35,6 +35,10 @@ namespace Basis.BasisUI
             playersGroup.SetDescription(BasisLocalization.Get("settings.admin.players.description"));
 
             // A controller MonoBehaviour to manage lifetime + rebuild list on joins/leaves.
+            // Note: AddComponent fires Awake+OnEnable synchronously on an active GameObject,
+            // so OnEnable will see an unset PlayerListParent. We intentionally defer the
+            // first RebuildPlayerList call until the end of this method, after every field
+            // below is populated. See the explicit controller.RebuildPlayerList() call there.
             AdminTabController controller = tab.gameObject.AddComponent<AdminTabController>();
             controller.PlayerListParent = playersGroup.ContentParent;
 
@@ -355,6 +359,12 @@ namespace Basis.BasisUI
             // Permissions section
             SettingsProviderPermissionsTab.BuildPermissionsUI(container, tab.gameObject);
 
+            // Now that every controller field is wired up, build the player list for
+            // the first time. OnEnable already fired (synchronously) during AddComponent
+            // above and saw an unset PlayerListParent, so without this call the tab would
+            // open with an empty list and the user would have to click Refresh manually.
+            controller.RebuildPlayerList();
+
             descriptor.ForceRebuild();
             return tab;
         }
@@ -431,12 +441,33 @@ namespace Basis.BasisUI
 
             private void OnEnable()
             {
+                // `-=` before `+=` dedupes — OnEnable fires on every re-activation, and
+                // without this the subscription would stack each time the tab was reopened.
+                BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemotePlayersChanged;
                 BasisNetworkPlayer.OnRemotePlayerJoined += OnRemotePlayersChanged;
+                BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayersChanged;
                 BasisNetworkPlayer.OnRemotePlayerLeft += OnRemotePlayersChanged;
+                BasisNetworkModeration.OnGlobalLockStateChanged -= OnGlobalLockStateChanged;
                 BasisNetworkModeration.OnGlobalLockStateChanged += OnGlobalLockStateChanged;
+                BasisNetworkModeration.OnGlobalHeadlessAudioStateChanged -= OnGlobalHeadlessAudioStateChanged;
                 BasisNetworkModeration.OnGlobalHeadlessAudioStateChanged += OnGlobalHeadlessAudioStateChanged;
+                BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged -= OnGlobalHeadlessDisallowStateChanged;
                 BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged += OnGlobalHeadlessDisallowStateChanged;
+
+                // On the very first activation PlayerListParent is still null (we race
+                // AdminTab()'s field assignment), so let this early-return. AdminTab()
+                // calls RebuildPlayerList explicitly once every field is wired up.
+                // Subsequent activations have valid state and rebuild here.
                 RebuildPlayerList();
+            }
+
+            private void OnDisable()
+            {
+                BasisNetworkPlayer.OnRemotePlayerJoined -= OnRemotePlayersChanged;
+                BasisNetworkPlayer.OnRemotePlayerLeft -= OnRemotePlayersChanged;
+                BasisNetworkModeration.OnGlobalLockStateChanged -= OnGlobalLockStateChanged;
+                BasisNetworkModeration.OnGlobalHeadlessAudioStateChanged -= OnGlobalHeadlessAudioStateChanged;
+                BasisNetworkModeration.OnGlobalHeadlessDisallowStateChanged -= OnGlobalHeadlessDisallowStateChanged;
             }
 
             private void OnDestroy()
