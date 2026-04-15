@@ -25,6 +25,8 @@ namespace Basis.BasisUI
         private const float UpdateInterval = 0.25f;
 
         private bool _richTextDisabled;
+        private int _updatesSincePopulated;
+        private bool _layoutFrozen;
 
         private void DisableRichTextOnce()
         {
@@ -38,6 +40,24 @@ namespace Basis.BasisUI
             TransmissionField?.DisableRichText();
             BandwidthField?.DisableRichText();
             MetaField?.DisableRichText();
+        }
+
+        private void FreezeLayoutOnce()
+        {
+            if (_layoutFrozen) return;
+            _layoutFrozen = true;
+            // After we've pushed a couple of ticks of text and the content has
+            // reached its max natural size, lock each field's layout. This
+            // stops the ContentSizeFitter cascade that otherwise rebuilds the
+            // whole settings tab's layout every SetDescription call.
+            // minHeight values are sized for the worst-case content per field.
+            ConnectionField?.FreezeLayoutSize(110f);
+            ServerField?.FreezeLayoutSize(110f);
+            PingField?.FreezeLayoutSize(130f);
+            PlayersField?.FreezeLayoutSize(220f);
+            TransmissionField?.FreezeLayoutSize(170f);
+            BandwidthField?.FreezeLayoutSize(170f);
+            MetaField?.FreezeLayoutSize(150f);
         }
 
         private void Update()
@@ -236,6 +256,18 @@ namespace Basis.BasisUI
                     $"Base Multiplier: {meta.BaseMultiplier}\n" +
                     $"Increase Rate: {meta.IncreaseRate:F4}\n" +
                     $"Slowest Send Rate: {meta.SlowestSendRate:F2}s");
+            }
+
+            // Give the layout 2 ticks of real content to settle (bandwidth fills
+            // the second tick once deltas exist), then freeze. After this point,
+            // SetDescription calls above are leaf text changes that don't cascade.
+            if (!_layoutFrozen)
+            {
+                _updatesSincePopulated++;
+                if (_updatesSincePopulated >= 2)
+                {
+                    FreezeLayoutOnce();
+                }
             }
         }
 

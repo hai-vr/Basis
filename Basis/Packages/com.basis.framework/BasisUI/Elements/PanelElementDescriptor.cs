@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using TMPro;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -95,7 +96,7 @@ namespace Basis.BasisUI
         {
             get
             {
-                if (!_layout) _layout = GetComponent<LayoutElement>();
+                if (!_layout) TryGetComponent(out _layout);
                 return _layout;
             }
         }
@@ -105,6 +106,15 @@ namespace Basis.BasisUI
         protected override void Awake()
         {
             base.Awake();
+
+            // Title/Description labels are display-only across every panel element —
+            // stripping raycastTarget removes them from GraphicRaycaster's per-pointer
+            // hit test and shrinks ClipperRegistry's per-frame work. Descriptive
+            // graphics (icon, background) are almost never interactive either, but
+            // we leave those alone because PanelButton uses the root background as
+            // its click target on some variants.
+            if (TitleLabel != null) TitleLabel.raycastTarget = false;
+            if (DescriptionLabel != null) DescriptionLabel.raycastTarget = false;
 
             // If no background has been manually assigned for an existing icon, assign itself.
             if (IconImage && !IconBackground) IconBackground = IconImage.gameObject;
@@ -194,6 +204,47 @@ namespace Basis.BasisUI
             if (HasTitle) TitleLabel.richText = false;
             if (HasDescription) DescriptionLabel.richText = false;
         }
+
+        private bool _layoutFrozen;
+
+        /// <summary>
+        /// Freezes this descriptor's layout size so future text changes don't cascade
+        /// layout rebuilds up through parent LayoutGroups. Works by:
+        ///  1. Running ForceRebuildLayoutImmediate so the current natural size is captured.
+        ///  2. Disabling every ContentSizeFitter in the subtree — each one would otherwise
+        ///     recompute on every text change and re-dirty parents.
+        ///  3. Pinning a LayoutElement.preferredHeight on the root so parent LayoutGroups
+        ///     see a stable value (max of current natural height and minHeight).
+        /// Call this AFTER the descriptor has been populated with its initial content.
+        /// Pass a <paramref name="minHeight"/> large enough to fit future content — once
+        /// frozen, if text grows beyond this the overflow will be clipped.
+        /// </summary>
+        public void FreezeLayoutSize(float minHeight = 0f)
+        {
+            if (_layoutFrozen) return;
+            _layoutFrozen = true;
+
+            // Settle current content so the natural height we capture is real.
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rectTransform);
+
+            GetComponentsInChildren(true, _frozenFitters);
+            for (int i = 0; i < _frozenFitters.Count; i++)
+            {
+                _frozenFitters[i].enabled = false;
+            }
+            _frozenFitters.Clear();
+
+            if (!TryGetComponent(out LayoutElement le))
+            {
+                le = gameObject.AddComponent<LayoutElement>();
+            }
+            float height = Mathf.Max(rectTransform.rect.height, minHeight);
+            le.preferredHeight = height;
+            le.minHeight = height;
+        }
+
+        // Reused buffer so FreezeLayoutSize doesn't allocate per call.
+        private static readonly List<ContentSizeFitter> _frozenFitters = new List<ContentSizeFitter>();
 
         public void SetActive(bool value)
         {

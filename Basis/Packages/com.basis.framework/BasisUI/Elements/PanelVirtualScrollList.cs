@@ -66,8 +66,10 @@ namespace Basis.BasisUI
 
         public static PanelVirtualScrollList AttachTo(ScrollRect scroll, float rowHeight, float spacing = 8f, int rowBuffer = 2)
         {
-            PanelVirtualScrollList list = scroll.GetComponent<PanelVirtualScrollList>();
-            if (list == null) list = scroll.gameObject.AddComponent<PanelVirtualScrollList>();
+            if (!scroll.TryGetComponent(out PanelVirtualScrollList list))
+            {
+                list = scroll.gameObject.AddComponent<PanelVirtualScrollList>();
+            }
             list._scroll = scroll;
             list._content = scroll.content;
             list._viewport = scroll.viewport != null ? scroll.viewport : (RectTransform)scroll.transform;
@@ -80,10 +82,8 @@ namespace Basis.BasisUI
             // fight us by reflowing children.
             if (list._content != null)
             {
-                LayoutGroup group = list._content.GetComponent<LayoutGroup>();
-                if (group != null) group.enabled = false;
-                ContentSizeFitter fitter = list._content.GetComponent<ContentSizeFitter>();
-                if (fitter != null) fitter.enabled = false;
+                if (list._content.TryGetComponent(out LayoutGroup group)) group.enabled = false;
+                if (list._content.TryGetComponent(out ContentSizeFitter fitter)) fitter.enabled = false;
 
                 // Anchor content to the top so row y = -index * stride is correct.
                 list._content.anchorMin = new Vector2(0f, 1f);
