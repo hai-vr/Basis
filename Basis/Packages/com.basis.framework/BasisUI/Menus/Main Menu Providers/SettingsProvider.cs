@@ -292,7 +292,7 @@ namespace Basis.BasisUI
 
             RectTransform container = descriptor.ContentParent;
 
-            BuildSettingsSearch(container, tabGroup);
+            // BuildSettingsSearch(container, tabGroup); // disabled — UI needs visual polish before re-enabling
 
             SettingsProviderPlatform.BuildDeviceModeUI(container);
 
